@@ -27,6 +27,11 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("link")).toBe(iconSvg("link"));
 	});
 
+	it("resolves the warning and info glyphs named by alert variants", () => {
+		expect(findIconSvg("alert-triangle")).toBe(iconSvg("alert-triangle"));
+		expect(findIconSvg("info")).toBe(iconSvg("info"));
+	});
+
 	it("reports an unknown name rather than drawing nothing, so a caller can fail a typo", () => {
 		expect(findIconSvg("fa-solid fa-inbox")).toBeUndefined();
 		expect(findIconSvg("constructor")).toBeUndefined();
@@ -34,6 +39,7 @@ describe("findIconSvg", () => {
 });
 
 const STROKE_NAMES: readonly IconName[] = [
+	"alert-triangle",
 	"arrow-down",
 	"arrow-left",
 	"arrow-right",
@@ -50,6 +56,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"file-down",
 	"folder",
 	"inbox",
+	"info",
 	"link",
 	"loader",
 	"log-in",

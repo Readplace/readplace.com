@@ -20,6 +20,7 @@ export function createPopupVisualConfig(input: {
 		}).outputDir,
 		baseURL: undefined,
 		retries: 0,
+		workers: 2,
 		browser: input.browser,
 		headless: input.headless,
 		video: "off",

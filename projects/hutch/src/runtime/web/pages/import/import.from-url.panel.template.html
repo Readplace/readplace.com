@@ -1,8 +1,5 @@
 {{#if errorMessage}}
-        <div class="import__alert" role="alert">
-          <span class="import__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-          <p class="import__alert-text" data-test-import-error>{{errorMessage}}</p>
-        </div>
+        {{{errorAlertHtml}}}
         {{/if}}
         <form class="import__from-url-form import__panel" method="POST" action="{{fromUrlAction}}"
           data-save-tip="{{saveTipState}}"

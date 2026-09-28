@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -116,8 +117,12 @@ describe("Admin extend-trial routes", () => {
 			const response = await agent.get("/admin/extend-trial?email=nobody@example.com");
 
 			expect(response.status).toBe(200);
-			const notFound = doc(response.text).querySelector("[data-test-extend-trial-not-found]");
-			expect(notFound?.textContent?.trim()).toBe("No account with that email.");
+			const notFound = doc(response.text).querySelector('[data-test-alert="extend-trial-not-found"]');
+			assert(notFound);
+			expect(notFound.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(notFound.getAttribute("role")).toBe("alert");
+			expect(notFound.classList.contains("alert--visible")).toBe(true);
+			expect(notFound.querySelector("[data-test-alert-title]")?.textContent).toBe("No account with that email.");
 		});
 
 		it("refuses a founding member instead of downgrading them", async () => {
@@ -127,8 +132,12 @@ describe("Admin extend-trial routes", () => {
 
 			const response = await agent.get(`/admin/extend-trial?email=${USER_EMAIL}`);
 
-			const refusal = doc(response.text).querySelector("[data-test-extend-trial-refusal]");
-			expect(refusal?.textContent).toContain("founding member");
+			const alert = doc(response.text).querySelector('[data-test-alert="extend-trial-refused"]');
+			assert(alert);
+			expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(alert.getAttribute("role")).toBe("alert");
+			expect(alert.classList.contains("alert--visible")).toBe(true);
+			expect(alert.querySelector("[data-test-extend-trial-refusal]")?.textContent).toContain("founding member");
 		});
 
 		it("shows the current window and prefills the date for a trialing user", async () => {
@@ -253,8 +262,12 @@ describe("Admin extend-trial routes", () => {
 				.send({ email: USER_EMAIL, trialEndsAt: "2020-01-01T00:00" });
 
 			expect(response.status).toBe(422);
-			const refusal = doc(response.text).querySelector("[data-test-extend-trial-refusal]");
-			expect(refusal?.textContent).toContain("has to end in the future");
+			const alert = doc(response.text).querySelector('[data-test-alert="extend-trial-refused"]');
+			assert(alert);
+			expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(alert.getAttribute("role")).toBe("alert");
+			expect(alert.classList.contains("alert--visible")).toBe(true);
+			expect(alert.querySelector("[data-test-extend-trial-refusal]")?.textContent).toContain("has to end in the future");
 			const row = await harness.subscriptionProviders.findByUserId(id);
 			expect(row?.trialEndsAt).toBe(EXISTING_TRIAL_END);
 		});
@@ -346,8 +359,12 @@ describe("Admin extend-trial routes", () => {
 				.send({ email: "nobody@example.com", trialEndsAt: NEW_TRIAL_END });
 
 			expect(response.status).toBe(422);
-			const notFound = doc(response.text).querySelector("[data-test-extend-trial-not-found]");
-			expect(notFound?.textContent?.trim()).toBe("No account with that email.");
+			const notFound = doc(response.text).querySelector('[data-test-alert="extend-trial-not-found"]');
+			assert(notFound);
+			expect(notFound.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(notFound.getAttribute("role")).toBe("alert");
+			expect(notFound.classList.contains("alert--visible")).toBe(true);
+			expect(notFound.querySelector("[data-test-alert-title]")?.textContent).toBe("No account with that email.");
 		});
 	});
 });

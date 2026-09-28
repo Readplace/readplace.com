@@ -4,6 +4,7 @@ import type { IconName } from "@packages/ui-icons";
 import {
 	CONFIRM_POPOVER_STYLES,
 	render,
+	renderAlert,
 	renderIllustration,
 	withInternalTracking,
 } from "@packages/web-shell";
@@ -46,7 +47,6 @@ import {
 	readlistReturnQuery,
 } from "./readlist.url";
 import type { ReadlistViewModel } from "./readlist.viewmodel";
-import { renderReadlistAlert } from "./readlist-alert.component";
 import { readlistAlertFor } from "./readlist-alerts";
 import { renderReadlistCard, toReadlistCardDisplayModel } from "./readlist-card/readlist-card.component";
 import { showingLabel } from "./readlist-counts.component";
@@ -230,7 +230,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				canCreate: options.rail.canCreate,
 			}),
 		),
-		alertHtml: renderReadlistAlert(alert),
+		alertHtml: renderAlert({ key: "readlist", content: alert }),
 		statusToastHtml: vm.statusFlash
 			? renderStatusToast(vm.statusFlash)
 			: "",

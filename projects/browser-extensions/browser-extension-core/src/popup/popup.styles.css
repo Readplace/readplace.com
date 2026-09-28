@@ -49,7 +49,8 @@ html {
 }
 
 body {
-  width: min(800px, 100vw);
+  width: 800px;
+  max-width: 100%;
   margin: 0;
   font-family: var(--font-sans);
   line-height: 1.6;

@@ -148,9 +148,12 @@ describe("Import routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-import-error]");
+			const error = doc.querySelector('[data-test-alert="import"]');
 			assert(error, "error banner must be rendered when an error code is present");
-			expect(error.textContent).toBe("We couldn't find any links in that file.");
+			expect(error.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(error.getAttribute("role")).toBe("alert");
+			expect(error.classList.contains("alert--visible")).toBe(true);
+			expect(error.querySelector("[data-test-alert-message]")?.textContent).toBe("We couldn't find any links in that file.");
 		});
 
 		it("renders the import_too_large message when error_code=import_too_large", async () => {
@@ -160,8 +163,11 @@ describe("Import routes", () => {
 			const response = await agent.get("/import?mode=upload&error_code=import_too_large");
 
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-import-error]");
+			const error = doc.querySelector('[data-test-alert="import"]');
 			assert(error, "error banner must be rendered");
+			expect(error.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(error.getAttribute("role")).toBe("alert");
+			expect(error.classList.contains("alert--visible")).toBe(true);
 			expect(error.textContent).toContain("split the export into smaller files");
 		});
 
@@ -172,19 +178,24 @@ describe("Import routes", () => {
 			const response = await agent.get("/import?mode=upload&error_code=import_session_not_found");
 
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-import-error]");
+			const error = doc.querySelector('[data-test-alert="import"]');
 			assert(error, "error banner must be rendered");
+			expect(error.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(error.getAttribute("role")).toBe("alert");
+			expect(error.classList.contains("alert--visible")).toBe(true);
 			expect(error.textContent).toBe("That import session has expired. Please upload the file again.");
 		});
 
-		it("does not render the error banner when no error_code is present", async () => {
+		it("renders the default acquisition form when no error code is present", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-import-error]")).toBeNull();
+			const form = doc.querySelector('[data-test-form="import-from-url"]');
+			assert(form, "the normal acquisition form must render");
+			expect(form.classList.contains("import__from-url-form")).toBe(true);
 		});
 	});
 
@@ -278,6 +289,28 @@ describe("Import routes", () => {
 	});
 
 	describe("GET /import/:id", () => {
+		it("shows the warning alert when only the first 2,000 links were imported", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const links = Array.from({ length: 2_001 }, (_, index) => `https://example.com/post-${index}`);
+			const { body, contentType } = multipartBody("urls.txt", Buffer.from(links.join("\n")));
+			const create = await agent
+				.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file")
+				.set("Content-Type", contentType)
+				.send(body);
+			const response = await agent.get(create.headers.location);
+
+			const doc = new JSDOM(response.text).window.document;
+			const warning = doc.querySelector('[data-test-alert="import-truncated"]');
+			assert(warning, "the truncated import must explain which links were retained");
+			expect(warning.getAttribute("data-test-alert-variant")).toBe("warning");
+			expect(warning.getAttribute("role")).toBe("status");
+			expect(warning.classList.contains("alert--visible")).toBe(true);
+			expect(warning.querySelector("[data-test-alert-message]")?.textContent).toBe(
+				"We found 2001 links. The first 2000 were imported.",
+			);
+		});
+
 		it("renders the review screen with all URLs checked by default", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
