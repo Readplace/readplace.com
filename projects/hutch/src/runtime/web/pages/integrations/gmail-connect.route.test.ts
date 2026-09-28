@@ -592,8 +592,16 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
-	it("reports a failed token exchange", async () => {
-		const { fixture } = fixtureWithGmail({ ok: false, reason: "exchange-failed" });
+	it("reports a failed token exchange and logs Google's error detail", async () => {
+		const { fixture } = fixtureWithGmail({
+			ok: false,
+			reason: "exchange-failed",
+			status: 400,
+			error: "invalid_grant",
+			errorDescription: "Malformed auth code.",
+		});
+		const errorMessages: string[] = [];
+		fixture.shared.logError = (msg) => { errorMessages.push(msg); };
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -601,6 +609,9 @@ describe("GET /integrations/gmail/callback", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
+		expect(errorMessages).toContain(
+			'[gmail-connect] grant unusable: {"reason":"exchange-failed","status":400,"error":"invalid_grant","errorDescription":"Malformed auth code."}',
+		);
 	});
 
 	it("redirects a reader whose access lapsed mid-grant and exchanges no code", async () => {
@@ -684,10 +695,12 @@ describe("GET /integrations/gmail/callback", () => {
 
 		const index = await agent.get(signedIn.headers.location);
 		const alert = new JSDOM(index.text).window.document.querySelector(
-			"[data-test-integrations-alert-key]",
+			'[data-test-alert-variant="error"]',
 		);
 		assert(alert, "the integrations index must render the signed-out alert after signing in");
-		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_signed_out");
+		expect(alert.getAttribute("data-test-alert")).toBe("oauth_signed_out");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
 	});
 });
 

@@ -129,10 +129,28 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		expect(showMoreLabels(doc)).toEqual(["Show 5 more"]);
 		const control = doc.querySelector("[data-test-articles-show-more]");
 		assert(control, "a control must re-offer the remaining cards");
-		expect(control.getAttribute("hx-get")).toBe(`${morePath}?shown=60`);
+		expect(control.getAttribute("hx-get")).toBe(
+			`${morePath}?shown=60&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
+		);
 		expect(control.getAttribute("hx-swap")).toBe("outerHTML");
 		expect(control.getAttribute("href")).toBe(
 			`/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
+		);
+	});
+
+	it("reads the page size from the tracked URL the Show more control requests", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, crawled(45));
+
+		const response = await agent.get(
+			`${morePath}?shown=40&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
+		);
+
+		expect(response.status).toBe(200);
+		expect(cardOrdinals(parseDoc(response.text))).toEqual(
+			Array.from({ length: 20 }, (_unused, index) => formatEmailLinkOrdinal(20 + index)),
 		);
 	});
 

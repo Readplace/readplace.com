@@ -16,6 +16,9 @@ import {
 	ConfirmGmailForwardingCommand,
 	CrawlEmailLinkPreview,
 	EmailReceivedEvent,
+	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
+	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
+	GMAIL_METRIC_NAMESPACE,
 	INBOX_DLQ_SOURCES,
 	LinkDequeuedEvent,
 	LinkQueueFailedEvent,
@@ -44,6 +47,9 @@ const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
 const nodeEnv = config.require("nodeEnv");
 const staticBaseUrl = config.require("staticBaseUrl");
 const alertEmail = config.require("alertEmail");
+const gmailForwardingConfirmFailedThreshold = config.requireNumber(
+	"gmailForwardingConfirmFailedThreshold",
+);
 const inboxAddressDomain = config.require("inboxAddressDomain");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 const contentBucketName = config.require("contentBucketName");
@@ -191,10 +197,6 @@ const webLambda = new HutchLambda("inbox-web", {
 		// Pinned into the email iframe's CSP so only rehosted image copies load.
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		/** Same-origin fragment endpoint served by blog-site behind this same API
-		 * Gateway (/blog/{proxy+} routes there). The banner source is cached and
-		 * fail-open, so the extra gateway hop is fine for a decorative banner. */
-		CHANGELOG_BANNER_URL: pulumi.interpolate`${hutchApiUrl}/blog/changelog-banner`,
 	},
 	policies: [
 		...webInboxTables.policies,
@@ -582,6 +584,44 @@ const confirmGmailForwardingWithSQS = new HutchSQSBackedLambda("inbox-confirm-gm
 
 eventBus.subscribe(ConfirmGmailForwardingCommand, confirmGmailForwardingWithSQS, {
 	name: "inbox-confirm-gmail-forwarding",
+});
+
+new aws.cloudwatch.LogMetricFilter("inbox-gmail-forwarding-confirm-failed-filter", {
+	name: "inbox-gmail-forwarding-confirm-failed",
+	logGroupName: confirmGmailForwardingLambda.logGroupName,
+	pattern: `{ $.event = "${GMAIL_FORWARDING_CONFIRM_FAILED_EVENT}" }`,
+	metricTransformation: {
+		name: GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
+		namespace: GMAIL_METRIC_NAMESPACE,
+		value: "1",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
+const gmailForwardingConfirmFailedTopic = new aws.sns.Topic(
+	"inbox-gmail-forwarding-confirm-failed-topic",
+	{ name: "inbox-gmail-forwarding-confirm-failed-topic" },
+);
+
+new aws.sns.TopicSubscription("inbox-gmail-forwarding-confirm-failed-alert-email", {
+	topic: gmailForwardingConfirmFailedTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("inbox-gmail-forwarding-confirm-failed-alarm", {
+	name: "inbox-gmail-forwarding-confirm-failed-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
+	namespace: GMAIL_METRIC_NAMESPACE,
+	period: 3600,
+	statistic: "Sum",
+	threshold: gmailForwardingConfirmFailedThreshold,
+	treatMissingData: "notBreaching",
+	alarmDescription: "A Gmail forwarding confirmation did not complete",
+	alarmActions: [gmailForwardingConfirmFailedTopic.arn],
 });
 
 // --- Saved-link read model (queue-membership facts → the tabs' save button) ---

@@ -22,8 +22,6 @@ const PARSE_ORIGIN = "https://internal.invalid";
 
 type ActionStyle = "btn--on-dark" | "btn--on-dark-ghost" | "btn--primary" | "btn--secondary";
 
-type ActionClass = ActionStyle | `${ActionStyle} btn--field`;
-
 interface HiddenParam {
 	readonly name: string;
 	readonly value: string;
@@ -34,7 +32,7 @@ interface RenderedAction {
 	readonly label: string;
 	readonly action: string;
 	readonly hiddenParams: readonly HiddenParam[];
-	readonly cssClass: ActionClass;
+	readonly cssClass: ActionStyle;
 	readonly formClass: "lp-action" | "lp-action lp-action--field";
 	readonly input?: LandingPageActionInput;
 }
@@ -64,7 +62,7 @@ function renderAction(
 	return {
 		key: action.key,
 		label: action.label,
-		cssClass: action.input ? `${cssClass} btn--field` : cssClass,
+		cssClass,
 		input: action.input,
 		formClass: action.input ? "lp-action lp-action--field" : "lp-action",
 		action: tracked.pathname,

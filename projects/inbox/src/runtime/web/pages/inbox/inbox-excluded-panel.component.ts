@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, renderAlert, renderIllustration } from "@packages/web-shell";
 import { renderInboxExcludedLink } from "./inbox-excluded-link.component";
 import { panelStatusFor } from "./inbox-panel-status";
 import type { ExcludedPanelViewModel } from "./inbox-email-detail.viewmodel";
@@ -9,6 +9,8 @@ const INBOX_EXCLUDED_PANEL_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-excluded-panel.template.html"),
 	"utf-8",
 );
+
+const EMPTY_ILLUSTRATION_HTML = renderIllustration("book-lightbulb");
 
 /**
  * Renders the Skipped panel as a standalone `<section>` so the same markup
@@ -21,7 +23,20 @@ const INBOX_EXCLUDED_PANEL_TEMPLATE = readFileSync(
 export function renderInboxExcludedPanel(vm: ExcludedPanelViewModel): string {
 	return render(INBOX_EXCLUDED_PANEL_TEMPLATE, {
 		...vm,
+		alertsHtml: vm.alerts
+			.map(({ key, title, body }) =>
+				renderAlert({
+					key,
+					content: {
+						variant: "error",
+						title: { text: title, element: "p" },
+						message: { text: body },
+					},
+				}),
+			)
+			.join(""),
 		excludedHtmls: vm.links.map(renderInboxExcludedLink),
 		panelStatus: panelStatusFor(vm),
+		emptyIllustrationHtml: EMPTY_ILLUSTRATION_HTML,
 	});
 }

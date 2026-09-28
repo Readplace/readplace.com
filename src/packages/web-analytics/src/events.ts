@@ -70,6 +70,7 @@ export const SIGNUP_OUTCOMES = {
 	invalidInput: "invalid_input",
 	duplicateEmail: "duplicate_email",
 	tooFast: "too_fast",
+	signedIn: "signed_in",
 } as const;
 
 export type SignupOutcome = (typeof SIGNUP_OUTCOMES)[keyof typeof SIGNUP_OUTCOMES];

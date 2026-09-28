@@ -80,15 +80,10 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 }
 
 .confirm-popover__illustration {
-	width: 72px;
-	height: 72px;
-	margin: 0 auto 12px;
+	display: flex;
+	justify-content: center;
+	margin: 0 0 12px;
 	color: var(--foreground);
-}
-
-.confirm-popover__illustration svg {
-	width: 100%;
-	height: 100%;
 }
 
 .confirm-popover__header {

@@ -1,6 +1,6 @@
 import type { PageDescriptor } from "../reading-list/reading-list.types";
 
-export interface PaginationPageView {
+interface PaginationPageView {
 	readonly label: string;
 	readonly index: number;
 	readonly active: boolean;
@@ -8,7 +8,7 @@ export interface PaginationPageView {
 
 /** A stand-in for the pages the window skipped, so a long list reads as
  * "1 … 4 5 6 … 50" rather than pretending those pages do not exist. */
-export interface PaginationGap {
+interface PaginationGap {
 	readonly gap: true;
 }
 
@@ -19,13 +19,13 @@ export interface PaginationView {
 	readonly pages: ReadonlyArray<PaginationPageView | PaginationGap>;
 }
 
-const MAX_VISIBLE_PAGES = 5;
+const PAGE_WINDOW = 1;
 
 function indexesToShow(currentIndex: number, total: number): Set<number> {
-	const visible = Math.min(total, MAX_VISIBLE_PAGES);
-	const start = Math.max(0, Math.min(currentIndex - Math.floor(visible / 2), total - visible));
 	const shown = new Set<number>([0, total - 1]);
-	for (let index = start; index < start + visible; index++) shown.add(index);
+	for (let index = currentIndex - PAGE_WINDOW; index <= currentIndex + PAGE_WINDOW; index++) {
+		if (index >= 0 && index < total) shown.add(index);
+	}
 	return shown;
 }
 

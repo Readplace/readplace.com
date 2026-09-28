@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertErrorAlert } from "./assert-error-alert";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
@@ -20,7 +21,7 @@ describe("GET /auth/checkout/success", () => {
 
 		expect(response.status).toBe(400);
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+		expect(assertErrorAlert(doc)?.textContent).toContain(
 			"Missing checkout session",
 		);
 
@@ -40,7 +41,7 @@ describe("GET /auth/checkout/success", () => {
 
 		expect(response.status).toBe(404);
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not found");
+		expect(assertErrorAlert(doc)?.textContent).toContain("not found");
 
 		expect(harness.subscriptionEvents.events).toHaveLength(1);
 		const evt = harness.subscriptionEvents.events[0];
@@ -66,7 +67,7 @@ describe("GET /auth/checkout/success", () => {
 
 		expect(response.status).toBe(402);
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not completed");
+		expect(assertErrorAlert(doc)?.textContent).toContain("not completed");
 
 		expect(harness.subscriptionEvents.events).toHaveLength(1);
 		const evt = harness.subscriptionEvents.events[0];
@@ -99,7 +100,7 @@ describe("GET /auth/checkout/success", () => {
 
 		expect(response.status).toBe(402);
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not completed");
+		expect(assertErrorAlert(doc)?.textContent).toContain("not completed");
 	});
 
 	it("renders 409 when the checkout has been paid but the pending signup was already consumed", async () => {
@@ -121,7 +122,7 @@ describe("GET /auth/checkout/success", () => {
 
 		expect(replay.status).toBe(409);
 		const doc = new JSDOM(replay.text).window.document;
-		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("already been used");
+		expect(assertErrorAlert(doc)?.textContent).toContain("already been used");
 
 		const events = harness.subscriptionEvents.events;
 		expect(events).toHaveLength(2);

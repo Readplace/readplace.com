@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 
 export const CONTENT_SIGNAL_VALUE = "search=yes, ai-input=yes, ai-train=no";
 
-const NON_PAGE_PATHS = ["/icon.svg", "/embed.client.js"];
+const NON_PAGE_PATHS = ["/icon.svg", "/icon-small.svg", "/embed.client.js"];
 
 export function contentSignalMiddleware(
 	req: Request,

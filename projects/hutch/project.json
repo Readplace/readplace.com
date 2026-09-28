@@ -32,7 +32,8 @@
       "dependsOn": ["compile"]
     },
     "test-with-coverage": {
-      "dependsOn": ["compile"]
+      "dependsOn": ["compile"],
+      "outputs": ["{projectRoot}/coverage", "{projectRoot}/test-results/transition-frames"]
     },
     "update-visual-baselines": {
       "dependsOn": ["compile"],

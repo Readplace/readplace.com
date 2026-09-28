@@ -17,6 +17,7 @@ export default createPlaywrightConfig({
 	outputDir: artifacts.outputDir,
 	baseURL: serverUrl,
 	retries: 0,
+	workers: 2,
 	headless: process.env.HEADLESS === 'true',
 	video: 'off',
 	launchOptions: {},

@@ -17,6 +17,9 @@ import {
 } from "@packages/web-analytics";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
+import { drawFigure } from "./web/pages/blog/blog-figure";
+import { labelTableCells } from "./web/pages/blog/blog-table-labels";
+import { withTldrCaret } from "./web/pages/blog/blog-tldr-caret";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
 import { initBlogRoutes } from "./web/pages/blog/blog.page";
 
@@ -84,7 +87,7 @@ export function createBlogApp(
 	);
 
 	const base = initBase(config);
-	const blogPosts = initBlogPosts();
+	const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret });
 
 	app.use(contentSignalMiddleware);
 	app.use("/blog", initBlogRoutes({ blogPosts, base, resolveLogin: deps.resolveLogin }));

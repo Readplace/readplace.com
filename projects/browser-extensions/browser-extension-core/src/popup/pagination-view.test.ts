@@ -68,19 +68,25 @@ describe("buildPaginationView", () => {
 	it("keeps the first and last pages in view around a window in the middle", () => {
 		const view = buildPaginationView(pageList({ total: 50, current: 25 }));
 
-		expect(labels(view)).toEqual(["1", "…", "23", "24", "25", "26", "27", "…", "50"]);
+		expect(labels(view)).toEqual(["1", "…", "24", "25", "26", "…", "50"]);
 	});
 
 	it("needs no gap where the window already reaches an end", () => {
 		const view = buildPaginationView(pageList({ total: 50, current: 2 }));
 
-		expect(labels(view)).toEqual(["1", "2", "3", "4", "5", "…", "50"]);
+		expect(labels(view)).toEqual(["1", "2", "3", "…", "50"]);
 	});
 
-	it("clamps the window against the last page", () => {
+	it("shows one page either side of the current one next to the last page", () => {
 		const view = buildPaginationView(pageList({ total: 50, current: 49 }));
 
-		expect(labels(view)).toEqual(["1", "…", "46", "47", "48", "49", "50"]);
+		expect(labels(view)).toEqual(["1", "…", "48", "49", "50"]);
+	});
+
+	it("marks a single skipped page with a gap rather than showing it", () => {
+		const view = buildPaginationView(pageList({ total: 9, current: 5 }));
+
+		expect(labels(view)).toEqual(["1", "…", "4", "5", "6", "…", "9"]);
 	});
 
 	it("renders the server's own labels, whatever they say", () => {

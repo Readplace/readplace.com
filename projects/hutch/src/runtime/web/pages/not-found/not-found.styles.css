@@ -1,7 +1,7 @@
 .not-found {
   background: var(--muted);
   flex: 1 1 auto;
-  padding: 24px 16px 64px;
+  padding: var(--page-top) var(--page-gutter) 64px;
 }
 
 .not-found__container {
@@ -20,7 +20,7 @@
 
 .not-found__title {
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.3;
   color: var(--foreground);
@@ -31,7 +31,7 @@
 .not-found__text {
   max-width: 44ch;
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--muted-foreground);
   text-wrap: pretty;
@@ -43,6 +43,6 @@
 
 @media (min-width: 1024px) {
   .not-found {
-    padding: 28px 24px 80px;
+    padding-bottom: 80px;
   }
 }

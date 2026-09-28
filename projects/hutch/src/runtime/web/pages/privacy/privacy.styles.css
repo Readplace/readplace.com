@@ -1,11 +1,5 @@
 .legal-page {
-  padding: 80px 16px;
-}
-
-@media (min-width: 1024px) {
-  .legal-page {
-    padding-inline: 24px;
-  }
+  padding: 80px var(--page-gutter);
 }
 
 .legal-page__container {
@@ -28,7 +22,7 @@
 }
 
 .legal-page__updated {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
   margin-bottom: 40px;
 }
@@ -48,7 +42,7 @@
 
 .legal-page__section p,
 .legal-page__section li {
-  font-size: 1rem;
+  font-size: var(--text-md);
   line-height: 1.7;
   color: var(--foreground);
   margin-bottom: 8px;

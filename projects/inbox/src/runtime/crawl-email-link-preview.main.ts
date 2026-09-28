@@ -4,7 +4,7 @@ import {
 	linkedinSiteRules,
 	mediaWikiSiteRules,
 	mediumSiteRules,
-	restoreRetaggedTables,
+	readabilityAdditions,
 	theInformationSiteRules,
 } from "@packages/article-parser";
 import {
@@ -75,7 +75,7 @@ const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,
 	siteRules,
-	restoreRetaggedTables,
+	readabilityAdditions,
 	logError,
 });
 const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });

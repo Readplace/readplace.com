@@ -13,8 +13,6 @@ export interface ReadlistDeps {
 const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu";
 const RENAME_FORM_ATTR = "data-readlist-rename";
 const RENAME_ERROR_ATTR = "data-readlist-rename-error";
-const ERROR_HIDDEN_CLASS = "readlist-rename__error--hidden";
-const ERROR_VISIBLE_CLASS = "readlist-rename__error--visible";
 const LIVE_REGION_SELECTOR = "#toast-live-region";
 const LIVE_REGION_SETTLE_MS = 150;
 const GENERIC_FAILURE = "Couldn't rename the readlist.";
@@ -42,9 +40,10 @@ function closeOpenMenus(document: Document, except: Element | null): void {
 function showError(form: HTMLFormElement, message: string): void {
 	const error = form.querySelector(`[${RENAME_ERROR_ATTR}]`);
 	assert(error, "a rename form always carries its error line");
+	const input = form.querySelector("input[name]");
+	assert(input, "a rename form always carries its named input");
 	error.textContent = message;
-	error.classList.remove(ERROR_HIDDEN_CLASS);
-	error.classList.add(ERROR_VISIBLE_CLASS);
+	input.setAttribute("aria-invalid", "true");
 }
 
 function announce(document: Document, message: string): void {

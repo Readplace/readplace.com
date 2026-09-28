@@ -10,7 +10,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
 } from "@packages/test-fixtures";
-import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
+import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { useTestServer } from "../../../test-app";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
@@ -28,7 +28,7 @@ const useApp = useTestServer();
 async function openReaderHarness(opts: { ready: boolean; query?: string }) {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,
@@ -77,7 +77,12 @@ function downloadsSlot(doc: Document): Element {
 }
 
 describe("GET /queue/:id/view Download", () => {
-	it.each(["", "?platform=ios", "?platform=android"])("offers the EPUB download on every ready surface: %s", async (query) => {
+	it.each([
+		{ query: "", appClient: null },
+		{ query: "?platform=ios", appClient: "ios_app" },
+		{ query: "?platform=android", appClient: "android_app" },
+		{ query: "?shell=app", appClient: "ios_app" },
+	])("offers the EPUB download on every ready surface: $query", async ({ query, appClient }) => {
 		const doc = await openReader({ ready: true, query });
 
 		expect(downloadsSlot(doc).classList.contains("article-body__downloads-slot--visible")).toBe(true);
@@ -90,6 +95,7 @@ describe("GET /queue/:id/view Download", () => {
 				utmSource: href.searchParams.get("utm_source"),
 				utmMedium: href.searchParams.get("utm_medium"),
 				utmContent: href.searchParams.get("utm_content"),
+				utmTerm: href.searchParams.get("utm_term"),
 			};
 		});
 		expect(links).toEqual([
@@ -100,7 +106,24 @@ describe("GET /queue/:id/view Download", () => {
 				utmSource: "reader",
 				utmMedium: "internal",
 				utmContent: "download-epub",
+				utmTerm: appClient,
 			},
+		]);
+	});
+
+	it.each(["reader", "summary"])("preserves the iOS app attribution when the %s poll reveals Download", async (poll) => {
+		const { harness, fixture, sessionCookie, articleId } = await openReaderHarness({ ready: false, query: "?platform=ios" });
+		await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>The article is ready.</p>" });
+		await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+		const response = await request(harness.server)
+			.get(`/queue/${articleId}/${poll}?poll=1&platform=ios`)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		const slot = downloadsSlot(new JSDOM(response.text).window.document);
+		expect(slot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(Array.from(slot.querySelectorAll("[data-test-download]"), (link) => link.getAttribute("href"))).toEqual([
+			"/view/example.com/shareable?format=epub&utm_source=reader&utm_medium=internal&utm_content=download-epub&utm_term=ios_app",
 		]);
 	});
 

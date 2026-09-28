@@ -172,6 +172,7 @@ private struct ReaderUnavailableView: View {
 				.multilineTextAlignment(.center)
 			Button("Close", action: onClose)
 				.buttonStyle(.borderedProminent)
+				.tint(.brandPrimaryFill)
 				.padding(.top, 4)
 		}
 		.padding(40)

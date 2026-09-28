@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { renderInFlightDots } from "./in-flight-dots.component";
+import { IN_FLIGHT_DOTS_STYLES, renderInFlightDots } from "./in-flight-dots.component";
 
 function parseOnly(html: string): Element {
 	const wrapper = new JSDOM(`<div>${html}</div>`).window.document.querySelector("div");
@@ -35,5 +35,12 @@ describe("renderInFlightDots", () => {
 		const spans = Array.from(dots.querySelectorAll("span"));
 		expect(spans.length).toBe(3);
 		expect(spans.map((span) => span.innerHTML)).toEqual(["", "", ""]);
+	});
+
+	it("ships the stylesheet for the shared in-flight-dots class, stilling the pulse for readers who reduce motion", () => {
+		expect(IN_FLIGHT_DOTS_STYLES).toContain(".in-flight-dots {");
+		expect(IN_FLIGHT_DOTS_STYLES).toMatch(
+			/@media \(prefers-reduced-motion: reduce\) \{\s*\.in-flight-dots span \{\s*animation: none;/,
+		);
 	});
 });

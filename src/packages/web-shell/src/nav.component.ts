@@ -1,15 +1,14 @@
+import { findIconSvg, type IconName, type IconVariant } from "@packages/ui-icons";
 import { render } from "./render";
-import { buildNavGroups, buildGuestNavItems, type NavGroup, type NavItem } from "./banner-state";
+import {
+	buildGuestNavGroups,
+	buildNavGroups,
+	type NavGroup,
+	type NavItem,
+	type NavItemKey,
+} from "./banner-state";
 import { type ClickSurface, withClickSurface } from "./internal-link-tracking";
 import { NAV_TEMPLATE } from "./nav.template";
-import { SERVER_TIME_ZONE } from "./local-time.format";
-import {
-	deriveTrialEscalation,
-	formatCancellationEndsLabel,
-	formatTrialDisplay,
-	formatTrialRemaining,
-	type TrialDisplay,
-} from "./trial-countdown.format";
 import { initialsFromEmail } from "./user-initials";
 
 export interface NavProps {
@@ -17,53 +16,60 @@ export interface NavProps {
 	isAuthenticated: boolean;
 	accessIsReadOnly: boolean;
 	gmailFeatureEnabled: boolean;
-	/** Absence means the user is not on a trial — no countdown rendered.
-	 * Pre-auth pages (login, signup, forgot-password) build banner state from
-	 * the request synchronously and never populate this field, which is correct:
-	 * those requests have no userId, so the async builder would also short-circuit
-	 * to undefined. */
-	trialCounter?: TrialDisplay;
+	currentPath?: string;
 	clickSurface?: ClickSurface;
 	userEmail?: string;
 }
 
 interface NavUserMenu {
 	initials: string;
-	email: string;
+	name: string;
+	ariaLabel: string;
 }
 
-type NavGroupDisplayModel = NavGroup & { userMenu?: NavUserMenu };
+type NavItemDisplayModel = NavItem & {
+	ariaCurrent: "page" | undefined;
+	iconVariant: IconVariant;
+};
 
-function userMenuFor(group: NavGroup, userEmail: string | undefined): NavGroupDisplayModel {
-	if (group.key !== "account" || userEmail === undefined) return group;
-	return { ...group, userMenu: { initials: initialsFromEmail(userEmail), email: userEmail } };
+type NavGroupDisplayModel = Omit<NavGroup, "items"> & {
+	items: NavItemDisplayModel[];
+	userMenu?: NavUserMenu;
+};
+
+const ANONYMOUS_USER_MENU: NavUserMenu = { initials: "", name: "Account", ariaLabel: "Account menu" };
+
+function userMenuFrom(userEmail: string | undefined): NavUserMenu {
+	if (userEmail === undefined) return ANONYMOUS_USER_MENU;
+	return { initials: initialsFromEmail(userEmail), name: userEmail, ariaLabel: `Account menu for ${userEmail}` };
 }
 
-function endsAtIsoFor(trial: TrialDisplay | undefined): string {
-	if (!trial) return "";
-	if (trial.state === "expired") return "";
-	return trial.endsAtIso;
+function userMenuFor(
+	group: NavGroupDisplayModel,
+	signedIn: { isAuthenticated: boolean; userEmail: string | undefined },
+): NavGroupDisplayModel {
+	if (group.key !== "account" || !signedIn.isAuthenticated) return group;
+	return { ...group, userMenu: userMenuFrom(signedIn.userEmail) };
 }
 
-function serverNowIsoFor(trial: TrialDisplay | undefined): string {
-	if (!trial) return "";
-	if (trial.state === "expired") return "";
-	return trial.serverNowIso;
+const CURRENT_NAV_KEY_BY_SECTION: ReadonlyMap<string, NavItemKey> = new Map<string, NavItemKey>([
+	["queue", "queue"],
+	["queues", "queue"],
+	["view", "queue"],
+	["import", "import"],
+	["inbox", "inbox"],
+	["integrations", "integrations"],
+	["install", "install"],
+]);
+
+function currentNavKey(path: string | undefined): NavItemKey | undefined {
+	if (path === undefined) return undefined;
+	const section = path.replace(/[?#].*/s, "").split("/")[1];
+	return CURRENT_NAV_KEY_BY_SECTION.get(section);
 }
 
-function escalationClassFor(trial: TrialDisplay | undefined): string {
-	if (!trial) return "expired";
-	if (trial.state === "active") return trial.escalation;
-	if (trial.state === "cancellation-scheduled") {
-		const remaining = formatTrialRemaining(
-			trial.endsAtIso,
-			new Date(trial.serverNowIso),
-		);
-		return deriveTrialEscalation(remaining) === "soft"
-			? "cancellation-scheduled"
-			: "cancellation-imminent";
-	}
-	return "expired";
+function currentIconVariant(iconName: IconName): IconVariant {
+	return findIconSvg(iconName, "solid") === undefined ? "stroke" : "solid";
 }
 
 /** Renders no site nav, for a shell that intentionally has none (a bare embed or
@@ -73,52 +79,37 @@ export function GlobalEmptyNav(_props: NavProps): string {
 	return "";
 }
 
-function itemOnSurface(item: NavItem, surface: ClickSurface | undefined): NavItem {
-	return { ...item, href: withClickSurface(item.href, surface), trackTerm: surface };
-}
-
-function groupsOnSurface(
-	groups: NavGroup[],
-	surface: ClickSurface | undefined,
-	userEmail: string | undefined,
-): NavGroupDisplayModel[] {
-	return groups.map((group) =>
-		userMenuFor({ ...group, items: group.items.map((item) => itemOnSurface(item, surface)) }, userEmail),
-	);
+function displayItem(
+	item: NavItem,
+	context: { surface: ClickSurface | undefined; currentKey: NavItemKey | undefined },
+): NavItemDisplayModel {
+	const isCurrent = item.key === context.currentKey;
+	return {
+		...item,
+		href: withClickSurface(item.href, context.surface),
+		trackTerm: context.surface,
+		ariaCurrent: isCurrent ? "page" : undefined,
+		iconVariant: isCurrent ? currentIconVariant(item.iconName) : "stroke",
+	};
 }
 
 export function GlobalNav(props: NavProps): string {
-	const trial = props.trialCounter;
-	const surface = props.clickSurface;
+	const groups = props.isAuthenticated
+		? buildNavGroups({
+				accessIsReadOnly: props.accessIsReadOnly,
+				gmailFeatureEnabled: props.gmailFeatureEnabled,
+			})
+		: buildGuestNavGroups();
+	const context = { surface: props.clickSurface, currentKey: currentNavKey(props.currentPath) };
 	return render(NAV_TEMPLATE, {
 		transparent: props.variant === "transparent",
-		clickSurface: surface,
-		trialVisibility: trial ? "visible" : "hidden",
-		trialDisplayText: trial ? formatTrialDisplay(trial, SERVER_TIME_ZONE) : "",
-		trialState: trial?.state ?? "",
-		trialAriaLabel:
-			trial?.state === "cancellation-scheduled"
-				? formatCancellationEndsLabel({
-						endsAtIso: trial.endsAtIso,
-						timeZone: SERVER_TIME_ZONE,
-					})
-				: "",
-		trialEscalationClass: escalationClassFor(trial),
-		trialEndsAtIso: endsAtIsoFor(trial),
-		serverNowIso: serverNowIsoFor(trial),
-		navGroups: props.isAuthenticated
-			? groupsOnSurface(
-					buildNavGroups({
-						accessIsReadOnly: props.accessIsReadOnly,
-						gmailFeatureEnabled: props.gmailFeatureEnabled,
-					}),
-					surface,
-					props.userEmail,
-				)
-			: undefined,
-		navItems: props.isAuthenticated
-			? undefined
-			: buildGuestNavItems().map((item) => itemOnSurface(item, surface)),
+		clickSurface: props.clickSurface,
+		navGroups: groups.map((group) =>
+			userMenuFor(
+				{ ...group, items: group.items.map((item) => displayItem(item, context)) },
+				{ isAuthenticated: props.isAuthenticated, userEmail: props.userEmail },
+			),
+		),
 		navVariant: props.isAuthenticated ? "authenticated" : "guest",
 	});
 }

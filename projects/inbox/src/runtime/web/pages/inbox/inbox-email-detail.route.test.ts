@@ -149,6 +149,34 @@ function fragmentRoots(doc: ReturnType<typeof parseDoc>): string[] {
 	);
 }
 
+function panelNotices(doc: ReturnType<typeof parseDoc>): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-panel-notice]")).map((notice) =>
+		notice.getAttribute("data-test-panel-notice"),
+	);
+}
+
+function panelAlerts(doc: ReturnType<typeof parseDoc>): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-alert]")).map((alert) => {
+		assert.equal(alert.getAttribute("data-test-alert-variant"), "error");
+		assert.equal(alert.classList.contains("alert--visible"), true);
+		assert.equal(alert.getAttribute("role"), "alert");
+		return alert.getAttribute("data-test-alert");
+	});
+}
+
+function panelEmptyStates(
+	doc: ReturnType<typeof parseDoc>,
+): { title: string | null | undefined; body: string | null | undefined }[] {
+	return Array.from(doc.querySelectorAll("[data-test-panel-empty]")).map((empty) => ({
+		title: empty.querySelector("[data-test-panel-empty-title]")?.textContent,
+		body: empty.querySelector("[data-test-panel-empty-body]")?.textContent,
+	}));
+}
+
+function panelCount(doc: ReturnType<typeof parseDoc>): string | null | undefined {
+	return doc.querySelector("[data-test-panel-count]")?.textContent;
+}
+
 describe("Inbox email detail View tab", () => {
 	it("returns 404 for an email the user does not have", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -186,7 +214,13 @@ describe("Inbox email detail View tab", () => {
 		expect(excludedTab.getAttribute("href")).toBe(
 			`/inbox/${encodeURIComponent(SK)}?tab=excluded&utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=excluded`,
 		);
+		expect(articlesTab.querySelector("[data-widest]")?.getAttribute("data-widest")).toBe(
+			"Extracted Articles (99+)",
+		);
 		expect(renderedPanels(doc)).toEqual(["view"]);
+		expect(doc.querySelector("[data-test-inbox-detail-sender]")?.getAttribute("title")).toBe(
+			"news@example.com",
+		);
 
 		// The iframe sandbox is EXACTLY the safe set — no allow-scripts, no
 		// allow-same-origin — so the email document is inert and opaque.
@@ -334,7 +368,6 @@ describe("Inbox email detail View tab", () => {
 		assert(srcdoc, "iframe must carry a srcdoc");
 		expect(srcdoc).toContain("Plain-text newsletter body");
 		expect(srcdoc).toContain("<pre>");
-		expect(doc.querySelector("[data-test-inbox-email-unavailable]")).toBeNull();
 	});
 
 	it("shows the graceful unavailable panel for an unparsed email instead of an empty frame", async () => {
@@ -347,7 +380,17 @@ describe("Inbox email detail View tab", () => {
 
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
-		expect(doc.querySelector("[data-test-inbox-email-unavailable]")).not.toBeNull();
+		const unavailable = doc.querySelector('[data-test-alert="email-unavailable"]');
+		assert(unavailable, "an unparsed email must render the unavailable alert");
+		expect(unavailable.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(unavailable.classList.contains("alert--visible")).toBe(true);
+		expect(unavailable.getAttribute("role")).toBe("alert");
+		expect(
+			unavailable.querySelector("[data-test-alert-title]")?.textContent,
+		).toBe("Couldn't display this email");
+		expect(unavailable.querySelector("[data-test-alert-message]")?.textContent).toBe(
+			"The original email is preserved.",
+		);
 		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
 		expect(renderedPanels(doc)).toEqual(["view"]);
 	});
@@ -396,9 +439,15 @@ describe("Inbox email detail Articles tab", () => {
 			"Skipped (0)",
 		);
 		expect(doc.querySelector('[data-test-inbox-tab="view"]')?.textContent).toBe("View");
+		expect(panelCount(doc)).toBe("3 Extracted Articles");
+		expect(panelNotices(doc)).toEqual([]);
 		expect(doc.querySelector("[data-test-inbox-article-title]")?.textContent).toBe(
 			"Crawled headline",
 		);
+		expect(
+			doc.querySelector('[data-test-inbox-article-card="0000"] [data-test-inbox-article-menu-label]')
+				?.textContent,
+		).toBe("More options for Crawled headline");
 		const pendingCard = doc.querySelector('[data-test-inbox-article-card="0001"]');
 		assert(pendingCard, "pending card must render");
 		expect(pendingCard.getAttribute("data-card-status")).toBe("pending");
@@ -456,6 +505,7 @@ describe("Inbox email detail Articles tab", () => {
 		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
 			"Skipped (1)",
 		);
+		expect(panelCount(doc)).toBe("1 Extracted Article");
 
 		// A skipped link belongs to the Skipped tab alone; rendering it here too
 		// would show the same row on two tabs.
@@ -494,8 +544,8 @@ describe("Inbox email detail Articles tab", () => {
 
 		// The cap is an email-level fact. This email renders an EMPTY Articles panel, so
 		// a notice confined to the non-empty branch would vanish from every tab.
-		expect(parseDoc(articles.text).querySelector("[data-test-articles-truncated]")).not.toBeNull();
-		expect(parseDoc(excluded.text).querySelector("[data-test-excluded-truncated]")).not.toBeNull();
+		expect(panelNotices(parseDoc(articles.text))).toEqual(["truncated"]);
+		expect(panelNotices(parseDoc(excluded.text))).toEqual(["truncated", "skipped-note"]);
 	});
 
 	it("says where the links went when every one of them was skipped", async () => {
@@ -515,12 +565,11 @@ describe("Inbox email detail Articles tab", () => {
 		const response = await agent.get(articlesTabPath);
 
 		const doc = parseDoc(response.text);
-		const empty = doc.querySelector("[data-test-articles-empty]");
-		assert(empty, "an all-skipped email must render the empty Articles panel");
 		// "No links found in this email." would be false — one was found, then skipped.
-		expect(empty.textContent?.trim()).toBe(
-			"Every link in this email was skipped — see the Skipped tab.",
-		);
+		expect(panelEmptyStates(doc)).toEqual([
+			{ title: "Every link in this email was skipped", body: "See the Skipped tab." },
+		]);
+		expect(panelCount(doc)).toBe("0 Extracted Articles");
 	});
 
 	it("surfaces a truncated notice when the per-email link cap was hit", async () => {
@@ -535,7 +584,10 @@ describe("Inbox email detail Articles tab", () => {
 		const response = await agent.get(articlesTabPath);
 
 		const doc = parseDoc(response.text);
-		expect(doc.querySelector("[data-test-articles-truncated]")).not.toBeNull();
+		expect(panelNotices(doc)).toEqual(["truncated"]);
+		expect(doc.querySelector('[data-test-panel-notice="truncated"]')?.textContent).toBe(
+			"Showing the first 1 links found in this email.",
+		);
 	});
 
 	it("reveals only the first page of cards, with the control inside the appendable container", async () => {
@@ -587,7 +639,10 @@ describe("Inbox email detail Articles tab", () => {
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("extracting");
 		expect(panel.getAttribute("hx-get")).toContain("/articles");
-		expect(doc.querySelector("[data-test-articles-extracting]")).not.toBeNull();
+		expect(panelNotices(doc)).toEqual(["extracting"]);
+		expect(doc.querySelector('[data-test-panel-notice="extracting"]')?.textContent).toBe(
+			"Looking for links…",
+		);
 	});
 
 	it("shows the terminal no-links state once extraction wrote its meta with zero links", async () => {
@@ -604,8 +659,10 @@ describe("Inbox email detail Articles tab", () => {
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(doc.querySelector("[data-test-articles-empty]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-articles-extracting]")).toBeNull();
+		expect(panelNotices(doc)).toEqual([]);
+		expect(panelEmptyStates(doc)).toEqual([
+			{ title: "No links found in this email", body: undefined },
+		]);
 	});
 
 	it("is terminally empty for an unparsed email, which never runs extraction", async () => {
@@ -622,7 +679,9 @@ describe("Inbox email detail Articles tab", () => {
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
-		expect(doc.querySelector("[data-test-articles-empty]")).not.toBeNull();
+		expect(panelEmptyStates(doc)).toEqual([
+			{ title: "No links found in this email", body: undefined },
+		]);
 	});
 });
 
@@ -664,6 +723,11 @@ describe("Inbox email detail Skipped tab", () => {
 
 		// The kept card belongs to the Articles tab and must not leak onto this one.
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(0);
+		expect(panelCount(doc)).toBe("2 Skipped");
+		expect(panelNotices(doc)).toEqual(["skipped-note"]);
+		expect(doc.querySelector('[data-test-panel-notice="skipped-note"]')?.textContent).toBe(
+			"These looked like unsubscribe, ad, or menu links — not articles — so they weren't fetched or added.",
+		);
 
 		const excludedRow = doc.querySelector('[data-test-inbox-excluded-link="0001"]');
 		assert(excludedRow, "excluded row must render");
@@ -759,7 +823,7 @@ describe("Inbox email detail Skipped tab", () => {
 		assert(saveButton, "a saveable skipped row must offer its save button");
 		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
 		expect(saveButton.textContent?.trim()).toBe("Save to queue");
-		expect(saveButton.classList.contains("btn--primary")).toBe(true);
+		expect(saveButton.classList.contains("btn--secondary")).toBe(true);
 	});
 
 	it("shows a skipped link whose save failed as unsaved, so the reader can try again", async () => {
@@ -805,9 +869,10 @@ describe("Inbox email detail Skipped tab", () => {
 		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
 		assert(panel, "the Skipped panel must render");
 		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
-		const empty = doc.querySelector("[data-test-excluded-empty]");
-		assert(empty, "a nothing-skipped email must render the empty Skipped panel");
-		expect(empty.textContent?.trim()).toBe("Nothing was skipped in this email.");
+		expect(panelEmptyStates(doc)).toEqual([
+			{ title: "Nothing was skipped in this email", body: undefined },
+		]);
+		expect(panelCount(doc)).toBe("0 Skipped");
 	});
 
 	it("polls the Skipped panel rather than claiming nothing was skipped mid-extraction", async () => {
@@ -824,8 +889,8 @@ describe("Inbox email detail Skipped tab", () => {
 		expect(panel.getAttribute("data-excluded-status")).toBe("extracting");
 		// Its own fragment: polling /articles would swap the Articles panel in here.
 		expect(panel.getAttribute("hx-get")).toContain("/excluded");
-		expect(doc.querySelector("[data-test-excluded-extracting]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-excluded-empty]")).toBeNull();
+		expect(panelNotices(doc)).toEqual(["extracting"]);
+		expect(panelEmptyStates(doc)).toEqual([]);
 	});
 
 	it("is terminally empty for an unparsed email, which never runs extraction", async () => {
@@ -841,9 +906,9 @@ describe("Inbox email detail Skipped tab", () => {
 		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
 		assert(panel, "the Skipped panel must render");
 		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
-		expect(doc.querySelector("[data-test-excluded-empty]")?.textContent?.trim()).toBe(
-			"No links found in this email.",
-		);
+		expect(panelEmptyStates(doc)).toEqual([
+			{ title: "No links found in this email", body: undefined },
+		]);
 	});
 });
 
@@ -951,8 +1016,8 @@ describe("Inbox Articles panel poll route", () => {
 		assert(panel, "the panel fragment must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("stale");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(doc.querySelector("[data-test-articles-stale]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-articles-extracting]")).toBeNull();
+		expect(panelAlerts(doc)).toEqual(["stale"]);
+		expect(panelNotices(doc)).toEqual([]);
 	});
 
 	it("reports a dead-lettered extraction as failed on its first render, not after the budget", async () => {
@@ -977,10 +1042,16 @@ describe("Inbox Articles panel poll route", () => {
 		// Terminal on the first tick: no poll URL, and the reader is told the scan
 		// failed rather than that the email had no links.
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		const failed = doc.querySelector("[data-test-articles-failed]");
-		assert(failed, "the failed notice must render");
-		expect(failed.textContent).toBe(
-			"I couldn't scan this email for links. The original message is still on the View tab.",
+		const failed = doc.querySelector('[data-test-alert="failed"]');
+		assert(failed, "the failed alert must render");
+		expect(failed.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(failed.classList.contains("alert--visible")).toBe(true);
+		expect(failed.getAttribute("role")).toBe("alert");
+		expect(failed.querySelector("[data-test-alert-title]")?.textContent).toBe(
+			"Couldn't scan this email for links",
+		);
+		expect(failed.querySelector("[data-test-alert-message]")?.textContent).toBe(
+			"The original message is still on the View tab.",
 		);
 		// Counts stay withheld — a scan that never ran has no zero to report — so the
 		// tick ships only the panel, and no tab strip to rebuild.
@@ -1007,7 +1078,7 @@ describe("Inbox Articles panel poll route", () => {
 		assert(panel, "the panel fragment must render");
 		expect(panel.getAttribute("data-excluded-status")).toBe("failed");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(doc.querySelector("[data-test-excluded-failed]")).not.toBeNull();
+		expect(panelAlerts(doc)).toEqual(["failed"]);
 	});
 
 	it("swaps in the finished card set once extraction wrote its meta", async () => {
@@ -1086,8 +1157,8 @@ describe("Inbox Skipped panel poll route", () => {
 		assert(panel, "the panel fragment must render");
 		expect(panel.getAttribute("data-excluded-status")).toBe("stale");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(doc.querySelector("[data-test-excluded-stale]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-excluded-extracting]")).toBeNull();
+		expect(panelAlerts(doc)).toEqual(["stale"]);
+		expect(panelNotices(doc)).toEqual([]);
 	});
 
 	it("swaps in the finished skipped set once extraction wrote its meta", async () => {

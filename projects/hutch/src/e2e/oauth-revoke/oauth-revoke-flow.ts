@@ -17,8 +17,7 @@ export async function runOAuthRevokeFlow(options: {
 	const probe = await playwrightRequest.newContext({ baseURL })
 
 	try {
-		// Sign up (first run) or fall back to login (user already exists). The
-		// loadedAt field must be old enough to clear the signup bot-defense gate.
+		// The loadedAt field must be old enough to clear the signup bot-defense gate.
 		const signup = await browserJar.post('/signup', {
 			form: {
 				website: '',
@@ -28,13 +27,7 @@ export async function runOAuthRevokeFlow(options: {
 			},
 			maxRedirects: 0,
 		})
-		if (signup.status() !== 303) {
-			const login = await browserJar.post('/login', {
-				form: { email, password },
-				maxRedirects: 0,
-			})
-			assert.equal(login.status(), 303, 'signup said the account exists, so login must succeed')
-		}
+		assert.equal(signup.status(), 303, 'signup must create the account or sign in to the existing one')
 		const webSessionId = (await browserJar.storageState()).cookies
 			.find((cookie) => cookie.name === 'hutch_sid')?.value
 		assert(webSessionId, 'signing in must set the hutch_sid web session cookie')

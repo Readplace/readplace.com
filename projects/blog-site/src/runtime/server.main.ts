@@ -41,8 +41,7 @@ async function main(): Promise<void> {
 	// dev server would otherwise keep answering on it, and the browser would show
 	// a running app serving that checkout's code. Nothing blog-site emits embeds
 	// its own port (APP_ORIGIN is read for the cookie scheme only), so moving is
-	// safe — at worst hutch's changelog banner, which points at the preferred
-	// port, quietly falls back to its no-banner state.
+	// safe.
 	const port = await findAvailablePort({ preferredPort: PORT, maxAttempts: MAX_PORT_ATTEMPTS });
 	app.listen(port).on("listening", () => {
 		logger.info(`blog-site is running on http://localhost:${port}`);

@@ -1,19 +1,32 @@
 <article class="inbox-article-card" id="{{domId}}" data-test-inbox-article-card="{{ordinal}}"{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
-  {{#if hasTitle}}
-  <a class="inbox-article-card__title" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-title>{{title}}</a>
-  <span class="inbox-article-card__url" data-test-inbox-article-url>{{url}}</span>
-  {{else}}
-  <a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-url>{{url}}</a>
-  {{/if}}
-  <span class="inbox-article-card__status inbox-article-card__status--{{statusState}}" data-test-card-status="{{statusState}}">{{statusLabel}}</span>
-  <ul class="inbox-article-card__actions">
-    {{#each actions}}
-    <li class="inbox-article-card__action">
-      <form method="{{method}}" action="{{href}}"{{#if inPlaceTargetId}} hx-post="{{href}}" hx-target="#{{inPlaceTargetId}}" hx-swap="outerHTML"{{else}} hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{/if}} hx-disabled-elt="find button">
-        {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
-        <button type="submit" id="{{buttonId}}" class="{{buttonClass}}" aria-label="{{ariaLabel}}"{{#if saveState}} data-test-save-state="{{saveState}}"{{/if}} data-test-card-action="{{key}}">{{#if iconName}}{{icon iconName}}{{/if}}{{label}}</button>
-      </form>
-    </li>
-    {{/each}}
-  </ul>
-</article>
+            <div class="inbox-article-card__head">
+              {{#if hasTitle}}
+              <a class="inbox-article-card__title" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-title>{{title}}</a>
+              {{else}}
+              <a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-url>{{url}}</a>
+              {{/if}}
+              <details class="inbox-article-card__menu" data-test-inbox-article-menu>
+                <summary class="inbox-article-card__menu-toggle">{{icon "ellipsis"}}<span class="sr-only" data-test-inbox-article-menu-label>More options for {{menuSubject}}</span></summary>
+                <div class="inbox-article-card__menu-panel">
+                  {{#each menuActions}}
+                  <form class="inbox-article-card__menu-form" method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
+                    {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
+                    <button type="submit" id="{{buttonId}}" class="inbox-article-card__menu-item" aria-label="{{ariaLabel}}" data-test-card-action="{{key}}">{{icon iconName}}<span>{{label}}</span></button>
+                  </form>
+                  {{/each}}
+                </div>
+              </details>
+            </div>
+            {{#if hasTitle}}
+            <div class="inbox-article-card__meta">
+              <span class="inbox-article-card__url" title="{{url}}" data-test-inbox-article-url>{{icon "globe"}}<span class="inbox-article-card__url-text">{{url}}</span></span>
+            </div>
+            {{/if}}
+            <span class="{{statusClass}}" data-test-card-status="{{statusState}}">{{#if statusIconName}}{{icon statusIconName}}{{/if}}<span>{{statusLabel}}</span></span>
+            {{#each actions}}
+            <form class="inbox-article-card__action" method="{{method}}" action="{{href}}" hx-post="{{href}}" hx-target="#{{inPlaceTargetId}}" hx-swap="outerHTML" hx-disabled-elt="find button">
+              {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
+              <button type="submit" id="{{buttonId}}" class="{{buttonClass}}" aria-label="{{ariaLabel}}" data-test-save-state="{{saveState}}" data-test-card-action="{{key}}"><span class="btn__label-stack" data-reserve-1="{{reserve1}}" data-reserve-2="{{reserve2}}"><span class="inbox-article-card__action-label">{{#if iconName}}{{icon iconName}}{{/if}}{{label}}</span></span>{{{loaderHtml}}}</button>
+            </form>
+            {{/each}}
+          </article>

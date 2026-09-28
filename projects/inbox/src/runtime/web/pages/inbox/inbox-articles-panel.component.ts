@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, renderAlert, renderIllustration } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { panelStatusFor } from "./inbox-panel-status";
 import { renderInboxShowMore } from "./inbox-articles-show-more.component";
@@ -11,6 +11,8 @@ const INBOX_ARTICLES_PANEL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const EMPTY_ILLUSTRATION_HTML = renderIllustration("book-lightbulb");
+
 /**
  * Renders the Articles panel as a standalone `<section>` so the same markup
  * serves both the full detail page and the `GET /inbox/:id/articles` poll
@@ -20,8 +22,21 @@ const INBOX_ARTICLES_PANEL_TEMPLATE = readFileSync(
 export function renderInboxArticlesPanel(vm: ArticlesPanelViewModel): string {
 	return render(INBOX_ARTICLES_PANEL_TEMPLATE, {
 		...vm,
+		alertsHtml: vm.alerts
+			.map(({ key, title, body }) =>
+				renderAlert({
+					key,
+					content: {
+						variant: "error",
+						title: { text: title, element: "p" },
+						message: { text: body },
+					},
+				}),
+			)
+			.join(""),
 		articleHtmls: vm.cards.map(renderInboxArticleCard),
 		showMoreHtml: vm.showMore === undefined ? "" : renderInboxShowMore(vm.showMore),
 		panelStatus: panelStatusFor(vm),
+		emptyIllustrationHtml: EMPTY_ILLUSTRATION_HTML,
 	});
 }

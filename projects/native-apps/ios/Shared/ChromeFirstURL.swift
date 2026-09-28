@@ -7,7 +7,7 @@ import Foundation
 /// so the scheme is mapped rather than assumed.
 ///
 /// This is for *content* links the app hands to a browser — the changelog banner's
-/// "Read more", an article's own links. Signing in does not come through here: it
+/// "Learn more", an article's own links. Signing in does not come through here: it
 /// runs in an in-app auth session, because App Store review rejects handing the
 /// user to a separate browser app to authenticate.
 ///

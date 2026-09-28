@@ -1,5 +1,6 @@
 import type { RequestHandler } from "express";
-import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
+import { sendComponent } from "@packages/web-shell";
+import type { BuildBannerState } from "../banner-state";
 import { Base } from "../base.component";
 import { isNonBoostedHtmxRequest } from "../is-non-boosted-htmx-request";
 import { AccountLockedPage } from "../pages/account-locked/account-locked.component";
@@ -18,17 +19,19 @@ import { AccountLockedPage } from "../pages/account-locked/account-locked.compon
  * screen (its unguarded /logout form, served by hutch on the same origin, is
  * the only escape); the Siren arm lives in hutch with its bearer clients.
  */
-export const requireNotLocked: RequestHandler = (req, res, next) => {
-	if (req.verificationStatus?.state !== "locked") {
-		next();
-		return;
-	}
-	if (isNonBoostedHtmxRequest(req)) {
-		res.set({
-			"HX-Retarget": "main",
-			"HX-Reselect": "main",
-			"HX-Reswap": "outerHTML show:none",
-		});
-	}
-	sendComponent(req, res, Base(AccountLockedPage(), bannerStateFromRequest(req)));
-};
+export function initRequireNotLocked(deps: { buildBannerState: BuildBannerState }): RequestHandler {
+	return async (req, res, next) => {
+		if (req.verificationStatus?.state !== "locked") {
+			next();
+			return;
+		}
+		if (isNonBoostedHtmxRequest(req)) {
+			res.set({
+				"HX-Retarget": "main",
+				"HX-Reselect": "main",
+				"HX-Reswap": "outerHTML show:none",
+			});
+		}
+		sendComponent(req, res, Base(AccountLockedPage(), await deps.buildBannerState(req)));
+	};
+}

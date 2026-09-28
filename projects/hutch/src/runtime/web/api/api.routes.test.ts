@@ -10,7 +10,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
 } from "@packages/test-fixtures";
-import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
+import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MinutesSchema } from "@packages/domain/article";
 import { READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 
@@ -491,7 +491,7 @@ describe("POST /queue (Siren save article)", () => {
 	it("returns 201 with fallback article when fetch fails", async () => {
 		const crawlArticle = async () => ({ status: "failed" as const });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], restoreRetaggedTables, logError: createNoopLogError() });
+		const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 		const applyParseResult = createFakeApplyParseResult({
 			articleStore: fixture.articleStore,
 			articleCrawl: fixture.articleCrawl,

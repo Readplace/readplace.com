@@ -31,6 +31,10 @@ describe("actionVariant", () => {
 		expect(actionVariant("delete")).toBe("danger");
 	});
 
+	it("maps the read-state action to the row toggle", () => {
+		expect(actionVariant("update-status")).toBe("toggle");
+	});
+
 	it("falls back to the default variant for an unknown name", () => {
 		expect(actionVariant("mark-read")).toBe("default");
 	});
@@ -38,7 +42,7 @@ describe("actionVariant", () => {
 
 describe("actionIcon", () => {
 	it("maps the delete action to the shared set's icon markup", () => {
-		expect(actionIcon("delete")).toBe(iconSvg("x"));
+		expect(actionIcon("delete")).toBe(iconSvg("trash"));
 	});
 
 	it("returns undefined for an action with no bespoke icon", () => {

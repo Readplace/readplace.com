@@ -1,7 +1,7 @@
 .save-error {
   background: var(--muted);
   flex: 1 1 auto;
-  padding: 24px 16px 64px;
+  padding: var(--page-top) var(--page-gutter) 64px;
 }
 
 .save-error__container {
@@ -10,50 +10,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.save-error__alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-}
-
-.save-error__alert-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(0.875rem * 1.6);
-  color: var(--error-text);
-}
-
-.save-error__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.save-error__alert-text {
-  min-width: 0;
-}
-
-.save-error__title {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--foreground);
-  margin: 0 0 2px;
-  text-wrap: balance;
-}
-
-.save-error__text {
-  font-size: 0.8125rem;
-  line-height: 1.55;
-  color: var(--muted-foreground);
-  margin: 0;
-  text-wrap: pretty;
 }
 
 .save-error__seconds {
@@ -66,6 +22,6 @@
 
 @media (min-width: 1024px) {
   .save-error {
-    padding: 28px 24px 80px;
+    padding-bottom: 80px;
   }
 }

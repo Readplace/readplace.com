@@ -9,6 +9,7 @@ import mockwebserver3.junit4.MockWebServerRule
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -261,6 +262,49 @@ class OAuthTest {
 		assertEquals(OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")), store.tokens)
 	}
 
+	@Test
+	fun `an exchange with an empty access token is malformed and signs nobody in`() = runTest {
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"","refresh_token":"rt"}"""))
+
+		try {
+			oauth().exchangeCode("c", "v", "r")
+			fail("an empty access token is not a token")
+		} catch (_: OAuthError.MalformedResponse) {
+		}
+		assertEquals(emptyMap<TokenKey, String>(), storage.stored)
+		assertFalse("a rejected exchange must not sign the account in", store.isLoggedIn)
+	}
+
+	@Test
+	fun `an exchange with an empty refresh token is malformed and leaves the prior pair intact`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"at","refresh_token":""}"""))
+
+		try {
+			oauth().exchangeCode("c", "v", "r")
+			fail("a present but empty refresh token must not resolve")
+		} catch (_: OAuthError.MalformedResponse) {
+		}
+		assertEquals(
+			"a valid access token cannot half-write a session when the refresh token is empty",
+			OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")),
+			store.tokens,
+		)
+	}
+
+	@Test
+	fun `an exchange whose access and refresh are both empty signs nobody in`() = runTest {
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"","refresh_token":""}"""))
+
+		try {
+			oauth().exchangeCode("c", "v", "r")
+			fail("an empty pair is not a session")
+		} catch (_: OAuthError.MalformedResponse) {
+		}
+		assertEquals(emptyMap<TokenKey, String>(), storage.stored)
+		assertFalse("an empty pair must never make the account appear logged in", store.isLoggedIn)
+	}
+
 	// endregion
 
 	// region refresh
@@ -441,6 +485,70 @@ class OAuthTest {
 			assertEquals("The session changed. Please try again.", error.message)
 		}
 		assertEquals(0, server.requestCount)
+	}
+
+	@Test
+	fun `a refresh with an empty access token is malformed and keeps the stored pair`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"","refresh_token":"rt-2"}"""))
+		val oauth = oauth()
+
+		try {
+			oauth.refresh(after = oauth.snap())
+			fail("an empty access token is not a token")
+		} catch (_: OAuthError.MalformedResponse) {
+		}
+		assertEquals(OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")), store.tokens)
+	}
+
+	@Test
+	fun `a refresh with an empty refresh token is malformed and does not overwrite the stored access token`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"at-2","refresh_token":""}"""))
+		val oauth = oauth()
+
+		try {
+			oauth.refresh(after = oauth.snap())
+			fail("a present but empty refresh token is malformed, not a declined rotation")
+		} catch (_: OAuthError.MalformedResponse) {
+		}
+		assertEquals(
+			"an empty refresh must not fall through to the stored one and half-write the new access token",
+			OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")),
+			store.tokens,
+		)
+	}
+
+	@Test
+	fun `a refresh whose access and refresh are both empty is malformed and keeps the stored pair`() = runTest {
+		signedInWith(refreshToken = "rt-1")
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"","refresh_token":""}"""))
+		val oauth = oauth()
+
+		try {
+			oauth.refresh(after = oauth.snap())
+			fail("an empty pair cannot replace a live session")
+		} catch (_: OAuthError.MalformedResponse) {
+		}
+		assertEquals(OAuthTokens(AccessToken("stored-access"), RefreshToken("rt-1")), store.tokens)
+	}
+
+	@Test
+	fun `a refresh that omits the token rejects an empty stored refresh rather than reusing it`() = runTest {
+		signedInWith(refreshToken = "")
+		server.enqueue(MockResponse(code = 200, body = """{"access_token":"at-2"}"""))
+		val oauth = oauth()
+
+		try {
+			oauth.refresh(after = oauth.snap())
+			fail("an empty stored refresh is not a usable fallback")
+		} catch (_: OAuthError.MalformedResponse) {
+		}
+		assertEquals(
+			"a store left holding an empty refresh must not be revived into a valid empty pair",
+			OAuthTokens(AccessToken("stored-access"), RefreshToken("")),
+			store.tokens,
+		)
 	}
 
 	// region revoke

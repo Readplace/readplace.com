@@ -9,12 +9,13 @@ import type {
  * back to `default`. The server never sends a class — presentation is 100%
  * client-side, so a server-side rename of an action's wire `name` only loses the
  * bespoke styling (degrading to `default`), it never injects a class. */
-export type ActionVariant = "danger" | "default";
+export type ActionVariant = "toggle" | "danger" | "default";
 
 /** The one place the wire vocabulary meets the client's design tokens. Add a row
  * to give a known action bespoke styling; everything absent is `default`. Keep
  * this a map of `name` -> token, never a passthrough of the server string. */
 const VARIANT_BY_NAME: Record<string, ActionVariant> = {
+	"update-status": "toggle",
 	delete: "danger",
 };
 
@@ -30,7 +31,7 @@ export function actionVariant(name: string): ActionVariant {
  * server-side rename only loses the icon (degrading to the label) and can never
  * reach the returned markup. */
 const ICON_BY_NAME: Record<string, IconName> = {
-	delete: "x",
+	delete: "trash",
 };
 
 export function actionIcon(name: string): string | undefined {

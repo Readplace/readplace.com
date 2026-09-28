@@ -4,6 +4,7 @@ import {
 	ConfirmGmailForwardingCommand,
 	EmailReceivedEvent,
 	GmailForwardingConfirmedEvent,
+	type GmailForwardingConfirmFailedLine,
 	type HutchEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -81,6 +82,7 @@ function makeInbox() {
 	const confirm = initConfirmGmailForwardingHandler({
 		confirmForwardingAddress: initConfirmForwardingAddress({ fetch: confirmationFetch, timeoutMs: 5_000 }),
 		publishEvent,
+		metricLog: HutchLogger.fromJSON<GmailForwardingConfirmFailedLine>(),
 		logger,
 	});
 

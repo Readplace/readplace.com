@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CHEAPEST_MONTHLY_DISPLAY, render, VERIFICATION_CONTACT_EMAIL, withInternalTracking } from "@packages/web-shell";
+import { CHEAPEST_MONTHLY_DISPLAY, render, renderAlert, VERIFICATION_CONTACT_EMAIL, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
@@ -34,7 +34,6 @@ interface SignupFormData extends AuthFormData {
 }
 
 interface FieldViewModel {
-	errorClass: string;
 	error?: string;
 }
 
@@ -50,11 +49,16 @@ function toFieldViewModel(
 	errors: ComponentError[] | undefined,
 	field: string,
 ): FieldViewModel {
-	const error = errors?.find((e) => e.fieldName === field);
 	return {
-		errorClass: error ? " auth-form__input--error" : "",
-		error: error?.message,
+		error: errors?.find((e) => e.fieldName === field)?.message,
 	};
+}
+
+function globalErrorHtml(errors: ComponentError[] | undefined): string {
+	const error = errors?.find((entry) => !entry.fieldName);
+	return error === undefined
+		? ""
+		: renderAlert({ key: "global-error", content: { variant: "error", title: { text: error.message, element: "p" } } });
 }
 
 export function LoginPage(data: AuthFormData, options?: { statusCode?: number }): PageBody {
@@ -63,7 +67,7 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 
 	const content = render(LOGIN_TEMPLATE, {
 		email,
-		globalError: errors?.find((e) => !e.fieldName)?.message,
+		globalErrorHtml: globalErrorHtml(errors),
 		formAction: authPageHref({ path: "/login", content: "login-btn", returnUrl: data.returnUrl }),
 		signupHref: authPageHref({ path: "/signup", content: "create-acc-btn", returnUrl: data.returnUrl }),
 		authProvidersHtml: renderAuthProviders({
@@ -130,7 +134,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 	const errors = data.errors;
 	const content = render(SIGNUP_TEMPLATE, {
 		email,
-		globalError: errors?.find((e) => !e.fieldName)?.message,
+		globalErrorHtml: globalErrorHtml(errors),
 		formAction: authPageHref({ path: "/signup", content: "signup-submit-btn", returnUrl: data.returnUrl }),
 		signInHref: authPageHref({ path: "/login", content: "sign-in-link", returnUrl: data.returnUrl }),
 		pendingSaveHost: data.pendingSaveHost,
@@ -180,7 +184,7 @@ export function ForgotPasswordPage(
 
 	const content = render(FORGOT_PASSWORD_TEMPLATE, {
 		email,
-		globalError: errors?.find((e) => !e.fieldName)?.message,
+		globalErrorHtml: globalErrorHtml(errors),
 		sent: data?.sent,
 		emailField: toFieldViewModel(errors, "email"),
 	});
@@ -213,7 +217,7 @@ export function ResetPasswordPage(
 						source: "auth-reset",
 						content: "set-new-password",
 					}),
-		globalError: errors?.find((e) => !e.fieldName)?.message,
+		globalErrorHtml: globalErrorHtml(errors),
 		success: data.success,
 		error: data.error,
 		passwordField: toFieldViewModel(errors, "password"),

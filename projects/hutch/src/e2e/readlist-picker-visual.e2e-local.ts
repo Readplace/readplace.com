@@ -36,7 +36,6 @@ const READLIST_TAB = "[data-test-readlist]";
 const NEW_READLIST = '[data-test-action="new-readlist"]';
 
 const VOLATILE_CHROME = [
-	".trial-countdown",
 	".offline-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",

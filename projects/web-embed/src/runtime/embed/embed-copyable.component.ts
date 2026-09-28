@@ -2,23 +2,26 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 
-const EMBED_COPYABLE_TEMPLATE = readFileSync(join(__dirname, "embed-copyable.template.html"), "utf-8");
+function readTemplate(name: string): string {
+	return readFileSync(join(__dirname, name), "utf-8");
+}
 
-type CopyableKind = "code" | "prose";
+const EMBED_COPYABLE_TEMPLATE = readTemplate("embed-copyable.template.html");
 
-const COPYABLE_BODY: Record<CopyableKind, { tag: "pre" | "p"; bodyClass: string }> = {
-	code: { tag: "pre", bodyClass: "embed-copyable__body embed-copyable__body--code" },
-	prose: { tag: "p", bodyClass: "embed-copyable__body embed-copyable__body--prose" },
+const COPYABLE_BODY_TEMPLATES = {
+	code: readTemplate("embed-copyable-code.template.html"),
+	prose: readTemplate("embed-copyable-prose.template.html"),
 };
 
-export interface EmbedCopyable {
-	kind: CopyableKind;
+interface CopyableText {
 	targetId: string;
 	bodyTestId: string;
 	copyTestId: string;
 	text: string;
 }
 
+export type EmbedCopyable = (CopyableText & { kind: "code"; template: string }) | (CopyableText & { kind: "prose" });
+
 export function renderEmbedCopyable(vm: EmbedCopyable): string {
-	return render(EMBED_COPYABLE_TEMPLATE, { ...vm, ...COPYABLE_BODY[vm.kind] });
+	return render(EMBED_COPYABLE_TEMPLATE, { ...vm, body: render(COPYABLE_BODY_TEMPLATES[vm.kind], vm) });
 }

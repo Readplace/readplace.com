@@ -39,6 +39,7 @@ export const READLIST_FILTERS = "nav[data-test-filters]";
 export const ARTICLE_CARD = "[data-test-article]";
 export const EMPTY_READLIST = "[data-test-empty-readlist]";
 export const READLIST_COUNTS = "[data-test-readlist-counts]";
+export const CHANGELOG_BANNER = "[data-test-changelog-banner]";
 export const ARTICLE_HEADER = "#article-header";
 export const READER_SLOT_READY = '[data-test-reader-slot][data-reader-status="ready"]';
 export const READER_CONTENT = "[data-test-reader-content]";

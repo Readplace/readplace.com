@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
 	CONFIRM_POPOVER_STYLES,
 	render,
+	renderAlert,
 	renderInFlightDots,
 	withInternalTracking,
 } from "@packages/web-shell";
@@ -29,9 +30,8 @@ const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.templat
  * present, so the list/manage views pay nothing for it. */
 const ACCOUNT_CARDS_SCRIPT = `<script src="/client-dist/account-cards.client.js" defer></script>`;
 
-/** Export left the header nav so the trial countdown keeps its room; the account
- * page is where it lives now, reachable by read-only users too — they lose the
- * Account nav entry but still reach /account from the countdown chip. */
+/** Export left the header nav; the account page is where it lives now,
+ * reachable by read-only users too. */
 const EXPORT_HREF = withInternalTracking(ACCOUNT_EXPORT_URL, {
 	source: "account",
 	content: "export",
@@ -88,7 +88,26 @@ function toAccountCardAction(action: AccountAction): AccountCardAction {
 }
 
 export function renderAccountCard(vm: AccountViewModel): string {
-	return render(ACCOUNT_CARD_TEMPLATE, { ...vm, actions: vm.actions.map(toAccountCardAction) });
+	const errorAlertHtml = vm.stateIsErrorPaymentMethod
+		? renderAlert({
+			key: "account-subscription",
+			content: {
+				variant: "error",
+				title: { text: "We couldn't restart your subscription", element: "h2" },
+				message: { html: render('The card we have on file is no longer valid. Email <a href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a> and we\'ll get you back up and running.', {}) },
+			},
+		})
+		: vm.stateIsErrorSubscribeFailed
+			? renderAlert({
+				key: "account-subscription",
+				content: {
+					variant: "error",
+					title: { text: "We couldn't start your subscription", element: "h2" },
+					message: { html: render('Something went wrong on the way to the checkout and nothing was charged. Try again, and if it keeps happening email <a href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a>.', {}) },
+				},
+			})
+			: "";
+	return render(ACCOUNT_CARD_TEMPLATE, { ...vm, errorAlertHtml, actions: vm.actions.map(toAccountCardAction) });
 }
 
 export function AccountPage(
@@ -109,7 +128,15 @@ export function AccountPage(
 		content: {
 			html: render(ACCOUNT_TEMPLATE, {
 				...vm,
-				cardSection,
+				cardSection: {
+					...cardSection,
+					alertHtml: cardSection.isError
+						? renderAlert({ key: "payment-methods", content: { variant: "error", message: { text: cardSection.message } } })
+						: "",
+					noticeAlertHtml: cardSection.hasNotice
+						? renderAlert({ key: "card-notice", content: { variant: "error", message: { text: cardSection.notice } } })
+						: "",
+				},
 				cardHtml: renderAccountCard(vm),
 				subscribePlansHtml: vm.actions.some((action) => action.popoverTarget !== undefined)
 					? renderSubscribePlansPopover({ source: "account" })

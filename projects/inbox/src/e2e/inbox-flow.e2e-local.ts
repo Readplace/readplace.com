@@ -41,7 +41,7 @@ test.describe("Inbox article cards", () => {
 
 		// Focus the control the reader would be reaching for while the card is
 		// still resolving — the swap must not pull it out from under them.
-		const saveButton = pendingCard.locator("button").first();
+		const saveButton = pendingCard.locator('[data-test-card-action="save"]');
 		await saveButton.focus();
 		const focusedBefore = await page.evaluate(() => document.activeElement?.id);
 		assert.ok(focusedBefore, "the save button must take focus");
