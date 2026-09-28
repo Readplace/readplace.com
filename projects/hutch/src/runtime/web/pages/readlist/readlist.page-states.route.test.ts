@@ -152,10 +152,12 @@ describe("the alert box", () => {
 
 		const doc = parse((await agent.get("/queue?queue_error=limit")).text);
 
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert box must always be rendered");
-		expect(alert.classList.contains("readlist__alert--visible")).toBe(true);
-		const title = doc.querySelector("[data-test-readlist-error-title]");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.getAttribute("role")).toBe("alert");
+		const title = alert.querySelector("[data-test-alert-title]");
 		assert(title, "the alert title must be rendered");
 		expect(title.textContent).toBe("Readlist limit reached");
 	});
@@ -166,9 +168,9 @@ describe("the alert box", () => {
 
 		const doc = parse((await agent.get("/queue")).text);
 
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert box must always be rendered");
-		expect(alert.classList.contains("readlist__alert--hidden")).toBe(true);
+		expect(alert.classList.contains("alert--hidden")).toBe(true);
 	});
 });
 
@@ -383,10 +385,12 @@ describe("custom readlist chrome", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(`/queue?queue=${slug}&queue_error=rename_invalid-name`);
 		const doc = parse((await agent.get(response.headers.location)).text);
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert box must be rendered");
-		expect(alert.classList.contains("readlist__alert--visible")).toBe(true);
-		expect(alert.querySelector("[data-test-readlist-error-title]")?.textContent).toBe("Couldn't rename the readlist");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe("Couldn't rename the readlist");
 	});
 
 	it("keeps answering JSON to the in-page rename client, which asks for it explicitly", async () => {

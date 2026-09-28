@@ -110,12 +110,14 @@ describe("ReadlistPreferencesPage", () => {
 
 	it("titles the alert a rejected rename lands on", () => {
 		const doc = documentOf(page({ query: { queue_error: "rename_invalid-name" } }).content.html);
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert must render in every state");
-		const title = alert.querySelector("[data-test-readlist-error-title]");
+		const title = alert.querySelector("[data-test-alert-title]");
 		assert(title, "a recognised alert must carry its title");
 
-		expect(alert.classList.contains("readlist__alert--visible")).toBe(true);
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.getAttribute("role")).toBe("alert");
 		expect(title.textContent).toBe("Couldn't rename the readlist");
 	});
 

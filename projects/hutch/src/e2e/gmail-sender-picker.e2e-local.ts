@@ -299,7 +299,7 @@ test.describe("Gmail sender picker", () => {
 		await input.fill("tldr");
 		await submit.click();
 		await expect(
-			page.locator('[data-test-gmail-alert-key="inbox_name_taken"]'),
+			page.locator('[data-test-alert="inbox_name_taken"]'),
 		).toBeVisible();
 		await expect(page.locator(INBOX_PICKER)).toHaveAttribute("open", "");
 		await expect(

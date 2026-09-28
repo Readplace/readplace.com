@@ -6,13 +6,8 @@
           <span class="gmail__status {{stateModifier}}" data-test-gmail-state="{{state}}">{{statusLabel}}</span>
         </div>
 
-        {{#each notices}}
-        <div class="gmail__notice" role="status" data-test-gmail-notice data-test-gmail-notice-key="{{key}}">{{message}}</div>
-        {{/each}}
-
-        {{#each alerts}}
-        <div class="gmail__alert" role="alert" data-test-gmail-alert data-test-gmail-alert-key="{{key}}"><span class="gmail__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>{{message}}</div>
-        {{/each}}
+        {{{noticesHtml}}}
+        {{{alertsHtml}}}
 
         {{#if showStep}}
         <section class="gmail__step" data-test-gmail-step>
@@ -130,7 +125,7 @@
         <section class="gmail__mappings" data-test-gmail-mappings>
           <h2 class="gmail__section-title">Your mappings</h2>
           <div class="gmail__filter" data-test-gmail-filter-state="{{filter.state}}">
-            <p class="{{filter.messageClass}}" role="status" data-test-gmail-filter-message>{{#if filter.alert}}<span class="gmail__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>{{/if}}{{filter.message}}</p>
+            {{{filterMessageHtml}}}
             <div class="gmail__filter-actions">
               {{#each filter.actions}}
               <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">

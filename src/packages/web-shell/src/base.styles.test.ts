@@ -91,6 +91,11 @@ describe("scrim constants", () => {
 });
 
 describe("BASE_CSS_VARIABLES", () => {
+	it("keeps the warning alert icon legible on the light tint and follows the warning mark in dark mode", () => {
+		expect(lightRootDeclarations()).toContain("--warning-text: hsl(37 56% 40%);");
+		expect(darkRootDeclarations()).toContain("--warning-text: var(--color-warning);");
+	});
+
 	it("opens with the system theme tokens every surface shares", () => {
 		expect(BASE_CSS_VARIABLES.startsWith(SYSTEM_THEME_VARIABLES)).toBe(true);
 	});
