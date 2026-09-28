@@ -91,36 +91,8 @@
   text-wrap: pretty;
 }
 
-.auth-form__global-error {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+.auth-card > .alert {
   margin-bottom: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius);
-  background: var(--error-bg);
-}
-
-.auth-form__global-error-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(var(--text-sm) * 1.6);
-  color: var(--error-text);
-}
-
-.auth-form__global-error-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.auth-form__global-error-title {
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--foreground);
-  text-wrap: balance;
 }
 
 .auth-card__footer {

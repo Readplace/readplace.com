@@ -9,17 +9,11 @@
         </div>
         {{{cardHtml}}}
         {{#if showCardSection}}
-        <section class="{{cardSection.stateClass}}"{{#if cardSection.isError}} role="alert"{{/if}} data-test-cards-section data-test-cards-state="{{cardSection.state}}">
-          {{#if cardSection.isError}}
-          <span class="account-cards__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-          {{/if}}
+        <section class="{{cardSection.stateClass}}" data-test-cards-section data-test-cards-state="{{cardSection.state}}">
           <h2 class="account-cards__heading">{{cardSection.heading}}</h2>
           {{#if cardSection.isLoaded}}
           {{#if cardSection.hasNotice}}
-          <div class="account-cards__notice" role="alert" data-test-cards-notice>
-            <span class="account-cards__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-            <p class="account-cards__notice-text">{{cardSection.notice}}</p>
-          </div>
+          {{{cardSection.noticeAlertHtml}}}
           {{/if}}
           <ul class="account-cards__list">
             {{#each cardSection.cards}}
@@ -68,7 +62,11 @@
           </div>
           {{/if}}
           {{else}}
+          {{#if cardSection.isError}}
+          {{{cardSection.alertHtml}}}
+          {{else}}
           <p class="account-cards__body" data-test-cards-message>{{cardSection.message}}</p>
+          {{/if}}
           {{/if}}
         </section>
         {{/if}}

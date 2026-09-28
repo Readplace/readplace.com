@@ -129,50 +129,6 @@
   text-wrap: pretty;
 }
 
-.admin-extend-trial__alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-}
-
-.admin-extend-trial__alert-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(var(--text-sm) * 1.6);
-  color: var(--error-text);
-}
-
-.admin-extend-trial__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.admin-extend-trial__alert-text {
-  min-width: 0;
-}
-
-.admin-extend-trial__alert-title {
-  min-width: 0;
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--foreground);
-  text-wrap: balance;
-}
-
-.admin-extend-trial__alert-body {
-  margin: 2px 0 0;
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-  text-wrap: pretty;
-}
-
-.admin-extend-trial__alert-facts {
+.admin-extend-trial__refusal-facts {
   margin-top: 8px;
 }

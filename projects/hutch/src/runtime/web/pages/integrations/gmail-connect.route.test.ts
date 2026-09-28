@@ -695,10 +695,12 @@ describe("GET /integrations/gmail/callback", () => {
 
 		const index = await agent.get(signedIn.headers.location);
 		const alert = new JSDOM(index.text).window.document.querySelector(
-			"[data-test-integrations-alert-key]",
+			'[data-test-alert-variant="error"]',
 		);
 		assert(alert, "the integrations index must render the signed-out alert after signing in");
-		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_signed_out");
+		expect(alert.getAttribute("data-test-alert")).toBe("oauth_signed_out");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
 	});
 });
 
