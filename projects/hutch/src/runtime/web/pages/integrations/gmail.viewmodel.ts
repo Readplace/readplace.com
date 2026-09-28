@@ -1,4 +1,5 @@
 import { withInternalTracking } from "@packages/web-shell";
+import type { AlertVariant } from "@packages/web-shell";
 import assert from "node:assert";
 import type {
 	GmailConfirmFailureReason,
@@ -56,11 +57,11 @@ interface GmailFilterAction {
 interface GmailFilterViewModel {
 	state: GmailFilterState;
 	message: string;
-	messageClass: "gmail__alert" | "gmail__step-copy";
-	alert: boolean;
+	presentation: "alert" | "copy";
 	actions: GmailFilterAction[];
 }
 export interface GmailBannerViewModel { key: string; message: string }
+export interface GmailNoticeViewModel extends GmailBannerViewModel { variant: AlertVariant }
 
 export interface GmailPageInput {
 	connection: GmailConnection;
@@ -142,7 +143,7 @@ export interface GmailPageViewModel {
 	hasMappings: boolean;
 	filter: GmailFilterViewModel;
 	alerts: GmailBannerViewModel[];
-	notices: GmailBannerViewModel[];
+	notices: GmailNoticeViewModel[];
 }
 
 export interface GmailPollViewModel { pollUrl: string | undefined; message: string }
@@ -203,6 +204,15 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, string> = {
 	sender_mapped: "Mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.",
 	inbox_created: "Inbox created and mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.",
 	filter_retry_requested: "Updating Gmail. Refresh in a moment.",
+};
+
+const GMAIL_NOTICE_VARIANTS: Record<GmailPageNotice, AlertVariant> = {
+	connected: "success",
+	confirmed: "success",
+	sender_removed: "success",
+	sender_mapped: "success",
+	inbox_created: "success",
+	filter_retry_requested: "info",
 };
 
 type GmailSaveNotice = Extract<GmailPageNotice, "sender_mapped" | "inbox_created">;
@@ -291,15 +301,6 @@ function mappingGroups(input: GmailPageInput): GmailMappingGroup[] {
 	return [...groups.values()];
 }
 
-const FILTER_MESSAGE_CLASS_BY_STATE: Record<GmailFilterState, GmailFilterViewModel["messageClass"]> = {
-	reconnect: "gmail__step-copy",
-	"waiting-confirmation": "gmail__step-copy",
-	failed: "gmail__alert",
-	updating: "gmail__step-copy",
-	live: "gmail__step-copy",
-	none: "gmail__step-copy",
-};
-
 const RETRY_FILTER_ACTION: GmailFilterAction = {
 	key: "retry",
 	method: "POST",
@@ -383,8 +384,7 @@ function filterFor(input: GmailPageInput, mappings: GmailMappingGroup[]): GmailF
 	return {
 		state,
 		message: filterMessage(input, state),
-		messageClass: FILTER_MESSAGE_CLASS_BY_STATE[state],
-		alert: state === "failed",
+		presentation: state === "failed" ? "alert" : "copy",
 		actions: FILTER_ACTIONS_BY_STATE[state],
 	};
 }
@@ -491,6 +491,6 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			pollState === undefined
 				? GMAIL_PAGE_NOTICES
 				: { ...GMAIL_PAGE_NOTICES, ...GMAIL_SAVE_NOTICES_AWAITING_CONFIRMATION },
-		),
+		).map((notice) => ({ ...notice, variant: GMAIL_NOTICE_VARIANTS[notice.key as GmailPageNotice] })),
 	};
 }

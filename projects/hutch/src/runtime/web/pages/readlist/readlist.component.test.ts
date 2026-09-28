@@ -158,18 +158,20 @@ describe("ReadlistPage", () => {
 	it("shows the alert for a query the alert catalogue recognises", () => {
 		const doc = pageDoc({}, { query: { queue_error: "limit" } });
 
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert region must always render");
-		expect(alert.classList.contains("readlist__alert--visible")).toBe(true);
-		expect(doc.querySelector("[data-test-readlist-error-title]")?.textContent).toBe("Readlist limit reached");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe("Readlist limit reached");
 	});
 
 	it("hides the alert when the query carries no recognised error", () => {
 		const doc = pageDoc({}, { query: {} });
 
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert region must always render");
-		expect(alert.classList.contains("readlist__alert--hidden")).toBe(true);
+		expect(alert.classList.contains("alert--hidden")).toBe(true);
 	});
 
 	it("shows the save card on the All readlist", () => {

@@ -84,7 +84,7 @@ export function createExtendTrialActions(
 			},
 			execute: async (page) => {
 				await submitLookup(page, 'nobody-e2e@example.com')
-				await expect(page.locator('[data-test-extend-trial-not-found]')).toBeVisible()
+				await expect(page.locator('[data-test-alert="extend-trial-not-found"]')).toBeVisible()
 				progress.unknownEmailReported = true
 			},
 		},

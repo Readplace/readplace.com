@@ -90,6 +90,13 @@ export {
 	CONFIRM_POPOVER_STYLES,
 	renderConfirmPopover,
 } from "./shared/confirm-popover/confirm-popover.component";
+export { ALERT_STYLES, renderAlert } from "./shared/alert/alert.component";
+export type {
+	AlertContent,
+	AlertMessage,
+	AlertTitle,
+	AlertVariant,
+} from "./shared/alert/alert.component";
 export type {
 	ConfirmPopover,
 	ConfirmPopoverLead,

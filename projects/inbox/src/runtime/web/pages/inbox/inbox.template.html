@@ -8,15 +8,7 @@
 
     {{{statusToastHtml}}}
 
-    {{#each alerts}}
-    <div class="inbox__alert" role="alert" data-test-inbox-alert="{{key}}">
-      <span class="inbox__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-      <div class="inbox__alert-text">
-        <p class="inbox__alert-title">{{title}}</p>
-        <p class="inbox__alert-body">{{body}}</p>
-      </div>
-    </div>
-    {{/each}}
+    {{{alertsHtml}}}
 
     <section class="inbox__create-section" data-test-inbox-section="create">
       <section class="inbox__instructions">

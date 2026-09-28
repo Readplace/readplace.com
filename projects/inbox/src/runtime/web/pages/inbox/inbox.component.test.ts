@@ -28,9 +28,12 @@ function parse(html: string): Document {
 }
 
 function alertKeys(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-test-inbox-alert]")).map((el) =>
-		el.getAttribute("data-test-inbox-alert"),
-	);
+	return Array.from(doc.querySelectorAll("[data-test-alert]")).map((el) => {
+		assert.equal(el.getAttribute("data-test-alert-variant"), "error");
+		assert.equal(el.classList.contains("alert--visible"), true);
+		assert.equal(el.getAttribute("role"), "alert");
+		return el.getAttribute("data-test-alert");
+	});
 }
 
 function fieldErrorKeys(doc: Document): (string | null)[] {
@@ -383,19 +386,28 @@ describe("InboxPage", () => {
 				.content.html,
 		);
 
-		const alerts = Array.from(doc.querySelectorAll("[data-test-inbox-alert]")).map((el) => ({
-			key: el.getAttribute("data-test-inbox-alert"),
-			title: el.querySelector(".inbox__alert-title")?.textContent,
-			body: el.querySelector(".inbox__alert-body")?.textContent,
+		const alerts = Array.from(doc.querySelectorAll("[data-test-alert]")).map((el) => ({
+			key: el.getAttribute("data-test-alert"),
+			variant: el.getAttribute("data-test-alert-variant"),
+			visible: el.classList.contains("alert--visible"),
+			role: el.getAttribute("role"),
+			title: el.querySelector("[data-test-alert-title]")?.textContent,
+			body: el.querySelector("[data-test-alert-message]")?.textContent,
 		}));
 		assert.deepEqual(alerts, [
 			{
 				key: "create-failed",
+				variant: "error",
+				visible: true,
+				role: "alert",
 				title: "Couldn't create an inbox email",
 				body: "Try again in a moment.",
 			},
 			{
 				key: "limit",
+				variant: "error",
+				visible: true,
+				role: "alert",
 				title: "Inbox email limit reached",
 				body: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before enabling or creating more.`,
 			},
@@ -407,8 +419,11 @@ describe("InboxPage", () => {
 			InboxPage({ addresses: [entry()], limitReached: true, submittedName: "" }).content.html,
 		);
 
-		const message = doc.querySelector('[data-test-inbox-alert="limit"]');
+		const message = doc.querySelector('[data-test-alert="limit"]');
 		assert.ok(message, "limit message must render when the cap is reached");
+		assert.equal(message.getAttribute("data-test-alert-variant"), "error");
+		assert.equal(message.classList.contains("alert--visible"), true);
+		assert.equal(message.getAttribute("role"), "alert");
 		assert.match(message.textContent ?? "", new RegExp(String(INBOX_ADDRESS_MAX_PER_USER)));
 	});
 
@@ -575,8 +590,11 @@ describe("InboxPage", () => {
 			"section.inbox__instructions",
 			"form.inbox__create",
 		]);
-		const alert = withLimit.querySelector('[data-test-inbox-alert="limit"]');
+		const alert = withLimit.querySelector('[data-test-alert="limit"]');
 		assert.ok(alert, "limit alert must render");
+		assert.equal(alert.getAttribute("data-test-alert-variant"), "error");
+		assert.equal(alert.classList.contains("alert--visible"), true);
+		assert.equal(alert.getAttribute("role"), "alert");
 		assert.equal(
 			alert.compareDocumentPosition(section) & alert.DOCUMENT_POSITION_FOLLOWING,
 			alert.DOCUMENT_POSITION_FOLLOWING,

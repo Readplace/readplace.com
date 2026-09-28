@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertErrorAlert } from "./assert-error-alert";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../test-app";
@@ -209,7 +210,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 		});
@@ -228,7 +229,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 			const setCookie = response.headers["set-cookie"] ?? [];
@@ -247,7 +248,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 		});
@@ -906,7 +907,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-global-error]");
+			const error = assertErrorAlert(doc);
 			assert(error, "the already-registered error must be rendered");
 			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
 		});
@@ -1096,7 +1097,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-global-error]");
+			const error = assertErrorAlert(doc);
 			assert(error, "the already-registered error must be rendered");
 			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
 			const emailInput = doc.querySelector<HTMLInputElement>('[data-test-form="signup"] input[name="email"]');
@@ -1116,7 +1117,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-global-error]");
+			const error = assertErrorAlert(doc);
 			assert(error, "the already-registered error must be rendered");
 			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
 		});
@@ -1903,7 +1904,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toBe("Please try again");
+			expect(assertErrorAlert(doc)?.textContent).toBe("Please try again");
 			const emailInput = doc.querySelector('input[name="email"]');
 			assert(emailInput, "email input must be rendered");
 			expect(emailInput.getAttribute("value")).toBe("autofill@example.com");
@@ -1930,7 +1931,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toBe("Please try again");
+			expect(assertErrorAlert(doc)?.textContent).toBe("Please try again");
 			const emailInput = doc.querySelector('input[name="email"]');
 			assert(emailInput, "email input must be rendered");
 			expect(emailInput.getAttribute("value")).toBe("");
@@ -2622,7 +2623,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Invalid email or password");
+			expect(assertErrorAlert(doc)?.textContent).toContain("Invalid email or password");
 		});
 
 		it("renders the generic login subtitle when there is no return URL", async () => {
