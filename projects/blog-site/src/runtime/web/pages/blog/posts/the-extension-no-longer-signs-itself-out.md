@@ -13,7 +13,7 @@ banner: "Opening 2 tabs no longer signs the extension out"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-2 requests refused in the same instant used to race each other to renew the browser extension's sign-in, and the loser ended the session. Readplace now has the extension check which token a refusal was about before renewing, so a sign-in another request already renewed gets reused instead of spent twice. The same change stops the extension's web sign-in from piling up a fresh session on every call.
+2 requests refused in the same instant used to race each other to renew the browser extension's sign-in, and the loser ended the session. Readplace now has the extension check which token a refusal was about before renewing, so a sign-in another request already renewed gets reused instead of spent twice. A second fix stops the extension's web sign-in from piling up a fresh session on every call.
 
 </div>
 </details>
