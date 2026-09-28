@@ -1,6 +1,6 @@
 ---
 title: "The extension no longer signs itself out"
-description: "When 2 requests from the browser extension were refused at the same moment, both spent a refresh token, the second spend was turned away, and the extension signed itself out: about once a day across the installs in production. A refused request now says which token it was holding, so the extension replays the newer one instead of spending a rotation that was already done."
+description: "When 2 requests from the browser extension were refused at the same moment, a late refusal spent a second rotation that cancelled the token the first had just fetched, and the extension signed itself out: about once a day across the installs in production. A refused request now says which token it was holding, so the extension replays the newer one instead of spending a rotation that was already done."
 slug: "the-extension-no-longer-signs-itself-out"
 date: "2026-09-23"
 author: "Fayner Brack"
@@ -26,9 +26,9 @@ Behind them sat about 1 automatic sign-out a day across roughly 12 installs. Nob
 
 The extension's refresh tokens are single-use. Spending one returns a fresh pair, and the server retires the old pair in the same step.
 
-That design is sound until 2 requests are refused together, which is what an expired access token and 2 open tabs produce. Each request went to refresh. The first rotation succeeded. The second replayed a refresh token the first had just consumed, and the server turned it away.
+That design is sound until 2 requests are refused together, which is what an expired access token and 2 open tabs produce. The first refusal rotated and retried with the fresh access token. The second refusal arrived a moment later and rotated again with the refresh token now in storage. That rotation succeeded too, and the server retired the access token the first request had just fetched.
 
-The extension read that refusal as the end of the session and signed out. On the way out it revoked the newest refresh token, the one the server still accepted, so there was nothing left to recover.
+The first request's retry was refused on that retired token. It had used its 1 retry, so the extension read the refusal as the end of the session and signed out. On the way out it revoked the newest refresh token, the one the server still accepted, so there was nothing left to recover.
 
 A signed-out extension is a save button that stops working. The reader in front of it had done nothing but have 2 tabs open when a token expired.
 
