@@ -79,41 +79,6 @@
 }
 /* purgecss-ignore-end */
 
-.gmail__notice,
-.gmail__alert {
-  padding: 14px 16px;
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  text-wrap: pretty;
-  color: var(--foreground);
-}
-
-.gmail__notice {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-}
-
-.gmail__alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-}
-
-.gmail__alert-icon {
-  display: inline-flex;
-  flex: none;
-  color: var(--error-text);
-}
-
-.gmail__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
 .gmail__step,
 .gmail__reconnect,
 .gmail__senders,
@@ -402,10 +367,6 @@ form.htmx-request .gmail__submit-loader {
 
 .gmail__filter {
   margin-bottom: 16px;
-}
-
-.gmail__filter .gmail__alert {
-  border-radius: var(--radius);
 }
 
 .gmail__filter-actions {

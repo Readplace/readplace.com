@@ -22,6 +22,7 @@ interface PlaywrightConfigOptions {
 	retries: number
 	headless: boolean
 	timeout?: number
+	workers?: number
 	browser?: BrowserName
 	video: 'off' | 'on' | 'retain-on-failure' | 'on-first-retry'
 	launchOptions: { slowMo?: number } | undefined
@@ -43,6 +44,7 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
 		outputDir: options.outputDir,
 		snapshotPathTemplate: SNAPSHOT_PATH_TEMPLATE,
 		fullyParallel: true,
+		workers: options.workers,
 		forbidOnly: true,
 		reporter: 'html',
 		retries: options.retries,

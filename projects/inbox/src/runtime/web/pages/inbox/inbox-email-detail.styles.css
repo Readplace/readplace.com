@@ -144,45 +144,6 @@
   border-radius: var(--radius-lg);
 }
 
-.inbox-email-detail__alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-}
-
-.inbox-email-detail__alert-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(var(--text-sm) * 1.6);
-  color: var(--error-text);
-}
-
-.inbox-email-detail__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.inbox-email-detail__alert-title {
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--foreground);
-  margin: 0 0 2px;
-  text-wrap: balance;
-}
-
-.inbox-email-detail__alert-body {
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-  margin: 0;
-  text-wrap: pretty;
-}
-
 .inbox-email-detail__notice {
   display: flex;
   align-items: center;

@@ -37,33 +37,7 @@
     </div>
     {{/if}}
 
-    {{#if globalError}}
-    <div class="admin-extend-trial__alert" role="alert" data-test-global-error>
-      <span class="admin-extend-trial__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-      <p class="admin-extend-trial__alert-title">{{globalError}}</p>
-    </div>
-    {{/if}}
-
-    {{#if notFound}}
-    <div class="admin-extend-trial__alert" role="alert" data-test-extend-trial-not-found>
-      <span class="admin-extend-trial__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-      <p class="admin-extend-trial__alert-title">No account with that email.</p>
-    </div>
-    {{/if}}
-
-    {{#if refused}}
-    <section class="admin-extend-trial__alert" role="alert" data-test-extend-trial-refused>
-      <span class="admin-extend-trial__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-      <div class="admin-extend-trial__alert-text">
-        <h2 class="admin-extend-trial__alert-title">Refused</h2>
-        <p class="admin-extend-trial__alert-body" data-test-extend-trial-refusal>{{refusalMessage}}</p>
-        <dl class="admin-extend-trial__facts admin-extend-trial__alert-facts">
-          <dt>Current status</dt>
-          <dd data-test-extend-trial-status>{{status}}</dd>
-        </dl>
-      </div>
-    </section>
-    {{/if}}
+    {{{alertsHtml}}}
 
     {{#if ready}}
     <section class="admin-extend-trial__panel" data-test-extend-trial-panel>

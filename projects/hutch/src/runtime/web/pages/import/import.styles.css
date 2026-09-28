@@ -42,37 +42,6 @@
   padding: 20px 24px;
 }
 
-.import__alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-}
-
-.import__alert-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(0.8125rem * 1.6);
-  color: var(--error-text);
-}
-
-.import__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.import__alert-text {
-  min-width: 0;
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-  text-wrap: pretty;
-}
-
 /* ---------- Acquisition tabs ---------- */
 
 .import__tabs {
@@ -371,16 +340,6 @@
 }
 
 /* ---------- Review page ---------- */
-
-.import__truncated-banner {
-  background: var(--warning-bg);
-  border: 1px solid var(--color-warning);
-  color: var(--foreground);
-  padding: 14px 16px;
-  border-radius: var(--radius-lg);
-  font-size: 0.8125rem;
-  text-wrap: pretty;
-}
 
 .import__listing {
   background: var(--card);

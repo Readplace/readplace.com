@@ -116,7 +116,7 @@ async function obtainTokens(): Promise<Tokens> {
 async function launch(profile: string): Promise<WebDriver> {
 	const options = new Options();
 	if (getEnv("HEADLESS") !== "false") options.addArguments("--headless=new");
-	options.addArguments("--enable-unsafe-extension-debugging", "--disable-search-engine-choice-screen", "--no-sandbox", "--disable-dev-shm-usage", `--user-data-dir=${profile}`);
+	options.addArguments("--enable-unsafe-extension-debugging", "--disable-search-engine-choice-screen", "--no-sandbox", "--disable-dev-shm-usage", "--window-size=1280,800", `--user-data-dir=${profile}`);
 	options.addArguments(`--load-extension=${EXTENSION_DIR}`);
 	if (getEnv("PERF_GPU") !== "true") options.addArguments("--disable-gpu");
 	options.setChromeBinaryPath(readFileSync(path.join(PROJECT_DIR, ".cache/chrome/binary-path"), "utf8").trim());
@@ -296,7 +296,7 @@ test("the first native popup paints feedback before its application assets load"
 					assert(record.held.paintedWhileApplicationAssetsHeld, `${auth}: the browser must paint the popup before its application assets are available`);
 					assert(record.held.skeletonVisible, `${auth}: the native popup must contain the skeleton before its application assets are available`);
 					assert(record.held.skeletonDimensions);
-					assert(record.held.skeletonDimensions.width > 0 && record.held.skeletonDimensions.width <= 800);
+					assert.equal(record.held.skeletonDimensions.width, 800);
 					assert(record.held.skeletonDimensions.height > 100);
 					assert.equal(record.held.skeletonDimensions.iconWidth, 48);
 					assert.equal(record.held.skeletonDimensions.iconHeight, 48);
