@@ -18,7 +18,7 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		url: "https://example.com/article",
 		status: "unread",
 		isUnread: true,
-		readTime: { value: "3", label: "~3 min read" },
+		readTime: { value: "3", label: "3 min read" },
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
 		readerHref: "/queue/abc123/view",
@@ -114,6 +114,21 @@ describe("renderReadlistCard", () => {
 		const status = doc.querySelector("[data-test-read-status]");
 		assert(status, "a processing card must still show whether it is unread");
 		expect(status.closest(".readlist-article__meta")).toBeNull();
+	});
+
+	it("leads a processing card's Processing line with its read-status marker in one facts group", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1" }), { isFirst: false }),
+			),
+		);
+
+		const status = doc.querySelector("[data-test-read-status]");
+		assert(status, "a processing card must still show whether it is unread");
+		const processing = doc.querySelector("[data-test-processing]");
+		assert(processing, "a processing card must render its Processing line");
+		expect(processing.parentElement?.classList.contains("readlist-article__facts")).toBe(true);
+		expect(status.nextElementSibling).toBe(processing);
 	});
 
 	it("marks a read article with a read-status indicator carrying its screen-reader label", () => {
@@ -374,13 +389,13 @@ describe("renderReadlistCard", () => {
 	it("shows the crawler's read time once it has landed", () => {
 		const doc = parse(
 			renderReadlistCard(
-				display(makeViewModel({ readTime: { value: "3", label: "~3 min read" } }), { isFirst: false }),
+				display(makeViewModel({ readTime: { value: "3", label: "3 min read" } }), { isFirst: false }),
 			),
 		);
 
 		const readTime = doc.querySelector("[data-test-read-time]");
 		assert(readTime, "the read-time part must always be rendered");
-		expect(readTime.textContent).toBe("~3 min read");
+		expect(readTime.textContent).toBe("3 min read");
 		expect(readTime.classList.contains("readlist-article__read-time--empty")).toBe(false);
 	});
 

@@ -211,6 +211,17 @@ describe("landing pages", () => {
 		}
 	});
 
+	it("draws both PDF paste fields with the shared field look and the focus ring of the button beside them", async () => {
+		const { doc } = await loadPage("pdf-ocr");
+
+		const fields = Array.from(doc.querySelectorAll("[data-test-lp-input]"));
+		expect(fields).toHaveLength(2);
+		for (const input of fields) {
+			expect(input.classList.contains("form-input")).toBe(true);
+			expect(input.classList.contains("form-input--cta-ring")).toBe(true);
+		}
+	});
+
 	it("gives the PDF paste field a submit target /view can resolve", async () => {
 		const { doc } = await loadPage("pdf-ocr");
 

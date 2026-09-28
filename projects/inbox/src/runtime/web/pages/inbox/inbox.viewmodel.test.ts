@@ -67,6 +67,7 @@ describe("toInboxAddressesViewModel", () => {
 		]);
 		expect(vm.hasDisabled).toBe(true);
 		expect(vm.disabledCount).toBe(2);
+		expect(vm.showsListing).toBe(true);
 	});
 
 	it("leaves the disabled partition empty when every address is live", () => {
@@ -95,9 +96,10 @@ describe("toInboxAddressesViewModel", () => {
 		expect(vm.disabledAddresses).toEqual([]);
 		expect(vm.hasDisabled).toBe(false);
 		expect(vm.disabledCount).toBe(0);
+		expect(vm.showsListing).toBe(true);
 	});
 
-	it("reports no addresses for an empty list", () => {
+	it("reports no addresses for an empty list, keeping the list card up to hold the empty state", () => {
 		const vm = toInboxAddressesViewModel([]);
 
 		expect(vm.hasAddresses).toBe(false);
@@ -105,5 +107,21 @@ describe("toInboxAddressesViewModel", () => {
 		expect(vm.disabledAddresses).toEqual([]);
 		expect(vm.hasDisabled).toBe(false);
 		expect(vm.disabledCount).toBe(0);
+		expect(vm.showsListing).toBe(true);
+	});
+
+	it("drops the list card when every address is disabled, since it would hold neither a row nor the empty state", () => {
+		const vm = toInboxAddressesViewModel([
+			entry({
+				name: "gmail",
+				address: "gmail-aaa111@read.place",
+				disabledAt: "2026-06-20T00:00:00.000Z",
+			}),
+		]);
+
+		expect(vm.hasAddresses).toBe(true);
+		expect(vm.activeAddresses).toEqual([]);
+		expect(vm.disabledCount).toBe(1);
+		expect(vm.showsListing).toBe(false);
 	});
 });

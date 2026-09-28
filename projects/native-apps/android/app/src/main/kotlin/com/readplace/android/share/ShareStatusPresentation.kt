@@ -113,7 +113,7 @@ data class ShareStatusPresentation(
 			)
 
 			is SaveSharedOutcome.Refused -> ShareStatusPresentation(
-				message = serverCopy(outcome.messages),
+				message = serverCopy(outcome.messages).ifEmpty { "Couldn't save this link." },
 				subtitle = null,
 				icon = ShareStatusIcon.LOCK,
 				tone = if (outcome.messages.any { it.kind == ServerMessage.Kind.ERROR }) {

@@ -132,9 +132,9 @@ describe("GET /queue save skeleton", () => {
 
 		const doc = documentOf(response.text);
 		expect(skeletonOf(response.text).classList.contains("readlist-save-skeleton--inert")).toBe(true);
-		const form = doc.querySelector('[data-test-form="save-article"]');
-		assert(form, "the save form renders disabled for a read-only reader");
-		expect(form.className).toContain("readlist-save__form--disabled");
+		const input = doc.querySelector<HTMLInputElement>('[data-test-form="save-article"] input[name="url"]');
+		assert(input, "the save input renders disabled for a read-only reader");
+		expect(input.disabled).toBe(true);
 	});
 });
 

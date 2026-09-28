@@ -8,8 +8,8 @@
           "level": "error",
           "options": {
             "paths": {
-              "linkedom": "The presentational shell composes pages as append-only HTML strings. Re-parsing composed page markup through a DOM serializer (linkedom/jsdom) drops one level of &-escaping and collapses the reader iframe's intentionally double-escaped srcdoc into live elements (a `&lt;input&gt;` code sample renders as a real input). Keep shell transforms string-based (see injectPageStylesIntoMain); parse only network-boundary fragments — changelog-banner.ts is the exempt exception.",
-              "jsdom": "The presentational shell composes pages as append-only HTML strings. Re-parsing composed page markup through a DOM serializer (linkedom/jsdom) drops one level of &-escaping and collapses the reader iframe's intentionally double-escaped srcdoc into live elements (a `&lt;input&gt;` code sample renders as a real input). Keep shell transforms string-based (see injectPageStylesIntoMain); parse only network-boundary fragments — changelog-banner.ts is the exempt exception."
+              "linkedom": "The presentational shell composes pages as append-only HTML strings. Re-parsing composed page markup through a DOM serializer (linkedom/jsdom) drops one level of &-escaping and collapses the reader iframe's intentionally double-escaped srcdoc into live elements (a `&lt;input&gt;` code sample renders as a real input). Keep shell transforms string-based (see injectPageStylesIntoMain).",
+              "jsdom": "The presentational shell composes pages as append-only HTML strings. Re-parsing composed page markup through a DOM serializer (linkedom/jsdom) drops one level of &-escaping and collapses the reader iframe's intentionally double-escaped srcdoc into live elements (a `&lt;input&gt;` code sample renders as a real input). Keep shell transforms string-based (see injectPageStylesIntoMain)."
             }
           }
         }
@@ -18,7 +18,7 @@
   },
   "overrides": [
     {
-      "includes": ["**/*.test.ts", "**/changelog-banner.ts"],
+      "includes": ["**/*.test.ts"],
       "linter": {
         "rules": {
           "style": {

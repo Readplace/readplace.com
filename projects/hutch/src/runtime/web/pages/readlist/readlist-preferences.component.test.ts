@@ -60,7 +60,7 @@ describe("ReadlistPreferencesPage", () => {
 			".readlist-listing",
 			".readlist-nav",
 			".confirm-popover",
-			".wizard__textarea",
+			".wizard__title",
 			".readlist-preferences__purpose",
 		]) {
 			expect(styles).toContain(selector);

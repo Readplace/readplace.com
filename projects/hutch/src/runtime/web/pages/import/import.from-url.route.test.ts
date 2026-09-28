@@ -43,6 +43,10 @@ describe("POST /import/from-url routes", () => {
 			assert(input, "url input must be rendered");
 			expect(input.getAttribute("type")).toBe("url");
 			expect(input.getAttribute("name")).toBe("url");
+			expect(input.classList.contains("form-input")).toBe(true);
+			const label = form.querySelector('label[for="import-from-url-input"]');
+			assert(label, "url input label must be rendered");
+			expect(label.classList.contains("form-field__label")).toBe(true);
 		});
 
 		it("prefills the url input and emits the auto-submit script for a from-url deep link", async () => {

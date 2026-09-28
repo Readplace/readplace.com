@@ -22,7 +22,6 @@ const CTA_LABEL = `${CTA} .view__cta-label, ${CTA} .view__download-label`;
 const DOWNLOAD = "[data-test-view-download]";
 
 const VOLATILE_CHROME = [
-	".trial-countdown",
 	".offline-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",

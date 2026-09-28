@@ -1,13 +1,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { IconName } from "@packages/ui-icons";
-import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
+import {
+	CONFIRM_POPOVER_STYLES,
+	render,
+	renderIllustration,
+	withInternalTracking,
+} from "@packages/web-shell";
 import type { CspNonce, PageBody } from "@packages/web-shell";
 import type { DeviceClass } from "@packages/web-analytics";
 
 import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
-import { renderIllustration } from "../../shared/illustrations/illustrations";
 import {
 	ONBOARDING_STYLES,
 	OnboardingChecklist,
@@ -215,6 +219,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		}),
 	});
 	const saveTipState: SaveTipState = options.saveTip.state;
+	const saveError = vm.errors?.[0]?.message;
 
 	const content = render(TEMPLATE, {
 		readlistNavHtml: renderReadlistNav(
@@ -230,12 +235,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			? renderStatusToast(vm.statusFlash)
 			: "",
 		saveCardClass: isDefaultReadlist ? "readlist-save--visible" : "readlist-save--hidden",
-		saveFormStateClass: vm.accessIsReadOnly
-			? "readlist-save__form--disabled"
-			: "readlist-save__form--enabled",
-		saveInputStateClass: vm.saveErrorCode || vm.errors?.length
-			? "readlist-save__input--invalid"
-			: "readlist-save__input--valid",
+		saveInputInvalid: Boolean(saveError),
 		saveAction: withInternalTracking(
 			`${READLIST_SAVE_PATH}${readlistReturnQuery({ ...filters, readlist: DEFAULT_READLIST.slug })}`,
 			{ source: "queue", content: "save" },
@@ -243,7 +243,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		saveUrl: options.saveUrl,
 		saveTipState,
 		accessIsReadOnly: vm.accessIsReadOnly,
-		saveError: vm.errors?.[0]?.message,
+		saveError,
 		saveErrorCode: vm.saveErrorCode,
 		importFlash: vm.importFlash,
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),

@@ -37,6 +37,9 @@ class ManifestActivationTest {
 		return (0 until nodes.length).mapNotNull { nodes.item(it) as? Element }
 	}
 
+	private fun activityNamed(qualifiedName: String): Element =
+		activities().single { qualified(it.androidAttr("name").orEmpty()) == qualifiedName }
+
 	private fun Element.androidAttr(name: String): String? =
 		getAttributeNS(android, name).takeIf { it.isNotEmpty() }
 
@@ -60,6 +63,31 @@ class ManifestActivationTest {
 				"intent that starts it",
 			emptyList<String>(),
 			missing,
+		)
+	}
+
+	@Test
+	fun `the share activity weathers rotation in place rather than recreating`() {
+		val configChanges = activityNamed("com.readplace.android.share.ShareActivity")
+			.androidAttr("configChanges").orEmpty().split("|")
+
+		assertTrue(
+			"ShareActivity must declare orientation in configChanges, or Android recreates it on rotation " +
+				"and onCreate starts a second save of the same link",
+			configChanges.contains("orientation"),
+		)
+		assertTrue(
+			"ShareActivity must also declare screenSize, which a rotation raises alongside orientation on every " +
+				"screen size; on its own it is not enough, because large screens before Android 15 flip " +
+				"screenLayout on rotation too (see the next assertion)",
+			configChanges.contains("screenSize"),
+		)
+		assertTrue(
+			"ShareActivity must also declare screenLayout: on large screens before Android 15 a rotation also " +
+				"flips screenLayout's long/size bucket (e.g. notlong-xlarge portrait to long-large landscape on an " +
+				"API 34 tablet), so without it Android still recreates the Activity on rotation and onCreate starts " +
+				"a second save of the same link",
+			configChanges.contains("screenLayout"),
 		)
 	}
 

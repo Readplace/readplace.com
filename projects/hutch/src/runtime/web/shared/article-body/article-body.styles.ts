@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { IN_FLIGHT_DOTS_STYLES } from "../in-flight-dots/in-flight-dots.styles";
+import { IN_FLIGHT_DOTS_STYLES } from "@packages/web-shell";
 import { ARTICLE_FRAME_STYLES } from "./article-frame.styles";
 
 const stylesPath = join(__dirname, "article-body.styles.css");

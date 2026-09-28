@@ -6,11 +6,13 @@ import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
 import com.readplace.android.core.Href
 import com.readplace.android.core.ReadlistPage
+import com.readplace.android.core.ReadlistTab
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.SirenAction
 import com.readplace.android.core.SirenLink
 import com.readplace.android.core.UnseenSave
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +44,8 @@ data class ReadingListState(
 	 * injected by the client and kept canonical, so any add-links-help the server
 	 * also advertises is deduped rather than rendered as a second +. */
 	val collectionAffordances: List<Affordance>,
+	val tabs: List<ReadlistTab> = emptyList(),
+	val selectedTabHref: String? = null,
 )
 
 /**
@@ -91,6 +95,10 @@ class ReadingListViewModel(
 
 	private var nextHref: String? = null
 
+	private var currentTabHref: String? = null
+
+	private var tabGeneration = 0
+
 	/** The server-advertised `create-session` action from the loaded collection,
 	 * followed to mint the reader's browser session. Null against a server that
 	 * hasn't advertised it, in which case the API falls back to a fixed path. */
@@ -123,16 +131,38 @@ class ReadingListViewModel(
 		fetchFirstPage()
 	}
 
+	suspend fun selectTab(href: String) {
+		if (href == currentTabHref) return
+		restart(href)
+		mutate { it.copy(selectedTabHref = href) }
+		fetchFirstPage()
+	}
+
+	private fun restart(href: String) {
+		tabGeneration += 1
+		currentTabHref = href
+		nextHref = null
+		pagesHeld = 0
+		isLoadingMore = false
+		mutate { it.copy(articles = emptyList(), hasMore = false) }
+	}
+
+	private fun tabUnchanged(generation: Int): Boolean = generation == tabGeneration
+
 	private suspend fun fetchFirstPage() {
+		val generation = tabGeneration
 		val read = beginRead()
 		// A locked account's reads still succeed, so a fresh load reconciles a
 		// stale refusal banner (e.g. after verifying elsewhere): clear it here,
 		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
 		mutate { it.copy(errorText = null, messages = emptyList()) }
 		try {
-			replace(firstPage = api.loadReadlist(), deeperPages = emptyList(), read = read)
+			val firstPage = api.loadReadlist(path = currentTabHref)
+			if (tabUnchanged(generation)) replace(firstPage = firstPage, deeperPages = emptyList(), read = read)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
-			handle(error)
+			if (tabUnchanged(generation)) handle(error)
 		} finally {
 			endRead()
 		}
@@ -141,6 +171,7 @@ class ReadingListViewModel(
 	suspend fun loadMore() {
 		val next = nextHref ?: return
 		if (isLoadingMore) return
+		val generation = tabGeneration
 		// The list this append extends: if a replacement lands first, the fetched
 		// page belongs to a superseded cursor and is dropped rather than stitched
 		// onto the fresh list. A replacement merely pending (not yet applied) does
@@ -149,11 +180,13 @@ class ReadingListViewModel(
 		isLoadingMore = true
 		try {
 			val page = api.loadReadlist(path = next)
-			if (listVersion == readApplied) apply(page, replacing = false)
+			if (tabUnchanged(generation) && listVersion == readApplied) apply(page, replacing = false)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
-			handle(error)
+			if (tabUnchanged(generation)) handle(error)
 		} finally {
-			isLoadingMore = false
+			if (tabUnchanged(generation)) isLoadingMore = false
 		}
 	}
 
@@ -171,9 +204,13 @@ class ReadingListViewModel(
 	 * leaves the current list in place; there is no optimistic removal to roll back.
 	 */
 	suspend fun invoke(action: SirenAction) {
+		val generation = tabGeneration
 		val read = beginRead()
 		try {
-			adopt(api.invoke(action), read)
+			val page = api.invoke(action)
+			if (tabUnchanged(generation)) adopt(page, read)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
 			handle(error)
 		} finally {
@@ -258,13 +295,19 @@ class ReadingListViewModel(
 	 * superseded older adoption publishes neither its rows nor its hop error.
 	 */
 	private suspend fun adoptFirstPage(firstPage: ReadlistPage, read: Int) {
+		val generation = tabGeneration
 		val deeperPages = mutableListOf<ReadlistPage>()
 		var hopFailure: Exception? = null
 		while (deeperPages.size + 1 < pagesHeld) {
 			val next = (deeperPages.lastOrNull() ?: firstPage).nextHref ?: break
 			try {
-				deeperPages.add(api.loadReadlist(path = next))
+				val page = api.loadReadlist(path = next)
+				if (!tabUnchanged(generation)) return
+				deeperPages.add(page)
+			} catch (cancellation: CancellationException) {
+				throw cancellation
 			} catch (error: Exception) {
+				if (!tabUnchanged(generation)) return
 				hopFailure = error
 				break
 			}
@@ -280,11 +323,15 @@ class ReadingListViewModel(
 	 * sequence, not suppression, is what keeps overlapping reads in order.
 	 */
 	private suspend fun reloadAndAdopt() {
+		val generation = tabGeneration
 		val read = beginRead()
 		try {
-			adoptFirstPage(firstPage = api.loadReadlist(), read = read)
+			val firstPage = api.loadReadlist(path = currentTabHref)
+			if (tabUnchanged(generation)) adoptFirstPage(firstPage = firstPage, read = read)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
-			handle(error)
+			if (tabUnchanged(generation)) handle(error)
 		} finally {
 			endRead()
 		}
@@ -365,6 +412,8 @@ class ReadingListViewModel(
 				return
 			}
 			reloadAndAdopt()
+		} catch (cancellation: CancellationException) {
+			throw cancellation
 		} catch (error: Exception) {
 			handle(error)
 		}
@@ -402,6 +451,11 @@ class ReadingListViewModel(
 		val current = states.value
 		val reconciled: ReadingListState
 		if (replacing) {
+			var selectedTabHref = current.selectedTabHref
+			page.currentTabHref?.let {
+				currentTabHref = it
+				selectedTabHref = it
+			}
 			reconciled = current.copy(
 				articles = page.articles,
 				// A fresh successful collection reconciles transient banners: a stale
@@ -415,6 +469,8 @@ class ReadingListViewModel(
 				// the toolbar for the whole scroll.
 				collectionAffordances = toolbarOf(page),
 				appearance = page.appearance,
+				tabs = page.tabs,
+				selectedTabHref = selectedTabHref,
 			)
 			pagesHeld = 1
 			sessionAction = page.action(named = "create-session")
@@ -470,7 +526,12 @@ class ReadingListViewModel(
 	private fun handle(error: Exception) {
 		when (error) {
 			is ApiError.Unauthorized, is ApiError.NoToken -> onSessionExpired()
-			is ApiError.Refused -> mutate { it.copy(messages = error.messages) }
+			is ApiError.Refused ->
+				if (error.messages.isEmpty()) {
+					mutate { it.copy(errorText = error.message) }
+				} else {
+					mutate { it.copy(messages = error.messages) }
+				}
 			else -> mutate { it.copy(errorText = error.message ?: error.toString()) }
 		}
 	}

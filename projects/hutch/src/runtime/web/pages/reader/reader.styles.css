@@ -31,7 +31,7 @@
  */
 .article-body__actions--sticky {
   position: sticky;
-  top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
+  top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px));
   z-index: 12;
   display: flex;
   align-items: center;
@@ -46,7 +46,7 @@
  * the toolbar rises by the header's height plus the changelog banner's to stay
  * pinned at the top — reusing the same --header-height its `top` above already uses. */
 .nav-hidden .article-body__actions--sticky {
-  transform: translateY(calc(-1 * (var(--header-height, 64px) + var(--changelog-banner-height, 0px))));
+  transform: translateY(calc(-1 * (var(--header-height, 72px) + var(--changelog-banner-height, 0px))));
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -35,23 +35,8 @@ export function createAuthActions(
 					page,
 					page.locator('[data-test-action="signup"]'),
 				)
-
-				const onReadlist = await isOnPage(page, 'page-readlist')
-				if (onReadlist) {
-					progress.accountCreated = true
-					return
-				}
-
-				// Account already exists in persistent storage — navigate to login.
-				// Match href with a prefix: the signup page propagates any ?return=
-				// query through the "Sign in" link when signup was reached via /save,
-				// so an exact-match locator misses it.
-				const error = page.locator('[data-test-global-error]')
-				if (await error.isVisible()) {
-					await page.locator('.auth-card__footer a[href^="/login"]').click()
-					progress.accountCreated = true
-					progress.loggedOut = true
-				}
+				await page.waitForSelector('body.page-readlist')
+				progress.accountCreated = true
 			},
 		},
 

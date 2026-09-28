@@ -97,10 +97,19 @@ class SaveSharedPage(
 		onSaved: (List<ServerMessage>) -> Unit,
 		onStillSaving: () -> Unit,
 	): SaveSharedOutcome {
-		val page = api.loadReadlist()
+		var page = api.loadReadlist()
 		onNotice(page.noticeMessages)
 		val action = page.action(named = "save-article") ?: return SaveSharedOutcome.NoSaveAction
-		val confirmation = api.saveArticle(action, url)
+		val confirmation = try {
+			api.saveArticle(action, url)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (error: Exception) {
+			if (ApiError.isRefusalOrAuthFailure(error)) throw error
+			page = api.rediscoverReadlist()
+			val moved = page.action(named = "save-article") ?: return SaveSharedOutcome.NoSaveAction
+			api.saveArticle(moved, url)
+		}
 		unseenSave?.record()
 		val admitted = admit(page = page, url = url, title = fallbackTitle)
 		onSaved(confirmation.messages)

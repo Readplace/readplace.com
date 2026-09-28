@@ -117,7 +117,7 @@ describe("toMcpArticle", () => {
 			wordCount: 400,
 			imageUrl: "https://example.com/i.png",
 			estimatedReadTime: 2,
-			readTime: { value: "2", label: "~2 min read" },
+			readTime: { value: "2", label: "2 min read" },
 			status: "read",
 			savedAt: "2026-01-01T00:00:00.000Z",
 			readAt: "2026-02-02T00:00:00.000Z",

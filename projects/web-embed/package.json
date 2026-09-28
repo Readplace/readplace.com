@@ -24,7 +24,8 @@
     "@packages/web-shell": "workspace:*",
     "express": "5.2.1",
     "helmet": "8.2.0",
-    "serverless-http": "4.0.0"
+    "serverless-http": "4.0.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@packages/check-unused-css": "workspace:*",

@@ -1,5 +1,8 @@
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { brandMarkSmallSvg } from "@packages/web-shell";
+import { JSDOM } from "jsdom";
 
 /** favicon.svg is a hand-maintained copy of the Readplace mark: a static asset
  * cannot import brandMarkSvg (from @packages/web-shell), so its keyline is
@@ -18,5 +21,13 @@ describe("favicon.svg brand mark", () => {
 
 	it("keeps the navy tile fill — the keyline delineates the tile, it never lightens the fill", () => {
 		expect(svg).toContain('fill="#2B3A55"');
+	});
+
+	it("draws the same small-size glyph the shared dotless mark serves at /embed/icon-small.svg", () => {
+		const faviconGlyph = new JSDOM(svg).window.document.querySelector("path");
+		const sharedGlyph = new JSDOM(brandMarkSmallSvg()).window.document.querySelector("path");
+		assert(faviconGlyph, "favicon.svg must contain the ampersand path");
+		assert(sharedGlyph, "brandMarkSmallSvg must contain the ampersand path");
+		expect(faviconGlyph.getAttribute("d")).toBe(sharedGlyph.getAttribute("d"));
 	});
 });

@@ -20,6 +20,20 @@ import {
 
 const SK = "2026-06-24T09:00:00.000Z#<m@x>";
 
+const TRUNCATED_NOTICE = {
+	key: "truncated",
+	text: "Showing the first 1 links found in this email.",
+	iconName: undefined,
+};
+
+const SKIPPED_NOTE = {
+	key: "skipped-note",
+	text: "These looked like unsubscribe, ad, or menu links — not articles — so they weren't fetched or added.",
+	iconName: undefined,
+};
+
+const NO_LINKS_EMPTY_STATE = { title: "No links found in this email", body: undefined };
+
 function entry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	return {
 		userId: UserIdSchema.parse("user-1"),
@@ -133,6 +147,10 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.canRenderBody).toBe(false);
 		expect(vm.bodyHtml).toBe("");
+		expect(vm.unavailableAlert).toEqual({
+			title: "Couldn't display this email",
+			body: "The original email is preserved.",
+		});
 	});
 
 	it("never renders the body for a rejected or unparsed email", () => {
@@ -156,6 +174,11 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isExtracting).toBe(true);
 		expect(vm.articles.isEmpty).toBe(true);
 		expect(vm.articles.panelPollUrl).toContain("/articles?poll=1");
+		expect(vm.articles.notices).toEqual([
+			{ key: "extracting", text: "Looking for links…", iconName: "loader" },
+		]);
+		expect(vm.articles.alerts).toEqual([]);
+		expect(vm.articles.listing).toBeUndefined();
 		// The tab counts are withheld while extracting: "(0)" would read as "none
 		// found" rather than "still looking", contradicting the panel's own spinner.
 		expect(vm.tabs.map((tab) => tab.label)).toEqual([
@@ -175,6 +198,8 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.isStalePending).toBe(false);
 		// Its own fragment — polling /articles would swap the Articles panel in here.
 		expect(vm.excluded.panelPollUrl).toContain("/excluded?poll=1");
+		expect(vm.excluded.notices.map((notice) => notice.key)).toEqual(["extracting"]);
+		expect(vm.excluded.listing).toBeUndefined();
 	});
 
 	it("stops polling the instant the dead-letter handler reports extraction gave up", () => {
@@ -188,6 +213,16 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.panelPollUrl).toBeUndefined();
 		expect(vm.excluded.isExtractionFailed).toBe(true);
 		expect(vm.excluded.panelPollUrl).toBeUndefined();
+		const failedAlert = {
+			key: "failed",
+			title: "Couldn't scan this email for links",
+			body: "The original message is still on the View tab.",
+		};
+		expect(vm.articles.alerts).toEqual([failedAlert]);
+		expect(vm.articles.notices).toEqual([]);
+		expect(vm.articles.listing).toBeUndefined();
+		expect(vm.excluded.alerts).toEqual([failedAlert]);
+		expect(vm.excluded.listing).toBeUndefined();
 	});
 
 	it("withholds every count for a failed extraction, so no zero is presented as an answer", () => {
@@ -222,6 +257,15 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.isExtracting).toBe(false);
 		expect(vm.excluded.isStalePending).toBe(true);
 		expect(vm.excluded.panelPollUrl).toBeUndefined();
+		const staleAlert = {
+			key: "stale",
+			title: "Couldn't scan this email for links",
+			body: "The original message is still on the View tab.",
+		};
+		expect(vm.articles.alerts).toEqual([staleAlert]);
+		expect(vm.articles.listing).toBeUndefined();
+		expect(vm.excluded.alerts).toEqual([staleAlert]);
+		expect(vm.excluded.listing).toBeUndefined();
 	});
 
 	it("stays extracting on the last budgeted poll, before the give-up threshold", () => {
@@ -252,12 +296,20 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isEmpty).toBe(true);
 		expect(vm.articles.cards).toHaveLength(0);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
-		expect(vm.articles.truncatedNotice).toBeUndefined();
+		expect(vm.articles.notices).toEqual([]);
+		expect(vm.articles.alerts).toEqual([]);
 		// An email with no links at all found none on either tab — neither panel may
 		// point at the other for an explanation it doesn't have.
-		expect(vm.articles.emptyMessage).toBe("No links found in this email.");
+		expect(vm.articles.listing).toEqual({
+			countLabel: "0 Extracted Articles",
+			emptyStates: [NO_LINKS_EMPTY_STATE],
+		});
 		expect(vm.excluded.isEmpty).toBe(true);
-		expect(vm.excluded.emptyMessage).toBe("No links found in this email.");
+		expect(vm.excluded.notices).toEqual([]);
+		expect(vm.excluded.listing).toEqual({
+			countLabel: "0 Skipped",
+			emptyStates: [NO_LINKS_EMPTY_STATE],
+		});
 	});
 
 	it("tells the Skipped panel nothing was skipped when every link was kept", () => {
@@ -266,7 +318,10 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.isEmpty).toBe(true);
 		expect(vm.excluded.links).toHaveLength(0);
 		// "No links found" would be false here — one was found, and kept.
-		expect(vm.excluded.emptyMessage).toBe("Nothing was skipped in this email.");
+		expect(vm.excluded.listing?.emptyStates).toEqual([
+			{ title: "Nothing was skipped in this email", body: undefined },
+		]);
+		expect(vm.articles.listing).toEqual({ countLabel: "1 Extracted Article", emptyStates: [] });
 	});
 
 	it("maps a pending link to a polling card and a crawled link to a terminal card", () => {
@@ -293,6 +348,7 @@ describe("toInboxEmailDetailViewModel", () => {
 			"Skipped (0)",
 		]);
 		expect(vm.extractionReported).toBe(true);
+		expect(vm.articles.listing).toEqual({ countLabel: "2 Extracted Articles", emptyStates: [] });
 		const [pending, crawled] = vm.articles.cards;
 		expect(pending.hasTitle).toBe(false);
 		expect(pending.cardPollUrl).toContain("/inbox/");
@@ -310,7 +366,7 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.articles.cards[0].hasTitle).toBe(false);
 		expect(vm.articles.cards[0].cardPollUrl).toBeUndefined();
-		expect(vm.articles.truncatedNotice).toBe("Showing the first 1 links found in this email.");
+		expect(vm.articles.notices).toEqual([TRUNCATED_NOTICE]);
 	});
 
 	it("discloses the extraction cap on both panels, including when every link was skipped", () => {
@@ -323,15 +379,15 @@ describe("toInboxEmailDetailViewModel", () => {
 		// empties the Articles panel, so a notice that only rode the non-empty branch
 		// would disclose the cap on no tab at all.
 		expect(vm.articles.isEmpty).toBe(true);
-		expect(vm.articles.truncatedNotice).toBe("Showing the first 1 links found in this email.");
-		expect(vm.excluded.truncatedNotice).toBe("Showing the first 1 links found in this email.");
+		expect(vm.articles.notices).toEqual([TRUNCATED_NOTICE]);
+		expect(vm.excluded.notices).toEqual([TRUNCATED_NOTICE, SKIPPED_NOTE]);
 	});
 
 	it("leaves the cap notice off both panels for an email that was not truncated", () => {
 		const vm = build({ links: [link()], linksMeta: { truncated: false, extractionFailed: false } });
 
-		expect(vm.articles.truncatedNotice).toBeUndefined();
-		expect(vm.excluded.truncatedNotice).toBeUndefined();
+		expect(vm.articles.notices).toEqual([]);
+		expect(vm.excluded.notices).toEqual([]);
 	});
 
 	it("routes skipped links to the excluded list and counts only the kept ones", () => {
@@ -356,35 +412,47 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
 		expect(vm.excluded.isEmpty).toBe(false);
+		expect(vm.excluded.listing).toEqual({ countLabel: "2 Skipped", emptyStates: [] });
+		expect(vm.excluded.notices).toEqual([SKIPPED_NOTE]);
 		expect(vm.excluded.links).toEqual([
 			{
 				ordinal: "0001",
 				url: "https://news.example.com/unsub",
 				reasonLabel: "Unsubscribe link",
-				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0001/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 				domId: "inbox-skipped-0001",
-				saveButtonId: "inbox-skipped-0001-save",
-				saveButton: {
-					label: "Save to queue",
-					ariaLabel: "Save to queue: https://news.example.com/unsub",
-					saveState: "unsaved",
-					iconName: undefined,
-				},
+				actions: [
+					{
+						key: "save",
+						label: "Save to queue",
+						ariaLabel: "Save to queue: https://news.example.com/unsub",
+						saveState: "unsaved",
+						iconName: undefined,
+						buttonId: "inbox-skipped-0001-save",
+						href: `/inbox/${encodeURIComponent(SK)}/links/0001/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
+						method: "POST",
+						inPlaceTargetId: "inbox-skipped-0001",
+					},
+				],
 				pollUrl: undefined,
 			},
 			{
 				ordinal: "0002",
 				url: "https://sponsor.example.com/deal",
 				reasonLabel: "Advertisement",
-				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0002/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 				domId: "inbox-skipped-0002",
-				saveButtonId: "inbox-skipped-0002-save",
-				saveButton: {
-					label: "Save to queue",
-					ariaLabel: "Save to queue: https://sponsor.example.com/deal",
-					saveState: "unsaved",
-					iconName: undefined,
-				},
+				actions: [
+					{
+						key: "save",
+						label: "Save to queue",
+						ariaLabel: "Save to queue: https://sponsor.example.com/deal",
+						saveState: "unsaved",
+						iconName: undefined,
+						buttonId: "inbox-skipped-0002-save",
+						href: `/inbox/${encodeURIComponent(SK)}/links/0002/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
+						method: "POST",
+						inPlaceTargetId: "inbox-skipped-0002",
+					},
+				],
 				pollUrl: undefined,
 			},
 		]);
@@ -401,9 +469,9 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.cards).toHaveLength(0);
 		// "No links found" would be false: a link was found, then skipped. The empty
 		// Articles panel has to point at the tab that holds it.
-		expect(vm.articles.emptyMessage).toBe(
-			"Every link in this email was skipped — see the Skipped tab.",
-		);
+		expect(vm.articles.listing?.emptyStates).toEqual([
+			{ title: "Every link in this email was skipped", body: "See the Skipped tab." },
+		]);
 		expect(vm.excluded.isEmpty).toBe(false);
 		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Site navigation"]);
 	});
@@ -459,9 +527,9 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: { truncated: false, extractionFailed: false },
 		});
 
-		expect(vm.excluded.links[0].saveAction).toBe(
+		expect(vm.excluded.links[0].actions.map((action) => action.href)).toEqual([
 			`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
-		);
+		]);
 	});
 
 	it("shows a skipped link the reader already saved as saved, and still saveable", () => {
@@ -471,15 +539,15 @@ describe("toInboxEmailDetailViewModel", () => {
 			linkSaveStates: new Map([["https://example.com/post", "saved"]]),
 		});
 
-		expect(vm.excluded.links[0].saveButton).toEqual({
-			label: "Save again",
-			ariaLabel: "Saved to queue \u2014 save again: https://example.com/post",
-			saveState: "saved",
-			iconName: "check",
-		});
-		expect(vm.excluded.links[0].saveAction).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
-		);
+		expect(vm.excluded.links[0].actions).toEqual([
+			expect.objectContaining({
+				label: "Save again",
+				ariaLabel: "Saved to queue \u2014 save again: https://example.com/post",
+				saveState: "saved",
+				iconName: "check",
+				href: `/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
+			}),
+		]);
 	});
 
 	it("shows a skipped link with no recorded save as unsaved", () => {
@@ -488,12 +556,14 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: { truncated: false, extractionFailed: false },
 		});
 
-		expect(vm.excluded.links[0].saveButton).toEqual({
-			label: "Save to queue",
-			ariaLabel: "Save to queue: https://example.com/post",
-			saveState: "unsaved",
-			iconName: undefined,
-		});
+		expect(vm.excluded.links[0].actions).toEqual([
+			expect.objectContaining({
+				label: "Save to queue",
+				ariaLabel: "Save to queue: https://example.com/post",
+				saveState: "unsaved",
+				iconName: undefined,
+			}),
+		]);
 	});
 
 	it("shows a skipped link whose save failed as unsaved, so the reader can try again", () => {
@@ -503,8 +573,9 @@ describe("toInboxEmailDetailViewModel", () => {
 			linkSaveStates: new Map([["https://example.com/post", "failed"]]),
 		});
 
-		expect(vm.excluded.links[0].saveButton.saveState).toBe("unsaved");
-		expect(vm.excluded.links[0].saveButton.label).toBe("Save to queue");
+		expect(vm.excluded.links[0].actions.map((action) => [action.saveState, action.label])).toEqual([
+			["unsaved", "Save to queue"],
+		]);
 	});
 
 	it("withholds the save action from a skipped link whose URL is unsaveable", () => {
@@ -515,7 +586,7 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: { truncated: false, extractionFailed: false },
 		});
 
-		expect(vm.excluded.links[0].saveAction).toBeUndefined();
+		expect(vm.excluded.links[0].actions).toEqual([]);
 	});
 
 	it("reveals only the first page of cards and offers the rest behind a Show more control", () => {
@@ -527,7 +598,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		);
 		expect(vm.articles.showMore).toEqual({
 			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=40&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
-			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?shown=40`,
+			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?shown=40&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
 			count: 5,
 		});
 	});
@@ -637,7 +708,7 @@ describe("toInboxArticlesMoreViewModel", () => {
 		);
 		expect(vm.showMore).toEqual({
 			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
-			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?shown=60`,
+			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?shown=60&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
 			count: 5,
 		});
 	});

@@ -1,7 +1,10 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import {
+	GMAIL_FILTER_REWRITE_FAILED_EVENT,
+	type GmailFilterRewriteFailedLine,
 	GmailFilterRewriteFailedEvent,
 	GmailFilterRewrittenEvent,
+	METERED_GMAIL_FILTER_REWRITE_REASONS,
 	RewriteGmailFilterCommand,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -12,9 +15,10 @@ import type { RewriteGmailFilter } from "./rewrite-gmail-filter";
 export function initRewriteGmailFilterHandler(deps: {
 	rewriteGmailFilter: RewriteGmailFilter;
 	publishEvent: PublishEvent;
+	metricLog: HutchLogger.Typed<GmailFilterRewriteFailedLine>;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { rewriteGmailFilter, publishEvent, logger } = deps;
+	const { rewriteGmailFilter, publishEvent, metricLog, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -55,10 +59,18 @@ export function initRewriteGmailFilterHandler(deps: {
 					continue;
 				}
 				await publishEvent(GmailFilterRewriteFailedEvent, { userId, reason: result.reason });
-				logger.error("[rewrite-gmail-filter] filter not written", {
-					userId,
-					reason: result.reason,
-				});
+				const meteredReason = METERED_GMAIL_FILTER_REWRITE_REASONS.find(
+					(reason) => reason === result.reason,
+				);
+				if (meteredReason) {
+					metricLog.error({
+						level: "ERROR",
+						message: "[rewrite-gmail-filter] filter not written",
+						event: GMAIL_FILTER_REWRITE_FAILED_EVENT,
+						reason: meteredReason,
+						userId,
+					});
+				}
 			} catch (error) {
 				logger.error("[rewrite-gmail-filter] record failed", {
 					messageId: record.messageId,

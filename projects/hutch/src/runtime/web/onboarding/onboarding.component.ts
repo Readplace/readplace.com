@@ -37,7 +37,7 @@ interface OnboardingChecklistOptions {
 }
 
 const BUTTON_CLASS_BY_VARIANT: Record<OnboardingActionVariant, string> = {
-	primary: "btn btn--primary btn--compact",
+	primary: "btn btn--primary btn--s",
 	"primary-full-width": "btn btn--primary setup-guide__cta",
 	text: "setup-guide__action-text",
 };

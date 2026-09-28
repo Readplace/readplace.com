@@ -1,6 +1,6 @@
 ---
 name: e2e-testing
-description: E2E testing conventions using Playwright and the HATEOAS-based test framework. Use when working with E2E tests, files in e2e/ directories, *.e2e*.ts files, or when test errors mention Playwright, the HATEOAS test client, its navigation handler, page actions, or locator timeouts.
+description: E2E testing conventions using Playwright and the HATEOAS-based test framework. Use when working with E2E tests, files in e2e/ directories, *.e2e*.ts files, when changing a CI job or runner script that captures, compares or reviews screenshots, visual baselines or transition frames, or when test errors mention Playwright, the HATEOAS test client, its navigation handler, page actions, or locator timeouts.
 ---
 
 # E2E Testing Guidelines
@@ -126,6 +126,20 @@ Never hardcode `E2E_PORT` in a package.json script, never set `reuseExistingServ
 Express registers the last-argument callback as the socket's `error` listener as well as its `listening` one (`server.once('error', done)`). A callback that ignores its argument therefore logs "server running" when the bind *failed*, swallows the error so Node never throws it, and exits 0. A lost port race then reports success and Playwright reports only `Process from config.webServer exited early.` with no `EADDRINUSE` anywhere.
 
 Attach the handler instead — `app.listen(port).on('listening', …)` — so an unhandled `error` keeps Node's default behaviour: the full `EADDRINUSE` message on stderr and exit 1.
+
+## Never Let a Failed or Unrun Visual Check Leave CI Green
+
+A visual check — a screenshot comparison, a transition-frame capture, or the vision-model review of those frames — sees what no DOM assertion can, and a run's colour is the only output anyone reads: nobody opens a green run. A check that errored, timed out, was skipped, or had nothing to look at while its run stayed green blinds us at exactly the moment it was needed. Anything short of "verified what it exists to verify" ends its run red.
+
+| Never | Why (observed failure) |
+|-------|------------------------|
+| `continue-on-error: true` on a job or step that captures, compares or reviews a visual check | GitHub reports the run green whatever the step did. The vision-model review (the GitHub workflow that sets `VLM_MODEL`) carried it and went 1,000 runs without a single red. |
+| `\|\| true`, `set +e`, or a `catch` that only logs, around a visual command | The error lands in a log nobody opens. Review run 35981069833 logged `Visual review skipped: Command failed: … mlx_vlm.generate …` and concluded `success`. |
+| Reading "nothing to review" as a pass | An empty input looks the same whether nothing changed or the hand-off broke. Once the web checks moved to GitHub-hosted VMs, frames stopped reaching the reviewer and 29 consecutive reviews reported `No transition frames were captured for this run.` and passed — run 36159288183 among them, though its CI run had executed the capturing suite. |
+| Reading an unparseable, empty or timed-out model answer as "no defects" | The review did not happen, so it verified nothing. |
+| Treating a defect the check confirmed as advisory | A finding nobody is made to look at is the same blindness as no review. |
+
+An nx cache replay is no exemption: a replayed run must deliver the frames its original run captured, so an absent frame set always means a broken hand-off, never "already checked".
 
 ## Debugging E2E Test Failures
 

@@ -1,28 +1,3 @@
-.inbox-copyable {
-  display: flex;
-  align-items: stretch;
-  min-height: var(--input-height);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--background);
-}
-
-.inbox-copyable:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
-}
-
-.inbox-copyable__value {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: var(--input-padding);
-  font-size: var(--input-font-size);
-  color: var(--foreground);
-  background: transparent;
-  border: none;
-  outline: none;
-}
-
 .inbox-copyable__copy {
   flex: none;
   margin: 1px;

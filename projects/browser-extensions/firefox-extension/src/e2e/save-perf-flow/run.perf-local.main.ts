@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { Builder, type WebDriver } from "selenium-webdriver";
-import { Options, Driver, ServiceBuilder } from "selenium-webdriver/firefox";
+import { Driver } from "selenium-webdriver/firefox";
 import {
 	waitForUi,
 	SUITE_FAILSAFE_MS,
@@ -12,6 +12,7 @@ import {
 	runPerfSuite,
 	logInToPopup,
 	assertGeckodriverSupportsSystemAccess,
+	createFirefoxBrowser,
 } from "browser-extension-core/e2e-actions";
 import { SAVE_RENDERED_MARK, POPUP_FIRST_FRAME_MARK } from "browser-extension-core";
 import {
@@ -161,7 +162,7 @@ test(`a save paints the saved view in under ${BUDGET_MS}ms on average`, async (t
 });
 
 async function runTest(t: { diagnostic: (message: string) => void }) {
-	const options = new Options();
+	const { options, service } = createFirefoxBrowser({ ci: getEnv("CI") === "true" });
 	if (getEnv("HEADLESS") !== "false") {
 		options.addArguments("--headless");
 	}
@@ -174,7 +175,7 @@ async function runTest(t: { diagnostic: (message: string) => void }) {
 	const driver = await new Builder()
 		.forBrowser("firefox")
 		.setFirefoxOptions(options)
-		.setFirefoxService(new ServiceBuilder().addArguments("--allow-system-access")) // Firefox 153 refuses WebDriver navigation to moz-extension:// without it
+		.setFirefoxService(service)
 		.build();
 
 	try {

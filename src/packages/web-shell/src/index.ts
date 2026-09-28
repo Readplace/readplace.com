@@ -6,7 +6,7 @@ export {
 	SUBSCRIBE_CTA_LABEL,
 } from "./pricing";
 export type { PricingPanel, PricingPlan } from "./pricing";
-export { CLICK_SURFACES, withClickSurface, withInternalTracking } from "./internal-link-tracking";
+export { CLICK_SURFACES, isClickSurface, withClickSurface, withInternalTracking } from "./internal-link-tracking";
 export type { ClickSurface } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
 export type { PageBody, SeoMetadata } from "./page-body.types";
@@ -23,16 +23,8 @@ export {
 	requireCspNonce,
 } from "./csp-nonce.middleware";
 export type { CspNonce } from "./csp-nonce.middleware";
-export {
-	deriveTrialEscalation,
-	formatTrialDisplay,
-	formatTrialRemaining,
-} from "./trial-countdown.format";
-export type {
-	TrialDisplay,
-	TrialEscalation,
-	TrialRemaining,
-} from "./trial-countdown.format";
+export { formatTrialRemaining } from "./trial-countdown.format";
+export type { TrialRemaining } from "./trial-countdown.format";
 export {
 	formatLocalInstant,
 	SERVER_TIME_ZONE,
@@ -48,7 +40,7 @@ export type {
 } from "./local-time.format";
 export {
 	bannerStateFromRequest,
-	buildGuestNavItems,
+	buildGuestNavGroups,
 	buildNavGroups,
 } from "./banner-state";
 export type {
@@ -61,12 +53,9 @@ export type {
 } from "./banner-state";
 export {
 	CHANGELOG_DISMISS_COOKIE_NAME,
-	CHANGELOG_SEEN_SCRIPT,
-	CHANGELOG_SEEN_STORAGE_KEY,
 	CHANGELOG_VERSION_LENGTH,
+	FETCH_CHANGELOG_BANNER_IN_BROWSER,
 	isChangelogVersion,
-	parseChangelogBannerFragment,
-	renderChangelogBannerFragment,
 	renderChangelogBannerShell,
 } from "./changelog-banner";
 /** Cookie parsing is owned by the session package and re-exported here so view-shell
@@ -74,7 +63,7 @@ export {
  * session package never depends on this view shell. */
 export { readCookie } from "@packages/web-session";
 export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
-export { brandMarkSvg } from "./brand-mark";
+export { brandMarkSmallSvg, brandMarkSvg } from "./brand-mark";
 export { GlobalNav, GlobalEmptyNav } from "./nav.component";
 export type { NavProps } from "./nav.component";
 export { HtmxLoaded, HtmxOmitted } from "./htmx-script";
@@ -88,7 +77,12 @@ export type {
 	RenderChromelessPage,
 } from "./chromeless-page";
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";
-export { renderInFlightDots } from "./shared/in-flight-dots/in-flight-dots.component";
+export {
+	IN_FLIGHT_DOTS_STYLES,
+	renderInFlightDots,
+} from "./shared/in-flight-dots/in-flight-dots.component";
+export { renderIllustration } from "./shared/illustrations/illustrations";
+export type { IllustrationName } from "./shared/illustrations/illustrations";
 export { renderToast } from "./shared/toast/toast.component";
 export type { ToastAction, ToastViewModel } from "./shared/toast/toast.component";
 export { renderExtensionSuggestionBannerOob } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
@@ -100,7 +94,7 @@ export type {
 	ConfirmPopover,
 	ConfirmPopoverLead,
 } from "./shared/confirm-popover/confirm-popover.component";
-export { BASE_CSS_VARIABLES, LIGHT_ONLY_BODY_CLASS } from "./base.styles";
+export { BASE_CSS_VARIABLES, EMAIL_FRAME_CANVAS, LIGHT_ONLY_BODY_CLASS } from "./base.styles";
 export { etagMatches } from "./etag";
 export {
 	MAX_CAPTURE_POLLS,

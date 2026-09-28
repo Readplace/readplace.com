@@ -25,7 +25,7 @@ function realCard(overrides?: Partial<ReadlistArticleViewModel>): string {
 		url: "https://example.com/post",
 		status: "unread",
 		isUnread: true,
-		readTime: { value: "3", label: "~3 min read" },
+		readTime: { value: "3", label: "3 min read" },
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
 		readerHref: READER_HREF,
@@ -253,7 +253,7 @@ describe("initReaderOpen", () => {
 		expect(main.querySelector('[data-reader-field-text="title"]')?.textContent).toBe("Article Title");
 		expect(main.querySelector('[data-reader-field-text="site"]')?.textContent).toBe("example.com");
 		const readTime = main.querySelector('[data-reader-field-text="read-time"]');
-		expect(readTime?.textContent).toBe("~3 min read");
+		expect(readTime?.textContent).toBe("3 min read");
 		expect(readTime?.classList.contains("article-body__read-time--empty")).toBe(false);
 		expect(main.querySelector("[data-reader-field-href]")?.getAttribute("href")).toBe(
 			"https://example.com/post",

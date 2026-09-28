@@ -7,19 +7,32 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
-  # Advisory only: reads the transition frames the CI run left on the host and
+  # Reads the transition frames the CI run left on the host and
   # asks a local vision model whether any frame is structurally broken. Lives in
   # its own file so that a hold or a failure here can never stop ci.yml, and
   # runs outside a container because inference needs Metal.
   visual-review:
+    if: github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: [self-hosted, macOS]
     timeout-minutes: 10
-    continue-on-error: true
     env:
       RUN_DIR: /Users/fagnerbrack/ci-frames/${{ github.event.workflow_run.id }}
+      STATUS_URL: ${{ github.api_url }}/repos/${{ github.repository }}/statuses/${{ github.event.workflow_run.head_sha }}
+      REVIEW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
+      - name: Mark the reviewed commit as pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          curl --fail-with-body --silent --show-error
+          --request POST "$STATUS_URL"
+          --header "Authorization: Bearer $GH_TOKEN"
+          --header "Accept: application/vnd.github+json"
+          --data "{\"state\":\"pending\",\"context\":\"Visual Review\",\"target_url\":\"$REVIEW_RUN_URL\",\"description\":\"Reviewing transition frames\"}"
+
       - uses: actions/checkout@v6
         with:
           sparse-checkout: .github/runner/macos
@@ -67,3 +80,15 @@ jobs:
             !failed-test-evidence/**/.last-run.json
           retention-days: 30
           if-no-files-found: ignore
+
+      - name: Post the review verdict on the reviewed commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERDICT: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: >-
+          curl --fail-with-body --silent --show-error
+          --request POST "$STATUS_URL"
+          --header "Authorization: Bearer $GH_TOKEN"
+          --header "Accept: application/vnd.github+json"
+          --data "{\"state\":\"$VERDICT\",\"context\":\"Visual Review\",\"target_url\":\"$REVIEW_RUN_URL\",\"description\":\"Transition frame review: $VERDICT\"}"

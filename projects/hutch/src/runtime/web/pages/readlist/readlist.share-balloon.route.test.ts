@@ -10,7 +10,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
 } from "@packages/test-fixtures";
-import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
+import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { useTestServer } from "../../../test-app";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
@@ -31,7 +31,7 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
 		siteRules: [],
-		restoreRetaggedTables,
+		readabilityAdditions,
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

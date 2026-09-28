@@ -279,7 +279,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				decisionHandler(.download)
 			case let .openExternally(target):
 				decisionHandler(.cancel)
-				// Chrome-first for our own links (the changelog banner's "Read more"):
+				// Chrome-first for our own links (the changelog banner's "Learn more"):
 				// most users browse in Chrome but leave Safari as the OS default, so
 				// the default browser has no Readplace session. An article's link to
 				// someone else's site is opened untouched — see `chromeURLFor`.

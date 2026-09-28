@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { brandMarkSvg } from "./brand-mark";
+import { brandMarkSmallSvg, brandMarkSvg } from "./brand-mark";
 
 function parseMark(svg: string): Document {
 	return new JSDOM(svg).window.document;
@@ -59,5 +59,35 @@ describe("brandMarkSvg", () => {
 		const svg = brandMarkSvg();
 		expect(svg).toContain('xmlns="http://www.w3.org/2000/svg"');
 		expect(svg).toContain('viewBox="0 0 512 512"');
+	});
+});
+
+describe("brandMarkSmallSvg", () => {
+	it("renders the same navy tile and load-bearing white keyline as the full mark", () => {
+		const rect = parseMark(brandMarkSmallSvg()).querySelector("rect");
+		assert(rect, "the small mark must contain the navy tile rect");
+		expect(rect.getAttribute("fill")).toBe("#2B3A55");
+		expect(rect.getAttribute("stroke")).toBe("#FFFFFF");
+		expect(rect.getAttribute("stroke-opacity")).toBe("0.4");
+		expect(rect.getAttribute("stroke-width")).toBe("20");
+		expect(rect.getAttribute("rx")).toBe("102");
+	});
+
+	it("renders the enlarged small-size ampersand as white fixed path geometry", () => {
+		const glyph = parseMark(brandMarkSmallSvg()).querySelector("path");
+		assert(glyph, "the small mark must contain the ampersand path");
+		expect(glyph.getAttribute("fill")).toBe("#FFFFFF");
+		expect(glyph.getAttribute("d")).toMatch(/^M207\.77 405\.2Q/);
+	});
+
+	it("drops the amber dot, which smudges into the glyph below the 33px size cutover", () => {
+		expect(parseMark(brandMarkSmallSvg()).querySelectorAll("circle")).toHaveLength(0);
+	});
+
+	it("is a standalone-safe root carrying the xmlns and the 512 viewBox", () => {
+		const svg = parseMark(brandMarkSmallSvg()).querySelector("svg");
+		assert(svg, "svg root must exist");
+		expect(svg.getAttribute("xmlns")).toBe("http://www.w3.org/2000/svg");
+		expect(svg.getAttribute("viewBox")).toBe("0 0 512 512");
 	});
 });

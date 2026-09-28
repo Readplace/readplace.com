@@ -2,6 +2,8 @@ package com.readplace.android.app
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -16,6 +18,7 @@ import androidx.compose.ui.unit.dp
  * [LocalBrandColors] so no view branches on light/dark itself. */
 data class BrandColors(
 	val amber: Color,
+	val primaryFill: Color,
 	val highlight: Color,
 	val success: Color,
 	val warning: Color,
@@ -29,6 +32,10 @@ data class BrandColors(
 	val border: Color,
 	val amberContainer: Color,
 	val onAmberContainer: Color,
+	val card: Color,
+	val secondary: Color,
+	val primaryText: Color,
+	val successText: Color,
 )
 
 private fun Rgb.toColor(): Color = Color(red = red, green = green, blue = blue)
@@ -36,6 +43,7 @@ private fun Rgb.toColor(): Color = Color(red = red, green = green, blue = blue)
 fun brandColors(isDark: Boolean): BrandColors =
 	BrandColors(
 		amber = BrandColor.amber.resolve(isDark).toColor(),
+		primaryFill = BrandColor.primaryFill.toColor(),
 		highlight = BrandColor.highlight.resolve(isDark).toColor(),
 		success = BrandColor.success.resolve(isDark).toColor(),
 		warning = BrandColor.warning.resolve(isDark).toColor(),
@@ -49,11 +57,15 @@ fun brandColors(isDark: Boolean): BrandColors =
 		border = BrandColor.border.resolve(isDark).toColor(),
 		amberContainer = BrandColor.amberContainer.resolve(isDark).toColor(),
 		onAmberContainer = BrandColor.onAmberContainer.resolve(isDark).toColor(),
+		card = BrandColor.card.resolve(isDark).toColor(),
+		secondary = BrandColor.secondary.resolve(isDark).toColor(),
+		primaryText = BrandColor.primaryText.resolve(isDark).toColor(),
+		successText = BrandColor.successText.resolve(isDark).toColor(),
 	)
 
 private fun brandScheme(brand: BrandColors, isDark: Boolean): ColorScheme =
 	(if (isDark) darkColorScheme() else lightColorScheme()).copy(
-		primary = brand.amber,
+		primary = brand.primaryFill,
 		onPrimary = Color.White,
 		surfaceTint = brand.amber,
 		secondary = brand.highlight,
@@ -78,6 +90,10 @@ private fun brandScheme(brand: BrandColors, isDark: Boolean): ColorScheme =
 private val brandShapes = Shapes(small = RoundedCornerShape(6.dp))
 
 val LocalBrandColors = staticCompositionLocalOf { brandColors(isDark = false) }
+
+@Composable
+fun brandTextButtonColors(): ButtonColors =
+	ButtonDefaults.textButtonColors(contentColor = LocalBrandColors.current.primaryText)
 
 val LocalIsDarkTheme = staticCompositionLocalOf { false }
 

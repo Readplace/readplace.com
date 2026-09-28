@@ -1,16 +1,18 @@
 import assert from "node:assert";
 import {
+	BANNER_BAR_STYLES,
 	BASE_CSS_VARIABLES,
 	BASE_RESET_STYLES,
 	BUTTON_STYLES,
+	FORM_CONTROL_STYLES,
 	CHANGELOG_BANNER_STYLES,
 	CHROMELESS_BANNER_AREA_STYLES,
 	UTILITY_STYLES,
 	appearanceBodyClass,
 	type AppearanceSetting,
 } from "./base.styles";
-import type { ChangelogBanner } from "./changelog-banner";
-import { renderChangelogBannerShell } from "./changelog-banner";
+import type { BannerState } from "./banner-state";
+import { renderChangelogBannerSlot } from "./changelog-banner";
 import { CHROMELESS_TEMPLATE } from "./chromeless-page.template";
 import type { Component } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
@@ -32,11 +34,11 @@ export interface ChromelessPageConfig {
 
 /** The only shell state the chromeless reader renders: the site-wide
  * announcement and the path its dismiss form returns to. A narrow slice rather
- * than the whole `BannerState` — this shell has no header, nav, trial countdown,
+ * than the whole `BannerState` — this shell has no header, nav,
  * verify banner, or toast to feed, so accepting the full state would advertise
  * inputs it silently drops. */
 export interface ChromelessBannerState {
-	changelogBanner?: ChangelogBanner;
+	changelogBanner?: BannerState["changelogBanner"];
 	currentPath?: string;
 	appearance?: AppearanceSetting;
 	cspNonce: CspNonce;
@@ -68,13 +70,14 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 			baseStyles: BASE_CSS_VARIABLES,
 			resetStyles: BASE_RESET_STYLES,
 			buttonStyles: BUTTON_STYLES,
+			formControlStyles: FORM_CONTROL_STYLES,
 			utilityStyles: UTILITY_STYLES,
 			bannerAreaStyles: CHROMELESS_BANNER_AREA_STYLES,
+			bannerBarStyles: BANNER_BAR_STYLES,
 			changelogBannerStyles: CHANGELOG_BANNER_STYLES,
-			changelogBanner: renderChangelogBannerShell({
+			changelogBanner: renderChangelogBannerSlot({
 				banner: state.changelogBanner,
 				returnTo: state.currentPath,
-				cspNonce: state.cspNonce,
 			}),
 			content: injectPageStylesIntoMain({
 				content: body.content.html,

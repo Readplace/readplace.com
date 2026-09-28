@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { initReadabilityParser, restoreRetaggedTables } from "@packages/article-parser";
+import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -49,7 +49,7 @@ async function buildPendingReaderWithSuggestion() {
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
 		siteRules: [],
-		restoreRetaggedTables,
+		readabilityAdditions,
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

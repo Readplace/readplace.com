@@ -150,6 +150,24 @@ describe("Admin extend-trial routes", () => {
 				"2026-08-01T00:00",
 			);
 		});
+
+		it("renders the email and date fields as valid form controls when nothing failed", async () => {
+			const harness = buildHarness();
+			const agent = await createAdmin(harness);
+			await createTrialingUser(harness);
+
+			const response = await agent.get(`/admin/extend-trial?email=${USER_EMAIL}`);
+
+			const page = doc(response.text);
+			for (const selector of ["[data-test-extend-trial-email]", "[data-test-extend-trial-date]"]) {
+				const input = page.querySelector(selector);
+				expect(input?.classList.contains("form-input")).toBe(true);
+				expect(input?.hasAttribute("aria-invalid")).toBe(false);
+				expect(input?.hasAttribute("aria-describedby")).toBe(false);
+				const label = page.querySelector(`label[for="${input?.id}"]`);
+				expect(label?.classList.contains("form-field__label")).toBe(true);
+			}
+		});
 	});
 
 	describe("extending", () => {
@@ -255,6 +273,7 @@ describe("Admin extend-trial routes", () => {
 			const page = doc(response.text);
 			const error = page.querySelector('[data-test-error="trialEndsAt"]');
 			expect(error?.textContent?.trim()).toBe("Choose a date and time");
+			expect(error?.classList.contains("form-field__error")).toBe(true);
 			const dateInput = page.querySelector("[data-test-extend-trial-date]");
 			expect(dateInput?.getAttribute("aria-invalid")).toBe("true");
 			expect(dateInput?.getAttribute("aria-describedby")).toBe(error?.id);
@@ -273,6 +292,7 @@ describe("Admin extend-trial routes", () => {
 			const page = doc(response.text);
 			const error = page.querySelector('[data-test-error="email"]');
 			expect(error?.textContent?.trim()).toBe("Enter a valid email address");
+			expect(error?.classList.contains("form-field__error")).toBe(true);
 			const emailInput = page.querySelector("[data-test-extend-trial-email]");
 			expect(emailInput?.getAttribute("aria-invalid")).toBe("true");
 			expect(emailInput?.getAttribute("aria-describedby")).toBe(error?.id);
