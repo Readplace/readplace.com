@@ -2,7 +2,7 @@ import type { Request } from "express";
 import { readplaceNativeClientOf } from "@packages/web-analytics";
 import { type BuiltInOAuthClientId, isBuiltInOAuthClientId } from "@packages/supported-clients";
 import { SAVE_CLIENTS, type SaveClient } from "../../observability/events";
-import { isAppShell, nativeSurfaceOf } from "../onboarding/native-client";
+import { isAppShell, isNativeSurface, nativeSurfaceOf } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
 
 const SAVE_CLIENT_BY_PLATFORM = {
@@ -29,4 +29,8 @@ export function saveClientOf(req: Request): SaveClient {
 	 * would silently file as web. */
 	if (isAppShell(req)) return SAVE_CLIENTS.iosApp;
 	return SAVE_CLIENTS.web;
+}
+
+export function appClientOf(req: Request): SaveClient | undefined {
+	return isNativeSurface(req) ? saveClientOf(req) : undefined;
 }

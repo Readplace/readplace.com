@@ -1,8 +1,10 @@
 import assert from "node:assert";
 import {
+	BANNER_BAR_STYLES,
 	BASE_CSS_VARIABLES,
 	BASE_RESET_STYLES,
 	BUTTON_STYLES,
+	FORM_CONTROL_STYLES,
 	CHANGELOG_BANNER_STYLES,
 	CHROMELESS_BANNER_AREA_STYLES,
 	UTILITY_STYLES,
@@ -32,7 +34,7 @@ export interface ChromelessPageConfig {
 
 /** The only shell state the chromeless reader renders: the site-wide
  * announcement and the path its dismiss form returns to. A narrow slice rather
- * than the whole `BannerState` — this shell has no header, nav, trial countdown,
+ * than the whole `BannerState` — this shell has no header, nav,
  * verify banner, or toast to feed, so accepting the full state would advertise
  * inputs it silently drops. */
 export interface ChromelessBannerState {
@@ -68,13 +70,14 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 			baseStyles: BASE_CSS_VARIABLES,
 			resetStyles: BASE_RESET_STYLES,
 			buttonStyles: BUTTON_STYLES,
+			formControlStyles: FORM_CONTROL_STYLES,
 			utilityStyles: UTILITY_STYLES,
 			bannerAreaStyles: CHROMELESS_BANNER_AREA_STYLES,
+			bannerBarStyles: BANNER_BAR_STYLES,
 			changelogBannerStyles: CHANGELOG_BANNER_STYLES,
 			changelogBanner: renderChangelogBannerSlot({
 				banner: state.changelogBanner,
 				returnTo: state.currentPath,
-				cspNonce: state.cspNonce,
 			}),
 			content: injectPageStylesIntoMain({
 				content: body.content.html,

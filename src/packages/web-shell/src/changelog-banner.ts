@@ -1,4 +1,3 @@
-import type { CspNonce } from "./csp-nonce.middleware";
 import { type ClickSurface, withClickSurface } from "./internal-link-tracking";
 import { render } from "./render";
 
@@ -46,18 +45,6 @@ export interface ChangelogBanner {
  * Lambdas, so dismissing on /blog also dismisses on the app and vice versa. */
 export const CHANGELOG_DISMISS_COOKIE_NAME = "rp_changelog_dismissed";
 
-/** The single localStorage key recording the last banner version this browser
- * has seen. One key (not one-per-version) so a newer post overwrites the
- * previous value and the entry never grows unbounded. Single-sourced here so
- * consumers cannot drift. */
-export const CHANGELOG_SEEN_STORAGE_KEY = "readplace.changelog-seen";
-
-/** Runs synchronously before paint, so an already-seen banner never flashes its
- * NEW chip. It reads the version off the banner's data attribute — never
- * interpolated into this JS, so the script is a static string with no injection
- * surface. Storage access is guarded so private-mode throws leave NEW visible. */
-export const CHANGELOG_SEEN_SCRIPT = `(function(){var banner=document.querySelector('.changelog-banner[data-changelog-version]');if(!banner)return;var version=banner.getAttribute('data-changelog-version');try{if(localStorage.getItem('${CHANGELOG_SEEN_STORAGE_KEY}')===version){banner.classList.add('changelog-banner--seen');}else{localStorage.setItem('${CHANGELOG_SEEN_STORAGE_KEY}',version);}}catch(e){}})();`;
-
 /** The visible banner, rendered identically by both deployables through the
  * shell. Always emits the `.changelog-banner` element — `--visible` with content
  * when a banner is present, `--hidden` and empty otherwise — so the markup is
@@ -67,12 +54,11 @@ export const CHANGELOG_SEEN_SCRIPT = `(function(){var banner=document.querySelec
  * (so the dismiss route sends the reader back where they were rather than the
  * homepage — it cannot read `Referer`, which helmet's default `no-referrer`
  * policy strips from the POST). */
-const CHANGELOG_SHELL_TEMPLATE = `<div class="changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner{{#if visible}} data-changelog-version="{{version}}"{{/if}}>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__chip" aria-hidden="true">NEW</span><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Read more {{icon "arrow-right"}}</a><form class="changelog-banner__dismiss" method="POST" action="{{track '/banner/changelog/dismiss' source='changelog-banner' content='dismiss' term=clickSurface}}"><input type="hidden" name="version" value="{{version}}"><input type="hidden" name="returnTo" value="{{returnTo}}"><button type="submit" class="changelog-banner__close" aria-label="Dismiss changelog banner">{{icon "x"}}</button></form></div>{{#if seenScript}}<script nonce="{{cspNonce}}">${CHANGELOG_SEEN_SCRIPT}</script>{{/if}}{{/if}}</div>`;
+const CHANGELOG_SHELL_TEMPLATE = `<div class="banner-bar changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Learn more {{icon "arrow-right"}}</a></div><form class="changelog-banner__dismiss" method="POST" action="{{track '/banner/changelog/dismiss' source='changelog-banner' content='dismiss' term=clickSurface}}"><input type="hidden" name="version" value="{{version}}"><input type="hidden" name="returnTo" value="{{returnTo}}"><button type="submit" class="banner-bar__close" aria-label="Dismiss changelog banner">{{icon "x"}}</button></form>{{/if}}</div>`;
 
 export function renderChangelogBannerShell(input: {
 	banner?: ChangelogBanner;
 	returnTo?: string;
-	cspNonce: CspNonce;
 	clickSurface?: ClickSurface;
 }): string {
 	return render(CHANGELOG_SHELL_TEMPLATE, {
@@ -81,8 +67,6 @@ export function renderChangelogBannerShell(input: {
 		href: input.banner ? withClickSurface(input.banner.href, input.clickSurface) : undefined,
 		version: input.banner?.version,
 		returnTo: input.returnTo,
-		cspNonce: input.cspNonce,
-		seenScript: Boolean(input.banner),
 		clickSurface: input.clickSurface,
 	});
 }
@@ -109,7 +93,6 @@ function renderChangelogBannerLoader(input: {
 export function renderChangelogBannerSlot(input: {
 	banner?: ChangelogBanner | typeof FETCH_CHANGELOG_BANNER_IN_BROWSER;
 	returnTo?: string;
-	cspNonce: CspNonce;
 	clickSurface?: ClickSurface;
 }): string {
 	if (input.banner === FETCH_CHANGELOG_BANNER_IN_BROWSER) {

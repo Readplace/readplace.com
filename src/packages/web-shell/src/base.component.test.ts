@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { initBase } from "./base.component";
 import { type HtmxDelivery, HtmxLoaded, HtmxOmitted } from "./htmx-script";
 import { GlobalNav, GlobalEmptyNav } from "./nav.component";
-import { CHANGELOG_SEEN_SCRIPT, FETCH_CHANGELOG_BANNER_IN_BROWSER, isChangelogVersion } from "./changelog-banner";
+import { FETCH_CHANGELOG_BANNER_IN_BROWSER, isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
 import { generateCspNonce } from "./csp-nonce.middleware";
 import type { PageBody } from "./page-body.types";
@@ -182,6 +182,18 @@ describe("Base component", () => {
 		expect(main.firstElementChild?.tagName).toBe("STYLE");
 	});
 
+	it("ships the shared form controls in the head, so a page's .form-input markup is styled without page CSS", () => {
+		const html = Base(createTestPageBody(), GUEST_STATE).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+		const css = Array.from(doc.head.querySelectorAll("style"))
+			.map((style) => style.textContent ?? "")
+			.join("");
+
+		expect(css).toContain(".form-input {");
+		expect(css).toContain(".form-field__error {");
+		expect(css).toContain(".form-choice {");
+	});
+
 	it("should apply bodyClass when provided", () => {
 		const page = createTestPageBody({ bodyClass: "page-home" });
 		const result = Base(page, GUEST_STATE).to("text/html");
@@ -347,10 +359,10 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["install", "features", "import", "login"]);
+		expect(navItems).toEqual(["install", "import", "features", "login"]);
 	});
 
-	it("renders the full nav (queue + import + inbox + account + logout) for an authenticated full-access user", () => {
+	it("renders the full nav (queue + import + inbox + account + privacy + terms + logout) for an authenticated full-access user", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
@@ -363,7 +375,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "import", "inbox", "account", "logout"]);
+		expect(navItems).toEqual(["queue", "import", "inbox", "account", "privacy", "terms", "logout"]);
 	});
 
 	it("hands the signed-in email to the header so the account section renders as the user menu", () => {
@@ -382,7 +394,7 @@ describe("Base component", () => {
 		expect(menu.querySelector("[data-test-nav-user-email]")?.textContent).toBe("ana_lu@example.com");
 	});
 
-	it("hides import, inbox, and account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue and logout remain", () => {
+	it("hides import and inbox from the nav for a read-only user (trial-expired / subscription-cancelled) but keeps Account so they can still reach /account", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
@@ -395,7 +407,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "logout"]);
+		expect(navItems).toEqual(["queue", "account", "privacy", "terms", "logout"]);
 	});
 
 	it("should include the footer with copyright", () => {
@@ -405,6 +417,34 @@ describe("Base component", () => {
 
 		const footer = doc.querySelector(".footer__copyright");
 		expect(footer?.textContent).toContain("Readplace");
+	});
+
+	it("renders the footer for a guest but not for a signed-in reader, whose account menu carries Privacy and Terms instead", () => {
+		const landmarks = (state: BannerState) =>
+			Array.from(
+				new JSDOM(Base(createTestPageBody(), state).to("text/html").body).window.document.querySelectorAll(
+					"header, main, footer",
+				),
+			).map((el) => el.tagName.toLowerCase());
+
+		expect(landmarks(GUEST_STATE)).toEqual(["header", "main", "footer"]);
+		expect(landmarks({ cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true })).toEqual(["header", "main"]);
+	});
+
+	it("hands the request path to the header so the page's own destination is the current nav item", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			cspNonce: CSP_NONCE,
+			isAuthenticated: true,
+			emailVerified: true,
+			currentPath: "/queue/abc123/view",
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const current = Array.from(doc.querySelectorAll('[aria-current="page"]')).map((el) =>
+			el.getAttribute("data-test-nav-item"),
+		);
+		expect(current).toEqual(["queue"]);
 	});
 
 	it("renders one empty persistent live region for toast announcements, outside <main> so a main-targeted swap never replaces it", () => {
@@ -428,6 +468,25 @@ describe("Base component", () => {
 
 		const banner = doc.querySelector(".offline-banner");
 		expect(banner?.getAttribute("aria-hidden")).toBe("true");
+		expect(banner?.classList.contains("banner-bar")).toBe(true);
+	});
+
+	it("ships the shared banner bar rules ahead of every bar's own modifiers, so a modifier wins where they overlap", () => {
+		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window.document;
+		const css = Array.from(doc.head.querySelectorAll("style"))
+			.map((style) => style.textContent ?? "")
+			.join("");
+
+		const bar = css.indexOf(".banner-bar {");
+		expect(bar).toBeGreaterThan(-1);
+		for (const modifier of [
+			".changelog-banner--visible",
+			".offline-banner {",
+			".verify-banner--visible",
+			".extension-suggestion-banner {",
+		]) {
+			expect(css.indexOf(modifier)).toBeGreaterThan(bar);
+		}
 	});
 
 	it("renders the extension suggestion banner element with data-show='false' by default", () => {
@@ -548,10 +607,7 @@ describe("Base component", () => {
 		expect(banner.querySelector(".changelog-banner__hook")?.textContent).toBe(
 			"I added keyboard shortcuts to the reader",
 		);
-		expect(banner.getAttribute("data-changelog-version")).toBe(CHANGELOG_VERSION);
-		const seenScript = banner.querySelector("script");
-		assert(seenScript, "the visible banner must carry the inline seen-script");
-		expect(seenScript.textContent).toBe(CHANGELOG_SEEN_SCRIPT);
+		expect(banner.querySelector("script")).toBeNull();
 	});
 
 	it("threads currentPath into the changelog dismiss form so dismissing stays on the current page", () => {
@@ -751,8 +807,7 @@ describe("Base component", () => {
 		const banner = doc.querySelector("[data-test-verify-banner]");
 		assert(banner, "verify banner must be rendered");
 		expect(banner.getAttribute("data-verification-state")).toBe("counting-down");
-		expect(banner.textContent).toContain("3 days");
-		expect(banner.textContent).toContain("before your account is locked");
+		expect(banner.textContent).toContain("within 3 days to keep your account active");
 	});
 
 	it("should switch to the locked contact-support copy once the account is locked", () => {
@@ -952,149 +1007,16 @@ describe("Base component", () => {
 		]);
 	});
 
-	it("renders the trial countdown hidden (state class) and omits the client script when state.trial is undefined", () => {
+	it("loads no trial countdown bundle for a signed-in reader, since the header carries no trial chip", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown element must always be in the DOM");
-		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
-		expect(countdown.getAttribute("data-trial-state")).toBe("");
-
-		const scripts = loadedClientScripts(doc);
-		expect(scripts).toContain("/client-dist/toast.client.js");
-		expect(scripts).not.toContain("/client-dist/trial-countdown.client.js");
-	});
-
-	it("renders the trial countdown with text/data-attrs and includes the client script when trial.state='active'", () => {
-		const page = createTestPageBody();
-		const result = Base(page, {
-			cspNonce: CSP_NONCE,
-			isAuthenticated: true,
-			emailVerified: true,
-			trial: {
-				state: "active",
-				endsAtIso: "2026-01-15T00:00:00.000Z",
-				serverNowIso: "2026-01-01T00:00:00.000Z",
-				remaining: {
-					days: 13,
-					hours: 12,
-					minutes: 33,
-					seconds: 22,
-					totalMs: 1,
-				},
-				escalation: "moderate",
-			},
-		}).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be rendered when trial.state='active'");
-		expect(countdown.textContent).toBe("13d 12h left in your free trial");
-		expect(countdown.getAttribute("data-trial-state")).toBe("active");
-		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2026-01-15T00:00:00.000Z");
-		expect(countdown.getAttribute("data-server-now-iso")).toBe("2026-01-01T00:00:00.000Z");
-		expect(countdown.classList.contains("trial-countdown--moderate")).toBe(true);
-		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
-		expect(countdown.getAttribute("role")).toBe("timer");
-		expect(countdown.getAttribute("aria-live")).toBe("off");
-
-		const script = doc.querySelector(
-			'script[src$="/client-dist/trial-countdown.client.js"]',
-		);
-		assert(script, "trial countdown client script must load when state='active'");
-		expect(script.hasAttribute("defer")).toBe(true);
-	});
-
-	it("renders the trial countdown as 'Subscription not active' and skips the client script when trial.state='expired'", () => {
-		const page = createTestPageBody();
-		const result = Base(page, {
-			cspNonce: CSP_NONCE,
-			isAuthenticated: true,
-			emailVerified: true,
-			trial: { state: "expired" },
-		}).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be rendered when trial.state='expired'");
-		expect(countdown.textContent).toBe("Subscription not active");
-		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
-		expect(countdown.classList.contains("trial-countdown--expired")).toBe(true);
-		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
-
-		const scripts = loadedClientScripts(doc);
-		expect(scripts).toContain("/client-dist/toast.client.js");
-		expect(scripts).not.toContain("/client-dist/trial-countdown.client.js");
-	});
-
-	it("renders the quiet cancellation chip and loads the client script when trial.state='cancellation-scheduled' — the script is what re-renders the UTC baseline date into the viewer's timezone", () => {
-		const page = createTestPageBody();
-		const result = Base(page, {
-			cspNonce: CSP_NONCE,
-			isAuthenticated: true,
-			emailVerified: true,
-			trial: {
-				state: "cancellation-scheduled",
-				endsAtIso: "2027-07-10T00:00:00.000Z",
-				serverNowIso: "2026-07-10T00:00:00.000Z",
-			},
-		}).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be rendered when trial.state='cancellation-scheduled'");
-		expect(countdown.textContent).toBe("Ends Jul 10, 2027");
-		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
-		expect(countdown.classList.contains("trial-countdown--cancellation-scheduled")).toBe(true);
-		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
-		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2027-07-10T00:00:00.000Z");
-
-		const scripts = loadedClientScripts(doc);
-		expect(scripts).toContain("/client-dist/toast.client.js");
-		expect(scripts).toContain("/client-dist/trial-countdown.client.js");
-	});
-
-	it("renders the trial countdown as an anchor to /account so the user can fix the subscription state from any page", () => {
-		const page = createTestPageBody();
-		const result = Base(page, {
-			cspNonce: CSP_NONCE,
-			isAuthenticated: true,
-			emailVerified: true,
-			trial: { state: "expired" },
-		}).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be rendered");
-		expect(countdown.tagName.toLowerCase()).toBe("a");
-		expect(countdown.getAttribute("href")).toBe("/account?utm_source=header&utm_medium=internal&utm_content=trial-countdown");
-	});
-
-	it("places the trial countdown directly after the header brand inside .header__content", () => {
-		const page = createTestPageBody();
-		const result = Base(page, {
-			cspNonce: CSP_NONCE,
-			isAuthenticated: true,
-			emailVerified: true,
-			trial: {
-				state: "active",
-				endsAtIso: "2026-01-15T00:00:00.000Z",
-				serverNowIso: "2026-01-01T00:00:00.000Z",
-				remaining: { days: 13, hours: 12, minutes: 33, seconds: 22, totalMs: 1 },
-				escalation: "soft",
-			},
-		}).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		const headerContent = doc.querySelector(".header__content");
-		assert(headerContent, "header content container must exist");
-		const brand = headerContent.querySelector(".header__brand");
-		assert(brand, "brand link must exist");
-		const next = brand.nextElementSibling;
-		assert(next, "an element must follow the brand inside .header__content");
-		expect(next.hasAttribute("data-test-trial-countdown")).toBe(true);
+		expect(loadedClientScripts(doc)).toEqual([
+			"/client-dist/htmx.client.js",
+			"/client-dist/extension-suggestion-banner.client.js",
+			"/client-dist/toast.client.js",
+		]);
 	});
 
 	it("should preserve query string when normalizing canonical URLs", () => {
@@ -1178,7 +1100,7 @@ describe("initBase config", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(inlineNonces(doc)).toEqual({
-			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
+			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
 			style: [CSP_NONCE, CSP_NONCE],
 		});
 	});

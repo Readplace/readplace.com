@@ -398,7 +398,6 @@ describe("GET /blog/changelog-banner", () => {
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 		const banner = doc.querySelector("[data-test-changelog-banner]");
 		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
-		expect(banner?.getAttribute("data-changelog-version")).toBe(FAKE_BANNER.version);
 		expect(banner?.querySelector(".changelog-banner__hook")?.textContent).toBe(FAKE_BANNER.hook);
 		expect(banner?.querySelector(".changelog-banner__link")?.getAttribute("href")).toBe(FAKE_BANNER.href);
 		expect(banner?.querySelector('form.changelog-banner__dismiss input[name="version"]')?.getAttribute("value")).toBe(

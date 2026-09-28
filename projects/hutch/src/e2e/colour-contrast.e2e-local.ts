@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 import { markReadWithConfirmation } from "./page-interactions";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 import { LENSES, NON_TEXT_MINIMUM, contrastRatio, textMinimum } from "./wcag-contrast";
@@ -14,6 +15,8 @@ const VIEWPORT = { width: 1280, height: 900 };
 const READER_ROOT = "main.reader";
 const AUTH_ROOT = "main.auth-page";
 const READLIST_ROOT = "main.readlist";
+const BANNER_AREA_ROOT = ".banner-area";
+const NAV_LIBRARY_ROOT = '[data-test-nav-group="library"]';
 const SETTLE_MS = 45000;
 
 function minimumRatio(measured: RenderedInk): number {
@@ -182,6 +185,28 @@ async function auditReadlistQueue(page: Page, where: { theme: string; view: stri
 	await auditDeleteConfirmation(page, where);
 }
 
+async function auditAnnouncementBars(
+	page: Page,
+	where: { theme: string; view: string },
+): Promise<void> {
+	await page.waitForSelector("body.page-readlist");
+	await expect(page.locator("[data-test-changelog-banner]")).toHaveClass(
+		/changelog-banner--visible/,
+		{ timeout: SETTLE_MS },
+	);
+	await expect(page.locator("[data-test-verify-banner]")).toBeVisible({ timeout: SETTLE_MS });
+	await page.mouse.move(0, 0);
+
+	for (const root of [BANNER_AREA_ROOT, NAV_LIBRARY_ROOT]) {
+		const measurements = await stableMeasurements(page, root);
+		assert.ok(
+			measurements.length > 0,
+			`${where.theme}/${where.view}: the audit measured nothing inside ${root}`,
+		);
+		assertContrast(measurements, where);
+	}
+}
+
 test.describe("Auth colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 
@@ -199,7 +224,7 @@ test.describe("Auth colour roles hold their WCAG contrast in both themes", () =>
 			await page.locator("#email").fill("nobody@example.com");
 			await page.locator("#password").fill("Wr0ng-Password!");
 			await page.locator('[data-test-form="login"] button[type="submit"]').click();
-			await expect(page.locator("[data-test-global-error]")).toBeVisible({ timeout: SETTLE_MS });
+			await expect(page.locator('[data-test-alert="global-error"]')).toBeVisible({ timeout: SETTLE_MS });
 			await auditAuth(page, { theme, view: "login/global-error" });
 
 			await page.goto(`${BASE_URL}/signup`, { waitUntil: "domcontentloaded" });
@@ -238,20 +263,90 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 			"to-read": `${BASE_URL}/queue`,
 			done: `${BASE_URL}/queue?tab=done`,
 			"save-error": `${BASE_URL}/queue?error_code=save_failed`,
+			"alert-limit": `${BASE_URL}/queue?queue_error=limit`,
 		} as const;
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			for (const view of ["to-read", "done", "save-error"] as const) {
+			for (const view of ["to-read", "done", "save-error", "alert-limit"] as const) {
 				await page.goto(viewUrls[view], { waitUntil: "domcontentloaded" });
 				if (view === "save-error") {
 					await expect(page.locator("[data-test-save-error]")).toBeVisible({
 						timeout: SETTLE_MS,
 					});
 				}
+				if (view === "alert-limit") {
+					await expect(page.locator('[data-test-alert="readlist"]')).toBeVisible({ timeout: SETTLE_MS });
+				}
 				await auditReadlistQueue(page, { theme, view });
 			}
+			await page.setExtraHTTPHeaders({ [E2E_CHANGELOG_BANNER_HEADER]: "1" });
+			await page.goto(viewUrls["to-read"], { waitUntil: "domcontentloaded" });
+			await auditAnnouncementBars(page, { theme, view: "announcement-bars" });
+			await page.setExtraHTTPHeaders({});
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 			await auditReader(page, { theme, view: "reader" });
+		}
+	});
+});
+
+test.describe("Alert variants hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("error, info, success and warning clear colour and greyscale minimums", async ({ page }, testInfo) => {
+		const email = `alert-contrast-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email, password: PASSWORD, verified: true },
+		});
+		assert.equal(created.status(), 201);
+		const { userId } = await created.json() as { userId: string };
+		assert(userId, "the new reader must have a user id");
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, {
+			data: { userId },
+		});
+		assert.equal(seeded.status(), 201);
+		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.locator("#email").fill(email);
+		await page.locator("#password").fill(PASSWORD);
+		await page.locator('[data-test-form="login"] button[type="submit"]').click();
+		await page.waitForSelector("body.page-readlist");
+		const uploaded = await page.request.post(`${BASE_URL}/import`, {
+			multipart: {
+				file: {
+					name: "links.txt",
+					mimeType: "text/plain",
+					buffer: Buffer.from(Array.from({ length: 2_001 }, (_, index) => `https://example.com/post-${index}`).join("\n")),
+				},
+			},
+			maxRedirects: 0,
+		});
+		assert.equal(uploaded.status(), 303);
+		const location = uploaded.headers().location;
+		assert(location, "the import upload must redirect to its review page");
+		const warningUrl = new URL(location, BASE_URL).href;
+		await page.goto(warningUrl, { waitUntil: "domcontentloaded" });
+		await expect(page.locator('[data-test-alert="import-truncated"]')).toBeVisible({ timeout: SETTLE_MS });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			for (const view of [
+				{ key: "oauth_state", url: `${BASE_URL}/integrations?error=oauth_state`, variant: "error" },
+				{ key: "gmail_disconnected", url: `${BASE_URL}/integrations?notice=gmail_disconnected`, variant: "info" },
+				{ key: "connected", url: `${BASE_URL}/integrations/gmail?notice=connected`, variant: "success" },
+			] as const) {
+				await page.goto(view.url, { waitUntil: "domcontentloaded" });
+				const alert = page.locator(`[data-test-alert="${view.key}"]`);
+				await expect(alert).toHaveAttribute("data-test-alert-variant", view.variant);
+				const measurements = await stableMeasurements(page, `[data-test-alert="${view.key}"]`);
+				assert.ok(measurements.length > 0);
+				assertContrast(measurements, { theme, view: view.variant });
+			}
+
+			await page.goto(warningUrl, { waitUntil: "domcontentloaded" });
+			const warning = page.locator('[data-test-alert="import-truncated"]');
+			await expect(warning).toHaveAttribute("data-test-alert-variant", "warning", { timeout: SETTLE_MS });
+			const measurements = await stableMeasurements(page, '[data-test-alert="import-truncated"]');
+			assert.ok(measurements.length > 0);
+			assertContrast(measurements, { theme, view: "warning" });
 		}
 	});
 });

@@ -1,10 +1,9 @@
+import { readFileSync } from "node:fs";
 import { captureCheckpoint, expect, test, waitForBrandFonts } from "@packages/e2e-harness";
 import type { Page } from "@playwright/test";
-import { FIXED_NOW, popupListUrl, popupRuntimeStub, popupSaveUrl } from "./popup-visual-fixture";
+import { FIXED_NOW, OVERSIZED_TITLE, WIDE_TITLE, popupListUrl, popupRuntimeStub, popupSaveUrl } from "./popup-visual-fixture";
 
-/** The popup paints at its own fixed width; the viewport only has to be big
- * enough not to clip it. */
-const VIEWPORT = { width: 640, height: 900 };
+const VIEWPORT = { width: 1024, height: 900 };
 
 const LIST_VIEW = "#list-view:not([hidden])";
 const SAVING_SKELETON = "#saving-view:not([hidden]) #saving-progress:not([hidden])";
@@ -83,10 +82,14 @@ async function listSkeletonSettled(page: Page): Promise<void> {
 }
 
 async function noOverflow(page: Page): Promise<void> {
-	const overflow = await page
-		.locator("body")
-		.evaluate((body) => body.scrollWidth - body.clientWidth);
-	expect(overflow).toBeLessThanOrEqual(0);
+	const geometry = await page.evaluate(() => ({
+		bodyWidth: document.body.getBoundingClientRect().width,
+		bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
+		pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+	}));
+	expect(geometry.bodyWidth).toBe(Math.min(800, page.viewportSize()?.width ?? 0));
+	expect(geometry.bodyOverflow).toBeLessThanOrEqual(0);
+	expect(geometry.pageOverflow).toBeLessThanOrEqual(0);
 }
 
 async function skeletonRowsEqual(page: Page): Promise<void> {
@@ -98,6 +101,7 @@ async function skeletonRowsEqual(page: Page): Promise<void> {
 }
 
 async function pagerShowsEveryControl(page: Page): Promise<void> {
+	await noOverflow(page);
 	await expect(page.locator("#pagination > *")).toHaveCount(9);
 	await expect(page.locator(".pagination__page--current")).toHaveText("5");
 }
@@ -128,6 +132,87 @@ async function heightsOf(page: Page, selectors: string[]): Promise<number[]> {
  * suite is declared once and each project supplies only the package to point at
  * — and owns the baselines its own engine produces. */
 export function registerPopupVisualSuite(input: { packagedPopup: string }): void {
+	const startupHtml = readFileSync(input.packagedPopup, "utf-8").replace(
+		'<script src="popup-entry.browser.js"></script>',
+		"",
+	);
+
+	async function openStartup(page: Page): Promise<void> {
+		await page.setViewportSize(VIEWPORT);
+		await page.setContent(startupHtml);
+		await expect(page.locator(".popup-shell #saving-progress")).toBeVisible();
+		await noOverflow(page);
+	}
+
+	test.describe("popup startup shell", () => {
+		test("centers the placeholder before application assets load", async ({ page }) => {
+			await openStartup(page);
+			await expect(page.locator("body")).toHaveScreenshot("popup-startup-light.png");
+		});
+
+		test.describe("in dark mode", () => {
+			test.use({ colorScheme: "dark" });
+
+			test("centers the placeholder against the dark palette", async ({ page }) => {
+				await openStartup(page);
+				await expect(page.locator("body")).toHaveScreenshot("popup-startup-dark.png");
+			});
+		});
+	});
+
+	test("fits startup, loading and loaded content at each viewport width", async ({ page }) => {
+		await page.clock.install({ time: FIXED_NOW });
+		await page.addInitScript(popupRuntimeStub({ holdItems: true }));
+
+		for (const width of [350, 640, 800, 1024]) {
+			await page.setViewportSize({ width, height: VIEWPORT.height });
+			await page.setContent(startupHtml);
+			await expect(page.locator(".popup-shell #saving-progress")).toBeVisible();
+			await noOverflow(page);
+
+			const centered = await page.locator(".popup-shell .saving-view__icon, .popup-shell .saving-view__bar--title, .popup-shell .saving-view__bar--subtitle, .popup-shell .saving-view__action, .popup-shell .saving-view__bar--hint").evaluateAll((elements) => {
+				const center = document.body.getBoundingClientRect().left + document.body.getBoundingClientRect().width / 2;
+				return elements.every((element) => Math.abs(element.getBoundingClientRect().left + element.getBoundingClientRect().width / 2 - center) <= 1);
+			});
+			expect(centered).toBe(true);
+
+			await page.goto(popupListUrl(input.packagedPopup));
+			await page.waitForSelector(LIST_SKELETON);
+			await noOverflow(page);
+			await page.waitForFunction(() => typeof window.__popupReleaseItems === "function");
+			await page.evaluate(() => window.__popupReleaseItems?.());
+			await page.waitForSelector(LIST_VIEW);
+			await listSettled(page);
+			await noOverflow(page);
+
+			const controlsFit = await page.locator("#list-view button:visible, #list-view input:visible, #list-view a:visible").evaluateAll((elements) => {
+				const body = document.body.getBoundingClientRect();
+				return elements.every((element) => {
+					const bounds = element.getBoundingClientRect();
+					return bounds.left >= body.left - 1 && bounds.right <= body.right + 1;
+				});
+			});
+			expect(controlsFit).toBe(true);
+
+			const titles = await page.locator(".list-view__item-title").evaluateAll((elements) => elements.slice(0, 2).map((element) => ({
+				text: element.textContent,
+				tooltip: element.getAttribute("title"),
+				whiteSpace: getComputedStyle(element).whiteSpace,
+				truncated: element.scrollWidth > element.clientWidth,
+			})));
+			expect(titles[0]?.text).toBe(WIDE_TITLE);
+			expect(titles[0]?.tooltip).toBe(WIDE_TITLE);
+			expect(titles[1]?.text).toBe(OVERSIZED_TITLE);
+			expect(titles[1]?.tooltip).toBe(OVERSIZED_TITLE);
+			expect(titles.every((title) => title.whiteSpace === "nowrap")).toBe(true);
+			if (width === 350) expect(titles[0]?.truncated).toBe(true);
+			if (width >= 800) {
+				expect(titles[0]?.truncated).toBe(false);
+				expect(titles[1]?.truncated).toBe(true);
+			}
+		}
+	});
+
 	async function openList(page: Page): Promise<void> {
 		await open(page, {
 			url: popupListUrl(input.packagedPopup),

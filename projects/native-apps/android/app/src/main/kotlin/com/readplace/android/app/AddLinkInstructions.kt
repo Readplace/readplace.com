@@ -109,6 +109,7 @@ private fun AddLinkFallback(onClose: () -> Unit) {
 		TextButton(
 			onClick = onClose,
 			modifier = Modifier.padding(top = 4.dp),
+			colors = brandTextButtonColors(),
 		) {
 			Text(text = "← Back to readlist")
 		}

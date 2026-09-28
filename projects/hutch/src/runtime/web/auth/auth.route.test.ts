@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertErrorAlert } from "./assert-error-alert";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../test-app";
@@ -49,6 +50,21 @@ describe("Auth routes", () => {
 			expect(doc.querySelector('[data-test-form="login"]')?.getAttribute("action")).toBe("/login?utm_source=auth-page&utm_medium=internal&utm_content=login-btn");
 			expect(doc.querySelector('input[name="email"]')?.getAttribute("type")).toBe("email");
 			expect(doc.querySelector('input[name="password"]')?.getAttribute("type")).toBe("password");
+		});
+
+		it("should render its fields with the shared form-field primitive", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
+
+			const doc = new JSDOM(response.text).window.document;
+			for (const name of ["email", "password"]) {
+				const input = doc.querySelector(`[data-test-form="login"] input[name="${name}"]`);
+				assert(input, `${name} input must be rendered`);
+				expect(input.classList.contains("form-input")).toBe(true);
+				const field = input.closest(".form-field");
+				assert(field, `${name} input must sit inside a form-field`);
+				expect(field.querySelector(`label[for="${input.id}"]`)?.classList.contains("form-field__label")).toBe(true);
+			}
 		});
 
 		it("should render the Google and Apple buttons above the login form, matching /signup", async () => {
@@ -194,7 +210,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 		});
@@ -213,7 +229,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 			const setCookie = response.headers["set-cookie"] ?? [];
@@ -232,7 +248,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+			expect(assertErrorAlert(doc)?.textContent).toContain(
 				"Invalid email or password",
 			);
 		});
@@ -290,6 +306,42 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="email"]')?.textContent).toBe("Please enter a valid email address");
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("aria-invalid")).toBe("true");
+			const emailErrorId = emailInput.getAttribute("aria-describedby");
+			assert(emailErrorId, "an invalid email input must point at its error message");
+			expect(doc.getElementById(emailErrorId)?.textContent).toBe("Please enter a valid email address");
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(passwordInput.hasAttribute("aria-describedby")).toBe(false);
+		});
+
+		it("should mark only the password field invalid for an empty password", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/login")
+				.type("form")
+				.send({ email: "test@example.com", password: "" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.getAttribute("aria-invalid")).toBe("true");
+			const passwordErrorId = passwordInput.getAttribute("aria-describedby");
+			assert(passwordErrorId, "an invalid password input must point at its error message");
+			expect(doc.getElementById(passwordErrorId)?.textContent).toBe("Password is required");
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(emailInput.hasAttribute("aria-describedby")).toBe(false);
 		});
 
 		it("should preserve return URL in form action after invalid credentials", async () => {
@@ -364,6 +416,21 @@ describe("Auth routes", () => {
 			).map((el) => el.getAttribute("name"));
 			expect(inputNames).toEqual(["website", "loadedAt", "email", "password"]);
 			expect(doc.querySelector('input[name="password"]')?.getAttribute("type")).toBe("password");
+		});
+
+		it("should render its fields with the shared form-field primitive", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
+
+			const doc = new JSDOM(response.text).window.document;
+			for (const name of ["email", "password"]) {
+				const input = doc.querySelector(`[data-test-form="signup"] input[name="${name}"]`);
+				assert(input, `${name} input must be rendered`);
+				expect(input.classList.contains("form-input")).toBe(true);
+				const field = input.closest(".form-field");
+				assert(field, `${name} input must sit inside a form-field`);
+				expect(field.querySelector(`label[for="${input.id}"]`)?.classList.contains("form-field__label")).toBe(true);
+			}
 		});
 
 		it("should hide the signup page from search engines with a robots noindex meta", async () => {
@@ -840,7 +907,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-global-error]");
+			const error = assertErrorAlert(doc);
 			assert(error, "the already-registered error must be rendered");
 			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
 		});
@@ -1030,7 +1097,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-global-error]");
+			const error = assertErrorAlert(doc);
 			assert(error, "the already-registered error must be rendered");
 			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
 			const emailInput = doc.querySelector<HTMLInputElement>('[data-test-form="signup"] input[name="email"]');
@@ -1050,7 +1117,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-global-error]");
+			const error = assertErrorAlert(doc);
 			assert(error, "the already-registered error must be rendered");
 			expect(error.textContent).toBe("This email is already registered. Check the password, or sign in the way you signed up.");
 		});
@@ -1208,6 +1275,18 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="password"]')?.textContent).toBe("Password must be at least 8 characters");
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.getAttribute("aria-invalid")).toBe("true");
+			const passwordErrorId = passwordInput.getAttribute("aria-describedby");
+			assert(passwordErrorId, "an invalid password input must point at its error message");
+			expect(doc.getElementById(passwordErrorId)?.textContent).toBe("Password must be at least 8 characters");
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(emailInput.hasAttribute("aria-describedby")).toBe(false);
 		});
 
 		it("rejects a disposable email domain with a 422 and the disposable message on the email field", async () => {
@@ -1222,6 +1301,18 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="email"]')?.textContent).toBe(DISPOSABLE_EMAIL_MESSAGE);
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("aria-invalid")).toBe("true");
+			const emailErrorId = emailInput.getAttribute("aria-describedby");
+			assert(emailErrorId, "an invalid email input must point at its error message");
+			expect(doc.getElementById(emailErrorId)?.textContent).toBe(DISPOSABLE_EMAIL_MESSAGE);
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(passwordInput.hasAttribute("aria-describedby")).toBe(false);
 		});
 
 		it("lets a normal email domain proceed past schema validation to /queue", async () => {
@@ -1813,7 +1904,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toBe("Please try again");
+			expect(assertErrorAlert(doc)?.textContent).toBe("Please try again");
 			const emailInput = doc.querySelector('input[name="email"]');
 			assert(emailInput, "email input must be rendered");
 			expect(emailInput.getAttribute("value")).toBe("autofill@example.com");
@@ -1840,7 +1931,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toBe("Please try again");
+			expect(assertErrorAlert(doc)?.textContent).toBe("Please try again");
 			const emailInput = doc.querySelector('input[name="email"]');
 			assert(emailInput, "email input must be rendered");
 			expect(emailInput.getAttribute("value")).toBe("");
@@ -2532,7 +2623,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Invalid email or password");
+			expect(assertErrorAlert(doc)?.textContent).toContain("Invalid email or password");
 		});
 
 		it("renders the generic login subtitle when there is no return URL", async () => {

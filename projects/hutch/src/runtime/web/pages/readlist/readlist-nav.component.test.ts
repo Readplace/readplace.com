@@ -52,7 +52,7 @@ function iconPathD(link: Element): string {
 	return d;
 }
 
-const BOOK_PATH_D = firstPathD(iconSvg("book"));
+const FILE_PATH_D = firstPathD(iconSvg("file"));
 const FOLDER_PATH_D = firstPathD(iconSvg("folder"));
 
 function readlistsWithMenu(doc: Document): (string | null)[] {
@@ -62,10 +62,10 @@ function readlistsWithMenu(doc: Document): (string | null)[] {
 }
 
 describe("buildReadlistNav", () => {
-	it("draws the built-in readlist with the book icon", () => {
+	it("draws the built-in readlist with the file icon", () => {
 		const doc = renderNav();
 
-		expect(iconPathD(readlistLink(doc, "default"))).toBe(BOOK_PATH_D);
+		expect(iconPathD(readlistLink(doc, "default"))).toBe(FILE_PATH_D);
 	});
 
 	it("carries no menu for the built-in readlist", () => {
@@ -142,6 +142,18 @@ describe("buildReadlistNav", () => {
 		const label = form.querySelector(`label[for="${inputId}"]`);
 		assert(label, "the fallback input must be labelled");
 		expect(doc.querySelectorAll(`#${inputId}`)).toHaveLength(1);
+	});
+
+	it("draws the rename fallback's label and name input with the shared form-field look", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
+
+		const inputId = readlistRenameFallbackInputId(WORK.slug);
+		const input = doc.getElementById(inputId);
+		assert(input, "the fallback must carry its name input");
+		const label = doc.querySelector(`label[for="${inputId}"]`);
+		assert(label, "the fallback input must be labelled");
+		expect(input.classList.contains("form-input")).toBe(true);
+		expect(label.classList.contains("form-field__label")).toBe(true);
 	});
 
 	it("backs the delete trigger with a plain-post fallback carrying the return state", () => {

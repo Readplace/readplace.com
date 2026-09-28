@@ -72,8 +72,7 @@ describe("Email verification lockout", () => {
 		const banner = doc.querySelector("[data-test-verify-banner]");
 		assert(banner, "verify banner must be rendered");
 		expect(banner.getAttribute("data-verification-state")).toBe("counting-down");
-		expect(banner.textContent).toContain("7 days");
-		expect(banner.textContent).toContain("before your account is locked");
+		expect(banner.textContent).toContain("within 7 days to keep your account active");
 	});
 
 	it("keeps the queue readable but shows the locked banner once the window lapses", async () => {

@@ -97,7 +97,7 @@ function renderViewDownloads(downloadHref: string | undefined, oob: boolean): st
 
 export function renderViewDownloadsOob(articleUrl: string): string {
 	return renderViewDownloads(
-		withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article" }), CLICK_SURFACES.readerPublic),
+		withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article", appClient: undefined }), CLICK_SURFACES.readerPublic),
 		true,
 	);
 }

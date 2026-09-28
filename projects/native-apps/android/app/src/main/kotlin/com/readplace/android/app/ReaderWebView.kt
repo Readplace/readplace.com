@@ -404,7 +404,7 @@ private fun choiceColors(style: WebDialog.Choice.Style): ButtonColors =
 	when (style) {
 		WebDialog.Choice.Style.DESTRUCTIVE ->
 			ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-		WebDialog.Choice.Style.CANCEL, WebDialog.Choice.Style.DEFAULT -> ButtonDefaults.textButtonColors()
+		WebDialog.Choice.Style.CANCEL, WebDialog.Choice.Style.DEFAULT -> brandTextButtonColors()
 	}
 
 /**

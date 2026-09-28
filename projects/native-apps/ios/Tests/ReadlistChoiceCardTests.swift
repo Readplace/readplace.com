@@ -69,7 +69,7 @@ final class ReadlistChoiceCardTests: XCTestCase {
 		let card = mount(fullList(), size: Self.portrait)
 
 		XCTAssertEqual(
-			card.done.configuration?.baseBackgroundColor, BrandColor.amber,
+			card.done.configuration?.baseBackgroundColor, BrandColor.primaryFill,
 			"the primary action is the one amber block on the card"
 		)
 		XCTAssertNil(

@@ -19,7 +19,24 @@ describe("Forgot password", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-form="forgot-password"]')?.getAttribute("action")).toBe("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link");
-			expect(doc.querySelector('input[name="email"]')?.getAttribute("type")).toBe("email");
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("type")).toBe("email");
+			expect(emailInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(emailInput.hasAttribute("aria-describedby")).toBe(false);
+		});
+
+		it("should render its fields with the shared form-field primitive", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/forgot-password");
+
+			const doc = new JSDOM(response.text).window.document;
+			const input = doc.querySelector('[data-test-form="forgot-password"] input[name="email"]');
+			assert(input, "email input must be rendered");
+			expect(input.classList.contains("form-input")).toBe(true);
+			const field = input.closest(".form-field");
+			assert(field, "email input must sit inside a form-field");
+			expect(field.querySelector(`label[for="${input.id}"]`)?.classList.contains("form-field__label")).toBe(true);
 		});
 	});
 
@@ -93,6 +110,13 @@ describe("Forgot password", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="email"]')?.textContent).toBe("Please enter a valid email address");
+
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("aria-invalid")).toBe("true");
+			const emailErrorId = emailInput.getAttribute("aria-describedby");
+			assert(emailErrorId, "an invalid email input must point at its error message");
+			expect(doc.getElementById(emailErrorId)?.textContent).toBe("Please enter a valid email address");
 		});
 	});
 
@@ -105,6 +129,21 @@ describe("Forgot password", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-form="reset-password"]')?.getAttribute("action")).toContain("token=sometoken");
+		});
+
+		it("should render its fields with the shared form-field primitive", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/reset-password?token=sometoken");
+
+			const doc = new JSDOM(response.text).window.document;
+			for (const name of ["password", "confirmPassword"]) {
+				const input = doc.querySelector(`[data-test-form="reset-password"] input[name="${name}"]`);
+				assert(input, `${name} input must be rendered`);
+				expect(input.classList.contains("form-input")).toBe(true);
+				const field = input.closest(".form-field");
+				assert(field, `${name} input must sit inside a form-field`);
+				expect(field.querySelector(`label[for="${input.id}"]`)?.classList.contains("form-field__label")).toBe(true);
+			}
 		});
 
 		it("should show error when no token is provided", async () => {
@@ -255,6 +294,18 @@ describe("Forgot password", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="confirmPassword"]')?.textContent).toBe("Passwords do not match");
+
+			const confirmPasswordInput = doc.querySelector('input[name="confirmPassword"]');
+			assert(confirmPasswordInput, "confirm password input must be rendered");
+			expect(confirmPasswordInput.getAttribute("aria-invalid")).toBe("true");
+			const confirmPasswordErrorId = confirmPasswordInput.getAttribute("aria-describedby");
+			assert(confirmPasswordErrorId, "an invalid confirm password input must point at its error message");
+			expect(doc.getElementById(confirmPasswordErrorId)?.textContent).toBe("Passwords do not match");
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(passwordInput.hasAttribute("aria-describedby")).toBe(false);
 		});
 
 		it("should show validation error for short password", async () => {
@@ -268,6 +319,18 @@ describe("Forgot password", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="password"]')?.textContent).toBe("Password must be at least 8 characters");
+
+			const passwordInput = doc.querySelector('input[name="password"]');
+			assert(passwordInput, "password input must be rendered");
+			expect(passwordInput.getAttribute("aria-invalid")).toBe("true");
+			const passwordErrorId = passwordInput.getAttribute("aria-describedby");
+			assert(passwordErrorId, "an invalid password input must point at its error message");
+			expect(doc.getElementById(passwordErrorId)?.textContent).toBe("Password must be at least 8 characters");
+
+			const confirmPasswordInput = doc.querySelector('input[name="confirmPassword"]');
+			assert(confirmPasswordInput, "confirm password input must be rendered");
+			expect(confirmPasswordInput.hasAttribute("aria-invalid")).toBe(false);
+			expect(confirmPasswordInput.hasAttribute("aria-describedby")).toBe(false);
 		});
 
 		it("should not allow login with old password after reset", async () => {

@@ -151,6 +151,15 @@ describe("GET / hero", () => {
 		);
 	});
 
+	it("should draw the paste field with the shared field look and the focus ring of the button beside it", async () => {
+		const { doc } = await loadHomepage();
+
+		const input = doc.querySelector('[data-test-hero-input="homepage-link-input"]');
+		assert(input, "paste field must be rendered");
+		expect(input.classList.contains("form-input")).toBe(true);
+		expect(input.classList.contains("form-input--cta-ring")).toBe(true);
+	});
+
 	it("should hand the paste form to the save tip, so the advisory panel speaks for it", async () => {
 		const { doc } = await loadHomepage();
 

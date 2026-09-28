@@ -9,7 +9,6 @@ import {
 	readCookie,
 	type RenderBase,
 	renderChangelogBannerShell,
-	requireCspNonce,
 	sendComponent,
 } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
@@ -123,7 +122,6 @@ export function initBlogRoutes(deps: {
 			renderChangelogBannerShell({
 				banner,
 				returnTo,
-				cspNonce: requireCspNonce(req),
 				clickSurface: surface,
 			}),
 		);

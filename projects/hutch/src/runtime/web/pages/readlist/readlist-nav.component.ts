@@ -8,6 +8,7 @@ import {
 import type { IconName } from "@packages/ui-icons";
 import { render, withInternalTracking } from "@packages/web-shell";
 
+import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import type { Readlist } from "./readlist.nav";
 import { buildReadlistUrl, readlistDeletePath, readlistReturnQuery } from "./readlist.url";
@@ -49,11 +50,6 @@ export interface ReadlistNavDisplayModel {
 	canCreate: boolean;
 }
 
-const ICON_BY_KIND: Record<"default" | "custom", IconName> = {
-	default: "book",
-	custom: "folder",
-};
-
 function navMenu(input: {
 	slug: ReadlistSlug;
 	viewedSlug: ReadlistSlug;
@@ -93,7 +89,7 @@ export function buildReadlistNav(input: {
 				),
 				title: readlist.label,
 				name: readlist.slug,
-				iconName: ICON_BY_KIND[kind],
+				iconName: READLIST_KIND_ICON[kind],
 				itemClass: `readlist-nav__item${isActive ? " readlist-nav__item--active" : ""}`,
 				linkClass: `readlist-nav__link${isActive ? " readlist-nav__link--active" : ""}`,
 				isActive,

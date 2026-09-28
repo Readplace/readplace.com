@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { IconName } from "@packages/ui-icons";
+import type { SaveClient } from "@packages/web-analytics";
 import { type Component, HtmlPage, render, renderInFlightDots } from "@packages/web-shell";
 import { articleEpubHref } from "../../epub/epub-link";
 
@@ -76,9 +77,9 @@ function markReadFields(action: MarkReadAction | undefined) {
 	};
 }
 
-export function renderReaderDownloadsOob(articleUrl: string): string {
+export function renderReaderDownloadsOob(params: { articleUrl: string; appClient: SaveClient | undefined }): string {
 	return render(DOWNLOADS_TEMPLATE, {
-		downloadHref: articleEpubHref({ articleUrl, utmSource: "reader" }),
+		downloadHref: articleEpubHref({ articleUrl: params.articleUrl, utmSource: "reader", appClient: params.appClient }),
 		oob: true,
 	});
 }

@@ -25,6 +25,15 @@ describe("renderExtensionSuggestionBanner", () => {
 		);
 	});
 
+	it("roots the banner in the shared banner bar, dismissed through the bar's close box", () => {
+		const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+
+		const banner = doc.querySelector(".extension-suggestion-banner");
+		assert(banner, "banner must be rendered");
+		expect(banner.classList.contains("banner-bar")).toBe(true);
+		expect(banner.querySelector("[data-extension-suggestion-close]")?.classList.contains("banner-bar__close")).toBe(true);
+	});
+
 	it("sets data-show-extension-suggestion='true' when show=true", () => {
 		const doc = parse(renderExtensionSuggestionBanner({ show: true }));
 
@@ -136,21 +145,30 @@ describe("renderExtensionSuggestionBanner", () => {
 			expect(url.searchParams.get("utm_content")).toBe("cta-button");
 		});
 
-		it("renders an inline message link to /install with utm_content=inline-text", () => {
+		it("labels the CTA 'See ways to save' as a small secondary button", () => {
 			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
 
-			const inline = doc.querySelector(
-				"[data-test-extension-suggestion-inline]",
+			const cta = doc.querySelector("[data-test-extension-suggestion-cta]");
+			assert(cta, "cta must be rendered");
+			expect(cta.textContent).toBe("See ways to save");
+			expect(cta.className).toBe("btn btn--secondary btn--s extension-suggestion-banner__cta");
+		});
+
+		it("says why the full article is missing and what to use instead, with the CTA as its only link", () => {
+			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+
+			const message = doc.querySelector(
+				"[data-test-extension-suggestion-variant='not-installed']",
 			);
-			assert(inline, "inline message link must be rendered");
-			const href = inline.getAttribute("href");
-			assert(href, "inline link must have an href");
-			const url = new URL(href, "https://readplace.com");
-			expect(url.pathname).toBe("/install");
-			expect(url.searchParams.get("utm_source")).toBe("reader-failed");
-			expect(url.searchParams.get("utm_medium")).toBe("banner");
-			expect(url.searchParams.get("utm_campaign")).toBe("extension-suggestion");
-			expect(url.searchParams.get("utm_content")).toBe("inline-text");
+			assert(message, "not-installed message must be rendered");
+			expect(message.textContent?.trim()).toBe(
+				"Some sites don’t allow Readplace to save the full article. Use the browser extension or the iPhone app to save the complete page.",
+			);
+			expect(
+				Array.from(doc.querySelectorAll(".extension-suggestion-banner a")).map((link) =>
+					link.hasAttribute("data-test-extension-suggestion-cta"),
+				),
+			).toEqual([true]);
 		});
 
 		it("names every advertised content-capture surface — the browser extension and the iPhone app — and no other", () => {
@@ -166,25 +184,6 @@ describe("renderExtensionSuggestionBanner", () => {
 			// out of step with the roster. The literal pin means a roster change lands
 			// here for a deliberate re-read of the sentence around it.
 			expect(text).toContain("the browser extension or the iphone app");
-		});
-
-		it("uses distinct utm_content values on the inline link and the CTA so clicks are attributable", () => {
-			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
-
-			const cta = doc.querySelector("[data-test-extension-suggestion-cta]");
-			const inline = doc.querySelector(
-				"[data-test-extension-suggestion-inline]",
-			);
-			assert(cta && inline, "both links must be rendered");
-			const ctaContent = new URL(
-				cta.getAttribute("href") ?? "",
-				"https://readplace.com",
-			).searchParams.get("utm_content");
-			const inlineContent = new URL(
-				inline.getAttribute("href") ?? "",
-				"https://readplace.com",
-			).searchParams.get("utm_content");
-			expect(ctaContent).not.toBe(inlineContent);
 		});
 	});
 
@@ -224,27 +223,6 @@ describe("renderExtensionSuggestionBanner", () => {
 			).toBeNull();
 		});
 
-		it("renders the installed variant, which has no inline install link (the user already has it)", () => {
-			const doc = parse(
-				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
-			);
-
-			const banner = doc.querySelector(
-				"[data-test-extension-suggestion-banner]",
-			);
-			assert(banner, "banner must be rendered");
-			const message = banner.querySelector(
-				"[data-test-extension-suggestion-variant]",
-			);
-			assert(message, "message variant marker must be rendered");
-			expect(
-				message.getAttribute("data-test-extension-suggestion-variant"),
-			).toBe("installed");
-			expect(
-				banner.querySelector("[data-test-extension-suggestion-inline]"),
-			).toBeNull();
-		});
-
 		it("tells the reader to save again using the extension", () => {
 			const doc = parse(
 				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
@@ -254,9 +232,10 @@ describe("renderExtensionSuggestionBanner", () => {
 				"[data-test-extension-suggestion-variant='installed']",
 			);
 			assert(message, "installed-variant message must be rendered");
-			expect(message.textContent?.toLowerCase()).toContain(
-				"save it again with the readplace extension",
+			expect(message.textContent?.trim()).toBe(
+				"Some sites don’t allow Readplace to save the full article. Open the page and save it again with the Readplace extension to capture the whole page.",
 			);
+			expect(doc.querySelector(".extension-suggestion-banner a")).toBeNull();
 		});
 	});
 });

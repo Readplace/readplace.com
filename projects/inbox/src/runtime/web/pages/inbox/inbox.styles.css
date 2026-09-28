@@ -4,9 +4,9 @@
 }
 
 .inbox__layout {
-  max-width: 760px;
+  max-width: calc(760px + 2 * var(--page-gutter));
   margin: 0 auto;
-  padding: 24px 16px 64px;
+  padding: var(--page-top) var(--page-gutter) 64px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -14,7 +14,7 @@
 
 @media (min-width: 1024px) {
   .inbox__layout {
-    padding: 28px 24px 80px;
+    padding-bottom: 80px;
   }
 }
 
@@ -26,7 +26,7 @@
   margin: 0 0 4px -8px;
   padding: 0 8px;
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--foreground);
   text-decoration: none;
   transition: background-color 0.15s ease;
@@ -52,46 +52,7 @@
 }
 
 .inbox__subtitle {
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
-  margin: 0;
-  text-wrap: pretty;
-}
-
-.inbox__alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-}
-
-.inbox__alert-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(0.875rem * 1.6);
-  color: var(--error-text);
-}
-
-.inbox__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.inbox__alert-title {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--foreground);
-  margin: 0 0 2px;
-  text-wrap: balance;
-}
-
-.inbox__alert-body {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
   margin: 0;
   text-wrap: pretty;
@@ -106,7 +67,7 @@
 
 .inbox__instructions-title {
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--foreground);
   margin: 0 0 8px;
@@ -116,7 +77,7 @@
 .inbox__steps {
   margin: 0 0 16px;
   padding-left: 24px;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--muted-foreground);
   text-wrap: pretty;
@@ -132,9 +93,6 @@
 
 .inbox__create-label {
   display: block;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
   margin: 0 0 8px;
 }
 
@@ -148,35 +106,10 @@
 .inbox__name-input {
   flex: 1 1 200px;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-}
-
-.inbox__name-input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.inbox__name-input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
-}
-
-.inbox__name-input[aria-invalid="true"] {
-  border-color: var(--color-error);
 }
 
 .inbox__field-error {
   margin: 8px 0 0;
-  font-size: 0.8125rem;
-  color: var(--error-text);
-  text-wrap: pretty;
 }
 
 .inbox__addresses {
@@ -233,7 +166,7 @@
 
 .inbox__name {
   min-width: 0;
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.35;
   color: var(--foreground);
@@ -244,8 +177,8 @@
 .inbox__status {
   display: inline-flex;
   padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -264,19 +197,6 @@
 .inbox__address-field {
   width: 100%;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-}
-
-.inbox__address-field:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .inbox__disable,
@@ -299,7 +219,7 @@
   align-items: center;
   min-height: 44px;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--muted-foreground);
   list-style: none;
@@ -352,19 +272,13 @@
 }
 
 .inbox__empty-illustration {
-  width: 96px;
-  height: 80px;
+  display: flex;
   color: var(--foreground);
-}
-
-.inbox__empty-illustration svg {
-  width: 100%;
-  height: 100%;
 }
 
 .inbox__empty-title {
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.35;
   color: var(--foreground);
@@ -375,7 +289,7 @@
 .inbox__empty-text {
   max-width: 44ch;
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--muted-foreground);
   text-wrap: pretty;

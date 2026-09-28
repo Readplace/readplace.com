@@ -1,7 +1,7 @@
 import { INBOX_ADDRESSES_PATH, INBOX_PATH } from "@packages/domain/inbox";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, renderIllustration, renderToast, withInternalTracking } from "@packages/web-shell";
+import { render, renderAlert, renderIllustration, renderToast, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
@@ -53,7 +53,18 @@ export function InboxPage(params: {
 			...row,
 			copyableHtml: renderCopyableAddress(row),
 		})),
-		alerts,
+		alertsHtml: alerts
+			.map(({ key, title, body }) =>
+				renderAlert({
+					key,
+					content: {
+						variant: "error",
+						title: { text: title, element: "p" },
+						message: { text: body },
+					},
+				}),
+			)
+			.join(""),
 		nameErrors,
 		nameError: nameErrors.length > 0,
 		statusToastHtml,

@@ -15,9 +15,9 @@ const INBOX_EXCLUDED_LINK_TEMPLATE = readFileSync(
 );
 
 const SAVE_BUTTON_CLASSES: Record<SaveButtonState, string> = {
-	unsaved: "btn btn--toggle btn--compact",
-	saving: "btn btn--toggle btn--compact inbox-excluded-link__save-button--saving",
-	saved: "btn btn--toggle btn--compact inbox-excluded-link__save-button--saved",
+	unsaved: "btn btn--secondary btn--m",
+	saving: "btn btn--secondary btn--m inbox-excluded-link__save-button--saving",
+	saved: "btn btn--secondary btn--m inbox-excluded-link__save-button--saved",
 };
 
 const SAVE_LOADER_HTML = renderInFlightDots("inbox-excluded-link__save-loader in-flight-dots");

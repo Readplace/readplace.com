@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -30,7 +31,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -72,6 +72,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.readplace.android.core.Affordance
 import com.readplace.android.core.AppConfig
@@ -200,7 +201,7 @@ fun ReadingListScreen(
 					}
 				},
 				navigationIcon = {
-					TextButton(onClick = onSignOut) { Text(text = "Sign out") }
+					TextButton(onClick = onSignOut, colors = brandTextButtonColors()) { Text(text = "Sign out") }
 				},
 				actions = {
 					if (state.offersReadlistSwitching) {
@@ -361,7 +362,9 @@ fun ReadingListScreen(
 				}
 			},
 			dismissButton = {
-				TextButton(onClick = { pendingDestructive = null }) { Text(text = "Cancel") }
+				TextButton(onClick = { pendingDestructive = null }, colors = brandTextButtonColors()) {
+					Text(text = "Cancel")
+				}
 			},
 		)
 	}
@@ -371,7 +374,7 @@ fun ReadingListScreen(
 			onDismissRequest = { dropExplanation = null },
 			text = { Text(text = explanation) },
 			confirmButton = {
-				TextButton(onClick = { dropExplanation = null }) { Text(text = "OK") }
+				TextButton(onClick = { dropExplanation = null }, colors = brandTextButtonColors()) { Text(text = "OK") }
 			},
 		)
 	}
@@ -502,7 +505,7 @@ private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 		TextButton(
 			onClick = onTap,
 			colors = if (tint == null) {
-				ButtonDefaults.textButtonColors()
+				brandTextButtonColors()
 			} else {
 				ButtonDefaults.textButtonColors(contentColor = tint)
 			},
@@ -559,14 +562,14 @@ private fun ArticleList(
 	onLoadMore: suspend () -> Unit,
 ) {
 	LazyColumn(modifier = Modifier.fillMaxSize()) {
-		items(state.articles, key = { it.id }) { article ->
+		itemsIndexed(state.articles, key = { _, article -> article.id }) { index, article ->
 			ArticleItem(
 				article = article,
+				edge = PanelEdge(isFirst = index == 0, isLast = index == state.articles.lastIndex),
 				clock = clock,
 				onOpen = { onOpen(article) },
 				onActivate = onActivate,
 			)
-			HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 		}
 
 		if (state.hasMore) {
@@ -597,6 +600,7 @@ private fun ArticleList(
 @Composable
 private fun ArticleItem(
 	article: Article,
+	edge: PanelEdge,
 	clock: Clock,
 	onOpen: () -> Unit,
 	onActivate: (Affordance) -> Unit,
@@ -605,69 +609,130 @@ private fun ArticleItem(
 	val swipe = rememberSwipeToDismissBoxState()
 	var menuOpen by remember { mutableStateOf(false) }
 	val controls = article.rowControls
+	val brand = LocalBrandColors.current
+	val fill = if (article.isRead) brand.card else brand.secondary
 	val collapse: () -> Unit = { scope.launch { swipe.reset() } }
 
 	if (controls.isEmpty()) {
-		ArticleRow(
-			article = article,
-			clock = clock,
-			onOpen = onOpen,
-			modifier = Modifier.background(MaterialTheme.colorScheme.surface),
-		)
+		Box(
+			modifier = Modifier
+				.fillMaxWidth()
+				.padding(edge.rowInsets),
+		) {
+			Box(
+				modifier = Modifier
+					.background(brand.border, edge.borderShape)
+					.padding(edge.borderInsets)
+					.background(fill, edge.fillShape),
+			) {
+				ArticleRow(
+					article = article,
+					clock = clock,
+					onOpen = onOpen,
+				)
+			}
+		}
 		return
 	}
 
-	SwipeToDismissBox(
-		state = swipe,
-		enableDismissFromStartToEnd = false,
-		backgroundContent = {
-			RowControlsTray(
-				controls = controls,
-				onCollapse = collapse,
-				onActivate = { affordance ->
-					collapse()
-					onActivate(affordance)
-				},
-			)
-		},
+	Box(
+		modifier = Modifier
+			.fillMaxWidth()
+			.padding(edge.rowInsets),
 	) {
-		Box {
-			ArticleRow(
-				article = article,
-				clock = clock,
-				onOpen = onOpen,
+		SwipeToDismissBox(
+			state = swipe,
+			modifier = Modifier.clip(edge.borderShape),
+			enableDismissFromStartToEnd = false,
+			backgroundContent = {
+				RowControlsTray(
+					controls = controls,
+					onCollapse = collapse,
+					onActivate = { affordance ->
+						collapse()
+						onActivate(affordance)
+					},
+				)
+			},
+		) {
+			Box(
 				modifier = Modifier
-					.background(MaterialTheme.colorScheme.surface)
-					.semantics {
-						customActions = controls.map { affordance ->
-							CustomAccessibilityAction(affordance.label) {
-								onActivate(affordance)
-								true
+					.background(brand.border, edge.borderShape)
+					.padding(edge.borderInsets)
+					.background(fill, edge.fillShape),
+			) {
+				ArticleRow(
+					article = article,
+					clock = clock,
+					onOpen = onOpen,
+					modifier = Modifier
+						.semantics {
+							customActions = controls.map { affordance ->
+								CustomAccessibilityAction(affordance.label) {
+									onActivate(affordance)
+									true
+								}
 							}
 						}
+						.longPressAheadOfTap { menuOpen = true },
+				)
+				DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+					for (affordance in controls) {
+						val presentation = affordance.presentation
+						val tint = presentation.tint.resolved()
+						DropdownMenuItem(
+							text = { Text(text = affordance.label) },
+							onClick = {
+								menuOpen = false
+								onActivate(affordance)
+							},
+							leadingIcon = { Icon(imageVector = presentation.icon.glyph, contentDescription = null) },
+							colors = if (tint == null) {
+								MenuDefaults.itemColors()
+							} else {
+								MenuDefaults.itemColors(textColor = tint, leadingIconColor = tint)
+							},
+						)
 					}
-					.longPressAheadOfTap { menuOpen = true },
-			)
-			DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-				for (affordance in controls) {
-					val presentation = affordance.presentation
-					val tint = presentation.tint.resolved()
-					DropdownMenuItem(
-						text = { Text(text = affordance.label) },
-						onClick = {
-							menuOpen = false
-							onActivate(affordance)
-						},
-						leadingIcon = { Icon(imageVector = presentation.icon.glyph, contentDescription = null) },
-						colors = if (tint == null) {
-							MenuDefaults.itemColors()
-						} else {
-							MenuDefaults.itemColors(textColor = tint, leadingIconColor = tint)
-						},
-					)
 				}
 			}
 		}
+	}
+}
+
+private data class PanelEdge(val isFirst: Boolean, val isLast: Boolean) {
+	val rowInsets: PaddingValues
+		get() = PaddingValues(
+			start = GUTTER,
+			end = GUTTER,
+			top = if (isFirst) GUTTER else 0.dp,
+			bottom = if (isLast) GUTTER else 0.dp,
+		)
+
+	val borderInsets: PaddingValues
+		get() = PaddingValues(
+			start = BORDER_WIDTH,
+			end = BORDER_WIDTH,
+			top = BORDER_WIDTH,
+			bottom = if (isLast) BORDER_WIDTH else 0.dp,
+		)
+
+	val borderShape: RoundedCornerShape get() = cornerShape(CORNER_RADIUS)
+
+	val fillShape: RoundedCornerShape get() = cornerShape(CORNER_RADIUS - BORDER_WIDTH)
+
+	private fun cornerShape(radius: Dp): RoundedCornerShape =
+		RoundedCornerShape(
+			topStart = if (isFirst) radius else 0.dp,
+			topEnd = if (isFirst) radius else 0.dp,
+			bottomStart = if (isLast) radius else 0.dp,
+			bottomEnd = if (isLast) radius else 0.dp,
+		)
+
+	private companion object {
+		val CORNER_RADIUS = 12.dp
+		val BORDER_WIDTH = 1.dp
+		val GUTTER = 16.dp
 	}
 }
 

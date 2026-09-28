@@ -15,7 +15,7 @@ function fixture(showAttr: "true" | "false"): string {
 	return `<div id="extension-suggestion-banner" class="extension-suggestion-banner" data-show-extension-suggestion="${showAttr}">
 			<span class="extension-suggestion-banner__message">Tip</span>
 			<a class="extension-suggestion-banner__cta" href="/install">Get the extension</a>
-			<button type="button" class="extension-suggestion-banner__close" data-extension-suggestion-close>
+			<button type="button" class="banner-bar__close" data-extension-suggestion-close>
 				<span aria-hidden="true">&times;</span>
 			</button>
 		</div>`;

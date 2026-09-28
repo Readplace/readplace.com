@@ -15,9 +15,12 @@ const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
 
 function alertKeys(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-test-inbox-alert]")).map((el) =>
-		el.getAttribute("data-test-inbox-alert"),
-	);
+	return Array.from(doc.querySelectorAll("[data-test-alert]")).map((el) => {
+		assert.equal(el.getAttribute("data-test-alert-variant"), "error");
+		assert.equal(el.classList.contains("alert--visible"), true);
+		assert.equal(el.getAttribute("role"), "alert");
+		return el.getAttribute("data-test-alert");
+	});
 }
 
 function fieldErrorKeys(doc: Document): (string | null)[] {
@@ -45,7 +48,7 @@ function fixtureClockedDaysAhead(days: number) {
 
 function addressFieldValue(html: string): string | null | undefined {
 	return new JSDOM(html).window.document
-		.querySelector(".inbox-copyable__value")
+		.querySelector("input[data-inbox-address]")
 		?.getAttribute("value");
 }
 

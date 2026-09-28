@@ -40,7 +40,7 @@
 
   .readlist__rail {
     position: sticky;
-    top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px) + 28px);
+    top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px) + 28px);
   }
 }
 
@@ -122,11 +122,11 @@
 .readlist-nav__link--active,
 .readlist-nav__link--active:hover {
   background: transparent;
-  color: var(--primary-text);
+  color: var(--primary-text-on-tint);
 }
 
 .readlist-nav__link--active svg {
-  color: var(--primary-text);
+  color: var(--primary-text-on-tint);
 }
 
 .readlist-nav__label {
@@ -291,52 +291,6 @@
   color: var(--foreground);
 }
 
-.readlist__alert {
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-}
-
-.readlist__alert--visible {
-  display: flex;
-}
-
-.readlist__alert--hidden {
-  display: none;
-}
-
-.readlist__alert-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(0.875rem * 1.6);
-  color: var(--error-text);
-}
-
-.readlist__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.readlist__alert-title {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--foreground);
-  margin: 0 0 2px;
-  text-wrap: balance;
-}
-
-.readlist__alert-body {
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-  margin: 0;
-  text-wrap: pretty;
-}
-
 .readlist-save {
   padding: 20px 24px;
   background: var(--card);
@@ -376,32 +330,6 @@
 .readlist-save__input {
   flex: 1 1 auto;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.readlist-save__input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.readlist-save__input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
-}
-
-.readlist-save__input--invalid {
-  border-color: var(--color-error);
-}
-
-.readlist-save__input--valid {
-  border-color: var(--input);
 }
 
 .readlist-save__btn {
@@ -409,15 +337,8 @@
   white-space: nowrap;
 }
 
-.readlist-save__form--disabled .readlist-save__input {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .readlist-save__error {
   margin: 8px 0 0;
-  font-size: 0.8125rem;
-  color: var(--error-text);
 }
 
 .readlist-save__import-flash {
@@ -925,14 +846,8 @@
 }
 
 .readlist-empty__illustration {
-  width: 96px;
-  height: 80px;
+  display: flex;
   color: var(--foreground);
-}
-
-.readlist-empty__illustration svg {
-  width: 100%;
-  height: 100%;
 }
 
 .readlist-empty__title {
@@ -1379,46 +1294,8 @@
   gap: 8px;
 }
 
-.readlist-rename__label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
 .readlist-rename__input {
   width: 100%;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.readlist-rename__input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
-}
-
-.readlist-rename:has(.readlist-rename__error--visible) .readlist-rename__input {
-  border-color: var(--color-error);
-}
-
-.readlist-rename__error {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--error-text);
-}
-
-.readlist-rename__error--hidden {
-  display: none;
-}
-
-.readlist-rename__error--visible {
-  display: block;
 }
 
 .readlist-rename__buttons {

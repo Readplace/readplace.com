@@ -113,6 +113,41 @@ const addressesPage: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const addressAlert: VisualCheckpoint = {
+	name: "inbox-alert",
+	settled: async (page) => {
+		await expect(page.locator('[data-test-alert="limit"]')).toHaveAttribute(
+			"data-test-alert-variant",
+			"error",
+		);
+		await expect(page.locator('[data-test-alert="limit"]')).toHaveClass(/alert--visible/);
+		await expect(page.locator('[data-test-alert="limit"]')).toHaveAttribute("role", "alert");
+	},
+	geometry: NO_GEOMETRY,
+	target: '[data-test-alert="limit"]',
+	capture: "element",
+	pinnedText: [],
+};
+
+const emailDetailAlert: VisualCheckpoint = {
+	name: "inbox-email-detail-alert",
+	settled: async (page) => {
+		await expect(page.locator('[data-test-alert="email-unavailable"]')).toHaveAttribute(
+			"data-test-alert-variant",
+			"error",
+		);
+		await expect(page.locator('[data-test-alert="email-unavailable"]')).toHaveClass(/alert--visible/);
+		await expect(page.locator('[data-test-alert="email-unavailable"]')).toHaveAttribute(
+			"role",
+			"alert",
+		);
+	},
+	geometry: NO_GEOMETRY,
+	target: '[data-test-alert="email-unavailable"]',
+	capture: "element",
+	pinnedText: [],
+};
+
 const articlesTab: VisualCheckpoint = {
 	name: "inbox-articles-terminal",
 	settled: async (page) => {
@@ -142,6 +177,30 @@ test.describe("Inbox visual checkpoints", () => {
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
 		await page.goto("/inbox/addresses");
 		await captureCheckpoint(page, addressesPage);
+	});
+
+	test("captures an inbox address limit alert", async ({ page }) => {
+		await page.request.post("/e2e/session");
+		await page.goto("/inbox/addresses?error=limit");
+		await captureCheckpoint(page, addressAlert);
+	});
+
+	test("captures an unavailable email alert", async ({ page }) => {
+		await page.request.post("/e2e/session");
+		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
+		const seeded = await page.request.post("/e2e/seed-email", {
+			data: {
+				messageId: "<unparsed-visual@e2e>",
+				receivedAt: RECEIVED_AT,
+				senderEmail: "news@example.com",
+				subject: "Weekly digest",
+				status: "unparsed",
+			},
+		});
+		assert.equal(seeded.status(), 200, await seeded.text());
+		const { emailId } = (await seeded.json()) as { emailId: string };
+		await page.goto(`/inbox/${encodeURIComponent(emailId)}`);
+		await captureCheckpoint(page, emailDetailAlert);
 	});
 
 	test("captures a fully terminal Articles tab", async ({ page }) => {

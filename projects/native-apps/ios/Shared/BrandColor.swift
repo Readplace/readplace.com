@@ -6,6 +6,7 @@ import UIKit
 /// branch on the colour scheme themselves.
 enum BrandColor {
 	static let amber = dynamic(light: rgb(200, 112, 42), dark: rgb(212, 131, 58))
+	static let primaryFill = rgb(173, 98, 37)
 	static let highlight = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))
 	static let success = dynamic(light: rgb(61, 139, 110), dark: rgb(74, 159, 127))
 	static let warning = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))
@@ -18,7 +19,7 @@ enum BrandColor {
 	static let textMuted = dynamic(light: rgb(140, 145, 157), dark: rgb(107, 107, 107))
 	static let border = dynamic(light: rgb(226, 229, 234), dark: rgb(46, 46, 46))
 	static let card = dynamic(light: rgb(255, 255, 255), dark: rgb(34, 34, 34))
-	static let secondary = dynamic(light: rgb(246, 242, 238), dark: rgb(53, 45, 39))
+	static let secondary = dynamic(light: rgb(245, 230, 211), dark: rgb(61, 42, 24))
 	static let primaryText = dynamic(light: rgb(168, 90, 30), dark: rgb(218, 141, 78))
 	static let successText = dynamic(light: rgb(54, 124, 99), dark: rgb(74, 159, 127))
 
@@ -33,6 +34,7 @@ enum BrandColor {
 
 extension Color {
 	static let brandAmber = Color(uiColor: BrandColor.amber)
+	static let brandPrimaryFill = Color(uiColor: BrandColor.primaryFill)
 	static let brandHighlight = Color(uiColor: BrandColor.highlight)
 	static let brandSuccess = Color(uiColor: BrandColor.success)
 	static let brandWarning = Color(uiColor: BrandColor.warning)

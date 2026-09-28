@@ -294,8 +294,8 @@ function formatExpiry(card: SavedCard): string {
 }
 
 const CARD_ACTION_BUTTON_CLASS: Record<CardActionView["variant"], string> = {
-	toggle: "btn btn--toggle btn--compact",
-	destructive: "btn btn--destructive btn--compact",
+	toggle: "btn btn--secondary btn--m",
+	destructive: "btn btn--destructive btn--s",
 };
 
 function cardAction(input: Omit<CardActionView, "buttonClass">): CardActionView {

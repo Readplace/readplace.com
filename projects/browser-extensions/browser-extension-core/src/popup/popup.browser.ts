@@ -68,9 +68,9 @@ interface PopupBrowser {
  * action `name` client-side (actionVariant), and an unknown name falls back to
  * the default. */
 const ACTION_CLASS_BY_VARIANT: Record<ActionVariant, string> = {
-	toggle: "btn btn--toggle btn--compact list-view__control",
+	toggle: "btn btn--secondary btn--m list-view__control",
 	danger: "list-view__delete list-view__control",
-	default: "btn btn--neutral btn--compact list-view__control",
+	default: "btn btn--neutral btn--s list-view__control",
 };
 
 const DETAIL_LINE_CLASS: Record<SaveAllDetailLine["kind"], string> = {
@@ -332,7 +332,7 @@ export function initPopup(deps: {
 				continue;
 			}
 			const control = document.createElement("a");
-			control.className = "btn btn--neutral btn--compact list-view__control";
+			control.className = "btn btn--neutral btn--s list-view__control";
 			control.href = link.href;
 			control.target = "_blank";
 			control.rel = "noopener noreferrer";

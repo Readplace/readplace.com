@@ -26,15 +26,9 @@
       }
 
       .help {
-        max-width: 32rem;
+        max-width: calc(32rem + 2 * var(--page-gutter));
         margin: 0 auto;
-        padding: 40px 16px;
-      }
-
-      @media (min-width: 768px) {
-        .help {
-          padding-inline: 24px;
-        }
+        padding: var(--page-top) var(--page-gutter);
       }
 
       /* The app sheet is presented ignoring the safe area and this WKWebView's
@@ -52,7 +46,7 @@
         gap: 4px;
         min-height: 44px;
         margin: 0 0 8px;
-        font-size: 0.875rem;
+        font-size: var(--text-sm);
         font-weight: 500;
         color: var(--foreground);
         text-decoration: none;
@@ -94,7 +88,7 @@
         grid-template-columns: 1.75rem minmax(0, 1fr);
         align-items: baseline;
         gap: 12px;
-        font-size: 0.9375rem;
+        font-size: var(--text-md);
         text-wrap: pretty;
       }
 
@@ -106,7 +100,7 @@
         width: 1.75rem;
         height: 1.75rem;
         background: var(--secondary);
-        color: var(--primary-text);
+        color: var(--primary-text-on-tint);
         border-radius: var(--radius-sm);
         font-weight: 600;
       }
@@ -118,7 +112,7 @@
         border: 1px solid var(--border);
         border-radius: var(--radius-lg);
         color: var(--muted-foreground);
-        font-size: 0.9375rem;
+        font-size: var(--text-md);
         text-wrap: pretty;
       }
 
@@ -131,7 +125,7 @@
       .help__pin-title {
         font-family: var(--font-sans);
         margin: 0 0 0.5rem;
-        font-size: 1rem;
+        font-size: var(--text-md);
         font-weight: 600;
         color: var(--foreground);
         text-wrap: balance;
@@ -140,7 +134,7 @@
       .help__pin-lead {
         margin: 0 0 1.25rem;
         color: var(--muted-foreground);
-        font-size: 0.9375rem;
+        font-size: var(--text-md);
         text-wrap: pretty;
       }
 

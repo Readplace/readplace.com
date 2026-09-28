@@ -156,9 +156,12 @@ function panelNotices(doc: ReturnType<typeof parseDoc>): (string | null)[] {
 }
 
 function panelAlerts(doc: ReturnType<typeof parseDoc>): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-test-panel-alert]")).map((alert) =>
-		alert.getAttribute("data-test-panel-alert"),
-	);
+	return Array.from(doc.querySelectorAll("[data-test-alert]")).map((alert) => {
+		assert.equal(alert.getAttribute("data-test-alert-variant"), "error");
+		assert.equal(alert.classList.contains("alert--visible"), true);
+		assert.equal(alert.getAttribute("role"), "alert");
+		return alert.getAttribute("data-test-alert");
+	});
 }
 
 function panelEmptyStates(
@@ -365,7 +368,6 @@ describe("Inbox email detail View tab", () => {
 		assert(srcdoc, "iframe must carry a srcdoc");
 		expect(srcdoc).toContain("Plain-text newsletter body");
 		expect(srcdoc).toContain("<pre>");
-		expect(doc.querySelector("[data-test-inbox-email-unavailable]")).toBeNull();
 	});
 
 	it("shows the graceful unavailable panel for an unparsed email instead of an empty frame", async () => {
@@ -378,13 +380,15 @@ describe("Inbox email detail View tab", () => {
 
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
-		const unavailable = doc.querySelector("[data-test-inbox-email-unavailable]");
+		const unavailable = doc.querySelector('[data-test-alert="email-unavailable"]');
 		assert(unavailable, "an unparsed email must render the unavailable alert");
+		expect(unavailable.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(unavailable.classList.contains("alert--visible")).toBe(true);
 		expect(unavailable.getAttribute("role")).toBe("alert");
 		expect(
-			unavailable.querySelector("[data-test-inbox-email-unavailable-title]")?.textContent,
+			unavailable.querySelector("[data-test-alert-title]")?.textContent,
 		).toBe("Couldn't display this email");
-		expect(unavailable.querySelector("[data-test-inbox-email-unavailable-body]")?.textContent).toBe(
+		expect(unavailable.querySelector("[data-test-alert-message]")?.textContent).toBe(
 			"The original email is preserved.",
 		);
 		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
@@ -819,7 +823,7 @@ describe("Inbox email detail Skipped tab", () => {
 		assert(saveButton, "a saveable skipped row must offer its save button");
 		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
 		expect(saveButton.textContent?.trim()).toBe("Save to queue");
-		expect(saveButton.classList.contains("btn--toggle")).toBe(true);
+		expect(saveButton.classList.contains("btn--secondary")).toBe(true);
 	});
 
 	it("shows a skipped link whose save failed as unsaved, so the reader can try again", async () => {
@@ -1038,13 +1042,15 @@ describe("Inbox Articles panel poll route", () => {
 		// Terminal on the first tick: no poll URL, and the reader is told the scan
 		// failed rather than that the email had no links.
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		const failed = doc.querySelector('[data-test-panel-alert="failed"]');
+		const failed = doc.querySelector('[data-test-alert="failed"]');
 		assert(failed, "the failed alert must render");
+		expect(failed.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(failed.classList.contains("alert--visible")).toBe(true);
 		expect(failed.getAttribute("role")).toBe("alert");
-		expect(failed.querySelector("[data-test-panel-alert-title]")?.textContent).toBe(
+		expect(failed.querySelector("[data-test-alert-title]")?.textContent).toBe(
 			"Couldn't scan this email for links",
 		);
-		expect(failed.querySelector("[data-test-panel-alert-body]")?.textContent).toBe(
+		expect(failed.querySelector("[data-test-alert-message]")?.textContent).toBe(
 			"The original message is still on the View tab.",
 		);
 		// Counts stay withheld — a scan that never ran has no zero to report — so the
