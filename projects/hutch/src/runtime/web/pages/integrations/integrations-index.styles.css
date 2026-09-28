@@ -120,40 +120,6 @@
   flex: none;
 }
 
-.integrations__notice {
+.integrations__container > .alert {
   margin-bottom: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  text-wrap: pretty;
-  color: var(--foreground);
-}
-
-.integrations__alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-lg);
-  background: var(--error-bg);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  text-wrap: pretty;
-  color: var(--foreground);
-}
-
-.integrations__alert-icon {
-  display: inline-flex;
-  flex: none;
-  color: var(--error-text);
-}
-
-.integrations__alert-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
 }

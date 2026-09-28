@@ -580,9 +580,14 @@ describe("GET /account?error=subscribe_failed", () => {
 		const card = doc.querySelector("[data-test-account-card]");
 		assert(card, "account card must render");
 		expect(card.getAttribute("data-test-account-state")).toBe("error-subscribe-failed");
-		const body = doc.querySelector("[data-test-account-error-body]");
+		const body = doc.querySelector('[data-test-alert="account-subscription"] [data-test-alert-message]');
 		assert(body, "the retryable error body must render");
 		expect(body.textContent).toContain("nothing was charged");
+		const alert = body.closest('[data-test-alert="account-subscription"]');
+		assert(alert);
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
 		expect(
 			Array.from(doc.querySelectorAll("[data-test-account-action]")).map((el) =>
 				el.getAttribute("data-test-account-action"),
@@ -611,8 +616,14 @@ describe("GET /account?error=payment_method", () => {
 		expect(card.classList.contains("account-card--error-payment-method")).toBe(true);
 		expect(card.getAttribute("data-test-account-state")).toBe("error-payment-method");
 
-		const heading = doc.querySelector("[data-test-account-error-heading]");
+		const heading = doc.querySelector('[data-test-alert="account-subscription"] [data-test-alert-title]');
 		assert(heading, "error heading must render");
+		expect(heading.tagName).toBe("H2");
+		const subscriptionAlert = heading.closest('[data-test-alert="account-subscription"]');
+		assert(subscriptionAlert, "the subscription error must render an alert");
+		expect(subscriptionAlert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(subscriptionAlert.getAttribute("role")).toBe("alert");
+		expect(subscriptionAlert.classList.contains("alert--visible")).toBe(true);
 
 		const supportLink = doc.querySelector("[data-test-account-support-link]");
 		assert(supportLink, "support email link must render");
@@ -2144,6 +2155,14 @@ describe("GET /account — card management section", () => {
 		expect(
 			doc.querySelector("[data-test-cards-section]")?.getAttribute("data-test-cards-state"),
 		).toBe("provider-error");
+		const providerAlert = doc.querySelector('[data-test-alert="payment-methods"]');
+		assert(providerAlert, "provider error must render inside the resting payment card");
+		expect(providerAlert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(providerAlert.getAttribute("role")).toBe("alert");
+		expect(providerAlert.classList.contains("alert--visible")).toBe(true);
+		expect(providerAlert.querySelector("[data-test-alert-message]")?.textContent).toBe(
+			"We couldn't load your saved cards just now. Refresh the page to try again.",
+		);
 		assert(doc.querySelector("[data-test-account-card]"), "subscription card still renders");
 	});
 });
@@ -2298,12 +2317,12 @@ describe("POST /account/cards/new", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		const notice = doc.querySelector("[data-test-cards-notice]");
+		const notice = doc.querySelector('[data-test-alert="card-notice"]');
 		assert(notice, "card-section notice must render for add_card_failed");
 		expect(notice.getAttribute("role")).toBe("alert");
+		expect(notice.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(notice.classList.contains("alert--visible")).toBe(true);
 		expect(notice.textContent).toContain("couldn't start adding a card");
-		// The subscription card must NOT show the resubscribe / email-support error.
-		expect(doc.querySelector("[data-test-account-error-heading]")).toBeNull();
 		expect(findCard(doc).getAttribute("data-test-account-state")).toBe("active");
 	});
 
@@ -2660,9 +2679,11 @@ describe("POST /account/cards/confirm — server-side setup verification and cap
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		const notice = doc.querySelector("[data-test-cards-notice]");
+		const notice = doc.querySelector('[data-test-alert="card-notice"]');
 		assert(notice, "card-section notice must render for card_setup_failed");
+		expect(notice.getAttribute("data-test-alert-variant")).toBe("error");
 		expect(notice.getAttribute("role")).toBe("alert");
+		expect(notice.classList.contains("alert--visible")).toBe(true);
 		expect(notice.textContent).toContain("couldn't verify your new card");
 		expect(findCard(doc).getAttribute("data-test-account-state")).toBe("active");
 	});
@@ -2730,7 +2751,12 @@ describe("POST /account/delete", () => {
 			.send({ email, password: "password123" });
 		expect(relogin.status).toBe(422);
 		const doc = new JSDOM(relogin.text).window.document;
-		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+		const globalError = doc.querySelector('[data-test-alert="global-error"]');
+		assert(globalError, "the account failure must render a global error alert");
+		expect(globalError.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(globalError.getAttribute("role")).toBe("alert");
+		expect(globalError.classList.contains("alert--visible")).toBe(true);
+		expect(globalError.textContent).toContain(
 			"Invalid email or password",
 		);
 	});

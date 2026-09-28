@@ -160,4 +160,20 @@ describe("createPlaywrightConfig", () => {
 		expect(createPlaywrightConfig({ ...shared }).timeout).toBe(120000);
 		expect(createPlaywrightConfig({ ...shared, timeout: 45000 }).timeout).toBe(45000);
 	});
+
+	it("leaves the worker count to Playwright unless the suite caps it", () => {
+		const shared = {
+			testMatch: "**/*-visual.e2e-local.ts",
+			outputDir: "./test-results/local",
+			baseURL: undefined,
+			retries: 0,
+			headless: true,
+			video: "off",
+			launchOptions: undefined,
+			webServer: undefined,
+		} as const;
+
+		expect(createPlaywrightConfig({ ...shared }).workers).toBeUndefined();
+		expect(createPlaywrightConfig({ ...shared, workers: 2 }).workers).toBe(2);
+	});
 });

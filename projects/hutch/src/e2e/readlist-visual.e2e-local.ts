@@ -74,8 +74,8 @@ const LISTING_COUNT = "#readlist-count";
 const PAGINATION_PAGES = "#readlist-pages";
 const PAGINATION_PAGE = "[data-test-pagination-page]";
 const READ_FILTER_TAB = '[data-test-filter="read"]';
-const ALERT = "[data-test-readlist-error]";
-const ALERT_TITLE = "[data-test-readlist-error-title]";
+const ALERT = '[data-test-alert="readlist"]';
+const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 const SUBSCRIPTION_BANNER = "[data-test-subscription-banner]";
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const SETUP_GUIDE_AVATAR = ".setup-guide__avatar";
@@ -400,6 +400,13 @@ async function alertLimitSettled(page: Page): Promise<void> {
 	await expect(page.locator(ALERT_TITLE)).toHaveText("Readlist limit reached");
 }
 
+async function alertGoneSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(ALERT)).toBeVisible();
+	await expect(page.locator(ALERT_TITLE)).toHaveText("Readlist not found");
+}
+
 async function saveErrorSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
@@ -562,6 +569,21 @@ const ALERT_LIMIT: VisualCheckpoint = {
 	target: ALERT,
 	capture: "element",
 	pinnedText: [],
+};
+
+const ALERT_GONE: VisualCheckpoint = {
+	name: "readlist-alert-gone",
+	settled: alertGoneSettled,
+	geometry: railBesideMainBesideSide,
+	target: ALERT,
+	capture: "element",
+	pinnedText: [],
+};
+
+const ALERT_LIMIT_PHONE: VisualCheckpoint = {
+	...ALERT_LIMIT,
+	name: "readlist-alert-limit-phone",
+	geometry: neverScrollsSideways,
 };
 
 const SAVE_ERROR_CHECKPOINT: VisualCheckpoint = {
@@ -834,6 +856,16 @@ test.describe("Readlist alerts", () => {
 
 			await captureCheckpoint(page, withTheme(ALERT_LIMIT, theme));
 		});
+
+		test(`shows the readlist-gone alert (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-alert-gone-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "?queue_error=unknown_readlist");
+
+			await captureCheckpoint(page, withTheme(ALERT_GONE, theme));
+		});
 	}
 
 	for (const theme of THEMES) {
@@ -932,6 +964,19 @@ test.describe("Readlist setup guide", () => {
 			await captureCheckpoint(page, withTheme(SETUP_GUIDE_NEXT_READ, theme));
 		});
 	}
+});
+
+test.describe("Readlist alert on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("wraps the readlist-limit alert inside the phone viewport", async ({ page }, testInfo) => {
+		const email = `readlist-alert-limit-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "?queue_error=limit");
+
+		await captureCheckpoint(page, ALERT_LIMIT_PHONE);
+	});
 });
 
 test.describe("Readlist page on a phone", () => {

@@ -123,9 +123,11 @@ describe("GET /integrations", () => {
 
 		const doc = load((await agent.get("/integrations?error=oauth_state")).text);
 
-		const alert = doc.querySelector("[data-test-integrations-alert-key]");
+		const alert = doc.querySelector('[data-test-alert-variant="error"]');
 		assert(alert, "the index must render an alert for a redirect that carried an error");
-		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_state");
+		expect(alert.getAttribute("data-test-alert")).toBe("oauth_state");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
 	});
 
 	it("tells a first-time reader to connect again with header access beside a Not set up Gmail row", async () => {
@@ -134,9 +136,11 @@ describe("GET /integrations", () => {
 
 		const doc = load((await agent.get("/integrations?error=oauth_metadata_scope_first_connect")).text);
 
-		const alert = doc.querySelector("[data-test-integrations-alert-key]");
+		const alert = doc.querySelector('[data-test-alert-variant="error"]');
 		assert(alert, "the index must render the first-connect metadata alert");
-		expect(alert.getAttribute("data-test-integrations-alert-key")).toBe("oauth_metadata_scope_first_connect");
+		expect(alert.getAttribute("data-test-alert")).toBe("oauth_metadata_scope_first_connect");
+		expect(alert.getAttribute("role")).toBe("alert");
+		expect(alert.classList.contains("alert--visible")).toBe(true);
 		expect(alert.textContent).toBe(
 			"Readplace needs permission to read message headers so you can choose senders from your mailbox. Connect again and leave that permission ticked.",
 		);
@@ -154,9 +158,11 @@ describe("GET /integrations", () => {
 
 		const doc = load((await agent.get("/integrations?notice=gmail_disconnected")).text);
 
-		const notice = doc.querySelector("[data-test-integrations-notice-key]");
+		const notice = doc.querySelector('[data-test-alert-variant="info"]');
 		assert(notice, "the index must render a notice for a redirect that carried one");
-		expect(notice.getAttribute("data-test-integrations-notice-key")).toBe("gmail_disconnected");
+		expect(notice.getAttribute("data-test-alert")).toBe("gmail_disconnected");
+		expect(notice.getAttribute("role")).toBe("status");
+		expect(notice.classList.contains("alert--visible")).toBe(true);
 	});
 
 	it("keeps the page out of search results", async () => {

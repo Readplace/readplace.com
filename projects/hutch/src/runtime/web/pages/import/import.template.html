@@ -6,9 +6,7 @@
         </header>
 
         {{#if truncated}}
-        <p class="import__truncated-banner" role="status" data-test-import-truncated>
-          We found {{totalFound}} links. The first {{totalUrls}} were imported.
-        </p>
+        {{{truncatedAlertHtml}}}
         {{/if}}
 
         <div class="import__listing">

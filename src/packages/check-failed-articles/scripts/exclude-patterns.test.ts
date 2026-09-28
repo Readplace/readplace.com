@@ -967,3 +967,23 @@ describe("EXCLUDE_PATTERNS — jwz.org tag index (issue #1123)", () => {
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — X/Twitter profile pages (issue #1173)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://twitter.com/mheap/", excluded: true, label: "the saved trailing-slash profile row" },
+		{ url: "https://twitter.com/mheap", excluded: true, label: "slashless twitter.com profile" },
+		{ url: "https://x.com/mheap", excluded: true, label: "x.com profile" },
+		{ url: "https://mobile.twitter.com/mheap", excluded: true, label: "mobile.twitter.com profile" },
+		{ url: "https://x.com/mheap?s=21", excluded: true, label: "profile with a share query" },
+		{ url: "https://twitter.com/mheap/status/1234567890", excluded: false, label: "tweet permalink — must still surface" },
+		{ url: "https://x.com/i/article/123", excluded: false, label: "X article — must still surface" },
+		{ url: "https://notx.com/mheap", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://x.com.evil.com/mheap", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://other.test/x.com/mheap", excluded: false, label: "x.com inside a path" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
