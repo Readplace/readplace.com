@@ -65,7 +65,7 @@ final class ReadlistChoiceCard {
 
 		var configuration = UIButton.Configuration.filled()
 		configuration.title = Self.doneTitle
-		configuration.baseBackgroundColor = BrandColor.amber
+		configuration.baseBackgroundColor = BrandColor.primaryFill
 		configuration.baseForegroundColor = .white
 		configuration.cornerStyle = .medium
 		configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 24, bottom: 12, trailing: 24)

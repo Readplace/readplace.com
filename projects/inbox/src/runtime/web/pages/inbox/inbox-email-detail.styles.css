@@ -7,14 +7,14 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 760px;
+  max-width: calc(760px + 2 * var(--page-gutter));
   margin: 0 auto;
-  padding: 24px 16px 64px;
+  padding: var(--page-top) var(--page-gutter) 64px;
 }
 
 @media (min-width: 1024px) {
   .inbox-email-detail__layout {
-    padding: 28px 24px 80px;
+    padding-bottom: 80px;
   }
 }
 
@@ -30,7 +30,7 @@
   margin: 0 0 4px -8px;
   padding: 0 8px;
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--foreground);
   text-decoration: none;
   transition: background-color 0.15s ease;
@@ -64,7 +64,7 @@
   row-gap: 4px;
   min-width: 0;
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
 }
 
@@ -97,7 +97,7 @@
   padding: 10px 16px;
   margin-bottom: -1px;
   border-bottom: 2px solid transparent;
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
   font-weight: 500;
   color: var(--muted-foreground);
   text-decoration: none;
@@ -158,7 +158,7 @@
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  height: calc(0.875rem * 1.6);
+  height: calc(var(--text-sm) * 1.6);
   color: var(--error-text);
 }
 
@@ -169,7 +169,7 @@
 
 .inbox-email-detail__alert-title {
   font-family: var(--font-sans);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--foreground);
   margin: 0 0 2px;
@@ -177,7 +177,7 @@
 }
 
 .inbox-email-detail__alert-body {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
   margin: 0;
   text-wrap: pretty;
@@ -188,15 +188,15 @@
   align-items: center;
   gap: 6px;
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
   text-wrap: pretty;
 }
 
 .inbox-email-detail__notice svg {
   flex: 0 0 auto;
-  width: 0.9375rem;
-  height: 0.9375rem;
+  width: 1rem;
+  height: 1rem;
   color: var(--primary-text);
   animation: inbox-email-detail-spin 1s linear infinite;
 }
@@ -215,7 +215,7 @@
 
 .inbox-email-detail__count {
   font-family: var(--font-sans);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--foreground);
   font-variant-numeric: tabular-nums;
@@ -231,19 +231,13 @@
 }
 
 .inbox-email-detail__empty-illustration {
-  width: 96px;
-  height: 80px;
+  display: flex;
   color: var(--foreground);
-}
-
-.inbox-email-detail__empty-illustration svg {
-  width: 100%;
-  height: 100%;
 }
 
 .inbox-email-detail__empty-title {
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--foreground);
   margin: 0;
@@ -253,7 +247,7 @@
 .inbox-email-detail__empty-body {
   max-width: 44ch;
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--muted-foreground);
   text-wrap: pretty;
@@ -287,7 +281,7 @@
 .inbox-article-card__title {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.35;
   color: var(--foreground);
@@ -367,7 +361,7 @@
   border-radius: var(--radius-sm);
   background: transparent;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--foreground);
   text-align: left;
   white-space: nowrap;
@@ -392,9 +386,9 @@
   align-items: center;
   gap: 14px;
   min-width: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.6;
-  color: var(--muted-foreground);
+  color: var(--ink-meta);
 }
 
 .inbox-article-card__url {
@@ -408,9 +402,9 @@
 
 .inbox-article-card__url svg {
   flex: 0 0 auto;
-  width: 0.9375rem;
-  height: 0.9375rem;
-  color: var(--color-secondary-text);
+  width: 1rem;
+  height: 1rem;
+  color: var(--fact-site);
 }
 
 .inbox-article-card__url-text {
@@ -423,7 +417,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .inbox-article-card__status--working,
@@ -441,8 +435,8 @@
 
 .inbox-article-card__status--working svg {
   flex: 0 0 auto;
-  width: 0.9375rem;
-  height: 0.9375rem;
+  width: 1rem;
+  height: 1rem;
   color: var(--primary-text);
   animation: inbox-email-detail-spin 1s linear infinite;
 }
@@ -506,7 +500,7 @@
   gap: 6px;
   min-height: 44px;
   padding: 12px 20px;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--foreground);
   text-decoration: none;
@@ -547,13 +541,13 @@
 }
 
 .inbox-excluded-link__url {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--foreground);
   word-break: break-all;
 }
 
 .inbox-excluded-link__reason {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
 }
 

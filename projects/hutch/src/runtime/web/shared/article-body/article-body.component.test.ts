@@ -7,7 +7,7 @@ import { renderArticleBody } from "./article-body.component";
 const baseInput = {
 	title: "Hello World",
 	siteName: siteLabel("example.com"),
-	readTime: { value: "3", label: "~3 min read" },
+	readTime: { value: "3", label: "3 min read" },
 	url: destinationUrl("https://example.com/post"),
 	appOrigin: "https://readplace.com",
 	topActionsHtml: "",
@@ -44,7 +44,7 @@ describe("renderArticleBody", () => {
 			"example.com",
 		);
 		expect(doc.querySelector(".article-body__meta")?.textContent).toContain(
-			"~3 min read",
+			"3 min read",
 		);
 		const content = doc.querySelector("[data-test-reader-content]");
 		assert(content, "reader content must be rendered");

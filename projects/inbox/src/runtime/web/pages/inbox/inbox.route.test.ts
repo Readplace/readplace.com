@@ -45,7 +45,7 @@ function fixtureClockedDaysAhead(days: number) {
 
 function addressFieldValue(html: string): string | null | undefined {
 	return new JSDOM(html).window.document
-		.querySelector(".inbox-copyable__value")
+		.querySelector("input[data-inbox-address]")
 		?.getAttribute("value");
 }
 

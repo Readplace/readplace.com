@@ -12,11 +12,14 @@ declare global {
  * rather than choosing ages that merely round the same way for a while. */
 export const FIXED_NOW = Date.parse("2026-03-10T12:00:00.000Z");
 
+export const WIDE_TITLE = "How thoughtful software teams build tools that remain useful for decades";
+export const OVERSIZED_TITLE = "A complete history of every decision behind the architecture of a reading list application and the surprising consequences for people who save hundreds of articles every day across multiple browsers and devices";
+
 /** Six rows fill the list without reaching the 360px scroll cap, so no
  * platform-drawn scrollbar enters the frame. */
 const ROWS = [
-	{ title: "How the Web Became Unreadable", host: "practicaltypography.com", agoMs: 45_000 },
-	{ title: "The Grug Brained Developer", host: "grugbrain.dev", agoMs: 2 * 60 * 60 * 1000 },
+	{ title: WIDE_TITLE, host: "practicaltypography.com", agoMs: 45_000 },
+	{ title: OVERSIZED_TITLE, host: "grugbrain.dev", agoMs: 2 * 60 * 60 * 1000 },
 	{ title: "Reflections on Trusting Trust", host: "cs.cmu.edu", agoMs: 26 * 60 * 60 * 1000 },
 	{ title: "A Plea for Lean Software", host: "cr.yp.to", agoMs: 5 * 24 * 60 * 60 * 1000 },
 	{ title: "Out of the Tar Pit", host: "curtclifton.net", agoMs: 40 * 24 * 60 * 60 * 1000 },

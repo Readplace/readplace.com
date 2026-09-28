@@ -54,15 +54,13 @@ describe("Readlist page banner state", () => {
 		expect(banner.classList.contains("readlist-subscription--none")).toBe(true);
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access for a founding member");
-		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(false);
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown element must always be in the DOM");
-		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
-		expect(countdown.getAttribute("data-trial-state")).toBe("");
+		const saveInput = saveForm.querySelector<HTMLInputElement>("input[name='url']");
+		assert(saveInput, "save input must be rendered inside the save form");
+		expect(saveInput.disabled).toBe(false);
 		expect(confirmPopoverKeys(doc)).toEqual(["save-tip"]);
 	});
 
-	it("renders the header trial countdown and the readlist aside trial-countdown banner for a trialing user", async () => {
+	it("renders the readlist aside trial-countdown banner for a trialing user", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trialing@example.com");
@@ -73,12 +71,6 @@ describe("Readlist page banner state", () => {
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "global trial countdown must be rendered for a trialing user");
-		expect(countdown.getAttribute("data-trial-state")).toBe("active");
-		expect(countdown.textContent).toMatch(
-			/^(\d+d \d+h|\d+h \d+m|\d+m \d+s|\d+s) left in your free trial$/,
-		);
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner aside must be rendered");
 		expect(banner.classList.contains("readlist-subscription--trial-countdown")).toBe(true);
@@ -93,7 +85,7 @@ describe("Readlist page banner state", () => {
 		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
 	});
 
-	it("flips the header countdown to 'Subscription not active' and disables the save form after the trial window ends", async () => {
+	it("disables the save form after the trial window ends", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "expired-trial@example.com");
@@ -104,13 +96,11 @@ describe("Readlist page banner state", () => {
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "global trial countdown must be rendered for an expired-trial user");
-		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
-		expect(countdown.textContent).toBe("Subscription not active");
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must still be rendered");
-		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(true);
+		const saveInput = saveForm.querySelector<HTMLInputElement>("input[name='url']");
+		assert(saveInput, "save input must be rendered inside the save form");
+		expect(saveInput.disabled).toBe(true);
 		const submitButton = saveForm.querySelector("button[type='submit']");
 		assert(submitButton, "save button must still be rendered");
 		expect(submitButton.hasAttribute("disabled")).toBe(true);
@@ -162,7 +152,9 @@ describe("Readlist page banner state", () => {
 		);
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access");
-		expect(saveForm.classList.contains("readlist-save__form--disabled")).toBe(false);
+		const saveInput = saveForm.querySelector<HTMLInputElement>("input[name='url']");
+		assert(saveInput, "save input must be rendered inside the save form");
+		expect(saveInput.disabled).toBe(false);
 		const reactivate = banner.querySelector('[data-test-action="reactivate"]');
 		assert(reactivate, "cancellation-scheduled banner must offer Reactivate");
 		expect(reactivate.textContent).toBe("Reactivate Subscription");
@@ -204,25 +196,6 @@ describe("Readlist page banner state", () => {
 		expect(ctaHref).toContain("/account");
 		expect(ctaHref).toContain("utm_content=resubscribe");
 		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
-	});
-
-	it("flips the header countdown to 'Subscription not active' for a cancelled user too, with the same wording as trial-expired", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "cancelled-user@example.com");
-		await subscriptionProviders.upsertActive({
-			userId,
-			subscriptionId: "sub_cancelled",
-			customerId: "cus_cancelled",
-		});
-		await subscriptionProviders.markCancelledByUserId({ userId });
-
-		const response = await agent.get("/queue");
-		const doc = new JSDOM(response.text).window.document;
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "global trial countdown must be rendered for a cancelled user");
-		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
-		expect(countdown.textContent).toBe("Subscription not active");
 	});
 });
 

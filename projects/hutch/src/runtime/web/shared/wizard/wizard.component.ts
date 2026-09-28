@@ -28,8 +28,8 @@ const TEST_ACTION_SUFFIX: Record<WizardSurface, string> = {
 };
 
 const ERROR_CLASS: Record<"visible" | "hidden", string> = {
-	visible: "wizard__error wizard__error--visible",
-	hidden: "wizard__error wizard__error--hidden",
+	visible: "form-field__error wizard__error--visible",
+	hidden: "form-field__error wizard__error--hidden",
 };
 
 export interface WizardRender {

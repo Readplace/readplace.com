@@ -15,7 +15,7 @@
 .home-pricing,
 .home-faq,
 .home-close {
-  padding: 48px 16px;
+  padding: 48px var(--page-gutter);
 }
 
 .home-band--muted {
@@ -46,7 +46,7 @@
 .home-hero {
   background: linear-gradient(135deg, var(--color-secondary) 0%, #1E2A40 100%);
   color: var(--color-on-brand);
-  padding: 64px 16px;
+  padding: 64px var(--page-gutter);
   text-align: center;
 }
 
@@ -67,7 +67,7 @@
 
 .home-hero__subhead {
   margin: 0 0 32px;
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   text-wrap: pretty;
   color: var(--color-on-brand);
 }
@@ -93,7 +93,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 0.95rem;
+  font-size: var(--text-md);
   color: var(--color-on-brand);
   text-decoration: underline;
 }
@@ -105,30 +105,9 @@
   justify-content: center;
 }
 
-/**
- * 1. Matches the .btn--field tier the submit button carries, so the row lines
- *    up; box-sizing is global, so the shared height is the only equaliser.
- */
 .home-hero__input {
   flex: 1 1 18rem;
   min-width: 0;
-  height: var(--input-height); /* 1 */
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.home-hero__input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.home-hero__input:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 .home-hero__save-button {
@@ -138,7 +117,7 @@
 
 .home-hero__reassurance {
   margin: 24px 0 0;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: color-mix(in srgb, var(--color-on-brand) 80%, transparent);
 }
 
@@ -221,7 +200,7 @@
 
 .home-proof__quote-text {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
   line-height: 1.4;
   text-wrap: pretty;
   color: var(--foreground);
@@ -312,9 +291,9 @@
   transform: translate(-50%, -50%);
   padding: 2px 10px;
   border: 1px solid var(--color-brand);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--secondary);
-  color: var(--primary-text);
+  color: var(--primary-text-on-tint);
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -324,7 +303,7 @@
 
 .home-pricing__plan-name {
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: var(--text-md);
   font-weight: 600;
   text-wrap: balance;
   color: var(--foreground);
@@ -342,12 +321,12 @@
 }
 
 .home-pricing__plan-per {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
 }
 
 .home-pricing__plan-billing {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   text-wrap: pretty;
   color: var(--muted-foreground);
 }
@@ -363,7 +342,7 @@
 
 .home-pricing__note {
   margin: 16px 0 0;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   text-wrap: pretty;
   color: var(--muted-foreground);
 }
@@ -383,7 +362,7 @@
 
 .home-pricing__source {
   margin: 16px 0 0;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   text-wrap: pretty;
   color: var(--muted-foreground);
 }
@@ -420,7 +399,7 @@
 
 .home-close__signoff {
   margin: 32px 0 0;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   text-wrap: pretty;
   color: var(--muted-foreground);
 }
@@ -433,11 +412,11 @@
   .home-pricing,
   .home-faq,
   .home-close {
-    padding: 64px 32px;
+    padding: 64px var(--page-gutter);
   }
 
   .home-hero {
-    padding: 96px 32px;
+    padding: 96px var(--page-gutter);
   }
 
   .home-hero__title {

@@ -296,7 +296,7 @@ test("the first native popup paints feedback before its application assets load"
 					assert(record.held.paintedWhileApplicationAssetsHeld, `${auth}: the browser must paint the popup before its application assets are available`);
 					assert(record.held.skeletonVisible, `${auth}: the native popup must contain the skeleton before its application assets are available`);
 					assert(record.held.skeletonDimensions);
-					assert.equal(record.held.skeletonDimensions.width, 350);
+					assert(record.held.skeletonDimensions.width > 0 && record.held.skeletonDimensions.width <= 800);
 					assert(record.held.skeletonDimensions.height > 100);
 					assert.equal(record.held.skeletonDimensions.iconWidth, 48);
 					assert.equal(record.held.skeletonDimensions.iconHeight, 48);

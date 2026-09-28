@@ -127,7 +127,6 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
 
 		expect(doc.querySelector(".header")).not.toBe(null);
-		expect(doc.querySelector(".footer")).not.toBe(null);
 	});
 
 	it("pins the web reader's mark-as-read in a sticky toolbar with no bottom bar, same as chromeless", async () => {

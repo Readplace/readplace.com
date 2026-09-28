@@ -11,7 +11,7 @@ import {
 const baseInput = {
 	title: "Hello World",
 	siteName: siteLabel("example.com"),
-	readTime: { value: "3", label: "~3 min read" },
+	readTime: { value: "3", label: "3 min read" },
 	url: destinationUrl("https://example.com/post"),
 	provenance: undefined,
 	readlistTags: undefined,
@@ -42,7 +42,7 @@ describe("renderArticleHeader (inline)", () => {
 
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Hello World");
 		expect(doc.querySelector("[data-test-reader-site]")?.textContent).toBe("example.com");
-		expect(doc.querySelector(".article-body__meta")?.textContent).toContain("~3 min read");
+		expect(doc.querySelector(".article-body__meta")?.textContent).toContain("3 min read");
 		const originalLink = doc.querySelector("[data-test-original-link]");
 		assert(originalLink, "view-original link must be rendered");
 		expect(originalLink.getAttribute("href")).toBe("https://example.com/post");
@@ -63,7 +63,7 @@ describe("read time", () => {
 
 		const readTime = doc.querySelector("[data-test-reader-read-time]");
 		assert(readTime, "the read-time span must render");
-		expect(readTime.textContent).toBe("~3 min read");
+		expect(readTime.textContent).toBe("3 min read");
 		expect(readTime.classList.contains("article-body__read-time--empty")).toBe(false);
 	});
 
@@ -118,7 +118,7 @@ describe("save provenance tag", () => {
 	it("leaves the meta row exactly as it was for an article saved before provenance was captured", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 
-		expect(metaRow(doc)).toEqual(["example.com", "~3 min read"]);
+		expect(metaRow(doc)).toEqual(["example.com", "3 min read"]);
 	});
 
 	it("names the client a save came from and carries its logo", () => {
@@ -142,7 +142,7 @@ describe("save provenance tag", () => {
 			}),
 		);
 
-		expect(metaRow(doc)).toEqual(["example.com", "~3 min read", "via news@example.com"]);
+		expect(metaRow(doc)).toEqual(["example.com", "3 min read", "via news@example.com"]);
 		expect(
 			doc.querySelector("[data-test-reader-provenance] svg")?.getAttribute("viewBox"),
 		).toBe("0 0 24 24");
@@ -187,7 +187,7 @@ describe("renderArticleHeaderOob", () => {
 			renderArticleHeaderOob({ ...baseInput, provenance: { kind: "web" } }),
 		);
 
-		expect(metaRow(doc)).toEqual(["example.com", "~3 min read", "via Web"]);
+		expect(metaRow(doc)).toEqual(["example.com", "3 min read", "via Web"]);
 	});
 });
 

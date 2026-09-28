@@ -166,6 +166,10 @@ describe("Admin recrawl routes", () => {
 			assert(input);
 			expect(input.getAttribute("name")).toBe("url");
 			expect(input.getAttribute("type")).toBe("url");
+			expect(input.classList.contains("form-input")).toBe(true);
+			const label = doc.querySelector(`label[for="${input.id}"]`);
+			assert(label);
+			expect(label.classList.contains("form-field__label")).toBe(true);
 		});
 
 		it("renders the recrawl page in place for a submitted ?url — redirecting into the path form would collapse an embedded scheme back out of the address", async () => {

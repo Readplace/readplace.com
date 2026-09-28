@@ -172,7 +172,7 @@ function buildPasteAction(input: { primary: boolean; saveTipState: SaveTipState 
 		label: hero.pasteCtaLabel,
 		href: "/view",
 		content: "homepage-link-input",
-		cssClass: input.primary ? "btn--on-dark btn--field" : "btn--on-dark-ghost btn--field",
+		cssClass: input.primary ? "btn--on-dark" : "btn--on-dark-ghost",
 		field: { name: "url", label: hero.pasteLabel, placeholder: hero.pastePlaceholder },
 		saveTipState: input.saveTipState,
 		lead: input.primary ? undefined : hero.saveLastViewLead,

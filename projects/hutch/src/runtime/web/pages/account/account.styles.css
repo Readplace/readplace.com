@@ -302,48 +302,6 @@
   gap: var(--form-gap);
 }
 
-.account-danger__field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.account-danger__confirm-label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.account-danger__confirm-input {
-  width: 100%;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-size: var(--input-font-size);
-  font-family: inherit;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.account-danger__confirm-input[aria-invalid="true"] {
-  border-color: var(--color-error);
-}
-
-.account-danger__confirm-input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
-}
-
-.account-danger__notice {
-  margin: 0;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--error-text);
-  text-wrap: pretty;
-}
-
 /* purgecss-ignore-start: account-cards and its state modifiers are interpolated from CardSectionViewModel.stateClass / item.itemClass in account.template.html */
 .account-cards {
   padding: 20px 24px;
@@ -519,28 +477,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.account-cards__element-mount {
-  padding: var(--input-padding);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-  font-size: var(--input-font-size);
-}
-
-.account-cards__element-mount:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
-}
-
-.account-cards__element-error {
-  margin: 0;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--error-text);
-  text-wrap: pretty;
 }
 
 .account-cards__elements-actions {

@@ -57,7 +57,6 @@ const SEEDED_ARTICLES = [
 ];
 
 const VOLATILE_CHROME = [
-	".trial-countdown",
 	".offline-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",

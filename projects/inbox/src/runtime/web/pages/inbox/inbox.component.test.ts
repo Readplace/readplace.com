@@ -69,7 +69,7 @@ describe("InboxPage", () => {
 		assert.ok(empty, "empty state must render");
 		assert.equal(empty.closest(".inbox__listing"), listing, "the empty state sits inside the list card");
 		assert.equal(empty.classList.contains("inbox__empty--visible"), true);
-		assert.ok(empty.querySelector(".inbox__empty-illustration svg"), "the empty state leads with its illustration");
+		assert.ok(empty.querySelector('.inbox__empty-illustration [data-test-illustration="book-lightbulb"]'), "the empty state leads with its illustration");
 		assert.equal(
 			empty.querySelector(".inbox__empty-title")?.textContent,
 			"You don't have an inbox email yet",
@@ -109,7 +109,7 @@ describe("InboxPage", () => {
 
 	it("renders each address into a selectable read-only field with a copy button", () => {
 		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "" }).content.html);
-		const field = doc.querySelector(".inbox-copyable__value");
+		const field = doc.querySelector("input[data-inbox-address]");
 		assert.equal(field?.getAttribute("value"), "in-3f9a2c@read.place");
 		assert.equal(field?.getAttribute("readonly"), "");
 		assert.equal(field?.hasAttribute("disabled"), false);
@@ -142,7 +142,7 @@ describe("InboxPage", () => {
 		);
 
 		const fieldValues = Array.from(
-			doc.querySelectorAll(".inbox-copyable__value, .inbox__address-field"),
+			doc.querySelectorAll("input[data-inbox-address], .inbox__address-field"),
 		).map((el) => el.getAttribute("value"));
 		assert.deepEqual(
 			fieldValues,
@@ -150,7 +150,7 @@ describe("InboxPage", () => {
 			"both addresses still render a field",
 		);
 
-		const active = doc.querySelector(".inbox-copyable__value");
+		const active = doc.querySelector("input[data-inbox-address]");
 		assert.ok(active, "the active address renders inside the copyable box");
 		assert.equal(active.hasAttribute("readonly"), true);
 		assert.equal(active.hasAttribute("disabled"), false);
@@ -200,7 +200,7 @@ describe("InboxPage", () => {
 			"Disable inbox email: my-newsletter",
 		);
 
-		const active = doc.querySelector(".inbox-copyable__value");
+		const active = doc.querySelector("input[data-inbox-address]");
 		const disabled = doc.querySelector(".inbox__address-field");
 		assert.ok(active, "the active address field must render");
 		assert.ok(disabled, "the disabled address field must render");
@@ -315,9 +315,9 @@ describe("InboxPage", () => {
 		const form = doc.querySelector(".inbox__create");
 		assert.ok(form, "create form must render");
 		assert.deepEqual(Array.from(form.children).map(shape), [
-			"label.inbox__create-label",
+			"label.form-field__label",
 			"div.inbox__create-row",
-			"p.inbox__field-error",
+			"p.form-field__error",
 		]);
 		const error = doc.querySelector('[data-test-inbox-field-error="name-invalid"]');
 		assert.ok(error, "the name-invalid field error must render");
@@ -326,10 +326,55 @@ describe("InboxPage", () => {
 			error.textContent,
 			"Give the inbox email a name using letters, numbers, and hyphens — for example, my-newsletter.",
 		);
-		assert.equal(
-			doc.querySelector("[data-test-inbox-name-input]")?.getAttribute("aria-describedby"),
-			"inbox-name-error",
+		const input = doc.querySelector("[data-test-inbox-name-input]");
+		assert.ok(input, "name input must render");
+		assert.equal(input.getAttribute("aria-invalid"), "true");
+		assert.equal(input.getAttribute("aria-describedby"), "inbox-name-error");
+	});
+
+	it("draws the name field, its label and error, and both address fields with the shared form controls", () => {
+		const doc = parse(
+			InboxPage({
+				addresses: [
+					entry(),
+					entry({
+						address: InboxAddressSchema.parse("in-abc123@read.place"),
+						token: InboxTokenSchema.parse("abc123"),
+						disabledAt: "2026-06-22T00:00:00.000Z",
+					}),
+				],
+				limitReached: false,
+				nameInvalid: true,
+				submittedName: "",
+			}).content.html,
 		);
+
+		const classesOf = (el: Element | null) => Array.from(el?.classList ?? []);
+		assert.deepEqual(classesOf(doc.querySelector('label[for="inbox-name"]')), [
+			"form-field__label",
+			"inbox__create-label",
+		]);
+		assert.deepEqual(classesOf(doc.querySelector("[data-test-inbox-name-input]")), [
+			"form-input",
+			"inbox__name-input",
+		]);
+		assert.deepEqual(classesOf(doc.querySelector('[data-test-inbox-field-error="name-invalid"]')), [
+			"form-field__error",
+			"inbox__field-error",
+		]);
+
+		const copyable = doc.querySelector("input[data-inbox-address]");
+		assert.ok(copyable, "the active address must render");
+		assert.deepEqual(classesOf(copyable), ["form-input__control"]);
+		assert.deepEqual(classesOf(copyable.parentElement), [
+			"form-input",
+			"form-input--within",
+			"inbox-copyable",
+		]);
+
+		const disabled = doc.querySelector("[data-test-inbox-disabled-group] input[disabled]");
+		assert.ok(disabled, "the disabled address must render");
+		assert.deepEqual(classesOf(disabled), ["form-input", "inbox__address-field"]);
 	});
 
 	it("titles each page alert with what happened and puts what to do next in its body", () => {

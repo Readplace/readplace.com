@@ -1,12 +1,12 @@
 .integrations {
   background: var(--muted);
   flex: 1 1 auto;
-  padding: 24px 16px 64px;
+  padding: var(--page-top) var(--page-gutter) 64px;
 }
 
 @media (min-width: 1024px) {
   .integrations {
-    padding: 28px 24px 80px;
+    padding-bottom: 80px;
   }
 }
 
@@ -25,7 +25,7 @@
 }
 
 .integrations__lead {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   text-wrap: pretty;
   color: var(--muted-foreground);
   margin-bottom: 28px;
@@ -70,14 +70,14 @@
 
 .integrations__name {
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.35;
   color: var(--foreground);
 }
 
 .integrations__description {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   text-wrap: pretty;
   color: var(--muted-foreground);
@@ -86,8 +86,8 @@
 .integrations__status {
   flex: none;
   padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -126,7 +126,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
   text-wrap: pretty;
   color: var(--foreground);
@@ -141,7 +141,7 @@
   border: 1px solid var(--color-error);
   border-radius: var(--radius-lg);
   background: var(--error-bg);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
   text-wrap: pretty;
   color: var(--foreground);

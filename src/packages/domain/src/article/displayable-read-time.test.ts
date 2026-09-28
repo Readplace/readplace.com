@@ -10,7 +10,7 @@ describe("displayableReadTime", () => {
 	it("labels a crawled article with its rounded-up minutes", () => {
 		expect(displayableReadTime(withWords(477, 3))).toEqual({
 			value: "3",
-			label: "~3 min read",
+			label: "3 min read",
 		});
 	});
 

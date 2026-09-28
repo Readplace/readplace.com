@@ -76,7 +76,7 @@ describe("save all tabs control", () => {
 	it("list-view header carries the save-all-tabs control, counting what it will send and naming its scope for screen readers", () => {
 		expect(template).toContain(
 			[
-				'        <button id="save-all-tabs-button" class="btn btn--neutral btn--compact list-view__save-all" type="button" title="Save all tabs in this window" data-test-save-all-tabs hidden>',
+				'        <button id="save-all-tabs-button" class="btn btn--neutral btn--s list-view__save-all" type="button" title="Save all tabs in this window" data-test-save-all-tabs hidden>',
 				'          <span class="list-view__save-all-count" data-test-save-all-count>Save tabs</span><span class="sr-only"> in this window</span>',
 				"        </button>",
 			].join("\n"),
@@ -199,7 +199,7 @@ describe("list states", () => {
 				'      <div class="popup-alert__text">',
 				'        <p id="list-error-title" class="popup-alert__title"></p>',
 				'        <p id="list-error-body" class="popup-alert__body"></p>',
-				'        <button id="list-error-retry" class="btn btn--neutral btn--compact popup-alert__action" type="button" hidden>Try again</button>',
+				'        <button id="list-error-retry" class="btn btn--neutral btn--s popup-alert__action" type="button" hidden>Try again</button>',
 				"      </div>",
 				"    </div>",
 			].join("\n"),

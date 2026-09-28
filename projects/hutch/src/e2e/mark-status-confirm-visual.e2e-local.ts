@@ -75,6 +75,7 @@ async function openMarkReadConfirm(page: Page, stamp: string): Promise<void> {
 
 async function panelOpen(page: Page): Promise<void> {
 	await page.waitForSelector(`${PANEL}:popover-open`);
+	await page.mouse.move(5, 5);
 	await waitForBrandFonts(page, ["Inter"]);
 }
 

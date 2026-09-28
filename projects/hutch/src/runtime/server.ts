@@ -712,7 +712,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		findUserById: deps.findUserById,
-		now: deps.now,
 	});
 
 	app.get("/favicon.ico", (_req: Request, res: Response) => {
