@@ -395,7 +395,7 @@ describe("Inbox link card route", () => {
 			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
 			expect(save.textContent?.trim()).toBe("Save to queue");
 			expect(Array.from(save.classList)).toEqual(
-				expect.arrayContaining(["btn", "btn--toggle", "btn--compact"]),
+				expect.arrayContaining(["btn", "btn--secondary", "btn--m"]),
 			);
 			const labelStack = save.querySelector("[data-reserve-1]");
 			assert(labelStack, "the save label must reserve its alternate labels");
@@ -423,7 +423,7 @@ describe("Inbox link card route", () => {
 			const save = saveButton(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("saved");
 			expect(save.textContent?.trim()).toBe("Save again");
-			expect(save.classList.contains("btn--toggle")).toBe(true);
+			expect(save.classList.contains("btn--secondary")).toBe(true);
 			const labelStack = save.querySelector("[data-reserve-1]");
 			assert(labelStack, "the save label must reserve its alternate labels");
 			expect([
@@ -567,7 +567,7 @@ describe("Inbox link card route", () => {
 			const save = saveButtonOf(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("saving");
 			expect(save.textContent?.trim()).toBe("Saving…");
-			expect(save.classList.contains("btn--toggle")).toBe(true);
+			expect(save.classList.contains("btn--secondary")).toBe(true);
 			const labelStack = save.querySelector("[data-reserve-1]");
 			assert(labelStack, "the save label must reserve its alternate labels");
 			expect([

@@ -43,6 +43,10 @@ describe("POST /import/from-url routes", () => {
 			assert(input, "url input must be rendered");
 			expect(input.getAttribute("type")).toBe("url");
 			expect(input.getAttribute("name")).toBe("url");
+			expect(input.classList.contains("form-input")).toBe(true);
+			const label = form.querySelector('label[for="import-from-url-input"]');
+			assert(label, "url input label must be rendered");
+			expect(label.classList.contains("form-field__label")).toBe(true);
 		});
 
 		it("prefills the url input and emits the auto-submit script for a from-url deep link", async () => {
@@ -344,8 +348,12 @@ describe("POST /import/from-url routes", () => {
 			);
 
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-import-error]");
+			const error = doc.querySelector('[data-test-alert="import"]');
 			assert(error, "error banner must be rendered");
+			expect(error.classList.contains("alert--visible")).toBe(true);
+			expect(error.getAttribute("data-test-alert-variant")).toBe("error");
+			expect(error.getAttribute("role")).toBe("alert");
+			expect(error.classList.contains("alert--visible")).toBe(true);
 			expect(error.textContent).toContain("private-network");
 		});
 	});

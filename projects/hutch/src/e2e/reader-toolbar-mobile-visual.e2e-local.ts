@@ -27,7 +27,6 @@ const MARK_READ = "[data-test-mark-read-btn]";
 const DOWNLOAD = "[data-test-download]";
 
 const VOLATILE_CHROME = [
-	".trial-countdown",
 	".offline-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",

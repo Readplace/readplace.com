@@ -67,7 +67,7 @@ function readCardFieldStyle(input: {
 			color: input.field.color,
 			fontFamily: input.field.fontFamily,
 			fontSize: input.field.fontSize,
-			"::placeholder": { color: input.field.getPropertyValue("--color-text-muted").trim() },
+			"::placeholder": { color: input.field.getPropertyValue("--input-placeholder").trim() },
 		},
 		invalid: { color: input.error.color },
 	};

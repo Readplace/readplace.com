@@ -65,7 +65,7 @@ jobs:
       AWS_REGION: ap-southeast-2
       PULUMI_BACKEND_URL: s3://hutch-pulumi-state-278728209435-ap-southeast-2
       PULUMI_CONFIG_PASSPHRASE: ''
-      CLAUDE_ARGS: '--model "claude-opus-4-8[1m]" --effort max --dangerously-skip-permissions --allowedTools WebSearch,WebFetch --disallowedTools Monitor,Task,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskOutput,TaskStop --settings /tmp/claude-headless-settings.json'
+      CLAUDE_ARGS: '--model "claude-opus-5-5[1m]" --effort medium --dangerously-skip-permissions --allowedTools WebSearch,WebFetch --disallowedTools Monitor,Task,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskOutput,TaskStop --settings /tmp/claude-headless-settings.json'
 
     steps:
       - name: Checkout repository
@@ -131,7 +131,7 @@ jobs:
       - name: Install pinned Claude Code CLI
         id: install-claude-cli
         run: |
-          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.1.177
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.1.283
           claude_bin="$(command -v claude || true)"
           for c in "$claude_bin" "$HOME/.local/bin/claude" "$HOME/.claude/local/claude" "$HOME/.claude/bin/claude"; do
             if [ -n "$c" ] && [ -x "$c" ]; then claude_bin="$c"; break; fi

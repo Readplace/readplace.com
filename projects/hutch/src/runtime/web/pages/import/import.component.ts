@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONFIRM_POPOVER_STYLES, render } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render, renderAlert } from "@packages/web-shell";
 import type { CspNonce, PageBody } from "@packages/web-shell";
 
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
@@ -117,6 +117,15 @@ const fromUrlAutoSubmitScript = (cspNonce: CspNonce) => `
 export function ImportPage(vm: ImportViewModel): PageBody {
 	const content = render(IMPORT_TEMPLATE, {
 		...vm,
+		truncatedAlertHtml: vm.truncated
+			? renderAlert({
+					key: "import-truncated",
+					content: {
+						variant: "warning",
+						message: { text: `We found ${vm.totalFound} links. The first ${vm.totalUrls} were imported.` },
+					},
+				})
+			: "",
 		showPagination: vm.totalPages > 1,
 		hasPrev: Boolean(vm.prevUrl),
 		hasNext: Boolean(vm.nextUrl),
@@ -181,11 +190,15 @@ const IMPORT_DESCRIPTION =
 export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonce: CspNonce; saveTip: SaveTip }): PageBody {
 	const panel = PANEL_CONFIG[vm.mode];
 	const tabs = vm.tabs.map(renderTab);
+	const errorMessage = vm.errors?.[0]?.message;
 	const data = {
 		...vm,
 		tabs,
 		faq: IMPORT_FAQ,
-		errorMessage: vm.errors?.[0]?.message,
+		errorMessage,
+		errorAlertHtml: errorMessage
+			? renderAlert({ key: "import", content: { variant: "error", message: { text: errorMessage } } })
+			: "",
 		saveTipState: options.saveTip.state,
 		saveTipHtml: options.saveTip.html,
 	};

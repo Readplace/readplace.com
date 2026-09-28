@@ -14,8 +14,10 @@ interface PinnedPage {
 }
 
 async function openSaveTip(page: Page, urlField: string): Promise<void> {
-	await page.locator(urlField).first().focus();
+	const field = page.locator(urlField).first();
+	await field.focus();
 	await expect(page.locator("[data-test-confirm-popover='save-tip']")).toBeVisible();
+	await expect.poll(() => field.evaluate((element) => element.getAnimations().length)).toBe(0);
 }
 
 const PINNED_PAGES: readonly PinnedPage[] = [

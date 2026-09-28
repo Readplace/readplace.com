@@ -6,20 +6,20 @@
 
 .founding-progress__bar {
   height: 6px;
-  background: var(--muted);
-  border-radius: var(--radius-sm);
+  background: var(--progress-track);
+  border-radius: var(--radius-pill);
   overflow: hidden;
   margin-bottom: 8px;
 }
 
 .founding-progress__fill {
   height: 100%;
-  background: var(--color-success);
-  border-radius: var(--radius-sm);
+  background: var(--progress-fill);
+  border-radius: var(--radius-pill);
 }
 
 .founding-progress__label {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
   font-weight: 400;
 }

@@ -16,6 +16,7 @@ object BrandColor {
 		light = Rgb(red = 200, green = 112, blue = 42),
 		dark = Rgb(red = 212, green = 131, blue = 58),
 	)
+	val primaryFill = Rgb(red = 173, green = 98, blue = 37)
 	val highlight = BrandColorPair(
 		light = Rgb(red = 200, green = 146, blue = 60),
 		dark = Rgb(red = 212, green = 160, blue = 74),
@@ -62,7 +63,23 @@ object BrandColor {
 		dark = Rgb(red = 61, green = 42, blue = 24),
 	)
 	val onAmberContainer = BrandColorPair(
+		light = Rgb(red = 126, green = 72, blue = 27),
+		dark = Rgb(red = 234, green = 161, blue = 98),
+	)
+	val card = BrandColorPair(
+		light = Rgb(red = 255, green = 255, blue = 255),
+		dark = Rgb(red = 34, green = 34, blue = 34),
+	)
+	val secondary = BrandColorPair(
+		light = Rgb(red = 245, green = 230, blue = 211),
+		dark = Rgb(red = 61, green = 42, blue = 24),
+	)
+	val primaryText = BrandColorPair(
 		light = Rgb(red = 168, green = 90, blue = 30),
-		dark = Rgb(red = 232, green = 154, blue = 85),
+		dark = Rgb(red = 218, green = 141, blue = 78),
+	)
+	val successText = BrandColorPair(
+		light = Rgb(red = 54, green = 124, blue = 99),
+		dark = Rgb(red = 74, green = 159, blue = 127),
 	)
 }

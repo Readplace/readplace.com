@@ -95,10 +95,15 @@ describe("GET /embed", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const variants = doc.querySelector("#variants");
 		assert(variants, "variants section must be rendered");
-		const input = variants.querySelector(".embed-url-input__field");
+		const input = variants.querySelector('[name="url"]');
 		assert(input, "URL input must be rendered inside the variants section");
 		expect(input.getAttribute("type")).toBe("url");
 		expect(input.getAttribute("placeholder")).toBe("https://example.com/my-article");
+		expect(input.classList.contains("form-input")).toBe(true);
+		expect(input.classList.contains("form-input--cta-ring")).toBe(true);
+		const label = variants.querySelector('label[for="article-url"]');
+		assert(label, "the URL input must carry a label");
+		expect(label.classList.contains("form-field__label")).toBe(true);
 	});
 
 	it("should render every variant preview as a live anchor that passes the page URL via the save endpoint", async () => {
@@ -366,7 +371,9 @@ describe("GET /embed article link form", () => {
 		expect(field.getAttribute("value")).toBe("nope");
 		expect(field.getAttribute("aria-invalid")).toBe("true");
 		expect(field.getAttribute("aria-describedby")).toBe("article-url-error");
-		expect(field.classList.contains("embed-url-input__field--invalid")).toBe(true);
+		const error = doc.querySelector("#article-url-error");
+		assert(error, "the error the field is described by must be rendered");
+		expect(error.classList.contains("form-field__error")).toBe(true);
 		expect(errorText(doc)).toBe("Enter a full link, including https://.");
 	});
 

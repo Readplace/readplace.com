@@ -286,7 +286,7 @@ private fun Root(
 		authErrorText = null
 		scope.launch {
 			try {
-				start()?.onFailure { authErrorText = it.message }
+				authErrorText = signInErrorText(start())
 			} finally {
 				authBusy = false
 			}

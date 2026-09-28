@@ -73,8 +73,10 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		{{{baseStyles}}}
 		{{{resetStyles}}}
 		{{{buttonStyles}}}
+		{{{formControlStyles}}}
 		{{{utilityStyles}}}
 		{{{bannerAreaStyles}}}
+		{{{bannerBarStyles}}}
 		{{{changelogBannerStyles}}}
 		{{{headerStyles}}}
 		{{{navStyles}}}
@@ -82,14 +84,13 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		{{{offlineBannerStyles}}}
 		{{{toastStyles}}}
 		{{{verifyBannerStyles}}}
-		{{{trialCountdownStyles}}}
 		{{{extensionSuggestionBannerStyles}}}
 	</style>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
 	<div class="banner-area">
 		{{{changelogBanner}}}
-		<div class="offline-banner" role="alert" aria-live="polite" aria-hidden="true">
+		<div class="banner-bar offline-banner" role="alert" aria-live="polite" aria-hidden="true">
 			You're offline. Some features may be unavailable.
 		</div>
 		{{{verifyBanner}}}

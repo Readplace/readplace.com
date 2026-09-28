@@ -71,7 +71,7 @@ function buildSubject() {
 	const inboxLink = initInMemoryInboxEmailLink();
 	const inboxSavedLink = initInMemoryInboxSavedLink();
 	const inboxAddress = initInMemoryInboxAddress({ now: () => SEED_NOW });
-	const gmail = initInMemoryGmailIntegration({ grant: { ok: false, reason: "exchange-failed" } });
+	const gmail = initInMemoryGmailIntegration({ grant: { ok: false, reason: "exchange-failed", status: 400, error: undefined, errorDescription: undefined } });
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
 	const deleteSubscriptionCalls: UserId[] = [];

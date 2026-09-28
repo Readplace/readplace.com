@@ -37,7 +37,7 @@ import { initInMemoryLinkSaved } from '@packages/test-fixtures/providers/events'
 import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
 import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/hosted-checkout'
 import { E2E_ADMIN_EMAIL } from './admin-extend-trial/admin-e2e-user'
-import { createCspNonceMiddleware, generateCspNonce, renderChangelogBannerShell, requireCspNonce } from '@packages/web-shell'
+import { renderChangelogBannerShell } from '@packages/web-shell'
 import { E2E_CHANGELOG_BANNER, E2E_CHANGELOG_BANNER_HEADER } from './changelog-banner-fixture'
 
 const PORT = Number(requireEnv('E2E_PORT'))
@@ -632,12 +632,12 @@ server.put(
 	},
 )
 
-server.get('/blog/changelog-banner', createCspNonceMiddleware({ generateCspNonce }), (req, res) => {
+server.get('/blog/changelog-banner', (req, res) => {
 	if (!req.get(E2E_CHANGELOG_BANNER_HEADER)) {
 		res.status(204).end()
 		return
 	}
-	res.type('html').send(renderChangelogBannerShell({ banner: E2E_CHANGELOG_BANNER, cspNonce: requireCspNonce(req) }))
+	res.type('html').send(renderChangelogBannerShell({ banner: E2E_CHANGELOG_BANNER }))
 })
 
 server.use(readplaceApp)

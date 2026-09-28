@@ -11,7 +11,6 @@ const RENDERED_BY_INBOX_PAGES = new Set([
   "inbox.client.js",
   "local-time.client.js",
   "toast.client.js",
-  "trial-countdown.client.js",
   "webmcp.client.js",
 ]);
 

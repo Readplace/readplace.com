@@ -78,7 +78,7 @@ export function createImportFromUrlActions(
 			execute: async (page) => {
 				await openFromUrlPanel(page, config)
 				await submitUrl(page, `${config.baseUrl}/e2e/fixtures/links-page-error`)
-				const error = page.locator('[data-test-import-error]')
+				const error = page.locator('[data-test-alert="import"] [data-test-alert-message]')
 				await expect(error).toContainText("couldn't fetch")
 				await page.goto(`${config.baseUrl}/queue`, { waitUntil: 'domcontentloaded' })
 				importFromUrlProgress.pageError500Surfaced = true
@@ -96,7 +96,7 @@ export function createImportFromUrlActions(
 			execute: async (page) => {
 				await openFromUrlPanel(page, config)
 				await submitUrl(page, `${config.baseUrl}/e2e/fixtures/links-page-empty`)
-				const error = page.locator('[data-test-import-error]')
+				const error = page.locator('[data-test-alert="import"] [data-test-alert-message]')
 				await expect(error).toContainText("outbound links")
 				await page.goto(`${config.baseUrl}/queue`, { waitUntil: 'domcontentloaded' })
 				importFromUrlProgress.pageWithoutLinksSurfaced = true

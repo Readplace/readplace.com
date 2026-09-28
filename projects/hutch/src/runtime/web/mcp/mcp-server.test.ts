@@ -50,7 +50,7 @@ function mcpArticle(overrides: Partial<McpArticle> = {}): McpArticle {
 		excerpt: "",
 		wordCount: 10,
 		estimatedReadTime: 1,
-		readTime: { value: "1", label: "~1 min read" },
+		readTime: { value: "1", label: "1 min read" },
 		status: "unread",
 		savedAt: "2026-01-01T00:00:00.000Z",
 		readlists: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
@@ -585,7 +585,7 @@ describe("initMcpServer", () => {
 			expect(response).toMatchObject({
 				result: {
 					content: [
-						{ text: expect.stringContaining("Example · ~1 min read · 10 words") },
+						{ text: expect.stringContaining("Example · 1 min read · 10 words") },
 					],
 				},
 			});

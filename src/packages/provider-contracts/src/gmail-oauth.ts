@@ -13,7 +13,7 @@ export type GmailGrantResult =
 	| { ok: false; reason: "scope-not-granted" }
 	| { ok: false; reason: "metadata-scope-not-granted" }
 	| { ok: false; reason: "no-refresh-token" }
-	| { ok: false; reason: "exchange-failed" };
+	| { ok: false; reason: "exchange-failed"; status: number; error: string | undefined; errorDescription: string | undefined };
 
 export type ExchangeGmailCode = (input: { code: string }) => Promise<GmailGrantResult>;
 

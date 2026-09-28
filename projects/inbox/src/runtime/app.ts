@@ -98,7 +98,6 @@ export function createInboxApp(
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		findUserById: deps.findUserById,
-		now: deps.now,
 	});
 	const requireNotLocked = initRequireNotLocked({ buildBannerState });
 	const inboxRouter = initInboxRoutes({

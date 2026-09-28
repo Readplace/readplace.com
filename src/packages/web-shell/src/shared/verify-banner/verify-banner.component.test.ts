@@ -32,7 +32,17 @@ describe("renderVerifyBanner", () => {
 		const banner = parse({ isAuthenticated: true, emailVerified: false });
 		expect(banner.getAttribute("data-verification-state")).toBe("pending");
 		expect(banner.classList.contains("verify-banner--visible")).toBe(true);
-		expect(banner.textContent).toContain("Please verify your email");
+		expect(banner.textContent).toBe("Please verify your email. Check your inbox or spam folder.");
+	});
+
+	it("roots every state in the shared banner bar", () => {
+		const states: Pick<BannerState, "isAuthenticated" | "emailVerified" | "verification">[] = [
+			{ isAuthenticated: true, emailVerified: true },
+			{ isAuthenticated: true, emailVerified: false },
+			{ isAuthenticated: true, emailVerified: false, verification: { state: "counting-down", daysLeft: 3 } },
+			{ isAuthenticated: true, emailVerified: false, verification: { state: "locked" } },
+		];
+		expect(states.map((state) => parse(state).classList.contains("banner-bar"))).toEqual([true, true, true, true]);
 	});
 
 	it("renders a plural day countdown before the deadline", () => {
@@ -43,8 +53,9 @@ describe("renderVerifyBanner", () => {
 		});
 		expect(banner.getAttribute("data-verification-state")).toBe("counting-down");
 		expect(banner.classList.contains("verify-banner--visible")).toBe(true);
-		expect(banner.querySelector(".verify-banner__count")?.textContent).toBe("5 days");
-		expect(banner.textContent).toContain("before your account is locked");
+		expect(banner.textContent).toBe(
+			"Please verify your email within 5 days to keep your account active. Check your inbox or spam folder.",
+		);
 	});
 
 	it("uses the singular day word on the final day", () => {
@@ -53,7 +64,7 @@ describe("renderVerifyBanner", () => {
 			emailVerified: false,
 			verification: { state: "counting-down", daysLeft: 1 },
 		});
-		expect(banner.querySelector(".verify-banner__count")?.textContent).toBe("1 day");
+		expect(banner.textContent).toContain("within 1 day to keep your account active");
 	});
 
 	it("renders the locked copy with a mailto link to the concierge inbox", () => {

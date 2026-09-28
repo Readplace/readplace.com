@@ -18,7 +18,7 @@ const UNSTYLED_HOOK_CLASSES = new Set([
 	"article-body__reader-slot",
 	"reader-skeleton",
 ]);
-const SHELL_BUTTON_CLASSES = new Set(["btn", "btn--secondary", "btn--neutral", "btn--compact"]);
+const SHELL_BUTTON_CLASSES = new Set(["btn", "btn--secondary", "btn--neutral", "btn--s"]);
 
 function templateContent(): DocumentFragment {
 	const html = renderReaderSkeleton({ cspNonce: generateCspNonce() });

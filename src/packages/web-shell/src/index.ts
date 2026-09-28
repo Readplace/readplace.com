@@ -23,16 +23,8 @@ export {
 	requireCspNonce,
 } from "./csp-nonce.middleware";
 export type { CspNonce } from "./csp-nonce.middleware";
-export {
-	deriveTrialEscalation,
-	formatTrialDisplay,
-	formatTrialRemaining,
-} from "./trial-countdown.format";
-export type {
-	TrialDisplay,
-	TrialEscalation,
-	TrialRemaining,
-} from "./trial-countdown.format";
+export { formatTrialRemaining } from "./trial-countdown.format";
+export type { TrialRemaining } from "./trial-countdown.format";
 export {
 	formatLocalInstant,
 	SERVER_TIME_ZONE,
@@ -48,7 +40,7 @@ export type {
 } from "./local-time.format";
 export {
 	bannerStateFromRequest,
-	buildGuestNavItems,
+	buildGuestNavGroups,
 	buildNavGroups,
 } from "./banner-state";
 export type {
@@ -61,8 +53,6 @@ export type {
 } from "./banner-state";
 export {
 	CHANGELOG_DISMISS_COOKIE_NAME,
-	CHANGELOG_SEEN_SCRIPT,
-	CHANGELOG_SEEN_STORAGE_KEY,
 	CHANGELOG_VERSION_LENGTH,
 	FETCH_CHANGELOG_BANNER_IN_BROWSER,
 	isChangelogVersion,
@@ -100,6 +90,13 @@ export {
 	CONFIRM_POPOVER_STYLES,
 	renderConfirmPopover,
 } from "./shared/confirm-popover/confirm-popover.component";
+export { ALERT_STYLES, renderAlert } from "./shared/alert/alert.component";
+export type {
+	AlertContent,
+	AlertMessage,
+	AlertTitle,
+	AlertVariant,
+} from "./shared/alert/alert.component";
 export type {
 	ConfirmPopover,
 	ConfirmPopoverLead,

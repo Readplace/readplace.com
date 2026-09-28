@@ -15,7 +15,7 @@ import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYT
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
-import { saveClientOf } from "../../shared/save-client";
+import { appClientOf, saveClientOf } from "../../shared/save-client";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	decodeImportSkippedCookie,
@@ -1108,7 +1108,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				epubDownloadHref:
 					state.content === undefined
 						? undefined
-						: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
+						: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader", appClient: appClientOf(req) }),
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -1191,7 +1191,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					epubDownloadHref:
 						state.content === undefined
 							? undefined
-							: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader" }),
+							: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader", appClient: appClientOf(req) }),
 				}), {
 					...(await deps.buildBannerState(req)),
 					showExtensionSuggestionBanner,
@@ -2356,7 +2356,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			provenance: article.provenance,
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
-			renderDownloadsOob: renderReaderDownloadsOob,
+			renderDownloadsOob: (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) }),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -2392,7 +2392,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			provenance: article.provenance,
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
-			renderDownloadsOob: renderReaderDownloadsOob,
+			renderDownloadsOob: (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) }),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});

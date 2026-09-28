@@ -359,8 +359,7 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.deepEqual(waiting.filter, {
 			state: "waiting-confirmation",
 			message: "Forwarding starts once Gmail confirms the forwarding address.",
-			messageClass: "gmail__step-copy",
-			alert: false,
+			presentation: "copy",
 			actions: [],
 		});
 
@@ -370,8 +369,7 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.deepEqual(reconnect.filter, {
 			state: "reconnect",
 			message: "Reconnect Gmail to update the forwarding rule.",
-			messageClass: "gmail__step-copy",
-			alert: false,
+			presentation: "copy",
 			actions: [],
 		});
 
@@ -436,8 +434,7 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.deepEqual(none.filter, {
 			state: "none",
 			message: "No forwarding rule in Gmail yet.",
-			messageClass: "gmail__step-copy",
-			alert: false,
+			presentation: "copy",
 			actions: [],
 		});
 	});
@@ -477,9 +474,9 @@ describe("Gmail inbox mappings and connection status", () => {
 		assert.equal(vm.state, "filter-failed");
 		assert.deepEqual(vm.alerts.map((entry) => entry.key), ["destination_invalid"]);
 		assert.equal(vm.filter.state, "failed");
-		assert.equal(vm.filter.messageClass, "gmail__alert");
-		assert.equal(vm.filter.alert, true);
+		assert.equal(vm.filter.presentation, "alert");
 		assert.equal(vm.notices[0].key, "sender_removed");
+		assert.equal(vm.notices[0].variant, "success");
 		const unknown = toGmailPageViewModel(input({ error: "unexpected", notice: "unexpected" }));
 		assert.deepEqual(unknown.alerts, []);
 		assert.deepEqual(unknown.notices, []);
@@ -488,6 +485,8 @@ describe("Gmail inbox mappings and connection status", () => {
 	it("tells the reader when forwarding starts after a save", () => {
 		const confirmedMapped = toGmailPageViewModel(input({ notice: "sender_mapped" }));
 		assert.equal(confirmedMapped.notices[0].key, "sender_mapped");
+		assert.equal(confirmedMapped.notices[0].variant, "success");
+		assert.equal(toGmailPageViewModel(input({ notice: "filter_retry_requested" })).notices[0].variant, "info");
 		assert.equal(confirmedMapped.notices[0].message, "Mapping saved. Gmail will forward new mail from this sender. Mail already in your mailbox is not forwarded.");
 		const confirmedCreated = toGmailPageViewModel(input({ notice: "inbox_created" }));
 		assert.equal(confirmedCreated.notices[0].key, "inbox_created");

@@ -30,10 +30,12 @@ Handlebars.registerHelper('track', (href: unknown, options: Handlebars.HelperOpt
  * because the argument is a *name* resolved against the set rather than markup —
  * an unknown name fails the render instead of interpolating anything.
  */
-Handlebars.registerHelper('icon', (name: unknown): Handlebars.SafeString => {
+Handlebars.registerHelper('icon', (name: unknown, options: Handlebars.HelperOptions): Handlebars.SafeString => {
 	assert(typeof name === 'string', '{{icon}} requires an icon name');
-	const svg = findIconSvg(name);
-	assert(svg, `{{icon}} does not know the icon "${name}"`);
+	const { variant } = options.hash;
+	if (variant !== undefined) assert(typeof variant === 'string', '{{icon}} variant= must be a string when present');
+	const svg = findIconSvg(name, variant);
+	assert(svg, `{{icon}} does not know the icon "${name}" in the ${variant ?? 'stroke'} variant`);
 	return new Handlebars.SafeString(svg);
 });
 

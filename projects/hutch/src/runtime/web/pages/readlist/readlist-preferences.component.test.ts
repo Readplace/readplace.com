@@ -12,7 +12,8 @@ import {
 	READLIST_BODY_CLASS,
 	READLIST_PAGE_SCRIPTS,
 } from "./readlist.component";
-import { INBOX_UNAVAILABLE_ALERT, type ReadlistAlert } from "./readlist-alerts";
+import type { AlertContent } from "@packages/web-shell";
+import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import { readlistRenamePopoverId } from "./readlist-rename.component";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
 import { DEFAULT_READLIST } from "./readlist.nav";
@@ -25,7 +26,7 @@ function page(overrides: {
 	wizardOpen?: boolean;
 	purposeError?: string;
 	inboxes?: readonly InboxAddressEntry[];
-	inboxAlert?: ReadlistAlert;
+	inboxAlert?: AlertContent;
 	canCreate?: boolean;
 	preferencesEnabled?: boolean;
 	query?: Record<string, unknown>;
@@ -72,7 +73,7 @@ describe("ReadlistPreferencesPage", () => {
 			".readlist-listing",
 			".readlist-nav",
 			".confirm-popover",
-			".wizard__textarea",
+			".wizard__title",
 			".readlist-preferences__purpose",
 			".readlist-inboxes__row",
 		]) {
@@ -123,12 +124,14 @@ describe("ReadlistPreferencesPage", () => {
 
 	it("titles the alert a rejected rename lands on", () => {
 		const doc = documentOf(page({ query: { queue_error: "rename_invalid-name" } }).content.html);
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert must render in every state");
-		const title = alert.querySelector("[data-test-readlist-error-title]");
+		const title = alert.querySelector("[data-test-alert-title]");
 		assert(title, "a recognised alert must carry its title");
 
-		expect(alert.classList.contains("readlist__alert--visible")).toBe(true);
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.getAttribute("role")).toBe("alert");
 		expect(title.textContent).toBe("Couldn't rename the readlist");
 	});
 
@@ -208,14 +211,14 @@ describe("ReadlistPreferencesPage", () => {
 				query: { queue_error: "rename_invalid-name" },
 			}).content.html,
 		);
-		const alert = doc.querySelector("[data-test-readlist-error]");
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert must render in every state");
 
-		expect(alert.classList.contains("readlist__alert--visible")).toBe(true);
-		expect(alert.querySelector("[data-test-readlist-error-title]")?.textContent).toBe(
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
 			"That inbox isn't available",
 		);
-		expect(alert.querySelector(".readlist__alert-body")?.textContent).toBe(
+		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
 			"It may have been turned off. Pick another inbox.",
 		);
 	});

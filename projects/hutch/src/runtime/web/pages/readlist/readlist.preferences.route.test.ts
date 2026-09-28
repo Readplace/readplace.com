@@ -129,12 +129,12 @@ function inboxRows(doc: Document) {
 }
 
 function alertOf(doc: Document): { visible: boolean; title: string | undefined; body: string | undefined } {
-	const alert = doc.querySelector("[data-test-readlist-error]");
+	const alert = doc.querySelector('[data-test-alert="readlist"]');
 	assert(alert, "the alert must render in every state");
 	return {
-		visible: alert.classList.contains("readlist__alert--visible"),
-		title: alert.querySelector("[data-test-readlist-error-title]")?.textContent ?? undefined,
-		body: alert.querySelector(".readlist__alert-body")?.textContent ?? undefined,
+		visible: alert.classList.contains("alert--visible"),
+		title: alert.querySelector("[data-test-alert-title]")?.textContent ?? undefined,
+		body: alert.querySelector("[data-test-alert-message]")?.textContent ?? undefined,
 	};
 }
 

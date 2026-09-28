@@ -252,6 +252,7 @@ describe("ChromelessPage", () => {
 	it("styles the announcement without pulling in the full shell's fixed banner-area positioning", () => {
 		const css = shellCss(WITH_BANNER);
 
+		expect(css).toContain(".banner-bar {");
 		expect(css).toContain(".changelog-banner--hidden");
 		expect(css).not.toContain(".banner-area {");
 	});
@@ -266,6 +267,14 @@ describe("ChromelessPage", () => {
 		expect(css).toContain(".btn {");
 		expect(css).toContain(".btn--primary {");
 		expect(css).toContain(".btn--secondary {");
+	});
+
+	it("ships the shared form controls, so a page's .form-input markup is a styled field here as it is under the full shell", () => {
+		const css = shellCss(NO_BANNER);
+
+		expect(css).toContain(".form-input {");
+		expect(css).toContain(".form-field__error {");
+		expect(css).toContain(".form-choice {");
 	});
 
 	it("paints its own ground under its ink, so the page stays legible over a host surface that resolved a different scheme", () => {
@@ -287,7 +296,7 @@ describe("ChromelessPage", () => {
 			),
 			style: Array.from(doc.querySelectorAll("style")).map((el) => el.getAttribute("nonce")),
 		}).toEqual({
-			script: [CSP_NONCE],
+			script: [],
 			style: [CSP_NONCE, CSP_NONCE],
 		});
 	});

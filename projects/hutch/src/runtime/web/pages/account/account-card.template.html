@@ -1,28 +1,9 @@
 <section class="{{stateClass}}" data-test-account-card data-test-account-state="{{state}}" data-test-account-poll="{{pollState}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
           {{#if stateIsErrorPaymentMethod}}
-          <div class="account-card__alert" role="alert">
-            <span class="account-card__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-            <div class="account-card__alert-text">
-              <h2 class="account-card__heading" data-test-account-error-heading>We couldn't restart your subscription</h2>
-              <p class="account-card__body">
-                The card we have on file is no longer valid. Email
-                <a class="account-card__support-link" href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a>
-                and we'll get you back up and running.
-              </p>
-            </div>
-          </div>
+          {{{errorAlertHtml}}}
           {{else}}
           {{#if stateIsErrorSubscribeFailed}}
-          <div class="account-card__alert" role="alert">
-            <span class="account-card__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-            <div class="account-card__alert-text">
-              <h2 class="account-card__heading" data-test-account-error-heading>We couldn't start your subscription</h2>
-              <p class="account-card__body" data-test-account-error-body>
-                Something went wrong on the way to the checkout and nothing was charged. Try again, and if it keeps happening email
-                <a class="account-card__support-link" href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a>.
-              </p>
-            </div>
-          </div>
+          {{{errorAlertHtml}}}
           {{/if}}
           {{#if showCancellingNotice}}
           <p class="account-card__notice" data-test-cancelling-notice>{{#if pollUrl}}{{icon "loader"}}{{/if}}{{cancellingNotice}}</p>

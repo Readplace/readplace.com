@@ -6,9 +6,7 @@
         </header>
 
         {{#if truncated}}
-        <p class="import__truncated-banner" role="status" data-test-import-truncated>
-          We found {{totalFound}} links. The first {{totalUrls}} were imported.
-        </p>
+        {{{truncatedAlertHtml}}}
         {{/if}}
 
         <div class="import__listing">
@@ -20,7 +18,7 @@
               <label class="import__select-all-label">
                 <input type="checkbox"
                   name="confirm"
-                  class="import__checkbox"
+                  class="form-choice"
                   {{#if allSelected}}checked{{/if}}
                   {{#if someSelected}}data-import-indeterminate{{/if}}
                   onclick="this.form.requestSubmit()"
@@ -30,7 +28,7 @@
                   <span class="import__summary-label">of {{totalUrls}} selected</span>
                 </span>
               </label>
-              <noscript><button type="submit" class="btn btn--secondary btn--compact">Toggle all</button></noscript>
+              <noscript><button type="submit" class="btn btn--secondary btn--s">Toggle all</button></noscript>
             </form>
 
             <form class="import__commit-form" method="POST" action="{{commitUrl}}"
@@ -51,13 +49,13 @@
                 <label class="import__row-label">
                   <input type="checkbox"
                     name="confirm"
-                    class="import__checkbox"
+                    class="form-choice"
                     {{#if checked}}checked{{/if}}
                     onclick="this.form.requestSubmit()"
                     data-test-import-checkbox="{{index}}">
                   <span class="import__row-url" data-test-import-url>{{url}}</span>
                 </label>
-                <noscript><button type="submit" class="btn btn--toggle btn--compact import__row-toggle">Toggle</button></noscript>
+                <noscript><button type="submit" class="btn btn--secondary btn--m import__row-toggle">Toggle</button></noscript>
               </form>
             </li>
             {{/each}}

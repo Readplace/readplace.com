@@ -6,7 +6,6 @@ import type {
 	GetEffectiveAccess,
 } from "@packages/subscription-access";
 import type { FindUserById } from "@packages/provider-contracts/auth";
-import { toTrialDisplay } from "./trial-display";
 
 export type BuildBannerState = (
 	source: BannerStateSource,
@@ -16,7 +15,6 @@ export type BuildBannerState = (
 export function initBuildBannerState(deps: {
 	getEffectiveAccess: GetEffectiveAccess;
 	findUserById: FindUserById;
-	now: () => Date;
 }): BuildBannerState {
 	return async (source, options) => {
 		const withBanner: BannerState = {
@@ -29,14 +27,11 @@ export function initBuildBannerState(deps: {
 			options?.preFetchedAccess ?? deps.getEffectiveAccess(userId),
 			deps.findUserById(userId),
 		]);
-		const trial = toTrialDisplay(access, deps.now());
-		const accessIsReadOnly = access.access === "read-only";
 		return {
 			...withBanner,
-			accessIsReadOnly,
+			accessIsReadOnly: access.access === "read-only",
 			appearance: user?.appearance,
 			...(user ? { userEmail: user.email } : {}),
-			...(trial ? { trial } : {}),
 		};
 	};
 }

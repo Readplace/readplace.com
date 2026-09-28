@@ -260,7 +260,9 @@ Alternatively use the POST - Redirect - GET pattern.
 | Orphan/widow control lives on the prose container, not on `body` | A global `text-wrap` forces a full-page reflow |
 | Fonts come from `var(--font-serif)` / `var(--font-sans)` | One source of truth: the shared base-styles module that declares the `--font-serif` token (grep for the quoted `"--font-serif"` key — a TypeScript object, not a stylesheet). Never inline the stack. See [Typography](../../../BRAND_GUIDELINES.md#typefaces-in-use) |
 | Buttons come from the shared button system | From the button stylesheet the shared base-styles module injects into every `<head>`, and that the extension build compiles into the popup's own stylesheet; a page stylesheet adds layout only. See [Buttons](../../../BRAND_GUIDELINES.md#buttons) |
-| Icons are inline same-origin SVG, drawn by the icon Handlebars helper (the `registerHelper` call in the shared renderer that resolves a name against the shared icon set and returns a SafeString — the other registration is the UTM tracking helper) | See [Icon Style](../../../BRAND_GUIDELINES.md#icon-style) |
+| Alerts come from the shared alert primitive | Render with `renderAlert` and ship `ALERT_STYLES` from `@packages/web-shell`. A page stylesheet adds placement only. See [Alerts and Status](../../../BRAND_GUIDELINES.md#alerts-and-status) |
+| Form controls come from the shared form-control system | From the form-control stylesheet the shared base-styles module injects into every `<head>`; a page stylesheet adds layout only. See [Form Inputs](../../../BRAND_GUIDELINES.md#form-inputs) |
+| Icons are inline same-origin SVG, drawn by the icon Handlebars helper (the `registerHelper` call in the shared renderer that resolves a name against the shared icon set and returns a SafeString — the other registration is the UTM tracking helper). The stroke drawing is the default; `{{icon "<name>" variant="solid"}}` draws the solid one, which only a current-state glyph takes, and the variant may come from render data | An unknown name, an unknown variant, or a solid variant the icon has no drawing for fails the render instead of shipping a blank glyph. See [Icon Style](../../../BRAND_GUIDELINES.md#icon-style) |
 
 ```css
 /* ❌ BAD */
@@ -308,7 +310,7 @@ guidelines don't carry:
 
 ### Copyable Fields Are One Box
 
-A copyable value — a server URL, a CLI command, a prompt — renders as **one** bordered box that wraps **both** the value and its Copy button; the Copy button is always a child inside that box, never a sibling floating outside it. Put the border/background/padding on the row container, not on the inner text element, so a second copyable field can't drift to a different placement. Reuse one partial for every copyable field.
+A copyable value — a server URL, a CLI command, a prompt — renders as **one** bordered box that wraps **both** the value and its Copy button; the Copy button is always a child inside that box, never a sibling floating outside it. Put the border/background/padding on the row container, not on the inner text element, so a second copyable field can't drift to a different placement; when the value is a read-only `<input>`, that row container is the shared wrapped-field box and the input its inner control (both classes are named in [Form Inputs](../../../BRAND_GUIDELINES.md#form-inputs)). Reuse one partial for every copyable field.
 
 ### Wide Tables Reflow to Stacked Cards on Mobile
 

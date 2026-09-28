@@ -151,7 +151,7 @@ describe("downloads", () => {
 		expect(download.tagName).toBe("A");
 		expect(download.getAttribute("data-test-download")).toBe("epub");
 		expect(download.getAttribute("href")).toBe("/view/example.com/a?format=epub");
-		expect(download.className).toBe("btn btn--secondary btn--compact article-body__download");
+		expect(download.className).toBe("btn btn--secondary btn--s article-body__download");
 		expect(download.querySelector(".article-body__action-label")?.textContent).toBe("Download EPUB");
 		expect(doc.querySelectorAll("[data-test-download]")).toHaveLength(1);
 	});

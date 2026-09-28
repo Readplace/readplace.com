@@ -1,181 +1,38 @@
 import assert from "node:assert/strict";
 import { iconSvg } from "@packages/ui-icons";
 import { JSDOM } from "jsdom";
-import { GlobalNav } from "./nav.component";
-import type { TrialDisplay } from "./trial-countdown.format";
+import { GlobalNav, type NavProps } from "./nav.component";
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-const ACTIVE_TRIAL: TrialDisplay = {
-	state: "active",
-	endsAtIso: "2026-01-15T00:00:00.000Z",
-	serverNowIso: "2026-01-01T00:00:00.000Z",
-	remaining: { days: 13, hours: 12, minutes: 33, seconds: 22, totalMs: 1 },
-	escalation: "moderate",
+function shapesOf(svg: Element | null): string[] {
+	assert(svg, "an icon must be drawn");
+	return Array.from(svg.querySelectorAll("path, circle, rect")).map((shape) => shape.outerHTML);
+}
+
+function currentItemKeys(html: string): (string | null)[] {
+	return Array.from(parse(html).querySelectorAll('[aria-current="page"]')).map((el) =>
+		el.getAttribute("data-test-nav-item"),
+	);
+}
+
+const SIGNED_IN: NavProps = {
+	variant: "default",
+	isAuthenticated: true,
+	accessIsReadOnly: false,
+	gmailFeatureEnabled: true,
+};
+
+const GUEST: NavProps = {
+	variant: "default",
+	isAuthenticated: false,
+	accessIsReadOnly: false,
+	gmailFeatureEnabled: false,
 };
 
 describe("GlobalNav component", () => {
-	it("renders the trial countdown hidden (via state class) when trialCounter is undefined", () => {
-		const doc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: true,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-			}),
-		);
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown element must always be in the DOM");
-		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
-		expect(countdown.getAttribute("data-trial-state")).toBe("");
-		expect(countdown.textContent).toBe("");
-	});
-
-	it("renders the trial countdown with active state, escalation class, and data attributes", () => {
-		const doc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: true,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-				trialCounter: ACTIVE_TRIAL,
-			}),
-		);
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be present for an active trial");
-		expect(countdown.textContent).toBe("13d 12h left in your free trial");
-		expect(countdown.classList.contains("trial-countdown--moderate")).toBe(true);
-		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
-		expect(countdown.getAttribute("data-trial-state")).toBe("active");
-		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2026-01-15T00:00:00.000Z");
-		expect(countdown.getAttribute("data-server-now-iso")).toBe("2026-01-01T00:00:00.000Z");
-		expect(countdown.getAttribute("role")).toBe("timer");
-	});
-
-	it("renders the expired pill for an expired trial without active-trial data attributes", () => {
-		const doc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: true,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-				trialCounter: { state: "expired" },
-			}),
-		);
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be present for an expired trial");
-		expect(countdown.textContent).toBe("Subscription not active");
-		expect(countdown.classList.contains("trial-countdown--expired")).toBe(true);
-		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
-		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("");
-		expect(countdown.getAttribute("data-server-now-iso")).toBe("");
-	});
-
-	it("renders a quiet cancellation-scheduled chip (not the expired alarm) while the cutoff is more than 7 days away", () => {
-		const doc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: true,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-				trialCounter: {
-					state: "cancellation-scheduled",
-					endsAtIso: "2027-07-10T00:00:00.000Z",
-					serverNowIso: "2026-07-10T00:00:00.000Z",
-				},
-			}),
-		);
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be present for a scheduled cancellation");
-		expect(countdown.textContent).toBe("Ends Jul 10, 2027");
-		expect(countdown.classList.contains("trial-countdown--cancellation-scheduled")).toBe(true);
-		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
-		expect(countdown.classList.contains("trial-countdown--expired")).toBe(false);
-		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
-		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2027-07-10T00:00:00.000Z");
-		expect(countdown.getAttribute("data-server-now-iso")).toBe("2026-07-10T00:00:00.000Z");
-		expect(countdown.getAttribute("aria-label")).toBe("Subscription ends on Jul 10, 2027");
-		expect(countdown.getAttribute("title")).toBe("Subscription ends on Jul 10, 2027");
-	});
-
-	it("escalates the cancellation chip to the imminent variant once the cutoff is 7 days away or closer", () => {
-		const doc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: true,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-				trialCounter: {
-					state: "cancellation-scheduled",
-					endsAtIso: "2026-07-17T00:00:00.000Z",
-					serverNowIso: "2026-07-10T00:00:00.000Z",
-				},
-			}),
-		);
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be present for an imminent cancellation");
-		expect(countdown.classList.contains("trial-countdown--cancellation-imminent")).toBe(true);
-		expect(countdown.classList.contains("trial-countdown--cancellation-scheduled")).toBe(false);
-		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
-	});
-
-	it("keeps the quiet cancellation chip just past the 7-day boundary so escalation flips only inside the final week", () => {
-		const doc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: true,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-				trialCounter: {
-					state: "cancellation-scheduled",
-					endsAtIso: "2026-07-17T00:00:00.001Z",
-					serverNowIso: "2026-07-10T00:00:00.000Z",
-				},
-			}),
-		);
-
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "trial countdown must be present for a scheduled cancellation");
-		expect(countdown.classList.contains("trial-countdown--cancellation-scheduled")).toBe(true);
-	});
-
-	it("omits aria-label and title for active and expired states so only the abbreviated chip carries an override", () => {
-		const activeDoc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: true,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-				trialCounter: ACTIVE_TRIAL,
-			}),
-		);
-		const activeCountdown = activeDoc.querySelector("[data-test-trial-countdown]");
-		assert(activeCountdown, "trial countdown must be present for an active trial");
-		expect(activeCountdown.hasAttribute("aria-label")).toBe(false);
-		expect(activeCountdown.hasAttribute("title")).toBe(false);
-
-		const expiredDoc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: true,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-				trialCounter: { state: "expired" },
-			}),
-		);
-		const expiredCountdown = expiredDoc.querySelector("[data-test-trial-countdown]");
-		assert(expiredCountdown, "trial countdown must be present for an expired trial");
-		expect(expiredCountdown.hasAttribute("aria-label")).toBe(false);
-		expect(expiredCountdown.hasAttribute("title")).toBe(false);
-	});
-
 	it("renders authenticated nav items (queue, import, inbox, account, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			GlobalNav({
@@ -200,7 +57,7 @@ describe("GlobalNav component", () => {
 		expect(form.getAttribute("action")).toBe("/account?utm_source=header-nav&utm_medium=internal&utm_content=account");
 	});
 
-	it("splits the authenticated nav into a Library section (queue, import, inbox) and an Account section (account, sign out)", () => {
+	it("splits the authenticated nav into a Library section (queue, import, inbox) and an Account section (account, privacy, terms, sign out)", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -225,11 +82,10 @@ describe("GlobalNav component", () => {
 
 		const account = doc.querySelector('[data-test-nav-group="account"]');
 		assert(account, "account group must render");
-		expect(account.querySelector(".nav__group-label")?.textContent).toBe("Account");
 		const accountItems = Array.from(
 			account.querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(accountItems).toEqual(["account", "logout"]);
+		expect(accountItems).toEqual(["account", "privacy", "terms", "logout"]);
 	});
 
 	it("folds the Account section into a user menu carrying the signed-in email and its initials", () => {
@@ -257,34 +113,56 @@ describe("GlobalNav component", () => {
 		const accountItems = Array.from(menu.querySelectorAll("[data-test-nav-item]")).map((el) =>
 			el.getAttribute("data-test-nav-item"),
 		);
-		expect(accountItems).toEqual(["account", "logout"]);
+		expect(accountItems).toEqual(["account", "privacy", "terms", "logout"]);
 		const library = doc.querySelector('[data-test-nav-group="library"]');
 		assert(library, "library group must render");
 		expect(library.querySelector(".nav__group-label")?.textContent).toBe("Library");
 		expect(library.firstElementChild?.className).toBe("nav__group-label");
 	});
 
-	it("keeps the library icons distinct: a book for the readlist, a file for imports, a tray for the inbox", () => {
-		const html = GlobalNav({
-			variant: "default",
-			isAuthenticated: true,
-			accessIsReadOnly: false,
-			gmailFeatureEnabled: false,
-		});
+	it("still folds a signed-in Account section into a user menu when the email is unknown, behind a plain Account trigger", () => {
+		const doc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
+			}),
+		);
 
-		const doc = parse(html);
-		const strokes = (svg: Element) =>
-			Array.from(svg.querySelectorAll("path, circle, rect")).map((shape) => shape.outerHTML);
-		for (const [key, icon] of [
-			["queue", "book"],
-			["import", "file-down"],
-			["inbox", "inbox"],
-		] as const) {
-			const drawn = doc.querySelector(`[data-test-nav-item="${key}"] .nav__icon svg`);
-			assert(drawn, `${key} nav item must carry an icon`);
-			const expected = parse(iconSvg(icon)).querySelector("svg");
-			assert(expected, "the shared icon set must draw the icon");
-			expect(strokes(drawn)).toEqual(strokes(expected));
+		const account = doc.querySelector('[data-test-nav-group="account"]');
+		assert(account, "account group must render");
+		const menu = account.querySelector("[data-test-nav-user]");
+		assert(menu, "a signed-in account group must render as a user menu even without an email");
+		expect(menu.querySelector(".nav__avatar")?.textContent).toBe("");
+		expect(menu.querySelector("[data-test-nav-user-email]")?.textContent).toBe("Account");
+		expect(menu.querySelector("summary")?.getAttribute("aria-label")).toBe("Account menu");
+		const accountItems = Array.from(menu.querySelectorAll("[data-test-nav-item]")).map((el) =>
+			el.getAttribute("data-test-nav-item"),
+		);
+		expect(accountItems).toEqual(["account", "privacy", "terms", "logout"]);
+	});
+
+	it("keeps the library icons distinct: a solid book for the current readlist, a stroke file for imports, a stroke tray for the inbox", () => {
+		const doc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				gmailFeatureEnabled: false,
+				currentPath: "/queue",
+			}),
+		);
+
+		const drawn = [
+			["queue", iconSvg("book", { variant: "solid" })],
+			["import", iconSvg("file-down")],
+			["inbox", iconSvg("inbox")],
+		] as const;
+		for (const [key, svg] of drawn) {
+			expect(shapesOf(doc.querySelector(`[data-test-nav-item="${key}"] .nav__icon svg`))).toEqual(
+				shapesOf(parse(svg).querySelector("svg")),
+			);
 		}
 	});
 
@@ -336,29 +214,141 @@ describe("GlobalNav component", () => {
 		expect(queue.textContent).toBe("Readlist");
 	});
 
-	it("renders guest nav items (install, features, import, login) as a flat list without group structure, install left of features", () => {
-		const doc = parse(
-			GlobalNav({
-				variant: "default",
-				isAuthenticated: false,
-				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
-			}),
-		);
+	it("renders guests through the same groups: Install, Import Links and Features in Library, and Log in alone in Account", () => {
+		const doc = parse(GlobalNav(GUEST));
 
 		const nav = doc.querySelector("[data-test-nav-variant]");
 		assert(nav, "nav variant marker must render");
 		expect(nav.getAttribute("data-test-nav-variant")).toBe("guest");
 
-		const items = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
-			(el) => el.getAttribute("data-test-nav-item"),
-		);
-		expect(items).toEqual(["install", "features", "import", "login"]);
+		const itemsByGroup = Array.from(doc.querySelectorAll("[data-test-nav-group]")).map((group) => [
+			group.getAttribute("data-test-nav-group"),
+			Array.from(group.querySelectorAll("[data-test-nav-item]")).map((el) => el.getAttribute("data-test-nav-item")),
+		]);
+		expect(itemsByGroup).toEqual([
+			["library", ["install", "import", "features"]],
+			["account", ["login"]],
+		]);
 
 		const install = doc.querySelector('[data-test-nav-item="install"]');
 		assert(install, "guest nav must render an install item");
 		expect(install.closest("form")?.getAttribute("action")).toBe("/install?utm_source=header-nav&utm_medium=internal&utm_content=install");
-		expect(doc.querySelectorAll("[data-test-nav-group]")).toHaveLength(0);
+	});
+
+	it("renders guest Log in as a primary M button with its log-in glyph, and every other item as a plain nav link", () => {
+		const doc = parse(GlobalNav(GUEST));
+
+		const classes = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) => [
+			el.getAttribute("data-test-nav-item"),
+			el.getAttribute("class"),
+		]);
+		expect(classes).toEqual([
+			["install", "nav__link"],
+			["import", "nav__link"],
+			["features", "nav__link"],
+			["login", "nav__link btn btn--primary btn--m"],
+		]);
+		expect(shapesOf(doc.querySelector('[data-test-nav-item="login"] .nav__icon svg'))).toEqual(
+			shapesOf(parse(iconSvg("log-in")).querySelector("svg")),
+		);
+	});
+
+	describe("marks the destination the page belongs to as the current item", () => {
+		it.each([
+			["/queue", "queue"],
+			["/queue?filter=unread", "queue"],
+			["/queue/abc123/view", "queue"],
+			["/queues/rl-1?order=asc", "queue"],
+			["/view/example.com/an-article", "queue"],
+			["/view?url=https%3A%2F%2Fexample.com", "queue"],
+			["/import", "import"],
+			["/import/imp-1/review?page=2", "import"],
+			["/inbox", "inbox"],
+			["/inbox/emails/msg-1", "inbox"],
+			["/integrations", "integrations"],
+			["/integrations/gmail?feature=gmail", "integrations"],
+		])("marks %s as the %s item for a signed-in reader", (currentPath, key) => {
+			expect(currentItemKeys(GlobalNav({ ...SIGNED_IN, currentPath }))).toEqual([key]);
+		});
+
+		it.each([
+			["/install", "install"],
+			["/install?client=firefox", "install"],
+			["/import", "import"],
+		])("marks %s as the %s item for a guest", (currentPath, key) => {
+			expect(currentItemKeys(GlobalNav({ ...GUEST, currentPath }))).toEqual([key]);
+		});
+
+		it.each([
+			"/account",
+			"/oauth/authorize?client_id=readplace-ios",
+			"/",
+			"/blog/changelog",
+			"/login",
+			"/export",
+			"/queued",
+			"/view-source",
+			"/install",
+			"//[::1",
+			"//%zz[/queue",
+		])("marks no signed-in item current on %s", (currentPath) => {
+			expect(currentItemKeys(GlobalNav({ ...SIGNED_IN, currentPath }))).toEqual([]);
+		});
+
+		it("marks no guest item current on a readlist path, which has no guest destination", () => {
+			expect(currentItemKeys(GlobalNav({ ...GUEST, currentPath: "/view/example.com/an-article" }))).toEqual([]);
+		});
+
+		it("marks no item current when the site supplies no request path", () => {
+			expect(currentItemKeys(GlobalNav(SIGNED_IN))).toEqual([]);
+		});
+
+		it("puts aria-current on the current item alone, leaving the other items without the attribute", () => {
+			const doc = parse(GlobalNav({ ...SIGNED_IN, currentPath: "/import" }));
+
+			const ariaCurrent = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) => [
+				el.getAttribute("data-test-nav-item"),
+				el.getAttribute("aria-current"),
+			]);
+			expect(ariaCurrent).toEqual([
+				["queue", null],
+				["import", "page"],
+				["inbox", null],
+				["integrations", null],
+				["account", null],
+				["privacy", null],
+				["terms", null],
+				["logout", null],
+			]);
+		});
+
+		it("draws the current item with its solid glyph and the rest with their stroke glyphs", () => {
+			const doc = parse(GlobalNav({ ...SIGNED_IN, currentPath: "/inbox" }));
+
+			const drawn = [
+				["queue", iconSvg("book")],
+				["import", iconSvg("file-down")],
+				["inbox", iconSvg("inbox", { variant: "solid" })],
+				["integrations", iconSvg("plug")],
+			] as const;
+			for (const [key, svg] of drawn) {
+				expect(shapesOf(doc.querySelector(`[data-test-nav-item="${key}"] .nav__icon svg`))).toEqual(
+					shapesOf(parse(svg).querySelector("svg")),
+				);
+			}
+		});
+
+		it("keeps the stroke glyph on a current item that has no solid drawing, so the ink step alone marks it", () => {
+			const integrations = parse(GlobalNav({ ...SIGNED_IN, currentPath: "/integrations" }));
+			const install = parse(GlobalNav({ ...GUEST, currentPath: "/install" }));
+
+			expect(shapesOf(integrations.querySelector('[data-test-nav-item="integrations"] .nav__icon svg'))).toEqual(
+				shapesOf(parse(iconSvg("plug")).querySelector("svg")),
+			);
+			expect(shapesOf(install.querySelector('[data-test-nav-item="install"] .nav__icon svg'))).toEqual(
+				shapesOf(parse(iconSvg("download")).querySelector("svg")),
+			);
+		});
 	});
 
 	it("applies the transparent header modifier when variant is 'transparent'", () => {
@@ -376,7 +366,7 @@ describe("GlobalNav component", () => {
 		expect(header.classList.contains("header--transparent")).toBe(true);
 	});
 
-	it("renders the collapsed bars and the shared close cross together, so the open state alone flips the toggle", () => {
+	it("renders the menu glyph and the close cross together, so the open state alone flips the toggle", () => {
 		const html = GlobalNav({
 			variant: "default",
 			isAuthenticated: true,
@@ -387,8 +377,8 @@ describe("GlobalNav component", () => {
 		const toggle = parse(html).querySelector(".nav__toggle");
 		assert(toggle, "nav toggle must render");
 		expect(toggle.tagName.toLowerCase()).toBe("summary");
-		expect(toggle.querySelectorAll(".nav__toggle-bar")).toHaveLength(3);
-		expect(html).toContain(`<span class="nav__toggle-x">${iconSvg("x")}</span>`);
+		expect(html).toContain(`<span class="nav__toggle-icon nav__toggle-icon--open">${iconSvg("menu")}</span>`);
+		expect(html).toContain(`<span class="nav__toggle-icon nav__toggle-icon--close">${iconSvg("x")}</span>`);
 	});
 
 	it("hangs the menu off a closed disclosure, so the bar opens it with no script", () => {

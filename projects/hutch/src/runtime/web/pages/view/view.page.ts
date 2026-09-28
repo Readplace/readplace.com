@@ -434,7 +434,7 @@ function handleViewArticle(
 					epubDownloadHref:
 						state.content === undefined
 							? undefined
-							: withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article" }), CLICK_SURFACES.readerPublic),
+							: withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article", appClient: undefined }), CLICK_SURFACES.readerPublic),
 					saveTip,
 					extensionInstallUrl: readerPublicInstallUrl(req),
 					crawlVersions: state.crawlVersions,

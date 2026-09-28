@@ -33,8 +33,8 @@ const INBOX_ROWS = "[data-test-preferences-inbox]";
 const INBOXES_DESCRIPTION = "[data-test-inboxes-description]";
 const CREATE_INBOX = '[data-test-action="create-inbox"]';
 const TABS = "[data-test-filters]";
-const ALERT = "[data-test-readlist-error]";
-const ALERT_TITLE = "[data-test-readlist-error-title]";
+const ALERT = '[data-test-alert="readlist"]';
+const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededInboxes = z.object({ ok: z.literal(true), addresses: z.array(z.string()) });

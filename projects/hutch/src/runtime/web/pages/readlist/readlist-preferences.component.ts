@@ -2,12 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { ReadlistSlug } from "@packages/domain/readlist";
-import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
-import type { PageBody } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render, renderAlert, withInternalTracking } from "@packages/web-shell";
+import type { AlertContent, PageBody } from "@packages/web-shell";
 
 import { WIZARD_STYLES, renderWizard } from "../../shared/wizard/wizard.component";
-import { renderReadlistAlert } from "./readlist-alert.component";
-import { type ReadlistAlert, readlistAlertFor } from "./readlist-alerts";
+import { readlistAlertFor } from "./readlist-alerts";
 import { buildReadlistInboxes, renderReadlistInboxes } from "./readlist-inboxes.component";
 import {
 	buildReadlistNav,
@@ -52,7 +51,7 @@ export interface ReadlistPreferencesViewModel {
 	wizardOpen: boolean;
 	purposeError?: string;
 	inboxes: readonly InboxAddressEntry[];
-	inboxAlert?: ReadlistAlert;
+	inboxAlert?: AlertContent;
 	preferencesEnabled: boolean;
 	query: Record<string, unknown>;
 }
@@ -89,7 +88,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				canCreate: vm.rail.canCreate,
 			}),
 		),
-		alertHtml: renderReadlistAlert(vm.inboxAlert ?? readlistAlertFor(vm.query)),
+		alertHtml: renderAlert({ key: "readlist", content: vm.inboxAlert ?? readlistAlertFor(vm.query) }),
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",

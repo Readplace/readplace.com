@@ -9,12 +9,6 @@
         title="Email content"
       ></iframe>
       {{else}}
-      <div class="inbox-email-detail__alert" role="alert" data-test-inbox-email-unavailable>
-        <span class="inbox-email-detail__alert-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-        <div class="inbox-email-detail__alert-text">
-          <p class="inbox-email-detail__alert-title" data-test-inbox-email-unavailable-title>{{unavailableAlert.title}}</p>
-          <p class="inbox-email-detail__alert-body" data-test-inbox-email-unavailable-body>{{unavailableAlert.body}}</p>
-        </div>
-      </div>
+      {{{unavailableAlertHtml}}}
       {{/if}}
     </section>

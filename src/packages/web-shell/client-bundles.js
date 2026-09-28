@@ -72,23 +72,6 @@ const SHARED_CLIENT_BUNDLES = [
     ].join("\n"),
   },
   {
-    outfile: "trial-countdown.client.js",
-    entry: path.join(SRC_DIR, "trial-countdown.client.ts"),
-    globalName: "TrialCountdown",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  TrialCountdown.initTrialCountdown({",
-      "    document: window.document,",
-      "    now: function () { return Date.now(); },",
-      "    timeZone: function () { return Intl.DateTimeFormat().resolvedOptions().timeZone; },",
-      "    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
-      "    clearIntervalFn: function (id) { window.clearInterval(id); },",
-      "    addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
-      "  }).attach();",
-      "});",
-    ].join("\n"),
-  },
-  {
     outfile: "local-time.client.js",
     entry: path.join(SRC_DIR, "local-time.client.ts"),
     globalName: "LocalTime",

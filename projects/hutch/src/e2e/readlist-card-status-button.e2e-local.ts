@@ -33,7 +33,14 @@ async function createOwner(page: Page, email: string): Promise<string> {
 
 async function seedCard(
 	page: Page,
-	params: { url: string; title: string; imageUrl?: string; savedAt: string; userId: string },
+	params: {
+		url: string;
+		title: string;
+		imageUrl?: string;
+		savedAt: string;
+		userId: string;
+		summarised: boolean;
+	},
 ): Promise<void> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
@@ -45,7 +52,7 @@ async function seedCard(
 			savedAt: params.savedAt,
 			savedByUserId: params.userId,
 			excerpt: "Seeded excerpt for the status-button placement test.",
-			generatedSummary: { summary: "Seeded summary body.", excerpt: "" },
+			...(params.summarised ? { generatedSummary: { summary: "Seeded summary body.", excerpt: "" } } : {}),
 		},
 	});
 	assert.equal(response.status(), 201, "the seed endpoint must create the crawled article");
@@ -109,12 +116,14 @@ test.describe("Readlist card status button placement", () => {
 			url: `${SHORT_META_CARD.url}?${stamp}`,
 			savedAt: "2026-07-11T09:14:00.000Z",
 			userId,
+			summarised: true,
 		});
 		await seedCard(page, {
 			...THUMBNAIL_CARD,
 			url: `${THUMBNAIL_CARD.url}?${stamp}`,
 			savedAt: "2026-07-12T09:14:00.000Z",
 			userId,
+			summarised: true,
 		});
 		await loginAs(page, email);
 		await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
@@ -147,6 +156,58 @@ test.describe("Readlist card status button placement", () => {
 				Math.abs(shortMeta.buttonLeft - thumbnail.buttonLeft) <= TOLERANCE,
 				`at ${width}px both cards' buttons share one x position — short-meta ${shortMeta.buttonLeft}px vs thumbnail ${thumbnail.buttonLeft}px`,
 			);
+		}
+	});
+
+	test("keeps a processing card's unread dot right before its Processing line, every width", async ({
+		page,
+	}, testInfo) => {
+		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `readlist-processing-dot-${stamp}@example.com`;
+		const userId = await createOwner(page, email);
+		await pinThumbnail(page);
+		await seedCard(page, {
+			...SHORT_META_CARD,
+			url: `${SHORT_META_CARD.url}?${stamp}`,
+			savedAt: "2026-07-11T09:14:00.000Z",
+			userId,
+			summarised: false,
+		});
+		await seedCard(page, {
+			...THUMBNAIL_CARD,
+			url: `${THUMBNAIL_CARD.url}?${stamp}`,
+			savedAt: "2026-07-12T09:14:00.000Z",
+			userId,
+			summarised: false,
+		});
+		await loginAs(page, email);
+		await expect(page.locator('[data-card-status="pending"]')).toHaveCount(2);
+
+		const shortMetaId = await cardId(page, SHORT_META_CARD.title);
+		const thumbnailId = await cardId(page, THUMBNAIL_CARD.title);
+
+		const TOLERANCE = 1.5;
+		const FACTS_GAP_PX = 14;
+		for (const width of [320, 390, 900, 1280]) {
+			await page.setViewportSize({ width, height: 900 });
+			for (const [name, id] of [
+				["short-meta", shortMetaId],
+				["thumbnail", thumbnailId],
+			] as const) {
+				const [dot, processing] = await page.evaluate(measureBoxes, [
+					`[data-test-article="${id}"] [data-test-read-status]`,
+					`[data-test-article="${id}"] [data-test-processing]`,
+				]);
+				const gap = processing.x - (dot.x + dot.width);
+				assert.ok(
+					Math.abs(gap - FACTS_GAP_PX) <= TOLERANCE,
+					`at ${width}px the ${name} card's unread dot sits one facts gap before its Processing line — gap ${gap}px`,
+				);
+				assert.ok(
+					Math.abs(dot.y + dot.height / 2 - (processing.y + processing.height / 2)) <= TOLERANCE,
+					`at ${width}px the ${name} card's unread dot shares its Processing line — dot top ${dot.y}px vs processing top ${processing.y}px`,
+				);
+			}
 		}
 	});
 });

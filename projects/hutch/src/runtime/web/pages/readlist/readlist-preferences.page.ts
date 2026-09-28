@@ -15,6 +15,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { sendComponent } from "@packages/web-shell";
+import type { AlertContent } from "@packages/web-shell";
 import express from "express";
 import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
@@ -22,7 +23,7 @@ import { z } from "zod";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
-import { INBOX_UNAVAILABLE_ALERT, type ReadlistAlert } from "./readlist-alerts";
+import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import { readerReadlists } from "./readlist-context";
 import { preferencesUrl, readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
@@ -36,7 +37,7 @@ type PreferencesErrorCode = (typeof PREFERENCES_ERROR_CODES)[number];
 
 interface PreferencesError {
 	purposeError?: string;
-	inboxAlert?: ReadlistAlert;
+	inboxAlert?: AlertContent;
 }
 
 const PREFERENCES_ERRORS: Record<PreferencesErrorCode, PreferencesError> = {

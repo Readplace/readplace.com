@@ -18,9 +18,9 @@ const INBOX_ARTICLE_CARD_TEMPLATE = readFileSync(
 );
 
 const ACTION_BUTTON_CLASSES: Record<SaveButtonState, string> = {
-	unsaved: "btn btn--toggle btn--compact",
-	saving: "btn btn--toggle btn--compact inbox-article-card__action-button--saving",
-	saved: "btn btn--toggle btn--compact inbox-article-card__action-button--saved",
+	unsaved: "btn btn--secondary btn--m",
+	saving: "btn btn--secondary btn--m inbox-article-card__action-button--saving",
+	saved: "btn btn--secondary btn--m inbox-article-card__action-button--saved",
 };
 
 const CARD_STATUS_DISPLAY: Record<

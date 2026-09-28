@@ -68,6 +68,7 @@ struct LoginView: View {
 									.padding(.vertical, 14)
 							}
 							.buttonStyle(.borderedProminent)
+							.tint(.brandPrimaryFill)
 
 							Button {
 								Task { await startSignup() }

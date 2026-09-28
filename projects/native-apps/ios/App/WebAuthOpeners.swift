@@ -23,7 +23,7 @@ struct ExternalBrowser {
 /// users keep Safari as the iOS default yet are signed in only in Chrome.
 ///
 /// Every external content open goes through here, so the rule lives in one place:
-/// the changelog banner's "Read more" is ours and gets Chrome; a link to someone
+/// the changelog banner's "Learn more" is ours and gets Chrome; a link to someone
 /// else's site is handed to the system untouched, which keeps Universal Links
 /// resolving to native apps and respects the user's default browser. `chromeURLFor`
 /// owns that distinction — see it for why, including why signing in is not routed
