@@ -315,6 +315,10 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// behind a tag listing. Anchored exact: other jwz.org tag indexes and
 	// posts must still surface.
 	/^https:\/\/www\.jwz\.org\/blog\/tag\/regexp\/$/i,
+	// (n) X/Twitter profile pages are not articles: oEmbed answers a profile
+	// URL with a 404 or an empty "Posts by <handle>" timeline stub, never
+	// readable content. Tweet permalinks must still surface.
+	/^https?:\/\/(?:(?:www|mobile)\.)?(?:twitter|x)\.com\/[a-z0-9_]{1,15}\/?(?:[?#]|$)/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

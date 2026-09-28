@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, renderInFlightDots } from "@packages/web-shell";
+import { render, renderAlert, renderInFlightDots } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { GMAIL_PAGE_STYLES } from "./gmail.styles";
@@ -63,6 +63,11 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 		content: {
 			html: render(GMAIL_TEMPLATE, {
 				...vm,
+				alertsHtml: vm.alerts.map(({ key, message }) => renderAlert({ key, content: { variant: "error", message: { text: message } } })).join(""),
+				noticesHtml: vm.notices.map(({ key, message, variant }) => renderAlert({ key, content: { variant, message: { text: message } } })).join(""),
+				filterMessageHtml: vm.filter.presentation === "alert"
+					? renderAlert({ key: "gmail-filter", content: { variant: "error", message: { text: vm.filter.message } } })
+					: render('<p class="gmail__step-copy" role="status" data-test-gmail-filter-message>{{message}}</p>', { message: vm.filter.message }),
 				settingsShot: SETTINGS_SHOT,
 				forwardingShot: FORWARDING_SHOT,
 				pollLine:

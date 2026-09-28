@@ -299,7 +299,7 @@ test.describe("Light-pinned interaction states hold their WCAG contrast", () => 
 			waitUntil: "domcontentloaded",
 		});
 		const client = await auditContext(page);
-		await stamp(page, { selector: "[data-test-import-error]", auditId: "import-error" });
+		await stamp(page, { selector: '[data-test-alert="import"] [data-test-alert-message]', auditId: "import-error" });
 
 		const ink = await measure(page, client, "import-error", []);
 		for (const lens of Object.values(LENSES)) {

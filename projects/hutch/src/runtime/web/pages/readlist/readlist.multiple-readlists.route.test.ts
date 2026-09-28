@@ -227,9 +227,12 @@ describe("POST /queue/queues", () => {
 
 		expect(response.headers.location).toContain("queue_error=limit");
 		const doc = parse((await agent.get(response.headers.location)).text);
-		const flash = doc.querySelector("[data-test-readlist-error]");
+		const flash = doc.querySelector('[data-test-alert="readlist"]');
 		assert(flash, "the cap must be explained where the reader pressed the control");
-		expect(flash.querySelector("[data-test-readlist-error-title]")?.textContent).toBe(
+		expect(flash.classList.contains("alert--visible")).toBe(true);
+		expect(flash.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(flash.getAttribute("role")).toBe("alert");
+		expect(flash.querySelector("[data-test-alert-title]")?.textContent).toBe(
 			"Readlist limit reached",
 		);
 		expect(flash.textContent).toContain(
