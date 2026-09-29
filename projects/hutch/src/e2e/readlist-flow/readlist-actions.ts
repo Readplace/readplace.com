@@ -121,7 +121,9 @@ export function createReadlistActions(
 		},
 		execute: async (page) => {
 			const url = TEST_URLS[i]
-			const saved = await submitAndVerifySave(page, url, `readlist-flow-${i + 1}`)
+			const identifier = new URL(url).pathname.split('/').pop()
+			assert.ok(identifier, `article URL must have a trailing path segment: ${url}`)
+			const saved = await submitAndVerifySave(page, url, identifier)
 			assert.ok(saved, `article save did not land for ${url} after 3 attempts`)
 			articlesAdded = i + 1
 			if (articlesAdded === TEST_URLS.length) {
