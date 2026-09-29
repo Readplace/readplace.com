@@ -162,7 +162,7 @@ describe("Readlist nav", () => {
 
 			const doc = parse((await agent.get("/queue?queue=default&tab=done")).text);
 
-			const active = Array.from(doc.querySelectorAll(".readlist-tabs__link--active")).map((el) =>
+			const active = Array.from(doc.querySelectorAll('[data-test-filters] [aria-current="page"]')).map((el) =>
 				el.getAttribute("data-test-filter"),
 			);
 			expect(active).toEqual(["read"]);

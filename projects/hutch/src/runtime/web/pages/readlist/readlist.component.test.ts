@@ -153,7 +153,7 @@ describe("ReadlistPage", () => {
 		const tabs = doc.querySelector("[data-test-filters]");
 		assert(tabs, "the design page must render its tab strip");
 		expect(tabs.getAttribute("hx-indicator")).toBe(
-			"closest .readlist-tabs, closest .readlist-tabs__link, .readlist-listing",
+			"closest .underline-tabs, closest .underline-tabs__tab, .readlist-listing",
 		);
 	});
 
@@ -249,7 +249,7 @@ describe("ReadlistPage", () => {
 	it("labels the To Read tab with the count the shell already knows, without waiting for the counts fragment", () => {
 		const doc = pageDoc({}, { knownUnreadCount: 5 });
 
-		const unread = doc.querySelector('[data-test-filter="unread"] .readlist-tabs__label');
+		const unread = doc.querySelector('[data-test-filter="unread"] .underline-tabs__label');
 		assert(unread, "the To Read tab's label must render");
 		expect(unread.textContent).toBe("To Read (5)");
 	});

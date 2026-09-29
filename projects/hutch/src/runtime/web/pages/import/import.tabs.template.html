@@ -1,8 +1,8 @@
-<nav class="import__tabs" aria-label="Import source" data-test-import-tabs>
+<nav class="underline-tabs import__tabs" aria-label="Import source" data-test-import-tabs>
           {{#each tabs}}
-          <a class="{{cssClass}}"
+          <a class="underline-tabs__tab"
             href="{{href}}"
             aria-current="{{ariaCurrent}}"
-            data-test-import-tab="{{key}}">{{label}}</a>
+            data-test-import-tab="{{key}}"><span class="underline-tabs__label" data-widest="{{label}}"><span>{{label}}</span></span></a>
           {{/each}}
         </nav>

@@ -52,6 +52,15 @@ describe("Import routes", () => {
 				(el) => el.getAttribute("data-test-import-tab"),
 			);
 			expect(tabKeys).toEqual(["from-url", "upload"]);
+			const openTabKeys = Array.from(doc.querySelectorAll('[data-test-import-tab][aria-current="page"]')).map(
+				(el) => el.getAttribute("data-test-import-tab"),
+			);
+			expect(openTabKeys).toEqual(["from-url"]);
+			const strip = doc.querySelector("[data-test-import-tabs]");
+			assert(strip, "import tab strip must render");
+			const tabCount = strip.querySelectorAll(".underline-tabs__tab").length;
+			expect(tabCount).toBe(2);
+			expect(strip.querySelectorAll(".underline-tabs__label[data-widest]").length).toBe(tabCount);
 		});
 
 		it("renders the from-url form by default at /import", async () => {
@@ -101,6 +110,10 @@ describe("Import routes", () => {
 				(el) => el.getAttribute("data-test-import-tab"),
 			);
 			expect(tabKeys).toEqual(["from-url", "upload"]);
+			const openTabKeys = Array.from(doc.querySelectorAll('[data-test-import-tab][aria-current="page"]')).map(
+				(el) => el.getAttribute("data-test-import-tab"),
+			);
+			expect(openTabKeys).toEqual(["upload"]);
 			const formIds = Array.from(doc.querySelectorAll("[data-test-form]")).map(
 				(el) => el.getAttribute("data-test-form"),
 			);

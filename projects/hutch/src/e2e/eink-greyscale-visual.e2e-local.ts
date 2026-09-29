@@ -25,6 +25,7 @@ const CONTRAST_SENSITIVE = {
 
 const READER_ROOT = "main.reader";
 const READLIST_LIST = "[data-test-article-list]";
+const READLIST_TABS = "[data-test-filters]";
 const THUMBNAIL_URL = "https://cdn.example.com/eink-greyscale-thumbnail.svg";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
@@ -211,6 +212,15 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 			await expect(page.locator(READLIST_LIST)).toHaveScreenshot(
 				`eink-readlist-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+
+			await expect(page.locator('[data-test-filter="unread"]')).toHaveText(
+				`To Read (${READLIST_ARTICLES.length + 1})`,
+			);
+			await settle(page, READLIST_TABS);
+			await expect(page.locator(READLIST_TABS)).toHaveScreenshot(
+				`eink-readlist-tabs-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

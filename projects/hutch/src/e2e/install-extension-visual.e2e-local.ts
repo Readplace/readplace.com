@@ -45,7 +45,7 @@ async function openBrowserPanel(page: Page, client: string): Promise<void> {
 	await serveStaticAssets(page);
 	await page.goto(`${BASE_URL}/install?client=${client}`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-install");
-	await page.waitForSelector(`[data-test-tab="${client}"].install-page__tab--active`);
+	await page.waitForSelector(`[data-test-tab="${client}"][aria-current="page"]`);
 	await waitForBrandFonts(page, ["Inter"]);
 }
 

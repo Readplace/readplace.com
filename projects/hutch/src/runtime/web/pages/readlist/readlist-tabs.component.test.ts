@@ -2,11 +2,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
 import { READLIST_TABS } from "./readlist.tabs";
-import {
-	buildReadlistTabs,
-	readlistTabLinkClass,
-	renderReadlistTabs,
-} from "./readlist-tabs.component";
+import { buildReadlistTabs, renderReadlistTabs } from "./readlist-tabs.component";
 
 const WORK: ReadlistSlug = ReadlistSlugSchema.parse("work");
 
@@ -33,6 +29,12 @@ function tabKeys(doc: Document): (string | null)[] {
 	);
 }
 
+function currentTabKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll('[data-test-filter][aria-current="page"]'), (tab) =>
+		tab.getAttribute("data-test-filter"),
+	);
+}
+
 function tabLink(doc: Document, testFilter: string): Element {
 	const link = doc.querySelector(`[data-test-filter="${testFilter}"]`);
 	assert(link, `the ${testFilter} tab must be rendered`);
@@ -43,18 +45,6 @@ function hrefParts(link: Element): { path: string; params: URLSearchParams } {
 	const url = new URL(link.getAttribute("href") ?? "", "https://internal.invalid");
 	return { path: url.pathname, params: url.searchParams };
 }
-
-describe("readlistTabLinkClass", () => {
-	it("marks the tab being viewed", () => {
-		expect(readlistTabLinkClass(true)).toBe(
-			"readlist-tabs__link readlist-tabs__link--active",
-		);
-	});
-
-	it("leaves every other tab unmarked", () => {
-		expect(readlistTabLinkClass(false)).toBe("readlist-tabs__link");
-	});
-});
 
 describe("buildReadlistTabs", () => {
 	it("renders one link per registered tab, in registry order", () => {
@@ -70,13 +60,31 @@ describe("buildReadlistTabs", () => {
 		expect(tabLink(doc, "read").textContent).toBe("Read");
 	});
 
-	it("marks only the tab being viewed as active", () => {
-		const doc = renderTabs({ activeTab: "done" });
+	it("marks only the tab being viewed as the current page", () => {
+		expect(currentTabKeys(renderTabs({ activeTab: "queue" }))).toEqual(["unread"]);
+		expect(currentTabKeys(renderTabs({ activeTab: "done" }))).toEqual(["read"]);
+	});
 
-		const active = Array.from(doc.querySelectorAll(".readlist-tabs__link--active"), (tab) =>
+	it("renders every tab as an underline tab", () => {
+		const doc = renderTabs({ activeTab: "queue", readlist: WORK, preferencesEnabled: true });
+
+		const classes = Array.from(doc.querySelectorAll("[data-test-filter]"), (tab) => [
 			tab.getAttribute("data-test-filter"),
+			tab.classList.contains("underline-tabs__tab"),
+		]);
+		expect(classes).toEqual([
+			["unread", true],
+			["read", true],
+			["preferences", true],
+		]);
+	});
+
+	it("gives every underline tab a reserved label", () => {
+		const doc = renderTabs({ activeTab: "queue", readlist: WORK, preferencesEnabled: true });
+
+		expect(doc.querySelectorAll(".underline-tabs__label[data-widest]")).toHaveLength(
+			doc.querySelectorAll(".underline-tabs__tab").length,
 		);
-		expect(active).toEqual(["read"]);
 	});
 
 	it("announces the tab being viewed as the current page", () => {
@@ -119,6 +127,7 @@ describe("buildReadlistTabs", () => {
 		});
 
 		expect(tabKeys(doc)).toEqual(["unread", "read", "preferences"]);
+		expect(currentTabKeys(doc)).toEqual(["preferences"]);
 		const preferences = tabLink(doc, "preferences");
 		expect(preferences.getAttribute("aria-current")).toBe("page");
 		expect(hrefParts(preferences).path).toBe("/queue/queues/work/preferences");
@@ -193,7 +202,7 @@ describe("buildReadlistTabs", () => {
 		expect(nav.getAttribute("hx-boost")).toBe("true");
 		expect(nav.getAttribute("hx-target")).toBe("main");
 		expect(nav.getAttribute("hx-indicator")).toBe(
-			"closest .readlist-tabs, closest .readlist-tabs__link, .readlist-listing",
+			"closest .underline-tabs, closest .underline-tabs__tab, .readlist-listing",
 		);
 	});
 });

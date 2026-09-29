@@ -190,17 +190,28 @@ describe("GET /install", () => {
 		expect(doc.querySelector('[data-test-tab="iphone"]')?.textContent).toBe("iPhone");
 	});
 
+	it("should reserve the open weight on every tab label so opening a tab never shifts the strip", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=chrome");
+		const doc = load(response.text);
+
+		const tabCount = doc.querySelectorAll(".underline-tabs__tab").length;
+		expect(tabCount).toBeGreaterThan(0);
+		expect(doc.querySelectorAll(".underline-tabs__label[data-widest]").length).toBe(tabCount);
+	});
+
 	it("should select the Chrome tab and browser panel when client=chrome", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(true);
 		expect(chromeTab?.getAttribute("aria-current")).toBe("page");
 
-		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
-		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(false);
+		const openTabs = Array.from(doc.querySelectorAll('.underline-tabs__tab[aria-current="page"]')).map(
+			(el) => el.getAttribute("data-test-tab"),
+		);
+		expect(openTabs).toEqual(["chrome"]);
 
 		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
 			(el) => el.getAttribute("data-test-panel"),
@@ -224,7 +235,6 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
-		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(true);
 		expect(firefoxTab?.getAttribute("aria-current")).toBe("page");
 
 		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
@@ -242,10 +252,12 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(true);
+		expect(chromeTab?.getAttribute("aria-current")).toBe("page");
 
-		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
-		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(false);
+		const openTabs = Array.from(doc.querySelectorAll('.underline-tabs__tab[aria-current="page"]')).map(
+			(el) => el.getAttribute("data-test-tab"),
+		);
+		expect(openTabs).toEqual(["chrome"]);
 
 		const cta = doc.querySelector('[data-test-cta="download-chrome"]');
 		expect(cta?.getAttribute("href")).toBe(
@@ -343,7 +355,6 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
-		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(true);
 		expect(iphoneTab?.getAttribute("aria-current")).toBe("page");
 
 		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
@@ -430,7 +441,6 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const claudeTab = doc.querySelector('[data-test-tab="claude"]');
-		expect(claudeTab?.classList.contains("install-page__tab--active")).toBe(true);
 		expect(claudeTab?.getAttribute("aria-current")).toBe("page");
 
 		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
@@ -550,7 +560,7 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const chatgptTab = doc.querySelector('[data-test-tab="chatgpt"]');
-		expect(chatgptTab?.classList.contains("install-page__tab--active")).toBe(true);
+		expect(chatgptTab?.getAttribute("aria-current")).toBe("page");
 
 		expect(doc.querySelector('[data-test-panel="ai"] .install-page__panel-title')?.textContent).toBe(
 			"Connect Readplace to ChatGPT",
@@ -608,7 +618,7 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const geminiTab = doc.querySelector('[data-test-tab="gemini"]');
-		expect(geminiTab?.classList.contains("install-page__tab--active")).toBe(true);
+		expect(geminiTab?.getAttribute("aria-current")).toBe("page");
 
 		expect(doc.querySelector('[data-test-panel="ai"] .install-page__panel-title')?.textContent).toBe(
 			"Connect Readplace to Gemini",
@@ -627,7 +637,7 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const claudeTab = doc.querySelector('[data-test-tab="claude"]');
-		expect(claudeTab?.classList.contains("install-page__tab--active")).toBe(true);
+		expect(claudeTab?.getAttribute("aria-current")).toBe("page");
 
 		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
 			(el) => el.getAttribute("data-test-panel"),
@@ -890,7 +900,7 @@ describe("GET /install client detection", () => {
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
 		assert(chromeTab, "the chrome tab must render for a crawler");
 		expect(response.status).toBe(200);
-		expect(chromeTab.classList.contains("install-page__tab--active")).toBe(true);
+		expect(chromeTab.getAttribute("aria-current")).toBe("page");
 	});
 
 	it("keeps serving markdown to an agent that asked for it, because a redirect ahead of negotiation would break every MCP client", async () => {
@@ -914,7 +924,7 @@ describe("GET /install client detection", () => {
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
 		assert(chromeTab, "the chrome tab must render");
 		expect(response.status).toBe(200);
-		expect(chromeTab.classList.contains("install-page__tab--active")).toBe(true);
+		expect(chromeTab.getAttribute("aria-current")).toBe("page");
 	});
 
 	it("still rejects an unknown client, because detection must not turn a 400 into a redirect", async () => {

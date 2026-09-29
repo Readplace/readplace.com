@@ -316,65 +316,6 @@
   color: var(--muted-foreground);
 }
 
-.readlist-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.readlist-tabs__link {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 10px 16px;
-  margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--muted-foreground);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.readlist-tabs__label {
-  display: grid;
-}
-
-.readlist-tabs__label > span,
-.readlist-tabs__label::after {
-  grid-area: 1 / 1;
-}
-
-.readlist-tabs__label::after {
-  content: attr(data-widest);
-  font-weight: 600;
-  visibility: hidden;
-}
-
-.readlist-tabs__link:hover {
-  color: var(--foreground);
-}
-
-.readlist-tabs__link--active {
-  color: var(--foreground);
-  font-weight: 600;
-  border-bottom-color: var(--foreground);
-}
-
-.readlist-tabs.htmx-request .readlist-tabs__link--active {
-  color: var(--muted-foreground);
-  font-weight: 500;
-  border-bottom-color: var(--muted-foreground);
-}
-
-.readlist-tabs.htmx-request .readlist-tabs__link.htmx-request {
-  color: var(--foreground);
-  font-weight: 600;
-  border-bottom-color: var(--foreground);
-}
-
 .readlist-listing {
   background: var(--card);
   border: 1px solid var(--border);

@@ -143,6 +143,20 @@ function edgeShortfall(input: { edge: Rgb; against: Neighbour; lens: Lens; view:
 	return `${view}: focus edge rgb(${edge.red},${edge.green},${edge.blue}) is ${edgeContrast(input).toFixed(2)}:1 against the ${against.name} < ${NON_TEXT_MINIMUM}:1`;
 }
 
+function underlineEdge(ink: InteractionInk): InteractionInk["borders"][number] {
+	const [, , bottom] = ink.borders;
+	assert.equal(bottom.style, "solid", `${ink.name} must draw its underline as a solid bottom border`);
+	assert.equal(bottom.width, 2, `${ink.name} must draw a 2px underline`);
+	return bottom;
+}
+
+function underlineShortfall(input: { ink: InteractionInk; lens: Lens; view: string }): string {
+	const { ink, lens, view } = input;
+	const edge = underlineEdge(ink).colour;
+	const contrast = contrastRatio({ ink: lens(edge), surface: lens(ink.surface) });
+	return `${view}: ${ink.name} underline rgb(${edge.red},${edge.green},${edge.blue}) is ${contrast.toFixed(2)}:1 against the canvas < ${NON_TEXT_MINIMUM}:1`;
+}
+
 function placeholderContrast(ink: PlaceholderInk, lens: Lens): number {
 	return contrastRatio({ ink: lens(ink.placeholder), surface: lens(ink.fill) });
 }
@@ -252,7 +266,7 @@ test.describe("Light-pinned interaction states hold their WCAG contrast", () => 
 	test("the selected install tab keeps its ink under hover", async ({ page }) => {
 		await page.goto(`${BASE_URL}/install?client=chrome`, { waitUntil: "domcontentloaded" });
 		const client = await auditContext(page);
-		await stamp(page, { selector: '[data-test-tab="chrome"].install-page__tab--active', auditId: "install-tab" });
+		await stamp(page, { selector: '[data-test-tab="chrome"][aria-current="page"]', auditId: "install-tab" });
 
 		const rest = await measure(page, client, "install-tab", []);
 		const hover = await measure(page, client, "install-tab", ["hover"]);
@@ -272,7 +286,7 @@ test.describe("Light-pinned interaction states hold their WCAG contrast", () => 
 	test("the selected import tab keeps its ink under hover", async ({ page }) => {
 		await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
 		const client = await auditContext(page);
-		await stamp(page, { selector: '[data-test-import-tab="from-url"].import__tab--active', auditId: "import-tab" });
+		await stamp(page, { selector: '[data-test-import-tab="from-url"][aria-current="page"]', auditId: "import-tab" });
 
 		const rest = await measure(page, client, "import-tab", []);
 		const hover = await measure(page, client, "import-tab", ["hover"]);
@@ -285,6 +299,21 @@ test.describe("Light-pinned interaction states hold their WCAG contrast", () => 
 			assert.ok(
 				labelContrast(rest, lens) >= textMinimum(rest),
 				labelShortfall(rest, lens, "import/from-url-tab"),
+			);
+		}
+	});
+
+	test("an inactive import tab previews its underline on hover", async ({ page }) => {
+		await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+		const client = await auditContext(page);
+		await stamp(page, { selector: '[data-test-import-tab="upload"]', auditId: "import-inactive-tab" });
+
+		const hover = await measure(page, client, "import-inactive-tab", ["hover"]);
+		const underline = underlineEdge(hover).colour;
+		for (const [lensName, lens] of Object.entries(LENSES)) {
+			assert.ok(
+				contrastRatio({ ink: lens(underline), surface: lens(hover.surface) }) >= NON_TEXT_MINIMUM,
+				underlineShortfall({ ink: hover, lens, view: `import/upload-tab:hover/${lensName}` }),
 			);
 		}
 	});

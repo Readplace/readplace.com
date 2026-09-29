@@ -15,7 +15,6 @@ const TABS_SOURCE = "queue-filters";
 export type ReadlistTabSelection = TabId | "preferences";
 
 export interface ReadlistTab {
-	linkClass: string;
 	href: string;
 	label: string;
 	testFilter: string;
@@ -26,10 +25,6 @@ export interface ReadlistTab {
 
 export interface ReadlistTabsDisplayModel {
 	tabs: readonly ReadlistTab[];
-}
-
-export function readlistTabLinkClass(isActive: boolean): string {
-	return `readlist-tabs__link${isActive ? " readlist-tabs__link--active" : ""}`;
 }
 
 const PREFERENCES_TAB = {
@@ -48,7 +43,6 @@ function preferencesTabs(input: {
 	const isActive = input.activeTab === "preferences";
 	return [
 		{
-			linkClass: readlistTabLinkClass(isActive),
 			href: withInternalTracking(preferencesUrl({ slug: input.readlist, enabled: true }), {
 				source: TABS_SOURCE,
 				content: PREFERENCES_TAB.trackingContent,
@@ -71,7 +65,6 @@ export function buildReadlistTabs(input: {
 	return {
 		tabs: [
 			...READLIST_TABS.map((tab) => ({
-				linkClass: readlistTabLinkClass(tab.id === input.activeTab),
 				href: withInternalTracking(
 					buildReadlistUrl(
 						{ readlist: input.readlist, tab: tab.id, order: input.order },

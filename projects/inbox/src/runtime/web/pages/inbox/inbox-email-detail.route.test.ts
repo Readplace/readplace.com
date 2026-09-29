@@ -264,6 +264,15 @@ describe("Inbox email detail View tab", () => {
 		expect(articlesTab.querySelector("[data-widest]")?.getAttribute("data-widest")).toBe(
 			"Extracted Articles (99+)",
 		);
+		const tabStrip = doc.querySelector("[data-test-inbox-tabs]");
+		assert(tabStrip, "Tab strip must render");
+		const underlineTabs = Array.from(tabStrip.querySelectorAll(".underline-tabs__tab")).map((tab) =>
+			tab.getAttribute("data-test-inbox-tab"),
+		);
+		expect(underlineTabs).toEqual(["view", "articles", "excluded"]);
+		expect(tabStrip.querySelectorAll(".underline-tabs__label[data-widest]").length).toBe(
+			underlineTabs.length,
+		);
 		expect(renderedPanels(doc)).toEqual(["view"]);
 		expect(doc.querySelector("[data-test-inbox-detail-sender]")?.getAttribute("title")).toBe(
 			"news@example.com",

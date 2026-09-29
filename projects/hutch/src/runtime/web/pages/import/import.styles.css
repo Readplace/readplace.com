@@ -42,40 +42,6 @@
   padding: 20px 24px;
 }
 
-/* ---------- Acquisition tabs ---------- */
-
-.import__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.import__tab {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 10px 16px;
-  margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--muted-foreground);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.import__tab:hover {
-  color: var(--foreground);
-}
-
-.import__tab--active {
-  color: var(--foreground);
-  font-weight: 600;
-  border-bottom-color: var(--foreground);
-}
-
 /* ---------- From-URL panel ---------- */
 
 .import__from-url-form {

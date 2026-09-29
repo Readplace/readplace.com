@@ -368,11 +368,11 @@ test.describe("The readlist status tabs", () => {
 		await page.route("**/queue/counts*", (route) => route.abort());
 
 		await page.locator(READ_TAB).click();
-		await expect(page.locator(READ_TAB)).toHaveClass(/readlist-tabs__link--active/);
+		await expect(page.locator(READ_TAB)).toHaveAttribute("aria-current", "page");
 		await expect(page.locator(UNREAD_TAB)).toHaveText(`To Read (${SEEDED_ARTICLES.length})`);
 
 		await page.locator(UNREAD_TAB).click();
-		await expect(page.locator(UNREAD_TAB)).toHaveClass(/readlist-tabs__link--active/);
+		await expect(page.locator(UNREAD_TAB)).toHaveAttribute("aria-current", "page");
 		await expect(page.locator(UNREAD_TAB)).toHaveText(`To Read (${SEEDED_ARTICLES.length})`);
 	});
 

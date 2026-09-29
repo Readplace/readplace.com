@@ -60,13 +60,6 @@
   color: var(--muted-foreground);
 }
 
-.install-page__group-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 4px;
-  border-bottom: 1px solid var(--border);
-}
-
 .install-page__group:not(:last-child) .install-page__group-tabs {
   padding-inline-end: 24px;
 }
@@ -75,32 +68,6 @@
   .install-page__group:not(:last-child) .install-page__group-tabs {
     padding-inline-end: 0;
   }
-}
-
-.install-page__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 10px 12px;
-  margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  font-size: var(--text-md);
-  font-weight: 500;
-  text-decoration: none;
-  white-space: nowrap;
-  color: var(--muted-foreground);
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.install-page__tab:hover {
-  color: var(--foreground);
-}
-
-.install-page__tab--active {
-  color: var(--foreground);
-  font-weight: 600;
-  border-bottom-color: var(--foreground);
 }
 
 .install-page__tab-icon {

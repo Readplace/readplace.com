@@ -82,6 +82,7 @@ export {
 	renderInFlightDots,
 } from "./shared/in-flight-dots/in-flight-dots.component";
 export { MENU_STYLES } from "./shared/menu/menu.styles";
+export { UNDERLINE_TABS_STYLES } from "./shared/underline-tabs/underline-tabs.styles";
 export { renderIllustration } from "./shared/illustrations/illustrations";
 export type { IllustrationName } from "./shared/illustrations/illustrations";
 export { renderToast } from "./shared/toast/toast.component";

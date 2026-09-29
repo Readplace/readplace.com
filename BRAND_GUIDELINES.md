@@ -347,7 +347,7 @@ Sizes come by role, not by importance:
 
 The kit's XL (56px) is not built: no screen draws it, and unused CSS fails the purge check. `.btn--field`, `.btn--compact` and `.btn--toggle` are retired.
 
-**Tap-target floor is tiered.** Every `.btn` has a ≥44px hit area: L is 48px tall, and M and S stretch a transparent `::before` above and below the box, so the button stays visually small while its target does not. A tab, navigation row and menu item are ≥44px tall. A compact control *inside a list* (an overflow toggle, a page number, Previous/Next) is ≥36px square — the one relaxation of the 44px floor, and it still clears WCAG 2.5.8's 24px. A dialog or banner close is the `x` icon in a ≥44px hit box. Nothing interactive is smaller on any viewport.
+**Tap-target floor is tiered.** Every `.btn` has a ≥44px hit area: L is 48px tall, and M and S stretch a transparent `::before` above and below the box, so the button stays visually small while its target does not. A tab's 40px box reaches 44px through its `::before` hit area, as the M button does; a navigation row and menu item are ≥44px tall. A compact control *inside a list* (an overflow toggle, a page number, Previous/Next) is ≥36px square — the one relaxation of the 44px floor, and it still clears WCAG 2.5.8's 24px. A dialog or banner close is the `x` icon in a ≥44px hit box. Nothing interactive is smaller on any viewport.
 
 #### Hover and active
 
@@ -449,7 +449,14 @@ An empty list keeps its frame: the list card and header stay, the count reads ze
 
 ### Tabs
 
-Tabs that switch between views of the same content are **underline tabs** — never pills, boxed segments or filled chips. The strip is a row of links on a 1px `--border` baseline spanning the content column, above the card it controls, never inside it. Each tab is ≥44px tall, 15px/500, `--muted-foreground` → `--foreground` on hover. The open tab is `--foreground`/600 with a 2px `--foreground` underline laid over the baseline (`margin-bottom: -1px`) and `aria-current="page"`. **The underline is neutral ink, never amber** — amber marks the selected row of a navigation rail, not a selected filter. The strip wraps at narrow widths rather than scrolling sideways.
+> **Component:** the shared tab strip in `@packages/web-shell` (`UNDERLINE_TABS_STYLES`). The values below belong in that module, never in a page stylesheet.
+
+Tabs that switch between views of the same content are **underline tabs** — never pills, boxed segments or filled chips. The strip is a row of links on a 1px `--border` baseline spanning the content column, above the card it controls, never inside it.
+
+- **Box.** A tab is 40px tall: a 16px label on a 22px line at the top, 16px below it, then a 2px underline slot sitting on the baseline. A transparent `::before` stretches its hit area to 44px, as the M button's does. Side padding is 24px.
+- **States.** An inactive tab is 400 in `--ink-tab-inactive`; hover previews the underline in `--muted-foreground`. The open tab carries `aria-current="page"`, and that attribute styles it: 600 `--foreground` with a 2px `--foreground` underline. **The underline is neutral ink, never amber** — amber marks the selected row of a navigation rail, not a selected filter.
+- **Dense.** `underline-tabs--dense` narrows the side padding to 12px. Only `/install` uses it, so its two labelled groups of icon tabs share one row at desktop.
+- **Phone.** At `max-width: 600px` the tabs split the strip's width equally with 12px side padding. The strip wraps onto another row rather than truncating a label or scrolling sideways.
 
 A tab may carry a count as `Label (N)` (`formatTabCountLabel`), capped at `99+`, `(0)` when there are none, the bare label while the count is unknown. Show a count only where it helps the reader choose the tab, and reserve the width of its widest form so a late count doesn't move the row.
 
@@ -506,7 +513,7 @@ A toast holds at most one action, **Undo**, as a `neutral` M button inside the s
 
 ### Loading States
 
-- **Pending swap.** A tab press that replaces a list responds on the press, not the response: the pressed tab takes the open look at once, the previously open tab drops to `--muted-foreground`, and the region being replaced dims to `opacity: 0.55` with `cursor: progress` until the new content lands. Dimming a region *about to be replaced* is the one sanctioned opacity fade on live content — never on a single filled button.
+- **Pending swap.** A tab press that replaces a list responds on the press, not the response: the pressed tab takes the open look at once, the previously open tab drops to its rest look (400, no underline), and the region being replaced dims to `opacity: 0.55` with `cursor: progress` until the new content lands. Dimming a region *about to be replaced* is the one sanctioned opacity fade on live content — never on a single filled button.
 - **Processing row.** An item still being processed stays in the list, in place, its metadata replaced by a "Processing" line (`loader` spinning in `--primary-text` beside 13px `--muted-foreground` text); its state action is disabled, delete stays available. If it runs long, say so plainly and offer the source ("Taking a while — open on example.com").
 - **Skeleton row.** When the reader creates an item, a skeleton row stands in where it will land, from the press until the page answers: tinted `--secondary`, bars in `currentColor` at 25% opacity with `--radius-sm` corners, a "Saving…" status led by a pulsing `--primary-text` dot. It matches the height of the row that lands, so the swap doesn't jump.
 
@@ -615,7 +622,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 
   | Name | Query | What changes |
   |---|---|---|
-  | Phone | `max-width: 600px` | Last tightening step: a dense panel's padding may drop 24 → 20px; optional decoration hides |
+  | Phone | `max-width: 600px` | Last tightening step: a dense panel's padding may drop 24 → 20px; tab strips split the width equally; optional decoration hides |
   | Tablet | `min-width: 768px` (inverse `max-width: 767px`) | Header nav bar replaces the drawer; `--form-gap` 20 → 24px; dialog padding 24 → 32px; `--page-gutter`, `--page-top` and `--header-inset` 20 → 24px; announcement bars leave the phone gutter |
   | Columns | `min-width: 1024px` (inverse `max-width: 1023px`) | App pages go one column → rail / main / side; a rail may stick; the page's bottom padding 64 → 80px |
   | Frame | `min-width: 1200px` | The design's full grid applies; `--page-gutter`, `--header-inset` and `--column-gap` step to 48px and `--page-top` and `--stack-gap` to 32px; the header centres the library nav |

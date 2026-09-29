@@ -217,8 +217,8 @@ describe("Readlist routes", () => {
 
 				const targets = inFlightTargets(doc, tab);
 				expect(targets.map((el) => el.classList[0])).toEqual([
-					"readlist-tabs",
-					"readlist-tabs__link",
+					"underline-tabs",
+					"underline-tabs__tab",
 					"readlist-listing",
 				]);
 				expect(targets[1]).toBe(tab);
@@ -248,7 +248,7 @@ describe("Readlist routes", () => {
 					{
 						surface: "Article filters",
 						targets:
-							"closest .readlist-tabs, closest .readlist-tabs__link, .readlist-listing",
+							"closest .underline-tabs, closest .underline-tabs__tab, .readlist-listing",
 					},
 				]);
 			}

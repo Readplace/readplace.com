@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONFIRM_POPOVER_STYLES, render, renderAlert } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render, renderAlert, UNDERLINE_TABS_STYLES } from "@packages/web-shell";
 import type { CspNonce, PageBody } from "@packages/web-shell";
 
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
@@ -16,7 +16,6 @@ interface RenderedTab {
 	readonly key: ImportTabViewModel["key"];
 	readonly label: string;
 	readonly href: string;
-	readonly cssClass: "import__tab import__tab--active" | "import__tab";
 	readonly ariaCurrent: "page" | "false";
 }
 
@@ -25,7 +24,6 @@ function renderTab(tab: ImportTabViewModel): RenderedTab {
 		key: tab.key,
 		label: tab.label,
 		href: tab.href,
-		cssClass: tab.isActive ? "import__tab import__tab--active" : "import__tab",
 		ariaCurrent: tab.isActive ? "page" : "false",
 	};
 }
@@ -236,7 +234,7 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 				},
 			],
 		},
-		styles: `${IMPORT_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
+		styles: `${IMPORT_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${UNDERLINE_TABS_STYLES}`,
 		bodyClass: "page-import",
 		content: { html: content },
 		scripts: `${panel.scripts(options.cspNonce)}${SAVE_TIP_SCRIPT}`,

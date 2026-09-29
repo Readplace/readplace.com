@@ -23,7 +23,7 @@ const DESKTOP = { width: 1280, height: 900 };
 async function openChatGptPanel(page: Page): Promise<void> {
 	await page.goto(`${BASE_URL}/install?client=chatgpt`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-install");
-	await page.waitForSelector('[data-test-tab="chatgpt"].install-page__tab--active');
+	await page.waitForSelector('[data-test-tab="chatgpt"][aria-current="page"]');
 	await waitForBrandFonts(page, ["Inter"]);
 }
 

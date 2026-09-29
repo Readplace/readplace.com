@@ -163,7 +163,6 @@ interface InstallTab {
 	label: string;
 	iconSvg: string;
 	href: string;
-	activeClass: string;
 	ariaCurrent?: "page";
 }
 
@@ -194,7 +193,6 @@ function buildTabGroups(active: ClientName, hiddenTabsRevealed: boolean): Instal
 				source: "install-tabs",
 				content: client.name,
 			}),
-			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
 		});
 	}
