@@ -5,13 +5,13 @@
               {{else}}
               <a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-url>{{url}}</a>
               {{/if}}
-              <details class="inbox-article-card__menu" data-test-inbox-article-menu>
-                <summary class="inbox-article-card__menu-toggle">{{icon "ellipsis"}}<span class="sr-only" data-test-inbox-article-menu-label>More options for {{menuSubject}}</span></summary>
-                <div class="inbox-article-card__menu-panel">
+              <details class="menu inbox-article-card__menu" data-test-inbox-article-menu>
+                <summary class="menu__toggle">{{icon "ellipsis"}}<span class="sr-only" data-test-inbox-article-menu-label>More options for {{menuSubject}}</span></summary>
+                <div class="menu__panel">
                   {{#each menuActions}}
                   <form class="inbox-article-card__menu-form" method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
                     {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
-                    <button type="submit" id="{{buttonId}}" class="inbox-article-card__menu-item" aria-label="{{ariaLabel}}" data-test-card-action="{{key}}">{{icon iconName}}<span>{{label}}</span></button>
+                    <button type="submit" id="{{buttonId}}" class="menu__item" aria-label="{{ariaLabel}}" data-test-card-action="{{key}}">{{icon iconName}}<span>{{label}}</span></button>
                   </form>
                   {{/each}}
                 </div>

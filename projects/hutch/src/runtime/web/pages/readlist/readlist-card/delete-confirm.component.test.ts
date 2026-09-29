@@ -70,13 +70,22 @@ describe("renderDeleteConfirm", () => {
 		const never = doc.querySelector("[data-test-action='delete-confirm-never']");
 		assert(confirm, "the plain confirmation must be rendered");
 		assert(never, "the silencing confirmation must be rendered");
-		expect(confirm.textContent).toBe("Yes, delete it");
-		expect(never.textContent).toBe("Yes, delete it and don't ask again");
+		expect(confirm.textContent).toBe("Delete article");
+		expect(never.textContent).toBe("Delete and don't ask again");
+		expect([...doc.querySelectorAll(".confirm-popover__buttons button")].map((button) => button.getAttribute("data-test-action"))).toEqual(["delete-confirm-never", "delete-confirm"]);
+		expect(confirm.classList.contains("btn--primary")).toBe(true);
+		expect(never.classList.contains("btn--neutral")).toBe(true);
 		// Both submit the same form, so the second deletes as well as remembering.
 		expect(confirm.closest("form")).toBe(never.closest("form"));
 		expect(confirm.hasAttribute("name")).toBe(false);
 		expect(never.getAttribute("name")).toBe("ack");
 		expect(never.getAttribute("value")).toBe(DELETE_ACK_NEVER);
+	});
+
+	it("explains that the article can be saved again", () => {
+		const body = panelFor("/queue/abc123/delete").querySelector(".confirm-popover__body");
+		assert(body, "the delete panel must explain the outcome");
+		expect(body.textContent).toBe("This article will be removed from your readlist. You can save it again later.");
 	});
 
 	it("boosts the confirmation so deleting re-renders the listing in place", () => {

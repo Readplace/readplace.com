@@ -1,17 +1,11 @@
 import { render } from "../../render";
+import type { IconName } from "@packages/ui-icons";
 import { CONFIRM_POPOVER_TEMPLATE } from "./confirm-popover.template";
 
 /** A caller that renders the panel must also ship its stylesheet — a page that
  * takes one without the other gets an unstyled block sitting in the flow — so
  * both leave through this module rather than being two imports to remember. */
 export { CONFIRM_POPOVER_STYLES } from "./confirm-popover.styles";
-
-export interface ConfirmPopoverLead {
-	text: string;
-	/** True when the subject is already on screen behind the panel, so repeating
-	 * it visibly would be noise while a screen reader still needs it named. */
-	screenReaderOnly: boolean;
-}
 
 export interface ConfirmPopover {
 	id: string;
@@ -22,15 +16,13 @@ export interface ConfirmPopover {
 	subject?: string;
 	title: string;
 	body: string;
-	bodyItems?: readonly string[];
-	lead?: ConfirmPopoverLead;
+	bodyItems?: readonly { label: string; icon: IconName }[];
+	lead?: string;
 	openBeaconUrl?: string;
-	dismissBeaconUrl?: string;
+	close?: { beaconUrl?: string };
 	wide?: boolean;
 	illustrationHtml?: string;
-	/** The panel's controls, rendered by the caller: their markup, wording and
-	 * button tier belong to the decision, not to the shell. Must be a single
-	 * `.confirm-popover__actions` element. */
+	/** One .confirm-popover__actions element; forms with only buttons also use .confirm-popover__buttons, with dismiss before commit. */
 	actionsHtml: string;
 }
 
@@ -38,22 +30,12 @@ function describedFields(popover: ConfirmPopover) {
 	const lead = popover.lead;
 	const hasItems = popover.bodyItems !== undefined;
 	return {
-		...(lead === undefined
-			? {}
-			: {
-					lead: {
-						text: lead.text,
-						cssClass: lead.screenReaderOnly ? "sr-only" : "confirm-popover__lead",
-					},
-				}),
+		closeControls: popover.close === undefined ? [] : [{ beaconUrl: popover.close.beaconUrl }],
 		describedBy: [
 			...(lead === undefined ? [] : [`${popover.id}-lead`]),
 			`${popover.id}-body`,
 			...(hasItems ? [`${popover.id}-items`] : []),
 		].join(" "),
-		bodyClass: hasItems
-			? "confirm-popover__body confirm-popover__body--above-list"
-			: "confirm-popover__body",
 	};
 }
 

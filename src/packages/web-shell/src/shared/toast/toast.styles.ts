@@ -1,47 +1,76 @@
 export const TOAST_STYLES = `.toast {
 	position: fixed;
-	left: 50%;
-	bottom: 24px;
-	transform: translateX(-50%);
+	left: var(--page-gutter);
+	right: var(--page-gutter);
+	bottom: var(--page-gutter);
 	z-index: 300;
 	display: flex;
 	align-items: center;
-	gap: 16px;
-	max-width: calc(100vw - 32px);
-	padding: 12px 16px;
+	gap: 12px;
+	padding: 16px;
+	border: 1px solid var(--success);
 	border-radius: var(--radius);
-	background: var(--foreground);
-	color: var(--background);
-	box-shadow: var(--shadow-md);
-	/**
-	* 1. The toast is a fixed overlay anchored to the bottom, so it can land over
-	*    the dark footer (and renders on a dark canvas in dark mode); a faint
-	*    white edge keeps it separated from a dark backdrop.
-	*/
-	border: 1px solid rgba(255, 255, 255, 0.3); /* 1 */
-	font-size: 0.875rem;
+	background: var(--success-bg);
+	color: var(--foreground);
+	box-shadow: var(--shadow-toast);
+	font-size: var(--text-sm);
+	line-height: 1.5;
 	transition: opacity 300ms ease, transform 300ms ease;
 }
 
+.toast:has(.toast__action-form) {
+	padding-block: 8px;
+	padding-inline-end: 8px;
+}
+
+.toast:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+@media (min-width: 768px) {
+	.toast {
+		left: auto;
+		right: var(--header-inset);
+		bottom: var(--header-inset);
+		max-width: 440px;
+	}
+}
+
 /* Added by the global toast script just before removal so the toast fades out
-	instead of vanishing. The transform keeps the translateX centring. */
+	instead of vanishing. */
 .toast--dismissing {
 	opacity: 0;
-	transform: translateX(-50%) translateY(8px);
+	transform: translateY(8px);
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.toast--dismissing {
-		transform: translateX(-50%);
+		transform: none;
 	}
 }
 
+.toast__icon {
+	display: flex;
+	flex: none;
+	color: var(--success);
+}
+
+.toast__icon svg {
+	width: 1.5rem;
+	height: 1.5rem;
+}
+
 .toast__message {
-	font-weight: 500;
+	flex: 1 1 auto;
+	min-width: 0;
+	font-weight: 600;
+	overflow-wrap: anywhere;
 }
 
 .toast__action-form {
-	display: inline;
+	display: flex;
+	flex: none;
 	margin: 0;
 }
 

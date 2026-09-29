@@ -1,4 +1,10 @@
-import { DARK_ONLY_BODY_CLASS, LIGHT_ONLY_BODY_CLASS } from "../../base.styles";
+import {
+	DARK_ONLY_BODY_CLASS,
+	LIGHT_ONLY_BODY_CLASS,
+	SCRIM_BLUR,
+	SCRIM_DARK,
+	SCRIM_LIGHT,
+} from "../../base.styles";
 
 export const CONFIRM_POPOVER_STYLES = `
 /**
@@ -15,12 +21,7 @@ export const CONFIRM_POPOVER_STYLES = `
  *    \`[popover] { margin: auto }\` at any specificity. Without this line the
  *    panel pins to the top-left — and stays visible and clickable, so no
  *    test catches it.
- * 3. No var() inside ::backdrop. It has no parent element, and custom
- *    property inheritance into it shipped later than popover support in
- *    every engine (Chrome 122 vs Chrome 114). Where it does not inherit,
- *    var() is the guaranteed-invalid value, the declaration is dropped, and
- *    the page silently ships no scrim. The literals are the brand neutrals
- *    --color-text-primary (light) and --footer-bg (dark).
+ * 3. Interpolate SCRIM_LIGHT and SCRIM_DARK into ::backdrop. Custom properties did not inherit there in the first engines with popover support, so var() could silently drop the scrim.
  * 4. pointer-events is left at the UA default. \`::backdrop\` carries
  *    \`pointer-events: none !important\` in the UA origin, which no author
  *    declaration can beat; making the scrim hit-testable is impossible,
@@ -31,15 +32,15 @@ export const CONFIRM_POPOVER_STYLES = `
 	position: fixed;
 	inset: 0;
 	margin: auto; /* 2 */
-	width: min(400px, calc(100% - 32px));
+	width: min(600px, calc(100% - 32px));
 	height: fit-content;
 	max-height: calc(100% - 32px);
 	padding: 24px;
 	border: 1px solid var(--border);
-	border-radius: 16px;
+	border-radius: var(--radius-lg);
 	background: var(--card);
 	color: var(--card-foreground);
-	box-shadow: var(--shadow-md);
+	container-type: inline-size;
 	overflow: auto;
 	overscroll-behavior: contain;
 }
@@ -62,17 +63,18 @@ export const CONFIRM_POPOVER_STYLES = `
 }
 
 .confirm-popover::backdrop {
-	background: rgb(26 32 44 / 0.55); /* 3, 4 */
+	background: ${SCRIM_LIGHT}; /* 3, 4 */
+	backdrop-filter: blur(${SCRIM_BLUR});
 }
 
 @media (prefers-color-scheme: dark) {
 	body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover::backdrop {
-		background: rgb(13 13 13 / 0.72); /* 3 */
+		background: ${SCRIM_DARK}; /* 3 */
 	}
 }
 
 body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
-	background: rgb(13 13 13 / 0.72); /* 3 */
+	background: ${SCRIM_DARK}; /* 3 */
 }
 
 .confirm-popover--illustrated {
@@ -82,7 +84,7 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 .confirm-popover__illustration {
 	display: flex;
 	justify-content: center;
-	margin: 0 0 12px;
+	margin: 0 0 20px;
 	color: var(--foreground);
 }
 
@@ -91,7 +93,15 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 8px;
-	margin-bottom: 8px;
+	margin-bottom: 4px;
+}
+
+.confirm-popover__header:has(.confirm-popover__close) {
+	padding-inline-end: 52px;
+}
+
+.confirm-popover--illustrated .confirm-popover__header:has(.confirm-popover__close) {
+	padding-inline: 52px;
 }
 
 /* A modal's title line is UI, so it stays on the body sans even though it is
@@ -99,24 +109,23 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
  * rule cannot silently flip it to the serif stack. */
 .confirm-popover__title {
 	font-family: var(--font-sans);
-	font-size: 1.0625rem;
-	font-weight: 700;
-	line-height: 1.3;
+	font-size: var(--text-lg);
+	font-weight: 600;
+	line-height: 28px;
 	color: var(--foreground);
 	text-wrap: balance;
 }
 
-/* Icon tier padding (--button-padding-xs) with the card's own 44px touch
- * floor; the negative margin pulls the oversized hit box back so the glyph
- * sits on the panel's padding edge. */
 .confirm-popover__close {
-	flex: 0 0 auto;
+	position: absolute;
+	top: 14px;
+	right: 14px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	min-width: 44px;
 	min-height: 44px;
-	margin: -12px -12px 0 0;
+	margin: 0;
 	padding: var(--button-padding-xs);
 	border: none;
 	border-radius: var(--radius-sm);
@@ -132,42 +141,29 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 }
 
 .confirm-popover__close svg {
-	width: 1rem;
-	height: 1rem;
+	width: 1.5rem;
+	height: 1.5rem;
 }
 
 .confirm-popover--illustrated .confirm-popover__header {
 	justify-content: center;
 }
 
-.confirm-popover--illustrated .confirm-popover__close {
-	position: absolute;
-	top: 12px;
-	right: 12px;
-	margin: 0;
-}
-
-.confirm-popover__lead {
-	margin-bottom: 16px;
-	font-size: 0.9375rem;
-	line-height: 1.5;
+.confirm-popover__body {
+	margin-bottom: 24px;
+	font-size: var(--text-sm);
+	line-height: 22px;
 	color: var(--muted-foreground);
 	text-wrap: pretty;
 }
 
-.confirm-popover__body {
-	margin-bottom: 24px;
-	font-size: 0.9375rem;
-	line-height: 1.5;
-	text-wrap: pretty;
+.confirm-popover--illustrated .confirm-popover__body {
+	max-width: 408px;
+	margin-inline: auto;
 }
 
 .confirm-popover__body:empty {
 	display: none;
-}
-
-.confirm-popover__body--above-list {
-	margin-bottom: 8px;
 }
 
 .confirm-popover__items {
@@ -176,15 +172,27 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	list-style: none;
 	border: 1px solid var(--border);
 	border-radius: var(--radius);
-	font-size: 0.9375rem;
-	line-height: 1.5;
+	font-size: var(--text-sm);
+	font-weight: 500;
+	line-height: 22px;
 	text-align: left;
 }
 
 .confirm-popover__item {
-	padding: 12px 14px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 56px;
+	padding: 16px;
 	overflow-wrap: anywhere;
 	text-wrap: pretty;
+}
+
+.confirm-popover__item svg {
+	flex: none;
+	width: 24px;
+	height: 24px;
+	color: var(--foreground);
 }
 
 .confirm-popover__item + .confirm-popover__item {
@@ -197,9 +205,39 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	gap: 12px;
 }
 
+.confirm-popover__buttons {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap-reverse;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.confirm-popover__buttons .btn {
+	padding-inline: 24px;
+}
+
+.confirm-popover--illustrated .confirm-popover__buttons {
+	justify-content: center;
+}
+
+/** 5. The 600px panel leaves 534px after its border and desktop padding; narrower panels stack action buttons so their labels fit. */
+@container (max-width: 533px) {
+	.confirm-popover__buttons {
+		flex-direction: column-reverse;
+		flex-wrap: nowrap;
+		align-items: stretch;
+	}
+}
+
 @media (min-width: 768px) {
 	.confirm-popover {
 		padding: 32px;
+	}
+
+	.confirm-popover__close {
+		top: 22px;
+		right: 22px;
 	}
 }
 `;

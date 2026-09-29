@@ -153,7 +153,7 @@ const UNAVAILABLE_ALERT: AlertCopy = {
 // the queue write happens in a downstream subscriber. Claiming "Saved" would
 // promise a row a reader jumping straight to /queue might not find yet.
 const SAVED_TOAST_MESSAGE = "Adding to your queue…";
-const FEEDBACK_TOAST_MESSAGE = "Thanks — your report was logged.";
+const FEEDBACK_TOAST_MESSAGE = "Thanks — your report was logged";
 
 export interface ArticleShowMore {
 	detailHref: string;

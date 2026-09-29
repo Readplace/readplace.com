@@ -11,6 +11,10 @@ const IPHONE_SAFARI =
 	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 const DESKTOP_CHROME =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+const DESKTOP_FIREFOX =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0";
+const ANDROID_CHROME =
+	"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
 
 function request(input: {
 	userAgent?: string;
@@ -50,6 +54,12 @@ function actionsOf(doc: ReturnType<typeof panelFor>) {
 	return actions;
 }
 
+function panelActionsOf(doc: ReturnType<typeof panelFor>): (string | null)[] {
+	const panel = doc.querySelector("[data-test-confirm-popover='save-tip']");
+	assert(panel, "the save-tip panel must be rendered");
+	return Array.from(panel.querySelectorAll("[data-test-action]"), (control) => control.getAttribute("data-test-action"));
+}
+
 describe("buildSaveTip", () => {
 	it("passes the session's own state through, so the client can tell due from seen", () => {
 		const due = buildSaveTip(request({}), ADVISORY_ARTICLE);
@@ -67,17 +77,18 @@ describe("buildSaveTip", () => {
 		expect(panel.getAttribute("data-test-confirm-subject")).toBe("article");
 	});
 
-	it("acknowledges and closes with no script, since it holds nothing back", () => {
+	it("continues with the URL and closes with no script, since it holds nothing back", () => {
 		const doc = panelFor(request({}));
 
 		expect(actionsOf(doc).getAttribute("data-test-save-tip-mode")).toBe("advisory");
-		const acknowledge = doc.querySelector("[data-test-action='save-tip-acknowledge']");
-		assert(acknowledge, "the advisory panel must offer a way to dismiss it");
-		expect(acknowledge.textContent).toBe("Got it");
-		expect(acknowledge.getAttribute("type")).toBe("button");
-		expect(acknowledge.getAttribute("popovertarget")).toBe("save-tip");
-		expect(acknowledge.getAttribute("popovertargetaction")).toBe("hide");
-		expect(acknowledge.hasAttribute("data-save-tip-proceed")).toBe(false);
+		const proceed = doc.querySelector("[data-test-action='save-tip-continue']");
+		assert(proceed, "the advisory panel must offer a way to continue");
+		expect(proceed.textContent).toBe("Continue with URL");
+		expect(proceed.getAttribute("type")).toBe("button");
+		expect(proceed.getAttribute("popovertarget")).toBe("save-tip");
+		expect(proceed.getAttribute("popovertargetaction")).toBe("hide");
+		expect(proceed.classList.contains("btn--neutral")).toBe(true);
+		expect(proceed.hasAttribute("data-save-tip-proceed")).toBe(false);
 	});
 
 	it("offers a way through where it does hold a link back", () => {
@@ -88,6 +99,7 @@ describe("buildSaveTip", () => {
 		assert(proceed, "the gating panel must offer a way to continue");
 		expect(proceed.textContent).toBe("Save the link anyway");
 		expect(proceed.getAttribute("type")).toBe("button");
+		expect(proceed.classList.contains("btn--neutral")).toBe(true);
 		expect(proceed.hasAttribute("data-save-tip-proceed")).toBe(true);
 	});
 
@@ -96,10 +108,50 @@ describe("buildSaveTip", () => {
 
 		const install = gating.querySelector("[data-test-action='save-tip-install']");
 		assert(install, "a visitor with no client must be offered one either way");
-		expect(install.textContent).toBe("See better ways to save");
+		expect(install.textContent).toBe("Explore saving options");
+		expect(install.classList.contains("btn--primary")).toBe(true);
 		expect(new URL(install.getAttribute("href") ?? "", "https://readplace.com").pathname).toBe(
 			"/install",
 		);
+	});
+
+	it("puts the install path last, as the panel's one primary", () => {
+		expect(panelActionsOf(panelFor(request({}), ADVISORY_ARTICLE))).toEqual([
+			"save-tip-continue",
+			"save-tip-install",
+		]);
+		expect(panelActionsOf(panelFor(request({}), GATING_ARTICLE))).toEqual([
+			"save-tip-proceed",
+			"save-tip-install",
+		]);
+	});
+
+	it("sits its controls in the shell's row", () => {
+		const actions = actionsOf(panelFor(request({})));
+		expect(actions.classList.contains("confirm-popover__actions")).toBe(true);
+		expect(actions.classList.contains("confirm-popover__buttons")).toBe(true);
+	});
+
+	it.each([
+		["extension", { cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }],
+		["app", { userAgent: IPHONE_SAFARI, iosClient: true }],
+	])("promotes the continue control to primary for the %s client", (client, input) => {
+		const doc = panelFor(request(input));
+		expect(actionsOf(doc).getAttribute("data-test-save-tip-variant")).toBe(client);
+		expect(panelActionsOf(doc)).toEqual(["save-tip-continue"]);
+		const proceed = doc.querySelector("[data-test-action='save-tip-continue']");
+		assert(proceed, "the installed client still needs a way to continue");
+		expect(proceed.classList.contains("btn--primary")).toBe(true);
+	});
+
+	it.each([ADVISORY_ARTICLE, ADVISORY_IMPORT])("leads the %s panel with the book-lightbulb illustration", (spec) => {
+		const doc = panelFor(request({}), spec);
+		const panel = doc.querySelector("[data-test-confirm-popover='save-tip']");
+		assert(panel, "the save-tip panel must be rendered");
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(true);
+		const art = panel.querySelector(".confirm-popover__illustration svg");
+		assert(art, "the illustrated panel must lead with art");
+		expect(art.getAttribute("data-test-illustration")).toBe("book-lightbulb");
 	});
 
 	it("names the better ways to save rather than the fetch that cannot reach them", () => {
@@ -107,21 +159,22 @@ describe("buildSaveTip", () => {
 
 		const title = doc.getElementById("save-tip-title");
 		assert(title, "the article panel must have its own title");
-		expect(title.textContent).toBe("There are better ways to save!");
+		expect(title.textContent).toBe("Save articles the better way");
 		expect(bodyTextFor(request({}))).toBe(
-			"Readplace strongly recommends to use our dedicated clients to save content so you can always get a clean reader view.",
+			"Use the Readplace browser extension or other supported options to save articles in one click and get a cleaner reading experience.",
 		);
 	});
 
-	it("recommends the clients in the same words whatever the visitor already has", () => {
-		const withoutClient = bodyTextFor(request({ userAgent: DESKTOP_CHROME }));
-
-		expect(bodyTextFor(request({ cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }))).toBe(
-			withoutClient,
-		);
-		expect(bodyTextFor(request({ userAgent: IPHONE_SAFARI, iosClient: true }))).toBe(
-			withoutClient,
-		);
+	it.each([
+		["desktop Chrome", { userAgent: DESKTOP_CHROME }, "Use the Readplace browser extension or other supported options to save articles in one click and get a cleaner reading experience."],
+		["desktop Firefox", { userAgent: DESKTOP_FIREFOX }, "Use the Readplace browser extension or other supported options to save articles in one click and get a cleaner reading experience."],
+		["iPhone Safari", { userAgent: IPHONE_SAFARI }, "Use the Readplace iPhone app or other supported options to save articles in one tap and get a cleaner reading experience."],
+		["native app", { userAgent: IPHONE_SAFARI, iosClient: true }, "Use the Readplace share sheet to save articles in one tap and get a cleaner reading experience."],
+		["installed extension", { userAgent: DESKTOP_CHROME, cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }, "Use the Readplace browser extension or other supported options to save articles in one click and get a cleaner reading experience."],
+		["Android", { userAgent: ANDROID_CHROME }, "Use one of Readplace's supported options to save articles in one click and get a cleaner reading experience."],
+		["unrecognised device", { userAgent: "Unrecognised device" }, "Use one of Readplace's supported options to save articles in one click and get a cleaner reading experience."],
+	])("names the save method for %s", (_label, input, expected) => {
+		expect(bodyTextFor(request(input))).toBe(expected);
 	});
 
 	describe("what the panel reports to the internal-click stream", () => {
@@ -148,15 +201,15 @@ describe("buildSaveTip", () => {
 			);
 		});
 
-		it("tells closing it apart from acknowledging it", () => {
-			const doc = panelFor(request({}));
-
-			expect(elementOf(beaconOn(doc, "[data-test-action='save-tip-dismiss']"))).toBe(
-				SAVE_TIP_ELEMENTS.dismissed,
+		it("reports continuing with the URL", () => {
+			const advisory = panelFor(request({}));
+			const gating = panelFor(request({}), GATING_ARTICLE);
+			const beaconElements = (doc: ReturnType<typeof panelFor>) => Array.from(
+				doc.querySelectorAll("[data-beacon-url]"),
+				(element) => elementOf(new URL(element.getAttribute("data-beacon-url") ?? "", "https://readplace.com")),
 			);
-			expect(elementOf(beaconOn(doc, "[data-test-action='save-tip-acknowledge']"))).toBe(
-				SAVE_TIP_ELEMENTS.acknowledged,
-			);
+			expect(beaconElements(advisory)).toEqual(["opened", "continued"]);
+			expect(beaconElements(gating)).toEqual(["opened"]);
 		});
 
 		it("leaves the install link to the click its own navigation already records", () => {
@@ -182,7 +235,6 @@ describe("buildSaveTip", () => {
 			const doc = panelFor(request({ userAgent: DESKTOP_CHROME }), GATING_ARTICLE);
 
 			expect(beaconOn(doc, "[data-test-confirm-popover='save-tip']").searchParams.get("utm_term")).toBe("reader-public");
-			expect(beaconOn(doc, "[data-test-action='save-tip-dismiss']").searchParams.get("utm_term")).toBe("reader-public");
 			const install = doc.querySelector("[data-test-action='save-tip-install']");
 			assert(install, "a visitor with no client must be offered one on the gated surface");
 			expect(new URL(install.getAttribute("href") ?? "", "https://readplace.com").searchParams.get("utm_term")).toBe(
@@ -216,30 +268,6 @@ describe("buildSaveTip", () => {
 		});
 	});
 
-	describe("when the extension is already installed", () => {
-		it("tells the reader to use it instead of offering it again", () => {
-			const doc = panelFor(
-				request({ cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }),
-			);
-
-			const variant = doc.querySelector("[data-test-save-tip-variant]");
-			assert(variant, "the panel must name the client variant it rendered");
-			expect(variant.getAttribute("data-test-save-tip-variant")).toBe("extension");
-			expect(variant.querySelector("[data-test-action='save-tip-install']")).toBeNull();
-		});
-	});
-
-	describe("when the request comes from a native app", () => {
-		it("points at the share sheet rather than an install the app already is", () => {
-			const doc = panelFor(request({ userAgent: IPHONE_SAFARI, iosClient: true }));
-
-			const variant = doc.querySelector("[data-test-save-tip-variant]");
-			assert(variant, "the panel must name the client variant it rendered");
-			expect(variant.getAttribute("data-test-save-tip-variant")).toBe("app");
-			expect(variant.querySelector("[data-test-action='save-tip-install']")).toBeNull();
-		});
-	});
-
 	describe("the import surface", () => {
 		it("warns about the links it is about to fetch, not about one article", () => {
 			const doc = panelFor(request({}), ADVISORY_IMPORT);
@@ -248,15 +276,17 @@ describe("buildSaveTip", () => {
 			assert(title, "the import panel must have its own title");
 			expect(title.textContent).toBe("Some of these may arrive as links only");
 			expect(actionsOf(doc).getAttribute("data-test-save-tip-mode")).toBe("advisory");
-			const acknowledge = doc.querySelector("[data-test-action='save-tip-acknowledge']");
-			assert(acknowledge, "the import panel must offer a way to dismiss it");
-			expect(acknowledge.textContent).toBe("Got it");
+			const proceed = doc.querySelector("[data-test-action='save-tip-continue']");
+			assert(proceed, "the import panel must offer a way to continue");
+			expect(proceed.textContent).toBe("Continue with URL");
 		});
 
-		it("does not pretend a client could have fetched the index instead", () => {
-			const text = bodyTextFor(request({}), ADVISORY_IMPORT);
-
-			expect(text).toContain("Nothing can capture a whole index for you");
+		it.each([
+			["no client", {}, "Some sites block Readplace from fetching article text. For individual articles, the browser extension and the iPhone app can save the full page."],
+			["extension", { cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }, "Some sites block Readplace from fetching article text. For individual articles, the extension can save the full page."],
+			["app", { userAgent: IPHONE_SAFARI, iosClient: true }, "Some sites block Readplace from fetching article text. For individual articles, the Readplace share sheet can save the full page."],
+		])("explains the link-only outcome for the %s client", (_client, input, expected) => {
+			expect(bodyTextFor(request(input), ADVISORY_IMPORT)).toBe(expected);
 		});
 
 		it("still offers the install for the single articles a client can capture", () => {

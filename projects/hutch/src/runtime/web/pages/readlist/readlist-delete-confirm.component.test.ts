@@ -82,6 +82,10 @@ describe("renderReadlistDeleteConfirm", () => {
 			(label) => label.textContent,
 		);
 		expect(labels).toEqual(["Confirm Deletion", "Move and Delete"]);
+		const commit = doc.querySelector("[data-test-action='readlist-delete-confirm']");
+		assert(commit, "the delete form must carry its commit");
+		expect(commit.classList.contains("btn--primary")).toBe(true);
+		expect([...doc.querySelectorAll(".confirm-popover__header [data-test-action]")].map((action) => action.getAttribute("data-test-action"))).toEqual(["readlist-delete-dismiss"]);
 	});
 
 	it("tells the reader the copies go with the readlist, and that another readlist can keep them", () => {

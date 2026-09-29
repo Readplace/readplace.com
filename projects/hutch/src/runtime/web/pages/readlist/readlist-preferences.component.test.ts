@@ -72,6 +72,7 @@ describe("ReadlistPreferencesPage", () => {
 		for (const selector of [
 			".readlist-listing",
 			".readlist-nav",
+			".menu__panel",
 			".confirm-popover",
 			".wizard__title",
 			".readlist-preferences__purpose",

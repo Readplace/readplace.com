@@ -18,9 +18,9 @@ export function deleteConfirmPopoverId(articleId: string): string {
 	return `readlist-delete-confirm-${articleId}`;
 }
 
-const DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-	<button class="btn btn--destructive" type="submit" data-test-action="delete-confirm">Yes, delete it</button>
-	<button class="btn btn--secondary" type="submit" name="ack" value="{{ackNever}}" data-test-action="delete-confirm-never">Yes, delete it and don't ask again</button>
+const DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+	<button class="btn btn--neutral" type="submit" name="ack" value="{{ackNever}}" data-test-action="delete-confirm-never">Delete and don't ask again</button>
+	<button class="btn btn--primary" type="submit" data-test-action="delete-confirm">Delete article</button>
 </form>`;
 
 export function renderDeleteConfirm(input: {
@@ -33,8 +33,8 @@ export function renderDeleteConfirm(input: {
 		key: "delete",
 		subject: input.confirm.articleId,
 		title: "Delete this article?",
-		body: "By deleting this you won't be able to find it anymore until you save it again.",
-		lead: { text: `Article: ${input.title}`, screenReaderOnly: true },
+		body: "This article will be removed from your readlist. You can save it again later.",
+		lead: `Article: ${input.title}`,
 		illustrationHtml: input.illustrationHtml,
 		actionsHtml: render(DELETE_CONFIRM_ACTIONS_TEMPLATE, {
 			url: withInternalTracking(input.confirm.url, {

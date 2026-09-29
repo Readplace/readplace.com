@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initToastDismiss } from "./toast.client";
+import { renderToast } from "./toast.component";
 
 interface ScheduledTimer {
 	callback: () => void;
@@ -131,6 +132,22 @@ describe("initToastDismiss", () => {
 
 		settle.callback();
 		expect(region.textContent).toBe("Saved");
+	});
+
+	it("announces only a rendered toast's message, never its icon or Undo label", () => {
+		const html = renderToast({
+			message: "Marked as read",
+			dismissMs: 6000,
+			actions: [{ method: "POST", url: "/queue/abc/status", label: "Undo", fields: [] }],
+		});
+		const { document, timers } = initWithDom(html, { withRegion: true });
+		const region = document.getElementById("toast-live-region");
+		assert(region, "the persistent live region must be present");
+		const settle = timers.find((timer) => timer.ms === 150);
+		assert(settle, "a settle timer must be scheduled for the announcement");
+
+		settle.callback();
+		expect(region.textContent).toBe("Marked as read");
 	});
 
 	it("clears the live region when the toast is dismissed, so an unchanged region does not keep the last message", () => {

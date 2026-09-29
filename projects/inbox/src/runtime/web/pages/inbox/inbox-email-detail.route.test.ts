@@ -475,6 +475,10 @@ describe("Inbox email detail Articles tab", () => {
 
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
+		const pageStyles = doc.querySelector("main > style");
+		assert(pageStyles, "the detail page must carry its styles");
+		expect(pageStyles.textContent).toContain(".menu__panel {");
+		expect(pageStyles.textContent).toContain(".menu__item {");
 		expect(renderedPanels(doc)).toEqual(["articles"]);
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(3);
 		// Each tab carries how many items it holds, so a reader can see what's on the
@@ -1496,7 +1500,7 @@ describe("Inbox link feedback route", () => {
 		const confirmation = await agent.get(response.headers.location);
 		const notice = parseDoc(confirmation.text).querySelector("[data-test-toast-message]");
 		assert(notice, "the followed redirect must confirm the report");
-		expect(notice.textContent?.trim()).toBe("Thanks — your report was logged.");
+		expect(notice.textContent?.trim()).toBe("Thanks — your report was logged");
 		expect(errors).toHaveLength(1);
 		assert(errors[0].startsWith("[inbox-link-feedback] "));
 		const feedback = JSON.parse(errors[0].slice("[inbox-link-feedback] ".length));

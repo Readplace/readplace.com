@@ -24,7 +24,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--color-info": "#4A7FB5",
 	"--shadow-sm": "0 1px 2px rgba(0,0,0,0.05)",
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.07)",
-	"--shadow-menu": "0 0 12px rgba(0,0,0,0.10)",
+	"--shadow-menu": "0 0 8px rgb(0 0 0 / 0.15)",
 	"--shadow-toast": "0 4px 16px rgba(0,0,0,0.12)",
 	"--text-xs": "0.75rem",
 	"--text-sm": "0.875rem",
@@ -47,6 +47,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--secondary-hover": "#EED7BA",
 	"--secondary-pressed": "#E6C9A3",
 	"--secondary-foreground": "hsl(27 65% 35%)",
+	"--neutral-hover": "#F7F8FA",
 	"--neutral-pressed": "#EDEFF2",
 	"--background": "var(--color-background)",
 	"--foreground": "var(--color-text-primary)",
@@ -134,7 +135,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--color-info": "#6B9BD1",
 	"--shadow-sm": "0 1px 2px rgba(0,0,0,0.3)",
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.4)",
-	"--shadow-menu": "0 0 12px rgba(0,0,0,0.5)",
+	"--shadow-menu": "0 0 8px rgb(0 0 0 / 0.5)",
 	"--shadow-toast": "0 4px 16px rgba(0,0,0,0.5)",
 	"--primary-text": "hsl(27 65% 58%)",
 	"--primary-text-on-tint": "#EAA162",
@@ -142,6 +143,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--secondary-hover": "#4A3320",
 	"--secondary-pressed": "#5A3E26",
 	"--secondary-foreground": "hsl(27, 65%, 35%)",
+	"--neutral-hover": "#2A2A2A",
 	"--neutral-pressed": "#2E2E2E",
 	"--ring": "hsl(27 65% 52%)",
 	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
@@ -410,13 +412,20 @@ export const BUTTON_STYLES = `
 	}
 
 	.btn--destructive {
+		background: var(--card);
+		color: var(--error-text);
+		box-shadow: inset 0 0 0 1px var(--color-error);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.btn--destructive:hover {
 		background: var(--error-fill);
 		color: var(--error-foreground);
 	}
 
-	.btn--destructive:hover,
 	.btn--destructive:active {
 		background: var(--error-fill-hover);
+		color: var(--error-foreground);
 	}
 
 	.btn--neutral {
@@ -426,7 +435,7 @@ export const BUTTON_STYLES = `
 	}
 
 	.btn--neutral:hover {
-		background: var(--muted);
+		background: var(--neutral-hover);
 	}
 
 	.btn--neutral:active {
@@ -1153,20 +1162,48 @@ export const NAV_STYLES = `
 			position: absolute;
 			right: 0;
 			top: calc(100% + 6px);
-			min-width: 200px;
+			min-width: 120px;
+			width: max-content;
 			flex-direction: column;
-			gap: 0;
-			padding: 6px 0;
-			background: var(--card);
+			gap: 1px;
+			padding: 0;
+			overflow: hidden;
+			background: var(--border);
 			border: 1px solid var(--border);
-			border-radius: var(--radius);
-			box-shadow: var(--shadow-md);
+			border-radius: var(--radius-md);
+			box-shadow: var(--shadow-menu);
 			z-index: 102;
 		}
 
+		.nav__user-menu > li {
+			background: var(--card);
+		}
+
 		.nav__user-menu .nav__link {
+			min-height: 44px;
 			border-radius: 0;
-			padding: 10px 16px;
+			padding: 0 12px;
+			gap: 12px;
+			font-size: var(--text-sm);
+			font-weight: 500;
+		}
+
+		.nav__user-menu .nav__icon-wrap {
+			width: 1.25rem;
+		}
+
+		.nav__user-menu .nav__icon svg {
+			width: 1.25rem;
+			height: 1.25rem;
+		}
+
+		.nav__user-menu .nav__link,
+		.nav__user-menu .nav__icon {
+			color: var(--foreground);
+		}
+
+		.nav__user-menu .nav__link:focus-visible {
+			outline-offset: -2px;
 		}
 
 		.header--transparent .nav__link,

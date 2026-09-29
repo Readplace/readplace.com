@@ -499,7 +499,7 @@ describe("toInboxEmailDetailViewModel", () => {
 
 	it("confirms a report as a status toast, so it is seen wherever the reader was scrolled to", () => {
 		expect(withConfirmation({ feedbackConfirmed: true }).statusToastMessage).toBe(
-			"Thanks — your report was logged.",
+			"Thanks — your report was logged",
 		);
 	});
 

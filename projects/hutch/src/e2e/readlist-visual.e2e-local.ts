@@ -48,11 +48,13 @@ const NEW_READLIST_BUTTON = '[data-test-action="new-readlist"]';
 const ACTIVE_READLIST_LABEL = ".readlist-nav__link--active .readlist-nav__label";
 const READLIST_MENU_SUMMARY = '[data-test-action="readlist-menu"]';
 const READLIST_MENU_PANEL = "[data-test-readlist-menu]";
-const READLIST_MENU_FLYOUT = ".readlist-nav__menu-panel";
+const READLIST_MENU_FLYOUT = `${READLIST_MENU_PANEL} .menu__panel`;
 const READLIST_MENU_RENAME = '[data-test-action="readlist-rename"]';
 const READLIST_MENU_DELETE = '[data-test-action="readlist-delete"]';
 const READLIST_RENAME_POPOVER = '[data-test-confirm-popover="readlist-rename"]';
 const READLIST_DELETE_POPOVER = '[data-test-confirm-popover="readlist-delete"]';
+const READLIST_RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
+const READLIST_DELETE_CONFIRM = '[data-test-action="readlist-delete-confirm"]';
 const SAVE_CARD = "[data-test-save-card]";
 const SAVE_ERROR = "[data-test-save-error]";
 const SAVE_INPUT = `${SAVE_CARD} input[name="url"]`;
@@ -63,10 +65,14 @@ const CARD_MARK_READ = '[data-test-action="mark-read"]';
 const CARD_MENU_SUMMARY = '[data-test-action="article-menu"]';
 const CARD_MENU_PANEL = "[data-test-article-menu]";
 const CARD_DELETE = '[data-test-action="delete"]';
+const NAV_USER = "[data-test-nav-user]";
+const NAV_USER_MENU = `${NAV_USER} .nav__user-menu`;
 const CARD_TIME = ".readlist-article__time";
 const CARD_THUMBNAIL = ".readlist-article__thumbnail";
 const DELETE_ARTICLE_POPOVER = '[data-test-confirm-popover="delete"]';
 const OPEN_DELETE_ARTICLE_POPOVER = `${DELETE_ARTICLE_POPOVER}:popover-open`;
+const DELETE_ARTICLE_NEVER = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm-never"]`;
+const DELETE_ARTICLE_CONFIRM = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm"]`;
 const MARK_STATUS_CONFIRM_BUTTON = '[data-test-action="mark-status-confirm"]';
 const EMPTY = "[data-test-empty-readlist]";
 const LISTING = "[data-test-listing]";
@@ -78,6 +84,7 @@ const ALERT = '[data-test-alert="readlist"]';
 const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 const SUBSCRIPTION_BANNER = "[data-test-subscription-banner]";
 const SETUP_GUIDE = "[data-test-setup-guide]";
+const TOAST = "[data-test-toast]";
 const SETUP_GUIDE_AVATAR = ".setup-guide__avatar";
 const ONBOARDING_PROGRESS = "[data-test-onboarding-progress]";
 const ONBOARDING_CHIP = "[data-test-onboarding-chip]";
@@ -94,6 +101,7 @@ function trialTile(unit: "days" | "hours" | "minutes"): string {
 }
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
+const SeededArticle = z.object({ ok: z.literal(true), articleId: z.string() });
 
 async function createVerifiedUser(page: Page, email: string): Promise<string> {
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
@@ -113,7 +121,7 @@ async function seedCrawledArticle(
 		userId: string;
 		imageUrl?: string;
 	},
-): Promise<void> {
+): Promise<string> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
 			url: input.url,
@@ -131,6 +139,7 @@ async function seedCrawledArticle(
 		},
 	});
 	assert.equal(response.status(), 201, "the seed endpoint must create the crawled article");
+	return SeededArticle.parse(await response.json()).articleId;
 }
 
 function seededArticles(
@@ -264,6 +273,75 @@ async function railBesideMainBesideSide(page: Page): Promise<void> {
 	);
 }
 
+async function openMenuGeometry(
+	page: Page,
+	input: { panel: string; toggle: string; rows: number },
+): Promise<void> {
+	const panel = await measuredBox(page, input.panel);
+	const toggle = await measuredBox(page, input.toggle);
+	assert.ok(panel.width >= 120, `an open menu must be at least 120px wide, measured ${panel.width}px`);
+	assert.ok(
+		Math.abs(panel.x + panel.width - (toggle.x + toggle.width)) <= 1,
+		`the menu must align with its trigger's trailing edge, measured panel=${JSON.stringify(panel)} toggle=${JSON.stringify(toggle)}`,
+	);
+	assert.ok(
+		panel.y >= toggle.y + toggle.height - 0.5,
+		`the menu must open below its trigger, measured panel=${JSON.stringify(panel)} toggle=${JSON.stringify(toggle)}`,
+	);
+	const rows = page.locator(`${input.panel} .menu__item:visible`);
+	await expect(rows).toHaveCount(input.rows);
+	for (const row of await rows.all()) {
+		const box = await row.boundingBox();
+		assert.ok(box, "a visible menu row must have a box");
+		assert.ok(Math.abs(box.height - 44) <= 0.5, `a menu row must be 44px high, measured ${box.height}px`);
+	}
+}
+
+async function railMenuGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	await openMenuGeometry(page, {
+		panel: READLIST_MENU_FLYOUT,
+		toggle: READLIST_MENU_SUMMARY,
+		rows: 2,
+	});
+}
+
+async function cardMenuGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	await openMenuGeometry(page, {
+		panel: `${FIRST_CARD} .menu__panel`,
+		toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
+		rows: 1,
+	});
+}
+
+async function cardMenuPhoneGeometry(page: Page): Promise<void> {
+	await neverScrollsSideways(page);
+	await openMenuGeometry(page, {
+		panel: `${FIRST_CARD} .menu__panel`,
+		toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
+		rows: 1,
+	});
+	const viewport = page.viewportSize();
+	assert(viewport, "the phone menu needs a fixed viewport");
+	const panel = await measuredBox(page, `${FIRST_CARD} .menu__panel`);
+	const card = await measuredBox(page, FIRST_CARD);
+	assert.ok(panel.x >= 16 && panel.x + panel.width <= viewport.width - 16);
+	assert.ok(panel.x >= card.x && panel.x + panel.width <= card.x + card.width);
+	assert.ok(panel.y >= card.y && panel.y + panel.height <= card.y + card.height);
+}
+
+async function headerAccountMenuGeometry(page: Page): Promise<void> {
+	const items = page.locator(`${NAV_USER_MENU} > li:visible`);
+	await expect(items).toHaveCount(5);
+	await expect(page.locator(`${NAV_USER_MENU} [data-test-nav-item]`)).toHaveCount(5);
+	for (const item of await items.all()) {
+		const box = await item.boundingBox();
+		assert.ok(box, "a visible account menu row must have a box");
+		assert.ok(Math.abs(box.height - 44) <= 0.5, `an account menu row must be 44px high, measured ${box.height}px`);
+	}
+}
+
 async function pageFitsTheClip(page: Page): Promise<void> {
 	const viewport = page.viewportSize();
 	assert.ok(viewport, "a whole-page capture needs a fixed viewport to size its clip");
@@ -297,6 +375,69 @@ async function railStacksAboveTheListing(page: Page): Promise<void> {
 async function phonePageGeometry(page: Page): Promise<void> {
 	await railStacksAboveTheListing(page);
 	await pageFitsTheClip(page);
+}
+
+function near(actual: number, expected: number): boolean {
+	return Math.abs(actual - expected) <= 1;
+}
+
+async function renameDialogGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const panel = await measuredBox(page, READLIST_RENAME_POPOVER);
+	const cancel = await measuredBox(page, READLIST_RENAME_CANCEL);
+	const save = await measuredBox(page, RENAME_SAVE);
+	assert.ok(near(panel.width, 600));
+	assert.ok(near(cancel.y, save.y));
+	assert.ok(near(save.x, cancel.x + cancel.width + 8));
+	assert.ok(near(save.x + save.width, panel.x + panel.width - 33));
+}
+
+async function deleteReadlistDialogGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const panel = await measuredBox(page, READLIST_DELETE_POPOVER);
+	const commit = await measuredBox(page, READLIST_DELETE_CONFIRM);
+	assert.ok(near(panel.width, 600));
+	assert.ok(near(commit.x, panel.x + 33));
+	assert.ok(near(commit.x + commit.width, panel.x + panel.width - 33));
+}
+
+async function deleteArticleDialogGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const panel = await measuredBox(page, OPEN_DELETE_ARTICLE_POPOVER);
+	const never = await measuredBox(page, DELETE_ARTICLE_NEVER);
+	const commit = await measuredBox(page, DELETE_ARTICLE_CONFIRM);
+	assert.ok(near(panel.width, 600));
+	assert.ok(near(never.y, commit.y));
+	assert.ok(near(commit.x, never.x + never.width + 8));
+	const leftSlack = never.x - panel.x;
+	const rightSlack = panel.x + panel.width - (commit.x + commit.width);
+	assert.ok(near(leftSlack, rightSlack));
+}
+
+async function stackedDialogButtons(
+	page: Page,
+	panelSelector: string,
+	dismissSelector: string,
+	commitSelector: string,
+): Promise<void> {
+	await neverScrollsSideways(page);
+	const panel = await measuredBox(page, panelSelector);
+	const dismiss = await measuredBox(page, dismissSelector);
+	const commit = await measuredBox(page, commitSelector);
+	assert.ok(near(panel.width, 358));
+	assert.ok(near(dismiss.y, commit.y + commit.height + 8));
+	for (const choice of [dismiss, commit]) {
+		assert.ok(near(choice.x, panel.x + 25));
+		assert.ok(near(choice.x + choice.width, panel.x + panel.width - 25));
+	}
+}
+
+async function renameDialogPhoneGeometry(page: Page): Promise<void> {
+	await stackedDialogButtons(page, READLIST_RENAME_POPOVER, READLIST_RENAME_CANCEL, RENAME_SAVE);
+}
+
+async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
+	await stackedDialogButtons(page, OPEN_DELETE_ARTICLE_POPOVER, DELETE_ARTICLE_NEVER, DELETE_ARTICLE_CONFIRM);
 }
 
 async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
@@ -352,6 +493,7 @@ async function railMenuOpenSettled(page: Page): Promise<void> {
 	await expect(page.locator(READLIST_MENU_RENAME)).toBeVisible();
 	await expect(page.locator(READLIST_MENU_DELETE)).toBeVisible();
 	await page.evaluate(growRailToFitOpenFlyout, { rail: RAIL, flyout: READLIST_MENU_FLYOUT });
+	await page.mouse.move(0, 0);
 }
 
 async function renameDialogSettled(page: Page): Promise<void> {
@@ -381,6 +523,16 @@ async function cardMenuOpenSettled(page: Page): Promise<void> {
 	await expect(page.locator(`${FIRST_CARD} ${CARD_MENU_PANEL}`)).toHaveAttribute("open", "");
 	await expect(page.locator(`${FIRST_CARD} ${CARD_DELETE}`)).toBeVisible();
 	await waitForImagePixels(page, CARD_THUMBNAIL);
+	await page.mouse.move(0, 0);
+}
+
+async function headerAccountMenuOpenSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await page.locator(`${NAV_USER} .nav__user-summary`).click();
+	await expect(page.locator(NAV_USER)).toHaveAttribute("open", "");
+	await expect(page.locator(NAV_USER_MENU)).toBeVisible();
+	await page.mouse.move(0, 0);
 }
 
 async function deleteArticleDialogSettled(page: Page): Promise<void> {
@@ -520,7 +672,7 @@ const PAGE_CUSTOM_READLIST: VisualCheckpoint = {
 const RAIL_MENU_OPEN: VisualCheckpoint = {
 	name: "readlist-rail-menu-open",
 	settled: railMenuOpenSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: railMenuGeometry,
 	target: RAIL,
 	capture: "element",
 	pinnedText: [],
@@ -529,16 +681,22 @@ const RAIL_MENU_OPEN: VisualCheckpoint = {
 const RENAME_DIALOG: VisualCheckpoint = {
 	name: "readlist-rename-dialog",
 	settled: renameDialogSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: renameDialogGeometry,
 	target: READLIST_RENAME_POPOVER,
 	capture: "element",
 	pinnedText: [],
 };
 
+const RENAME_DIALOG_PHONE: VisualCheckpoint = {
+	...RENAME_DIALOG,
+	name: "readlist-rename-dialog-phone",
+	geometry: renameDialogPhoneGeometry,
+};
+
 const DELETE_READLIST_DIALOG: VisualCheckpoint = {
 	name: "readlist-delete-readlist-dialog",
 	settled: deleteReadlistDialogSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: deleteReadlistDialogGeometry,
 	target: READLIST_DELETE_POPOVER,
 	capture: "element",
 	pinnedText: [],
@@ -547,19 +705,40 @@ const DELETE_READLIST_DIALOG: VisualCheckpoint = {
 const CARD_MENU_OPEN: VisualCheckpoint = {
 	name: "readlist-article-menu-open",
 	settled: cardMenuOpenSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: cardMenuGeometry,
 	target: FIRST_CARD,
 	capture: "element",
 	pinnedText: [{ selector: `${FIRST_CARD} ${CARD_TIME}`, text: "3 days ago" }],
 };
 
+const CARD_MENU_OPEN_PHONE: VisualCheckpoint = {
+	...CARD_MENU_OPEN,
+	name: "readlist-article-menu-open-phone",
+	geometry: cardMenuPhoneGeometry,
+};
+
+const HEADER_ACCOUNT_MENU_OPEN: VisualCheckpoint = {
+	name: "header-account-menu-open",
+	settled: headerAccountMenuOpenSettled,
+	geometry: headerAccountMenuGeometry,
+	target: NAV_USER_MENU,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
 const DELETE_ARTICLE_DIALOG: VisualCheckpoint = {
 	name: "readlist-delete-article-dialog",
 	settled: deleteArticleDialogSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: deleteArticleDialogGeometry,
 	target: OPEN_DELETE_ARTICLE_POPOVER,
 	capture: "element",
 	pinnedText: [],
+};
+
+const DELETE_ARTICLE_DIALOG_PHONE: VisualCheckpoint = {
+	...DELETE_ARTICLE_DIALOG,
+	name: "readlist-delete-article-dialog-phone",
+	geometry: deleteArticleDialogPhoneGeometry,
 };
 
 const ALERT_LIMIT: VisualCheckpoint = {
@@ -689,6 +868,63 @@ const RAIL_PHONE: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+async function statusToastSettled(page: Page): Promise<void> {
+	await expect(page.locator(TOAST)).toBeVisible();
+	await expect(page.locator(`${TOAST} [data-test-toast-message]`)).toHaveText("Marked as read");
+	await expect(page.locator(`${TOAST} [data-test-toast-action]`)).toHaveText("Undo");
+}
+
+async function desktopStatusToastGeometry(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert(viewport, "the toast needs a fixed viewport");
+	const box = await measuredBox(page, TOAST);
+	assert.equal(Math.round(box.x + box.width), viewport.width - 48);
+	assert.equal(Math.round(box.y + box.height), viewport.height - 48);
+	assert.equal(Math.round(box.height), 58);
+	const shadow = await page.locator(TOAST).evaluate((el) => getComputedStyle(el).boxShadow);
+	assert.notEqual(shadow, "none", "the floating toast must cast a shadow");
+}
+
+async function phoneStatusToastGeometry(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert(viewport, "the toast needs a fixed viewport");
+	const box = await measuredBox(page, TOAST);
+	assert.equal(Math.round(box.x), 20);
+	assert.equal(Math.round(box.x + box.width), viewport.width - 20);
+	assert.equal(Math.round(box.y + box.height), viewport.height - 20);
+	assert.equal(Math.round(box.height), 58);
+}
+
+const STATUS_TOAST: VisualCheckpoint = {
+	name: "readlist-status-toast",
+	settled: statusToastSettled,
+	geometry: desktopStatusToastGeometry,
+	target: TOAST,
+	capture: "element",
+	pinnedText: [],
+};
+
+const STATUS_TOAST_PHONE: VisualCheckpoint = {
+	...STATUS_TOAST,
+	name: "readlist-status-toast-phone",
+	geometry: phoneStatusToastGeometry,
+};
+
+async function openStatusToast(page: Page, stamp: string): Promise<void> {
+	const email = `readlist-status-toast-${stamp}@example.com`;
+	const userId = await createVerifiedUser(page, email);
+	const articleId = await seedCrawledArticle(page, {
+		url: `https://example.com/readlist-status-toast-${stamp}`,
+		title: "An article with a reversible status",
+		savedAt: "2026-07-12T09:14:00.000Z",
+		excerpt: "A saved article for the status toast visual checkpoint.",
+		userId,
+	});
+	await loginAs(page, email);
+	await page.route("**/client-dist/toast.client.js", (route) => route.abort());
+	await gotoReadlistQueue(page, `?status_changed=read&status_article=${encodeURIComponent(articleId)}`);
+}
+
 const THEMES = ["light", "dark"] as const;
 
 function withTheme(checkpoint: VisualCheckpoint, theme: (typeof THEMES)[number]): VisualCheckpoint {
@@ -779,6 +1015,28 @@ test.describe("Readlist read tab", () => {
 	}
 });
 
+test.describe("Readlist status toast", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`floats at the header inset with Undo (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openStatusToast(page, `${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await captureCheckpoint(page, withTheme(STATUS_TOAST, theme));
+		});
+	}
+});
+
+test.describe("Readlist status toast on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("spans the page gutters with Undo", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openStatusToast(page, `phone-${testInfo.workerIndex}-${Date.now()}`);
+		await captureCheckpoint(page, STATUS_TOAST_PHONE);
+	});
+});
+
 test.describe("Readlist rail menu", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -839,8 +1097,68 @@ test.describe("Readlist card menu", () => {
 			await gotoReadlistQueue(page, "");
 
 			await captureCheckpoint(page, withTheme(DELETE_ARTICLE_DIALOG, theme));
+			const backdrop = await page.locator(OPEN_DELETE_ARTICLE_POPOVER).evaluate((panel) => {
+				const style = getComputedStyle(panel, "::backdrop");
+				return { background: style.backgroundColor, blur: style.backdropFilter };
+			});
+			assert.equal(
+				backdrop.background,
+				theme === "light" ? "rgba(0, 0, 0, 0.5)" : "rgba(13, 13, 13, 0.72)",
+			);
+			assert.notEqual(backdrop.blur, "none");
 		});
 	}
+});
+
+test.describe("Readlist card menu on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("keeps the open menu inside the first card and the screen gutters", async ({ page }, testInfo) => {
+		const email = `readlist-article-menu-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedTwoArticles(page, userId, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+
+		await captureCheckpoint(page, CARD_MENU_OPEN_PHONE);
+	});
+});
+
+test.describe("Header account menu", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`shows all account actions in the dropdown (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `header-account-menu-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+
+			await captureCheckpoint(page, withTheme(HEADER_ACCOUNT_MENU_OPEN, theme));
+		});
+	}
+});
+
+test.describe("Readlist dialogs on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("stacks Save above Cancel in the rename dialog", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const email = `readlist-rename-dialog-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await openCustomReadlist(page, email);
+		await captureCheckpoint(page, RENAME_DIALOG_PHONE);
+	});
+
+	test("stacks Delete article above its quiet choice", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const email = `readlist-delete-article-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedTwoArticles(page, userId, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await captureCheckpoint(page, DELETE_ARTICLE_DIALOG_PHONE);
+	});
 });
 
 test.describe("Readlist alerts", () => {

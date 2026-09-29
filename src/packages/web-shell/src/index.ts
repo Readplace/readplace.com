@@ -81,6 +81,7 @@ export {
 	IN_FLIGHT_DOTS_STYLES,
 	renderInFlightDots,
 } from "./shared/in-flight-dots/in-flight-dots.component";
+export { MENU_STYLES } from "./shared/menu/menu.styles";
 export { renderIllustration } from "./shared/illustrations/illustrations";
 export type { IllustrationName } from "./shared/illustrations/illustrations";
 export { renderToast } from "./shared/toast/toast.component";
@@ -99,7 +100,6 @@ export type {
 } from "./shared/alert/alert.component";
 export type {
 	ConfirmPopover,
-	ConfirmPopoverLead,
 } from "./shared/confirm-popover/confirm-popover.component";
 export { BASE_CSS_VARIABLES, EMAIL_FRAME_CANVAS, LIGHT_ONLY_BODY_CLASS } from "./base.styles";
 export { etagMatches } from "./etag";

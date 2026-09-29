@@ -99,21 +99,30 @@ describe("buildGuestNavGroups", () => {
 });
 
 describe("buildNavGroups", () => {
-	it("groups full-access items into Library (queue, import, inbox) and Account (account, privacy, terms, sign out)", () => {
+	it("groups full-access items into Library (queue, import, inbox) and Account (account, blog, privacy, terms, sign out)", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox"]);
 		expect(account?.label).toBe("Account");
-		expect(account?.items.map((i) => i.key)).toEqual(["account", "privacy", "terms", "logout"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("omits import and inbox for a read-only user but keeps Account, the only path to /account now the header has no trial chip", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: true, gmailFeatureEnabled: false });
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
-		expect(account?.items.map((i) => i.key)).toEqual(["account", "privacy", "terms", "logout"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
+	});
+
+	it("links the signed-in Blog item to the blog from the account menu", () => {
+		const blog = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false })
+			.flatMap((group) => group.items)
+			.find((item) => item.key === "blog");
+		assert(blog, "the account menu must include Blog");
+		expect(blog.href).toBe("/blog?utm_source=header-nav&utm_medium=internal&utm_content=blog");
+		expect(blog.iconName).toBe("note");
 	});
 
 	it("tags the Privacy and Terms entries as header-nav clicks, since signed-in pages render no footer to reach them", () => {

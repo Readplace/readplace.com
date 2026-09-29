@@ -79,7 +79,10 @@ function expectBareUrlRow(card: Element): void {
 	expect(reportForm.getAttribute("hx-disabled-elt")).toBe("find button");
 	const menu = card.querySelector("[data-test-inbox-article-menu]");
 	assert(menu, "the report must sit in the row's overflow menu");
-	expect(menu.contains(report)).toBe(true);
+	const panel = menu.querySelector(".menu__panel");
+	assert(panel, "the overflow menu must carry the shared panel");
+	expect(panel.contains(report)).toBe(true);
+	expect(report.classList.contains("menu__item")).toBe(true);
 	expect(report.textContent).toBe("Not an article (report)");
 }
 

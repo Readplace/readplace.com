@@ -79,6 +79,7 @@ export function renderSubscribePlansPopover({
 	return renderConfirmPopover({
 		id: SUBSCRIBE_PLANS_POPOVER_ID,
 		key: "subscribe-plans",
+		close: {},
 		title: "How would you like to pay?",
 		body: "Every plan is the whole of Readplace. Cancel any time, and everything you have already saved stays readable.",
 		wide: true,

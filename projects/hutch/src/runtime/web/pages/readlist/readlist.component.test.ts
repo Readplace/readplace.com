@@ -42,7 +42,7 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 		popoverId: markStatusConfirmPopoverId("abc123"),
 		url: "/queue/abc123/status",
 		status: "read",
-		queueLabels: ["All"],
+		readlists: [{ slug: ReadlistSlugSchema.parse("default"), label: "All" }],
 	},
 	readerHref: "/queue/abc123/view",
 	isStalePending: false,
@@ -102,6 +102,14 @@ function buildPage(
 ) {
 	return ReadlistPage(baseViewModel(vmOverrides), pageOptions(optOverrides));
 }
+
+describe("readlist menu styles", () => {
+	it("ships the shared panel and row styles with the readlist page", () => {
+		const styles = buildPage().styles;
+		expect(styles).toContain(".menu__panel {");
+		expect(styles).toContain(".menu__item {");
+	});
+});
 
 function pageDoc(
 	vmOverrides: Partial<ReadlistViewModel> = {},

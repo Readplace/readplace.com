@@ -11,7 +11,7 @@ import type {
 	PastReads,
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
-import type { ReadlistSlug } from "@packages/domain/readlist";
+import type { ReadlistRef, ReadlistSlug } from "@packages/domain/readlist";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -118,7 +118,7 @@ export function ReaderPage(
 		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 		exitConfirmScopes?: ExitConfirmScopes;
 		readerPathFor: (articleId: string) => string;
-		markStatusConfirmReadlistLabels?: readonly string[];
+		markStatusConfirmReadlists?: readonly ReadlistRef[];
 		readerNotice?: ReaderFailedVariant;
 		epubDownloadHref?: string;
 	},
@@ -130,14 +130,14 @@ export function ReaderPage(
 	const markReadIcon = isRead ? "inbox" : "check";
 	const markReadStatus: ArticleStatus = isRead ? "unread" : "read";
 	const markStatusConfirm =
-		options.markStatusConfirmReadlistLabels === undefined
+		options.markStatusConfirmReadlists === undefined
 			? undefined
 			: {
 					articleId,
 					popoverId: markStatusConfirmPopoverId(articleId),
 					url: `/queue/${articleId}/status`,
 					status: markReadStatus,
-					queueLabels: options.markStatusConfirmReadlistLabels,
+					readlists: options.markStatusConfirmReadlists,
 				};
 	const markReadActions: MarkReadAction[] = [
 		{

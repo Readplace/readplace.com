@@ -34,8 +34,9 @@ test.describe("The save tip meets a reader at the URL box", () => {
 		const saveTip = page.locator("[data-test-confirm-popover='save-tip']");
 		await expect(saveTip).toBeVisible();
 
-		await saveTip.locator("[data-test-action='save-tip-acknowledge']").click();
+		await saveTip.locator("[data-test-action='save-tip-continue']").click();
 		await expect(saveTip).toBeHidden();
+		await expect(form.locator('input[name="url"]')).toBeFocused();
 
 		// Nothing has been saved yet, so only the panel's own record can have
 		// spent the session's one warning.

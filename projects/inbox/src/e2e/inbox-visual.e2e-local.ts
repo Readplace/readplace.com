@@ -12,6 +12,8 @@ import { pinCopyableAddresses } from "./inbox-visual.browser";
 /** A fixed instant, so the list's wall-clock-relative label is the same on every
  * run and the baseline is not a slowly rotting screenshot of "1 hour ago". */
 const RECEIVED_AT = "2026-01-05T10:00:00.000Z";
+const FIRST_ARTICLE_CARD = '[data-test-inbox-article-card="0000"]';
+const FIRST_ARTICLE_MENU = `${FIRST_ARTICLE_CARD} [data-test-inbox-article-menu]`;
 
 const NO_GEOMETRY = async (): Promise<void> => {};
 
@@ -172,6 +174,22 @@ const addressesPage: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const createdToast: VisualCheckpoint = {
+	name: "inbox-created-toast",
+	settled: async (page) => {
+		const toast = page.locator("[data-test-toast]");
+		await expect(toast).toBeVisible();
+		await expect(toast.locator("[data-test-toast-message]")).toHaveText(
+			'Created the inbox email "e2e" — it\'s live in the list below',
+		);
+		await expect(toast.locator("[data-test-toast-action]")).toHaveCount(0);
+	},
+	geometry: NO_GEOMETRY,
+	target: "[data-test-toast]",
+	capture: "element",
+	pinnedText: [],
+};
+
 const addressAlert: VisualCheckpoint = {
 	name: "inbox-alert",
 	settled: async (page) => {
@@ -285,6 +303,34 @@ const skippedWithDropped: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+async function articleMenuInsideCard(page: Page): Promise<void> {
+	const cardBox = await measuredBox(page, FIRST_ARTICLE_CARD);
+	const panelBox = await measuredBox(page, `${FIRST_ARTICLE_MENU} .menu__panel`);
+	const rowBox = await measuredBox(page, `${FIRST_ARTICLE_MENU} .menu__item`);
+	assert.ok(panelBox.x >= cardBox.x && panelBox.x + panelBox.width <= cardBox.x + cardBox.width);
+	assert.ok(panelBox.y >= cardBox.y && panelBox.y + panelBox.height <= cardBox.y + cardBox.height);
+	assert.ok(panelBox.width >= 120);
+	assert.ok(Math.abs(rowBox.height - 44) <= 0.5);
+}
+
+const articleMenuOpen: VisualCheckpoint = {
+	name: "inbox-article-menu-open",
+	settled: async (page) => {
+		await expect(page.locator('[data-test-tab-panel="articles"]')).toHaveAttribute(
+			"data-articles-status",
+			"terminal",
+		);
+		await page.locator(`${FIRST_ARTICLE_MENU} summary`).click();
+		await expect(page.locator(FIRST_ARTICLE_MENU)).toHaveAttribute("open", "");
+		await expect(page.locator(`${FIRST_ARTICLE_MENU} .menu__panel`)).toBeVisible();
+		await page.mouse.move(0, 0);
+	},
+	geometry: articleMenuInsideCard,
+	target: FIRST_ARTICLE_CARD,
+	capture: "element",
+	pinnedText: [],
+};
+
 test.describe("Inbox visual checkpoints", () => {
 	test.use({ timezoneId: "UTC" });
 
@@ -300,6 +346,14 @@ test.describe("Inbox visual checkpoints", () => {
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
 		await page.goto("/inbox/addresses");
 		await captureCheckpoint(page, addressesPage);
+	});
+
+	test("captures the created address toast", async ({ page }) => {
+		await page.request.post("/e2e/session");
+		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
+		await page.route("**/client-dist/toast.client.js", (route) => route.abort());
+		await page.goto("/inbox/addresses?created=e2e");
+		await captureCheckpoint(page, createdToast);
 	});
 
 	test("captures an inbox address limit alert", async ({ page }) => {
@@ -371,5 +425,11 @@ test.describe("Inbox visual checkpoints", () => {
 		});
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=excluded`);
 		await captureCheckpoint(page, skippedWithDropped);
+	});
+
+	test("captures an open article menu inside its card", async ({ page }) => {
+		const emailId = await seedEmail(page, { links: TWO_CRAWLED_LINKS });
+		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
+		await captureCheckpoint(page, articleMenuOpen);
 	});
 });

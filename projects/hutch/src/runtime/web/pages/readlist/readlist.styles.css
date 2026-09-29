@@ -134,101 +134,6 @@
   overflow-wrap: anywhere;
 }
 
-.readlist-nav__menu {
-  position: relative;
-  flex: 0 0 auto;
-}
-
-.readlist-nav__menu-toggle,
-.readlist-article__menu-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  min-height: 36px;
-  list-style: none;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  color: var(--muted-foreground);
-}
-
-.readlist-nav__menu-toggle::-webkit-details-marker,
-.readlist-article__menu-toggle::-webkit-details-marker {
-  display: none;
-}
-
-.readlist-nav__menu-toggle:hover {
-  background: var(--card);
-  color: var(--foreground);
-}
-
-.readlist-article__menu-toggle:hover {
-  background: var(--muted);
-  color: var(--foreground);
-}
-
-.readlist-nav__menu-toggle:focus-visible,
-.readlist-article__menu-toggle:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.readlist-nav__menu-toggle svg,
-.readlist-article__menu-toggle svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.readlist-nav__menu-panel,
-.readlist-article__menu-panel {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 5;
-  min-width: 180px;
-  padding: 6px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
-}
-
-.readlist-nav__menu-item,
-.readlist-article__menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  font: inherit;
-  font-size: 0.875rem;
-  color: var(--foreground);
-  text-align: left;
-  cursor: pointer;
-}
-
-.readlist-nav__menu-item svg,
-.readlist-article__menu-item svg {
-  width: 1rem;
-  height: 1rem;
-  color: var(--muted-foreground);
-}
-
-.readlist-nav__menu-item:hover,
-.readlist-article__menu-item:hover {
-  background: var(--muted);
-}
-
-.readlist-nav__menu-item--danger:hover,
-.readlist-article__menu-item--danger:hover {
-  background: var(--error-bg);
-  color: var(--error-text);
-}
-
 .readlist-nav__confirm-trigger,
 .readlist-article__confirm-trigger {
   display: none;
@@ -238,12 +143,12 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 12px;
 }
 
 @supports selector(:popover-open) {
   .readlist-nav__confirm-trigger,
-  .readlist-article__menu-item.readlist-article__confirm-trigger {
+  .menu__item.readlist-article__confirm-trigger {
     display: flex;
   }
 
@@ -589,7 +494,8 @@
 .readlist-article__thumbnail-link {
   flex: 0 0 auto;
   align-self: stretch;
-  display: block;
+  display: flex;
+  align-items: center;
   padding-left: clamp(12px, 3vw, 16px);
 }
 
@@ -633,8 +539,6 @@
 }
 
 .readlist-article__menu {
-  position: relative;
-  flex: 0 0 auto;
   margin: -6px -8px 0 0;
 }
 
@@ -1259,17 +1163,6 @@
   }
 }
 
-.readlist .confirm-popover__actions {
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.readlist .confirm-popover__actions .btn {
-  width: auto;
-  flex: 1 1 auto;
-}
-
 .readlist .readlist-migrate {
   width: 100%;
   text-align: left;
@@ -1292,14 +1185,13 @@
   justify-content: flex-start;
   width: 100%;
   gap: 8px;
+  margin-top: 16px;
 }
 
 .readlist-rename__input {
   width: 100%;
 }
 
-.readlist-rename__buttons {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
+.readlist-rename .confirm-popover__buttons {
+  margin-top: 16px;
 }
