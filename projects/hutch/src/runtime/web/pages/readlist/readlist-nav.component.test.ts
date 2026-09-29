@@ -90,6 +90,8 @@ describe("buildReadlistNav", () => {
 		assert(edit, "the menu must offer an Edit control");
 		expect(edit.getAttribute("popovertarget")).toBe(readlistRenamePopoverId(WORK.slug));
 		expect(edit.getAttribute("aria-haspopup")).toBe("dialog");
+		expect(edit.parentElement?.classList.contains("menu__panel")).toBe(true);
+		expect(edit.classList.contains("menu__item")).toBe(true);
 	});
 
 	it("opens a custom readlist's menu on a Delete control that targets its delete confirmation", () => {
@@ -101,6 +103,8 @@ describe("buildReadlistNav", () => {
 		assert(del, "the menu must offer a Delete control");
 		expect(del.getAttribute("popovertarget")).toBe(readlistDeleteConfirmPopoverId(WORK.slug));
 		expect(del.getAttribute("aria-haspopup")).toBe("dialog");
+		expect(del.parentElement?.classList.contains("menu__panel")).toBe(true);
+		expect(del.classList.contains("menu__item")).toBe(true);
 	});
 
 	it("gates both the Edit and Delete triggers behind popover support", () => {

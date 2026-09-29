@@ -56,6 +56,7 @@ export type NavItemKey =
 	| "inbox"
 	| "integrations"
 	| "account"
+	| "blog"
 	| "privacy"
 	| "terms"
 	| "logout"
@@ -187,6 +188,7 @@ const NAV_INTEGRATIONS = navItem({
 });
 
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", iconName: "user" });
+const NAV_BLOG = navItem({ key: "blog", label: "Blog", path: "/blog", method: "GET", iconName: "note" });
 const NAV_PRIVACY = navItem({ key: "privacy", label: "Privacy", path: "/privacy", method: "GET", iconName: "file" });
 const NAV_TERMS = navItem({ key: "terms", label: "Terms", path: "/terms", method: "GET", iconName: "file" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", iconName: "log-out" });
@@ -226,7 +228,7 @@ export function buildNavGroups(input: {
 	if (input.gmailFeatureEnabled) library.push(NAV_INTEGRATIONS);
 	return [
 		{ key: "library", label: "Library", items: library },
-		{ key: "account", label: "Account", items: [NAV_ACCOUNT, NAV_PRIVACY, NAV_TERMS, NAV_LOGOUT] },
+		{ key: "account", label: "Account", items: [NAV_ACCOUNT, NAV_BLOG, NAV_PRIVACY, NAV_TERMS, NAV_LOGOUT] },
 	];
 }
 

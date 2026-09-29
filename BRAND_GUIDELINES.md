@@ -118,8 +118,8 @@ A card differs from the `--muted` ground by only ~1.1:1, so a card always carrie
 | Role | Light | Dark | CSS variable | Usage |
 |---|---|---|---|---|
 | **Error mark** | `#C45C5C` | `#D46B6B` | `--color-error` | Border of an errored field or an error notice; a red icon that needs only 3:1. Never words, never a fill (white on it is 4.17:1 light, 3.43:1 dark) |
-| **Error ink** | `hsl(0 43% 48%)` `#AF4646` | `hsl(0 43% 68%)` | `--error-text` | Error words: a field message, a status chip's label, a destructive menu row on hover (5.54:1 on white, 4.62:1 on the light tint, 5.82:1 on the dark card, 5.46:1 on the dark tint). Flips *lighter* in dark, so it is never a fill |
-| **Error tint** | `#F6E7E7` | `#3A2020` | `--error-bg` | Ground of an error notice, an error chip, a destructive row's hover |
+| **Error ink** | `hsl(0 43% 48%)` `#AF4646` | `hsl(0 43% 68%)` | `--error-text` | Error words: a field message or a status chip's label (5.54:1 on white, 4.62:1 on the light tint, 5.82:1 on the dark card, 5.46:1 on the dark tint). Flips *lighter* in dark, so it is never a fill |
+| **Error tint** | `#F6E7E7` | `#3A2020` | `--error-bg` | Ground of an error notice or error chip |
 | **Error fill** | `hsl(0 43% 52%)` (pressed `hsl(0 43% 44%)`) | same (pinned) | `--error-fill`, `--error-fill-hover`, `--error-foreground` | The hover and pressed fills of a standalone destructive outline button. Pinned in both themes like `--primary-fill`; carries `--error-foreground` at 4.85:1 (6.34:1 when pressed) |
 | **Success mark / ink** | `#3D8B6E` / `hsl(158 39% 35%)` | `#4A9F7F` | `--color-success`, `--success-text`, `--success-foreground` | `--color-success` fills a shape whose mark needs 3:1 (a progress bar, a completed step's disc); `--success-text` is success words and a check beside words (4.98:1 on white); `--success-foreground` (white) is a mark on a `--success` fill |
 | **Success tint** | `#E8F2EE` | `#17302A` | `--success-bg` | Ground of a success notice or chip |
@@ -128,7 +128,7 @@ A card differs from the `--muted` ground by only ~1.1:1, so a card always carrie
 | **Info mark** | `#4A7FB5` | `#6B9BD1` | `--color-info` | A wordless informational mark: an icon or a notice's border. Marks only — 4.20:1 on white and 3.63:1 on its tint, too close to the floor for words |
 | **Info tint** | `#E8EFF7` | `#1B2836` | `--info-bg` | Ground of an informational notice |
 
-Every tint is opaque, so a pair measures the same on a card and on the canvas: red words (`--error-text`) on `--error-bg` are 4.62:1 light and 5.46:1 dark wherever the notice sits. `--color-error` stays a mark; the error ink was darkened from 50% to 48% lightness so the red-on-tint pairs (a destructive menu row's hover, an error chip) clear 4.5:1 on the opaque tint.
+Every tint is opaque, so a pair measures the same on a card and on the canvas: red words (`--error-text`) on `--error-bg` are 4.62:1 light and 5.46:1 dark wherever the notice sits. `--color-error` stays a mark; the error ink was darkened from 50% to 48% lightness so an error chip clears 4.5:1 on the opaque tint.
 
 ### Colour Rules
 
@@ -267,14 +267,16 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
 
   | Where | Glyph | Icon-to-label gap |
   |---|---|---|
-  | Header destination, rail row, menu item, alert lead, kebab, search or filter box | 24px | 8px in the header |
+  | Header destination, rail row, alert lead, search or filter box | 24px | 8px in the header |
+  | Kebab trigger | 24px (`1.5rem`) | — |
+  | Menu item | 20px (`1.25rem`) | 12px |
   | Inside an L or M [button](#buttons), an announcement-bar link or close | 20px | 8px |
   | Inside an S button | 16px | 6px |
   | Metadata row, chevron | 16–18px | — |
 
   The shell and the pages with no design use these sizes; a designed component (rail, menus, alerts, metadata rows) takes its size in its own pass, and until then its section below may quote its earlier size. The 6px S-button gap is a half-step inside a component (see [Spacing Scale](#spacing-scale)).
 - **A readlist's kind has one glyph.** One table in hutch (`READLIST_KIND_ICON`) maps a readlist's kind to its icon: the default readlist ("All") draws `file`, a custom readlist `folder`. A surface that shows a readlist's kind reads that table rather than choosing its own glyph (the reader's readlist picker still draws `folder` for every option until it adopts the table); the header's Readlist destination keeps `book`.
-- **An icon's ink comes from its role.** Navigation icons are monochrome and follow their label: in the header, `--ink-nav-current` on the current destination and `--ink-nav-inactive` on the others (account items stay `--foreground`); in a side rail, `--muted-foreground` at rest and `--primary-text-on-tint` on the selected row. Menu-item icons and icon-only triggers are `--muted-foreground`. A state glyph beside words takes the functional text token (`--success-text`, `--error-text`); an alert glyph takes its variant's mark (`--color-error`, `--color-success`, `--color-info`), except the warning glyph takes `--warning-text` to clear 3:1 on its tint. A progress spinner (`loader`) is `--primary-text`. A **metadata glyph** is a fact glyph tinted through its fact token so rows scan by colour — source/site `globe` in `--fact-site`, saved time `clock` in `--fact-saved`, reading time `eye` in `--fact-read-time` — while the text beside it is `--ink-meta`. The fact tokens resolve to `--color-secondary-text`, `--color-error` and `--color-success`; the design's navy `#004593`, red `#D4284B` and teal gradient are not adopted (`#004593` is 1.72:1 on the dark card). Every fact keeps its text label, so hue is never the only cue. This is the one decorative use of the functional hues; everywhere else red and green mean error and success. Every tinted glyph clears 3:1 against its surface in both themes — reach for a page-following token before a theme-pinned brand value (pinned `--color-secondary` is 1.39:1 on the dark card).
+- **An icon's ink comes from its role.** Navigation icons are monochrome and follow their label: in the header, `--ink-nav-current` on the current destination and `--ink-nav-inactive` on the others (account items stay `--foreground`); in a side rail, `--muted-foreground` at rest and `--primary-text-on-tint` on the selected row. Menu-item icons and kebab triggers are `--foreground`; other icon-only triggers are `--muted-foreground`. A state glyph beside words takes the functional text token (`--success-text`, `--error-text`); an alert glyph takes its variant's mark (`--color-error`, `--color-success`, `--color-info`), except the warning glyph takes `--warning-text` to clear 3:1 on its tint. A progress spinner (`loader`) is `--primary-text`. A **metadata glyph** is a fact glyph tinted through its fact token so rows scan by colour — source/site `globe` in `--fact-site`, saved time `clock` in `--fact-saved`, reading time `eye` in `--fact-read-time` — while the text beside it is `--ink-meta`. The fact tokens resolve to `--color-secondary-text`, `--color-error` and `--color-success`; the design's navy `#004593`, red `#D4284B` and teal gradient are not adopted (`#004593` is 1.72:1 on the dark card). Every fact keeps its text label, so hue is never the only cue. This is the one decorative use of the functional hues; everywhere else red and green mean error and success. Every tinted glyph clears 3:1 against its surface in both themes — reach for a page-following token before a theme-pinned brand value (pinned `--color-secondary` is 1.39:1 on the dark card).
 - **Arrows show direction; chevrons show disclosure.** `arrow-left`/`arrow-right` lead Previous / trail Next; `arrow-down`/`arrow-up` beside a sort label show the order applied. A disclosure (`<details>` summary, dropdown, account trigger) uses `chevron-down` and rotates it 180° when open — `--muted-foreground` in content, `--foreground` at 24px on the header's account trigger; there is no separate up-chevron.
 - **An icon carrying meaning alone needs an `.sr-only` twin** naming what it acts on — `htmlToMarkdown` drops `<svg>`, so a lone icon reaches AI clients and screen readers as an empty cell. Prefer `.sr-only` text over an `aria-label` alone (which markdown also drops). A per-row menu is "More options for <item>", a status marker is "Unread"/"Read", a close is "Close" — never a bare "Menu" repeated down a list.
 
@@ -317,7 +319,7 @@ There is **one** button in the product. Every call to action is `.btn` plus exac
 | **`on-dark`** | white | white, deepened | same as hover | `--secondary-foreground` | — | *Context modifier, not a priority level* — a primary sitting on the navy hero |
 | **`on-dark-ghost`** | translucent white | more opaque white | same as hover | white | translucent white inset | *Context modifier* — the secondary beside an `on-dark` primary |
 
-`primary` **always** means the amber CTA. The fills are pinned in both themes except `secondary` and `neutral`, which follow the page: in dark the secondary steps `#3D2A18` → `#4A3320` → `#5A3E26` (the kit's dark hover equals its rest fill, which reads as a sheet bug, so hover takes its own step), and the neutral steps from `--card` `#222222` through `#2A2A2A` to `#2E2E2E`. `on-dark`/`on-dark-ghost` carry theme-stable values because the navy hero is navy in both themes. There is no toggle variant that inverts to a solid fill on hover — a row's state action is a `secondary`. A **tertiary** action is not a button — it is a plain inline link (`--primary-text`, underlined). A confirmed delete commits with amber `primary` inside its dialog; red marks destructive actions taken outside a dialog. The *control that opens* a confirmed delete is a neutral [menu](#menus) item that tints red on hover.
+`primary` **always** means the amber CTA. The fills are pinned in both themes except `secondary` and `neutral`, which follow the page: in dark the secondary steps `#3D2A18` → `#4A3320` → `#5A3E26` (the kit's dark hover equals its rest fill, which reads as a sheet bug, so hover takes its own step), and the neutral steps from `--card` `#222222` through `#2A2A2A` to `#2E2E2E`. `on-dark`/`on-dark-ghost` carry theme-stable values because the navy hero is navy in both themes. There is no toggle variant that inverts to a solid fill on hover — a row's state action is a `secondary`. A **tertiary** action is not a button — it is a plain inline link (`--primary-text`, underlined). A confirmed delete commits with amber `primary` inside its dialog; red marks destructive actions taken outside a dialog. The *control that opens* a confirmed delete is a neutral [menu](#menus) item, with no red at rest or on hover.
 
 **Row actions.** An action repeated on every row of a list (Mark as read on each card, Exclude on each sender) is a `secondary` at size M, never `primary`, so the screen keeps one amber CTA. While its request is in flight the label hides with `visibility: hidden` (the width holds) and the shared in-flight dots take its place; while the item is still processing it is disabled at `opacity: 0.5`.
 
@@ -340,11 +342,12 @@ Sizes come by role, not by importance:
 | **L** | `.btn` (default) | 48px | `12px 16px` | `--radius` (8) | 16px/600, 24px line | 20px, 8px | 48px | A CTA on its own line: hero, landing, install, pricing, import commit, a card's closing CTA (spanning the card), **every dialog button**, and a CTA beside a text input — L equals `--input-height`, so the row lines up with no modifier |
 | **M** | `.btn--m` | 40px | `8px 14px` | `--radius` (8) | 16px/600 | 20px, 8px | ≥44px (`::before`, `inset: -2px 0`) | A list row's state action (Mark as read, Exclude, Save on an inbox link), a toast's Undo, the guest header's Log in |
 | **S** | `.btn--s` | 32px | `6px 12px` | `--radius-sm` (6) | 14px/600, 20px line | 16px, 6px | ≥44px (`::before`, `inset: -6px 0`) | An action nested in dense secondary content: a checklist or stepper step, a copy button, a banner CTA, the reader's action bar. Never a card's closing CTA |
-| **Icon** | — (not `.btn`) | — | `4px 8px` (`--button-padding-xs`) | `--radius-sm` | — | 16px | per the floor below | Icon-only controls (close, dismiss, kebab) |
+| **Icon** | — (not `.btn`) | — | `4px 8px` (`--button-padding-xs`) | `--radius-sm` | — | 16px | per the floor below | Icon-only close and dismiss controls |
+| **Kebab** | `.menu__toggle` | ≥36px | — | `--radius-sm` (6) | — | 24px, no fill | ≥36px square | Overflow trigger inside a list |
 
 The kit's XL (56px) is not built: no screen draws it, and unused CSS fails the purge check. `.btn--field`, `.btn--compact` and `.btn--toggle` are retired.
 
-**Tap-target floor is tiered.** Every `.btn` has a ≥44px hit area: L is 48px tall, and M and S stretch a transparent `::before` above and below the box, so the button stays visually small while its target does not. A tab and a navigation row are ≥44px tall. A menu item is ≥40px. A compact control *inside a list* (an overflow toggle, a page number, Previous/Next) is ≥36px square — the one relaxation of the 44px floor, and it still clears WCAG 2.5.8's 24px. A dialog or banner close is the `x` icon in a ≥44px hit box. Nothing interactive is smaller on any viewport.
+**Tap-target floor is tiered.** Every `.btn` has a ≥44px hit area: L is 48px tall, and M and S stretch a transparent `::before` above and below the box, so the button stays visually small while its target does not. A tab, navigation row and menu item are ≥44px tall. A compact control *inside a list* (an overflow toggle, a page number, Previous/Next) is ≥36px square — the one relaxation of the 44px floor, and it still clears WCAG 2.5.8's 24px. A dialog or banner close is the `x` icon in a ≥44px hit box. Nothing interactive is smaller on any viewport.
 
 #### Hover and active
 
@@ -361,7 +364,8 @@ The kit's XL (56px) is not built: no screen draws it, and unused CSS fails the p
 
 Controls that navigate or tidy without committing (sort, pagination, sidebar rows, "create" rows, kebab triggers, close buttons) are neutral: never amber at rest, never underlined.
 
-- A destination (a sidebar row, a page link, a menu item) rests in `--foreground`. A utility (sort, create, kebab, close) rests in `--muted-foreground` and turns `--foreground` on hover.
+- A destination (a sidebar row, a page link, a menu item) rests in `--foreground`. A utility (sort, create, close) rests in `--muted-foreground` and turns `--foreground` on hover.
+- A kebab trigger rests in `--foreground` and takes no fill or ink change on hover or open.
 - A control with a box shows hover by stepping to the neighbouring surface: `--card` when it sits on the `--muted` ground, `--muted` when it sits on a `--card` or `--background` surface. A text-only control changes ink only.
 - **Sort** is one link naming the current order with a direction-arrow icon ("Newest first") that toggles it — not a `<select>`.
 - A card's title link carries no underline and turns `--primary-text` on hover.
@@ -407,18 +411,18 @@ An app screen has a canvas and at most two raised layers — never more.
 |---|---|---|---|---|
 | **Canvas** | `--muted` on signed-in app pages; `--background` on reading pages; marketing pages keep the band rhythm | — | none | page ground, uncarded navigation rails and tab strips |
 | **Resting** | `--card` (`#FFFFFF` / `#222222`) | 1px `var(--border)` | **none** | cards, panels |
-| **Floating** | `--card` (a full-height drawer takes `--background`) | 1px `var(--border)` | its layer's shadow token; none for a dialog | dropdown and row menus, popovers, toasts, dialogs, the mobile nav drawer |
+| **Floating** | `--card` (a full-height drawer takes `--background`) | 1px `var(--border)` | dropdown and row menus: `--shadow-menu`; other layers: their shadow token; none for a dialog | dropdown and row menus, popovers, toasts, dialogs, the mobile nav drawer |
 
 | Token | Light | Dark | CSS variable | Role |
 |---|---|---|---|---|
 | Small | `0 1px 2px rgba(0,0,0,0.05)` | `0 1px 2px rgba(0,0,0,0.3)` | `--shadow-sm` | none |
 | Medium | `0 4px 6px rgba(0,0,0,0.07)` | `0 4px 6px rgba(0,0,0,0.4)` | `--shadow-md` | the phone nav drawer |
-| Menu | `0 0 12px rgba(0,0,0,0.10)` | `0 0 12px rgba(0,0,0,0.5)` | `--shadow-menu` | dropdown and row menus |
+| Menu | `0 0 8px rgb(0 0 0 / 0.15)` | `0 0 8px rgb(0 0 0 / 0.5)` | `--shadow-menu` | dropdown and row menus |
 | Toast | `0 4px 16px rgba(0,0,0,0.12)` | `0 4px 16px rgba(0,0,0,0.5)` | `--shadow-toast` | the toast |
 
-The menu and toast values are estimated from the design's halos (±30%). Menus and popovers move from `--shadow-md` to their tokens in their own passes; a dialog loses its shadow and floats on its scrim alone.
+The menu value matches the measured design halo; the toast value is estimated from its halo (±30%). Floating menus use `--shadow-menu`, and a dialog floats on its scrim alone.
 
-- **A shadow means it floats.** A resting card is border-only — the fill step from the canvas is barely visible in either theme, so the hairline does the separating. A shadow belongs to things that sit over the page and can be dismissed. That keeps every screen at two planes.
+- **A shadow means it floats.** A resting card is border-only — the fill step from the canvas is barely visible in either theme, so the hairline does the separating. A floating menu takes `--shadow-menu`; other dismissible layers take their own shadow tokens. That keeps every screen at two planes.
 - A **toast** is the one tinted floating layer: the opaque success tint, a 1px `--success` edge and `--shadow-toast`.
 - A **modal dialog** is a bordered `--card` over a scrim and blur, with no shadow of its own. The shared values are exported constants from `base.styles.ts`, not tokens, because `var()` does not reach `::backdrop`: `SCRIM_LIGHT` `rgb(0 0 0 / 0.5)` (the design's scrim samples black at 50%), `SCRIM_DARK` `rgb(13 13 13 / 0.72)` (no dark design), and `SCRIM_BLUR` `2px` (estimated) for a backdrop blur that degrades to the plain scrim on e-ink. A dialog interpolates them rather than writing its own literals.
 - A focus halo or an inset outline built with `box-shadow` is not elevation.
@@ -455,7 +459,13 @@ Pagination sits **below** the list card, outside it. The leading edge states the
 
 ### Menus
 
-An overflow menu is a `<details>`/`<summary>` kebab: an icon-only trigger (`ellipsis` on a content row, `ellipsis-vertical` in a narrow rail row; 16px, `--muted-foreground`, always visible — never revealed on hover), never a text label. It opens a panel anchored to the trigger's trailing edge, 4px below: `--card`, 1px `--border`, `--radius`, `--shadow-md`, 6px inner padding. Items are inset rows at `--radius-sm`, ≥40px tall, a 16px icon in `--muted-foreground` plus a 14px label in `--foreground` (10px gap), hovering to `--muted`; every item carries an icon. A **destructive item** looks like its siblings at rest and turns `--error-bg` / `--error-text` on hover; the [dialog](#dialogs) it opens decides the commit.
+> Defined in `src/packages/web-shell/src/shared/menu/menu.styles.ts`.
+
+An overflow menu is a `<details>`/`<summary>` kebab: `ellipsis` on a content row or `ellipsis-vertical` in a narrow rail row. Its 24px `--foreground` glyph is always visible inside a ≥36px hit box, with no fill at rest, on hover or while open. The focus ring sits 2px outside the trigger.
+
+The action panel sits flush below the trigger's hit box with trailing edges aligned. It has a `--card` fill, 1px `--border` edge, `--radius-md` corners, `--shadow-menu`, no inner padding, and a 120px minimum width that grows to fit its content. Full-bleed 44px rows are separated by 1px `--border` hairlines. Each row has 12px side padding, a 20px `--foreground` icon, a 12px gap, and a 14px/500 `--foreground` label. Hover and active fill the whole row with `--muted`; focus draws an inset 2px `--ring`. Delete looks and hovers like every other item; the [dialog](#dialogs) it opens handles the commit.
+
+The desktop header account dropdown uses the same panel and row values without the shared classes. Gmail sender and destination pickers are selection lists: they use the panel tokens with a 4px inset, undivided 8px-radius options and a divider above the create row.
 
 ### Dialogs
 
@@ -526,7 +536,7 @@ A **4px base unit**. Layout spacing (page padding, gutters, gaps between cards a
 
 | Token | Value | Usage |
 |---|---|---|
-| `xs` | 4px | Gap between the rows of a rail or menu list; tight inline gaps |
+| `xs` | 4px | Gap between the rows of a rail list; tight inline gaps |
 | `sm` | 8px | Between related elements (title → lede, label → field) |
 | — | 12px | Between items sharing a row (a heading and its menu, a count and its sort); input padding |
 | `md` | 16px | Between cards in a column |
@@ -726,7 +736,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
   - **Offline** (no design): a `--warning-bg` band with `--foreground` ink (13.32:1 light, 10.71:1 dark), revealed by its height.
   - **Extension suggestion** (64px): the message and a `secondary` S "See ways to save" CTA as one centred group 16px apart, stacked with a full-width CTA below 768px; no marker, gradient or shadow. The message speaks in the product voice ("Readplace", never the design's "us"): "Some sites don't allow Readplace to save the full article. Use the browser extension or the iPhone app to save the complete page." With the extension installed there is no CTA, and the message says to save the page again with the extension.
   - Never paint bar ink with `--color-secondary` — it is a pinned fill; navy ink uses `--color-secondary-text`. In dark mode the bars stay `#1A202C` above the `#121212` header.
-- **The signed-in account is named, not hidden behind an icon.** The right zone shows an initials avatar (a 24px circle in `--color-avatar` with two white 11px/700 initials from the email), the account's name slot — the email, until an account carries a display name — at 14px/500 `--foreground` on one line with an ellipsis (220px at most), and a 24px `chevron-down` in `--foreground` that turns 180° while open; the trigger is ≥44px tall. Account actions — Account, Privacy, Terms, Sign out, in that order, for a read-only account too — live only in its dropdown, which closes on outside click and Escape. Privacy and Terms draw the `file` glyph. The avatar is decorative (`aria-hidden`) — the email beside it is the accessible name. A surface that knows the reader is signed in but not their email (the blog, the embed page) keeps the same dropdown behind a plain "Account" trigger with no avatar. In the phone drawer the identity is a static row above the account items.
+- **The signed-in account is named, not hidden behind an icon.** The right zone shows an initials avatar (a 24px circle in `--color-avatar` with two white 11px/700 initials from the email), the account's name slot — the email, until an account carries a display name — at 14px/500 `--foreground` on one line with an ellipsis (220px at most), and a 24px `chevron-down` in `--foreground` that turns 180° while open; the trigger is ≥44px tall. Account actions — Account, Blog, Privacy, Terms, Sign out, in that order, for a read-only account too — live only in its dropdown, which closes on outside click and Escape. Blog draws `note`; Privacy and Terms draw `file`. The avatar is decorative (`aria-hidden`) — the email beside it is the accessible name. A surface that knows the reader is signed in but not their email (the blog, the embed page) keeps the same dropdown behind a plain "Account" trigger with no avatar. In the phone drawer the identity is a static row above the account items.
 - **The guest header** centres Install, Import Links and Features, in that order, and ends with Log in as a `primary` M button carrying the 20px `log-in` glyph. In the drawer the Log in button spans the row.
 - **The header carries no trial or subscription countdown.** A trial's state lives on the readlist page, not in the chrome.
 - **Only logged-out readers see the footer.** A signed-in reader gets no footer on any page — the product pages, and the blog, legal and marketing pages too — and reaches Privacy and Terms from the account menu. The guest footer keeps its structure on `--footer-bg`: 14px links (`--text-sm`) and an 11px copyright.

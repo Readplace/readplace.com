@@ -362,7 +362,7 @@ describe("Base component", () => {
 		expect(navItems).toEqual(["install", "import", "features", "login"]);
 	});
 
-	it("renders the full nav (queue + import + inbox + account + privacy + terms + logout) for an authenticated full-access user", () => {
+	it("renders the full nav (queue + import + inbox + account + blog + privacy + terms + logout) for an authenticated full-access user", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
@@ -375,7 +375,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "import", "inbox", "account", "privacy", "terms", "logout"]);
+		expect(navItems).toEqual(["queue", "import", "inbox", "account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("hands the signed-in email to the header so the account section renders as the user menu", () => {
@@ -407,7 +407,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "account", "privacy", "terms", "logout"]);
+		expect(navItems).toEqual(["queue", "account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("should include the footer with copyright", () => {

@@ -215,6 +215,28 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 		});
 
+		test(`the open card menu keeps its edge in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await pinThumbnail(page);
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await seedReaderAndReadlist(
+				page,
+				`readlist-menu-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await expect(page.locator("[data-test-article]")).toHaveCount(READLIST_ARTICLES.length + 1);
+			await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
+			await waitForImagePixels(page, ".readlist-article__thumbnail");
+			const card = page.locator("[data-test-article]").first();
+			await card.locator('[data-test-action="article-menu"]').click();
+			await expect(card.locator(".menu__panel")).toBeVisible();
+			await settle(page, READLIST_LIST);
+
+			await expect(page.locator(READLIST_LIST)).toHaveScreenshot(
+				`eink-readlist-menu-open-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
 		test(`the save tip keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email } = await seedReaderAndReadlist(

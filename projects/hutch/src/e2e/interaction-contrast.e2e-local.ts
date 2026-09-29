@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { CDPSession, Page } from "@playwright/test";
+import { z } from "zod";
 import { expect, test } from "@packages/e2e-harness";
 import { type InteractionInk, collectInteractionInk } from "./interaction-ink.browser";
 import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.browser";
@@ -150,16 +151,18 @@ function placeholderShortfall(ink: PlaceholderInk, lens: Lens, view: string): st
 	return `${view}: ${ink.name} placeholder ${placeholderContrast(ink, lens).toFixed(2)}:1 < ${textMinimum(ink)}:1`;
 }
 
-async function signInAsNewReader(page: Page, email: string): Promise<void> {
+async function signInAsNewReader(page: Page, email: string): Promise<string> {
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
 	});
 	assert.equal(created.status(), 201, "the e2e user fixture must answer the create request");
+	const userId = z.object({ userId: z.string() }).parse(await created.json()).userId;
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
+	return userId;
 }
 
 async function openImportReview(page: Page, urls: readonly string[]): Promise<void> {
@@ -392,6 +395,59 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 						lens,
 						view: `${theme}/import/review/${lensName}`,
 					}),
+				);
+			}
+		}
+	});
+});
+
+test.describe("Menu interaction states hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("a menu row keeps its ink under hover and draws its ring inside the panel", async ({ page }, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `menu-contrast-${stampId}@example.com`);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/menu-contrast-${stampId}`,
+				title: "An article with a menu action",
+				content: "<p>Seeded body for the menu contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedAt: "2026-07-12T09:14:00.000Z",
+				savedByUserId: userId,
+				excerpt: "A fixed excerpt for the menu contrast check.",
+				generatedSummary: {
+					summary: "A fixed summary for the menu contrast check.",
+					excerpt: "A fixed excerpt for the menu contrast check.",
+				},
+			},
+		});
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-article]")).toHaveCount(1);
+			await page.locator('[data-test-action="article-menu"]').click();
+			const row = page.locator('[data-test-action="delete"].readlist-article__confirm-trigger');
+			await expect(row).toBeVisible();
+			const client = await auditContext(page);
+			await stamp(page, { selector: '[data-test-action="delete"].readlist-article__confirm-trigger', auditId: "menu-delete" });
+
+			const rest = await measure(page, client, "menu-delete", []);
+			const hover = await measure(page, client, "menu-delete", ["hover"]);
+			const focused = await measure(page, client, "menu-delete", FOCUSED);
+			assert.equal(focused.outline.width, 2, `${theme}/queue/menu: the focus ring must be 2px wide`);
+			assert.equal(focused.outline.offset, -2, `${theme}/queue/menu: the focus ring must sit inside the row`);
+			assert.notEqual(focused.outline.style, "none", `${theme}/queue/menu: the focus ring must be visible`);
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				const view = `${theme}/queue/menu/${lensName}`;
+				assert.deepEqual(lens(hover.text), lens(rest.text), selectedInkShortfall({ rest, hover, view }));
+				assert.ok(labelContrast(hover, lens) >= 4.5, labelShortfall(hover, lens, view));
+				const ringContrast = contrastRatio({ ink: lens(focused.outline.colour), surface: lens(focused.fill) });
+				assert.ok(
+					ringContrast >= NON_TEXT_MINIMUM,
+					`${view}: the inset ring clears ${ringContrast.toFixed(2)}:1 < ${NON_TEXT_MINIMUM}:1`,
 				);
 			}
 		}

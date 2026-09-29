@@ -389,6 +389,10 @@ test.describe("Gmail sender picker", () => {
 				searchBefore.x + searchBefore.width <= menu.x + menu.width,
 			"search must fit inside the menu",
 		);
+		assert.ok(
+			Math.abs(firstBefore.x - menu.x - 1 - 4) <= 0.5,
+			`the sender options must start 4px inside the menu border, measured ${firstBefore.x - menu.x - 1}px`,
+		);
 
 		const scrollTop = await page
 			.locator(`${SENDER_PICKER} .gmail__picker-menu`)

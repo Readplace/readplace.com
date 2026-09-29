@@ -9,16 +9,16 @@ interface DesignCall {
 
 function menusMarkup(): string {
 	return `
-		<details class="readlist-nav__menu" open data-test-readlist-menu="work"><summary data-test-action="readlist-menu">Options</summary><div class="readlist-nav__menu-panel"><button type="button" data-test-inside>Edit</button></div></details>
-		<details class="readlist-article__menu" open data-test-article-menu><summary data-test-action="article-menu">More</summary></details>
+		<details class="menu readlist-nav__menu" open data-test-readlist-menu="work"><summary class="menu__toggle" data-test-action="readlist-menu">Options</summary><div class="menu__panel"><button class="menu__item" type="button" data-test-inside>Edit</button></div></details>
+		<details class="menu readlist-article__menu" open data-test-article-menu><summary class="menu__toggle" data-test-action="article-menu">More</summary></details>
 		<button type="button" data-test-outside>Elsewhere</button>
 	`;
 }
 
 function dialogsMarkup(): string {
 	return `
-		<details class="readlist-nav__menu" open data-test-readlist-menu="work"><summary data-test-action="readlist-menu">Options</summary><div class="readlist-nav__menu-panel"><button type="button" popovertarget="rename-work" data-test-nav-trigger>Edit</button></div></details>
-		<details class="readlist-article__menu" open data-test-article-menu><summary data-test-action="article-menu">More</summary><div class="readlist-article__menu-panel"><button type="button" popovertarget="delete-article" data-test-card-trigger>Delete</button></div></details>
+		<details class="menu readlist-nav__menu" open data-test-readlist-menu="work"><summary class="menu__toggle" data-test-action="readlist-menu">Options</summary><div class="menu__panel"><button class="menu__item" type="button" popovertarget="rename-work" data-test-nav-trigger>Edit</button></div></details>
+		<details class="menu readlist-article__menu" open data-test-article-menu><summary class="menu__toggle" data-test-action="article-menu">More</summary><div class="menu__panel"><button class="menu__item" type="button" popovertarget="delete-article" data-test-card-trigger>Delete</button></div></details>
 		<button type="button" data-test-outside>Elsewhere</button>
 		<div id="rename-work" popover data-test-dialog="nav"><button type="button" data-test-dialog-close>Close</button></div>
 		<div id="delete-article" popover data-test-dialog="card"><button type="button">Close</button></div>

@@ -63,6 +63,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"log-out",
 	"mail",
 	"menu",
+	"note",
 	"pencil",
 	"plug",
 	"plus",

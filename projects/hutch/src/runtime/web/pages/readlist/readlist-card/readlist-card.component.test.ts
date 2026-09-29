@@ -263,7 +263,8 @@ describe("renderReadlistCard", () => {
 		assert(trigger, "the delete trigger must be present");
 		expect(trigger.getAttribute("type")).toBe("button");
 		expect(trigger.getAttribute("popovertarget")).toBe("readlist-delete-confirm-abc123");
-		expect(trigger.parentElement?.classList.contains("readlist-article__menu-panel")).toBe(true);
+		expect(trigger.parentElement?.classList.contains("menu__panel")).toBe(true);
+		expect(trigger.classList.contains("menu__item")).toBe(true);
 
 		const fallback = doc.querySelector('[data-test-action="delete-fallback"]');
 		assert(fallback, "a no-popover delete fallback must be present");

@@ -103,6 +103,14 @@ function buildPage(
 	return ReadlistPage(baseViewModel(vmOverrides), pageOptions(optOverrides));
 }
 
+describe("readlist menu styles", () => {
+	it("ships the shared panel and row styles with the readlist page", () => {
+		const styles = buildPage().styles;
+		expect(styles).toContain(".menu__panel {");
+		expect(styles).toContain(".menu__item {");
+	});
+});
+
 function pageDoc(
 	vmOverrides: Partial<ReadlistViewModel> = {},
 	optOverrides: Partial<ReadlistPageOptions> = {},

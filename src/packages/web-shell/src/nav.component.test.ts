@@ -33,7 +33,7 @@ const GUEST: NavProps = {
 };
 
 describe("GlobalNav component", () => {
-	it("renders authenticated nav items (queue, import, inbox, account, sign out) for an authenticated full-access user", () => {
+	it("renders authenticated nav items (queue, import, inbox, account, blog, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -50,6 +50,7 @@ describe("GlobalNav component", () => {
 		assert(doc.querySelector('[data-test-nav-item="import"]'));
 		assert(doc.querySelector('[data-test-nav-item="inbox"]'));
 		assert(doc.querySelector('[data-test-nav-item="logout"]'));
+		assert(doc.querySelector('[data-test-nav-item="blog"]'));
 		const account = doc.querySelector('[data-test-nav-item="account"]');
 		assert(account, "account nav item must render for authenticated full-access users");
 		const form = account.closest("form");
@@ -57,7 +58,7 @@ describe("GlobalNav component", () => {
 		expect(form.getAttribute("action")).toBe("/account?utm_source=header-nav&utm_medium=internal&utm_content=account");
 	});
 
-	it("splits the authenticated nav into a Library section (queue, import, inbox) and an Account section (account, privacy, terms, sign out)", () => {
+	it("splits the authenticated nav into a Library section (queue, import, inbox) and an Account section (account, blog, privacy, terms, sign out)", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -85,7 +86,7 @@ describe("GlobalNav component", () => {
 		const accountItems = Array.from(
 			account.querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(accountItems).toEqual(["account", "privacy", "terms", "logout"]);
+		expect(accountItems).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("folds the Account section into a user menu carrying the signed-in email and its initials", () => {
@@ -113,7 +114,7 @@ describe("GlobalNav component", () => {
 		const accountItems = Array.from(menu.querySelectorAll("[data-test-nav-item]")).map((el) =>
 			el.getAttribute("data-test-nav-item"),
 		);
-		expect(accountItems).toEqual(["account", "privacy", "terms", "logout"]);
+		expect(accountItems).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 		const library = doc.querySelector('[data-test-nav-group="library"]');
 		assert(library, "library group must render");
 		expect(library.querySelector(".nav__group-label")?.textContent).toBe("Library");
@@ -140,7 +141,7 @@ describe("GlobalNav component", () => {
 		const accountItems = Array.from(menu.querySelectorAll("[data-test-nav-item]")).map((el) =>
 			el.getAttribute("data-test-nav-item"),
 		);
-		expect(accountItems).toEqual(["account", "privacy", "terms", "logout"]);
+		expect(accountItems).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("keeps the library icons distinct: a solid book for the current readlist, a stroke file for imports, a stroke tray for the inbox", () => {
@@ -316,6 +317,7 @@ describe("GlobalNav component", () => {
 				["inbox", null],
 				["integrations", null],
 				["account", null],
+				["blog", null],
 				["privacy", null],
 				["terms", null],
 				["logout", null],

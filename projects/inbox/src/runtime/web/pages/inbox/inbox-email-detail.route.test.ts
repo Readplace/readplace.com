@@ -428,6 +428,10 @@ describe("Inbox email detail Articles tab", () => {
 
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
+		const pageStyles = doc.querySelector("main > style");
+		assert(pageStyles, "the detail page must carry its styles");
+		expect(pageStyles.textContent).toContain(".menu__panel {");
+		expect(pageStyles.textContent).toContain(".menu__item {");
 		expect(renderedPanels(doc)).toEqual(["articles"]);
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(3);
 		// Each tab carries how many items it holds, so a reader can see what's on the

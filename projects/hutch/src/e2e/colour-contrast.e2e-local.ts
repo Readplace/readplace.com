@@ -154,6 +154,12 @@ async function auditDeleteConfirmation(
 	where: { theme: string; view: string },
 ): Promise<void> {
 	await page.locator('[data-test-action="article-menu"]').first().click({ timeout: SETTLE_MS });
+	await expect(page.locator('[data-test-article-menu] .menu__panel').first()).toBeVisible({
+		timeout: SETTLE_MS,
+	});
+	await page.mouse.move(0, 0);
+	const menuMeasurements = await stableMeasurements(page, READLIST_ROOT);
+	assertContrast(menuMeasurements, { ...where, view: `${where.view}/menu-open` });
 	await page.locator('[data-test-action="delete"]').first().click({ timeout: SETTLE_MS });
 	await expect(page.locator('[data-test-confirm-popover="delete"]:popover-open')).toBeVisible({
 		timeout: SETTLE_MS,
