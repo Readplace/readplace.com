@@ -280,7 +280,7 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
 
 ### Illustrations
 
-Spot illustrations lead an empty state and a consequential confirmation dialog. They come from the shared illustrations module, never from the icon set. There are two drawings: the **book with a lightbulb** leads anything that is not a deletion, and the **bin holding a sheet** leads a deletion.
+Spot illustrations lead an empty state, a reader notice, an advisory and an illustrated confirmation. They come from the shared illustrations module, never from the icon set. There are two drawings: the **book with a lightbulb** leads anything that is not a deletion, and the **bin holding a sheet** leads a deletion.
 
 An illustration is filled art: a solid ink silhouette that shows as the outline, with flat shapes on top in at most four paints — ink (`currentColor`, which the container sets to `--foreground`), paper (`--card`), amber (`--color-brand`) and cream (`--color-brand-light`, only inside an ink outline). There are no strokes, washes, opacity, gradients or hex literals, so the art follows the reader's theme and any light pin.
 
@@ -467,6 +467,7 @@ A dialog is the shared confirm panel, opened as a native popover, and every trig
 - **Body** is `--text-sm` (14px)/22px in `--muted-foreground`, with 24px below it. A list of what the action will touch is a bordered box (1px `--border`, `--radius`) of 56px rows with 24px readlist icons and hairline dividers.
 - **Illustration.** A confirmation of a consequential action may carry a 64px-tall [illustration](#illustrations) at the top padding edge, centred 20px above the title line box (about 24px above its glyphs). Its body is centred and capped at 408px. A dialog that only edits (rename) has none and is left-aligned: label above the field, inline error below, buttons last.
 - **Buttons** follow [Pairing](#pairing): the dismiss comes first, the commit last.
+- **Advisory.** The save tip is illustrated and centred, with no `x` close control; Esc and the backdrop close it. A Tertiary continue control comes before the Primary install action. When the reader already has a capture client, the continue control stands alone as the Primary.
 
 ### Alerts and Status
 
@@ -653,7 +654,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 
 ### Terminology
 
-**Name things consistently.** What a reader pastes, imports or forwards is a **link**. Once Readplace has saved it, it is an **article**. A named list of articles is a **readlist** — lowercase in running text ("Create a readlist", "Delete this readlist?"), capitalised only as a name (the "Readlist" nav item) or at the start of a line. "URL" stays out of reader-facing copy; it belongs on developer surfaces (MCP setup). "Queue" is retired.
+**Name things consistently.** What a reader pastes, imports or forwards is a **link**. Once Readplace has saved it, it is an **article**. A named list of articles is a **readlist** — lowercase in running text ("Create a readlist", "Delete this readlist?"), capitalised only as a name (the "Readlist" nav item) or at the start of a line. "URL" stays out of reader-facing copy except for the save tip's "Continue with URL"; elsewhere it belongs on developer surfaces (MCP setup). "Queue" is retired.
 
 ### Numbers, Counts and Dates
 
@@ -668,6 +669,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 | Context | Do | Don't |
 |---|---|---|
 | Empty states | Title: "Nothing saved yet" · Line: "Save your first article by pasting a link above, or set up one-tap saving from your browser, phone, or AI assistant." · Action: **Set up one-tap saving** | "Wow, it's empty in here!" |
+| Advisories | Title: "Save articles the better way" · Body names the client that captures a full page on this device · Buttons: **Continue with URL** / **Explore saving options** | "There are better ways to save!" or "our" as Readplace's voice |
 | Confirmations (status) | Toast: "Marked as read", with an **Undo** action | "Awesome! Successfully saved to your library!" |
 | Errors | Title: "Readlist limit reached" · Body: "You can create up to 7 readlists. Delete an existing readlist before creating a new one." | "Oops! Something went wrong" |
 | Decisions (confirm dialogs) | Title: "Delete this article?" · Body: "This article will be removed from your readlist. You can save it again later." · Buttons: **Delete and don't ask again** / **Delete article** | "Are you sure?" · **OK** / **Cancel** |

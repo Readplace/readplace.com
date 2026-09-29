@@ -52,10 +52,10 @@ describe("Save tip — the readlist save bar", () => {
 		assert(actions, "the panel must name the mode its controls were built for");
 		expect(actions.getAttribute("data-test-save-tip-mode")).toBe("advisory");
 		expect(
-			Array.from(actions.querySelectorAll("[data-test-action]")).map((control) =>
+			Array.from(panel.querySelectorAll("[data-test-action]")).map((control) =>
 				control.getAttribute("data-test-action"),
 			),
-		).toEqual(["save-tip-acknowledge", "save-tip-install"]);
+		).toEqual(["save-tip-continue", "save-tip-install"]);
 	});
 
 	it("stops offering the tip once a save has been through the warning", async () => {

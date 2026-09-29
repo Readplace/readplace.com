@@ -5,18 +5,15 @@ import { initSaveTip } from "./save-tip.client";
 const PAGE_URL = "https://readplace.com/queue";
 
 const OPEN_BEACON = "/save-tip/event?utm_source=save-tip&utm_medium=internal&utm_content=opened";
-const DISMISS_BEACON =
-	"/save-tip/event?utm_source=save-tip&utm_medium=internal&utm_content=dismissed";
-const ACKNOWLEDGE_BEACON =
-	"/save-tip/event?utm_source=save-tip&utm_medium=internal&utm_content=acknowledged";
+const CONTINUE_BEACON =
+	"/save-tip/event?utm_source=save-tip&utm_medium=internal&utm_content=continued";
 
 function panelMarkup(beacons: boolean): string {
 	return `<div class="confirm-popover" id="save-tip" popover="auto" role="dialog"${beacons ? ` data-beacon-url="${OPEN_BEACON}"` : ""}>
-	<button id="close" class="confirm-popover__close" type="button"${beacons ? ` data-beacon-url="${DISMISS_BEACON}"` : ""}>Close</button>
-	<div class="confirm-popover__actions">
-		<button id="acknowledge" class="btn btn--primary" type="button"${beacons ? ` data-beacon-url="${ACKNOWLEDGE_BEACON}"` : ""}>Got it</button>
-		<button id="proceed" class="btn btn--primary" type="button" data-save-tip-proceed>Save the link anyway</button>
-		<a id="install" class="btn btn--secondary" href="/install">See better ways to save</a>
+	<div class="confirm-popover__actions confirm-popover__buttons">
+		<button id="continue" class="btn btn--neutral" type="button" popovertarget="save-tip" popovertargetaction="hide"${beacons ? ` data-beacon-url="${CONTINUE_BEACON}"` : ""}>Continue with URL</button>
+		<button id="proceed" class="btn btn--neutral" type="button" data-save-tip-proceed>Save the link anyway</button>
+		<a id="install" class="btn btn--primary" href="/install">Explore saving options</a>
 	</div>
 </div>`;
 }
@@ -470,14 +467,13 @@ describe("initSaveTip", () => {
 		expect(harness.beacons).toEqual([OPEN_BEACON, OPEN_BEACON]);
 	});
 
-	it("tells acknowledging the panel apart from closing it", () => {
+	it("reports continuing, once, and nothing else", () => {
 		const harness = createHarness();
 		harness.focusInto("save-input");
 
-		harness.click("acknowledge");
-		harness.click("close");
+		harness.click("continue");
 
-		expect(harness.beacons).toEqual([OPEN_BEACON, ACKNOWLEDGE_BEACON, DISMISS_BEACON]);
+		expect(harness.beacons).toEqual([OPEN_BEACON, CONTINUE_BEACON]);
 	});
 
 	it("says nothing for a control the panel does not count, nor for one outside it", () => {
@@ -494,7 +490,7 @@ describe("initSaveTip", () => {
 		const harness = createHarness({ withBeacons: false });
 
 		harness.focusInto("save-input");
-		harness.click("close");
+		harness.click("continue");
 
 		expect(harness.shown).toEqual(["save-tip"]);
 		expect(harness.beacons).toEqual([]);

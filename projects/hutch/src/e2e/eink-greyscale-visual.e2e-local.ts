@@ -215,6 +215,25 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 		});
 
+		test(`the save tip keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await seedReaderAndReadlist(
+				page,
+				`save-tip-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
+			await page.locator('[data-test-form="save-article"] input[name="url"]').focus();
+			const panel = page.locator('#save-tip:popover-open');
+			await expect(panel).toBeVisible();
+			await settle(page, '#save-tip:popover-open');
+
+			await expect(panel).toHaveScreenshot(
+				`eink-save-tip-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
 		test(`the article delete dialog keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email } = await seedReaderAndReadlist(

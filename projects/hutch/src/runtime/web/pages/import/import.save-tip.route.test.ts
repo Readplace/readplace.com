@@ -40,19 +40,19 @@ describe("Save tip — the import link box", () => {
 		const actions = panel.querySelector("[data-test-save-tip-mode]");
 		assert(actions, "the panel must name the mode its controls were built for");
 		expect(actions.getAttribute("data-test-save-tip-mode")).toBe("advisory");
-		const acknowledge = doc.querySelector("[data-test-action='save-tip-acknowledge']");
-		assert(acknowledge, "the import panel must offer a way to dismiss it");
-		expect(acknowledge.getAttribute("popovertargetaction")).toBe("hide");
+		const continueControl = doc.querySelector("[data-test-action='save-tip-continue']");
+		assert(continueControl, "the import panel must offer a way to continue with the URL");
+		expect(continueControl.getAttribute("popovertargetaction")).toBe("hide");
 	});
 
-	it("does not pretend a client could have read the index instead", async () => {
+	it("explains why some imported articles may be links only", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(harness.server).get("/import");
 
 		const body = documentOf(response.text).getElementById("save-tip-body");
 		assert(body, "the panel must say why the links may come in bare");
-		expect(body.textContent).toContain("Nothing can capture a whole index for you");
+		expect(body.textContent).toContain("Some sites block Readplace from fetching article text.");
 	});
 
 	it("stops offering the tip once the session has been warned", async () => {

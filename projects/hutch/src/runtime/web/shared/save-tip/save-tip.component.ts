@@ -1,9 +1,11 @@
 import type { Request } from "express";
-import { type ClickSurface, render, renderConfirmPopover, withClickSurface, withInternalTracking } from "@packages/web-shell";
+import { type ClickSurface, render, renderConfirmPopover, renderIllustration, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import {
 	buildExtensionInstallUrl,
+	advertisedPlatformOf,
 	detectPlatform,
 	isExtensionInstalled,
+	type PitchablePlatform,
 } from "../../onboarding/extension-install";
 import { isNativeSurface } from "../../onboarding/native-client";
 import { FULL_PAGE_CAPTURE_PHRASE } from "../client-surface-phrases";
@@ -39,25 +41,52 @@ type SaveTipClient = "extension" | "app" | "none";
 
 interface SaveTipCopy {
 	title: string;
-	body: (client: SaveTipClient) => string;
+	body: (req: Request, client: SaveTipClient) => string;
 }
 
+interface SaveWay {
+	lead: string;
+	gesture: string;
+}
+
+const SAVE_WAY_BY_PLATFORM = {
+	chrome: { lead: "the Readplace browser extension or other supported options", gesture: "one click" },
+	firefox: { lead: "the Readplace browser extension or other supported options", gesture: "one click" },
+	iphone: { lead: "the Readplace iPhone app or other supported options", gesture: "one tap" },
+} satisfies Record<Exclude<PitchablePlatform, "other">, SaveWay>;
+
+const SAVE_WAY_FALLBACK = {
+	lead: "one of Readplace's supported options",
+	gesture: "one click",
+} satisfies SaveWay;
+
+const SAVE_WAY_BY_CLIENT = {
+	extension: (_req: Request) => SAVE_WAY_BY_PLATFORM.chrome,
+	app: (_req: Request) => ({ lead: "the Readplace share sheet", gesture: "one tap" }),
+	none: (req: Request) => {
+		const platform = advertisedPlatformOf(req);
+		return platform === undefined ? SAVE_WAY_FALLBACK : SAVE_WAY_BY_PLATFORM[platform];
+	},
+} satisfies Record<SaveTipClient, (req: Request) => SaveWay>;
+
 const IMPORT_ADVICE = {
-	extension: "Nothing can capture a whole index for you, but the extension still takes any single article you open in full.",
-	app: "Nothing can capture a whole index for you, but the Readplace share sheet still takes any single article you open in full.",
-	none: `Nothing can capture a whole index for you, but ${FULL_PAGE_CAPTURE_PHRASE} take any single article you open in full.`,
+	extension: "For individual articles, the extension can save the full page.",
+	app: "For individual articles, the Readplace share sheet can save the full page.",
+	none: `For individual articles, ${FULL_PAGE_CAPTURE_PHRASE} can save the full page.`,
 } satisfies Record<SaveTipClient, string>;
 
 const COPY = {
 	article: {
-		title: "There are better ways to save!",
-		body: () =>
-			"Readplace strongly recommends to use our dedicated clients to save content so you can always get a clean reader view.",
+		title: "Save articles the better way",
+		body: (req, client) => {
+			const way = SAVE_WAY_BY_CLIENT[client](req);
+			return `Use ${way.lead} to save articles in ${way.gesture} and get a cleaner reading experience.`;
+		},
 	},
 	import: {
 		title: "Some of these may arrive as links only",
-		body: (client) =>
-			`Readplace fetches this page from its own servers, then saves everything it links to the same way. Sites that block automated fetching arrive as a bare link with none of the article in it. ${IMPORT_ADVICE[client]}`,
+		body: (_req, client) =>
+			`Some sites block Readplace from fetching article text. ${IMPORT_ADVICE[client]}`,
 	},
 } satisfies Record<SaveTipKind, SaveTipCopy>;
 
@@ -69,19 +98,19 @@ function beaconUrl(element: SaveTipElement): string {
 }
 
 const OPEN_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.opened);
-const DISMISS_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.dismissed);
-const ACKNOWLEDGE_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.acknowledged);
+const CONTINUE_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.continued);
 
 /** The advisory control needs no script of its own: a popover target hides the
  * panel and hands focus back to the box the reader was already typing into. */
-const PRIMARY_CONTROL = {
-	advisory: `<button class="btn btn--primary" type="button" popovertarget="${SAVE_TIP_PANEL_ID}" popovertargetaction="hide" data-beacon-url="{{acknowledgeBeaconUrl}}" data-test-action="save-tip-acknowledge">Got it</button>`,
-	gating: `<button class="btn btn--primary" type="button" data-save-tip-proceed data-test-action="save-tip-proceed">Save the link anyway</button>`,
+const CONTINUE_CONTROL = {
+	advisory: `<button class="btn {{tierClass}}" type="button" popovertarget="${SAVE_TIP_PANEL_ID}" popovertargetaction="hide" data-beacon-url="{{continueBeaconUrl}}" data-test-action="save-tip-continue">Continue with URL</button>`,
+	gating: `<button class="btn {{tierClass}}" type="button" data-save-tip-proceed data-test-action="save-tip-proceed">Save the link anyway</button>`,
 } satisfies Record<SaveTipMode, string>;
 
-const SAVE_TIP_ACTIONS_TEMPLATE = `<div class="confirm-popover__actions" data-test-save-tip-variant="{{client}}" data-test-save-tip-mode="{{mode}}">
-	{{{primaryHtml}}}
-	{{#if installUrl}}<a class="btn btn--secondary" href="{{installUrl}}" data-test-action="save-tip-install">See better ways to save</a>{{/if}}
+const INSTALL_CONTROL = `<a class="btn btn--primary" href="{{installUrl}}" data-test-action="save-tip-install">Explore saving options</a>`;
+
+const SAVE_TIP_ACTIONS_TEMPLATE = `<div class="confirm-popover__actions confirm-popover__buttons" data-test-save-tip-variant="{{client}}" data-test-save-tip-mode="{{mode}}">
+	{{#each controls}}{{{this}}}{{/each}}
 </div>`;
 
 function resolveSaveTipClient(req: Request): SaveTipClient {
@@ -116,21 +145,25 @@ function renderSaveTip(req: Request, spec: SaveTipSpec): string {
 	const copy = COPY[spec.kind];
 	const surface = spec.mode === "gating" ? spec.clickSurface : undefined;
 	const installUrl = INSTALL_URL_BY_CLIENT[client](req);
+	const controls = [
+		render(CONTINUE_CONTROL[spec.mode], {
+			tierClass: installUrl === undefined ? "btn--primary" : "btn--neutral",
+			continueBeaconUrl: CONTINUE_BEACON_URL,
+		}),
+		...(installUrl === undefined ? [] : [render(INSTALL_CONTROL, { installUrl: withClickSurface(installUrl, surface) })]),
+	];
 	return renderConfirmPopover({
 		id: SAVE_TIP_PANEL_ID,
 		key: "save-tip",
 		subject: spec.kind,
 		title: copy.title,
-		body: copy.body(client),
+		body: copy.body(req, client),
+		illustrationHtml: renderIllustration("book-lightbulb"),
 		openBeaconUrl: withClickSurface(OPEN_BEACON_URL, surface),
-		close: { beaconUrl: withClickSurface(DISMISS_BEACON_URL, surface) },
 		actionsHtml: render(SAVE_TIP_ACTIONS_TEMPLATE, {
 			client,
 			mode: spec.mode,
-			primaryHtml: render(PRIMARY_CONTROL[spec.mode], {
-				acknowledgeBeaconUrl: ACKNOWLEDGE_BEACON_URL,
-			}),
-			installUrl: installUrl === undefined ? undefined : withClickSurface(installUrl, surface),
+			controls,
 		}),
 	});
 }

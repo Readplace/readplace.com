@@ -2,8 +2,7 @@ export const SAVE_TIP_UTM_SOURCE = "save-tip";
 
 export const SAVE_TIP_ELEMENTS = {
 	opened: "opened",
-	acknowledged: "acknowledged",
-	dismissed: "dismissed",
+	continued: "continued",
 	install: "install",
 } as const;
 
