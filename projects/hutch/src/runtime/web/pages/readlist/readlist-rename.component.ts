@@ -27,8 +27,8 @@ const RENAME_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions readlist-
 	<label class="form-field__label" for="{{inputId}}">Readlist Name</label>
 	<input class="form-input readlist-rename__input" id="{{inputId}}" type="text" name="{{field}}" value="{{label}}" maxlength="{{maxLength}}" required autocomplete="off" aria-describedby="{{inputId}}-error" data-test-readlist-rename-input>
 	<p class="form-field__error" id="{{inputId}}-error" role="alert" data-readlist-rename-error data-test-readlist-rename-error></p>
-	<div class="readlist-rename__buttons">
-		<button class="btn btn--secondary" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="readlist-rename-cancel">Cancel</button>
+	<div class="confirm-popover__buttons">
+		<button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="readlist-rename-cancel">Cancel</button>
 		<button class="btn btn--primary" type="submit" data-test-action="readlist-rename-save">Save</button>
 	</div>
 </form>`;

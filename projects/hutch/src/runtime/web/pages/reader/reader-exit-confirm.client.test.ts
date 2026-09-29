@@ -14,13 +14,12 @@ function panelWithScopes(scopes: string | null): string {
 	const attr = scopes === null ? "" : ` data-exit-confirm-scopes="${scopes}"`;
 	return `<div class="confirm-popover" id="${PANEL_ID}" popover="auto" role="dialog" tabindex="-1">
 	<div class="confirm-popover__header">
-		<h2 class="confirm-popover__title" id="${PANEL_ID}-title">Mark "Saved Post" as read?</h2>
-		<button class="confirm-popover__close" id="exit-dismiss" type="button" popovertarget="${PANEL_ID}" popovertargetaction="hide">Close</button>
+		<h2 class="confirm-popover__title" id="${PANEL_ID}-title">Before you leave</h2>
 	</div>
-	<form class="confirm-popover__actions" method="POST" data-exit-confirm-form${attr} action="${STATUS_PATH}">
+	<form class="confirm-popover__actions confirm-popover__buttons" method="POST" data-exit-confirm-form${attr} action="${STATUS_PATH}">
 		<input type="hidden" name="status" value="read">
-		<button class="btn btn--primary" id="exit-yes" type="submit">Yes</button>
-		<button class="btn btn--secondary" id="exit-no" type="button" data-exit-confirm-decline>No</button>
+		<button class="btn btn--neutral" id="exit-no" type="button" data-exit-confirm-decline>No, keep unread</button>
+		<button class="btn btn--primary" id="exit-yes" type="submit">Yes, mark as read</button>
 	</form>
 </div>`;
 }

@@ -87,6 +87,28 @@ export function createReadlistActions(
 	const TITLES_OLDEST_FIRST = [...TEST_TITLES]
 
 	let articlesAdded = 0
+	const submitAndVerifySave = retriable(
+		async (page: Page, url: string, identifier: string): Promise<boolean> => {
+			const input = page.locator('[data-test-form="save-article"] input[name="url"]')
+			await input.fill(url)
+			await clickAndWaitForPageReload(
+				page,
+				page.locator('[data-test-form="save-article"] button[type="submit"]'),
+			)
+			const latestHref = await page
+				.locator('#latest-saved [data-test-article-url]')
+				.first()
+				.getAttribute('href')
+				// c8 ignore: catch only fires on CI when the latest-saved card is detached mid page-reload
+				.catch(/* c8 ignore next */ () => null)
+			return latestHref?.includes(identifier) === true
+		},
+		{
+			maxAttempts: 3,
+			retryDelayMs: 2000,
+			shouldRetry: (saved: boolean) => !saved,
+		},
+	)
 
 	const makeSaveArticle = (i: number): PageAction => ({
 		isAvailable: async (page) => {
@@ -98,12 +120,9 @@ export function createReadlistActions(
 			return saveForm.isVisible().catch(() => false)
 		},
 		execute: async (page) => {
-			const input = page.locator('[data-test-form="save-article"] input[name="url"]')
-			await input.fill(TEST_URLS[i])
-			await clickAndWaitForPageReload(
-				page,
-				page.locator('[data-test-form="save-article"] button[type="submit"]'),
-			)
+			const url = TEST_URLS[i]
+			const saved = await submitAndVerifySave(page, url, `readlist-flow-${i + 1}`)
+			assert.ok(saved, `article save did not land for ${url} after 3 attempts`)
 			articlesAdded = i + 1
 			if (articlesAdded === TEST_URLS.length) {
 				progress.allArticlesAdded = true
@@ -133,29 +152,7 @@ export function createReadlistActions(
 			const url = testData.paginationUrls[i]
 			const slug = url.split('/').pop()
 			assert.ok(slug, `pagination URL must have a trailing path segment: ${url}`)
-			const submitAndVerify = retriable(
-				async (p: Page): Promise<boolean> => {
-					const input = p.locator('[data-test-form="save-article"] input[name="url"]')
-					await input.fill(url)
-					await clickAndWaitForPageReload(
-						p,
-						p.locator('[data-test-form="save-article"] button[type="submit"]'),
-					)
-					const latestHref = await p
-						.locator('#latest-saved [data-test-article-url]')
-						.first()
-						.getAttribute('href')
-						// c8 ignore: catch only fires on CI when the latest-saved card is detached mid page-reload
-						.catch(/* c8 ignore next */ () => null)
-					return latestHref?.includes(slug) === true
-				},
-				{
-					maxAttempts: 3,
-					retryDelayMs: 2000,
-					shouldRetry: (saved: boolean) => !saved,
-				},
-			)
-			const saved = await submitAndVerify(page)
+			const saved = await submitAndVerifySave(page, url, slug)
 			assert.ok(saved, `pagination save did not land for ${url} after 3 attempts`)
 			paginationArticlesAdded = i + 1
 			if (paginationArticlesAdded === testData.paginationUrls.length) {

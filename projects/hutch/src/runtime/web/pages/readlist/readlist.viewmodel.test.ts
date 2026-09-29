@@ -4,7 +4,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
@@ -46,6 +46,16 @@ const NOW = new Date("2025-06-01T13:00:00Z");
 const DEFAULT_FILTERS = { readlist: DEFAULT_READLIST_SLUG, tab: "queue" as const, order: "desc" as const, page: 1 };
 
 describe("toReadlistViewModel", () => {
+	it("passes readlist identities through to the status confirmation", () => {
+		const readlists = [DEFAULT_READLIST, { slug: ReadlistSlugSchema.parse("work"), label: "Work" }];
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			confirmReadlistsByUrl: new Map([[ARTICLE_URL, readlists]]),
+		});
+
+		expect(vm.articles[0].markStatusConfirm?.readlists).toEqual(readlists);
+	});
+
 	it("should map article fields to view model", () => {
 		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
 			now: NOW,

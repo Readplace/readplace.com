@@ -6,6 +6,7 @@ import {
 	type SaveableUrlErrorCode,
 } from "@packages/domain/article";
 import type { IconName } from "@packages/ui-icons";
+import type { ReadlistRef } from "@packages/domain/readlist";
 import {
 	type LocalTime,
 	type TrialRemaining,
@@ -232,7 +233,7 @@ export function toReadlistArticleViewModel(params: {
 	filters: ReadlistUrlState;
 	pollCount?: number;
 	maxPolls: number;
-	confirmReadlistLabels?: readonly string[];
+	confirmReadlists?: readonly ReadlistRef[];
 	/** Absent means the reader has not chosen to skip the delete confirmation —
 	 * including on render paths that never read the signal, so an unknown answer
 	 * still asks before deleting. */
@@ -255,14 +256,14 @@ export function toReadlistArticleViewModel(params: {
 	});
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const markStatusConfirm =
-		params.confirmReadlistLabels === undefined
+		params.confirmReadlists === undefined
 			? undefined
 			: {
 					articleId: id,
 					popoverId: markStatusConfirmPopoverId(id),
 					url: `/queue/${id}/status${returnQuery}`,
 					status: article.status === "read" ? ("unread" as const) : ("read" as const),
-					queueLabels: params.confirmReadlistLabels,
+					readlists: params.confirmReadlists,
 				};
 	return {
 		id,
@@ -307,7 +308,7 @@ export function toReadlistViewModel(
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		effectiveAccess?: EffectiveAccess;
-		confirmReadlistLabelsByUrl?: ReadonlyMap<string, readonly string[]>;
+		confirmReadlistsByUrl?: ReadonlyMap<string, readonly ReadlistRef[]>;
 		deleteAcknowledged?: boolean;
 	},
 ): ReadlistViewModel {
@@ -335,7 +336,7 @@ export function toReadlistViewModel(
 				crawl: options?.crawlByUrl?.get(a.url),
 				filters,
 				maxPolls: MAX_POLLS,
-				confirmReadlistLabels: options?.confirmReadlistLabelsByUrl?.get(a.url),
+				confirmReadlists: options?.confirmReadlistsByUrl?.get(a.url),
 				deleteAcknowledged: options?.deleteAcknowledged,
 			}),
 		),

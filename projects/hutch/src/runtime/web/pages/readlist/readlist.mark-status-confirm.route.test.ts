@@ -146,10 +146,11 @@ describe("Mark-as-read confirmation", () => {
 
 		expect(listed).toContainEqual(["All", "New Readlist"]);
 		expect(listed).toContainEqual(["All"]);
+		const bodies = panels(doc).map((panel) => panel.querySelector(".confirm-popover__body")?.textContent);
+		expect(bodies).toContain("This article also appears in other readlists. Marking it as read will update it everywhere:");
+		expect(bodies).toContain("This article will be marked as read in all readlists it belongs to:");
 		for (const panel of panels(doc)) {
-			expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
-				"This article will be marked as read in all readlists it belongs to:",
-			);
+			expect(panel.querySelectorAll(".confirm-popover__items li svg").length).toBe(panel.querySelectorAll(".confirm-popover__items li").length);
 		}
 	});
 
@@ -238,7 +239,7 @@ describe("Mark-as-read confirmation", () => {
 		expect(rendered).toHaveLength(1);
 		expect(panel.parentElement?.tagName).toBe("MAIN");
 		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"This article will be marked as read in all readlists it belongs to:",
+			"This article also appears in other readlists. Marking it as read will update it everywhere:",
 		);
 		expect(
 			[...panel.querySelectorAll(".confirm-popover__items li")].map((li) => li.textContent),

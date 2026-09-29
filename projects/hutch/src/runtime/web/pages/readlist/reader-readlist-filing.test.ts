@@ -1,4 +1,4 @@
-import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST, READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { buildReaderReadlistFiling } from "./reader-readlist-filing";
 
 const WORK = ReadlistSlugSchema.parse("work");
@@ -109,7 +109,10 @@ describe("buildReaderReadlistFiling", () => {
 			markStatusConfirmGated: true,
 		});
 
-		expect(filing.markStatusConfirmReadlistLabels).toEqual(["All", "Later"]);
+		expect(filing.markStatusConfirmReadlists).toEqual([
+			DEFAULT_READLIST,
+			{ slug: LATER, label: "Later" },
+		]);
 	});
 
 	it("withholds the picker from an article with no default-readlist copy to assign from", () => {

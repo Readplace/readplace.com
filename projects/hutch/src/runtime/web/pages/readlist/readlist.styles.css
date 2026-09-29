@@ -1260,17 +1260,6 @@
   }
 }
 
-.readlist .confirm-popover__actions {
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.readlist .confirm-popover__actions .btn {
-  width: auto;
-  flex: 1 1 auto;
-}
-
 .readlist .readlist-migrate {
   width: 100%;
   text-align: left;
@@ -1293,14 +1282,13 @@
   justify-content: flex-start;
   width: 100%;
   gap: 8px;
+  margin-top: 16px;
 }
 
 .readlist-rename__input {
   width: 100%;
 }
 
-.readlist-rename__buttons {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
+.readlist-rename .confirm-popover__buttons {
+  margin-top: 16px;
 }

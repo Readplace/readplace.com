@@ -160,6 +160,7 @@ import {
 	ReadlistSlugSchema,
 	type ReadlistRenameRejection,
 	type ReadlistSlug,
+	type ReadlistRef,
 	decideReadlistDelete,
 	decideReadlistMigration,
 	decideReadlistRename,
@@ -1100,7 +1101,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				readlistFiling,
 				exitConfirmScopes: [EXIT_CONFIRM_SCOPE.nextReadCard],
 				readerPathFor: readerPathFor(req),
-				markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
+				markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,
 				readerNotice: state.notice,
 				epubDownloadHref:
 					state.content === undefined
@@ -1176,7 +1177,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					backLink: VIEW_BACK_LINK,
 					renderActions: deps.stickyReader,
 					readlistFiling,
-					markStatusConfirmReadlistLabels: readlistFiling.markStatusConfirmReadlistLabels,
+					markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,
 					crawlVersions: state.crawlVersions,
 					crawlBookmarkRemoval,
 					exitConfirmScopes: [
@@ -1321,12 +1322,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		};
 	};
 
-	const markStatusConfirmLabelsFor = async (params: {
+	const markStatusConfirmReadlistsFor = async (params: {
 		userId: UserId;
 		context: ReadlistContext;
 		urls: readonly string[];
 		acknowledgedAt: Date | undefined;
-	}): Promise<ReadonlyMap<string, readonly string[]> | undefined> => {
+	}): Promise<ReadonlyMap<string, readonly ReadlistRef[]> | undefined> => {
 		if (params.context.readlists.length <= 1) return undefined;
 		if (params.acknowledgedAt !== undefined) return undefined;
 		const savesByUrl = await deps.listUserSavesForUrls({
@@ -1339,7 +1340,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				readlistsHoldingArticle({
 					saves: savesByUrl.get(url) ?? [],
 					readlists: params.context.readlists,
-				}).map((readlist) => readlist.label),
+				}),
 			]),
 		);
 	};
@@ -1388,7 +1389,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				}),
 				resolveOnboardingSignals(req, input.userId),
 			]);
-		const confirmReadlistLabelsByUrl = await markStatusConfirmLabelsFor({
+		const confirmReadlistsByUrl = await markStatusConfirmReadlistsFor({
 			userId: input.userId,
 			context: input.context,
 			urls: input.result.articles.map((article) => article.url),
@@ -1404,7 +1405,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			crawlByUrl,
 			effectiveAccess,
 			now: deps.now(),
-			confirmReadlistLabelsByUrl,
+			confirmReadlistsByUrl,
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const onboarding = signals.onboarding;
@@ -2609,7 +2610,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		 * otherwise come back pointing at a panel the page no longer renders,
 		 * leaving its Delete button inert. */
 		const signals = await deps.getOnboardingSignals({ userId });
-		const confirmReadlistLabelsByUrl = await markStatusConfirmLabelsFor({
+		const confirmReadlistsByUrl = await markStatusConfirmReadlistsFor({
 			userId,
 			context: await resolveReadlistContext(req, userId),
 			urls: [article.url],
@@ -2624,7 +2625,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			filters,
 			pollCount: requestedPoll + 1,
 			maxPolls: MAX_POLLS,
-			confirmReadlistLabels: confirmReadlistLabelsByUrl?.get(article.url),
+			confirmReadlists: confirmReadlistsByUrl?.get(article.url),
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const cardOptions = { isFirst: false, deviceClass: classifyDeviceClass(req.get("user-agent")) };

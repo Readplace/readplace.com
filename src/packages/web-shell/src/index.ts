@@ -99,7 +99,6 @@ export type {
 } from "./shared/alert/alert.component";
 export type {
 	ConfirmPopover,
-	ConfirmPopoverLead,
 } from "./shared/confirm-popover/confirm-popover.component";
 export { BASE_CSS_VARIABLES, EMAIL_FRAME_CANVAS, LIGHT_ONLY_BODY_CLASS } from "./base.styles";
 export { etagMatches } from "./etag";

@@ -123,7 +123,7 @@ function renderSaveTip(req: Request, spec: SaveTipSpec): string {
 		title: copy.title,
 		body: copy.body(client),
 		openBeaconUrl: withClickSurface(OPEN_BEACON_URL, surface),
-		dismissBeaconUrl: withClickSurface(DISMISS_BEACON_URL, surface),
+		close: { beaconUrl: withClickSurface(DISMISS_BEACON_URL, surface) },
 		actionsHtml: render(SAVE_TIP_ACTIONS_TEMPLATE, {
 			client,
 			mode: spec.mode,

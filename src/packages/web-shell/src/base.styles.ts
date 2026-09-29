@@ -47,6 +47,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--secondary-hover": "#EED7BA",
 	"--secondary-pressed": "#E6C9A3",
 	"--secondary-foreground": "hsl(27 65% 35%)",
+	"--neutral-hover": "#F7F8FA",
 	"--neutral-pressed": "#EDEFF2",
 	"--background": "var(--color-background)",
 	"--foreground": "var(--color-text-primary)",
@@ -142,6 +143,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--secondary-hover": "#4A3320",
 	"--secondary-pressed": "#5A3E26",
 	"--secondary-foreground": "hsl(27, 65%, 35%)",
+	"--neutral-hover": "#2A2A2A",
 	"--neutral-pressed": "#2E2E2E",
 	"--ring": "hsl(27 65% 52%)",
 	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
@@ -410,13 +412,20 @@ export const BUTTON_STYLES = `
 	}
 
 	.btn--destructive {
+		background: var(--card);
+		color: var(--error-text);
+		box-shadow: inset 0 0 0 1px var(--color-error);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.btn--destructive:hover {
 		background: var(--error-fill);
 		color: var(--error-foreground);
 	}
 
-	.btn--destructive:hover,
 	.btn--destructive:active {
 		background: var(--error-fill-hover);
+		color: var(--error-foreground);
 	}
 
 	.btn--neutral {
@@ -426,7 +435,7 @@ export const BUTTON_STYLES = `
 	}
 
 	.btn--neutral:hover {
-		background: var(--muted);
+		background: var(--neutral-hover);
 	}
 
 	.btn--neutral:active {

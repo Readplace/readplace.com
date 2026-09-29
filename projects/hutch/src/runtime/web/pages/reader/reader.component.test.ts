@@ -18,7 +18,7 @@ import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
 const NO_QUEUE_FILING: ReaderReadlistFiling = {
 	tags: undefined,
 	picker: undefined,
-	markStatusConfirmReadlistLabels: undefined,
+	markStatusConfirmReadlists: undefined,
 };
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
@@ -272,9 +272,10 @@ describe("ReaderPage", () => {
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const articleTitle = doc.querySelector(".confirm-popover__lead");
+		const articleTitle = doc.querySelector("#reader-exit-confirm-lead");
 		assert(articleTitle, "the exit confirmation must name the article it is leaving");
 		assert.equal(articleTitle.textContent, 'Why <script> & "quotes" break naive templates');
+		assert.equal(articleTitle.className, "sr-only");
 		assert.equal(articleTitle.querySelector("script"), null);
 	});
 

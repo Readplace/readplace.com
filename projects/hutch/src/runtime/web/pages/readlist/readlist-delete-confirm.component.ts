@@ -22,7 +22,7 @@ const READLIST_DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__
 			{{/each}}
 		</select>
 	</div>
-	<button class="btn btn--destructive" type="submit" data-test-action="readlist-delete-confirm">
+	<button class="btn btn--primary" type="submit" data-test-action="readlist-delete-confirm">
 		<span class="readlist-delete__cta-label readlist-delete__cta-label--delete">Confirm Deletion</span>
 		<span class="readlist-delete__cta-label readlist-delete__cta-label--migrate">Move and Delete</span>
 	</button>
@@ -39,12 +39,13 @@ export function renderReadlistDeleteConfirm(input: {
 	return renderConfirmPopover({
 		id: input.popoverId,
 		key: "readlist-delete",
+		close: {},
 		title: "Delete this readlist?",
 		illustrationHtml: input.illustrationHtml,
 		body: offersMigration
 			? `Deleting takes this readlist's copies with it. Move them to another readlist to keep them together, or leave them behind and keep only what ${DEFAULT_READLIST.label} already holds.`
 			: `Deleting takes this readlist's copies with it. Anything you also saved in ${DEFAULT_READLIST.label} stays there.`,
-		lead: { text: `Readlist: ${input.label}`, screenReaderOnly: true },
+		lead: `Readlist: ${input.label}`,
 		actionsHtml: render(READLIST_DELETE_CONFIRM_ACTIONS_TEMPLATE, {
 			url: withInternalTracking(input.url, {
 				source: "queue-nav",

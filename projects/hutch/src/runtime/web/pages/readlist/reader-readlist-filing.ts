@@ -3,6 +3,7 @@ import {
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
 	type ReadlistSlug,
+	type ReadlistRef,
 	readerReadlists,
 	readlistsHoldingArticle,
 } from "@packages/domain/readlist";
@@ -16,7 +17,7 @@ const FILING_SOURCE = "reader-readlists";
 export interface ReaderReadlistFiling {
 	tags: ReaderReadlistTags | undefined;
 	picker: ReaderReadlistPicker | undefined;
-	markStatusConfirmReadlistLabels: readonly string[] | undefined;
+	markStatusConfirmReadlists: readonly ReadlistRef[] | undefined;
 }
 
 export function buildReaderReadlistFiling(input: {
@@ -57,11 +58,11 @@ export function buildReaderReadlistFiling(input: {
 		};
 	};
 	return {
-		markStatusConfirmReadlistLabels: input.markStatusConfirmGated
+		markStatusConfirmReadlists: input.markStatusConfirmGated
 			? readlistsHoldingArticle({
 					saves: input.saves,
 					readlists: readerReadlists(input.definitions),
-				}).map((readlist) => readlist.label)
+				})
 			: undefined,
 		tags:
 			assigned.length === 0

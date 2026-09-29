@@ -42,7 +42,7 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 		popoverId: markStatusConfirmPopoverId("abc123"),
 		url: "/queue/abc123/status",
 		status: "read",
-		queueLabels: ["All"],
+		readlists: [{ slug: ReadlistSlugSchema.parse("default"), label: "All" }],
 	},
 	readerHref: "/queue/abc123/view",
 	isStalePending: false,

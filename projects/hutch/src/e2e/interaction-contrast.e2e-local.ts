@@ -95,6 +95,16 @@ function boundaryContrast(ink: InteractionInk, lens: Lens): number {
 	return Math.max(...candidates);
 }
 
+function insetShadowContrast(ink: InteractionInk, lens: Lens): number {
+	assert.match(ink.boxShadow, /inset/);
+	const edge = ink.boxShadow.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+	assert(edge, `${ink.name} must paint an opaque inset shadow`);
+	return contrastRatio({
+		ink: lens({ red: Number(edge[1]), green: Number(edge[2]), blue: Number(edge[3]) }),
+		surface: lens(ink.surface),
+	});
+}
+
 function labelContrast(ink: InteractionInk, lens: Lens): number {
 	return contrastRatio({ ink: lens(ink.text), surface: lens(ink.fill) });
 }
@@ -383,6 +393,37 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 						view: `${theme}/import/review/${lensName}`,
 					}),
 				);
+			}
+		}
+	});
+});
+
+test.describe("Destructive account actions hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("Delete account stays legible at rest, on hover and while pressed", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `destructive-contrast-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
+			const client = await auditContext(page);
+			await stamp(page, {
+				selector: '[data-test-danger-action="delete-account"] button[type="submit"]',
+				auditId: "delete-account",
+			});
+			for (const state of ["rest", "hover", "active"] as const) {
+				const ink = await measure(page, client, "delete-account", state === "rest" ? [] : [state]);
+				for (const [lensName, lens] of Object.entries(LENSES)) {
+					const view = `${theme}/account/delete-account:${state}/${lensName}`;
+					assert.ok(labelContrast(ink, lens) >= textMinimum(ink), labelShortfall(ink, lens, view));
+					if (state === "rest") {
+						const boundary = insetShadowContrast(ink, lens);
+						assert.ok(
+							boundary >= NON_TEXT_MINIMUM,
+							`${view}: ${ink.name} boundary ${boundary.toFixed(2)}:1 < ${NON_TEXT_MINIMUM}:1`,
+						);
+					}
+				}
 			}
 		}
 	});

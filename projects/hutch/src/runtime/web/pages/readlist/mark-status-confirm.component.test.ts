@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import type { ArticleStatus } from "@packages/domain/article";
+import { DEFAULT_READLIST, ReadlistSlugSchema, type ReadlistRef } from "@packages/domain/readlist";
+import { iconSvg } from "@packages/ui-icons";
 import { parseHTML } from "linkedom";
 import {
 	MARK_STATUS_ACK_NEVER,
@@ -10,7 +12,7 @@ import {
 function panelFor(
 	overrides: {
 		status?: ArticleStatus;
-		queueLabels?: readonly string[];
+		readlists?: readonly ReadlistRef[];
 		url?: string;
 		source?: "queue-card" | "reader";
 		lead?: string;
@@ -23,7 +25,7 @@ function panelFor(
 				popoverId: "readlist-mark-status-confirm-abc123",
 				url: overrides.url ?? "/queue/abc123/status",
 				status: overrides.status ?? "read",
-				queueLabels: overrides.queueLabels ?? ["All", "Work", "Later"],
+				readlists: overrides.readlists ?? [DEFAULT_READLIST, { slug: ReadlistSlugSchema.parse("work"), label: "Work" }, { slug: ReadlistSlugSchema.parse("later"), label: "Later" }],
 			},
 			source: overrides.source ?? "queue-card",
 			lead: overrides.lead,
@@ -49,15 +51,23 @@ describe("renderMarkStatusConfirm", () => {
 
 		assert(body, "the panel must state what the change will do");
 		assert(items, "the panel must list the readlists it will reach");
-		expect(body.textContent).toBe(
-			"This article will be marked as read in all readlists it belongs to:",
-		);
+		expect(body.textContent).toBe("This article also appears in other readlists. Marking it as read will update it everywhere:");
 		expect(items.tagName).toBe("UL");
-		expect([...items.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
+		expect([...items.querySelectorAll(".confirm-popover__item-label")].map((label) => label.textContent)).toEqual([
 			"All",
 			"Work",
 			"Later",
 		]);
+		const rowIcons = [...items.querySelectorAll("li svg")];
+		expect(rowIcons).toHaveLength(3);
+		expect(rowIcons.map((icon) => icon.getAttribute("aria-hidden"))).toEqual(["true", "true", "true"]);
+		expect(rowIcons.map((icon) => icon.innerHTML)).toEqual(
+			[iconSvg("file"), iconSvg("folder"), iconSvg("folder")].map((svg) => {
+				const icon = parseHTML(`<div>${svg}</div>`).document.querySelector("svg");
+				assert(icon, "the icon set must render each readlist kind");
+				return icon.innerHTML;
+			}),
+		);
 	});
 
 	it("describes the panel by the sentence and the list together, so both are announced", () => {
@@ -71,12 +81,12 @@ describe("renderMarkStatusConfirm", () => {
 
 	it("asks about the direction the reader is actually taking", () => {
 		const read = panelFor({ status: "read" }).querySelector(".confirm-popover__title");
-		const unread = panelFor({ status: "unread", queueLabels: ["All"] });
+		const unread = panelFor({ status: "unread", readlists: [DEFAULT_READLIST] });
 
 		assert(read, "the panel must carry a title");
-		expect(read.textContent).toBe("Mark as read everywhere?");
+		expect(read.textContent).toBe("Mark as read in all readlists?");
 		expect(unread.querySelector(".confirm-popover__title")?.textContent).toBe(
-			"Mark as unread everywhere?",
+			"Mark as unread in all readlists?",
 		);
 		expect(
 			unread.getElementById("readlist-mark-status-confirm-abc123-body")?.textContent,
@@ -88,6 +98,8 @@ describe("renderMarkStatusConfirm", () => {
 					?.querySelectorAll("li") ?? []),
 			].map((li) => li.textContent),
 		).toEqual(["All"]);
+		expect(unread.querySelector("[data-test-action='mark-status-confirm']")?.textContent).toBe("Mark as unread everywhere");
+		expect(unread.querySelector("[data-test-action='mark-status-confirm-never']")?.textContent).toBe("Mark as unread and don't ask again");
 	});
 
 	it("offers both a plain confirmation and one that also silences the panel", () => {
@@ -97,8 +109,11 @@ describe("renderMarkStatusConfirm", () => {
 
 		assert(confirm, "the plain confirmation must be rendered");
 		assert(never, "the suppressing confirmation must be rendered");
-		expect(confirm.textContent).toBe("Ok, I understand");
-		expect(never.textContent).toBe("Ok, don't show this again");
+		expect(confirm.textContent).toBe("Mark as read everywhere");
+		expect(never.textContent).toBe("Mark as read and don't ask again");
+		expect([...doc.querySelectorAll(".confirm-popover__buttons button")].map((button) => button.getAttribute("data-test-action"))).toEqual(["mark-status-confirm-never", "mark-status-confirm"]);
+		expect(confirm.classList.contains("btn--primary")).toBe(true);
+		expect(never.classList.contains("btn--neutral")).toBe(true);
 		expect(confirm.getAttribute("type")).toBe("submit");
 		expect(never.getAttribute("type")).toBe("submit");
 		expect(confirm.getAttribute("name")).toBeNull();
@@ -161,5 +176,6 @@ describe("renderMarkStatusConfirm", () => {
 		assert(panel, "a mark-status panel must be rendered");
 		expect(panel.getAttribute("data-test-confirm-subject")).toBe("abc123");
 		expect(panel.getAttribute("id")).toBe("readlist-mark-status-confirm-abc123");
+		expect([...panel.querySelectorAll(".confirm-popover__header [data-test-action]")].map((action) => action.getAttribute("data-test-action"))).toEqual(["mark-status-dismiss"]);
 	});
 });

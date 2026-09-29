@@ -108,7 +108,7 @@ The design kit's amber CTA is `#C8702A`, which carries white at 3.62:1. The prod
 | **Text — Primary** | `#1A202C` | `#E4E4E4` | `--color-text-primary` (`--foreground`) | Body text, headings, titles |
 | **Text — Secondary** | `#5A6170` | `#9BA1AE` | `--color-text-secondary` (`--muted-foreground`) | Supporting copy: ledes, excerpts, the header's inactive destinations, a rail heading, an inactive pagination link, an already-read item's title, disabled text, a field's placeholder (`--input-placeholder`). Metadata and inactive tabs take `--foreground` through their [ink roles](#type-scale-product-ui) |
 | **Text — Muted** | `#8C919D` | `#6B6B6B` | `--color-text-muted` | **Marks only, never words.** ~3:1 in both themes, under the 4.5:1 floor. A decorative mark on a white ground (3.16:1). Never a placeholder (a placeholder is words), a timestamp, metadata, disabled text, or a meaning-bearing icon |
-| **Neutral pressed** | `#EDEFF2` | `#2E2E2E` | `--neutral-pressed` | The pressed fill of a `neutral` button, one step past its `--muted` hover |
+| **Neutral hover / pressed** | `#F7F8FA` / `#EDEFF2` | `#2A2A2A` / `#2E2E2E` | `--neutral-hover`, `--neutral-pressed` | The two fill steps of a `neutral` button |
 | **Footer Background** | `#1A1A1A` | `#0D0D0D` | `--footer-bg` | The guest footer |
 
 A card differs from the `--muted` ground by only ~1.1:1, so a card always carries `1px solid var(--border)`. The border draws the card, not the fill. In dark mode the header (`--background`), the canvas (`--muted`) and a card (`--card`) each step lighter, so elevation reads from lightness rather than a shadow.
@@ -120,7 +120,7 @@ A card differs from the `--muted` ground by only ~1.1:1, so a card always carrie
 | **Error mark** | `#C45C5C` | `#D46B6B` | `--color-error` | Border of an errored field or an error notice; a red icon that needs only 3:1. Never words, never a fill (white on it is 4.17:1 light, 3.43:1 dark) |
 | **Error ink** | `hsl(0 43% 48%)` `#AF4646` | `hsl(0 43% 68%)` | `--error-text` | Error words: a field message, a status chip's label, a destructive menu row on hover (5.54:1 on white, 4.62:1 on the light tint, 5.82:1 on the dark card, 5.46:1 on the dark tint). Flips *lighter* in dark, so it is never a fill |
 | **Error tint** | `#F6E7E7` | `#3A2020` | `--error-bg` | Ground of an error notice, an error chip, a destructive row's hover |
-| **Error fill** | `hsl(0 43% 52%)` (hover `hsl(0 43% 44%)`) | same (pinned) | `--error-fill`, `--error-fill-hover`, `--error-foreground` | The solid red of a destructive *surface* — the confirm button of a delete dialog. Pinned in both themes like `--primary-fill`; carries `--error-foreground` at 4.85:1 (6.34:1 on hover) |
+| **Error fill** | `hsl(0 43% 52%)` (pressed `hsl(0 43% 44%)`) | same (pinned) | `--error-fill`, `--error-fill-hover`, `--error-foreground` | The hover and pressed fills of a standalone destructive outline button. Pinned in both themes like `--primary-fill`; carries `--error-foreground` at 4.85:1 (6.34:1 when pressed) |
 | **Success mark / ink** | `#3D8B6E` / `hsl(158 39% 35%)` | `#4A9F7F` | `--color-success`, `--success-text`, `--success-foreground` | `--color-success` fills a shape whose mark needs 3:1 (a progress bar, a completed step's disc); `--success-text` is success words and a check beside words (4.98:1 on white); `--success-foreground` (white) is a mark on a `--success` fill |
 | **Success tint** | `#E8F2EE` | `#17302A` | `--success-bg` | Ground of a success notice or chip |
 | **Warning** | `#C8923C` / `--warning-bg` `var(--color-brand-light)` `#F5E6D3` | `#D4A04A` / `#3D2A18` | `--color-warning`, `--warning-bg` | `--color-warning` is a wordless mark or fill: `--foreground` on it is 5.93:1 light but 1.85:1 dark, so never words, and never a lone boundary on white (2.75:1). A warning that carries words sits on the `--warning-bg` tint under `--foreground` (13.32:1 light, 10.71:1 dark) |
@@ -221,10 +221,10 @@ Buttons and inputs take their sizes from their own tokens (see [Buttons](#button
 - **Product headings are sans; the serif is the display voice.** Every heading in the product's working area — panel and card titles, rail headings, list headers, empty states, alerts, dialog titles — uses `var(--font-sans)` at weight 600 in `--foreground`. This covers **every page a reader operates**, signed-in pages and logged-out tools (import, login) alike. `var(--font-serif)` is the display voice: the wordmark, the reader view's article title, and display headings on editorial and marketing pages (home, landing pages, blog). A saved article's title or an email subject shown in a list is sans, like the rest of the list. Declare the font on the heading's own selector so the choice is explicit, not inherited — a heading that inherits the body sans is a drift, not a choice, and the serif stack must never be inlined (one source of truth, like colours).
 - **Weight carries hierarchy.** Inter is loaded at 400–700, and each weight has one job. **400** is prose, excerpts, metadata, neutral labels, and an inactive line tab. **500** is navigation a reader moves through (header, rail and menu rows), field labels and chips. **600** is headings, titles, counts, button labels, announcement bars, and the open tab or current page number. **700** is stand-alone figures, the wordmark and avatar initials. Never set **800** — Inter is not loaded at that weight. Where a weight step does the job, do not reach for a bigger size.
 - **Sizes are fixed per role at every width.** A phone gets the same sizes as a desktop and the layout reflows; there is no phone step-down (the design explorations' 18→14, 16→14 and 14→12 steps are not built).
-- **A heading brings its own lede.** A panel title (16px/600, `--foreground`) is followed 2–8px below by a lede one or two steps smaller (13–14px/400, `--muted-foreground`). Empty states use 17px over 14px. An alert's title and message are 14px/600 over 14px/400, both `--foreground`: the message is the content, as in a dialog body.
+- **A heading brings its own lede.** A panel title (16px/600, `--foreground`) is followed 2–8px below by a lede one or two steps smaller (13–14px/400, `--muted-foreground`). Empty states use 17px over 14px. An alert's title and message are 14px/600 over 14px/400, both `--foreground`; a dialog body uses 14px/400 `--muted-foreground`.
 - **A page with persistent navigation names its place through that navigation, not a display title.** Where a rail or tab selection already shows where the reader is, the page renders no visible `h1`: the document `<title>` names the place (`All — Readplace`), and each panel's own `h2` starts the outline.
 - **Legibility is non-negotiable.** This is a product about reading. If a type choice looks good but reads poorly, reject it.
-- **Line-height.** Body text inherits `1.6` (`BASE_RESET_STYLES`), and a single-line metadata row keeps it. A 17px item or dialog title that wraps tightens to `1.3`–`1.35`; no heading goes below `1.3`. Supporting copy at 13–15px running several lines (card/dialog body, excerpts, empty-state text) may tighten to `1.5`–`1.55`. Generous spacing is a feature, not a waste of space.
+- **Line-height.** Body text inherits `1.6` (`BASE_RESET_STYLES`), and a single-line metadata row keeps it. An item or dialog title uses a 28px line at 18px; no heading goes below `1.3`. Supporting copy running several lines may tighten to `1.5`–`1.55`; dialog body copy uses 14px on a 22px line. Generous spacing is a feature, not a waste of space.
 - **Never use all-caps** for more than short micro-labels. Never for headings or body text (see also [Capitalisation](#capitalisation)).
 - **International support:** Typefaces must include full Latin Extended character sets (Portuguese, accented characters). The founder is Brazilian-Australian — this is table stakes.
 - **Avoid trendy typefaces.** If it will look dated in 2 years, don't ship it.
@@ -280,13 +280,13 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
 
 ### Illustrations
 
-Spot illustrations lead an empty state and a destructive confirmation dialog. They come from the shared illustrations module, never from the icon set. There are two drawings: the **book with a lightbulb** leads anything that is not a deletion, and the **bin holding a sheet** leads a deletion.
+Spot illustrations lead an empty state and a consequential confirmation dialog. They come from the shared illustrations module, never from the icon set. There are two drawings: the **book with a lightbulb** leads anything that is not a deletion, and the **bin holding a sheet** leads a deletion.
 
 An illustration is filled art: a solid ink silhouette that shows as the outline, with flat shapes on top in at most four paints — ink (`currentColor`, which the container sets to `--foreground`), paper (`--card`), amber (`--color-brand`) and cream (`--color-brand-light`, only inside an ink outline). There are no strokes, washes, opacity, gradients or hex literals, so the art follows the reader's theme and any light pin.
 
 Each drawing carries the size it was drawn at, 64px tall (the book 80×64, the bin 46×64). A container places the art and never scales it.
 
-Illustrations are decorative (`aria-hidden`, `focusable="false"`), never emoji, raster or clip art, and carry no ids, because one page may inline the bin once per card. The accent stays amber even on a destructive dialog; the confirm button carries the danger. A dialog that only edits (rename, create) has no illustration. Add a new drawing to that module, not at the call site, and only once a design uses it.
+Illustrations are decorative (`aria-hidden`, `focusable="false"`), never emoji, raster or clip art, and carry no ids, because one page may inline the bin once per card. The accent stays amber even on a delete dialog; its confirmed action uses the dialog's amber `primary` button. A dialog that only edits (rename, create) has no illustration. Add a new drawing to that module, not at the call site, and only once a design uses it.
 
 ### List Markers
 
@@ -312,22 +312,22 @@ There is **one** button in the product. Every call to action is `.btn` plus exac
 |---|---|---|---|---|---|---|
 | **`primary`** | `--primary` | `--primary-hover` | `--primary-fill` | `--primary-foreground` (white) | — | The amber CTA — the main action per screen (Save, Import, Subscribe, install, landing and pricing CTAs, the guest header's Log in) |
 | **`secondary`** (the kit's "Secondary") | `--secondary` | `--secondary-hover` | `--secondary-pressed` | `--primary-text-on-tint` | inset 1px `--color-brand` | The supporting action beside a primary (View on GitHub, Cancel, Back), and a list row's state action (Mark as read, Exclude) |
-| **`neutral`** (the kit's "Tertiary") | `--card` | `--muted` | `--neutral-pressed` | `--foreground` | inset 1px `--border` | A low-emphasis action standing alone on a screen whose amber CTA is elsewhere, such as an empty state's next step or a toast's Undo. Never pairs with a `primary` |
-| **`destructive`** | `--error-fill` | `--error-fill-hover` | `--error-fill-hover` | `--error-foreground` (white) | — | The commit of a destructive action: delete, remove, disconnect, cancel a subscription. Both red fills are pinned across themes; there is no outline-that-fills-on-hover destructive style |
+| **`neutral`** (the kit's "Tertiary") | `--card` | `--neutral-hover` | `--neutral-pressed` | `--foreground` | inset 1px `--border` | A low-emphasis action standing alone, such as an empty state's next step or a toast's Undo, or the dismiss beside a dialog's `primary` |
+| **`destructive`** | `--card` | `--error-fill` | `--error-fill-hover` | `--error-text` at rest; `--error-foreground` (white) when filled | inset 1px `--color-error` | Standalone destructive actions on account, integrations and crawl versions. The red hover and pressed fills are pinned across themes |
 | **`on-dark`** | white | white, deepened | same as hover | `--secondary-foreground` | — | *Context modifier, not a priority level* — a primary sitting on the navy hero |
 | **`on-dark-ghost`** | translucent white | more opaque white | same as hover | white | translucent white inset | *Context modifier* — the secondary beside an `on-dark` primary |
 
-`primary` **always** means the amber CTA. The fills are pinned in both themes except `secondary` and `neutral`, which follow the page: in dark the secondary steps `#3D2A18` → `#4A3320` → `#5A3E26` (the kit's dark hover equals its rest fill, which reads as a sheet bug, so hover takes its own step), and the neutral rests on the `--card` `#222222` (the kit's `#1A1A1A` equals the canvas) and presses to `#2E2E2E`. `on-dark`/`on-dark-ghost` carry theme-stable values because the navy hero is navy in both themes. There is no toggle variant that inverts to a solid fill on hover — a row's state action is a `secondary`. A **tertiary** action is not a button — it is a plain inline link (`--primary-text`, underlined). Red is spent only at the moment of commitment: the *control that opens* a confirmed delete is a neutral [menu](#menus) item that tints red on hover, and only the dialog's confirm button is `destructive`.
+`primary` **always** means the amber CTA. The fills are pinned in both themes except `secondary` and `neutral`, which follow the page: in dark the secondary steps `#3D2A18` → `#4A3320` → `#5A3E26` (the kit's dark hover equals its rest fill, which reads as a sheet bug, so hover takes its own step), and the neutral steps from `--card` `#222222` through `#2A2A2A` to `#2E2E2E`. `on-dark`/`on-dark-ghost` carry theme-stable values because the navy hero is navy in both themes. There is no toggle variant that inverts to a solid fill on hover — a row's state action is a `secondary`. A **tertiary** action is not a button — it is a plain inline link (`--primary-text`, underlined). A confirmed delete commits with amber `primary` inside its dialog; red marks destructive actions taken outside a dialog. The *control that opens* a confirmed delete is a neutral [menu](#menus) item that tints red on hover.
 
 **Row actions.** An action repeated on every row of a list (Mark as read on each card, Exclude on each sender) is a `secondary` at size M, never `primary`, so the screen keeps one amber CTA. While its request is in flight the label hides with `visibility: hidden` (the width holds) and the shared in-flight dots take its place; while the item is still processing it is disabled at `opacity: 0.5`.
 
 #### Pairing
 
-When two buttons sit side by side, the **first is the primary action and the second is the secondary action** — always in that order, never two of the same weight, and never a button beside a bare text link. A repeated action keeps **one** variant everywhere it appears on a page.
+Outside dialogs, when two buttons sit side by side, the **first is the primary action and the second is the secondary action** — always in that order, never two of the same weight, and never a button beside a bare text link. A repeated action keeps **one** variant everywhere it appears on a page.
 
 **Escape hatch.** The one text control allowed beside a button: a control that marks a step done or skips it ("I've done this already") sits under that step's `primary` as a quiet text action — underlined, `--muted-foreground` → `--foreground` on hover, 13px/500. An *alternative path* is still a `secondary` button; a link in prose is still `--primary-text`.
 
-**In a dialog**, buttons are default tier and together fill the panel width. When they stack, the commit is on top and its alternative below (primary then secondary, or destructive then secondary). When a dismiss and a commit share one row, as in a form dialog's Cancel / Save, the commit trails: Cancel (`secondary`), then Save (`primary`).
+**In a dialog**, L buttons have 24px inline padding and sit in one auto-width row, 8px apart: dismiss (`neutral`) first, commit (`primary`) last. The row is right-aligned, or centred when the dialog is illustrated. If a pair is too wide for the row, the commit wraps above the dismiss. Below the designed 534px content width, buttons stack full-width with the commit on top.
 
 #### Size and padding
 
@@ -351,7 +351,7 @@ The kit's XL (56px) is not built: no screen draws it, and unused CSS fails the p
 **Hover and pressed are two steps, and they swap the fill — they never fade it.** One mechanism (`background-color`), one direction: the fill moves *away* from the surface behind it, so the button gains presence, and pressing moves it one step further than hover.
 
 - A filled amber button rests on `--primary` (`#AD6225`, 4.61:1 under white), hovers to `--primary-hover` (`#9C5821`, 5.48:1) and presses to `--primary-fill` (`#8B4F1D`, 6.49:1). All three are pinned in both themes, so the direction cannot invert.
-- A tinted variant deepens its own fill by the same mechanism: `secondary` steps through `--secondary-hover` and `--secondary-pressed` with its label held at `--primary-text-on-tint`; `neutral` steps through `--muted` and `--neutral-pressed`. No variant inverts to a solid fill on hover.
+- A tinted variant deepens its own fill by the same mechanism: `secondary` steps through `--secondary-hover` and `--secondary-pressed` with its label held at `--primary-text-on-tint`; `neutral` steps through `--neutral-hover` and `--neutral-pressed`. The standalone `destructive` outline fills `--error-fill` on hover and `--error-fill-hover` when pressed, changing its label from `--error-text` to white.
 - **Never `opacity` on a button that has a fill** — it fades the label too, reading as disabled. `opacity: 0.5` is the disabled state.
 - **Never `filter: brightness()`** — it lightens, the wrong direction.
 - **Never `--color-brand-dark` as a hover fill** — it inverts lightness between themes.
@@ -407,7 +407,7 @@ An app screen has a canvas and at most two raised layers — never more.
 |---|---|---|---|---|
 | **Canvas** | `--muted` on signed-in app pages; `--background` on reading pages; marketing pages keep the band rhythm | — | none | page ground, uncarded navigation rails and tab strips |
 | **Resting** | `--card` (`#FFFFFF` / `#222222`) | 1px `var(--border)` | **none** | cards, panels |
-| **Floating** | `--card` (a full-height drawer takes `--background`) | 1px `var(--border)` | its layer's shadow token | dropdown and row menus, popovers, toasts, dialogs, the mobile nav drawer |
+| **Floating** | `--card` (a full-height drawer takes `--background`) | 1px `var(--border)` | its layer's shadow token; none for a dialog | dropdown and row menus, popovers, toasts, dialogs, the mobile nav drawer |
 
 | Token | Light | Dark | CSS variable | Role |
 |---|---|---|---|---|
@@ -420,7 +420,7 @@ The menu and toast values are estimated from the design's halos (±30%). Menus a
 
 - **A shadow means it floats.** A resting card is border-only — the fill step from the canvas is barely visible in either theme, so the hairline does the separating. A shadow belongs to things that sit over the page and can be dismissed. That keeps every screen at two planes.
 - A **toast** is the one tinted floating layer: the opaque success tint, a 1px `--success` edge and `--shadow-toast`.
-- A **modal dialog** also dims the page with a scrim. The shared values are exported constants from `base.styles.ts`, not tokens, because `var()` does not reach `::backdrop`: `SCRIM_LIGHT` `rgb(0 0 0 / 0.5)` (the design's scrim samples black at 50%), `SCRIM_DARK` `rgb(13 13 13 / 0.72)` (no dark design), and `SCRIM_BLUR` `2px` (estimated) for a backdrop blur that degrades to the plain scrim on e-ink. A dialog interpolates them rather than writing its own literal; the shared confirm panel still carries its earlier light literal `rgb(26 32 44 / 0.55)`, no blur and `--shadow-md` until it adopts them.
+- A **modal dialog** is a bordered `--card` over a scrim and blur, with no shadow of its own. The shared values are exported constants from `base.styles.ts`, not tokens, because `var()` does not reach `::backdrop`: `SCRIM_LIGHT` `rgb(0 0 0 / 0.5)` (the design's scrim samples black at 50%), `SCRIM_DARK` `rgb(13 13 13 / 0.72)` (no dark design), and `SCRIM_BLUR` `2px` (estimated) for a backdrop blur that degrades to the plain scrim on e-ink. A dialog interpolates them rather than writing its own literals.
 - A focus halo or an inset outline built with `box-shadow` is not elevation.
 
 ---
@@ -455,18 +455,18 @@ Pagination sits **below** the list card, outside it. The leading edge states the
 
 ### Menus
 
-An overflow menu is a `<details>`/`<summary>` kebab: an icon-only trigger (`ellipsis` on a content row, `ellipsis-vertical` in a narrow rail row; 16px, `--muted-foreground`, always visible — never revealed on hover), never a text label. It opens a panel anchored to the trigger's trailing edge, 4px below: `--card`, 1px `--border`, `--radius`, `--shadow-md`, 6px inner padding. Items are inset rows at `--radius-sm`, ≥40px tall, a 16px icon in `--muted-foreground` plus a 14px label in `--foreground` (10px gap), hovering to `--muted`; every item carries an icon. A **destructive item** looks like its siblings at rest and turns `--error-bg` / `--error-text` on hover — the solid red belongs to the [dialog](#dialogs) it opens, not the item.
+An overflow menu is a `<details>`/`<summary>` kebab: an icon-only trigger (`ellipsis` on a content row, `ellipsis-vertical` in a narrow rail row; 16px, `--muted-foreground`, always visible — never revealed on hover), never a text label. It opens a panel anchored to the trigger's trailing edge, 4px below: `--card`, 1px `--border`, `--radius`, `--shadow-md`, 6px inner padding. Items are inset rows at `--radius-sm`, ≥40px tall, a 16px icon in `--muted-foreground` plus a 14px label in `--foreground` (10px gap), hovering to `--muted`; every item carries an icon. A **destructive item** looks like its siblings at rest and turns `--error-bg` / `--error-text` on hover; the [dialog](#dialogs) it opens decides the commit.
 
 ### Dialogs
 
 > **Component:** the shared confirm panel in `@packages/web-shell` (`renderConfirmPopover`, `CONFIRM_POPOVER_STYLES`). The values below belong in that module, never in a page stylesheet.
 
-A dialog is the shared confirm panel, opened as a native popover, and every trigger keeps a plain-form fallback where popover is unsupported. The panel is `--card` on a 1px `--border` with `--shadow-md`, 16px corners (see [Border Radius](#border-radius)), over a dark [scrim](#shadows--elevation); its padding grows 24px → 32px at 768px.
+A dialog is the shared confirm panel, opened as a native popover, and every trigger keeps a plain-form fallback where popover is unsupported. The panel is up to 600px wide, `--card` on a 1px `--border` with no shadow, 16px `--radius-lg` corners, over a [scrim and blur](#shadows--elevation); its padding grows 24px → 32px at 768px.
 
-- **Title** is UI, not a section heading: sans, 17px/700, balanced. The close control is the `x` icon in the top-right corner.
-- **Body** is 15px/1.5 and stays `--foreground` — it is the message. A list of what the action will touch is a bordered list box (1px `--border`, `--radius`, hairline-split rows), not bullets.
-- **Illustration.** A confirmation of a consequential action (a delete) may carry a 64px-tall [illustration](#illustrations) above the title; an illustrated dialog centres its composition and pins the close control to the corner. A dialog that only edits (rename) has none and is left-aligned: label above the field, inline error below, buttons last.
-- **Buttons** follow [Pairing](#pairing).
+- **Title** is sans `--text-lg` (18px)/600 on a 28px line in `--foreground`, balanced and 4px above the body. The `x` close control is opt-in for dialogs designed with one and for interim dialogs awaiting their own dismiss action.
+- **Body** is `--text-sm` (14px)/22px in `--muted-foreground`, with 24px below it. A list of what the action will touch is a bordered box (1px `--border`, `--radius`) of 56px rows with 24px readlist icons and hairline dividers.
+- **Illustration.** A confirmation of a consequential action may carry a 64px-tall [illustration](#illustrations) at the top padding edge, centred 20px above the title line box (about 24px above its glyphs). Its body is centred and capped at 408px. A dialog that only edits (rename) has none and is left-aligned: label above the field, inline error below, buttons last.
+- **Buttons** follow [Pairing](#pairing): the dismiss comes first, the commit last.
 
 ### Alerts and Status
 
@@ -636,7 +636,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 - **Use contractions.** Write "Couldn't", "You're", "doesn't". "Could not" and "do not" read like a form letter.
 - **Product copy is impersonal, but address the reader directly.** Impersonal means no "I" and no "we/our/us" as Readplace's voice; it does **not** mean no "you". Name the actor ("Readplace saves the article", "Readplace doesn't have an app for this device yet") and speak to the reader ("Your saved articles are still here.", "You can create up to 7 readlists."). First person belongs only to correspondence signed by Fayner Brack, Founder & CEO — and there it is "I", never "we".
 - **First person needs a visible signature in the same block** — the founder's photo and name, as a greeting ("Hi, I'm Fayner Brack!") or a sign-off ("— Fayner Brack, Founder & CEO"). The "I" stops where that block stops; the checklist or page around it returns to product voice ("Your quick setup guide"). The founder's portrait — a circle, `object-fit: cover`, sized to the text beside it — is the only photograph Readplace supplies itself, and appears only beside his own words, never as decoration on a surface written in the product's voice.
-- **A reply button may speak as the reader.** When a control answers a question the product asked, its label is the reader's reply ("Yes, delete it", "I've done this already", "Ok, I understand"). That "I" is the reader's, not Readplace's.
+- **A reply button may speak as the reader.** When a control answers a question the product asked, its label may be the reader's reply ("I've done this already"). A confirm dialog instead names the action ("Delete article", "Mark as read everywhere").
 - **Say nothing about who or how many build Readplace, or about the business behind it.** Where a legal name is required, the operator is "Proficient Pty Ltd"; the word "company" does not appear in reader-facing copy.
 - **Be specific over vague.** "Your article is saved" beats "Action completed." "Import your 847 Pocket articles" beats "Migrate your data."
 - **Modest language.** Never "best", "revolutionary", "game-changing", "reimagined". The product speaks for itself.
@@ -670,14 +670,14 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 | Empty states | Title: "Nothing saved yet" · Line: "Save your first article by pasting a link above, or set up one-tap saving from your browser, phone, or AI assistant." · Action: **Set up one-tap saving** | "Wow, it's empty in here!" |
 | Confirmations (status) | Toast: "Marked as read", with an **Undo** action | "Awesome! Successfully saved to your library!" |
 | Errors | Title: "Readlist limit reached" · Body: "You can create up to 7 readlists. Delete an existing readlist before creating a new one." | "Oops! Something went wrong" |
-| Decisions (confirm dialogs) | Title: "Delete this article?" · Body: the consequence ("Anything you also saved in All stays there.") · Buttons: **Yes, delete it** / **Yes, delete it and don't ask again** | "Are you sure?" · **OK** / **Cancel** |
+| Decisions (confirm dialogs) | Title: "Delete this article?" · Body: "This article will be removed from your readlist. You can save it again later." · Buttons: **Delete and don't ask again** / **Delete article** | "Are you sure?" · **OK** / **Cancel** |
 | Loading / in progress | The control's label becomes "Saving…"; a skeleton carries "Saving…"; an overrun says "Taking a while — open on example.com" | "Hang tight! We're fetching your stuff!" |
 | Onboarding steps | Step: "Get articles from email" · Why: "Forward a newsletter, or any email with links in it, and the links are saved here for you to read." · Progress: "Saved 12 of 50" | "Welcome to the future of reading!" |
 
 - **An empty state** has three parts: a title stating the fact ("…yet" while emptiness is temporary, plain acknowledgement when empty is the goal — "You're all caught up"), one or two sentences on how the list fills, then one or two buttons that take the next step — never a link buried in the sentence.
 - **A status toast** names the outcome in past tense with no full stop; a reversible change carries **Undo**, an irreversible one asks first.
 - **An error's title** names what failed ("Couldn't rename the readlist"); the body gives the cause the reader can check, with the actual limit when there is one, and what to do next.
-- **A confirm dialog's title** is a yes/no question naming the action and object; the body states the consequence and what survives; the confirm button answers in the reader's words ("Yes, delete it"), with a "don't ask again" twin as the secondary where the dialog can be skipped.
+- **A confirm dialog's title** names the decision ("Delete this article?", "Mark as read in all readlists?", or "Before you leave"); the body states the consequence and what survives. Buttons name their actions ("Delete article", "No, keep unread"); a skippable decision may offer a "don't ask again" alternative.
 - **In-progress copy** is short, starts with a present participle ("Saving…", "Processing", "Loading your articles…"), and sits where the result will land.
 - **A setup step** is an imperative naming the concrete thing ("Install the Chrome browser extension"), then one or two sentences on what it gets the reader; progress is stated in numbers.
 

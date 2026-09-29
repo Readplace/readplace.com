@@ -215,6 +215,28 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 		});
 
+		test(`the article delete dialog keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await seedReaderAndReadlist(
+				page,
+				`delete-dialog-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			const card = page.locator("[data-test-article]").first();
+			await card.locator('[data-test-action="article-menu"]').click();
+			await card.locator('[data-test-action="delete"]').click();
+			const panel = page.locator('[data-test-confirm-popover="delete"]:popover-open');
+			await expect(panel).toBeVisible();
+			await settle(page, '[data-test-confirm-popover="delete"]:popover-open');
+
+			const box = await measuredBox(page, '[data-test-confirm-popover="delete"]:popover-open');
+			assert.equal(Math.round(box.width), 600);
+			await expect(panel).toHaveScreenshot(
+				`eink-delete-article-dialog-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
 		test(`the status toast keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email, articleId } = await seedReaderAndReadlist(

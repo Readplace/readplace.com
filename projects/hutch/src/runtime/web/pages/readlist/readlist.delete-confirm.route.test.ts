@@ -102,10 +102,8 @@ describe("Readlist delete confirmation", () => {
 
 		const [articleId, bodyId] = (panel.getAttribute("aria-describedby") ?? "").split(" ");
 		expect(doc.getElementById(bodyId ?? "")?.textContent).toBe(
-			"By deleting this you won't be able to find it anymore until you save it again.",
+			"This article will be removed from your readlist. You can save it again later.",
 		);
-		// The visible copy is brand-approved and does not name the article, so the
-		// title reaches a screen reader through the lead described-by id.
 		assert.match(doc.getElementById(articleId ?? "")?.textContent ?? "", /^Article: /);
 	});
 
@@ -122,7 +120,7 @@ describe("Readlist delete confirmation", () => {
 		const doc = readlistDocument((await agent.get("/queue?tab=done&order=asc")).text);
 		const cta = doc.querySelector("[data-test-action='delete-confirm']");
 		assert(cta, "confirm call to action must be rendered");
-		expect(cta.textContent).toBe("Yes, delete it");
+		expect(cta.textContent).toBe("Delete article");
 
 		const form = cta.closest("form");
 		assert(form, "the confirm call to action must submit a real form");
@@ -143,7 +141,7 @@ describe("Readlist delete confirmation", () => {
 		expect(action.searchParams.get("utm_content")).toBe("delete");
 	});
 
-	it("dismisses with the close control rather than deleting", async () => {
+	it("offers no close control and lets the auto popover dismiss", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await saveArticles(agent, ["https://example.com/dismissable"]);
@@ -151,15 +149,8 @@ describe("Readlist delete confirmation", () => {
 		const doc = readlistDocument((await agent.get("/queue")).text);
 		const panel = doc.querySelector("[data-test-confirm-popover='delete']");
 		assert(panel, "confirmation panel must be rendered");
-		const close = doc.querySelector("[data-test-action='delete-dismiss']");
-		assert(close, "close control must be rendered");
-
-		expect(close.getAttribute("type")).toBe("button");
-		expect(close.getAttribute("popovertargetaction")).toBe("hide");
-		expect(close.getAttribute("popovertarget")).toBe(panel.getAttribute("id"));
-		// A close control that fell inside the confirm form would delete the
-		// article instead of dismissing it.
-		expect(close.closest("form")).toBeNull();
+		expect(panel.getAttribute("popover")).toBe("auto");
+		expect([...panel.querySelectorAll(".confirm-popover__header [data-test-action]")].map((action) => action.getAttribute("data-test-action"))).toEqual([]);
 	});
 
 	it("keeps asking after a plain deletion", async () => {

@@ -102,13 +102,14 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		const title = doc.getElementById(panel.getAttribute("aria-labelledby") ?? "");
 		assert(title, "aria-labelledby must resolve");
 		expect(title.tagName).toBe("H2");
-		expect(title.textContent).toBe("You're leaving this article");
+		expect(title.textContent).toBe("Before you leave");
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(true);
 
 		const described = (panel.getAttribute("aria-describedby") ?? "")
 			.split(" ")
 			.map((id) => doc.getElementById(id)?.textContent);
 		const articleTitle = doc.querySelector("[data-test-reader-title]")?.textContent;
-		expect(described).toEqual([articleTitle, "Did you read it?"]);
+		expect(described).toEqual([articleTitle, "Did you finish reading it? You can mark it as read now, or keep it unread and come back to it later."]);
 	});
 
 	it("posts the mark-read status from inside the panel, tagged apart from the toolbar's", async () => {
@@ -120,7 +121,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 
 		const yes = doc.querySelector('[data-test-action="exit-confirm-yes"]');
 		assert(yes, "the confirm call to action must be rendered");
-		expect(yes.textContent).toBe("Yes, Mark as Read");
+		expect(yes.textContent).toBe("Yes, mark as read");
 		expect(yes.getAttribute("type")).toBe("submit");
 		expect(yes.classList.contains("btn")).toBe(true);
 		expect(yes.classList.contains("btn--primary")).toBe(true);
@@ -144,7 +145,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		expect(toolbarAction.searchParams.get("utm_content")).toBe("mark-read-top");
 	});
 
-	it("offers a decline that never posts and a close control that never submits", async () => {
+	it("offers a decline that never posts and no close control", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/exit-decline");
@@ -153,23 +154,16 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 
 		const no = doc.querySelector('[data-test-action="exit-confirm-no"]');
 		assert(no, "the decline control must be rendered");
-		expect(no.textContent).toBe("No, Continue and Keep Unread");
+		expect(no.textContent).toBe("No, keep unread");
 		// type=button, not submit: declining must never post the mark-read form
 		// it shares a <form> with.
 		expect(no.getAttribute("type")).toBe("button");
-		expect(no.classList.contains("btn--secondary")).toBe(true);
+		expect(no.classList.contains("btn--neutral")).toBe(true);
 		expect(no.hasAttribute("data-exit-confirm-decline")).toBe(true);
-
-		const close = doc.querySelector('[data-test-action="exit-confirm-dismiss"]');
-		assert(close, "the close control must be rendered");
 		const panel = doc.querySelector(EXIT_CONFIRM);
 		assert(panel, "the panel must be rendered");
-		expect(close.getAttribute("type")).toBe("button");
-		expect(close.getAttribute("popovertargetaction")).toBe("hide");
-		expect(close.getAttribute("popovertarget")).toBe(panel.getAttribute("id"));
-		// A close control inside the confirm form would mark the article read
-		// instead of dismissing the question.
-		expect(close.closest("form")).toBeNull();
+		expect([...panel.querySelectorAll(".confirm-popover__header [data-test-action]")].map((action) => action.getAttribute("data-test-action"))).toEqual([]);
+		expect([...panel.querySelectorAll(".confirm-popover__buttons button")].map((button) => button.getAttribute("data-test-action"))).toEqual(["exit-confirm-no", "exit-confirm-yes"]);
 	});
 
 	it("ships the script whatever the read status, and drops the panel once the article is read", async () => {

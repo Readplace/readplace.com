@@ -79,15 +79,25 @@ async function panelOpen(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function titleLeadsTheReadlistListThenBothChoices(page: Page): Promise<void> {
+async function titleLeadsTheReadlistListThenBothChoices(
+	page: Page,
+	mode: "desktop" | "phone",
+): Promise<void> {
 	const panel = await measuredBox(page, PANEL);
+	const title = await measuredBox(page, PANEL_TITLE);
+	const body = await measuredBox(page, PANEL_BODY);
+	const items = await measuredBox(page, PANEL_ITEMS);
 	const stacked = [
-		["title", await measuredBox(page, PANEL_TITLE)],
-		["introduction", await measuredBox(page, PANEL_BODY)],
-		["readlist list", await measuredBox(page, PANEL_ITEMS)],
+		["title", title],
+		["introduction", body],
+		["readlist list", items],
 		["confirm choice", await measuredBox(page, PANEL_CONFIRM)],
 		["silence choice", await measuredBox(page, PANEL_NEVER)],
 	] as const;
+	const titleBodyGap = body.y - (title.y + title.height);
+	assert.ok(Math.abs(titleBodyGap - 4) <= 1, `title-to-body gap is ${titleBodyGap}px`);
+	const bodyListGap = items.y - (body.y + body.height);
+	assert.ok(Math.abs(bodyListGap - 24) <= 1, `body-to-list gap is ${bodyListGap}px`);
 
 	for (let i = 1; i < stacked.length; i++) {
 		const [name, part] = stacked[i];
@@ -99,8 +109,16 @@ async function titleLeadsTheReadlistListThenBothChoices(page: Page): Promise<voi
 	}
 	const confirm = await measuredBox(page, PANEL_CONFIRM);
 	const never = await measuredBox(page, PANEL_NEVER);
-	assert.equal(never.x, confirm.x, "the two choices must stack in one column");
-	assert.equal(never.width, confirm.width, "the stacked choices must share the panel's width");
+	assert.equal(Math.round(never.y - (confirm.y + confirm.height)), 8);
+	const contentInset = mode === "desktop" ? 33 : 25;
+	const contentRight = panel.x + panel.width - contentInset;
+	assert.ok(Math.abs(confirm.x + confirm.width - contentRight) <= 1);
+	assert.ok(Math.abs(never.x + never.width - contentRight) <= 1);
+	if (mode === "phone") {
+		const contentLeft = panel.x + contentInset;
+		assert.ok(Math.abs(confirm.x - contentLeft) <= 1);
+		assert.ok(Math.abs(never.x - contentLeft) <= 1);
+	}
 
 	for (const [name, part] of stacked) {
 		assert.ok(
@@ -114,19 +132,20 @@ async function titleLeadsTheReadlistListThenBothChoices(page: Page): Promise<voi
 	}
 }
 
-function checkpoint(name: string): VisualCheckpoint {
+function checkpoint(name: string, mode: "desktop" | "phone"): VisualCheckpoint {
 	return {
 		name,
 		settled: panelOpen,
-		geometry: titleLeadsTheReadlistListThenBothChoices,
+		geometry: (page) => titleLeadsTheReadlistListThenBothChoices(page, mode),
 		target: PANEL,
 		capture: "element",
 		pinnedText: [],
 	};
 }
 
-const MARK_STATUS_CONFIRM_LIGHT = checkpoint("mark-status-confirm-light");
-const MARK_STATUS_CONFIRM_DARK = checkpoint("mark-status-confirm-dark");
+const MARK_STATUS_CONFIRM_LIGHT = checkpoint("mark-status-confirm-light", "desktop");
+const MARK_STATUS_CONFIRM_DARK = checkpoint("mark-status-confirm-dark", "desktop");
+const MARK_STATUS_CONFIRM_PHONE = checkpoint("mark-status-confirm-phone", "phone");
 
 test.describe("Mark-as-read confirmation panel", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
@@ -146,5 +165,17 @@ test.describe("Mark-as-read confirmation panel", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openMarkReadConfirm(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_DARK);
+		await page.locator(PANEL_NEVER).hover();
+		await expect(page.locator(PANEL_NEVER)).toHaveCSS("background-color", "rgb(42, 42, 42)");
+	});
+});
+
+test.describe("Mark-as-read confirmation panel on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 390, height: 844 } });
+
+	test("stacks both full-width answers under the readlists", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openMarkReadConfirm(page, `phone-${testInfo.workerIndex}-${Date.now()}`);
+		await captureCheckpoint(page, MARK_STATUS_CONFIRM_PHONE);
 	});
 });

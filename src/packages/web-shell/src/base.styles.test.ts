@@ -287,6 +287,19 @@ describe("FORM_CONTROL_STYLES", () => {
 });
 
 describe("BUTTON_STYLES", () => {
+	it("keeps a destructive action outlined until hover or press", () => {
+		const rest = ruleBody(BUTTON_STYLES, ".btn--destructive");
+		const hover = ruleBody(BUTTON_STYLES, ".btn--destructive:hover");
+		const pressed = ruleBody(BUTTON_STYLES, ".btn--destructive:active");
+		expect(declaredValue(rest, "background")).toBe("var(--card)");
+		expect(declaredValue(rest, "color")).toBe("var(--error-text)");
+		expect(declaredValue(rest, "box-shadow")).toBe("inset 0 0 0 1px var(--color-error)");
+		expect(declaredValue(hover, "background")).toBe("var(--error-fill)");
+		expect(declaredValue(hover, "color")).toBe("var(--error-foreground)");
+		expect(declaredValue(pressed, "background")).toBe("var(--error-fill-hover)");
+		expect(declaredValue(pressed, "color")).toBe("var(--error-foreground)");
+	});
+
 	it.each([".btn--m", ".btn--s"])("extends the %s tier's hit area to the 44px tap-target floor", (tier) => {
 		const height = Number.parseFloat(declaredValue(ruleBody(BUTTON_STYLES, tier), "min-height"));
 		const [blockInset] = declaredValue(ruleBody(BUTTON_STYLES, `${tier}::before`), "inset").split(" ");

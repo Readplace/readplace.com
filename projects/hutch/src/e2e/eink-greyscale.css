@@ -1,3 +1,7 @@
 html {
   filter: grayscale(1) !important;
 }
+
+.confirm-popover:popover-open {
+  filter: grayscale(1) !important;
+}

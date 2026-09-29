@@ -73,7 +73,11 @@ describe("renderConfirmPopover", () => {
 	});
 
 	it("renders a list under the body and describes the panel by both", () => {
-		const doc = renderPanel({ bodyItems: ["All", "Work", "Later"] });
+		const doc = renderPanel({ bodyItems: [
+			{ label: "All", icon: "file" },
+			{ label: "Work", icon: "folder" },
+			{ label: "Later", icon: "folder" },
+		] });
 
 		const panel = doc.querySelector(".confirm-popover");
 		assert(panel, "panel must be rendered");
@@ -83,39 +87,42 @@ describe("renderConfirmPopover", () => {
 		const items = doc.getElementById("thing-confirm-42-items");
 		assert(items, "the list must be rendered");
 		expect(items.tagName).toBe("UL");
-		expect([...items.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
+		expect([...items.querySelectorAll(".confirm-popover__item-label")].map((label) => label.textContent)).toEqual([
 			"All",
 			"Work",
 			"Later",
 		]);
+		const rows = [...items.querySelectorAll(".confirm-popover__item")];
+		expect(rows.map((row) => row.firstElementChild?.tagName)).toEqual(["svg", "svg", "svg"]);
+		expect(rows.map((row) => row.querySelector("svg")?.getAttribute("aria-hidden"))).toEqual([
+			"true", "true", "true",
+		]);
 	});
 
 	it("escapes each item, so a readlist named after markup stays text", () => {
-		const doc = renderPanel({ bodyItems: ['<img src=x onerror="alert(1)">'] });
+		const doc = renderPanel({ bodyItems: [{ label: '<img src=x onerror="alert(1)">', icon: "folder" }] });
 
 		const items = doc.getElementById("thing-confirm-42-items");
 		assert(items, "the list must be rendered");
 		expect(items.querySelectorAll("img")).toHaveLength(0);
-		expect(items.querySelector("li")?.textContent).toBe('<img src=x onerror="alert(1)">');
+		expect(items.querySelector(".confirm-popover__item-label")?.textContent).toBe('<img src=x onerror="alert(1)">');
 	});
 
-	it("tightens the body above a list so the sentence reads as its introduction", () => {
-		const withList = renderPanel({ bodyItems: ["All"] });
+	it("keeps the body spacing when a list follows it", () => {
+		const withList = renderPanel({ bodyItems: [{ label: "All", icon: "file" }] });
 		const withoutList = renderPanel();
 
 		const introduced = withList.getElementById("thing-confirm-42-body");
 		const alone = withoutList.getElementById("thing-confirm-42-body");
 		assert(introduced, "the body must be rendered");
 		assert(alone, "the body must be rendered");
-		expect(introduced.className).toBe(
-			"confirm-popover__body confirm-popover__body--above-list",
-		);
+		expect(introduced.className).toBe("confirm-popover__body");
 		expect(alone.className).toBe("confirm-popover__body");
-		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover__body--above-list {");
+		expect(CONFIRM_POPOVER_STYLES).toContain("margin-bottom: 24px;");
 	});
 
 	it("draws the list as one bordered box split by hairlines, so each row reads as a thing the action touches", () => {
-		const doc = renderPanel({ bodyItems: ["All", "Work"] });
+		const doc = renderPanel({ bodyItems: [{ label: "All", icon: "file" }, { label: "Work", icon: "folder" }] });
 
 		const items = doc.getElementById("thing-confirm-42-items");
 		assert(items, "the list must be rendered");
@@ -137,8 +144,8 @@ describe("renderConfirmPopover", () => {
 
 	it("describes the panel by lead, body and list when all three are present", () => {
 		const doc = renderPanel({
-			lead: { text: "The Article Title", screenReaderOnly: true },
-			bodyItems: ["All"],
+			lead: "The Article Title",
+			bodyItems: [{ label: "All", icon: "file" }],
 		});
 
 		const panel = doc.querySelector(".confirm-popover");
@@ -149,9 +156,7 @@ describe("renderConfirmPopover", () => {
 	});
 
 	it("describes the panel by lead then body when a lead names the subject", () => {
-		const doc = renderPanel({
-			lead: { text: "The Article Title", screenReaderOnly: false },
-		});
+		const doc = renderPanel({ lead: "The Article Title" });
 
 		const panel = doc.querySelector(".confirm-popover");
 		assert(panel, "panel must be rendered");
@@ -160,45 +165,31 @@ describe("renderConfirmPopover", () => {
 		);
 	});
 
-	it("shows a visible lead when the subject is not already on screen", () => {
-		const doc = renderPanel({
-			lead: { text: "The Article Title", screenReaderOnly: false },
-		});
-
-		const lead = doc.getElementById("thing-confirm-42-lead");
-		assert(lead, "lead must be rendered");
-		expect(lead.className).toBe("confirm-popover__lead");
-		expect(lead.textContent).toBe("The Article Title");
-	});
-
-	it("hides the lead from sighted readers when the subject is already on screen behind the panel", () => {
-		const doc = renderPanel({
-			lead: { text: "Article: The Article Title", screenReaderOnly: true },
-		});
+	it("keeps the subject in the accessible description without repeating it visibly", () => {
+		const doc = renderPanel({ lead: "Article: The Article Title" });
 
 		const lead = doc.getElementById("thing-confirm-42-lead");
 		assert(lead, "lead must be rendered so screen readers still hear the subject");
 		expect(lead.className).toBe("sr-only");
 	});
 
-	it("names the decision on the panel and on its dismiss control from one key", () => {
+	it("names the decision on the panel and omits an unrequested close control", () => {
 		const doc = renderPanel();
 
 		const panel = doc.querySelector("[data-test-confirm-popover]");
 		assert(panel, "panel must carry the decision key");
 		expect(panel.getAttribute("data-test-confirm-popover")).toBe("thing");
-		const dismiss = doc.querySelector("[data-test-action]");
-		assert(dismiss, "dismiss control must be rendered");
-		expect(dismiss.getAttribute("data-test-action")).toBe("thing-dismiss");
+		expect([...panel.querySelectorAll(".confirm-popover__header [data-test-action]")]).toEqual([]);
 	});
 
 	it("dismisses by targeting its own popover, so closing needs no JavaScript", () => {
-		const doc = renderPanel();
+		const doc = renderPanel({ close: {} });
 
 		const dismiss = doc.querySelector(".confirm-popover__close");
 		assert(dismiss, "dismiss control must be rendered");
 		expect(dismiss.getAttribute("popovertarget")).toBe("thing-confirm-42");
 		expect(dismiss.getAttribute("popovertargetaction")).toBe("hide");
+		expect(dismiss.getAttribute("data-test-action")).toBe("thing-dismiss");
 	});
 
 	it("carries the subject when one page renders a panel per row", () => {
@@ -227,7 +218,7 @@ describe("renderConfirmPopover", () => {
 	it("hands a caller the panel it opens and the control it closes with, which the shell owns", () => {
 		const doc = renderPanel({
 			openBeaconUrl: "/thing/event?utm_content=opened&utm_medium=internal",
-			dismissBeaconUrl: "/thing/event?utm_content=dismissed&utm_medium=internal",
+			close: { beaconUrl: "/thing/event?utm_content=dismissed&utm_medium=internal" },
 		});
 
 		const panel = doc.querySelector("[data-test-confirm-popover]");
@@ -243,7 +234,7 @@ describe("renderConfirmPopover", () => {
 	});
 
 	it("leaves both beacon attributes off a panel whose caller asked for neither", () => {
-		const doc = renderPanel();
+		const doc = renderPanel({ close: {} });
 
 		const panel = doc.querySelector("[data-test-confirm-popover]");
 		assert(panel, "panel must be rendered");
@@ -275,8 +266,9 @@ describe("renderConfirmPopover", () => {
 		const illustration = panel.querySelector(".confirm-popover__illustration");
 		assert(illustration, "the illustration wrapper must be rendered");
 		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--illustrated {");
-		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--illustrated .confirm-popover__close {");
+		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--illustrated .confirm-popover__header:has(.confirm-popover__close) {");
 		expect(CONFIRM_POPOVER_STYLES).toContain(`.${illustration.className} {`);
+		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--illustrated .confirm-popover__buttons {");
 	});
 
 	it("omits the illustration modifier when the caller supplies no artwork", () => {
@@ -295,5 +287,6 @@ describe("renderConfirmPopover", () => {
 		const submit = actions.querySelector("[data-test-action='thing-confirm']");
 		assert(submit, "the caller's own submit control must survive rendering");
 		expect(submit.textContent).toBe("Delete it");
+		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover__buttons {");
 	});
 });

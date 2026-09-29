@@ -53,6 +53,8 @@ const READLIST_MENU_RENAME = '[data-test-action="readlist-rename"]';
 const READLIST_MENU_DELETE = '[data-test-action="readlist-delete"]';
 const READLIST_RENAME_POPOVER = '[data-test-confirm-popover="readlist-rename"]';
 const READLIST_DELETE_POPOVER = '[data-test-confirm-popover="readlist-delete"]';
+const READLIST_RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
+const READLIST_DELETE_CONFIRM = '[data-test-action="readlist-delete-confirm"]';
 const SAVE_CARD = "[data-test-save-card]";
 const SAVE_ERROR = "[data-test-save-error]";
 const SAVE_INPUT = `${SAVE_CARD} input[name="url"]`;
@@ -67,6 +69,8 @@ const CARD_TIME = ".readlist-article__time";
 const CARD_THUMBNAIL = ".readlist-article__thumbnail";
 const DELETE_ARTICLE_POPOVER = '[data-test-confirm-popover="delete"]';
 const OPEN_DELETE_ARTICLE_POPOVER = `${DELETE_ARTICLE_POPOVER}:popover-open`;
+const DELETE_ARTICLE_NEVER = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm-never"]`;
+const DELETE_ARTICLE_CONFIRM = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm"]`;
 const MARK_STATUS_CONFIRM_BUTTON = '[data-test-action="mark-status-confirm"]';
 const EMPTY = "[data-test-empty-readlist]";
 const LISTING = "[data-test-listing]";
@@ -302,6 +306,69 @@ async function phonePageGeometry(page: Page): Promise<void> {
 	await pageFitsTheClip(page);
 }
 
+function near(actual: number, expected: number): boolean {
+	return Math.abs(actual - expected) <= 1;
+}
+
+async function renameDialogGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const panel = await measuredBox(page, READLIST_RENAME_POPOVER);
+	const cancel = await measuredBox(page, READLIST_RENAME_CANCEL);
+	const save = await measuredBox(page, RENAME_SAVE);
+	assert.ok(near(panel.width, 600));
+	assert.ok(near(cancel.y, save.y));
+	assert.ok(near(save.x, cancel.x + cancel.width + 8));
+	assert.ok(near(save.x + save.width, panel.x + panel.width - 33));
+}
+
+async function deleteReadlistDialogGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const panel = await measuredBox(page, READLIST_DELETE_POPOVER);
+	const commit = await measuredBox(page, READLIST_DELETE_CONFIRM);
+	assert.ok(near(panel.width, 600));
+	assert.ok(near(commit.x, panel.x + 33));
+	assert.ok(near(commit.x + commit.width, panel.x + panel.width - 33));
+}
+
+async function deleteArticleDialogGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const panel = await measuredBox(page, OPEN_DELETE_ARTICLE_POPOVER);
+	const never = await measuredBox(page, DELETE_ARTICLE_NEVER);
+	const commit = await measuredBox(page, DELETE_ARTICLE_CONFIRM);
+	assert.ok(near(panel.width, 600));
+	assert.ok(near(never.y, commit.y));
+	assert.ok(near(commit.x, never.x + never.width + 8));
+	const leftSlack = never.x - panel.x;
+	const rightSlack = panel.x + panel.width - (commit.x + commit.width);
+	assert.ok(near(leftSlack, rightSlack));
+}
+
+async function stackedDialogButtons(
+	page: Page,
+	panelSelector: string,
+	dismissSelector: string,
+	commitSelector: string,
+): Promise<void> {
+	await neverScrollsSideways(page);
+	const panel = await measuredBox(page, panelSelector);
+	const dismiss = await measuredBox(page, dismissSelector);
+	const commit = await measuredBox(page, commitSelector);
+	assert.ok(near(panel.width, 358));
+	assert.ok(near(dismiss.y, commit.y + commit.height + 8));
+	for (const choice of [dismiss, commit]) {
+		assert.ok(near(choice.x, panel.x + 25));
+		assert.ok(near(choice.x + choice.width, panel.x + panel.width - 25));
+	}
+}
+
+async function renameDialogPhoneGeometry(page: Page): Promise<void> {
+	await stackedDialogButtons(page, READLIST_RENAME_POPOVER, READLIST_RENAME_CANCEL, RENAME_SAVE);
+}
+
+async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
+	await stackedDialogButtons(page, OPEN_DELETE_ARTICLE_POPOVER, DELETE_ARTICLE_NEVER, DELETE_ARTICLE_CONFIRM);
+}
+
 async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
 	await phonePageGeometry(page);
 	const banner = await measuredBox(page, SUBSCRIPTION_BANNER);
@@ -532,16 +599,22 @@ const RAIL_MENU_OPEN: VisualCheckpoint = {
 const RENAME_DIALOG: VisualCheckpoint = {
 	name: "readlist-rename-dialog",
 	settled: renameDialogSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: renameDialogGeometry,
 	target: READLIST_RENAME_POPOVER,
 	capture: "element",
 	pinnedText: [],
 };
 
+const RENAME_DIALOG_PHONE: VisualCheckpoint = {
+	...RENAME_DIALOG,
+	name: "readlist-rename-dialog-phone",
+	geometry: renameDialogPhoneGeometry,
+};
+
 const DELETE_READLIST_DIALOG: VisualCheckpoint = {
 	name: "readlist-delete-readlist-dialog",
 	settled: deleteReadlistDialogSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: deleteReadlistDialogGeometry,
 	target: READLIST_DELETE_POPOVER,
 	capture: "element",
 	pinnedText: [],
@@ -559,10 +632,16 @@ const CARD_MENU_OPEN: VisualCheckpoint = {
 const DELETE_ARTICLE_DIALOG: VisualCheckpoint = {
 	name: "readlist-delete-article-dialog",
 	settled: deleteArticleDialogSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: deleteArticleDialogGeometry,
 	target: OPEN_DELETE_ARTICLE_POPOVER,
 	capture: "element",
 	pinnedText: [],
+};
+
+const DELETE_ARTICLE_DIALOG_PHONE: VisualCheckpoint = {
+	...DELETE_ARTICLE_DIALOG,
+	name: "readlist-delete-article-dialog-phone",
+	geometry: deleteArticleDialogPhoneGeometry,
 };
 
 const ALERT_LIMIT: VisualCheckpoint = {
@@ -921,8 +1000,38 @@ test.describe("Readlist card menu", () => {
 			await gotoReadlistQueue(page, "");
 
 			await captureCheckpoint(page, withTheme(DELETE_ARTICLE_DIALOG, theme));
+			const backdrop = await page.locator(OPEN_DELETE_ARTICLE_POPOVER).evaluate((panel) => {
+				const style = getComputedStyle(panel, "::backdrop");
+				return { background: style.backgroundColor, blur: style.backdropFilter };
+			});
+			assert.equal(
+				backdrop.background,
+				theme === "light" ? "rgba(0, 0, 0, 0.5)" : "rgba(13, 13, 13, 0.72)",
+			);
+			assert.notEqual(backdrop.blur, "none");
 		});
 	}
+});
+
+test.describe("Readlist dialogs on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("stacks Save above Cancel in the rename dialog", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const email = `readlist-rename-dialog-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await openCustomReadlist(page, email);
+		await captureCheckpoint(page, RENAME_DIALOG_PHONE);
+	});
+
+	test("stacks Delete article above its quiet choice", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const email = `readlist-delete-article-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedTwoArticles(page, userId, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await captureCheckpoint(page, DELETE_ARTICLE_DIALOG_PHONE);
+	});
 });
 
 test.describe("Readlist alerts", () => {

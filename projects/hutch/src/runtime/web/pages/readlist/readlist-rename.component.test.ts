@@ -93,6 +93,9 @@ describe("renderReadlistRename", () => {
 		assert(cancel, "the panel must offer a Cancel control");
 		expect(cancel.getAttribute("popovertarget")).toBe("readlist-rename-work");
 		expect(cancel.getAttribute("popovertargetaction")).toBe("hide");
+		expect(cancel.classList.contains("btn--neutral")).toBe(true);
+		expect(cancel.parentElement?.classList.contains("confirm-popover__buttons")).toBe(true);
+		expect([...doc.querySelectorAll(".confirm-popover__header [data-test-action]")].map((action) => action.getAttribute("data-test-action"))).toEqual([]);
 	});
 
 	it("posts to the readlist's rename route, tagged for funnel attribution", () => {
