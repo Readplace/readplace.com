@@ -38,7 +38,7 @@ import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
-	validateSaveableUrl: ValidateSaveableUrl;
+	validateNewSaveUrl: ValidateSaveableUrl;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
@@ -313,9 +313,9 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const saveable: SaveableUrl[] = [];
 		const skipped: Array<{ url: string; code: SaveableUrlErrorCode }> = [];
 		for (const url of selected) {
-			const validation = deps.validateSaveableUrl(url);
+			const validation = deps.validateNewSaveUrl(url);
 			if (validation.status === "SUCCESS") {
-				saveable.push(validation.url);
+				if (!saveable.includes(validation.url)) saveable.push(validation.url);
 			} else {
 				skipped.push({ url, code: validation.error.code });
 			}

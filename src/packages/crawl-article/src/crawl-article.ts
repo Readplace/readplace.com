@@ -22,7 +22,7 @@ import { isBlockClassResponse } from "./persona-fallback";
 import { readBodyWithCap } from "./read-capped-body";
 import { resolveDocumentUrl } from "./resolve-document-url";
 import type { ExtractPdf } from "./pdf-extract.types";
-import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
+import { matchingSiteRuleUrl, type SiteCrawlOutcome, type SiteRules } from "@packages/site-rules";
 
 /**
  * Split fetch budgets: time-to-headers and body-materialisation are separate
@@ -60,13 +60,13 @@ type RefusedTerminal = Exclude<
 
 async function recoverRefusedTerminal(params: {
 	fetched: RefusedTerminal;
-	site: SiteRules | undefined;
-	url: string;
+	redirectingSite: { site: SiteRules; url: string } | undefined;
 	logInfo: (message: string) => void;
 }): Promise<CrawlArticleResult> {
-	const { fetched, site, url, logInfo } = params;
-	if (site === undefined) return fetched;
+	const { fetched, redirectingSite, logInfo } = params;
+	if (redirectingSite === undefined) return fetched;
 	if (fetched.status === "not-modified") return fetched;
+	const { site, url } = redirectingSite;
 	const recovered = await site.recoverContent({ url });
 	if (recovered === undefined) return fetched;
 	logInfo(`[CrawlArticle] ${url} recovered from its ${fetched.status} terminal`);
@@ -399,7 +399,7 @@ export function initCrawlArticle(deps: {
 	const conditionalGet = initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts });
 	return async (params) => {
 		let currentUrl = params.url;
-		let redirectingSite: SiteRules | undefined;
+		let redirectingSite: { site: SiteRules; url: string } | undefined;
 		for (let siteRedirects = 0; ; siteRedirects++) {
 			if (siteRedirects > MAX_SITE_RULE_REDIRECTS) {
 				logError(
@@ -407,10 +407,7 @@ export function initCrawlArticle(deps: {
 				);
 				return { status: "failed" };
 			}
-			let hostname: string;
-			try {
-				hostname = new URL(currentUrl).hostname;
-			} catch {
+			if (!URL.canParse(currentUrl)) {
 				logError(`[CrawlArticle] Invalid URL ${currentUrl}`);
 				return { status: "failed" };
 			}
@@ -419,11 +416,11 @@ export function initCrawlArticle(deps: {
 			 * apple.news shell), or fails closed wins; `skip` falls through to the
 			 * normal fetch cascade below. */
 			let siteRedirect: string | undefined;
-			let claimingSite: SiteRules | undefined;
+			let claimingSite: { site: SiteRules; url: string } | undefined;
 			for (const site of siteRules) {
-				let claimed: boolean;
+				let claimedUrl: string | undefined;
 				try {
-					claimed = site.matches({ url: currentUrl, hostname });
+					claimedUrl = matchingSiteRuleUrl({ site, url: currentUrl });
 				} catch (error) {
 					logError(
 						`[CrawlArticle] Site matches threw for ${currentUrl}`,
@@ -431,11 +428,11 @@ export function initCrawlArticle(deps: {
 					);
 					continue;
 				}
-				if (!claimed) continue;
-				claimingSite = site;
+				if (claimedUrl === undefined) continue;
+				claimingSite = { site, url: claimedUrl };
 				let outcome: SiteCrawlOutcome;
 				try {
-					outcome = await site.onCrawl({ url: currentUrl });
+					outcome = await site.onCrawl({ url: claimedUrl });
 				} catch (error) {
 					logError(
 						`[CrawlArticle] Site onCrawl threw for ${currentUrl}`,
@@ -460,7 +457,7 @@ export function initCrawlArticle(deps: {
 			currentUrl = siteRedirect;
 		}
 		const fetched = await conditionalGet({ ...params, url: currentUrl });
-		if (fetched.status !== "ok") return recoverRefusedTerminal({ fetched, site: redirectingSite, url: params.url, logInfo });
+		if (fetched.status !== "ok") return recoverRefusedTerminal({ fetched, redirectingSite, logInfo });
 		/* c8 ignore next -- V8 block-coverage phantom: the early-return continuation directly after the site-rule redirect loop gets a spurious zero-count sub-range even though the ok and non-ok statuses both have tests; restructuring only relocates it. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 		const { response, buffer } = fetched;
 		/* Pre-parse byte gate: many origins ignore conditional headers and

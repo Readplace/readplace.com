@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { ArticleResourceUniqueId, equivalentHostUrls } from "@packages/article-resource-unique-id";
 import type { UserId } from "../user";
 
 /** What the queue-save pipeline last reported for one URL. Deliberately has no
@@ -31,6 +31,18 @@ export interface InboxSavedLinkEntry {
 export function inboxSavedLinkKey(url: string): string {
 	const normalized = ArticleResourceUniqueId.parse(url).value;
 	return createHash("sha256").update(normalized).digest("hex");
+}
+
+export function inboxSavedLinkLookupKeys(url: string): readonly string[] {
+	return equivalentHostUrls(url).map((candidate) => inboxSavedLinkKey(candidate));
+}
+
+export function combineInboxLinkSaveStates(
+	states: readonly (InboxLinkSaveState | undefined)[],
+): InboxLinkSaveState | undefined {
+	if (states.includes("saved")) return "saved";
+	if (states.includes("failed")) return "failed";
+	return undefined;
 }
 
 export interface InboxSavedLinkStore {

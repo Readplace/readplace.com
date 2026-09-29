@@ -1043,3 +1043,123 @@ describe("initReadabilityParser", () => {
 		});
 	});
 });
+
+describe("initReadabilityParser — site rules recognise twitter.com and x.com alike", () => {
+	const TWEET_BODY =
+		"<p>Tweet body the site rule supplied, long enough for readability to score it as the whole article.</p>";
+
+	function parseAt(params: { url: string; siteRules: readonly TestSite[] }) {
+		const { parseHtml } = initParser({ siteRules: params.siteRules });
+		return parseHtml({ url: params.url, documentUrl: params.url, html: ARTICLE_HTML, thumbnailUrl: null });
+	}
+
+	function extractingSite(params: { host: string; calls: string[]; label: string }): TestSite {
+		return {
+			matches: ({ url, hostname }) => hostname === params.host && new URL(url).pathname.includes("/status/"),
+			extract: () => {
+				params.calls.push(params.label);
+				return { title: params.label, bodyHtml: TWEET_BODY };
+			},
+		};
+	}
+
+	function transformingSite(params: { matches: TestSite["matches"]; calls: string[]; label: string }): TestSite {
+		return {
+			matches: params.matches,
+			transform: () => {
+				params.calls.push(params.label);
+			},
+		};
+	}
+
+	it.each([
+		["an x.com-only rule", "x.com", "https://twitter.com/jack/status/20"],
+		["a twitter.com-only rule", "twitter.com", "https://x.com/jack/status/20"],
+	])("extracts with %s from the other host's URL", (_label, host, url) => {
+		const calls: string[] = [];
+
+		const result = parseAt({ url, siteRules: [extractingSite({ host, calls, label: host })] });
+
+		expect(calls).toEqual([host]);
+		assert(result.ok);
+		expect(result.article.title).toBe(host);
+		expect(result.article.content).toContain("Tweet body the site rule supplied");
+	});
+
+	it("extracts once when the rule recognises both hosts", () => {
+		const calls: string[] = [];
+		const bothHosts: TestSite = {
+			matches: ({ hostname }) => hostname === "x.com" || hostname === "twitter.com",
+			extract: () => {
+				calls.push("both");
+				return undefined;
+			},
+		};
+
+		parseAt({ url: "https://twitter.com/jack/status/20", siteRules: [bothHosts] });
+
+		expect(calls).toEqual(["both"]);
+	});
+
+	it("keeps the rule's path restriction on the other host", () => {
+		const calls: string[] = [];
+
+		const result = parseAt({
+			url: "https://twitter.com/jack",
+			siteRules: [extractingSite({ host: "x.com", calls, label: "x.com" })],
+		});
+
+		expect(calls).toEqual([]);
+		assert(result.ok);
+		expect(result.article.title).toBe("Test Article Title");
+	});
+
+	it("keeps registration order: the first registered rule's extraction wins on either host", () => {
+		const calls: string[] = [];
+
+		const result = parseAt({
+			url: "https://x.com/jack/status/20",
+			siteRules: [
+				extractingSite({ host: "twitter.com", calls, label: "twitter-rule" }),
+				extractingSite({ host: "x.com", calls, label: "x-rule" }),
+			],
+		});
+
+		expect(calls).toEqual(["twitter-rule"]);
+		assert(result.ok);
+		expect(result.article.title).toBe("twitter-rule");
+	});
+
+	it("runs each matching transform once, in registration order, whichever host the URL uses", () => {
+		const calls: string[] = [];
+
+		parseAt({
+			url: "https://twitter.com/jack/status/20",
+			siteRules: [
+				transformingSite({ matches: ({ hostname }) => hostname === "x.com", calls, label: "x-only" }),
+				transformingSite({
+					matches: ({ hostname }) => hostname === "x.com" || hostname === "twitter.com",
+					calls,
+					label: "both",
+				}),
+				transformingSite({ matches: ({ hostname }) => hostname === "twitter.com", calls, label: "twitter-only" }),
+			],
+		});
+
+		expect(calls).toEqual(["x-only", "both", "twitter-only"]);
+	});
+
+	it("leaves a twitter.com subdomain to its own rules", () => {
+		const calls: string[] = [];
+
+		parseAt({
+			url: "https://mobile.twitter.com/jack/status/20",
+			siteRules: [
+				extractingSite({ host: "x.com", calls, label: "x-extract" }),
+				transformingSite({ matches: ({ hostname }) => hostname === "twitter.com", calls, label: "twitter-transform" }),
+			],
+		});
+
+		expect(calls).toEqual([]);
+	});
+});

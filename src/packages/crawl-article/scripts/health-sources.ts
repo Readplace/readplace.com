@@ -133,6 +133,12 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: false,
 	},
 	{
+		label: "X (Twitter — twitter.com spelling)",
+		url: "https://twitter.com/elonmusk/status/1519480761749016577",
+		expectedContent: "buying Coca-Cola to put the cocaine back in",
+		expectsThumbnail: false,
+	},
+	{
 		// Tweet URLs with a `/video/<n>` or `/photo/<n>` sub-path 404 against
 		// Twitter's oembed endpoint. The crawler canonicalises to the bare
 		// `<handle>/status/<id>` form so this longhand URL still resolves.

@@ -35,7 +35,7 @@ interface SeedFirstArticleOnConsentDependencies {
 	countArticlesByUser: CountArticlesByUser;
 	resolveSaveAccess: (userId: UserId) => Promise<{ readonly allowed: boolean }>;
 	getEffectiveAccess: GetEffectiveAccess;
-	validateSaveableUrl: ValidateSaveableUrl;
+	validateNewSaveUrl: ValidateSaveableUrl;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	saveArticleAtReadlistTop: SaveArticleAtReadlistTop;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
@@ -78,7 +78,7 @@ export function initSeedFirstArticleOnConsent(
 		if (!(await deps.resolveSaveAccess(userId)).allowed) return;
 		if ((await deps.getEffectiveAccess(userId)).access !== "full") return;
 
-		const validation = deps.validateSaveableUrl(CONSENT_SEED_ARTICLE_URL);
+		const validation = deps.validateNewSaveUrl(CONSENT_SEED_ARTICLE_URL);
 		assert(validation.status === "SUCCESS", "the consent seed URL must be saveable");
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });

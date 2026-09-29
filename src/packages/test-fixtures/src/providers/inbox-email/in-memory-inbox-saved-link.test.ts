@@ -149,3 +149,69 @@ describe("initInMemoryInboxSavedLink", () => {
 		).toBe("saved");
 	});
 });
+
+describe("initInMemoryInboxSavedLink — a tweet linked on twitter.com and x.com", () => {
+	const TWEET_ON_TWITTER = "https://twitter.com/jack/status/20";
+	const TWEET_ON_X = "https://x.com/jack/status/20";
+
+	it("reads a twitter.com link as saved once its x.com article was saved, keyed by the link the caller asked about", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaved({ userId, url: TWEET_ON_X });
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER, TWEET_ON_X] });
+
+		expect([...states.entries()]).toEqual([
+			[TWEET_ON_TWITTER, "saved"],
+			[TWEET_ON_X, "saved"],
+		]);
+	});
+
+	it("reads an x.com link as saved from a legacy twitter.com save", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaved({ userId, url: TWEET_ON_TWITTER });
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_X] });
+
+		expect(states.get(TWEET_ON_X)).toBe("saved");
+	});
+
+	it("lets a save under either host outrank a failure recorded later under the other", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaved({ userId, url: TWEET_ON_X });
+		await store.markLinkSaveFailed({ userId, url: TWEET_ON_TWITTER });
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER] });
+
+		expect(states.get(TWEET_ON_TWITTER)).toBe("saved");
+	});
+
+	it("reads a failure recorded under the other host as failed", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaveFailed({ userId, url: TWEET_ON_X });
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER] });
+
+		expect(states.get(TWEET_ON_TWITTER)).toBe("failed");
+	});
+
+	it("retracts only the host it is told to, leaving the other save standing", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaved({ userId, url: TWEET_ON_TWITTER });
+		await store.markLinkSaved({ userId, url: TWEET_ON_X });
+
+		await store.retractLinkSaved({ userId, url: TWEET_ON_X });
+
+		expect((await store.findSavedLinks({ userId, urls: [TWEET_ON_X] })).get(TWEET_ON_X)).toBe("saved");
+		await store.retractLinkSaved({ userId, url: TWEET_ON_TWITTER });
+		expect((await store.findSavedLinks({ userId, urls: [TWEET_ON_X] })).size).toBe(0);
+	});
+
+	it("keeps a twitter.com subdomain apart", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaved({ userId, url: TWEET_ON_X });
+
+		const states = await store.findSavedLinks({ userId, urls: ["https://mobile.twitter.com/jack/status/20"] });
+
+		expect(states.size).toBe(0);
+	});
+});

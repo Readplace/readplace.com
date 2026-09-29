@@ -1,7 +1,9 @@
 import {
+	combineInboxLinkSaveStates,
 	type InboxLinkSaveState,
 	type InboxSavedLinkStore,
 	inboxSavedLinkKey,
+	inboxSavedLinkLookupKeys,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
@@ -31,13 +33,13 @@ export function initInMemoryInboxSavedLink(): InboxSavedLinkStore {
 		findSavedLinks: async ({ userId, urls }) => {
 			const byUrl = new Map<string, InboxLinkSaveState>();
 			for (const url of urls) {
-				let linkKey: string;
+				let linkKeys: readonly string[];
 				try {
-					linkKey = inboxSavedLinkKey(url);
+					linkKeys = inboxSavedLinkLookupKeys(url);
 				} catch {
 					continue;
 				}
-				const state = states.get(rowKey(userId, linkKey));
+				const state = combineInboxLinkSaveStates(linkKeys.map((linkKey) => states.get(rowKey(userId, linkKey))));
 				if (state !== undefined) byUrl.set(url, state);
 			}
 			return byUrl;

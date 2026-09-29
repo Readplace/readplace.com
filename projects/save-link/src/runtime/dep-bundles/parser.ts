@@ -4,23 +4,17 @@ import type {
 	ExtractPdf,
 } from "@packages/crawl-article";
 import {
-	initAppleNewsSiteRules,
-	initStackOverflowSiteRules,
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchPinnedCrawl,
-	initXTwitterSiteRules,
 	CRAWL_PERSONAS,
 	PROXIED_FETCH_TIMEOUTS,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import {
+	initArticleSiteRules,
 	initReadabilityParser,
-	linkedinSiteRules,
-	mediaWikiSiteRules,
-	mediumSiteRules,
 	readabilityAdditions,
-	theInformationSiteRules,
 } from "@packages/article-parser";
 import type { ParseHtml } from "@packages/article-parser";
 import { initIsSiteRuleUrl } from "../domain/save-link/adopt-canonical-identity";
@@ -60,12 +54,7 @@ export function initParserDepBundle(deps: {
 		logInfo: deps.logInfo,
 		proxyUrl: deps.proxyUrl,
 	});
-	const crawlClaimingSiteRules = [
-		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
-		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
-		initStackOverflowSiteRules({ crawlFetch, logError: deps.logError }),
-	];
-	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
+	const { siteRules, crawlClaimingSiteRules } = initArticleSiteRules({ crawlFetch, logError: deps.logError });
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({
 			crawlFetch,
@@ -113,12 +102,7 @@ export function initComprehensiveParserDepBundle(deps: {
 		logInfo: deps.logInfo,
 		proxyUrl: deps.proxyUrl,
 	});
-	const crawlClaimingSiteRules = [
-		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
-		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
-		initStackOverflowSiteRules({ crawlFetch, logError: deps.logError }),
-	];
-	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
+	const { siteRules, crawlClaimingSiteRules } = initArticleSiteRules({ crawlFetch, logError: deps.logError });
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({
 			crawlFetch,

@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import {
 	MAX_SAVEABLE_URL_LENGTH,
+	prepareNewSaveUrl,
 	SaveableUrlSchema,
 	saveableUrlCodeFromIssues,
 	saveableUrlErrorMessage,
 	validateSaveableUrl,
+	withNewSavePreparation,
+	type SaveableUrl,
 	type SaveableUrlErrorCode,
+	type ValidateSaveableUrl,
 } from "./saveable-url";
 
 function assertErrorCode(value: unknown, code: SaveableUrlErrorCode): void {
@@ -247,5 +251,51 @@ describe("saveableUrlErrorMessage", () => {
 		expect(saveableUrlErrorMessage("malformed_url")).toMatch(/valid URL/);
 		expect(saveableUrlErrorMessage("unsupported_scheme")).toMatch(/http/);
 		expect(saveableUrlErrorMessage("private_network")).toMatch(/[Pp]rivate-network/);
+	});
+});
+
+describe("prepareNewSaveUrl", () => {
+	function saveable(value: string): SaveableUrl {
+		const result = validateSaveableUrl(value);
+		assert(result.status === "SUCCESS");
+		return result.url;
+	}
+
+	it("saves a twitter.com link under its x.com spelling", () => {
+		expect(prepareNewSaveUrl(saveable("https://twitter.com/jack/status/20?s=20#top"))).toBe(
+			"https://x.com/jack/status/20?s=20#top",
+		);
+	});
+
+	it("leaves every other saveable link as validated", () => {
+		expect(prepareNewSaveUrl(saveable("https://mobile.twitter.com/jack"))).toBe("https://mobile.twitter.com/jack");
+		expect(prepareNewSaveUrl(saveable("https://example.com/a?b=c"))).toBe("https://example.com/a?b=c");
+	});
+});
+
+describe("withNewSavePreparation", () => {
+	it("prepares the URL the wrapped validator accepted", () => {
+		const validate = withNewSavePreparation(validateSaveableUrl);
+
+		expect(validate("  https://twitter.com/jack/status/20  ")).toEqual({
+			status: "SUCCESS",
+			url: "https://x.com/jack/status/20",
+		});
+	});
+
+	it("passes the wrapped validator's refusal through unchanged", () => {
+		const refusal = { status: "ERROR", error: { code: "malformed_url", message: "nope" } } as const;
+		const refusing: ValidateSaveableUrl = () => refusal;
+
+		expect(withNewSavePreparation(refusing)("https://twitter.com/jack")).toBe(refusal);
+	});
+
+	it("refuses a twitter.com link one character over the cap even though its x.com spelling would fit", () => {
+		const validate = withNewSavePreparation(validateSaveableUrl);
+		const prefix = "https://twitter.com/";
+		const justOver = `${prefix}${"a".repeat(MAX_SAVEABLE_URL_LENGTH - prefix.length + 1)}`;
+
+		expect(justOver.length).toBe(MAX_SAVEABLE_URL_LENGTH + 1);
+		expect(validate(justOver).status).toBe("ERROR");
 	});
 });

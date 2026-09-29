@@ -14,6 +14,7 @@
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {
+    "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-state-types": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/site-rules": "workspace:*",

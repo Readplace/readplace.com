@@ -8,9 +8,11 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import {
+	combineInboxLinkSaveStates,
 	type InboxLinkSaveState,
 	type InboxSavedLinkStore,
 	inboxSavedLinkKey,
+	inboxSavedLinkLookupKeys,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 
@@ -27,11 +29,11 @@ const InboxSavedLinkRow = z.object({
 /** Pairs each caller url with its key, dropping the ones that are not URLs at
  * all. A card's stored url comes from an email body, so a malformed one is a
  * data problem for that link, never a reason to fail the page's whole lookup. */
-function toKeyedUrls(urls: readonly string[]): Array<{ url: string; linkKey: string }> {
-	const keyed: Array<{ url: string; linkKey: string }> = [];
+function toKeyedUrls(urls: readonly string[]): Array<{ url: string; linkKeys: readonly string[] }> {
+	const keyed: Array<{ url: string; linkKeys: readonly string[] }> = [];
 	for (const url of urls) {
 		try {
-			keyed.push({ url, linkKey: inboxSavedLinkKey(url) });
+			keyed.push({ url, linkKeys: inboxSavedLinkLookupKeys(url) });
 		} catch {
 			continue;
 		}
@@ -93,7 +95,7 @@ export function initDynamoDbInboxSavedLink(deps: {
 		},
 		findSavedLinks: async ({ userId, urls }) => {
 			const keyed = toKeyedUrls(urls);
-			const uniqueKeys = [...new Set(keyed.map((entry) => entry.linkKey))];
+			const uniqueKeys = [...new Set(keyed.flatMap((entry) => entry.linkKeys))];
 			const rows = await batchGetFromTable({
 				client: deps.client,
 				tableName: deps.tableName,
@@ -103,7 +105,7 @@ export function initDynamoDbInboxSavedLink(deps: {
 			const byKey = new Map(rows.map((row) => [row.linkKey, row.state]));
 			const byUrl = new Map<string, InboxLinkSaveState>();
 			for (const entry of keyed) {
-				const state = byKey.get(entry.linkKey);
+				const state = combineInboxLinkSaveStates(entry.linkKeys.map((linkKey) => byKey.get(linkKey)));
 				if (state !== undefined) byUrl.set(entry.url, state);
 			}
 			return byUrl;

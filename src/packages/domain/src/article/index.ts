@@ -32,11 +32,13 @@ export {
 } from "./article.schema";
 export {
 	MAX_SAVEABLE_URL_LENGTH,
+	prepareNewSaveUrl,
 	SaveableUrlSchema,
 	SaveableUrlErrorCodeSchema,
 	validateSaveableUrl,
 	saveableUrlCodeFromIssues,
 	saveableUrlErrorMessage,
+	withNewSavePreparation,
 	type SaveableUrl,
 	type SaveableUrlError,
 	type SaveableUrlErrorCode,

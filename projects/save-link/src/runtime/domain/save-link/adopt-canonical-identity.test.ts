@@ -65,6 +65,26 @@ describe("adoptableTerminal", () => {
 	it("rejects a failed crawl whose terminal is itself a site-rule URL", () => {
 		expect(adoptableTerminal({ ...crawlFailed, isSiteRuleUrl: () => true })).toBeUndefined();
 	});
+
+	it.each([
+		["a twitter.com identity fetched from x.com", "https://twitter.com/jack/status/20", "https://x.com/jack/status/20"],
+		["an x.com identity whose terminal reads twitter.com", "https://x.com/jack/status/20", "https://twitter.com/jack/status/20"],
+	])("finds no redirect in %s", (_label, url, finalUrl) => {
+		expect(adoptableTerminal({ ...base, url, finalUrl })).toBeUndefined();
+		expect(adoptableTerminal({ ...crawlFailed, url, finalUrl })).toBeUndefined();
+	});
+
+	it("still adopts a real redirect between a twitter.com subdomain and x.com", () => {
+		expect(
+			adoptableTerminal({ ...base, url: "https://mobile.twitter.com/jack/status/20", finalUrl: "https://x.com/jack/status/20" }),
+		).toBe("https://x.com/jack/status/20");
+	});
+
+	it("still adopts a real redirect to another x.com page", () => {
+		expect(
+			adoptableTerminal({ ...base, url: "https://twitter.com/jack/status/20", finalUrl: "https://x.com/jack/status/21" }),
+		).toBe("https://x.com/jack/status/21");
+	});
 });
 
 describe("initAdoptCanonicalIdentity", () => {
@@ -110,6 +130,21 @@ describe("initAdoptCanonicalIdentity", () => {
 			articleUrl: "https://site.com/page.html",
 			displayUrl: "https://site.com/page",
 		});
+	});
+
+	it("claims nothing for a twitter.com article whose fetch was only moved to x.com", async () => {
+		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
+		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
+		const adopt = build(claimAlias, { setDisplayUrl });
+
+		await adopt({
+			url: "https://twitter.com/jack/status/20",
+			finalUrl: "https://x.com/jack/status/20",
+			outcome: { kind: "finalized", wordCount: 300 },
+		});
+
+		expect(claimAlias).not.toHaveBeenCalled();
+		expect(setDisplayUrl).not.toHaveBeenCalled();
 	});
 
 	it("does not claim or record a display URL when a gate rejects the terminal", async () => {
@@ -269,6 +304,12 @@ describe("initIsSiteRuleUrl", () => {
 	it("returns true when a rule matches the URL", () => {
 		const isSiteRuleUrl = initIsSiteRuleUrl([matchHost("x.com")]);
 		expect(isSiteRuleUrl("https://x.com/user/status/1")).toBe(true);
+	});
+
+	it("classifies a URL on the host equivalent to the one the rule was written for", () => {
+		expect(initIsSiteRuleUrl([matchHost("x.com")])("https://twitter.com/user/status/1")).toBe(true);
+		expect(initIsSiteRuleUrl([matchHost("twitter.com")])("https://x.com/user/status/1")).toBe(true);
+		expect(initIsSiteRuleUrl([matchHost("x.com")])("https://mobile.twitter.com/user/status/1")).toBe(false);
 	});
 
 	it("returns false when no rule matches", () => {

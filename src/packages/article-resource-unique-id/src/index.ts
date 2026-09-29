@@ -70,5 +70,6 @@ export function toCrawlVersionMinuteId(iso: string): string {
 	return `${new Date(iso).toISOString().slice(0, 16)}Z`;
 }
 
+export { equivalentHostUrls, toCanonicalHostUrl } from "./equivalent-hosts";
 export { resolveCanonicalUrl, type CanonicalSignals } from "./resolve-canonical-url";
 export { extractCanonicalCandidates, type CanonicalDocument } from "./extract-canonical-candidates";

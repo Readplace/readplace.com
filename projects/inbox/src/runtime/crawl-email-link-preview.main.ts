@@ -1,11 +1,8 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import {
+	initArticleSiteRules,
 	initReadabilityParser,
-	linkedinSiteRules,
-	mediaWikiSiteRules,
-	mediumSiteRules,
 	readabilityAdditions,
-	theInformationSiteRules,
 } from "@packages/article-parser";
 import {
 	assertCurlImpersonateAvailable,
@@ -14,9 +11,6 @@ import {
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchThumbnailImage,
-	initXTwitterSiteRules,
-	initAppleNewsSiteRules,
-	initStackOverflowSiteRules,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
@@ -62,15 +56,7 @@ const crawlFetch = initCrawlFetch({
 if (getEnv("AWS_LAMBDA_FUNCTION_NAME")) {
 	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
 }
-const siteRules = [
-	theInformationSiteRules,
-	mediumSiteRules,
-	linkedinSiteRules,
-	mediaWikiSiteRules,
-	initXTwitterSiteRules({ crawlFetch, logError }),
-	initAppleNewsSiteRules({ crawlFetch, logError }),
-	initStackOverflowSiteRules({ crawlFetch, logError }),
-];
+const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo });
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,

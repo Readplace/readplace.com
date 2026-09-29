@@ -3,6 +3,7 @@ import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import { inboxSavedLinkKey } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
+import { z } from "zod";
 import { initDynamoDbInboxSavedLink } from "./dynamodb-inbox-saved-link";
 
 type SendFn = DynamoDBDocumentClient["send"];
@@ -227,5 +228,60 @@ describe("initDynamoDbInboxSavedLink", () => {
 			{ userId, linkKey: inboxSavedLinkKey("https://example.com/one") },
 			{ userId, linkKey: inboxSavedLinkKey("https://example.com/two") },
 		]);
+	});
+});
+
+describe("initDynamoDbInboxSavedLink — a tweet linked on twitter.com and x.com", () => {
+	const TWEET_ON_TWITTER = "https://twitter.com/jack/status/20";
+	const TWEET_ON_X = "https://x.com/jack/status/20";
+
+	function requestedKeys(commands: RecordedCommand[]): string[] {
+		const batchGet = commands.find((command) => command.name === "BatchGetCommand");
+		assert(batchGet, "findSavedLinks must issue a BatchGetCommand");
+		const requested = z
+			.record(z.string(), z.object({ Keys: z.array(z.object({ linkKey: z.string() })) }))
+			.parse(batchGet.input.RequestItems);
+		return requested[TABLE].Keys.map((key) => key.linkKey);
+	}
+
+	it("asks for both hosts' keys once, even when the page links the tweet on both", async () => {
+		const { client, commands } = createFakeClient();
+		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
+
+		await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER, TWEET_ON_X] });
+
+		expect(requestedKeys(commands)).toEqual([inboxSavedLinkKey(TWEET_ON_X), inboxSavedLinkKey(TWEET_ON_TWITTER)]);
+	});
+
+	it("answers under the caller's twitter.com link, ranking a save above a failure on the other host", async () => {
+		const { client } = createFakeClient([savedRow(TWEET_ON_X), savedRow(TWEET_ON_TWITTER, "failed")]);
+		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER] });
+
+		expect([...states.entries()]).toEqual([[TWEET_ON_TWITTER, "saved"]]);
+	});
+
+	it("reads a failure recorded under the other host as failed", async () => {
+		const { client } = createFakeClient([savedRow(TWEET_ON_TWITTER, "failed")]);
+		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
+
+		const states = await store.findSavedLinks({ userId, urls: [TWEET_ON_X] });
+
+		expect(states.get(TWEET_ON_X)).toBe("failed");
+	});
+
+	it("writes and retracts under the exact host it is given", async () => {
+		const { client, commands } = createFakeClient();
+		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
+
+		await store.markLinkSaved({ userId, url: TWEET_ON_TWITTER });
+		await store.retractLinkSaved({ userId, url: TWEET_ON_TWITTER });
+
+		const put = commands.find((command) => command.name === "PutCommand");
+		const del = commands.find((command) => command.name === "DeleteCommand");
+		assert(put && del, "a write and a delete must be issued");
+		expect(put.input.Item).toEqual(expect.objectContaining({ linkKey: inboxSavedLinkKey(TWEET_ON_TWITTER) }));
+		expect(del.input.Key).toEqual({ userId, linkKey: inboxSavedLinkKey(TWEET_ON_TWITTER) });
 	});
 });
