@@ -32,7 +32,7 @@ test.describe("Saving on the readlist leaves a reviewable transition frame trail
 		await signUpFreshUser(page, `readlist-save-transition-${run}@example.com`);
 		await page
 			.locator('[data-test-form="save-article"] input[name="url"]')
-			.fill(`${BASE_URL}/privacy?readlist-save-transition=${run}`);
+			.fill(`${BASE_URL}/privacy?t=${run}`);
 		await page.locator('[data-test-form="save-article"] button[type="submit"]').click();
 		await captureTransitionFrames({ page, flow: "readlist-save" });
 		await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
