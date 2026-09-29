@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
@@ -17,7 +18,12 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
-import { initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
+import {
+	type FileArticleIntoReadlist,
+	initSaveArticleAtReadlistTop,
+	initSaveArticleFromUrl,
+	type SaveArticleFromUrlDependencies,
+} from "@packages/save-article";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -37,6 +43,7 @@ export function initSubmitLinkCommandHandler(deps: {
 	publishUpdateFetchTimestamp: SaveArticleFromUrlDependencies["publishUpdateFetchTimestamp"];
 	refreshArticleIfStale: SaveArticleFromUrlDependencies["refreshArticleIfStale"];
 	allocateSavedAt: AllocateSavedAt;
+	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	resolveCanonicalIdentity: SaveArticleFromUrlDependencies["resolveCanonicalIdentity"];
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
@@ -110,6 +117,7 @@ export function initSubmitLinkCommandHandler(deps: {
 				assert("userId" in detail, `${logPrefix} anonymous submissions have no handler yet`);
 				const userId = UserIdSchema.parse(detail.userId);
 				const provenance = SaveProvenanceSchema.parse(detail.provenance);
+				const readlist = ReadlistSlugSchema.parse(detail.readlist);
 
 				const validation = deps.validateSaveableUrl(detail.url);
 				assert(
@@ -139,7 +147,15 @@ export function initSubmitLinkCommandHandler(deps: {
 					saveArticleFromUrl,
 				});
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				await saveArticleAtReadlistTop({ userId, url: validation.url, freshness, provenance });
+				const { saved } = await saveArticleAtReadlistTop({
+					userId,
+					url: validation.url,
+					freshness,
+					provenance,
+				});
+				if (readlist !== DEFAULT_READLIST_SLUG) {
+					await deps.fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
+				}
 
 				if (provenance.kind === "email") {
 					try {

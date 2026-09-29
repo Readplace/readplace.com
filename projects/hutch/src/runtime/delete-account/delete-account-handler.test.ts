@@ -427,11 +427,12 @@ async function seedAccount(
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		droppedFor: undefined,
 	});
 	await s.inboxLink.putLinksMeta({
 		userId,
 		receivedAtMessageId: ramA,
-		meta: { truncated: true, extractionFailed: false },
+		meta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
 	});
 
 	const addressEntry = await s.inboxAddress.createAddress({

@@ -1,3 +1,4 @@
+import type { ReadlistSlug } from "../readlist/readlist-name.schema";
 import type { UserId } from "../user";
 import type {
 	AliasName,
@@ -20,6 +21,7 @@ export interface InboxAddressEntry {
 	createdAt: string;
 	disabledAt: string | undefined;
 	purpose: InboxAddressPurpose;
+	readlist: ReadlistSlug | undefined;
 }
 
 /** Account-deletion primitive: unlinks every address the user owns from them
@@ -57,6 +59,12 @@ export interface InboxAddressStore {
 	 * fails the ownership condition, so a deleted-account address can never be
 	 * resurrected and a forged address can never reach a foreign row. */
 	enableAddress: (input: { userId: UserId; address: InboxAddress }) => Promise<void>;
+	setAddressReadlist: (input: {
+		userId: UserId;
+		address: InboxAddress;
+		readlist: ReadlistSlug | undefined;
+	}) => Promise<void>;
+	clearReadlistFromAddresses: (input: { userId: UserId; readlist: ReadlistSlug }) => Promise<void>;
 	/** Resolve a forwarding address to its owner. A single strongly-consistent
 	 * GetItem on the `address` partition key — not the eventually-consistent GSI
 	 * that `listAddressesByUserId` reads — so the receive path never races a

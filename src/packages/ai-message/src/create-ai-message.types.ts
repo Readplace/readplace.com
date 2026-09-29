@@ -25,5 +25,6 @@ export type CreateAiMessage = (params: {
 		output_tokens: number;
 		cache_hit_input_tokens?: number;
 		cache_miss_input_tokens?: number;
+		reasoning_tokens?: number;
 	};
 }>;

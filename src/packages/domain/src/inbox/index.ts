@@ -11,6 +11,11 @@ export type {
 	TombstoneUserAddresses,
 } from "./inbox-address.types";
 export {
+	decideInboxRouting,
+	type InboxRoutingDecision,
+	type InboxRoutingRejection,
+} from "./inbox-address-routing";
+export {
 	addressCapReached,
 	countLiveCappedAddresses,
 	isLiveAddress,
@@ -72,7 +77,13 @@ export {
 	type EmailLinkStatus,
 	EmailLinkSkipReasonSchema,
 	type EmailLinkSkipReason,
+	InboxEmailLinkDropSchema,
+	type InboxEmailLinkDrop,
+	InboxReadlistDecisionSchema,
+	type InboxReadlistDecision,
+	type SettledInboxReadlistDecision,
 } from "./inbox-email-link.schema";
+export { isExcludedLink } from "./inbox-email-link.excluded";
 export { classifyEmailLink } from "./classify-email-link";
 export type {
 	InboxEmailLinkEntry,

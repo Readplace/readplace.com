@@ -23,6 +23,7 @@ import { initSaveLinkRawHtmlDlqHandler } from "./domain/crawl-article-state/save
 import { initSaveLinkRawPdfDlqHandler } from "./domain/crawl-article-state/save-link-raw-pdf-dlq-handler";
 import { initGenerateSummaryDlqHandler } from "./domain/generate-summary/generate-summary-dlq-handler";
 import { initReselectAfterRemovalDlqHandler } from "./domain/remove-my-content/reselect-after-removal-dlq-handler";
+import { initFilterEmailLinksDlqHandler } from "./domain/filter-email-links/filter-email-links-dlq-handler";
 import { initRecrawlContentExtractedDlqHandler } from "./domain/select-content/recrawl-content-extracted-dlq-handler";
 import { initSelectMostCompleteContentDlqHandler } from "./domain/select-content/select-most-complete-content-dlq-handler";
 import { initSimpleCrawlUnsupportedPolicyDlqHandler } from "./domain/simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-dlq-handler";
@@ -113,6 +114,10 @@ export const handler = initDeadLetterRouter({
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.recrawlContentExtracted]: initRecrawlContentExtractedDlqHandler({
 			transitionAndPersist,
+			logger,
+		}),
+		[SAVE_LINK_DLQ_SOURCE_QUEUES.filterEmailLinks]: initFilterEmailLinksDlqHandler({
+			publishEvent,
 			logger,
 		}),
 	},

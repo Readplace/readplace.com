@@ -37,7 +37,13 @@ const stubAttributes: SQSRecordAttributes = {
 };
 
 function createSqsEvent(
-	details: Array<{ url: string; userId?: string; rawHtml?: string; provenance?: unknown }>,
+	details: Array<{
+		url: string;
+		userId?: string;
+		rawHtml?: string;
+		provenance?: unknown;
+		readlist?: string;
+	}>,
 ): SQSEvent {
 	return {
 		Records: details.map((detail, index) => ({
@@ -45,7 +51,9 @@ function createSqsEvent(
 			receiptHandle: `receipt-${index + 1}`,
 			body: JSON.stringify({
 				detail:
-					detail.userId === undefined ? detail : { provenance: { kind: "web" }, ...detail },
+					detail.userId === undefined
+						? detail
+						: { provenance: { kind: "web" }, readlist: "default", ...detail },
 			}),
 			attributes: stubAttributes,
 			messageAttributes: {},
@@ -103,6 +111,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		validateSaveableUrl,
 		saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
 		allocateSavedAt: jest.fn().mockResolvedValue(allocatedSavedAt),
+		fileArticleIntoReadlist: jest.fn().mockResolvedValue({ createdUserArticle: true, wroteUserArticle: true }),
 		recordInboxArticleQueued: jest.fn().mockResolvedValue(undefined),
 		updateArticleStatus: jest.fn().mockResolvedValue(true),
 		markCrawlPending: jest.fn().mockResolvedValue(undefined),
@@ -287,6 +296,98 @@ describe("initSubmitLinkCommandHandler", () => {
 
 		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
 		expect(saveArticle).not.toHaveBeenCalled();
+	});
+
+	it("fails a pre-readlist record still in flight at deploy, so its dead letter re-offers the Save button", async () => {
+		const saveArticle = jest.fn();
+		const handler = createHandler({ saveArticle });
+		const event = createSqsEvent([{ url: exampleUrl }]);
+		event.Records[0].body = JSON.stringify({
+			detail: { url: exampleUrl, userId, provenance: { kind: "web" } },
+		});
+
+		const response = await run(handler, event);
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(saveArticle).not.toHaveBeenCalled();
+	});
+
+	it("fails a record whose readlist is not a readlist id", async () => {
+		const saveArticle = jest.fn();
+		const handler = createHandler({ saveArticle });
+
+		const response = await run(
+			handler,
+			createSqsEvent([{ url: exampleUrl, userId, readlist: "Not A Slug" }]),
+		);
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(saveArticle).not.toHaveBeenCalled();
+	});
+
+	it("files the accepted save into the readlist the command names, after accepting it at All", async () => {
+		const saved = makeSaved();
+		const calls: string[] = [];
+		const publishEvent = jest.fn(async (event: { detailType: string }) => {
+			calls.push(event.detailType);
+		});
+		const fileArticleIntoReadlist = jest.fn(async () => {
+			calls.push("filed");
+			return { createdUserArticle: true, wroteUserArticle: true };
+		});
+		const handler = createHandler({
+			publishEvent,
+			fileArticleIntoReadlist,
+			saveArticle: jest.fn().mockResolvedValue({ saved, createdUserArticle: true, wroteUserArticle: true }),
+		});
+
+		const response = await run(
+			handler,
+			createSqsEvent([
+				{
+					url: exampleUrl,
+					userId,
+					provenance: { kind: "email", senderEmail: "news@example.com" },
+					readlist: "a1b2c3d4",
+				},
+			]),
+		);
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(fileArticleIntoReadlist).toHaveBeenCalledWith({
+			userId,
+			readlist: "a1b2c3d4",
+			article: saved,
+			provenance: { kind: "email", senderEmail: "news@example.com" },
+		});
+		expect(calls.slice(0, calls.indexOf("filed") + 1)).toEqual([
+			"LinkQueued",
+			"QueueEntryCreated",
+			"filed",
+		]);
+	});
+
+	it("files nothing beyond All when the command names All", async () => {
+		const fileArticleIntoReadlist = jest.fn();
+		const handler = createHandler({ fileArticleIntoReadlist });
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(fileArticleIntoReadlist).not.toHaveBeenCalled();
+	});
+
+	it("fails the record when filing into the readlist fails, so the retry files it", async () => {
+		const handler = createHandler({
+			fileArticleIntoReadlist: jest.fn().mockRejectedValue(new Error("dynamo unavailable")),
+		});
+
+		const response = await run(
+			handler,
+			createSqsEvent([{ url: exampleUrl, userId, readlist: "a1b2c3d4" }]),
+		);
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
 	});
 
 	it("fails the record for an unsaveable URL instead of stub-saving garbage", async () => {

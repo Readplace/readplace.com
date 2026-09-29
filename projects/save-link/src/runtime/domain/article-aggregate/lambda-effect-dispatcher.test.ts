@@ -284,6 +284,7 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 			userId: "user-123",
 			provenance: { kind: "email", senderEmail: "news@example.com" },
+			readlist: "default",
 		});
 	});
 
@@ -347,6 +348,7 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 			userId: "user-123",
 			provenance: { kind: "web" },
+			readlist: "default",
 			rawHtml: "<html>captured DOM</html>",
 		});
 	});

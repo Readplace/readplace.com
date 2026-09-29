@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	AliasNameSchema,
@@ -14,6 +15,8 @@ const owner = UserIdSchema.parse("00000000000000000000000000000001");
 const otherUser = UserIdSchema.parse("00000000000000000000000000000002");
 const DOMAIN = "read.place";
 const NAME = AliasNameSchema.parse("news");
+const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
+const READING = ReadlistSlugSchema.parse("e5f6a7b8");
 
 describe("initInMemoryInboxAddress", () => {
 	it("creates an enabled address scoped to the owner", async () => {
@@ -28,6 +31,7 @@ describe("initInMemoryInboxAddress", () => {
 		expect(entry.name).toBe(NAME);
 		expect(entry.createdAt).toBe("2026-06-23T00:00:00.000Z");
 		expect(entry.disabledAt).toBeUndefined();
+		expect(entry.readlist).toBeUndefined();
 	});
 
 	it("persists the chosen name and surfaces it through list and find", async () => {
@@ -217,6 +221,62 @@ describe("initInMemoryInboxAddress", () => {
 		expect(refreshed.disabledAt).not.toBeUndefined();
 	});
 
+	describe("setAddressReadlist", () => {
+		it("routes an owned address to a readlist and back to All", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+			const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+
+			await store.setAddressReadlist({ userId: owner, address: entry.address, readlist: WORK });
+			const routed = await store.findByAddress(entry.address);
+			await store.setAddressReadlist({ userId: owner, address: entry.address, readlist: undefined });
+			const unrouted = await store.findByAddress(entry.address);
+
+			expect(routed?.readlist).toBe(WORK);
+			expect(unrouted?.readlist).toBeUndefined();
+		});
+
+		it("rejects routing an address that does not exist", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+
+			await expect(
+				store.setAddressReadlist({
+					userId: owner,
+					address: InboxAddressSchema.parse("in-3f9a2c@read.place"),
+					readlist: WORK,
+				}),
+			).rejects.toThrow(ConditionalCheckFailedException);
+		});
+
+		it("rejects routing requested by a non-owner", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+			const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+
+			await expect(
+				store.setAddressReadlist({ userId: otherUser, address: entry.address, readlist: WORK }),
+			).rejects.toThrow(ConditionalCheckFailedException);
+
+			expect((await store.findByAddress(entry.address))?.readlist).toBeUndefined();
+		});
+	});
+
+	describe("clearReadlistFromAddresses", () => {
+		it("sends only the owner's addresses routed to that readlist back to All", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+			const toWork = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+			const toReading = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+			const othersToWork = await store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+			await store.setAddressReadlist({ userId: owner, address: toWork.address, readlist: WORK });
+			await store.setAddressReadlist({ userId: owner, address: toReading.address, readlist: READING });
+			await store.setAddressReadlist({ userId: otherUser, address: othersToWork.address, readlist: WORK });
+
+			await store.clearReadlistFromAddresses({ userId: owner, readlist: WORK });
+
+			expect((await store.findByAddress(toWork.address))?.readlist).toBeUndefined();
+			expect((await store.findByAddress(toReading.address))?.readlist).toBe(READING);
+			expect((await store.findByAddress(othersToWork.address))?.readlist).toBe(WORK);
+		});
+	});
+
 	describe("tombstoneUserAddresses", () => {
 		it("unlinks the owner's addresses to the reserved owner, keeps every row, and stamps disabledAt only when unset", async () => {
 			let clock = new Date("2026-06-01T00:00:00.000Z");
@@ -224,6 +284,7 @@ describe("initInMemoryInboxAddress", () => {
 			const live = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 			const alreadyDisabled = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 			await store.disableAddress({ userId: owner, address: alreadyDisabled.address });
+			await store.setAddressReadlist({ userId: owner, address: live.address, readlist: WORK });
 			const otherOwned = await store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME, purpose: "user-alias" });
 			clock = new Date("2026-07-01T00:00:00.000Z");
 
@@ -236,6 +297,7 @@ describe("initInMemoryInboxAddress", () => {
 			assert(liveRow, "expected the tombstoned live address to survive");
 			expect(liveRow.userId).toBe(DELETED_ACCOUNT_INBOX_OWNER);
 			expect(liveRow.disabledAt).toBe("2026-07-01T00:00:00.000Z");
+			expect(liveRow.readlist).toBeUndefined();
 			// An address disabled before deletion keeps its original disabledAt.
 			const disabledRow = await store.findByAddress(alreadyDisabled.address);
 			assert(disabledRow, "expected the tombstoned disabled address to survive");

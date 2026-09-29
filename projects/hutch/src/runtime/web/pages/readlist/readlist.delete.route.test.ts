@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
+import { AliasNameSchema } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
@@ -188,6 +189,39 @@ describe("POST /queue/queues/:slug/delete", () => {
 		await deleteReadlist(agent, slug);
 
 		expect(dequeued).toEqual([]);
+	});
+
+	it("sends the inboxes routed to the deleted readlist back to All, leaving the others where they go", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const deleted = ReadlistSlugSchema.parse(await createReadlist(agent));
+		const kept = ReadlistSlugSchema.parse(await createReadlist(agent));
+		const userId = await userIdOf(harness);
+		const { inboxAddressStore, inboxAddressDomain } = fixture.inboxAddress;
+		for (const [name, readlist] of [
+			["news", deleted],
+			["tech", kept],
+		] as const) {
+			const inbox = await inboxAddressStore.createAddress({
+				userId,
+				domain: inboxAddressDomain,
+				name: AliasNameSchema.parse(name),
+				purpose: "user-alias",
+			});
+			await inboxAddressStore.setAddressReadlist({ userId, address: inbox.address, readlist });
+		}
+
+		await deleteReadlist(agent, deleted);
+
+		const routing = (await inboxAddressStore.listAddressesByUserId(userId)).map((inbox) => [
+			inbox.name,
+			inbox.readlist,
+		]);
+		expect(routing).toEqual([
+			["news", undefined],
+			["tech", kept],
+		]);
 	});
 
 	it("refuses the readlist every reader is given, which holds no row to delete", async () => {

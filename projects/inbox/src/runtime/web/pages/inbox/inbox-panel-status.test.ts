@@ -2,6 +2,7 @@ import { panelStatusFor } from "./inbox-panel-status";
 
 const SETTLED = {
 	isExtracting: false,
+	isDeciding: false,
 	isExtractionFailed: false,
 	isStalePending: false,
 };
@@ -9,6 +10,7 @@ const SETTLED = {
 describe("panelStatusFor", () => {
 	it("reports each state on its own", () => {
 		expect(panelStatusFor({ ...SETTLED, isExtracting: true })).toBe("extracting");
+		expect(panelStatusFor({ ...SETTLED, isDeciding: true })).toBe("deciding");
 		expect(panelStatusFor({ ...SETTLED, isExtractionFailed: true })).toBe("failed");
 		expect(panelStatusFor({ ...SETTLED, isStalePending: true })).toBe("stale");
 		expect(panelStatusFor(SETTLED)).toBe("terminal");
@@ -17,6 +19,12 @@ describe("panelStatusFor", () => {
 	it("keeps polling ahead of a give-up, so a barrier arriving mid-poll does not flip the panel early", () => {
 		expect(panelStatusFor({ ...SETTLED, isExtracting: true, isExtractionFailed: true })).toBe(
 			"extracting",
+		);
+	});
+
+	it("keeps polling while the readlist decides, ahead of any give-up", () => {
+		expect(panelStatusFor({ ...SETTLED, isDeciding: true, isExtractionFailed: true })).toBe(
+			"deciding",
 		);
 	});
 

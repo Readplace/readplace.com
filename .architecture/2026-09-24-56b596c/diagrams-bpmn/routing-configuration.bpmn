@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_routing_configuration" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_routing_configuration" name="routing-configuration" isExecutable="false">
+    <bpmn:startEvent id="n_U" name="Reader on a readlist's Preferences tab (shown with ?feature=pref)">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="n_PAGE" name="hutch web Lambda · Preferences page new Inboxes section: one row per live, named inbox (user aliases and Gmail-mapped aliases, never the Gmail gateway)">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_ROUTE" name="Command · POST /queues/:slug/preferences/inboxes address + destination = this readlist or All (Send here / Send to All)">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:exclusiveGateway id="n_DECIDE" name="decideInboxRouting">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="n_REFUSE" name="refused, nothing written unknown-inbox or invalid-destination: 303 back with That inbox isn't available · unknown-readlist: 303 to the list">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_SET" name="hutch web Lambda · setAddressReadlist UpdateItem, condition userId = the reader SET readlist (Send here) or REMOVE readlist (Send to All) then 303 back to the Preferences tab">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_ADDR" name="inbox-addresses table key address · userId-index GSI new optional attribute: readlist"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_UA" name="user-articles table readlist definition rows: label, purpose"></bpmn:dataStoreReference>
+    <bpmn:sendTask id="n_DEL" name="POST /queues/:slug/delete (optional migrate_to)">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_PURGE" name="hutch web Lambda · move the articles if asked, then purge the readlist's saved articles">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_UNROUTE" name="hutch web Lambda · unroute-inboxes-on-readlist-delete decorator around deleteReadlistDefinition">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_CLEAR" name="clearReadlistFromAddresses Query userId-index, then per matching row UpdateItem REMOVE readlist (condition userId + readlist · a lost race is ignored)">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_DEFDEL" name="deleteReadlistDefinition deletes the definition row">
+      <bpmn:incoming>f_14</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_KEEP" name="clearing throws: the definition is kept and the delete request fails">
+      <bpmn:incoming>f_13</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="n_ACC" name="DeleteAccountCommand">
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_JOBS" name="hutch user-data-jobs Lambda tombstoneUserAddresses">
+      <bpmn:incoming>f_16</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_EXTRACT" name="inbox extract-email-links Lambda reads the routing once per email (section 2)"></bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_U" targetRef="n_PAGE" />
+    <bpmn:sequenceFlow id="f_3" name="Send here / Send to All" sourceRef="n_PAGE" targetRef="n_ROUTE" />
+    <bpmn:sequenceFlow id="f_4" name="requireNotLocked + requireWriteAccess then list definitions and the reader's inboxes" sourceRef="n_ROUTE" targetRef="n_DECIDE" />
+    <bpmn:sequenceFlow id="f_5" name="rejected" sourceRef="n_DECIDE" targetRef="n_REFUSE" />
+    <bpmn:sequenceFlow id="f_6" name="accepted" sourceRef="n_DECIDE" targetRef="n_SET" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_U" targetRef="n_DEL" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_DEL" targetRef="n_PURGE" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_PURGE" targetRef="n_UNROUTE" />
+    <bpmn:sequenceFlow id="f_11" name="1 · first" sourceRef="n_UNROUTE" targetRef="n_CLEAR" />
+    <bpmn:sequenceFlow id="f_13" name="throws" sourceRef="n_CLEAR" targetRef="n_KEEP" />
+    <bpmn:sequenceFlow id="f_14" name="2 · then" sourceRef="n_UNROUTE" targetRef="n_DEFDEL" />
+    <bpmn:sequenceFlow id="f_16" name="" sourceRef="n_ACC" targetRef="n_JOBS" />
+    <bpmn:association id="f_1" sourceRef="n_PAGE" targetRef="n_ADDR" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_PAGE" targetRef="n_UA" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_SET" targetRef="n_ADDR" associationDirection="One" />
+    <bpmn:association id="f_12" sourceRef="n_CLEAR" targetRef="n_ADDR" associationDirection="One" />
+    <bpmn:association id="f_15" sourceRef="n_DEFDEL" targetRef="n_UA" associationDirection="One" />
+    <bpmn:association id="f_17" sourceRef="n_JOBS" targetRef="n_ADDR" associationDirection="One" />
+    <bpmn:association id="f_18" sourceRef="n_ADDR" targetRef="n_EXTRACT" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_routing_configuration">
+    <bpmndi:BPMNPlane id="Plane_routing_configuration" bpmnElement="Process_routing_configuration">
+      <bpmndi:BPMNShape id="n_U_di" bpmnElement="n_U">
+        <dc:Bounds x="537.55" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PAGE_di" bpmnElement="n_PAGE">
+        <dc:Bounds x="351.55" y="185" width="190.75" height="132" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ROUTE_di" bpmnElement="n_ROUTE">
+        <dc:Bounds x="230.67" y="375" width="214" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DECIDE_di" bpmnElement="n_DECIDE">
+        <dc:Bounds x="283.17" y="533" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_REFUSE_di" bpmnElement="n_REFUSE">
+        <dc:Bounds x="82.8" y="707.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SET_di" bpmnElement="n_SET">
+        <dc:Bounds x="213.6" y="695" width="193.75" height="164" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ADDR_di" bpmnElement="n_ADDR">
+        <dc:Bounds x="170.36" y="917" width="173.8" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UA_di" bpmnElement="n_UA">
+        <dc:Bounds x="380.16" y="930.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DEL_di" bpmnElement="n_DEL">
+        <dc:Bounds x="578.3" y="225" width="196" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PURGE_di" bpmnElement="n_PURGE">
+        <dc:Bounds x="480.67" y="383" width="191" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UNROUTE_di" bpmnElement="n_UNROUTE">
+        <dc:Bounds x="418.98" y="543" width="214" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CLEAR_di" bpmnElement="n_CLEAR">
+        <dc:Bounds x="443.35" y="695" width="201.75" height="164" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DEFDEL_di" bpmnElement="n_DEFDEL">
+        <dc:Bounds x="681.1" y="751" width="193.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_KEEP_di" bpmnElement="n_KEEP">
+        <dc:Bounds x="649.07" y="927.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ACC_di" bpmnElement="n_ACC">
+        <dc:Bounds x="283.64" y="53.5" width="176.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_JOBS_di" bpmnElement="n_JOBS">
+        <dc:Bounds x="128.05" y="217" width="187.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_EXTRACT_di" bpmnElement="n_EXTRACT">
+        <dc:Bounds x="354.05" y="1094.5" width="194.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="557.55" y="68" />
+        <di:waypoint x="557.55" y="126.5" />
+        <di:waypoint x="446.92" y="126.5" />
+        <di:waypoint x="446.92" y="185" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="446.92" y="317" />
+        <di:waypoint x="446.92" y="346" />
+        <di:waypoint x="337.67" y="346" />
+        <di:waypoint x="337.67" y="375" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="337.67" y="475" />
+        <di:waypoint x="337.67" y="504" />
+        <di:waypoint x="326.17" y="504" />
+        <di:waypoint x="326.17" y="533" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="326.17" y="619" />
+        <di:waypoint x="326.17" y="663.13" />
+        <di:waypoint x="102.8" y="663.13" />
+        <di:waypoint x="102.8" y="707.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="326.17" y="619" />
+        <di:waypoint x="326.17" y="657" />
+        <di:waypoint x="310.47" y="657" />
+        <di:waypoint x="310.47" y="695" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="557.55" y="68" />
+        <di:waypoint x="557.55" y="146.5" />
+        <di:waypoint x="676.3" y="146.5" />
+        <di:waypoint x="676.3" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="676.3" y="277" />
+        <di:waypoint x="676.3" y="330" />
+        <di:waypoint x="576.17" y="330" />
+        <di:waypoint x="576.17" y="383" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="576.17" y="467" />
+        <di:waypoint x="576.17" y="505" />
+        <di:waypoint x="525.98" y="505" />
+        <di:waypoint x="525.98" y="543" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="525.98" y="627" />
+        <di:waypoint x="525.98" y="661" />
+        <di:waypoint x="544.22" y="661" />
+        <di:waypoint x="544.22" y="695" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="544.22" y="859" />
+        <di:waypoint x="544.22" y="893.13" />
+        <di:waypoint x="669.08" y="893.13" />
+        <di:waypoint x="669.08" y="927.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="525.98" y="627" />
+        <di:waypoint x="525.98" y="689" />
+        <di:waypoint x="777.72" y="689" />
+        <di:waypoint x="777.72" y="751" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="372.02" y="101.5" />
+        <di:waypoint x="372.02" y="159.25" />
+        <di:waypoint x="221.8" y="159.25" />
+        <di:waypoint x="221.8" y="217" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="446.92" y="317" />
+        <di:waypoint x="446.92" y="617" />
+        <di:waypoint x="257.26" y="617" />
+        <di:waypoint x="257.26" y="917" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="446.92" y="317" />
+        <di:waypoint x="446.92" y="623.75" />
+        <di:waypoint x="475.16" y="623.75" />
+        <di:waypoint x="475.16" y="930.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="310.47" y="859" />
+        <di:waypoint x="310.47" y="888" />
+        <di:waypoint x="257.26" y="888" />
+        <di:waypoint x="257.26" y="917" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="544.22" y="859" />
+        <di:waypoint x="544.22" y="888" />
+        <di:waypoint x="257.26" y="888" />
+        <di:waypoint x="257.26" y="917" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="777.72" y="803" />
+        <di:waypoint x="777.72" y="866.75" />
+        <di:waypoint x="475.16" y="866.75" />
+        <di:waypoint x="475.16" y="930.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="221.8" y="285" />
+        <di:waypoint x="221.8" y="601" />
+        <di:waypoint x="257.26" y="601" />
+        <di:waypoint x="257.26" y="917" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="257.26" y="965" />
+        <di:waypoint x="257.26" y="1029.75" />
+        <di:waypoint x="451.17" y="1029.75" />
+        <di:waypoint x="451.17" y="1094.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

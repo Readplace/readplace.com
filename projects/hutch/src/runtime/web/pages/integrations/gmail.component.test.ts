@@ -47,6 +47,7 @@ function inbox(input: { name: string; address: string; disabled?: boolean }): In
 		createdAt: "2026-08-27T00:00:00.000Z",
 		disabledAt: input.disabled ? "2026-08-27T01:00:00.000Z" : undefined,
 		purpose: "gmail-mapped",
+		readlist: undefined,
 	};
 }
 

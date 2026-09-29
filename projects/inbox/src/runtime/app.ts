@@ -17,6 +17,7 @@ import type {
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 import type { UserId } from "@packages/domain/user";
 import type { SaveProvenance } from "@packages/domain/article";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { ResolveLogin } from "@packages/web-session";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initBuildBannerState } from "./web/banner-state";
@@ -54,6 +55,7 @@ export function createInboxApp(
 			userId: UserId;
 			url: string;
 			provenance: SaveProvenance;
+			readlist: ReadlistSlug;
 		}) => Promise<void>;
 		logError: (message: string, error?: Error) => void;
 		now: () => Date;

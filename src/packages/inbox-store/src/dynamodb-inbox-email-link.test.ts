@@ -4,6 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 } from "@packages/hutch-storage-client";
 import { EmailLinkOrdinalSchema } from "@packages/domain/inbox";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbInboxEmailLink } from "./dynamodb-inbox-email-link";
 
@@ -73,6 +74,8 @@ const USER = UserIdSchema.parse("user-1");
 const RAM = "2026-06-23T00:00:00.000Z#<m-1@example.com>";
 const GROUP = `${USER}#${RAM}`;
 const ORDINAL = EmailLinkOrdinalSchema.parse("0003");
+const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
+const DROPPED_FOR = { readlist: WORK, readlistLabel: "Work", reason: "A product launch, not practice." };
 
 function conditionalCheckFailed(): ConditionalCheckFailedException {
 	return new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
@@ -105,6 +108,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				imageUrl: undefined,
 				failureReason: undefined,
 				skipReason: undefined,
+				droppedFor: undefined,
 			});
 
 			expect(result).toBe("stored");
@@ -134,6 +138,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				imageUrl: undefined,
 				failureReason: undefined,
 				skipReason: "list-unsubscribe",
+				droppedFor: undefined,
 			});
 
 			expect(result).toBe("stored");
@@ -157,6 +162,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				imageUrl: undefined,
 				failureReason: undefined,
 				skipReason: undefined,
+				droppedFor: undefined,
 			});
 
 			expect(result).toBe("duplicate");
@@ -179,6 +185,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 					imageUrl: undefined,
 					failureReason: undefined,
 					skipReason: undefined,
+					droppedFor: undefined,
 				}),
 			).rejects.toThrow("throttled");
 		});
@@ -319,7 +326,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 	});
 
 	describe("putLinksMeta", () => {
-		it("writes the truncated meta item under the reserved sort key", async () => {
+		it("upserts the truncated meta item under the reserved sort key", async () => {
 			let captured: CapturedCommand | undefined;
 			await store((cmd) => {
 				captured = cmd as CapturedCommand;
@@ -327,13 +334,20 @@ describe("initDynamoDbInboxEmailLink", () => {
 			}).putLinksMeta({
 				userId: USER,
 				receivedAtMessageId: RAM,
-				meta: { truncated: true, extractionFailed: false },
+				meta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
 			});
 
-			expect(captured?.input.Item?.userLinkGroup).toBe(GROUP);
-			expect(captured?.input.Item?.ordinal).toBe("meta");
-			expect(captured?.input.Item?.truncated).toBe(true);
-			expect(captured?.input.Item?.extractionFailed).toBe(false);
+			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "meta" });
+			expect(captured?.input.UpdateExpression).toContain("truncated = :truncated");
+			expect(captured?.input.UpdateExpression).toContain("extractionFailed = :extractionFailed");
+			expect(captured?.input.UpdateExpression).toContain("userId = :userId");
+			expect(captured?.input.UpdateExpression).toContain("receivedAtMessageId = :receivedAtMessageId");
+			expect(captured?.input.ExpressionAttributeValues).toEqual({
+				":userId": USER,
+				":receivedAtMessageId": RAM,
+				":truncated": true,
+				":extractionFailed": false,
+			});
 		});
 
 		it("writes the barrier unconditionally so a later success overwrites a give-up marker", async () => {
@@ -344,10 +358,165 @@ describe("initDynamoDbInboxEmailLink", () => {
 			}).putLinksMeta({
 				userId: USER,
 				receivedAtMessageId: RAM,
-				meta: { truncated: false, extractionFailed: false },
+				meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
 			});
 
 			expect(captured?.input.ConditionExpression).toBeUndefined();
+		});
+
+		it("leaves the readlist decision untouched when the email is not routed", async () => {
+			let captured: CapturedCommand | undefined;
+			await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).putLinksMeta({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			});
+
+			expect(captured?.input.UpdateExpression).not.toContain("readlistDecision");
+		});
+
+		it("opens a deciding readlist decision only when none exists, so a redelivery cannot reopen a settled one", async () => {
+			let captured: CapturedCommand | undefined;
+			await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).putLinksMeta({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				meta: { truncated: false, extractionFailed: false, readlistDecision: { readlist: WORK } },
+			});
+
+			expect(captured?.input.UpdateExpression).toContain(
+				"readlistDecision = if_not_exists(readlistDecision, :deciding)",
+			);
+			expect(captured?.input.ExpressionAttributeValues?.[":deciding"]).toEqual({
+				state: "deciding",
+				readlist: WORK,
+			});
+		});
+	});
+
+	describe("markLinkDropped", () => {
+		it("records why the readlist dropped an existing link that was not skipped", async () => {
+			let captured: CapturedCommand | undefined;
+			const result = await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).markLinkDropped({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				droppedFor: DROPPED_FOR,
+			});
+
+			expect(result).toBe("marked");
+			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "0003" });
+			expect(captured?.input.ConditionExpression).toBe(
+				"attribute_exists(ordinal) AND #status <> :skipped",
+			);
+			expect(captured?.input.UpdateExpression).toBe("SET droppedFor = :droppedFor");
+			expect(captured?.input.ExpressionAttributeNames).toEqual({ "#status": "status" });
+			expect(captured?.input.ExpressionAttributeValues).toEqual({
+				":droppedFor": DROPPED_FOR,
+				":skipped": "skipped",
+			});
+		});
+
+		it("reports not-a-candidate when the row is missing or skipped", async () => {
+			const result = await store(() => {
+				throw conditionalCheckFailed();
+			}).markLinkDropped({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				droppedFor: DROPPED_FOR,
+			});
+
+			expect(result).toBe("not-a-candidate");
+		});
+
+		it("rethrows errors that are not conditional-check failures", async () => {
+			await expect(
+				store(() => {
+					throw new Error("dynamo unavailable");
+				}).markLinkDropped({
+					userId: USER,
+					receivedAtMessageId: RAM,
+					ordinal: ORDINAL,
+					droppedFor: DROPPED_FOR,
+				}),
+			).rejects.toThrow("dynamo unavailable");
+		});
+	});
+
+	describe("settleReadlistDecision", () => {
+		const DECIDED = { state: "decided" as const, readlist: WORK, readlistLabel: "Work" };
+
+		it("settles a deciding barrier", async () => {
+			let captured: CapturedCommand | undefined;
+			const result = await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).settleReadlistDecision({ userId: USER, receivedAtMessageId: RAM, decision: DECIDED });
+
+			expect(result).toBe("settled");
+			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "meta" });
+			expect(captured?.input.ConditionExpression).toBe(
+				"attribute_exists(ordinal) AND readlistDecision.#state = :deciding",
+			);
+			expect(captured?.input.UpdateExpression).toBe("SET readlistDecision = :decision");
+			expect(captured?.input.ExpressionAttributeNames).toEqual({ "#state": "state" });
+			expect(captured?.input.ExpressionAttributeValues).toEqual({
+				":decision": DECIDED,
+				":deciding": "deciding",
+			});
+		});
+
+		it("reports already-settled when the barrier exists but is no longer deciding", async () => {
+			const commands: CapturedCommand[] = [];
+			const result = await store((cmd) => {
+				commands.push(cmd as CapturedCommand);
+				if ((cmd as CapturedCommand).input.UpdateExpression) throw conditionalCheckFailed();
+				return {
+					Item: {
+						userLinkGroup: GROUP,
+						ordinal: "meta",
+						userId: USER,
+						receivedAtMessageId: RAM,
+						truncated: false,
+						extractionFailed: false,
+						readlistDecision: DECIDED,
+					},
+				};
+			}).settleReadlistDecision({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				decision: { state: "failed", readlist: WORK },
+			});
+
+			expect(result).toBe("already-settled");
+			expect(commands[1].input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "meta" });
+			expect(commands[1].input).toEqual(expect.objectContaining({ ConsistentRead: true }));
+		});
+
+		it("throws when the decision outran the extraction barrier, so the queue retries it", async () => {
+			await expect(
+				store((cmd) => {
+					if ((cmd as CapturedCommand).input.UpdateExpression) throw conditionalCheckFailed();
+					return {};
+				}).settleReadlistDecision({ userId: USER, receivedAtMessageId: RAM, decision: DECIDED }),
+			).rejects.toThrow("readlist decision arrived before the extraction barrier");
+		});
+
+		it("rethrows errors that are not conditional-check failures", async () => {
+			await expect(
+				store(() => {
+					throw new Error("dynamo unavailable");
+				}).settleReadlistDecision({ userId: USER, receivedAtMessageId: RAM, decision: DECIDED }),
+			).rejects.toThrow("dynamo unavailable");
 		});
 	});
 
@@ -433,7 +602,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 			expect(links[1].resolvedUrl).toBeUndefined();
 			// A row written before the give-up marker existed carries no such column;
 			// its absence means the extraction that wrote it succeeded.
-			expect(meta).toEqual({ truncated: true, extractionFailed: false });
+			expect(meta).toEqual({ truncated: true, extractionFailed: false, readlistDecision: undefined });
 		});
 
 		it("reads a give-up barrier back as a failed extraction", async () => {
@@ -451,7 +620,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				Count: 1,
 			})).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
 
-			expect(meta).toEqual({ truncated: false, extractionFailed: true });
+			expect(meta).toEqual({ truncated: false, extractionFailed: true, readlistDecision: undefined });
 		});
 
 		it("reads a skipped row back with its skip reason", async () => {
@@ -473,6 +642,34 @@ describe("initDynamoDbInboxEmailLink", () => {
 			expect(links.map((l) => [l.status, l.skipReason])).toEqual([
 				["skipped", "list-unsubscribe"],
 			]);
+		});
+
+		it("reads a dropped row back with why its readlist dropped it", async () => {
+			const { links } = await store(() => ({
+				Items: [linkRow({ status: "crawled", title: "A", excerpt: "ae", siteName: "A site", droppedFor: DROPPED_FOR })],
+				Count: 1,
+			})).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(links[0].droppedFor).toEqual(DROPPED_FOR);
+		});
+
+		it("reads a routed email's readlist decision back from its barrier", async () => {
+			const { meta } = await store(() => ({
+				Items: [
+					{
+						userLinkGroup: GROUP,
+						ordinal: "meta",
+						userId: USER,
+						receivedAtMessageId: RAM,
+						truncated: false,
+						extractionFailed: false,
+						readlistDecision: { state: "deciding", readlist: WORK },
+					},
+				],
+				Count: 1,
+			})).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(meta?.readlistDecision).toEqual({ state: "deciding", readlist: WORK });
 		});
 
 		it("returns no meta when the partition holds only link rows", async () => {

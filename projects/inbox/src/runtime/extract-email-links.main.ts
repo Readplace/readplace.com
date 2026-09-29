@@ -5,6 +5,7 @@ import { initCreateDeepseekMessage } from "@packages/ai-message";
 import { deriveSanitizedBody, EMAIL_LINK_ORDINAL_CAPACITY, parseEmail } from "@packages/domain/inbox";
 import {
 	CrawlEmailLinkPreview,
+	EmailLinksTriagedEvent,
 	SendFirstInboxEmailNoticeCommand,
 	SendTrialFeedbackEmailCommand,
 	SubmitLinkCommand,
@@ -17,8 +18,14 @@ import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import OpenAI from "openai";
 import { initExtractEmailLinksHandler } from "./domain/inbox/extract-email-links-handler";
 import { initTriageEmailLinks } from "./domain/inbox/triage-email-links";
-import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initS3ReadRawEmail } from "@packages/inbox-store";
+import {
+	initDynamoDbInboxAddress,
+	initDynamoDbInboxEmail,
+	initDynamoDbInboxEmailLink,
+	initS3ReadRawEmail,
+} from "@packages/inbox-store";
 
+const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
 const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
 const rawEmailBucketName = requireEnv("RAW_EMAIL_BUCKET_NAME");
@@ -51,6 +58,11 @@ const createAiMessage = initCreateDeepseekMessage({
 });
 const { triageEmailLinks } = initTriageEmailLinks({ createAiMessage, logger });
 
+const inboxAddressStore = initDynamoDbInboxAddress({
+	client: dynamoClient,
+	tableName: inboxAddressesTable,
+	now: () => new Date(),
+});
 const inboxEmailStore = initDynamoDbInboxEmail({ client: dynamoClient, tableName: inboxEmailsTable });
 const inboxEmailLinkStore = initDynamoDbInboxEmailLink({
 	client: dynamoClient,
@@ -73,6 +85,7 @@ export const handler = initExtractEmailLinksHandler({
 	setEmailLinkCounts: inboxEmailStore.setEmailLinkCounts,
 	publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 	publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
+	publishEmailLinksTriaged: (input) => publishEvent(EmailLinksTriagedEvent, input),
 	alertTruncated: async (input) => {
 		// Dedicated alert queue, not the failure DLQ: truncation is a successful
 		// degradation, so its send-rate alarm is a distinct signal from genuine faults.
@@ -93,6 +106,7 @@ export const handler = initExtractEmailLinksHandler({
 	publishFirstInboxEmailNotice: (input) =>
 		publishEvent(SendFirstInboxEmailNoticeCommand, input),
 	findSubscriptionByUserId: findByUserId,
+	findInboxAddress: inboxAddressStore.findByAddress,
 	now: () => new Date(),
 	triageEmailLinks,
 	logger,

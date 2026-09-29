@@ -1,10 +1,19 @@
 import assert from "node:assert/strict";
+import {
+	AliasNameSchema,
+	type InboxAddressEntry,
+	InboxAddressSchema,
+	InboxTokenSchema,
+} from "@packages/domain/inbox";
 import { ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
+import { UserIdSchema } from "@packages/domain/user";
 import { JSDOM } from "jsdom";
 import {
 	READLIST_BODY_CLASS,
 	READLIST_PAGE_SCRIPTS,
 } from "./readlist.component";
+import type { AlertContent } from "@packages/web-shell";
+import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import { readlistRenamePopoverId } from "./readlist-rename.component";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
 import { DEFAULT_READLIST } from "./readlist.nav";
@@ -16,6 +25,8 @@ function page(overrides: {
 	purpose?: string;
 	wizardOpen?: boolean;
 	purposeError?: string;
+	inboxes?: readonly InboxAddressEntry[];
+	inboxAlert?: AlertContent;
 	canCreate?: boolean;
 	preferencesEnabled?: boolean;
 	query?: Record<string, unknown>;
@@ -31,6 +42,8 @@ function page(overrides: {
 		values: { purpose: overrides.purpose },
 		wizardOpen: overrides.wizardOpen ?? false,
 		purposeError: overrides.purposeError,
+		inboxes: overrides.inboxes ?? [],
+		inboxAlert: overrides.inboxAlert,
 		preferencesEnabled: overrides.preferencesEnabled ?? true,
 		query: overrides.query ?? {},
 	});
@@ -63,6 +76,7 @@ describe("ReadlistPreferencesPage", () => {
 			".confirm-popover",
 			".wizard__title",
 			".readlist-preferences__purpose",
+			".readlist-inboxes__row",
 		]) {
 			expect(styles).toContain(selector);
 		}
@@ -166,6 +180,48 @@ describe("ReadlistPreferencesPage", () => {
 		expect(hrefs).toEqual([
 			`/queue?queue=${WORK}&feature=pref&utm_source=queue-preferences&utm_medium=internal&utm_content=cancel`,
 		]);
+	});
+
+	it("stacks the readlist's inboxes under its purpose panel", () => {
+		const news: InboxAddressEntry = {
+			address: InboxAddressSchema.parse("news-a7b2c9@read.place"),
+			userId: UserIdSchema.parse("reader-1"),
+			name: AliasNameSchema.parse("news"),
+			token: InboxTokenSchema.parse("a7b2c9"),
+			createdAt: "2026-09-24T00:00:00.000Z",
+			disabledAt: undefined,
+			purpose: "user-alias",
+			readlist: LATER,
+		};
+		const doc = documentOf(page({ inboxes: [news] }).content.html);
+		const purposePanel = doc.querySelector("[data-test-readlist-preferences]");
+		assert(purposePanel, "the preferences panel must render in every state");
+
+		expect(purposePanel.nextElementSibling?.hasAttribute("data-test-readlist-inboxes")).toBe(true);
+		expect(
+			doc.querySelector(
+				'[data-test-preferences-inbox="news-a7b2c9@read.place"] [data-test-inbox-destination]',
+			)?.textContent,
+		).toBe("Goes to Later");
+	});
+
+	it("raises a refused inbox routing as the page's alert, ahead of any other", () => {
+		const doc = documentOf(
+			page({
+				inboxAlert: INBOX_UNAVAILABLE_ALERT,
+				query: { queue_error: "rename_invalid-name" },
+			}).content.html,
+		);
+		const alert = doc.querySelector('[data-test-alert="readlist"]');
+		assert(alert, "the alert must render in every state");
+
+		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
+			"That inbox isn't available",
+		);
+		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
+			"It may have been turned off. Pick another inbox.",
+		);
 	});
 
 	it("drops the feature from the flow when the reader never asked for it", () => {

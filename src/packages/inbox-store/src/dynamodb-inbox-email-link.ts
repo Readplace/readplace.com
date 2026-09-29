@@ -11,9 +11,11 @@ import {
 	EmailLinkOrdinalSchema,
 	EmailLinkSkipReasonSchema,
 	EmailLinkStatusSchema,
+	InboxEmailLinkDropSchema,
 	type InboxEmailLinkEntry,
 	type InboxEmailLinkStore,
 	type InboxEmailLinksMeta,
+	InboxReadlistDecisionSchema,
 } from "@packages/domain/inbox";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 
@@ -63,6 +65,8 @@ const InboxEmailLinkRow = z.object({
 	skipReason: dynamoField(EmailLinkSkipReasonSchema),
 	truncated: dynamoField(z.boolean()),
 	extractionFailed: dynamoField(z.boolean()),
+	droppedFor: dynamoField(InboxEmailLinkDropSchema),
+	readlistDecision: dynamoField(InboxReadlistDecisionSchema),
 });
 
 type InboxEmailLinkRowType = z.infer<typeof InboxEmailLinkRow>;
@@ -83,6 +87,7 @@ function toEntry(row: InboxEmailLinkRowType): InboxEmailLinkEntry {
 		imageUrl: row.imageUrl,
 		failureReason: row.failureReason,
 		skipReason: row.skipReason,
+		droppedFor: row.droppedFor,
 	};
 }
 
@@ -211,15 +216,26 @@ export function initDynamoDbInboxEmailLink(deps: {
 			}
 		},
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {
-			await table.put({
-				Item: {
-					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-					ordinal: META_SORT_KEY,
-					userId,
-					receivedAtMessageId,
-					truncated: meta.truncated,
-					extractionFailed: meta.extractionFailed,
-				},
+			const sets = [
+				"userId = :userId",
+				"receivedAtMessageId = :receivedAtMessageId",
+				"truncated = :truncated",
+				"extractionFailed = :extractionFailed",
+			];
+			const values: Record<string, unknown> = {
+				":userId": userId,
+				":receivedAtMessageId": receivedAtMessageId,
+				":truncated": meta.truncated,
+				":extractionFailed": meta.extractionFailed,
+			};
+			if (meta.readlistDecision !== undefined) {
+				sets.push("readlistDecision = if_not_exists(readlistDecision, :deciding)");
+				values[":deciding"] = { state: "deciding", readlist: meta.readlistDecision.readlist };
+			}
+			await table.update({
+				Key: { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal: META_SORT_KEY },
+				UpdateExpression: `SET ${sets.join(", ")}`,
+				ExpressionAttributeValues: values,
 			});
 		},
 		markLinksExtractionFailed: async ({ userId, receivedAtMessageId }) => {
@@ -241,6 +257,39 @@ export function initDynamoDbInboxEmailLink(deps: {
 				throw error;
 			}
 		},
+		markLinkDropped: async ({ userId, receivedAtMessageId, ordinal, droppedFor }) => {
+			try {
+				await table.update({
+					Key: { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal },
+					ConditionExpression: "attribute_exists(ordinal) AND #status <> :skipped",
+					UpdateExpression: "SET droppedFor = :droppedFor",
+					ExpressionAttributeNames: { "#status": "status" },
+					ExpressionAttributeValues: { ":droppedFor": droppedFor, ":skipped": "skipped" },
+				});
+				return "marked";
+			} catch (error) {
+				if (error instanceof ConditionalCheckFailedException) return "not-a-candidate";
+				throw error;
+			}
+		},
+		settleReadlistDecision: async ({ userId, receivedAtMessageId, decision }) => {
+			const Key = { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal: META_SORT_KEY };
+			try {
+				await table.update({
+					Key,
+					ConditionExpression: "attribute_exists(ordinal) AND readlistDecision.#state = :deciding",
+					UpdateExpression: "SET readlistDecision = :decision",
+					ExpressionAttributeNames: { "#state": "state" },
+					ExpressionAttributeValues: { ":decision": decision, ":deciding": "deciding" },
+				});
+				return "settled";
+			} catch (error) {
+				if (!(error instanceof ConditionalCheckFailedException)) throw error;
+			}
+			const meta = await table.get(Key, { consistentRead: true });
+			assert(meta, "readlist decision arrived before the extraction barrier");
+			return "already-settled";
+		},
 		listLinksByEmail: async ({ userId, receivedAtMessageId }) => {
 			const { items } = await table.query({
 				KeyConditionExpression: "userLinkGroup = :pk",
@@ -257,6 +306,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 					meta = {
 						truncated: Boolean(item.truncated),
 						extractionFailed: Boolean(item.extractionFailed),
+						readlistDecision: item.readlistDecision,
 					};
 					continue;
 				}

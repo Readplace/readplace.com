@@ -1,0 +1,3 @@
+export const MAX_PROMPT_URL_LENGTH = 300;
+export const FILTER_MAX_OUTPUT_TOKENS = 32_768;
+export const DROP_REASON_MAX_CHARS = 120;

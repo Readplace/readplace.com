@@ -26,6 +26,12 @@ const ALERTS: Record<string, { title: string; body: string }> = {
 	),
 };
 
+export const INBOX_UNAVAILABLE_ALERT: AlertContent = {
+	variant: "error",
+	title: { text: "That inbox isn't available", element: "p" },
+	message: { text: "It may have been turned off. Pick another inbox." },
+};
+
 export function readlistAlertFor(query: Record<string, unknown>): AlertContent | undefined {
 	const code = typeof query.queue_error === "string" ? query.queue_error : undefined;
 	if (code === undefined) return undefined;

@@ -10,6 +10,7 @@ import {
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
 } from "@packages/domain/inbox";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbInboxAddress } from "./dynamodb-inbox-address";
 
@@ -42,6 +43,7 @@ const USER = UserIdSchema.parse("user-1");
 const DOMAIN = "read.place";
 const NAME = AliasNameSchema.parse("my-newsletter");
 const NOW = new Date("2026-06-23T00:00:00.000Z");
+const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
 
 function conditionalCheckFailed(): ConditionalCheckFailedException {
 	return new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
@@ -94,6 +96,8 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(entry.createdAt).toBe(NOW.toISOString());
 			expect(entry.disabledAt).toBeUndefined();
 			expect(entry.purpose).toBe("user-alias");
+			expect(puts[0].input.Item).not.toHaveProperty("readlist");
+			expect(entry.readlist).toBeUndefined();
 		});
 
 		it("regenerates and retries when the address collides, then succeeds", async () => {
@@ -276,8 +280,17 @@ describe("initDynamoDbInboxAddress", () => {
 								disabledAt: null,
 								purpose: "gmail-forwarding",
 							},
+							{
+								address: "work-g7h8i9@read.place",
+								userId: "user-1",
+								name: "work",
+								token: "g7h8i9",
+								createdAt: "2026-09-20T00:00:00.000Z",
+								disabledAt: null,
+								readlist: "a1b2c3d4",
+							},
 						],
-						Count: 3,
+						Count: 4,
 					};
 				}) as DynamoDBDocumentClient,
 				tableName: TABLE,
@@ -289,7 +302,7 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(captured?.input.IndexName).toBe("userId-index");
 			expect(captured?.input.KeyConditionExpression).toBe("userId = :uid");
 			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
-			expect(result).toHaveLength(3);
+			expect(result).toHaveLength(4);
 			expect(result[0].address).toBe("my-newsletter-a7b2c9@read.place");
 			expect(result[0].name).toBe("my-newsletter");
 			expect(result[0].disabledAt).toBeUndefined();
@@ -299,6 +312,8 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(result[1].disabledAt).toBe("2026-06-22T00:00:00.000Z");
 			expect(result[1].purpose).toBe("user-alias");
 			expect(result[2].purpose).toBe("gmail-forwarding");
+			expect(result[0].readlist).toBeUndefined();
+			expect(result[3].readlist).toBe("a1b2c3d4");
 		});
 	});
 
@@ -324,6 +339,183 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(captured?.input.ExpressionAttributeValues?.[":now"]).toBe(
 				NOW.toISOString(),
 			);
+		});
+	});
+
+	describe("setAddressReadlist", () => {
+		it("routes an owned address to a readlist with an ownership-guarded SET", async () => {
+			let captured: CapturedCommand | undefined;
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					captured = cmd as CapturedCommand;
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+			const address = InboxAddressSchema.parse("in-3f9a2c@read.place");
+
+			await store.setAddressReadlist({ userId: USER, address, readlist: WORK });
+
+			expect(captured?.input.Key).toEqual({ address });
+			expect(captured?.input.ConditionExpression).toBe("userId = :uid");
+			expect(captured?.input.UpdateExpression).toBe("SET readlist = :readlist");
+			expect(captured?.input.ExpressionAttributeValues).toEqual({ ":uid": USER, ":readlist": WORK });
+		});
+
+		it("sends an owned address back to All with an ownership-guarded REMOVE", async () => {
+			let captured: CapturedCommand | undefined;
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					captured = cmd as CapturedCommand;
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+			const address = InboxAddressSchema.parse("in-3f9a2c@read.place");
+
+			await store.setAddressReadlist({ userId: USER, address, readlist: undefined });
+
+			expect(captured?.input.ConditionExpression).toBe("userId = :uid");
+			expect(captured?.input.UpdateExpression).toBe("REMOVE readlist");
+			expect(captured?.input.ExpressionAttributeValues).toEqual({ ":uid": USER });
+		});
+
+		it("propagates the conditional-check failure when the caller does not own the row", async () => {
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient(() => {
+					throw conditionalCheckFailed();
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await expect(
+				store.setAddressReadlist({
+					userId: USER,
+					address: InboxAddressSchema.parse("in-3f9a2c@read.place"),
+					readlist: WORK,
+				}),
+			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
+		});
+	});
+
+	describe("clearReadlistFromAddresses", () => {
+		function ownedRows(): Record<string, unknown>[] {
+			return [
+				{
+					address: "news-aaaaaa@read.place",
+					userId: "user-1",
+					name: "news",
+					token: "aaaaaa",
+					createdAt: "2026-09-20T00:00:00.000Z",
+					readlist: "a1b2c3d4",
+				},
+				{
+					address: "news-bbbbbb@read.place",
+					userId: "user-1",
+					name: "news",
+					token: "bbbbbb",
+					createdAt: "2026-09-20T00:00:00.000Z",
+					readlist: "e5f6a7b8",
+				},
+				{
+					address: "news-cccccc@read.place",
+					userId: "user-1",
+					name: "news",
+					token: "cccccc",
+					createdAt: "2026-09-20T00:00:00.000Z",
+				},
+				{
+					address: "news-dddddd@read.place",
+					userId: "user-1",
+					name: "news",
+					token: "dddddd",
+					createdAt: "2026-09-20T00:00:00.000Z",
+					readlist: "a1b2c3d4",
+				},
+			];
+		}
+
+		it("removes the readlist only from the addresses routed to it, each guarded on still being routed there", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					const command = cmd as CapturedCommand;
+					commands.push(command);
+					if (command.input.IndexName) return { Items: ownedRows(), Count: 4 };
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await store.clearReadlistFromAddresses({ userId: USER, readlist: WORK });
+
+			const updates = commands.filter((c) => c.input.UpdateExpression);
+			expect(updates.map((u) => u.input.Key)).toEqual([
+				{ address: "news-aaaaaa@read.place" },
+				{ address: "news-dddddd@read.place" },
+			]);
+			for (const update of updates) {
+				expect(update.input.UpdateExpression).toBe("REMOVE readlist");
+				expect(update.input.ConditionExpression).toBe("userId = :uid AND readlist = :readlist");
+				expect(update.input.ExpressionAttributeValues).toEqual({ ":uid": USER, ":readlist": WORK });
+			}
+		});
+
+		it("skips an address a concurrent re-route already moved", async () => {
+			const updated: unknown[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					const command = cmd as CapturedCommand;
+					if (command.input.IndexName) return { Items: ownedRows(), Count: 4 };
+					if (command.input.Key?.address === "news-aaaaaa@read.place") throw conditionalCheckFailed();
+					updated.push(command.input.Key);
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await store.clearReadlistFromAddresses({ userId: USER, readlist: WORK });
+
+			expect(updated).toEqual([{ address: "news-dddddd@read.place" }]);
+		});
+
+		it("rethrows errors that are not conditional-check failures", async () => {
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					if ((cmd as CapturedCommand).input.IndexName) return { Items: ownedRows(), Count: 4 };
+					throw new Error("dynamo unavailable");
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await expect(
+				store.clearReadlistFromAddresses({ userId: USER, readlist: WORK }),
+			).rejects.toThrow("dynamo unavailable");
+		});
+
+		it("issues no update when no address is routed to the readlist", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					commands.push(cmd as CapturedCommand);
+					return { Items: ownedRows(), Count: 4 };
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await store.clearReadlistFromAddresses({
+				userId: USER,
+				readlist: ReadlistSlugSchema.parse("ffffffff"),
+			});
+
+			expect(commands.some((c) => c.input.UpdateExpression)).toBe(false);
 		});
 	});
 
@@ -450,7 +642,7 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(updates).toHaveLength(2);
 			for (const update of updates) {
 				expect(update.input.UpdateExpression).toBe(
-					"SET userId = :tomb, disabledAt = if_not_exists(disabledAt, :now) REMOVE #name",
+					"SET userId = :tomb, disabledAt = if_not_exists(disabledAt, :now) REMOVE #name, readlist",
 				);
 				expect(update.input.ConditionExpression).toBe("userId = :uid");
 				expect(update.input.ExpressionAttributeNames).toEqual({ "#name": "name" });

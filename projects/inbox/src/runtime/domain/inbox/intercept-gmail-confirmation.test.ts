@@ -48,6 +48,7 @@ function recipient(
 		createdAt: "2026-08-27T00:00:00.000Z",
 		disabledAt: undefined,
 		purpose: "gmail-forwarding",
+		readlist: undefined,
 		...overrides,
 	};
 	return { recipientAddress: resolved.address, resolved, userId: resolved.userId };

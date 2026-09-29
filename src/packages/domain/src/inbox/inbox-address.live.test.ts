@@ -31,6 +31,7 @@ function makeEntry(
 		createdAt: "2026-01-01T00:00:00.000Z",
 		disabledAt: input.disabledAt,
 		purpose: input.purpose ?? DEFAULT_INBOX_ADDRESS_PURPOSE,
+		readlist: undefined,
 	};
 }
 

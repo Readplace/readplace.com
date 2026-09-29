@@ -1,8 +1,12 @@
+import type { ReadlistSlug } from "../readlist/readlist-name.schema";
 import type { UserId } from "../user";
 import type {
 	EmailLinkOrdinal,
 	EmailLinkSkipReason,
 	EmailLinkStatus,
+	InboxEmailLinkDrop,
+	InboxReadlistDecision,
+	SettledInboxReadlistDecision,
 } from "./inbox-email-link.schema";
 
 /** One extracted link from a received email, with its crawled preview. Lives in
@@ -25,6 +29,7 @@ export interface InboxEmailLinkEntry {
 	imageUrl: string | undefined;
 	failureReason: string | undefined;
 	skipReason: EmailLinkSkipReason | undefined;
+	droppedFor: InboxEmailLinkDrop | undefined;
 }
 
 /** A small per-email summary co-located in the links partition under a reserved
@@ -38,6 +43,7 @@ export interface InboxEmailLinksMeta {
 	 * barrier, so the panel stops polling, but the reader is told the scan failed
 	 * instead of being told the email contained no links. */
 	extractionFailed: boolean;
+	readlistDecision: InboxReadlistDecision | undefined;
 }
 
 /** A crawl outcome to stamp onto a `pending` link. The discriminated union makes
@@ -73,12 +79,16 @@ export interface InboxEmailLinkStore {
 		failureReason: string;
 	}) => Promise<"failed" | "already-terminal">;
 	/** Write the per-email truncated meta item (reserved sort key) under the
-	 * email's partition. Idempotent PutItem, and unconditional so a later
+	 * email's partition. Unconditional so a later
 	 * successful extraction always overwrites an earlier give-up marker. */
 	putLinksMeta: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
-		meta: InboxEmailLinksMeta;
+		meta: {
+			truncated: boolean;
+			extractionFailed: boolean;
+			readlistDecision: { readlist: ReadlistSlug } | undefined;
+		};
 	}) => Promise<void>;
 	/** Record that extraction gave up, as the barrier itself. Conditional on the
 	 * meta row's absence: at-least-once delivery means one attempt can succeed
@@ -89,6 +99,17 @@ export interface InboxEmailLinkStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 	}) => Promise<"stored" | "superseded">;
+	markLinkDropped: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		ordinal: EmailLinkOrdinal;
+		droppedFor: InboxEmailLinkDrop;
+	}) => Promise<"marked" | "not-a-candidate">;
+	settleReadlistDecision: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		decision: SettledInboxReadlistDecision;
+	}) => Promise<"settled" | "already-settled">;
 	/** Every link for one email, in ordinal order, plus the meta item if present.
 	 * Single Query (partition = the email), no GSI, no scan. */
 	listLinksByEmail: (input: {

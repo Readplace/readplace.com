@@ -6,10 +6,14 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import {
 	EmailLinkOrdinalSchema,
 	EmailLinkStatusSchema,
+	InboxEmailLinkDropSchema,
 	InboxEmailStatusSchema,
+	InboxReadlistDecisionSchema,
+	isExcludedLink,
 	MessageIdSchema,
 	AliasNameSchema,
 } from "@packages/domain/inbox";
+import type { InboxEmailLinkEntry } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { requireEnv } from "@packages/require-env";
@@ -45,10 +49,12 @@ const seedEmailSchema = z.object({
 				url: z.string().min(1),
 				status: EmailLinkStatusSchema,
 				title: z.string().optional(),
+				droppedFor: InboxEmailLinkDropSchema.optional(),
 			}),
 		)
 		.default([]),
 	extractionFinished: z.boolean().default(true),
+	readlistDecision: InboxReadlistDecisionSchema.optional(),
 });
 
 const seedAddressSchema = z.object({ name: z.string().min(1) });
@@ -104,8 +110,23 @@ server.post("/e2e/seed-email", async (req, res) => {
 	const userId = UserIdSchema.parse(await userIdFromSession(req));
 	const messageId = MessageIdSchema.parse(input.messageId);
 	const receivedAtMessageId = `${input.receivedAt}#${messageId}`;
-	const kept = input.links.filter((link) => link.status !== "skipped").length;
-	const skipped = input.links.length - kept;
+	const rows: InboxEmailLinkEntry[] = input.links.map((link, index) => ({
+		userId,
+		receivedAtMessageId,
+		ordinal: EmailLinkOrdinalSchema.parse(String(index).padStart(4, "0")),
+		url: link.url,
+		resolvedUrl: undefined,
+		status: link.status,
+		title: link.title,
+		excerpt: undefined,
+		siteName: undefined,
+		imageUrl: undefined,
+		failureReason: undefined,
+		skipReason: link.status === "skipped" ? "list-unsubscribe" : undefined,
+		droppedFor: link.droppedFor,
+	}));
+	const skipped = rows.filter(isExcludedLink).length;
+	const kept = rows.length - skipped;
 	// Addresses carry a minted token, so the recipient has to be one the store
 	// actually created rather than a hand-written string.
 	const [firstAddress] = await fixture.inboxAddress.inboxAddressStore.listAddressesByUserId(userId);
@@ -125,29 +146,28 @@ server.post("/e2e/seed-email", async (req, res) => {
 		receivedAtMessageId,
 	});
 
-	for (const [index, link] of input.links.entries()) {
-		await fixture.inboxEmail.inboxEmailLinkStore.putLink({
-			userId,
-			receivedAtMessageId,
-			ordinal: EmailLinkOrdinalSchema.parse(String(index).padStart(4, "0")),
-			url: link.url,
-			resolvedUrl: undefined,
-			status: link.status,
-			title: link.title,
-			excerpt: undefined,
-			siteName: undefined,
-			imageUrl: undefined,
-			failureReason: undefined,
-			skipReason: link.status === "skipped" ? "list-unsubscribe" : undefined,
-		});
+	for (const row of rows) {
+		await fixture.inboxEmail.inboxEmailLinkStore.putLink(row);
 	}
 
 	if (input.extractionFinished) {
+		const decision = input.readlistDecision;
 		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 			userId,
 			receivedAtMessageId,
-			meta: { truncated: false, extractionFailed: false },
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: decision === undefined ? undefined : { readlist: decision.readlist },
+			},
 		});
+		if (decision !== undefined && decision.state !== "deciding") {
+			await fixture.inboxEmail.inboxEmailLinkStore.settleReadlistDecision({
+				userId,
+				receivedAtMessageId,
+				decision,
+			});
+		}
 	}
 
 	res.json({ emailId: receivedAtMessageId });

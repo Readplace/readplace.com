@@ -16,13 +16,14 @@ import {
 	normalizeAliasName,
 	addressCapReached,
 	INBOX_ADDRESSES_PATH,
+	isExcludedLink,
 	parseInboxHighlight,
 } from "@packages/domain/inbox";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
+import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type {
-	EmailLinkStatus,
 	InboxAddressStore,
 	InboxEmailLinkEntry,
 	InboxEmailLinkStore,
@@ -93,6 +94,7 @@ interface InboxDependencies {
 		userId: UserId;
 		url: string;
 		provenance: SaveProvenance;
+		readlist: ReadlistSlug;
 	}) => Promise<void>;
 	/** Save gates applied to the write actions — /create and /enable (each opens
 	 * a mail-receiving save-flow input) and the per-link save (it lands an article
@@ -118,8 +120,8 @@ const POLL_PANEL_RENDERERS: Record<
 	excluded: (vm) => renderInboxExcludedPanel(vm.excluded),
 };
 
-function tabForLinkRow(status: EmailLinkStatus): MailTabKey {
-	return status === "skipped" ? "excluded" : "articles";
+function tabForLinkRow(link: InboxEmailLinkEntry): MailTabKey {
+	return isExcludedLink(link) ? "excluded" : "articles";
 }
 
 function sendInboxArticleCard(
@@ -393,7 +395,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				: undefined;
 			// A skipped link renders only as the inert excluded row — never as a live
 			// card — so the fragment route refuses it like a missing link.
-			if (link === undefined || link.status === "skipped") {
+			if (link === undefined || isExcludedLink(link)) {
 				res.status(404).type("html").send("");
 				return;
 			}
@@ -462,7 +464,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						ordinal: parsedOrdinal.data,
 					})
 				: undefined;
-			if (link === undefined || link.status !== "skipped") {
+			if (link === undefined || !isExcludedLink(link)) {
 				res.status(404).type("html").send("");
 				return;
 			}
@@ -523,7 +525,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// Back to the tab the reported row lives on, keyed off its status rather
 			// than the verdict: a card reported from Articles returns to Articles. A
 			// fixed tab would bounce the reader to a panel that doesn't hold it.
-			const tab = tabForLinkRow(link.status);
+			const tab = tabForLinkRow(link);
 			res.redirect(
 				303,
 				`${buildInboxEmailDetailUrl({
@@ -572,6 +574,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				userId,
 				url: unresolved ? link.url : stripUtmParams(link.url),
 				provenance: { kind: "email", senderEmail: email.senderEmail },
+				readlist: link.droppedFor?.readlist ?? DEFAULT_READLIST_SLUG,
 			});
 			// Saving a skipped link is itself the reader's verdict that the classifier
 			// was wrong to skip it, so it emits the same classifier-audit line the
@@ -587,7 +590,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			}
 			if (isNonBoostedHtmxRequest(req)) {
 				const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
-				if (link.status === "skipped") {
+				if (isExcludedLink(link)) {
 					sendInboxExcludedRow(res, {
 						vm: toInboxExcludedLinkViewModel({
 							link,
@@ -629,7 +632,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				303,
 				`${buildInboxEmailDetailUrl({
 					emailId: receivedAtMessageId,
-					tab: tabForLinkRow(link.status),
+					tab: tabForLinkRow(link),
 					shown: parseArticlesShown(req.body),
 				})}&saved=1`,
 			);

@@ -484,6 +484,9 @@ export function initDevProviders(input: { appOrigin: string }) {
 				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 			});
 		},
+		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
+		setInboxAddressReadlist: inboxAddressStore.setAddressReadlist,
+		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
 		subscriptionProviders: devSubscriptionProviders,
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,

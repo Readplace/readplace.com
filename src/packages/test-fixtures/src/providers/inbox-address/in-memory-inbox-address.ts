@@ -33,6 +33,7 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 				createdAt: deps.now().toISOString(),
 				disabledAt: undefined,
 				purpose,
+				readlist: undefined,
 			};
 			rows.set(address, entry);
 			return entry;
@@ -58,6 +59,23 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 			}
 			rows.set(address, { ...row, disabledAt: undefined });
 		},
+		setAddressReadlist: async ({ userId, address, readlist }) => {
+			const row = rows.get(address);
+			if (row === undefined || row.userId !== userId) {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "The conditional request failed",
+				});
+			}
+			rows.set(address, { ...row, readlist });
+		},
+		clearReadlistFromAddresses: async ({ userId, readlist }) => {
+			for (const [address, entry] of rows) {
+				if (entry.userId === userId && entry.readlist === readlist) {
+					rows.set(address, { ...entry, readlist: undefined });
+				}
+			}
+		},
 		findByAddress: async (address) => rows.get(address),
 		tombstoneUserAddresses: async (userId) => {
 			for (const [address, entry] of rows) {
@@ -69,6 +87,7 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 					// label from the address; model that resolved post-strip state here.
 					name: aliasNameFromAddress(entry.address),
 					disabledAt: entry.disabledAt ?? deps.now().toISOString(),
+					readlist: undefined,
 				});
 			}
 		},
