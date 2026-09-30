@@ -6,7 +6,9 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { ADVERTISED_CLIENTS, UNADVERTISED_CLIENTS } from "@packages/supported-clients";
+import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { LANDING_PAGE_CONTENT } from "./landing-pages.content";
+import { OCR_TESTED_LANGUAGE_BY_PACK } from "./landing-pages.copy";
 import type { LandingPageSlug } from "./landing-pages.types";
 
 const SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
@@ -31,6 +33,27 @@ async function loadPage(slug: LandingPageSlug) {
 }
 
 describe("landing pages", () => {
+	it.each<LandingPageSlug>(["pdf-ocr"])("names every OCR script's tested language on /%s", async (slug) => {
+		const { doc } = await loadPage(slug);
+
+		const questions = Array.from(doc.querySelectorAll("[data-test-lp-faq-question]"));
+		const index = questions.findIndex((question) => question.textContent === "What languages work?");
+		const answer = doc.querySelectorAll("[data-test-lp-faq-answer]")[index]?.textContent;
+		assert(answer, `${slug} answers "What languages work?"`);
+		expect(answer).toContain(`${OCR_SCRIPT_PACKS.length} scripts`);
+		for (const language of Object.values(OCR_TESTED_LANGUAGE_BY_PACK)) {
+			expect(answer).toContain(language);
+		}
+	});
+
+	it("quotes the PDF limits from the crawler's constants on /pdf-ocr", async () => {
+		const { doc } = await loadPage("pdf-ocr");
+
+		const limits = doc.querySelector('[data-test-section="lp-limits"]')?.textContent;
+		expect(limits).toContain(`${MAX_PDF_PAGES} pages`);
+		expect(limits).toContain(MAX_PDF_BYTES.label);
+	});
+
 	it("names every advertised assistant on /ai-reading-list, and no unadvertised one", async () => {
 		const { response } = await loadPage("ai-reading-list");
 

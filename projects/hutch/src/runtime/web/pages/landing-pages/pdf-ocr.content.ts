@@ -1,21 +1,31 @@
-import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
+import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PASTE_A_LINK, READER_SHOT, founderLine, PLAN_CHOICES, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
+import {
+	OCR_LANGUAGES_ANSWER,
+	OCR_TESTED_LANGUAGES,
+	PASTE_A_LINK,
+	READER_SHOT,
+	founderLine,
+	PLAN_CHOICES,
+	TRIAL_TERMS,
+	READ_ONLY_CLOSE,
+	START_TRIAL,
+} from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const PDF_OCR_CONTENT: LandingPageContent = {
-	lastModified: "2026-09-07",
-	title: "Read Scanned PDFs as Clean Text — PDF OCR | Readplace",
+	lastModified: "2026-10-01",
+	title: "Read-It-Later for PDFs, Scans Read by OCR | Readplace",
 	description:
-		"Paste a link to a scanned paper and read it as text on your phone. Every page is read from its pixels, and a pass that alters a number is thrown away.",
+		"Save PDFs from a link, the browser extension or the iPhone share sheet, and read them as text. Scanned pages are read by OCR from their pixels, and a cleanup pass that changes a number is thrown away.",
 	keywords:
-		"pdf ocr, scanned pdf to text, read pdf online, extract text from pdf, ocr scanned document, pdf reader view, save pdf to read later, tesseract ocr, pdf text extraction, research paper reader",
-	headline: "PDFs read from the pixels, with the numbers checked",
+		"pdf ocr, scanned pdf to text, ocr scanned document, read it later app pdf, save pdf to read later, save pdf from iphone, research paper reader",
+	headline: "A read-it-later app for PDFs, with scans read by OCR",
 	eyebrow: "For readers who save papers, reports and scans",
 	titleLead: "Read the PDF, not a ",
 	titleHighlight: "guess",
 	titleTail: " at it.",
-	lede: "Paste a link to a scanned paper or report and read it as text that reflows on a phone. Language models tidy up what the scanner read, and every number is checked against the raw read afterwards — a pass that alters one is thrown away rather than shown to you.",
+	lede: "Paste a PDF link to read it now, with no account. To keep PDFs, save them the way you save articles, from the browser extension on the open tab or the iPhone share sheet, and each one lands in your readlist as text. Scans are read by OCR from their pixels, and a cleanup pass that changes any number is thrown away.",
 	ogImageAlt:
 		"Readplace — read a scanned PDF as text, with the numbers checked against what came off the scan.",
 	primaryAction: {
@@ -61,12 +71,13 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 	],
 	limitsTitle: "What this does not do",
 	limits: [
-		"Tesseract is configured with the Latin script pack only. Scans in Chinese, Arabic, Cyrillic or other non-Latin scripts will not extract.",
-		"PDFs up to 300 pages and 500 MB. Past either limit the file is rejected rather than partly processed.",
+		`Scans are read in ${OCR_SCRIPT_PACKS.length} scripts, each tested with one language: ${OCR_TESTED_LANGUAGES}. A page in another script, such as Georgian, can be read with the wrong one and come back as noise.`,
+		`PDFs up to ${MAX_PDF_PAGES} pages and ${MAX_PDF_BYTES.label}. Past either limit the file is rejected rather than partly processed.`,
 		"If more than 20 percent of pages fail OCR the whole extraction is rejected. Below that, failed pages appear as OCR-unavailable markers.",
 		"Non-numeric words can still change within the length and structure bounds. The checks catch altered numbers, not every altered word.",
 		"Every page is re-rasterised even when the PDF has a clean text layer, which costs time that reading the text layer would have saved.",
 		"Extraction runs after the page opens, so a long PDF takes a few minutes to fill in.",
+		"A PDF with no web address behind it, such as one shared straight from the iPhone Files app, can't be saved, because Readplace files everything by its link.",
 	],
 	faq: [
 		{
@@ -81,12 +92,21 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "What languages work?",
-			answer:
-				"Latin scripts. Tesseract is installed with the Latin script pack only, so Chinese, Arabic, Cyrillic and other non-Latin scans will not extract.",
+			answer: OCR_LANGUAGES_ANSWER,
 		},
 		{
 			question: "How big a PDF can I save?",
-			answer: "Up to 300 pages and 500 MB. Past either limit the file is rejected outright.",
+			answer: `Up to ${MAX_PDF_PAGES} pages and ${MAX_PDF_BYTES.label}. Past either limit the file is rejected outright.`,
+		},
+		{
+			question: "How do I save a PDF to read later?",
+			answer:
+				"Open it in Chrome or Firefox and click the Readplace extension, or share it from Safari on an iPhone. Either way it lands in your readlist with your other articles. Pasting a link on this page opens it in the reader without saving it.",
+		},
+		{
+			question: "Can I read an extracted PDF on a Kindle or Kobo?",
+			answer:
+				"Yes. The reader has a Download EPUB button, and the EPUB is built from the extracted text, so it reflows on e-ink too.",
 		},
 		{
 			question: "Do I need an account to try it?",
@@ -106,7 +126,6 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		title: "What it costs after the first one",
 		paragraphs: [
 			`Reading a link you paste here costs nothing. Keeping a library of them is a subscription: ${TRIAL_TERMS}`,
-			`${CHEAPEST_MONTHLY_DISPLAY}/month is what pays for the extraction — rasterising every page and running Tesseract over it is the expensive part of this product, and it is charged to me per document whether or not you subscribe.`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

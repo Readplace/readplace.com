@@ -1,3 +1,4 @@
+import { OCR_SCRIPT_PACKS, type OcrScriptPack } from "@packages/crawl-article";
 import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
@@ -68,10 +69,34 @@ export const START_TRIAL: LandingPageAction = {
 	href: "/signup",
 };
 
-export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-09-22";
+export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-10-01";
 
 export function landingPageLastModified(page: Pick<LandingPageContent, "lastModified">): IsoDay {
 	return page.lastModified > SHARED_LANDING_COPY_LAST_MODIFIED
 		? page.lastModified
 		: SHARED_LANDING_COPY_LAST_MODIFIED;
 }
+
+export const OCR_TESTED_LANGUAGE_BY_PACK: Record<OcrScriptPack, string> = {
+	Arabic: "Arabic",
+	Bengali: "Bengali",
+	Cyrillic: "Russian",
+	Devanagari: "Hindi",
+	Greek: "Greek",
+	HanS: "Chinese",
+	Hangul: "Korean",
+	Hebrew: "Hebrew",
+	Japanese: "Japanese",
+	Kannada: "Kannada",
+	Latin: "English",
+	Malayalam: "Malayalam",
+	Tamil: "Tamil",
+	Telugu: "Telugu",
+	Thai: "Thai",
+};
+
+export const OCR_TESTED_LANGUAGES = new Intl.ListFormat("en", { type: "conjunction" }).format(
+	[...Object.values(OCR_TESTED_LANGUAGE_BY_PACK)].sort(),
+);
+
+export const OCR_LANGUAGES_ANSWER = `Scans in ${OCR_SCRIPT_PACKS.length} scripts, each checked against a real scanned page in one language: ${OCR_TESTED_LANGUAGES}. Other languages written in those scripts go through the same model, but only these were tested. Traditional Chinese is read with the Simplified model.`;

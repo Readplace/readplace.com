@@ -36,6 +36,7 @@ export { extractPdfMetadata } from "./extract-pdf-metadata";
 export type { ExtractPdfMetadata, PdfMetadata } from "./extract-pdf-metadata";
 export { MAX_HTML_BYTES } from "./html-body-limit";
 export { MAX_PDF_BYTES, MAX_PDF_PAGES } from "./pdf-page-limits";
+export { OCR_SCRIPT_PACKS, type OcrScriptPack } from "./ocr-script-packs";
 export { MAX_IMAGE_BYTES, IMAGE_URL_EXTENSIONS } from "./image-detect";
 export { renderPdfPageToPng } from "./render-pdf-page";
 export type { RenderPdfPageToPng } from "./render-pdf-page";

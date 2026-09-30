@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { escapeHtmlText } from "@packages/crawl-article";
+import { OCR_SCRIPT_PACKS, type OcrScriptPack, escapeHtmlText } from "@packages/crawl-article";
 import type { RunPageOcr } from "../../domain/pdf-page-ocr/pdf-page-ocr-handler.types";
 
 /** Narrow view of the child returned by `node:child_process` `spawn` — just
@@ -28,30 +28,7 @@ export type SpawnTesseractProcess = (args: readonly string[]) => TesseractChildP
  * measured 1,532 ms with its own pack and 18,003 ms with all 37 joined. That is
  * what drove per-page wall clock past the 900 s Lambda budget. Detecting the
  * script first and recognising with one pack costs ~426 ms per page instead. */
-type ScriptPack = (typeof SUPPORTED_SCRIPTS)[number];
-
-/** Packs measured end-to-end against a scan-degraded page per script. The list
- * stops well short of the 37 tessdata ships because OSD is the limit rather
- * than the packs: it can name 17 scripts, and for anything else it answers
- * confidently and wrongly, so a Georgian page comes back as Arabic. Shipping a
- * pack nothing can route to is weight behind a door with no handle. */
-const SUPPORTED_SCRIPTS = [
-	"Arabic",
-	"Bengali",
-	"Cyrillic",
-	"Devanagari",
-	"Greek",
-	"HanS",
-	"Hangul",
-	"Hebrew",
-	"Japanese",
-	"Kannada",
-	"Latin",
-	"Malayalam",
-	"Tamil",
-	"Telugu",
-	"Thai",
-] as const;
+type ScriptPack = OcrScriptPack;
 
 const FALLBACK_SCRIPT: ScriptPack = "Latin";
 
@@ -70,11 +47,11 @@ const SCRIPT_PACK_ALIASES: Readonly<Record<string, ScriptPack>> = {
  * would route that script to Latin and return plausible noise with no error. */
 export function discoverInstalledScripts(tessdataDir: string): readonly ScriptPack[] {
 	const scriptDir = resolve(tessdataDir, "script");
-	for (const script of SUPPORTED_SCRIPTS) {
+	for (const script of OCR_SCRIPT_PACKS) {
 		const file = resolve(scriptDir, `${script}.traineddata`);
 		assert(existsSync(file), `Required tessdata script pack missing: ${file}`);
 	}
-	return SUPPORTED_SCRIPTS;
+	return OCR_SCRIPT_PACKS;
 }
 
 function resolveScriptPack(params: {
