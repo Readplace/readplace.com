@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
-import { captureCheckpoint, expect, test, type VisualCheckpoint, waitForImagePixels } from "@packages/e2e-harness";
+import { captureCheckpoint, expect, test, type VisualCheckpoint } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { fitViewportToPage } from "./fit-viewport-to-page";
+import { serveGmailStepScreenshots, waitForGmailStepScreenshots } from "./gmail-step-screenshots";
 import { clickAndWaitForPageReload } from "./page-interactions";
 import { pageOverflowsSideways } from "./page-measurements.browser";
 
@@ -27,9 +26,7 @@ type Theme = "light" | "dark";
 
 const GMAIL_MAIN = "main.gmail";
 const INTEGRATIONS_MAIN = "main.integrations";
-const STEP_SHOTS = ['[data-test-gmail-shot="see-all-settings"]', '[data-test-gmail-shot="add-forwarding-address"]'];
 const CONFIRMATION_EXHAUSTED_POLL = "100";
-const STATIC_ASSETS = join(__dirname, "..", "..", "static-assets");
 
 interface Scenario {
 	state: string;
@@ -92,16 +89,8 @@ async function exhaustConfirmationPolls(page: Page): Promise<void> {
 	});
 }
 
-async function serveStepScreenshots(page: Page): Promise<void> {
-	await page.route("**/screenshots/gmail-*.webp", (route) => {
-		const file = join(STATIC_ASSETS, new URL(route.request().url()).pathname);
-		assert.ok(existsSync(file), `the forwarding step needs its screenshot at ${file}`);
-		return route.fulfill({ path: file });
-	});
-}
-
 async function openGmailPage(page: Page, path: string): Promise<void> {
-	await serveStepScreenshots(page);
+	await serveGmailStepScreenshots(page);
 	await page.goto(`${BASE_URL}${path}`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-integrations-gmail");
 }
@@ -127,11 +116,7 @@ async function forwardingStepShown(page: Page, input: { state: string; poll: str
 	await gmailStateShown(page, input.state);
 	await expect(page.locator("[data-test-gmail-poll]")).toHaveText(input.poll);
 	await expect(page.locator("[data-test-gmail-copy]")).toBeVisible();
-	for (const shot of STEP_SHOTS) {
-		await page.locator(shot).scrollIntoViewIfNeeded();
-		await waitForImagePixels(page, shot);
-	}
-	await page.evaluate(() => window.scrollTo(0, 0));
+	await waitForGmailStepScreenshots(page);
 }
 
 async function integrationStatusShown(page: Page, status: string): Promise<void> {

@@ -22,3 +22,7 @@ export function mappingRouteGaps(rows: Element[]): number[] {
 export function documentHeight(): number {
 	return document.documentElement.scrollHeight;
 }
+
+export function scrollToTop(): void {
+	window.scrollTo(0, 0);
+}

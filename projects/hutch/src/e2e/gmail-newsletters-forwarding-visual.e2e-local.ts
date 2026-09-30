@@ -10,6 +10,7 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { z } from "zod";
 import { fitViewportToPage } from "./fit-viewport-to-page";
+import { serveGmailStepScreenshots, waitForGmailStepScreenshots } from "./gmail-step-screenshots";
 import { blockTimerPolls, mappingRouteGaps, removeVolatileChrome } from "./gmail-newsletters-visual.browser";
 import { pageOverflowsSideways } from "./page-measurements.browser";
 
@@ -84,6 +85,7 @@ async function openForwarding(page: Page, input: { stamp: string; seed: Forwardi
 	assert.equal(seeded.status(), 201, "the gmail state seed must be accepted");
 
 	await page.addInitScript(blockTimerPolls);
+	await serveGmailStepScreenshots(page);
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator('input[name="email"]').fill(email);
 	await page.locator('input[name="password"]').fill(PASSWORD);
@@ -250,6 +252,7 @@ test.describe("GMail Newsletters forwarding states", () => {
 			"data-test-gmail-filter-state",
 			"waiting-confirmation",
 		);
+		await waitForGmailStepScreenshots(page);
 
 		await captureMatrix(page, { state: "confirmation-required", target: MAPPINGS, capture: "element" });
 	});
