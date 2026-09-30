@@ -103,9 +103,10 @@ export function initBlogRoutes(deps: {
 	blogPosts: BlogPosts;
 	base: RenderBase;
 	resolveLogin: ResolveLogin;
+	staticBaseUrl: string;
 }): Router {
 	const router = express.Router();
-	const { blogPosts, base, resolveLogin } = deps;
+	const { blogPosts, base, resolveLogin, staticBaseUrl } = deps;
 
 	/** Registered before `/:slug` so "sitemap.xml" is served as the sitemap
 	 * rather than matched as a post slug. */
@@ -151,7 +152,7 @@ export function initBlogRoutes(deps: {
 			sendComponent(req, res, base(NotFoundPage(), { ...state, changelogBanner }));
 			return;
 		}
-		sendComponent(req, res, base(BlogPostPage({ post }), { ...state, changelogBanner }));
+		sendComponent(req, res, base(BlogPostPage({ post, staticBaseUrl }), { ...state, changelogBanner }));
 	});
 
 	return router;

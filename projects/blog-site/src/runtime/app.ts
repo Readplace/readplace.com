@@ -90,7 +90,15 @@ export function createBlogApp(
 	const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: deps.ownHost });
 
 	app.use(contentSignalMiddleware);
-	app.use("/blog", initBlogRoutes({ blogPosts, base, resolveLogin: deps.resolveLogin }));
+	app.use(
+		"/blog",
+		initBlogRoutes({
+			blogPosts,
+			base,
+			resolveLogin: deps.resolveLogin,
+			staticBaseUrl: config.staticBaseUrl,
+		}),
+	);
 
 	return app;
 }

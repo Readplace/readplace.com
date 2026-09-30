@@ -9,8 +9,9 @@ import type { BlogPost } from "./blog.posts";
 
 const BLOG_POST_TEMPLATE = readFileSync(join(__dirname, "blog-post.template.html"), "utf-8");
 
-export function BlogPostPage(params: { post: BlogPost }): PageBody {
-	const { post } = params;
+export function BlogPostPage(params: { post: BlogPost; staticBaseUrl: string }): PageBody {
+	const { post, staticBaseUrl } = params;
+	const shareImage = `${staticBaseUrl}/og-image-1200x630.png`;
 
 	return {
 		seo: {
@@ -22,6 +23,8 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			author: post.author,
 			keywords: post.keywords,
+			ogImage: shareImage,
+			ogImageType: "image/png",
 			structuredData: [
 				{
 					"@context": "https://schema.org",
@@ -30,6 +33,7 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 					description: post.description,
 					datePublished: post.date,
 					dateModified: post.lastModified,
+					image: shareImage,
 					author: {
 						"@type": "Person",
 						name: post.author,

@@ -32,8 +32,10 @@ const authedResolver: ResolveLogin = async (cookieHeader) =>
 		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true, sessionExpiresAt: 1_800_000_000 }
 		: { isAuthenticated: false };
 
+const STATIC_BASE_URL = "https://static.readplace.test";
+
 const app = createBlogApp(
-	{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted },
+	{ staticBaseUrl: STATIC_BASE_URL, liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted },
 	{
 		resolveLogin: guestResolver,
 		analyticsLogger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
@@ -72,7 +74,7 @@ function appWithChangelogBanner(banner: ChangelogBanner | undefined) {
 	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted });
 	expressApp.use(
 		"/blog",
-		initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver }),
+		initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver, staticBaseUrl: "" }),
 	);
 	return expressApp;
 }
@@ -84,7 +86,7 @@ function appWithResolver(resolveLogin: ResolveLogin) {
 	expressApp.disable("x-powered-by");
 	expressApp.use(createCspNonceMiddleware({ generateCspNonce }));
 	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted });
-	expressApp.use("/blog", initBlogRoutes({ blogPosts, base, resolveLogin }));
+	expressApp.use("/blog", initBlogRoutes({ blogPosts, base, resolveLogin, staticBaseUrl: "" }));
 	return expressApp;
 }
 
@@ -292,6 +294,21 @@ describe("GET /blog/:slug", () => {
 			td.getAttribute("data-label"),
 		);
 		expect(labels).toContain("Readplace");
+	});
+});
+
+describe("share image", () => {
+	it("gives every post a share image", async () => {
+		const expected = `${STATIC_BASE_URL}/og-image-1200x630.png`;
+		for (const post of blogPosts.getAllPosts()) {
+			const response = await request(app).get(`/blog/${post.slug}`);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(expected);
+			const blogPosting = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'))
+				.map((script) => JSON.parse(script.textContent ?? ""))
+				.find((block) => block["@type"] === "BlogPosting");
+			expect(blogPosting?.image).toBe(expected);
+		}
 	});
 });
 
@@ -535,7 +552,7 @@ describe("changelog banner on /blog pages", () => {
 		const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted });
 		expressApp.use(
 			"/blog",
-			initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver }),
+			initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver, staticBaseUrl: "" }),
 		);
 
 		const response = await request(expressApp).get(`/blog/${slug}`);
