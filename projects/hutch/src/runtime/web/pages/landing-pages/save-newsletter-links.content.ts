@@ -62,6 +62,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 		"A language model sorts the rest into articles, ads, menus, subscription links and noise. Only articles are saved. The others wait on the Skipped tab of that email, where one click saves any of them.",
 		`Each address stands alone. You can hold up to ${INBOX_ADDRESS_MAX_PER_USER}, and switching one off stops that newsletter without touching the others. <a href="${withInternalTracking("/blog/re-enable-a-disabled-newsletter-address", { source: "lp-save-newsletter-links-body", content: "post-re-enable" })}">Switching one back on</a> takes a click on Enable in the disabled list.`,
 	],
+	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		"The email itself isn't saved as an article. A newsletter whose writing lives only in the email body can be read on its inbox page but never reaches your readlist.",

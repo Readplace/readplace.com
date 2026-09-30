@@ -211,6 +211,100 @@
   text-decoration: underline;
 }
 
+.lp-comparison {
+  display: block;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 8px;
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+.lp-comparison__caption {
+  display: block;
+  text-align: left;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 8px;
+}
+
+.lp-comparison thead {
+  display: none;
+}
+
+.lp-comparison tbody,
+.lp-comparison tr,
+.lp-comparison th,
+.lp-comparison td {
+  display: block;
+}
+
+.lp-comparison tr {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+
+.lp-comparison th,
+.lp-comparison td {
+  padding: 4px 0;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+}
+
+.lp-comparison th {
+  font-weight: 600;
+}
+
+.lp-comparison td::before {
+  content: attr(data-label) ": ";
+  font-weight: 600;
+}
+
+.lp-comparison__note {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  margin-bottom: 16px;
+}
+
+@media (min-width: 768px) {
+  .lp-comparison {
+    display: table;
+  }
+
+  .lp-comparison__caption {
+    display: table-caption;
+    caption-side: top;
+  }
+
+  .lp-comparison thead {
+    display: table-header-group;
+    background: var(--muted);
+  }
+
+  .lp-comparison tbody {
+    display: table-row-group;
+  }
+
+  .lp-comparison tr {
+    display: table-row;
+    padding: 0;
+  }
+
+  .lp-comparison th,
+  .lp-comparison td {
+    display: table-cell;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .lp-comparison td::before {
+    content: none;
+  }
+}
+
 /**
  * Proof — the one band that shows the product rather than describing it. The
  * image is lazy and carries its intrinsic size so an ad click does not wait on

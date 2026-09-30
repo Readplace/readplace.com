@@ -53,6 +53,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		'Readplace is source-available on <a href="https://github.com/Readplace/readplace.com">GitHub</a>, so those lines are something you can go and read rather than something you take my word for.',
 		"I would rather tell you exactly what the export contains than imply it is more than it is. It carries your URLs and how you read them. It is not a copy of the articles.",
 	],
+	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		"The export lists what you saved — URL, title, excerpt and read history. It does not contain the full article text.",

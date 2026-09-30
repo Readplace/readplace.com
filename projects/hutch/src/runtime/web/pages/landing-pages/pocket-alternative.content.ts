@@ -55,6 +55,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		"Your URLs come across. Tags and read state do not, because Pocket's export file never contained them.",
 		'Each import takes up to 2,000 links from a file up to 4.5 MB. Past 2,000, Readplace imports the first 2,000 and tells you how many it found in total. If the file itself is over 4.5 MB, split it into smaller files and import them one at a time.',
 	],
+	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		"Tags, folders and read state do not transfer. Pocket's export file does not contain them.",

@@ -43,6 +43,7 @@ const GUEST_PATHS = [
 	"/pdf-reflow",
 	"/save-newsletter-links",
 	"/article-to-epub",
+	"/readwise-reader-alternative",
 	"/queue",
 	"/save",
 	"/view/not-a-url",

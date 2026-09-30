@@ -66,6 +66,20 @@
       {{#each mechanismParagraphs}}
       <p class="lp-prose__paragraph">{{{this}}}</p>
       {{/each}}
+      {{#each comparisons}}
+      <table class="lp-comparison">
+        <caption class="lp-comparison__caption">{{title}}</caption>
+        <thead>
+          <tr><th scope="col">Feature</th><th scope="col">Readplace</th><th scope="col">{{competitorName}}</th></tr>
+        </thead>
+        <tbody>
+          {{#each rows}}
+          <tr><th scope="row">{{feature}}</th><td data-label="Readplace">{{readplace}}</td><td data-label="{{../competitorName}}">{{competitor}}</td></tr>
+          {{/each}}
+        </tbody>
+      </table>
+      <p class="lp-comparison__note">{{note}}</p>
+      {{/each}}
     </div>
   </section>
 

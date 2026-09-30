@@ -66,6 +66,7 @@ export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 		`Images are written into the file rather than linked, so they show on a device with no network. They share a size budget, and an image past it is left out, which keeps the file small enough to email. <a href="${track("/blog/read-your-saved-articles-on-a-kindle-or-kobo", "post-kindle-or-kobo")}">How the file is built</a>.`,
 		`A PDF link works too. Readplace reads the PDF into text first, so the EPUB reflows on a small screen. <a href="${track("/pdf-reflow", "pdf-reflow")}">Reading a PDF on a phone</a> has its own page.`,
 	],
+	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		"One article per file. There is no digest that bundles a readlist into one book.",

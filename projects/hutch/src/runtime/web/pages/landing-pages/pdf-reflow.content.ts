@@ -71,6 +71,7 @@ export const PDF_REFLOW_CONTENT: LandingPageContent = {
 		`Scans are read in ${OCR_SCRIPT_PACKS.length} scripts, each tested with one language: ${OCR_TESTED_LANGUAGES}.`,
 		`<a href="${track("/blog/save-pdfs-straight-from-your-browser", "post-save-pdfs-from-browser")}">Saving a PDF from the open tab</a> keeps it in your readlist. <a href="${track("/pdf-ocr", "pdf-ocr")}">The PDF page</a> goes through each check, and <a href="${track("/article-to-epub", "article-to-epub")}">the EPUB page</a> covers sending the text to an e-reader.`,
 	],
+	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		"Figures, charts and photos are not carried over. The result is the text on the page.",

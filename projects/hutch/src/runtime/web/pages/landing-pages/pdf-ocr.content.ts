@@ -70,6 +70,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		"The digit check is the one that earns its place. Dates, page numbers, citations, figures and table values are what a language model is most likely to quietly alter, and what a reader is least likely to catch. If they change, the pass is dropped.",
 		"This is not a guarantee that no word ever changes. A same-length substitution of one non-numeric word for another passes all three checks. The narrower claim is the true one: altered numbers are caught, and a rejected rewrite is discarded rather than shipped.",
 	],
+	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		`Scans are read in ${OCR_SCRIPT_PACKS.length} scripts, each tested with one language: ${OCR_TESTED_LANGUAGES}. A page in another script, such as Georgian, can be read with the wrong one and come back as noise.`,

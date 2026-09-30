@@ -7,7 +7,8 @@ export type LandingPageSlug =
 	| "read-it-later-that-wont-die"
 	| "pdf-reflow"
 	| "save-newsletter-links"
-	| "article-to-epub";
+	| "article-to-epub"
+	| "readwise-reader-alternative";
 
 export interface LandingPageActionInput {
 	readonly name: string;
@@ -40,6 +41,19 @@ export interface LandingPageScreenshot {
 	readonly caption: string;
 	readonly width: number;
 	readonly height: number;
+}
+
+export interface LandingPageComparisonRow {
+	readonly feature: string;
+	readonly readplace: string;
+	readonly competitor: string;
+}
+
+export interface LandingPageComparison {
+	readonly title: string;
+	readonly competitorName: string;
+	readonly rows: readonly LandingPageComparisonRow[];
+	readonly note: string;
 }
 
 export interface LandingPageProof {
@@ -102,6 +116,7 @@ export interface LandingPageContent {
 	readonly mechanismTitle: string;
 	readonly mechanismLede: string;
 	readonly mechanismParagraphs: readonly string[];
+	readonly comparisons: readonly LandingPageComparison[];
 	readonly limitsTitle: string;
 	readonly limits: readonly string[];
 	readonly faq: readonly LandingPageFaqEntry[];

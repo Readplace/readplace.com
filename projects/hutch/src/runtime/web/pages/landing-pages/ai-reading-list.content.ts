@@ -54,6 +54,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		"One more — delete — exists only to tell your assistant to send you to the app. It returns without changing anything. An assistant that misreads a sentence can add a link to your readlist or mark one read; it cannot empty it.",
 		"That asymmetry is deliberate. A stray save costs you one line in a list, and a stray read mark costs you one sentence to undo. A stray delete costs you something you meant to read.",
 	],
+	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		"Your assistant cannot delete anything. That one tool returns without acting and points you back to the app.",

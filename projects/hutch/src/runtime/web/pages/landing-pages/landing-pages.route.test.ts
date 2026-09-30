@@ -34,6 +34,41 @@ async function loadPage(slug: LandingPageSlug) {
 }
 
 describe("landing pages", () => {
+	it.each(SLUGS)("renders a comparison table on /%s only where the content has one", async (slug) => {
+		const { doc } = await loadPage(slug);
+
+		expect(doc.querySelectorAll('[data-test-section="lp-mechanism"] table.lp-comparison')).toHaveLength(
+			LANDING_PAGE_CONTENT[slug].comparisons.length,
+		);
+	});
+
+	it("labels every comparison cell with its column so the table reads as cards on a phone", async () => {
+		const { doc } = await loadPage("readwise-reader-alternative");
+
+		const table = doc.querySelector("table.lp-comparison");
+		assert(table, "readwise-reader-alternative must render its comparison table");
+		const headers = Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent);
+		const rows = Array.from(table.querySelectorAll("tbody tr"));
+		expect(rows.length).toBeGreaterThan(0);
+		for (const row of rows) {
+			Array.from(row.children).forEach((cell, column) => {
+				if (cell.tagName !== "TD") return;
+				expect(cell.getAttribute("data-label")).toBe(headers[column]);
+			});
+		}
+	});
+
+	it("renders the comparison rows the content declares", async () => {
+		const { doc } = await loadPage("readwise-reader-alternative");
+
+		const [comparison] = LANDING_PAGE_CONTENT["readwise-reader-alternative"].comparisons;
+		assert(comparison, "readwise-reader-alternative declares a comparison");
+		const rowHeaders = Array.from(doc.querySelectorAll("table.lp-comparison tbody th")).map(
+			(th) => th.textContent,
+		);
+		expect(rowHeaders).toEqual(comparison.rows.map((row) => row.feature));
+	});
+
 	it("sends the newsletter page's hero to signup and back to the inbox", async () => {
 		const { doc } = await loadPage("save-newsletter-links");
 
@@ -217,6 +252,7 @@ describe("landing pages", () => {
 			"pdf-reflow": "/view",
 			"save-newsletter-links": "/signup",
 			"article-to-epub": "/view",
+			"readwise-reader-alternative": "/view",
 		};
 
 		for (const slug of SLUGS) {
@@ -244,6 +280,7 @@ describe("landing pages", () => {
 			"pdf-reflow": ["try-reflow", "close-try-reflow"],
 			"save-newsletter-links": [],
 			"article-to-epub": ["try-epub", "close-try-epub"],
+			"readwise-reader-alternative": ["try-reader", "close-try-reader"],
 		});
 
 		const { doc } = await loadPage("pdf-ocr");
