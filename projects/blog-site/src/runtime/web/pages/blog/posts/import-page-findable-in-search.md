@@ -3,6 +3,7 @@ title: "An Import Page Has to Be Found to Work"
 description: "Readplace's import page worked, and a noindex tag kept search engines and AI assistants from ever seeing it. It's indexable now, it answers the questions people ask before they start, and it opens on a paste box."
 slug: "import-page-findable-in-search"
 date: "2026-07-08"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "import pocket links, how to import reading list, import bookmarks to read it later, migrate off pocket, import links without an account, read it later import, import newsletter links, pocket export html, find the import page in search, ai assistant import reading list"
 ---
@@ -36,7 +37,7 @@ Being listed is the floor. A blank page that ranks is still a blank page. So the
 
 The questions are the ones a reader types, or puts to an assistant, right when they are about to move a list.
 
-Do I need an account to import? No, not until you save the selection. What files work? Any text-shaped file, because it scans for `http` addresses and the format around them does not matter. Is there a Pocket import? Yes, the HTML file Pocket handed you on the way out. How many links at once? Up to 2,000, from a file up to 4.5 MB, and anything larger goes to a slower path by email.
+Do I need an account to import? No, not until you save the selection. What files work? Any text-shaped file, because it scans for `http` addresses and the format around them does not matter. Is there a Pocket import? Yes, the HTML file Pocket handed you on the way out. How many links at once? Up to 2,000, from a file up to 4.5 MB, and anything larger has to be split into parts and imported one at a time.
 
 Those answers sit on the page as text a reader can see. They also sit in the markup as [FAQPage structured data](/view/schema.org/FAQPage?utm_source=blog-import-page-findable-in-search&utm_medium=internal&utm_content=read-schema-org), the format a search engine reads to show a question and its answer inside the results.
 

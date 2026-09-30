@@ -3,7 +3,7 @@ title: "Readplace vs Karakeep: Hosted vs Self-Hosted Read-It-Later"
 description: "A fair comparison of two developer-focused read-it-later tools, one self-hosted and one managed, and the tradeoffs each makes."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"
-lastModified: "2026-09-30"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative"
 ---
@@ -27,7 +27,7 @@ This post compares the two along that axis, so you can pick the tool that fits h
 
 **Karakeep** is free, open-source, and self-hosted. You run it yourself with Docker. It does AI-powered auto-tagging through Ollama (local) or OpenAI, and it ships full-text search, browser extensions, and mobile apps for iOS and Android. It started as Hoarder, rebranded to Karakeep, and now has 38,000+ GitHub stars with active development.
 
-**Readplace** is hosted, with its current plans on the [home page](/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pricing#pricing). You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, and Pocket import, and you skip Docker, server setup, and ongoing maintenance entirely. I built it as a solo developer after running my own reading system for 10 years.
+**Readplace** is hosted, with its current plans on the [home page](/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pricing#pricing). You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, and Pocket import, and you skip Docker, server setup, and ongoing maintenance entirely. It grew out of a personal reading system that ran for 10 years.
 
 ## The real comparison: deployment model
 
@@ -79,7 +79,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 | **Data ownership** | Full (your server) | Export anytime |
 | **Setup time** | 15 to 30 min (Docker experience helps) | 2 minutes |
 | **Maintenance** | You handle updates, backups, uptime | Handled for you |
-| **Community** | 38K+ GitHub stars, active Discord | Solo-built, growing |
+| **Community** | 38K+ GitHub stars, active Discord | Growing |
 
 ## When to pick Karakeep
 

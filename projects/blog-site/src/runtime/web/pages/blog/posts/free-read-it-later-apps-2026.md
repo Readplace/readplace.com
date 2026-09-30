@@ -3,6 +3,7 @@ title: "Free Read-It-Later Apps in 2026: What You Actually Get"
 description: "An honest look at what free really means for read-it-later apps, from hosted tiers to self-hosted options, and where a paid subscription with a 14-day free trial fits."
 slug: "free-read-it-later-apps-2026"
 date: "2026-05-06"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 lastModified: "2026-09-30"
 keywords: "free read it later app, read it later free, instapaper free, wallabag, karakeep, raindrop free tier"
@@ -125,7 +126,7 @@ It is still not the right fit for every reader, and the table below should tell 
 | Karakeep | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Wallabag | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Browser bookmarks | $0 | Zero dependencies | No reader view, no offline, no organisation |
-| Readplace | 14-day free trial (no card), then [a paid plan](/?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=pricing#pricing) | Hosted, maintained, no ads | A one-person business can shut down too |
+| Readplace | 14-day free trial (no card), then [a paid plan](/?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=pricing#pricing) | Hosted, maintained, no ads | A young service can shut down too |
 
 Every row in that table is a real bargain, not a free lunch.
 

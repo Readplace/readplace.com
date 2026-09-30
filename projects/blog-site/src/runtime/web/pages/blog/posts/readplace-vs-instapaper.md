@@ -3,7 +3,7 @@ title: "Readplace vs Instapaper: Two Different Approaches to Read-It-Later"
 description: "A fair comparison of two read-it-later apps that took different paths after Pocket shut down. One is familiar and stable. The other bets on AI and active development."
 slug: "readplace-vs-instapaper"
 date: "2026-05-01"
-lastModified: "2026-09-30"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "instapaper alternative, read it later, readplace vs instapaper, pocket replacement, AI summaries"
 ---
@@ -59,7 +59,7 @@ On pricing and data, there is a free tier that covers the basics, namely saving,
 
 ## Readplace on the five axes
 
-Readplace comes at the same five axes from the opposite end. It is a newer product, built by one developer in Australia, and it scores its highest on **triage** and **development pace** while it is still catching up on reading surface.
+Readplace comes at the same five axes from the opposite end. It is a newer product, built in Australia, and it scores its highest on **triage** and **development pace** while it is still catching up on reading surface.
 
 Triage is where it makes its bet. Readplace generates an AI summary of each saved article, so you can scan the gist before deciding to read the full piece. Instapaper has AI summaries too, but they are metered (five a month on the free tier, unlimited on Premium) and generated on request rather than automatically for everything you save.
 

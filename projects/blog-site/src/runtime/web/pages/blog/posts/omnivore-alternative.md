@@ -1,9 +1,9 @@
 ---
 title: "Omnivore Shut Down. Here's a Read-It-Later App That Won't."
-description: "Omnivore shut down with two weeks notice. Readplace is a privacy-first read-it-later app built by a developer and no VC funding."
+description: "Omnivore shut down with two weeks notice. Readplace is a privacy-first read-it-later app with no VC funding."
 slug: "omnivore-alternative"
 date: "2026-05-06"
-lastModified: "2026-09-30"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
@@ -31,9 +31,9 @@ Plenty of Omnivore users landed on [Readwise Reader](https://readwise.io/read) a
 
 I built Readplace to sit between those two. It is hosted, so you do not run anything, and it is funded by subscriptions, with no investor in the background. If you want the side-by-side on every option, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026).
 
-## Built by one developer who actually reads
+## Built from a 10-year reading pipeline
 
-I ran a personal reading pipeline for myself for 10 years before any of this became a product, watching the apps I leaned on disappear one after another. Pocket got abandoned. Omnivore got bought and shut down. So I took the system I had already been depending on for a decade and turned it into something other people could use too, run by one developer building in the open and shipping one feature at a time.
+I ran a personal reading pipeline for myself for 10 years before any of this became a product, watching the apps I leaned on disappear one after another. Pocket got abandoned. Omnivore got bought and shut down. So I took the system I had already been depending on for a decade and turned it into something other people could use too, built in the open and shipping one feature at a time.
 
 ## What works today
 
