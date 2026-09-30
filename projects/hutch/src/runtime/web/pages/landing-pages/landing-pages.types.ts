@@ -5,7 +5,8 @@ export type LandingPageSlug =
 	| "pdf-ocr"
 	| "ai-reading-list"
 	| "read-it-later-that-wont-die"
-	| "pdf-reflow";
+	| "pdf-reflow"
+	| "save-newsletter-links";
 
 export interface LandingPageActionInput {
 	readonly name: string;

@@ -3,6 +3,7 @@ import { PDF_OCR_CONTENT } from "./pdf-ocr.content";
 import { POCKET_ALTERNATIVE_CONTENT } from "./pocket-alternative.content";
 import { READ_IT_LATER_THAT_WONT_DIE_CONTENT } from "./read-it-later-that-wont-die.content";
 import { PDF_REFLOW_CONTENT } from "./pdf-reflow.content";
+import { SAVE_NEWSLETTER_LINKS_CONTENT } from "./save-newsletter-links.content";
 import type { LandingPageContent, LandingPageSlug } from "./landing-pages.types";
 
 /**
@@ -17,4 +18,5 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 	"ai-reading-list": AI_READING_LIST_CONTENT,
 	"read-it-later-that-wont-die": READ_IT_LATER_THAT_WONT_DIE_CONTENT,
 	"pdf-reflow": PDF_REFLOW_CONTENT,
+	"save-newsletter-links": SAVE_NEWSLETTER_LINKS_CONTENT,
 };

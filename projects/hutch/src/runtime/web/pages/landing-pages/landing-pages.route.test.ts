@@ -7,6 +7,7 @@ import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { ADVERTISED_CLIENTS, UNADVERTISED_CLIENTS } from "@packages/supported-clients";
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
+import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
 import { LANDING_PAGE_CONTENT } from "./landing-pages.content";
 import { OCR_TESTED_LANGUAGE_BY_PACK } from "./landing-pages.copy";
 import type { LandingPageSlug } from "./landing-pages.types";
@@ -33,6 +34,22 @@ async function loadPage(slug: LandingPageSlug) {
 }
 
 describe("landing pages", () => {
+	it("sends the newsletter page's hero to signup and back to the inbox", async () => {
+		const { doc } = await loadPage("save-newsletter-links");
+
+		const hero = doc.querySelector('[data-test-section="lp-hero"] form.lp-action');
+		assert(hero, "save-newsletter-links must render a hero action");
+		expect(hero.getAttribute("action")).toBe("/signup");
+		expect(hero.querySelector('input[type="hidden"][name="return"]')?.getAttribute("value")).toBe("/inbox");
+	});
+
+	it("quotes the address cap from the inbox constant on /save-newsletter-links", async () => {
+		const { doc } = await loadPage("save-newsletter-links");
+
+		const limits = doc.querySelector('[data-test-section="lp-limits"]')?.textContent;
+		expect(limits).toContain(`${INBOX_ADDRESS_MAX_PER_USER}`);
+	});
+
 	it.each<LandingPageSlug>(["pdf-ocr", "pdf-reflow"])("names every OCR script's tested language on /%s", async (slug) => {
 		const { doc } = await loadPage(slug);
 
@@ -198,6 +215,7 @@ describe("landing pages", () => {
 			"ai-reading-list": "/mcp",
 			"read-it-later-that-wont-die": "/signup",
 			"pdf-reflow": "/view",
+			"save-newsletter-links": "/signup",
 		};
 
 		for (const slug of SLUGS) {
@@ -223,6 +241,7 @@ describe("landing pages", () => {
 			"ai-reading-list": [],
 			"read-it-later-that-wont-die": [],
 			"pdf-reflow": ["try-reflow", "close-try-reflow"],
+			"save-newsletter-links": [],
 		});
 
 		const { doc } = await loadPage("pdf-ocr");

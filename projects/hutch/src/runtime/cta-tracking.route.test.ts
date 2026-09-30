@@ -41,6 +41,7 @@ const GUEST_PATHS = [
 	"/ai-reading-list",
 	"/read-it-later-that-wont-die",
 	"/pdf-reflow",
+	"/save-newsletter-links",
 	"/queue",
 	"/save",
 	"/view/not-a-url",
