@@ -61,7 +61,7 @@ export interface GmailPickerState {
 	sender?: string;
 	readlist?: string;
 	readlist_name?: string;
-	import?: "0";
+	import?: "1";
 	edit?: "1";
 	discovery_after?: string;
 }
@@ -104,7 +104,7 @@ export const GmailPickerStateSchema = z.object({
 	sender: optionalText,
 	readlist: optionalText,
 	readlist_name: optionalText,
-	import: z.literal("0").optional().catch(undefined),
+	import: z.literal("1").optional().catch(undefined),
 	edit: z.literal("1").optional().catch(undefined),
 	discovery_after: optionalText,
 });

@@ -80,7 +80,7 @@ export interface AdminNewsletterFieldView {
 	name: string;
 	id: string;
 	label: string;
-	type: "email" | "text" | "url";
+	type: "text" | "url";
 	value: string;
 	required: boolean;
 	multiline: boolean;
@@ -428,12 +428,12 @@ function formView(input: {
 					field({
 						name: "from",
 						label: "FROM address",
-						type: "email",
+						type: "text",
 						value: input.form.values.from,
 						required: true,
 						multiline: false,
 						maxLength: 254,
-						hint: "The exact address in the From header. Keep dots and plus tags.",
+						hint: "The exact address in the From header, keeping dots and plus tags. Use *@example.com to treat every sender at that domain as this newsletter.",
 						errors: input.errors,
 					}),
 					...nameAndEvidenceFields(input.form.values, input.errors),
@@ -475,12 +475,12 @@ function formView(input: {
 					field({
 						name: "new_from",
 						label: "Corrected FROM address",
-						type: "email",
+						type: "text",
 						value: input.form.values.new_from,
 						required: true,
 						multiline: false,
 						maxLength: 254,
-						hint: "The exact address in the From header. Keep dots and plus tags.",
+						hint: "The exact address in the From header, keeping dots and plus tags. Use *@example.com to treat every sender at that domain as this newsletter.",
 						errors: input.errors,
 					}),
 				],

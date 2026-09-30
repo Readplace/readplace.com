@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { ForwardableSenderSchema, parseForwardableSender } from "@packages/domain/gmail";
-import { NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
+import { NewsletterFromSchema, NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
 import { formFields } from "./admin-newsletters.url";
 
 export const ADMIN_NEWSLETTER_FIELD_MESSAGES = {
-	from: "Enter the exact FROM address, such as newsletter@example.com.",
-	newFrom: "Enter the exact corrected FROM address, such as newsletter@example.com.",
+	from: "Enter the exact FROM address, such as newsletter@example.com, or *@example.com for every sender at that domain.",
+	newFrom: "Enter the exact corrected FROM address, such as newsletter@example.com, or *@example.com for every sender at that domain.",
 	name: "Keep the newsletter name to 80 characters.",
 	evidenceUrl: "Enter a full https:// link to the publisher page.",
 	evidenceNote: "Keep the evidence note to 500 characters.",
@@ -16,10 +15,10 @@ export const ADMIN_NEWSLETTER_FIELD_MESSAGES = {
 function senderField(message: string) {
 	return z
 		.string()
-		.refine((value) => parseForwardableSender(value) !== undefined, {
+		.refine((value) => NewsletterFromSchema.safeParse(value).success, {
 			error: message,
 		})
-		.transform((value) => ForwardableSenderSchema.parse(value));
+		.transform((value) => NewsletterFromSchema.parse(value));
 }
 
 const NameField = z

@@ -202,7 +202,8 @@ test.describe("GMail Newsletters import states", () => {
 		await expect(readlistPicker).toHaveAttribute("open", "");
 		await page.locator('[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])').click();
 		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Tech");
-		await expect(page.locator(IMPORT_CHECKBOX)).toBeChecked();
+		await expect(page.locator(IMPORT_CHECKBOX)).not.toBeChecked();
+		await page.locator(IMPORT_CHECKBOX).check();
 		await expect(page.locator("[data-test-gmail-sender-picker]")).not.toHaveAttribute("open", "");
 		await expect(readlistPicker).not.toHaveAttribute("open", "");
 		await captureMatrix(page, { state: "consent-checkbox", target: MAPPING_FORM, capture: "element" });

@@ -425,19 +425,3 @@ form.htmx-request .gmail__submit-loader {
   margin-top: 2px;
   accent-color: var(--primary);
 }
-
-.gmail__save-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-.gmail__disclosure {
-  flex: 1 1 220px;
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.55;
-  text-wrap: pretty;
-  color: var(--muted-foreground);
-}

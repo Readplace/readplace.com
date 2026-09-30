@@ -594,7 +594,7 @@ describe("POST /admin/newsletters/records/create", () => {
 
 		assert.equal(response.status, 422);
 		assert.deepEqual(fieldErrors(response.text), [
-			["from", "Enter the exact FROM address, such as newsletter@example.com."],
+			["from", "Enter the exact FROM address, such as newsletter@example.com, or *@example.com for every sender at that domain."],
 			["evidence_url", "Enter a full https:// link to the publisher page."],
 		]);
 		assert.deepEqual(
@@ -985,6 +985,26 @@ describe("POST /admin/newsletters/records/correct", () => {
 		);
 	});
 
+	it("widens a FROM address to every sender at its domain", async () => {
+		const { harness, catalog } = buildHarness({ records: [MORNING_BREW] });
+		const agent = await adminAgent(harness);
+
+		const response = await agent.post("/admin/newsletters/records/correct").type("form").send({
+			from: MORNING_BREW.from,
+			updated_at: MORNING_BREW.updatedAt,
+			new_from: " *@MorningBrew.com ",
+			list_status: "approved",
+		});
+
+		assert.equal(response.status, 303);
+		const old = stored(catalog, MORNING_BREW.from);
+		const widened = stored(catalog, "*@morningbrew.com");
+		assert.deepEqual(
+			[old.status, old.replacedBy, widened.status, widened.name],
+			["rejected", "*@morningbrew.com", "pending", "Morning Brew"],
+		);
+	});
+
 	it("refuses a corrected FROM the catalog already has", async () => {
 		const { harness } = buildHarness({ records: [MORNING_BREW, TLDR] });
 		const agent = await adminAgent(harness);
@@ -1011,7 +1031,7 @@ describe("POST /admin/newsletters/records/correct", () => {
 		});
 
 		assert.equal(response.status, 422);
-		assert.deepEqual(fieldErrors(response.text), [["new_from", "Enter the exact corrected FROM address, such as newsletter@example.com."]]);
+		assert.deepEqual(fieldErrors(response.text), [["new_from", "Enter the exact corrected FROM address, such as newsletter@example.com, or *@example.com for every sender at that domain."]]);
 	});
 
 	it("answers 409 with the attempt kept beside the record another admin changed", async () => {

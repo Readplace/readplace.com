@@ -1,6 +1,18 @@
 import { z } from "zod";
 import { ForwardableSenderSchema } from "../gmail/build-forwarding-filter-query";
 
+const DOMAIN_WILDCARD_PATTERN = /^\*@[a-z0-9.-]+\.[a-z]{2,}$/;
+
+const NewsletterDomainWildcardSchema = z
+	.string()
+	.trim()
+	.toLowerCase()
+	.regex(DOMAIN_WILDCARD_PATTERN)
+	.brand<"NewsletterDomainWildcard">();
+
+export const NewsletterFromSchema = z.union([ForwardableSenderSchema, NewsletterDomainWildcardSchema]);
+export type NewsletterFrom = z.infer<typeof NewsletterFromSchema>;
+
 export const NewsletterNameSchema = z.string().trim().min(1).max(80).brand<"NewsletterName">();
 export type NewsletterName = z.infer<typeof NewsletterNameSchema>;
 
@@ -16,11 +28,11 @@ export const NewsletterEvidenceSchema = z.object({
 export type NewsletterEvidence = z.infer<typeof NewsletterEvidenceSchema>;
 
 export const NewsletterCatalogRecordSchema = z.object({
-	from: ForwardableSenderSchema,
+	from: NewsletterFromSchema,
 	name: NewsletterNameSchema.optional(),
 	status: NewsletterStatusSchema,
 	evidence: z.array(NewsletterEvidenceSchema),
-	replacedBy: ForwardableSenderSchema.optional(),
+	replacedBy: NewsletterFromSchema.optional(),
 	createdAt: z.iso.datetime(),
 	updatedAt: z.iso.datetime(),
 	reviewedAt: z.iso.datetime().optional(),

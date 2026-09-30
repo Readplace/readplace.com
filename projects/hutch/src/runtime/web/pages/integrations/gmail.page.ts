@@ -204,7 +204,7 @@ export function registerGmailPageRoutes(
 		const invalid = (error: GmailPageError): void => {
 			res.redirect(303, buildGmailUrl({
 				...state,
-				import: saved.import === "1" ? undefined : "0",
+				import: saved.import,
 				error,
 				discovery: "started",
 			}));

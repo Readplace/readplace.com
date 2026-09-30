@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema } from "../gmail/build-forwarding-filter-query";
-import { NewsletterNameSchema, type NewsletterCatalogDocument } from "./newsletter-catalog.schema";
+import { NewsletterFromSchema, NewsletterNameSchema, type NewsletterCatalogDocument } from "./newsletter-catalog.schema";
 import {
 	type DetectNewsletters,
 	initCatalogNewsletterDetector,
@@ -37,6 +37,35 @@ describe("initCatalogNewsletterDetector", () => {
 		const detect = initCatalogNewsletterDetector({ readCatalog: async () => ({ ok: true, document }) });
 
 		assert.deepEqual(await detect([BREW]), { status: "available", recognized: new Map() });
+	});
+
+	it("recognises every sender at a domain with an approved wildcard, preferring an approved exact record", async () => {
+		const mamund = ForwardableSenderSchema.parse("mamund@substack.com");
+		const pragmatic = ForwardableSenderSchema.parse("pragmatic@substack.com");
+		const subdomain = ForwardableSenderSchema.parse("news@mail.substack.com");
+		const detect = initCatalogNewsletterDetector({
+			readCatalog: async () => ({
+				ok: true,
+				document: {
+					version: 1,
+					records: [
+						{ from: NewsletterFromSchema.parse("*@substack.com"), name: NewsletterNameSchema.parse("Substack"), status: "approved", evidence: [], createdAt: AT, updatedAt: AT },
+						{ from: pragmatic, name: NewsletterNameSchema.parse("The Pragmatic Engineer"), status: "approved", evidence: [], createdAt: AT, updatedAt: AT },
+						{ from: NewsletterFromSchema.parse("*@morningbrew.com"), status: "pending", evidence: [], createdAt: AT, updatedAt: AT },
+					],
+				},
+			}),
+		});
+
+		const detection = await detect([mamund, pragmatic, subdomain, BREW]);
+
+		assert.deepEqual(detection, {
+			status: "available",
+			recognized: new Map([
+				[mamund, { from: mamund, name: "Substack", source: "catalog" }],
+				[pragmatic, { from: pragmatic, name: "The Pragmatic Engineer", source: "catalog" }],
+			]),
+		});
 	});
 
 	it("reports detection as unavailable when the catalog cannot be read", async () => {

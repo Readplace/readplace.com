@@ -331,7 +331,7 @@ function saveFor(input: {
 		action: trackGmail(GMAIL_SENDER_ADD_PATH, "save-mapping"),
 		fields: gmailBodyFields(fieldsState),
 		offerImport,
-		importChecked: importFlag !== "0",
+		importChecked: importFlag === "1",
 		variant: input.variant,
 	};
 }

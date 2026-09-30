@@ -1,5 +1,5 @@
 import type { ForwardableSender } from "../gmail/build-forwarding-filter-query";
-import type { NewsletterCatalogDocument, NewsletterName } from "./newsletter-catalog.schema";
+import type { NewsletterCatalogDocument, NewsletterCatalogRecord, NewsletterName } from "./newsletter-catalog.schema";
 
 export type NewsletterRecognition = { from: ForwardableSender; name: NewsletterName | undefined; source: "catalog" };
 
@@ -27,11 +27,16 @@ export function initCatalogNewsletterDetector(deps: {
 	return async (senders) => {
 		const catalog = await deps.readCatalog();
 		if (!catalog.ok) return { status: "unavailable" };
-		const wanted = new Set(senders);
-		const recognized = new Map<ForwardableSender, NewsletterRecognition>();
+		const approved = new Map<string, NewsletterCatalogRecord>();
 		for (const record of catalog.document.records) {
-			if (record.status !== "approved" || !wanted.has(record.from)) continue;
-			recognized.set(record.from, { from: record.from, name: record.name, source: "catalog" });
+			if (record.status === "approved") approved.set(record.from, record);
+		}
+		const recognized = new Map<ForwardableSender, NewsletterRecognition>();
+		for (const sender of senders) {
+			const domainWildcard = `*${sender.slice(sender.indexOf("@"))}`;
+			const record = approved.get(sender) ?? approved.get(domainWildcard);
+			if (record === undefined) continue;
+			recognized.set(sender, { from: sender, name: record.name, source: "catalog" });
 		}
 		return { status: "available", recognized };
 	};

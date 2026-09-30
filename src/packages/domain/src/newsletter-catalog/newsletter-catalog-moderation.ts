@@ -5,6 +5,7 @@ import {
 	type NewsletterCatalogRecord,
 	type NewsletterCatalogSeed,
 	type NewsletterEvidence,
+	type NewsletterFrom,
 	type NewsletterListStatus,
 	type NewsletterName,
 	type NewsletterStatus,
@@ -22,12 +23,12 @@ export interface NewsletterEvidenceInput {
 }
 
 interface ReviewInput {
-	from: ForwardableSender;
+	from: NewsletterFrom;
 	expectedUpdatedAt: string;
 	now: Date;
 }
 
-function findRecord(document: NewsletterCatalogDocument, from: ForwardableSender): NewsletterCatalogRecord | undefined {
+function findRecord(document: NewsletterCatalogDocument, from: NewsletterFrom): NewsletterCatalogRecord | undefined {
 	return document.records.find((record) => record.from === from);
 }
 
@@ -41,7 +42,7 @@ function adminEvidence(input: NewsletterEvidenceInput & { now: Date }): Newslett
 }
 
 function pendingRecord(input: {
-	from: ForwardableSender;
+	from: NewsletterFrom;
 	name: NewsletterName | undefined;
 	evidence: NewsletterEvidence[];
 	now: Date;
@@ -100,7 +101,7 @@ export function mergeSeed(
 
 export function createRecord(
 	document: NewsletterCatalogDocument,
-	input: { from: ForwardableSender; name: NewsletterName | undefined; evidence: NewsletterEvidenceInput; now: Date },
+	input: { from: NewsletterFrom; name: NewsletterName | undefined; evidence: NewsletterEvidenceInput; now: Date },
 ): NewsletterModerationResult<"duplicate"> {
 	if (findRecord(document, input.from) !== undefined) return { ok: false, reason: "duplicate" };
 	const record = pendingRecord({
@@ -162,7 +163,7 @@ export function reconsiderRecord(
 
 export function correctRecordFrom(
 	document: NewsletterCatalogDocument,
-	input: ReviewInput & { newFrom: ForwardableSender },
+	input: ReviewInput & { newFrom: NewsletterFrom },
 ): NewsletterModerationResult<"missing" | "stale" | "duplicate"> {
 	const found = reviewable(document, input);
 	if (!found.ok) return found;

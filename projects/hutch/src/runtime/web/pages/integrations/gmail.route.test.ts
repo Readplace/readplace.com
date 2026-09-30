@@ -863,19 +863,16 @@ describe("Save a newsletter to a readlist", () => {
 		expect(gmail.newsletterSenderSubmissions).toEqual([{ senderEmail: TLDR }, { senderEmail: MORNING }]);
 	});
 
-	it("shows the suggestion disclosure beside Save and offers the import only for a newsletter not yet mapped", async () => {
+	it("offers the import unchecked, and only for a newsletter not yet mapped", async () => {
 		const { agent, mapSender } = await connectedAgent();
 		const fresh = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default`)).text);
 		const form = fresh.querySelector("[data-test-gmail-save-mapping]");
 		assert(form);
 		expect(form.getAttribute("action")).toBe(`${ADD}?utm_source=integrations-gmail&utm_medium=internal&utm_content=save-mapping`);
 		expect(hiddenFields(form)).toEqual({ sender: TLDR, readlist: "default" });
-		expect(form.querySelector<HTMLInputElement>('input[name="import"]')?.checked).toBe(true);
-		expect(form.querySelector("[data-test-gmail-suggestion-disclosure]")?.textContent).toBe(
-			"If this sender isn't a known newsletter yet, Readplace sends only its address for review.",
-		);
-		const unchecked = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default&import=0`)).text);
-		expect(unchecked.querySelector<HTMLInputElement>('input[name="import"]')?.checked).toBe(false);
+		expect(form.querySelector('input[name="import"]')?.hasAttribute("checked")).toBe(false);
+		const checked = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default&import=1`)).text);
+		expect(checked.querySelector('[data-test-gmail-save-mapping] input[name="import"]')?.hasAttribute("checked")).toBe(true);
 		await mapSender(TLDR, "default");
 		const mapped = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default`)).text);
 		expect(Array.from(mapped.querySelectorAll('[data-test-gmail-save-mapping] input[type="checkbox"]'))).toEqual([]);
@@ -905,15 +902,15 @@ describe("Save a newsletter to a readlist", () => {
 		expect(doc.querySelector('[data-test-alert="sender_remapped"]')?.textContent).toBe("Mapping updated. New mail from this sender goes to the readlist you chose.");
 	});
 
-	it("keeps the picker state and unchecks the import when validation fails", async () => {
+	it("keeps the picker state, including the import choice, when validation fails", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
 		const unknownReadlist = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "nope", search: "dan", advanced: "1" });
-		expect(unknownReadlist.headers.location).toBe(`${GMAIL}?error=readlist_invalid&search=dan&advanced=1&sender=dan%40tldr.tech&readlist=nope&import=0&discovery=started`);
+		expect(unknownReadlist.headers.location).toBe(`${GMAIL}?error=readlist_invalid&search=dan&advanced=1&sender=dan%40tldr.tech&readlist=nope&discovery=started`);
 		const doc = load((await agent.get(unknownReadlist.headers.location)).text);
 		expect(doc.querySelector("[data-test-gmail-readlist-picker]")?.hasAttribute("open")).toBe(true);
 		expect(alertKeys(doc)).toEqual(["readlist_invalid"]);
 		const importKept = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "nope", import: "1" });
-		expect(importKept.headers.location).toBe(`${GMAIL}?error=readlist_invalid&sender=dan%40tldr.tech&readlist=nope&discovery=started`);
+		expect(importKept.headers.location).toBe(`${GMAIL}?error=readlist_invalid&sender=dan%40tldr.tech&readlist=nope&import=1&discovery=started`);
 		for (const body of [{}, { sender: "bad", readlist: "default" }]) {
 			expect((await agent.post(ADD).type("form").send(body)).headers.location).toContain("error=sender_invalid");
 		}

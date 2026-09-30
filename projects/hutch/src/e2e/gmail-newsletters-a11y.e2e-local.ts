@@ -220,6 +220,8 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 
 		const importChoice = page.locator('[data-test-gmail-save-mapping] input[name="import"]');
 		await tabTo(page, importChoice);
+		await expect(importChoice).not.toBeChecked();
+		await page.keyboard.press("Space");
 		await expect(importChoice).toBeChecked();
 		await page.keyboard.press("Space");
 		await expect(importChoice).not.toBeChecked();
@@ -271,7 +273,7 @@ test.describe("GMail Newsletters without JavaScript", () => {
 			await page.locator(`${READLIST_PICKER} summary`).click();
 			await page.locator('[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])').click();
 			await expect(page.locator("#gmail-readlist-choice")).toHaveText("Tech");
-			await expect(page.locator('[data-test-gmail-save-mapping] input[name="import"]')).toBeChecked();
+			await page.locator('[data-test-gmail-save-mapping] input[name="import"]').check();
 			await page.locator("[data-test-gmail-save]").click();
 
 			await expect(page.locator('[data-test-alert="import_permission_needed"]')).toBeVisible();

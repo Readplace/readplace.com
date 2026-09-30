@@ -11,10 +11,7 @@
                   <span>Import unread messages from the last 30 days</span>
                 </label>
                 {{/if}}
-                <div class="gmail__save-row">
-                  <button class="btn btn--{{save.variant}} gmail__submit" type="submit" data-test-gmail-save><span class="gmail__submit-label">Save</span>{{{submitLoader}}}</button>
-                  <p class="gmail__disclosure" data-test-gmail-suggestion-disclosure>If this sender isn't a known newsletter yet, Readplace sends only its address for review.</p>
-                </div>
+                <button class="btn btn--{{save.variant}} gmail__submit" type="submit" data-test-gmail-save><span class="gmail__submit-label">Save</span>{{{submitLoader}}}</button>
               </form>
               {{/if}}
             </div>

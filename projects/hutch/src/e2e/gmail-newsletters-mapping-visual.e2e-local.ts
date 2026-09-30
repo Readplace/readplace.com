@@ -264,13 +264,11 @@ test.describe("GMail Newsletters mapping", () => {
 			settled: async (settling) => {
 				await readlistChosen(settling);
 				await expect(settling.locator('[data-test-alert="readlist_created"]')).toHaveCount(0);
-				await expect(settling.locator(IMPORT_CHECKBOX)).toBeChecked();
-				await expect(settling.locator("[data-test-gmail-suggestion-disclosure]")).toBeVisible();
+				await expect(settling.locator(IMPORT_CHECKBOX)).not.toBeChecked();
 			},
 			geometry: noSidewaysScroll,
 		});
 
-		await page.locator(IMPORT_CHECKBOX).uncheck();
 		let releaseSave: (() => void) | undefined;
 		const saveHeld = new Promise<void>((resolve) => {
 			releaseSave = resolve;
