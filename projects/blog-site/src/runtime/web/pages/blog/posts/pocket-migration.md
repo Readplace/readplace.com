@@ -69,6 +69,8 @@ After the import I opened my [reading list](/queue?utm_source=blog-pocket-migrat
 
 If you came out of the recovery step with a pile of loose URLs and no export file at all, you can still rebuild by hand. Install the Readplace browser extension for [Chrome](/install?client=chrome&utm_source=blog-pocket-migration&utm_medium=internal&utm_content=install-chrome) or [Firefox](/install?client=firefox&utm_source=blog-pocket-migration&utm_medium=internal&utm_content=install-firefox) and save the recovered articles one at a time. It is slower, but it works.
 
+The [Pocket alternative page](/pocket-alternative?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=pocket-alternative) shows what transfers before you upload anything.
+
 ## What you had in Pocket vs. what you get in Readplace
 
 | Feature | Pocket | Readplace |

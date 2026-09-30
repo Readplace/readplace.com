@@ -45,6 +45,8 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 | **Source code** | source-available | Proprietary |
 | **Maturity** | Newer, leaner | More mature, more features |
 
+For the short version, [the Readwise Reader alternative page](/readwise-reader-alternative?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=readwise-reader-alternative) lists the gaps. This post keeps the reasoning behind each row.
+
 ## Price
 
 Readwise Reader costs $119.88/year. Readplace lists its current plans in the [pricing section of the home page](/?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=pricing#pricing).

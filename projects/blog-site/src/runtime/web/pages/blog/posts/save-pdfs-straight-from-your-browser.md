@@ -3,6 +3,7 @@ title: "Save PDFs Straight From Your Browser, Even the Blocked Ones"
 description: "Some PDFs sit behind bot protection or a login, so crawlers get turned away. Readplace now reads the PDF from your own browser tab and saves a clean copy to your readlist. Open it in your browser, and you can save it."
 slug: "save-pdfs-straight-from-your-browser"
 date: "2026-06-06"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "save pdf, read it later pdf, save pdf to read later, save pdf browser extension, save login pdf, bot protection, cloudflare block pdf, ocr pdf, save scanned pdf, readplace"
 ---
@@ -54,6 +55,8 @@ So the same PDF that blocks a crawler opens for you, and Readplace borrows that 
 
 ## Try it
 
-Find the PDF your old app gave up on. Open it in your browser, then click save in the Readplace extension, and watch it land in your readlist with the text pulled out for search and reading.
+Find the PDF your old app gave up on. Open it in your browser, then click save in the Readplace extension, and watch it land in your readlist with the text pulled out for reading.
 
 [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/?utm_source=blog-save-pdfs-straight-from-your-browser&utm_medium=internal&utm_content=home).
+
+A PDF you only want to read once can be pasted on [the PDF reflow page](/pdf-reflow?utm_source=blog-save-pdfs-straight-from-your-browser&utm_medium=internal&utm_content=pdf-reflow) with no account.

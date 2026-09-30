@@ -3,6 +3,7 @@ title: "Read your saved articles on a Kindle or Kobo"
 description: "Every saved article now has a Download EPUB button, for everyone, with no setting to turn on. The file carries the article's text, its images, and its TL;DR as the opening page, so what lands on your e-reader is the same thing the web reader shows. Public /view pages have the button too, so a shared link needs no account."
 slug: "read-your-saved-articles-on-a-kindle-or-kobo"
 date: "2026-09-12"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "download article as epub, read it later epub export, send saved articles to kindle, save articles to kobo, epub download read it later, export saved article epub, e-reader read it later, offline reading epub, readplace"
 tags: ["changelog"]
@@ -57,6 +58,8 @@ So the honest shape of this: one copy for most e-readers, one email for a Kindle
 The download lives on the article's public `/view` page as well as in your own reader.
 
 That is the same page a shared Readplace link opens, so someone you sent an article to can take the EPUB without signing up. It is one button on a page that was already public, and it keeps the property the rest of `/view` has: the thing you can read, you can also keep.
+
+[The article to EPUB page](/article-to-epub?utm_source=blog-read-your-saved-articles-on-a-kindle-or-kobo&utm_medium=internal&utm_content=article-to-epub) takes a pasted link straight to the download.
 
 ## Start with the longest one in your list
 

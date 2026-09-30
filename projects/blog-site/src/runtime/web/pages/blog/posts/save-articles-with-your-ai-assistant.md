@@ -3,7 +3,7 @@ title: "Save Articles to Readplace Straight From Your AI Assistant"
 description: "Readplace runs an MCP server. Connect Claude, ChatGPT, Perplexity, or any MCP client, then ask it to save a page to your readlist or list what you have saved. You log in once with OAuth, and your assistant does the rest."
 slug: "save-articles-with-your-ai-assistant"
 date: "2026-06-16"
-lastModified: "2026-09-11"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "MCP server, Model Context Protocol, Claude MCP, ChatGPT MCP, Perplexity MCP, read it later MCP, save articles AI assistant, AI readlist, save_link tool, OAuth MCP, Readplace MCP"
 tags: ["changelog"]
@@ -42,3 +42,5 @@ Each assistant has its own connector settings, but the shape is the same everywh
 People ask assistants like Claude to find articles, summarise them, and keep them. The keep step used to mean leaving the chat and doing it by hand. With the MCP server, the assistant does it inside the conversation. Your reading list grows as you talk, and every saved page gets the same clean reader view and summary as one you save yourself.
 
 Want to try it? Follow the steps at [readplace.com/mcp](https://readplace.com/mcp), or [install the browser extension](https://readplace.com/install) and start saving. Your assistant can take it from there.
+
+[The AI reading list page](/ai-reading-list?utm_source=blog-save-articles-with-your-ai-assistant&utm_medium=internal&utm_content=ai-reading-list) covers setup for each assistant.

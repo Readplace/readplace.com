@@ -55,6 +55,8 @@ Three things the table above leaves out, as each app documents them on Oct 1, 20
 | **Wallabag** | *not reported* | Save-by-email address for wallabag.it subscribers | EPUB download per article |
 | **Matter** | Saves PDFs | Gmail connection, a Matter address or forwarding | Sends articles to a Kindle |
 
+Readplace's [PDF page](/pdf-ocr?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pdf-ocr) covers the OCR in detail.
+
 ## Readplace
 
 I built Readplace after 10 years of maintaining a personal reading system that I kept rebuilding by hand. You save an article with one click, read it later in a clean reader view, and get an AI-generated TL;DR for every piece. It runs on AWS in Sydney and operates under the Australian Privacy Act.
@@ -244,6 +246,10 @@ Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote t
 - [Moving from Pocket](/pocket-alternative?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pocket-alternative): what a Pocket export brings across before you make an account.
 - [Reading from an AI assistant](/ai-reading-list?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=ai-reading-list): saving to a readlist from ChatGPT, Claude or Gemini.
 - [When a subscription ends](/read-it-later-that-wont-die?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=read-it-later-that-wont-die): what stays readable if you stop paying.
+- [Reading a PDF on a phone](/pdf-reflow?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pdf-reflow): a pasted PDF as text that fits the screen.
+- [Turning an article into an EPUB](/article-to-epub?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=article-to-epub): a file for a Kobo or Kindle, with no account.
+- [Saving newsletter links](/save-newsletter-links?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=save-newsletter-links): an address per newsletter, and only the articles are kept.
+- [Compared with Readwise Reader](/readwise-reader-alternative?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=readwise-reader-alternative): the gaps in one table.
 
 <div class="blog-cta">
 <p class="blog-cta__title">See whether Readplace fits your reading</p>

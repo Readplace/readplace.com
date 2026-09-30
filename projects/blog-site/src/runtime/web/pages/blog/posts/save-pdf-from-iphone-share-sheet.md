@@ -3,7 +3,7 @@ title: "The Share Sheet That Left Out Every PDF"
 description: "Sharing a PDF from an iPhone used to skip Readplace, because the app was missing from the share sheet for any PDF. Fixing how the share extension declares what it accepts brings it back for Safari's viewer, Files, and mail attachments, and it uploads the file's bytes directly so a PDF behind a login still saves."
 slug: "save-pdf-from-iphone-share-sheet"
 date: "2026-07-03"
-lastModified: "2026-07-26"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "save pdf from iphone, save pdf to read later iphone, share pdf to read it later, iphone share sheet pdf, save safari pdf ios, read pdf later app iphone, save pdf behind login, ios share extension pdf, save mail attachment pdf, readplace iphone"
 ---
@@ -69,3 +69,5 @@ else: ok | Uploads the bytes | The share sheet passes the app its bytes directly
 ```
 
 So the share sheet now offers Readplace for a PDF wherever one shows up on the phone, from Safari's viewer to a mail attachment to a file that came off a web page. Share it, and the app sends the bytes it was already holding, which is what gets a login-guarded PDF into your readlist. The iPhone app is on the App Store, linked from [readplace.com/install](https://readplace.com/install?client=iphone). Put a PDF into it from your phone and open it back in the [in-app reader](/blog/read-saved-articles-in-the-iphone-app?utm_source=blog-save-pdf-from-iphone-share-sheet&utm_medium=internal&utm_content=post-read-saved-articles-in-the-iphone-app).
+
+[Saving PDFs, scans included](/pdf-ocr?utm_source=blog-save-pdf-from-iphone-share-sheet&utm_medium=internal&utm_content=pdf-ocr) covers the other ways in.

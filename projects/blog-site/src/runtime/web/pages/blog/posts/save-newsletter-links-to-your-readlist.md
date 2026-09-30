@@ -3,6 +3,7 @@ title: "Most of a Newsletter Isn't the Article"
 description: "Give each newsletter its own Readplace address and the article links inside it land in your readlist, crawled and summarized. The unsubscribe footers, ads, and menus get dropped, so only the few links worth reading survive, and you can switch off any one address without unsubscribing."
 slug: "save-newsletter-links-to-your-readlist"
 date: "2026-07-20"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "save newsletter links to read later, read newsletters later, newsletter reading list, email newsletter to read it later, newsletter inbox reader, forward newsletters to read later, dedicated email for newsletters, newsletter read it later app, save links from newsletters, cut a newsletter without unsubscribing"
 tags: ["changelog"]
@@ -83,3 +84,5 @@ Naming each address after its source earns its keep here too. When mail turns up
 It's live now, so you can set the first one up today. Pick the newsletter you open the least and trust the most, the one whose links you keep meaning to get to. Make an address for it, subscribe with that address, and let the next issue sort itself into your readlist while the sponsor blocks and the unsubscribe footer stay behind.
 
 Start at [readplace.com](/?utm_source=blog-save-newsletter-links-to-your-readlist&utm_medium=internal&utm_content=home) to set up the first address, or bring an issue you already have by forwarding it in. The next newsletter you read can be 3 links waiting in a readlist instead of 14 sitting in an email.
+
+[The newsletter page](/save-newsletter-links?utm_source=blog-save-newsletter-links-to-your-readlist&utm_medium=internal&utm_content=save-newsletter-links) lists what the address does and doesn't do.

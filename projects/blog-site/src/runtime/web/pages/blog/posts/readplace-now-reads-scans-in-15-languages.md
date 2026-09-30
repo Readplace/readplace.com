@@ -3,6 +3,7 @@ title: "Readplace Now Reads Scans in 15 Languages"
 description: "Save a scanned page in Hindi, Chinese or Arabic and Readplace used to return gibberish and call it a successful save. It now reads 15 languages from a scan, each one measured against a real page. A post here in May claimed 100+ and nobody had checked."
 slug: "readplace-now-reads-scans-in-15-languages"
 date: "2026-08-23"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "ocr, scanned pdf, hindi ocr, chinese ocr, arabic ocr, japanese ocr, multilingual reader, readplace"
 ---
@@ -75,6 +76,8 @@ The recogniser now spends about half a second per page working out which alphabe
 On a 31-page scanned magazine the crawl went from 100 to 120 seconds. On a 212-page book it went from 214 to 227, which is under 6%, because a fixed per-page cost matters less the longer the document runs. A 13-page PDF moved by under 1%.
 
 The crawl runs after the save, so the card still appears the moment you save the link. What moved is how long until the text is ready underneath it.
+
+[Saving PDFs to read later](/pdf-ocr?utm_source=blog-readplace-now-reads-scans-in-15-languages&utm_medium=internal&utm_content=pdf-ocr) and [reading one on a phone](/pdf-reflow?utm_source=blog-readplace-now-reads-scans-in-15-languages&utm_medium=internal&utm_content=pdf-reflow) each have a page of their own.
 
 ## The part that keeps this honest
 

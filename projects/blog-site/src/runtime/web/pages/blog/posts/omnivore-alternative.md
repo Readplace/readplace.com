@@ -81,6 +81,8 @@ The table shows what exists today. Rows marked Not built are gaps.
 
 **No venture capital.** Readplace is self-funded and the revenue comes from subscriptions, which means there is no board counting on an exit and no acquisition for me to go chase at your expense.
 
+[What happens to a library when a subscription ends](/read-it-later-that-wont-die?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=read-it-later-that-wont-die) is spelled out on its own page.
+
 ## Pricing
 
 The current plans are in the [pricing section of the home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing), and the TL;DR summaries are part of every plan.
@@ -111,6 +113,10 @@ If you exported your data before the shutdown, hold onto that file and [import i
 - [Moving from Pocket](/pocket-alternative?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pocket-alternative): what a Pocket export brings across before you make an account.
 - [Reading from an AI assistant](/ai-reading-list?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=ai-reading-list): saving to a readlist from ChatGPT, Claude or Gemini.
 - [When a subscription ends](/read-it-later-that-wont-die?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=read-it-later-that-wont-die): what stays readable if you stop paying.
+- [Reading a PDF on a phone](/pdf-reflow?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pdf-reflow): a pasted PDF as text that fits the screen.
+- [Turning an article into an EPUB](/article-to-epub?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=article-to-epub): a file for a Kobo or Kindle, with no account.
+- [Saving newsletter links](/save-newsletter-links?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=save-newsletter-links): an address per newsletter, and only the articles are kept.
+- [Compared with Readwise Reader](/readwise-reader-alternative?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=readwise-reader-alternative): the gaps in one table.
 
 ## Your reading list should not come with an expiry date
 
