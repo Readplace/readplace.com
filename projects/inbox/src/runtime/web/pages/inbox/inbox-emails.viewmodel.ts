@@ -57,7 +57,7 @@ export interface InboxEmailsEmptyViewModel {
 export interface InboxEmailsPaginationLink {
 	key: InboxEmailsCursor["direction"];
 	label: string;
-	iconName: "arrow-left" | "arrow-right";
+	iconName: "chevron-left" | "chevron-right";
 	href: string | undefined;
 }
 
@@ -128,7 +128,7 @@ function buildPaginationLinks(
 		{
 			key: "newer",
 			label: "Newer",
-			iconName: "arrow-left",
+			iconName: "chevron-left",
 			href: result.hasNewer
 				? paginationHref({
 						direction: "newer",
@@ -139,7 +139,7 @@ function buildPaginationLinks(
 		{
 			key: "older",
 			label: "Older",
-			iconName: "arrow-right",
+			iconName: "chevron-right",
 			href: result.hasOlder
 				? paginationHref({
 						direction: "older",

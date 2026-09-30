@@ -254,45 +254,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.inbox-emails__pagination {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 0 4px;
-}
-
-.inbox-emails__pagination-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 36px;
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  color: var(--foreground);
-  text-decoration: none;
-  transition: background-color 0.15s ease;
-}
-
 .inbox-emails__pagination-link--older {
   flex-direction: row-reverse;
-}
-
-.inbox-emails__pagination-link--enabled:hover {
-  background: var(--card);
-}
-
-.inbox-emails__pagination-link--disabled {
-  color: var(--muted-foreground);
-}
-
-.inbox-emails__pagination-icon {
-  display: inline-flex;
-}
-
-.inbox-emails__pagination-icon svg {
-  width: 1em;
-  height: 1em;
 }

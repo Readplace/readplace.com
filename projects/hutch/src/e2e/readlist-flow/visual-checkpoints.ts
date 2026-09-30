@@ -7,7 +7,7 @@ const EMPTY_READLIST_REGION = '[data-test-empty-readlist]'
 const EMPTY_READLIST_TITLE = `${EMPTY_READLIST_REGION} [data-test-empty-title]`
 const EMPTY_STATE_HORIZONTAL_PADDING_PX = 24
 const PAGINATION_REGION = '[data-test-pagination]'
-const PAGINATION_CONTROLS = '.readlist-pagination__controls'
+const PAGINATION_CONTROLS = '.pagination__controls'
 const PAGINATION_INFO = '[data-test-pagination-info]'
 const PAGINATION_NEXT_LINK = '[data-test-pagination-next]'
 

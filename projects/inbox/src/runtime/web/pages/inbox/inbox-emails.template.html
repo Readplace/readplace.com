@@ -66,14 +66,16 @@
     </section>
 
     {{#if showPagination}}
-    <nav class="inbox-emails__pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
-      {{#each paginationLinks}}
-      {{#if href}}
-      <a class="inbox-emails__pagination-link inbox-emails__pagination-link--enabled {{directionClass}}" href="{{href}}" data-test-pagination-link="{{key}}"><span class="inbox-emails__pagination-icon">{{icon iconName}}</span>{{label}}</a>
-      {{else}}
-      <span class="inbox-emails__pagination-link inbox-emails__pagination-link--disabled {{directionClass}}" aria-disabled="true" data-test-pagination-disabled="{{key}}"><span class="inbox-emails__pagination-icon">{{icon iconName}}</span>{{label}}</span>
-      {{/if}}
-      {{/each}}
+    <nav class="pagination pagination--visible" aria-label="Pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
+      <div class="pagination__controls">
+        {{#each paginationLinks}}
+        {{#if href}}
+        <a class="pagination__link pagination__link--enabled {{directionClass}}" href="{{href}}" data-test-pagination-link="{{key}}">{{icon iconName}}{{label}}</a>
+        {{else}}
+        <span class="pagination__link pagination__link--disabled {{directionClass}}" aria-disabled="true" data-test-pagination-disabled="{{key}}">{{icon iconName}}{{label}}</span>
+        {{/if}}
+        {{/each}}
+      </div>
     </nav>
     {{/if}}
   </div>

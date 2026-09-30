@@ -27,6 +27,11 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("link")).toBe(iconSvg("link"));
 	});
 
+	it("resolves the chevrons a pager steps with", () => {
+		expect(findIconSvg("chevron-left")).toBe(iconSvg("chevron-left"));
+		expect(findIconSvg("chevron-right")).toBe(iconSvg("chevron-right"));
+	});
+
 	it("resolves the warning and info glyphs named by alert variants", () => {
 		expect(findIconSvg("alert-triangle")).toBe(iconSvg("alert-triangle"));
 		expect(findIconSvg("info")).toBe(iconSvg("info"));
@@ -48,6 +53,8 @@ const STROKE_NAMES: readonly IconName[] = [
 	"check",
 	"check-circle",
 	"chevron-down",
+	"chevron-left",
+	"chevron-right",
 	"copy",
 	"download",
 	"ellipsis",

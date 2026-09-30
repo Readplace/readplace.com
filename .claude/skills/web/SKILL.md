@@ -303,10 +303,11 @@ section-band rhythm are all in the brand guidelines ([Colour
 Rules](../../../BRAND_GUIDELINES.md#colour-rules), [Form
 Inputs](../../../BRAND_GUIDELINES.md#form-inputs), [Layout
 Principles](../../../BRAND_GUIDELINES.md#layout-principles)) — reach for those
-tokens rather than a bespoke per-element value. One page-specific reminder the
-guidelines don't carry:
+tokens rather than a bespoke per-element value. Two page-level
+reminders:
 
 - **A directional `→` on a guide link is all-or-nothing across a page.** If one forward/guide link carries the trailing arrow, every sibling link to the same destination carries it too — and an arrow-terminated link takes no trailing period.
+- **A pager uses the web shell's shared pagination block and stylesheet, never a page-local copy** — the [Pagination](../../../BRAND_GUIDELINES.md#pagination) section names the module.
 
 ### Copyable Fields Are One Box
 

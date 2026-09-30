@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONFIRM_POPOVER_STYLES, render, renderAlert, UNDERLINE_TABS_STYLES } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, PAGINATION_STYLES, render, renderAlert, UNDERLINE_TABS_STYLES } from "@packages/web-shell";
 import type { CspNonce, PageBody } from "@packages/web-shell";
 
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
@@ -136,7 +136,7 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 			canonicalUrl: `/import/${vm.sessionId}`,
 			robots: "noindex, nofollow",
 		},
-		styles: IMPORT_STYLES,
+		styles: `${PAGINATION_STYLES}\n${IMPORT_STYLES}`,
 		bodyClass: "page-import",
 		content: { html: content },
 		scripts: IMPORT_CLIENT_SCRIPT,

@@ -4,6 +4,7 @@ import request from "supertest";
 import { ImportSessionIdSchema } from "@packages/domain/import-session";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import { iconSvg } from "@packages/ui-icons";
 import type { ImportUploadedEvent, ImportCommittedEvent } from "@packages/web-analytics";
 import {
 	TEST_APP_ORIGIN,
@@ -13,6 +14,12 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 
 function sessionIdFromLocation(location: string): ReturnType<typeof ImportSessionIdSchema.parse> {
 	return ImportSessionIdSchema.parse(location.replace("/import/", ""));
+}
+
+function drawingOf(svg: string): string {
+	const drawn = new JSDOM(svg).window.document.querySelector("svg");
+	assert(drawn, "icon must render an <svg>");
+	return drawn.innerHTML;
 }
 
 function summaryText(doc: Document): string {
@@ -408,6 +415,33 @@ describe("Import routes", () => {
 			const doc2 = new JSDOM(page2.text).window.document;
 			expect(doc1.querySelectorAll("[data-test-import-row]")).toHaveLength(50);
 			expect(doc2.querySelectorAll("[data-test-import-row]")).toHaveLength(10);
+		});
+
+		it("draws the pager's steps with the shared chevrons, Previous leading and Next trailing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
+			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+
+			const page2 = await agent.get(`${create.headers.location}?page=2`);
+
+			const { window } = new JSDOM(page2.text);
+			const pager = window.document.querySelector("[data-test-import-pagination]");
+			assert(pager, "import pager must render on a multi-page session");
+			expect(pager.className).toBe("pagination pagination--visible");
+			const steps = Array.from(pager.querySelectorAll(".pagination__link")).map((step) => ({
+				className: step.className,
+				parts: Array.from(step.childNodes)
+					.filter((node) => node.textContent?.trim() !== "" || node instanceof window.SVGElement)
+					.map((node) => (node instanceof window.SVGElement ? node.innerHTML : node.textContent?.trim())),
+			}));
+			const chevronLeft = drawingOf(iconSvg("chevron-left"));
+			const chevronRight = drawingOf(iconSvg("chevron-right"));
+			expect(steps).toEqual([
+				{ className: "pagination__link pagination__link--enabled", parts: [chevronLeft, "Previous"] },
+				{ className: "pagination__link pagination__link--disabled", parts: ["Next", chevronRight] },
+			]);
 		});
 	});
 

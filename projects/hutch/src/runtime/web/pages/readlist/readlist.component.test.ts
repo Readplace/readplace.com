@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { iconSvg } from "@packages/ui-icons";
 import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import type { ReadlistRailViewModel } from "./readlist-rail";
@@ -439,8 +440,8 @@ describe("ReadlistPage", () => {
 		const next = doc.querySelector("[data-test-pagination-next]");
 		assert(prev, "the previous-page control must render");
 		assert(next, "the next-page control must render");
-		expect(prev.classList.contains("readlist-pagination__link--enabled")).toBe(true);
-		expect(next.classList.contains("readlist-pagination__link--enabled")).toBe(true);
+		expect(prev.classList.contains("pagination__link--enabled")).toBe(true);
+		expect(next.classList.contains("pagination__link--enabled")).toBe(true);
 		expect(urlParams(prev.getAttribute("href")).get("utm_content")).toBe("prev");
 		expect(urlParams(next.getAttribute("href")).get("utm_content")).toBe("next");
 	});
@@ -454,10 +455,40 @@ describe("ReadlistPage", () => {
 		assert(next, "the next-page control must render");
 		expect(prev.tagName.toLowerCase()).toBe("span");
 		expect(next.tagName.toLowerCase()).toBe("span");
-		expect(prev.classList.contains("readlist-pagination__link--disabled")).toBe(true);
-		expect(next.classList.contains("readlist-pagination__link--disabled")).toBe(true);
+		expect(prev.classList.contains("pagination__link--disabled")).toBe(true);
+		expect(next.classList.contains("pagination__link--disabled")).toBe(true);
 		expect(prev.getAttribute("aria-disabled")).toBe("true");
 		expect(next.getAttribute("aria-disabled")).toBe("true");
+	});
+
+	it("leads Previous with the left chevron and trails Next with the right chevron", () => {
+		const doc = pageDoc({
+			articles: [PLAIN_ARTICLE],
+			isEmpty: false,
+			currentPage: 2,
+			paginationUrls: { prev: "/queue?page=1", next: "/queue?page=3" },
+		});
+
+		const prev = doc.querySelector("[data-test-pagination-prev]");
+		const next = doc.querySelector("[data-test-pagination-next]");
+		assert(prev, "the previous-page control must render");
+		assert(next, "the next-page control must render");
+		const leftChevron = new JSDOM(iconSvg("chevron-left")).window.document.querySelector("svg");
+		const rightChevron = new JSDOM(iconSvg("chevron-right")).window.document.querySelector("svg");
+		assert(leftChevron, "the left chevron must be an svg drawing");
+		assert(rightChevron, "the right chevron must be an svg drawing");
+		expect(prev.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+		expect(prev.firstElementChild?.innerHTML).toBe(leftChevron.innerHTML);
+		expect(next.lastElementChild?.tagName.toLowerCase()).toBe("svg");
+		expect(next.lastElementChild?.innerHTML).toBe(rightChevron.innerHTML);
+	});
+
+	it("hides the pager on an empty list", () => {
+		const doc = pageDoc({ isEmpty: true });
+
+		const pager = doc.querySelector("[data-test-pagination]");
+		assert(pager, "the pager must always render");
+		expect(pager.classList.contains("pagination--hidden")).toBe(true);
 	});
 
 	it("offers the subscribe-plans popover during a trial countdown", () => {

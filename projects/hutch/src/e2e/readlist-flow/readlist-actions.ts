@@ -235,7 +235,7 @@ export function createReadlistActions(
 				const prevLink = page.locator('[data-test-pagination-prev]')
 				await expect(prevLink).toBeVisible()
 
-				const controls = await measuredBox(page, '.readlist-pagination__controls')
+				const controls = await measuredBox(page, '.pagination__controls')
 				const prev = await measuredBox(page, '[data-test-pagination-prev]')
 				assert.equal(
 					prev.x,

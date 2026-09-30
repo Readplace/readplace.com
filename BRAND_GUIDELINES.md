@@ -106,7 +106,7 @@ The design kit's amber CTA is `#C8702A`, which carries white at 3.62:1. The prod
 | **Surface Elevated** | `#FFFFFF` | `#222222` | `--color-surface-elevated` (`--card`) | Every card and panel; dropdown menus; dialogs |
 | **Border** | `#E2E5EA` | `#2E2E2E` | `--color-border` (`--border` / `--input`) | Card edges, dividers, input borders, subtle separators |
 | **Text — Primary** | `#1A202C` | `#E4E4E4` | `--color-text-primary` (`--foreground`) | Body text, headings, titles |
-| **Text — Secondary** | `#5A6170` | `#9BA1AE` | `--color-text-secondary` (`--muted-foreground`) | Supporting copy: ledes, excerpts, the header's inactive destinations, a rail heading, an inactive pagination link, an already-read item's title, disabled text, a field's placeholder (`--input-placeholder`). Metadata and inactive tabs take `--foreground` through their [ink roles](#type-scale-product-ui) |
+| **Text — Secondary** | `#5A6170` | `#9BA1AE` | `--color-text-secondary` (`--muted-foreground`) | Supporting copy: ledes, excerpts, the header's inactive destinations, a rail heading, pagination text at rest (through `--ink-pagination`), an already-read item's title, disabled text, a field's placeholder (`--input-placeholder`). Metadata and inactive tabs take `--foreground` through their [ink roles](#type-scale-product-ui) |
 | **Text — Muted** | `#8C919D` | `#6B6B6B` | `--color-text-muted` | **Marks only, never words.** ~3:1 in both themes, under the 4.5:1 floor. A decorative mark on a white ground (3.16:1). Never a placeholder (a placeholder is words), a timestamp, metadata, disabled text, or a meaning-bearing icon |
 | **Neutral hover / pressed** | `#F7F8FA` / `#EDEFF2` | `#2A2A2A` / `#2E2E2E` | `--neutral-hover`, `--neutral-pressed` | The two fill steps of a `neutral` button |
 | **Footer Background** | `#1A1A1A` | `#0D0D0D` | `--footer-bg` | The guest footer |
@@ -197,11 +197,11 @@ Panels, cards, lists and dialogs have **no display type**. Product text takes on
 | Alert body | `--text-sm` | 400 | `--foreground` |
 | Field label | `--text-sm` | 500 | `--foreground` |
 | Field error | `--text-xs` | 500 | `--error-text` |
-| Pagination | `--text-sm` | 400 (600 current) | `--ink-pagination` |
+| Pagination | `--text-md` | 500 info and numbers · 400 Previous/Next · 600 current | `--ink-pagination`; the current page `--foreground` |
 | Chip | `--text-xs` | 500 | per chip |
 | Figure (stat tile) | `--text-lg` | 700, tabular | `--foreground` |
 
-**13px, 15px and 17px are off the scale.** The designed components (list rows, empty states, tabs, dialogs, menus, alerts, pagination, the rail) move onto these roles one component at a time; where a section below still quotes 13, 15 or 17px, or an ink or weight the tables here replace, that is the component's value today, and the next change to that component moves it to its role here. Stylesheets for pages with no design already name the tokens, with no 13/15/17px literal.
+**13px, 15px and 17px are off the scale.** The designed components (list rows, empty states, tabs, dialogs, menus, alerts, the rail) move onto these roles one component at a time; where a section below still quotes 13, 15 or 17px, or an ink or weight the tables here replace, that is the component's value today, and the next change to that component moves it to its role here. Stylesheets for pages with no design already name the tokens, with no 13/15/17px literal.
 
 **Ink roles.** A role that has its own ink names a role token, so a later design change moves one value:
 
@@ -212,7 +212,7 @@ Panels, cards, lists and dialogs have **no display type**. Product text takes on
 | `--ink-meta` | `--foreground` | metadata rows |
 | `--ink-tab-inactive` | `--foreground` | an inactive line tab |
 | `--ink-rail-heading` | `--muted-foreground` | a rail heading |
-| `--ink-pagination` | `--muted-foreground` | pagination links |
+| `--ink-pagination` | `--muted-foreground` | pagination text at rest |
 
 Buttons and inputs take their sizes from their own tokens (see [Buttons](#buttons) and [Form Inputs](#form-inputs)). Nothing a reader must read goes below 12px; 11px is left to all-caps micro-labels, avatar initials and the footer copyright. Display sizes of 1.25rem and up on editorial and marketing pages (home, landing pages, the blog, the embed page) keep their own scale, as do the reader's article and the blog's editorial body.
 
@@ -262,7 +262,7 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
 - **A solid variant marks the current state, and nothing else.** The header's current destination draws its solid glyph (see [Web App](#web-app)); every other use of a name draws its stroke. Six names have one — `book`, `file-down`, `file`, `folder`, `inbox` and `sparkles`, the design kit's stroke/solid pairs. Hugeicons Pro is not licensed, so these six are Readplace-drawn fills of the free stroke glyphs: the outer silhouette with the interior detail cut out, or, for `folder` and `sparkles`, the stroke glyph filled. A name with no solid drawing keeps its stroke glyph when current, and its ink step alone marks it. A template asks for the solid with `{{icon "<name>" variant="solid"}}`; a name with no solid drawing, or an unknown variant, fails the render.
 - **Fact glyphs are filled.** `globe` (a disc with cut-out meridians), `clock` (a ring, a face at 15% opacity, and hands) and `eye` (an almond with a cut-out pupil ring) are filled 24-grid glyphs in `currentColor`. Their cut-outs let the surface show through, so they read in both themes and in the popup. A name has one drawing, so `clock` is the filled glyph wherever it appears.
 - **Logos keep their own colour.** The Chrome client logo is the full-colour mark (flat red `#DB4437`, yellow `#FFCD40`, green `#0F9D58`, a white ring and a blue `#4285F4` centre), as the reader's "via Chrome" line shows it. The other client logos have no colour design and stay monochrome `currentColor`, so the install page's tab strip mixes one colour logo with monochrome ones.
-- **Typographic punctuation stays text** — em dash, ellipsis, curly quotes, bullet dividers are copy. A plain shape (an unread dot, a step marker) is CSS, not an icon.
+- **Typographic punctuation stays text** — em dash, ellipsis, curly quotes, bullet dividers are copy. The pager's gap is the one exception: it draws the `ellipsis` glyph and keeps `…` as `.sr-only` text, while an ellipsis in running copy stays text. A plain shape (an unread dot, a step marker) is CSS, not an icon.
 - **Size an icon by where it sits.**
 
   | Where | Glyph | Icon-to-label gap |
@@ -273,11 +273,12 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
   | Inside an L or M [button](#buttons), an announcement-bar link or close | 20px | 8px |
   | Inside an S button | 16px | 6px |
   | Metadata row, chevron | 16–18px | — |
+  | Pagination step, pagination gap | 16px (`1em` of `--text-md`) | 4px |
 
   The shell and the pages with no design use these sizes; a designed component (rail, menus, alerts, metadata rows) takes its size in its own pass, and until then its section below may quote its earlier size. The 6px S-button gap is a half-step inside a component (see [Spacing Scale](#spacing-scale)).
 - **A readlist's kind has one glyph.** One table in hutch (`READLIST_KIND_ICON`) maps a readlist's kind to its icon: the default readlist ("All") draws `file`, a custom readlist `folder`. A surface that shows a readlist's kind reads that table rather than choosing its own glyph (the reader's readlist picker still draws `folder` for every option until it adopts the table); the header's Readlist destination keeps `book`.
 - **An icon's ink comes from its role.** Navigation icons are monochrome and follow their label: in the header, `--ink-nav-current` on the current destination and `--ink-nav-inactive` on the others (account items stay `--foreground`); in a side rail, `--muted-foreground` at rest and `--primary-text-on-tint` on the selected row. Menu-item icons and kebab triggers are `--foreground`; other icon-only triggers are `--muted-foreground`. A state glyph beside words takes the functional text token (`--success-text`, `--error-text`); an alert glyph takes its variant's mark (`--color-error`, `--color-success`, `--color-info`), except the warning glyph takes `--warning-text` to clear 3:1 on its tint. A progress spinner (`loader`) is `--primary-text`. A **metadata glyph** is a fact glyph tinted through its fact token so rows scan by colour — source/site `globe` in `--fact-site`, saved time `clock` in `--fact-saved`, reading time `eye` in `--fact-read-time` — while the text beside it is `--ink-meta`. The fact tokens resolve to `--color-secondary-text`, `--color-error` and `--color-success`; the design's navy `#004593`, red `#D4284B` and teal gradient are not adopted (`#004593` is 1.72:1 on the dark card). Every fact keeps its text label, so hue is never the only cue. This is the one decorative use of the functional hues; everywhere else red and green mean error and success. Every tinted glyph clears 3:1 against its surface in both themes — reach for a page-following token before a theme-pinned brand value (pinned `--color-secondary` is 1.39:1 on the dark card).
-- **Arrows show direction; chevrons show disclosure.** `arrow-left`/`arrow-right` lead Previous / trail Next; `arrow-down`/`arrow-up` beside a sort label show the order applied. A disclosure (`<details>` summary, dropdown, account trigger) uses `chevron-down` and rotates it 180° when open — `--muted-foreground` in content, `--foreground` at 24px on the header's account trigger; there is no separate up-chevron.
+- **Arrows show direction; chevrons show disclosure and paging.** A pagination step (Previous/Next, Newer/Older) uses `chevron-left`/`chevron-right`; arrows are kept for back links and sort, where `arrow-down`/`arrow-up` beside a sort label show the order applied. A disclosure (`<details>` summary, dropdown, account trigger) uses `chevron-down` and rotates it 180° when open — `--muted-foreground` in content, `--foreground` at 24px on the header's account trigger; there is no separate up-chevron.
 - **An icon carrying meaning alone needs an `.sr-only` twin** naming what it acts on — `htmlToMarkdown` drops `<svg>`, so a lone icon reaches AI clients and screen readers as an empty cell. Prefer `.sr-only` text over an `aria-label` alone (which markdown also drops). A per-row menu is "More options for <item>", a status marker is "Unread"/"Read", a close is "Close" — never a bare "Menu" repeated down a list.
 
 ### Illustrations
@@ -364,7 +365,7 @@ The kit's XL (56px) is not built: no screen draws it, and unused CSS fails the p
 
 Controls that navigate or tidy without committing (sort, pagination, sidebar rows, "create" rows, kebab triggers, close buttons) are neutral: never amber at rest, never underlined.
 
-- A destination (a sidebar row, a page link, a menu item) rests in `--foreground`. A utility (sort, create, close) rests in `--muted-foreground` and turns `--foreground` on hover.
+- A destination (a sidebar row, a menu item) rests in `--foreground`. A page link is the exception: it rests in `--ink-pagination` (`--muted-foreground`; see [Pagination](#pagination)). A utility (sort, create, close) rests in `--muted-foreground` and turns `--foreground` on hover.
 - A kebab trigger rests in `--foreground` and takes no fill or ink change on hover or open.
 - A control with a box shows hover by stepping to the neighbouring surface: `--card` when it sits on the `--muted` ground, `--muted` when it sits on a `--card` or `--background` surface. A text-only control changes ink only.
 - **Sort** is one link naming the current order with a direction-arrow icon ("Newest first") that toggles it — not a `<select>`.
@@ -388,14 +389,14 @@ Amber at rest is kept for calls to action, links in prose, and the active sideba
 | Token | Value | CSS variable | Usage |
 |---|---|---|---|
 | Small | `6px` | `--radius-sm` | S buttons, icon-only buttons, images inside a card, skeleton bars, thumbnails |
-| Default | `8px` | `--radius` | L and M buttons, inputs, alerts and callouts (standalone or nested), toasts, a pagination cell, a header destination's hover; and boxes nested inside a card or dialog (tiles, bordered lists) |
+| Default | `8px` | `--radius` | L and M buttons, inputs, alerts and callouts (standalone or nested), toasts, pagination targets and the current-page cell, a header destination's hover; and boxes nested inside a card or dialog (tiles, bordered lists) |
 | Medium | `12px` | `--radius-md` | Dropdown and row menus; rail rows |
 | Large | `16px` | `--radius-lg` | Cards and panels everywhere, and dialogs |
 | Pill | `999px` | `--radius-pill` | Chips and progress bars |
 
 **Corners step down one size per level of nesting** (card or dialog 16 → nested box, text field or control 8 → S control 6), so an inner corner is never rounder than its container. A tile set into a card (a stat or countdown box) is enclosed by 1px `var(--border)` and fills with `--muted`, reading as recessed. An image in a card takes `--radius-sm` and `object-fit: cover`, no border. Pick the token by what the element *is*, not by how prominent it should look.
 
-Every card follows `--radius-lg` to 16px. Menus, rail rows and pagination move onto the values above in their own passes, and until then their sections below quote the token they read today.
+Every card follows `--radius-lg` to 16px. Menus and rail rows move onto the values above in their own passes, and until then their sections below quote the token they read today.
 
 **Pills are for chips and progress bars only.** A chip (a status badge, a filter chip) and a progress bar are pills (`--radius-pill`). Anything else you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards — stays on the radius tokens. This isn't a social app. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots, step markers and radio rings. A checkbox's 5px corner is glyph geometry, not a radius token.
 
@@ -462,7 +463,15 @@ A tab may carry a count as `Label (N)` (`formatTabCountLabel`), capped at `99+`,
 
 ### Pagination
 
-Pagination sits **below** the list card, outside it. The leading edge states the range ("Showing 20 of 21", 14px `--muted-foreground`); the trailing edge holds Previous, the page numbers and Next. Previous/Next are [quiet](#quiet-controls) text links (14px `--foreground`) carrying `ui-icons` arrows, always rendered — at the ends they become `aria-disabled` text in `--muted-foreground` with no hover, so the numbers never shift. Page numbers are square `--radius-sm` targets taking a `--card` fill on hover; the current page is not a link — it carries `aria-current="page"` as a `--card` tile with a 1px `--border` and weight 600. Show the first page, the last, and one either side of the current, with `…` gaps in `--muted-foreground`. Pagination is hidden on an empty list, wraps at narrow widths, and is never amber and never `.btn` buttons.
+> **Component:** the shared pager in `@packages/web-shell` (`PAGINATION_STYLES`). The values below belong in that module, never in a page stylesheet.
+
+Pagination sits **below** the list card, outside it. The leading edge states the range ("Showing 20 of 21"); the trailing edge holds Previous, the page numbers and Next. Show the first page, the last, and one either side of the current. Pagination is hidden on an empty list, and is never amber and never `.btn` buttons.
+
+- **Text.** All pager text is 16px (`--text-md`) in `--ink-pagination` (`--muted-foreground`) at rest: the range at 500, Previous/Next at 400, the numbers at 500.
+- **Ends.** Previous/Next are [quiet](#quiet-controls) text links carrying `chevron-left`/`chevron-right` at 16px (`1em` of the label) with a 4px gap; an enabled end's chevron is `--foreground`. Both always render: a disabled end is `aria-disabled` text wholly in `--muted-foreground` with no hover, so the numbers never shift.
+- **Numbers.** Each is a 36px square target with 8px (`--radius`) corners that hovers to a `--card` fill and `--foreground` ink. The current page is not a link: it carries `aria-current="page"` as a `--card` cell with a 1px `--border` and 600 `--foreground`.
+- **Gaps.** A gap is the `ellipsis` glyph with `…` as `.sr-only` text.
+- **Layout.** The range and the controls sit 24px apart on one row; at `max-width: 600px` the range takes its own row and the controls wrap.
 
 ### Menus
 
@@ -725,7 +734,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 - **Row actions sit on the row's trailing edge,** always visible: the state action (`secondary` + `m`) and, only when the server advertises it, an icon-only `trash` delete in a 36px box (`--muted-foreground`, `--error-bg`/`--error-text` on hover, `.sr-only` name). With no overflow menu, this is the one place a delete sits on a row.
 - **Saved times stay relative past 30 days** ("3mo ago", "2y ago") rather than switching to a calendar date, so the time never wraps the line.
 - **Focus inside the scrolling list** draws `--ring` inset (`outline-offset: -2px`) so the scroller doesn't clip it.
-- **Pagination** is centred inside the panel under a `--border` rule, with no "Showing N of M" range. Previous/Next are 36px icon-only arrows with `.sr-only` labels, and the window shows one page either side of the current.
+- **Pagination** is centred inside the panel under a `--border` rule, with no "Showing N of M" range. Previous/Next are 36px icon-only `arrow-left`/`arrow-right`, not the web pager's chevrons, with `.sr-only` labels, and the window shows one page either side of the current.
 - **Header.** The wordmark is 1.1875rem (19px, still large text for the light tail's 3.62:1) beside a 26px mark, so it shares one row with Save tabs (`neutral` + `s` — the amber CTA is the toolbar save) and Sign out, an icon-only 44px utility. The mark's dot stays the literal `#C8923C` (see [Palette Copies Outside the Web](#palette-copies-outside-the-web)).
 - **The filter** is named by an `.sr-only` label rather than a visible one.
 - **An empty list always reads "You're all caught up"** — the collection carries no counts to tell never-saved from all-read — and a filter that matches nothing reads "No matching articles". Neither has an illustration or button: the toolbar save is the next step.

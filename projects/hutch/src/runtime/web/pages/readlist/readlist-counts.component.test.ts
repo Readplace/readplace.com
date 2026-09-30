@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { iconSvg } from "@packages/ui-icons";
 import { JSDOM } from "jsdom";
 import type { ReadlistUrlState } from "./readlist.url";
 import {
@@ -168,5 +169,43 @@ describe("renderReadlistCounts", () => {
 		const url = new URL(link.getAttribute("href") ?? "", "https://internal.invalid");
 		expect(url.pathname).toBe("/queue");
 		expect(url.searchParams.get("page")).toBe("2");
+	});
+
+	it("draws a gap as the shared ellipsis glyph and keeps … as its text", () => {
+		const doc = parse(
+			renderReadlistCounts(
+				toReadlistCountsDisplayModel({
+					filters: { ...DEFAULT_FILTERS, page: 1 },
+					unreadCount: 0,
+					tabTotal: 200,
+					pageSize: 20,
+				}),
+			),
+		);
+
+		const gap = doc.querySelector("#readlist-pages .pagination__gap");
+		assert(gap, "a gap must sit between page 2 and the last page");
+		const ellipsis = parse(iconSvg("ellipsis")).querySelector("svg");
+		assert(ellipsis, "the ellipsis icon must be an svg drawing");
+		expect(gap.textContent).toBe("…");
+		expect(gap.querySelector("svg")?.innerHTML).toBe(ellipsis.innerHTML);
+	});
+
+	it("marks the current page with aria-current and the current-cell class", () => {
+		const doc = parse(
+			renderReadlistCounts(
+				toReadlistCountsDisplayModel({
+					filters: { ...DEFAULT_FILTERS, page: 3 },
+					unreadCount: 0,
+					tabTotal: 200,
+					pageSize: 20,
+				}),
+			),
+		);
+
+		const current = doc.querySelector('[data-test-pagination-page="3"]');
+		assert(current, "the current page must render");
+		expect(current.getAttribute("aria-current")).toBe("page");
+		expect(current.classList.contains("pagination__page--current")).toBe(true);
 	});
 });

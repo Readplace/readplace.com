@@ -178,13 +178,13 @@ describe("toInboxEmailsViewModel", () => {
 			{
 				key: "newer",
 				label: "Newer",
-				iconName: "arrow-left",
+				iconName: "chevron-left",
 				href: undefined,
 			},
 			{
 				key: "older",
 				label: "Older",
-				iconName: "arrow-right",
+				iconName: "chevron-right",
 				href: `/inbox?older=${encodeURIComponent("2026-06-24T09:00:00.000Z#<old@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=older`,
 			},
 		]);
@@ -198,13 +198,13 @@ describe("toInboxEmailsViewModel", () => {
 			{
 				key: "newer",
 				label: "Newer",
-				iconName: "arrow-left",
+				iconName: "chevron-left",
 				href: `/inbox?newer=${encodeURIComponent("2026-06-24T10:00:00.000Z#<new@x>")}&utm_source=inbox-pagination&utm_medium=internal&utm_content=newer`,
 			},
 			{
 				key: "older",
 				label: "Older",
-				iconName: "arrow-right",
+				iconName: "chevron-right",
 				href: undefined,
 			},
 		]);

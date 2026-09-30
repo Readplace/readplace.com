@@ -281,8 +281,8 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			),
 		),
 		paginationStateClass: vm.isEmpty
-			? "readlist-pagination--hidden"
-			: "readlist-pagination--visible",
+			? "pagination--hidden"
+			: "pagination--visible",
 		showingLabel: showingLabel({ rowsOnPage: vm.articles.length }),
 		prevUrl: vm.paginationUrls.prev
 			? withInternalTracking(vm.paginationUrls.prev, {

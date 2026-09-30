@@ -7,6 +7,7 @@ import {
 	test,
 	type VisualCheckpoint,
 } from "@packages/e2e-harness";
+import { INBOX_EMAILS_PAGE_SIZE } from "../runtime/web/pages/inbox/inbox-emails.url";
 import { pinCopyableAddresses } from "./inbox-visual.browser";
 
 /** A fixed instant, so the list's wall-clock-relative label is the same on every
@@ -331,6 +332,49 @@ const articleMenuOpen: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+async function seedOnePastAPage(page: Page): Promise<void> {
+	await page.request.post("/e2e/session");
+	await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
+	for (let index = 0; index <= INBOX_EMAILS_PAGE_SIZE; index++) {
+		const seeded = await page.request.post("/e2e/seed-email", {
+			data: {
+				messageId: `<pager-${index}@e2e>`,
+				receivedAt: new Date(Date.parse(RECEIVED_AT) - index * 60_000).toISOString(),
+				senderEmail: "news@example.com",
+				subject: `Weekly digest ${index}`,
+			},
+		});
+		assert.equal(seeded.status(), 200, await seeded.text());
+	}
+}
+
+async function pagerSitsOnTheTrailingEdge(page: Page): Promise<void> {
+	const pager = await measuredBox(page, "[data-test-pagination]");
+	const controls = await measuredBox(page, "[data-test-pagination] .pagination__controls");
+	assert.ok(
+		Math.abs(pager.x + pager.width - (controls.x + controls.width)) <= 0.5,
+		`the controls must sit on the pager's trailing edge, measured pager=${JSON.stringify(pager)} controls=${JSON.stringify(controls)}`,
+	);
+}
+
+function emailsPager(theme: "light" | "dark"): VisualCheckpoint {
+	return {
+		name: `inbox-emails-pagination-${theme}`,
+		settled: async (page) => {
+			await expect(page.locator('[data-test-pagination-disabled="newer"]')).toHaveAttribute(
+				"aria-disabled",
+				"true",
+			);
+			await expect(page.locator('[data-test-pagination-link="older"]')).toBeVisible();
+			await page.mouse.move(0, 0);
+		},
+		geometry: pagerSitsOnTheTrailingEdge,
+		target: "[data-test-pagination]",
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
 test.describe("Inbox visual checkpoints", () => {
 	test.use({ timezoneId: "UTC" });
 
@@ -431,5 +475,14 @@ test.describe("Inbox visual checkpoints", () => {
 		const emailId = await seedEmail(page, { links: TWO_CRAWLED_LINKS });
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
 		await captureCheckpoint(page, articleMenuOpen);
+	});
+
+	test("captures the email list pager", async ({ page }) => {
+		await seedOnePastAPage(page);
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto("/inbox");
+			await captureCheckpoint(page, emailsPager(theme));
+		}
 	});
 });

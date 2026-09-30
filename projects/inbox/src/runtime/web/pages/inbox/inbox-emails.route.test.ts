@@ -404,6 +404,7 @@ describe("Inbox emails list route", () => {
 			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
 			const pagination = doc.querySelector("[data-test-pagination]");
 			assert(pagination, "pagination nav must render");
+			expect(pagination.getAttribute("aria-label")).toBe("Pagination");
 			expect(pagination.getAttribute("hx-boost")).toBe("true");
 			expect(pagination.getAttribute("hx-target")).toBe("main");
 			expect(pagination.getAttribute("hx-select")).toBe("main");

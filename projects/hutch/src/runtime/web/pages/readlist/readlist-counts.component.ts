@@ -18,6 +18,7 @@ export interface ReadlistPageLink {
 	label: string;
 	href?: string;
 	isCurrent: boolean;
+	isGap: boolean;
 	spanClass: string;
 }
 
@@ -53,14 +54,21 @@ function buildReadlistPageLinks(input: {
 	let previous = 0;
 	for (const number of pageNumbersToShow(current, input.totalPages)) {
 		if (number - previous > 1) {
-			links.push({ number: 0, label: "…", isCurrent: false, spanClass: "readlist__page-gap" });
+			links.push({
+				number: 0,
+				label: "…",
+				isCurrent: false,
+				isGap: true,
+				spanClass: "pagination__gap",
+			});
 		}
 		const isCurrent = number === current;
 		links.push({
 			number,
 			label: String(number),
 			isCurrent,
-			spanClass: "readlist__page readlist__page--current",
+			isGap: false,
+			spanClass: "pagination__page pagination__page--current",
 			...(isCurrent
 				? {}
 				: {
