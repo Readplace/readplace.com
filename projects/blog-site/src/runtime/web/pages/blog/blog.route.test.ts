@@ -336,6 +336,36 @@ describe("GET /blog/sitemap.xml", () => {
 		const response = await request(app).get("/blog/sitemap.xml");
 		expect(response.headers["content-signal"]).toBeUndefined();
 	});
+
+	async function sitemapLastmodFor(path: string): Promise<string | undefined> {
+		const response = await request(app).get("/blog/sitemap.xml");
+		const doc = new JSDOM(response.text, { contentType: "text/xml" }).window.document;
+		const url = Array.from(doc.querySelectorAll("url")).find(
+			(entry) => entry.querySelector("loc")?.textContent === `https://readplace.com${path}`,
+		);
+		return url?.querySelector("lastmod")?.textContent ?? undefined;
+	}
+
+	it("stamps a revised post with its revision date", async () => {
+		const revised = blogPosts.getAllPosts().find((post) => post.lastModified !== undefined);
+		assert(revised?.lastModified, "at least one post declares lastModified");
+		expect(await sitemapLastmodFor(`/blog/${revised.slug}`)).toBe(revised.lastModified);
+	});
+
+	it("stamps an unrevised post with its publish date", async () => {
+		const unrevised = blogPosts.getAllPosts().find((post) => post.lastModified === undefined);
+		assert(unrevised, "at least one post has no lastModified");
+		expect(await sitemapLastmodFor(`/blog/${unrevised.slug}`)).toBe(unrevised.date);
+	});
+
+	it("stamps /blog with the newest post's publish date", async () => {
+		const newest = blogPosts
+			.getAllPosts()
+			.map((post) => post.date)
+			.sort()
+			.at(-1);
+		expect(await sitemapLastmodFor("/blog")).toBe(newest);
+	});
 });
 
 describe("GET /blog with Accept: text/markdown", () => {

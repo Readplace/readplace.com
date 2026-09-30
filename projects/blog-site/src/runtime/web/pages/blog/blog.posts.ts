@@ -107,7 +107,7 @@ export interface BlogPosts {
 	getAllPosts: () => BlogPost[];
 	findPostBySlug: (slug: string) => BlogPost | undefined;
 	getAllSlugs: () => string[];
-	getAllPostMetadata: () => { slug: string; date: string }[];
+	getAllPostMetadata: () => { slug: string; date: string; lastModified?: string }[];
 	getLatestChangelogBanner: () => ChangelogBanner | undefined;
 }
 
@@ -138,7 +138,8 @@ export function initBlogPosts(deps: RenderPostBodyDeps): BlogPosts {
 		getAllPosts: () => posts,
 		findPostBySlug: (slug) => posts.find((p) => p.slug === slug),
 		getAllSlugs: () => posts.map((p) => p.slug),
-		getAllPostMetadata: () => posts.map((p) => ({ slug: p.slug, date: p.date })),
+		getAllPostMetadata: () =>
+			posts.map((p) => ({ slug: p.slug, date: p.date, lastModified: p.lastModified })),
 		getLatestChangelogBanner: () => deriveChangelogBanner(posts),
 	};
 }

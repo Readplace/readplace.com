@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import {
@@ -75,15 +76,18 @@ const BLOG_POST_PRIORITY: Record<string, string> = {
 };
 
 function renderSitemap(blogPosts: BlogPosts): string {
+	const posts = blogPosts.getAllPostMetadata();
+	const newest = posts[0];
+	assert(newest, "the blog has at least one post");
 	const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
-		{ loc: "/blog", priority: "0.8", changefreq: "weekly", lastmod: "2026-04-07" },
+		{ loc: "/blog", priority: "0.8", changefreq: "weekly", lastmod: newest.date },
 	];
-	for (const post of blogPosts.getAllPostMetadata()) {
+	for (const post of posts) {
 		pages.push({
 			loc: `/blog/${post.slug}`,
 			priority: BLOG_POST_PRIORITY[post.slug] ?? "0.7",
 			changefreq: "weekly",
-			lastmod: post.date,
+			lastmod: post.lastModified ?? post.date,
 		});
 	}
 	const urls = pages
