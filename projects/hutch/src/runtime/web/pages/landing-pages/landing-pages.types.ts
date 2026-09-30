@@ -1,3 +1,5 @@
+export type IsoDay = `${number}-${number}-${number}`;
+
 export type LandingPageSlug =
 	| "pocket-alternative"
 	| "pdf-ocr"
@@ -76,6 +78,7 @@ export interface LandingPageOffer {
  * the copy cannot drift away from what the card is actually charged.
  */
 export interface LandingPageContent {
+	readonly lastModified: IsoDay;
 	readonly title: string;
 	readonly description: string;
 	readonly keywords: string;

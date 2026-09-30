@@ -4,6 +4,7 @@ import { READLIST_SHOT, founderLine, PLAN_CHOICES, TRIAL_TERMS, START_TRIAL } fr
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const AI_READING_LIST_CONTENT: LandingPageContent = {
+	lastModified: "2026-09-11",
 	title: "Save Links from Claude, ChatGPT or Gemini — MCP | Readplace",
 	description:
 		"Connect Readplace to your assistant once, then save links mid-conversation and read them later. It can add to your readlist and read it back, never delete.",

@@ -4,6 +4,7 @@ import { PASTE_A_LINK, READER_SHOT, founderLine, PLAN_CHOICES, TRIAL_TERMS, READ
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const PDF_OCR_CONTENT: LandingPageContent = {
+	lastModified: "2026-09-07",
 	title: "Read Scanned PDFs as Clean Text — PDF OCR | Readplace",
 	description:
 		"Paste a link to a scanned paper and read it as text on your phone. Every page is read from its pixels, and a pass that alters a number is thrown away.",

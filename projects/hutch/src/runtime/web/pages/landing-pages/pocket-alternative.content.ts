@@ -4,6 +4,7 @@ import { READLIST_SHOT, EARLY_USER_QUOTE, TRIAL_TERMS, READ_ONLY_CLOSE, START_TR
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
+	lastModified: "2026-09-07",
 	title: "Pocket Alternative — Recover Your Saved Links | Readplace",
 	description:
 		"Readplace is a read-it-later app. Upload the export file Pocket gave you, pick the links you still want, and review them before you make an account.",

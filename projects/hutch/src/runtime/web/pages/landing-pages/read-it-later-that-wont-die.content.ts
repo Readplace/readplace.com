@@ -4,6 +4,7 @@ import { founderLine, PLAN_CHOICES, READ_ONLY_CLOSE } from "./landing-pages.copy
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
+	lastModified: "2026-09-07",
 	title: "A Read-It-Later App That Goes Read-Only, Not Dark | Readplace",
 	description:
 		"Cancel and your Readplace account keeps working for reading. You keep every article you saved, and the export route carries no subscription gate.",

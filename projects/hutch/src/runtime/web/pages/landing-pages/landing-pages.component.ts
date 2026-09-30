@@ -4,6 +4,7 @@ import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
+import { landingPageLastModified } from "./landing-pages.copy";
 import { LANDING_PAGE_CONTENT } from "./landing-pages.content";
 import { LANDING_PAGE_STYLES } from "./landing-pages.styles";
 import type {
@@ -139,6 +140,7 @@ export function LandingPage(params: {
 					name: page.headline,
 					url: `${ORIGIN}/${slug}`,
 					description: page.description,
+					dateModified: landingPageLastModified(page),
 					isPartOf: { "@type": "WebSite", name: "Readplace", url: ORIGIN },
 					about: { "@id": `${ORIGIN}/#app` },
 				},

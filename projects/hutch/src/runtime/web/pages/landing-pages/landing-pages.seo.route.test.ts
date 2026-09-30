@@ -4,11 +4,16 @@ import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { LANDING_PAGE_CONTENT } from "./landing-pages.content";
+import { SHARED_LANDING_COPY_LAST_MODIFIED } from "./landing-pages.copy";
 import type { LandingPageSlug } from "./landing-pages.types";
 
 const SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 
 const useApp = useTestServer();
+
+function laterOf(a: string, b: string): string {
+	return a > b ? a : b;
+}
 
 async function loadPage(slug: LandingPageSlug) {
 	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -71,6 +76,9 @@ describe("landing page SEO", () => {
 		expect(webPage.url).toBe(`https://readplace.com/${slug}`);
 		expect(webPage.about["@id"]).toBe("https://readplace.com/#app");
 		expect(webPage.name).toBe(LANDING_PAGE_CONTENT[slug].headline);
+		expect(webPage.dateModified).toBe(
+			laterOf(LANDING_PAGE_CONTENT[slug].lastModified, SHARED_LANDING_COPY_LAST_MODIFIED),
+		);
 	});
 
 	it.each(SLUGS)("keeps /%s FAQ structured data identical to the visible FAQ", async (slug) => {
@@ -126,4 +134,21 @@ describe("landing page SEO", () => {
 			expect(locations).toContain(`${TEST_APP_ORIGIN}/${slug}`);
 		}
 	});
+
+	it.each(SLUGS)(
+		"stamps /%s in the sitemap with the later of its own and the shared copy's revision date",
+		async (slug) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/sitemap.xml");
+
+			const sitemap = new JSDOM(response.text, { contentType: "text/xml" }).window.document;
+			const entry = Array.from(sitemap.querySelectorAll("url")).find((url) =>
+				url.querySelector("loc")?.textContent?.endsWith(`/${slug}`),
+			);
+
+			expect(entry?.querySelector("lastmod")?.textContent).toBe(
+				laterOf(LANDING_PAGE_CONTENT[slug].lastModified, SHARED_LANDING_COPY_LAST_MODIFIED),
+			);
+		},
+	);
 });

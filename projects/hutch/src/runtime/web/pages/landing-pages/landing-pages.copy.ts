@@ -1,7 +1,13 @@
 import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import type { LandingPageAction, LandingPageActionInput, LandingPageSlug } from "./landing-pages.types";
+import type {
+	IsoDay,
+	LandingPageAction,
+	LandingPageActionInput,
+	LandingPageContent,
+	LandingPageSlug,
+} from "./landing-pages.types";
 
 /**
  * The sentences and assets more than one landing page needs. They live together
@@ -61,3 +67,11 @@ export const START_TRIAL: LandingPageAction = {
 	label: `Start your ${STRIPE_TRIAL_PERIOD_DAYS}-day free trial`,
 	href: "/signup",
 };
+
+export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-09-22";
+
+export function landingPageLastModified(page: Pick<LandingPageContent, "lastModified">): IsoDay {
+	return page.lastModified > SHARED_LANDING_COPY_LAST_MODIFIED
+		? page.lastModified
+		: SHARED_LANDING_COPY_LAST_MODIFIED;
+}
