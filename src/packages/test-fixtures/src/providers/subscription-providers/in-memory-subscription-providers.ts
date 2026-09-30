@@ -1,15 +1,18 @@
 import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
 import type {
+	ClaimPayDigest,
 	DeleteSubscription,
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
+	ListUserIdsBySubscriptionStatus,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
 	MarkAutomationSavesHeldEmailSent,
+	ReleasePayDigest,
 	SetSubscriptionNextCharge,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
@@ -21,6 +24,7 @@ export function initInMemorySubscriptionProviders(opts: {
 }): {
 	findByUserId: FindSubscriptionByUserId;
 	findBySubscriptionId: FindSubscriptionBySubscriptionId;
+	listUserIdsByStatus: ListUserIdsBySubscriptionStatus;
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
@@ -29,6 +33,8 @@ export function initInMemorySubscriptionProviders(opts: {
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
+	claimPayDigest: ClaimPayDigest;
+	releasePayDigest: ReleasePayDigest;
 	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
 	seedRow: (row: SubscriptionRecord) => void;
@@ -43,6 +49,9 @@ export function initInMemorySubscriptionProviders(opts: {
 		}
 		return undefined;
 	};
+
+	const listUserIdsByStatus: ListUserIdsBySubscriptionStatus = async (status) =>
+		[...rows.values()].filter((row) => row.status === status).map((row) => row.userId);
 
 	const upsertTrialing: UpsertTrialingSubscription = async ({ userId, trialEndsAt }) => {
 		const existing = rows.get(userId);
@@ -156,6 +165,51 @@ export function initInMemorySubscriptionProviders(opts: {
 		return "claimed";
 	};
 
+	const claimPayDigest: ClaimPayDigest = async ({ userId, trialEndsAt, messageId, now, urls }) => {
+		const existing = rows.get(userId);
+		if (
+			existing?.status === "trialing" &&
+			existing.trialEndsAt === trialEndsAt &&
+			existing.payDigestEmailSentAt === undefined
+		) {
+			const nowIso = now.toISOString();
+			rows.set(userId, {
+				...existing,
+				payDigestEmailSentAt: nowIso,
+				payDigestMessageId: messageId,
+				payDigestUrls: urls,
+				updatedAt: nowIso,
+			});
+			return { claimed: true, redelivery: false };
+		}
+		if (existing?.payDigestMessageId !== messageId) return { claimed: false };
+		assert(existing.payDigestEmailSentAt, "a stored pay-digest claim carries its instant");
+		assert(existing.payDigestUrls, "a stored pay-digest claim carries the urls it listed");
+		return {
+			claimed: true,
+			redelivery: true,
+			claimedAt: new Date(existing.payDigestEmailSentAt),
+			urls: existing.payDigestUrls,
+		};
+	};
+
+	const releasePayDigest: ReleasePayDigest = async ({ userId, claimedAt, messageId }) => {
+		const existing = rows.get(userId);
+		if (
+			existing?.payDigestEmailSentAt !== claimedAt.toISOString() ||
+			existing.payDigestMessageId !== messageId
+		) {
+			return;
+		}
+		const {
+			payDigestEmailSentAt: _sentAt,
+			payDigestMessageId: _messageId,
+			payDigestUrls: _urls,
+			...rest
+		} = existing;
+		rows.set(userId, rest);
+	};
+
 	/* Mirrors the condition the real table enforces — the row must still exist, still
 	 * be active, and still hold the subscription the charge was read from. Accepting
 	 * writes the production store would reject would let tests pass against a world
@@ -192,6 +246,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	return {
 		findByUserId,
 		findBySubscriptionId,
+		listUserIdsByStatus,
 		upsertTrialing,
 		upsertActive,
 		markPendingCancellation,
@@ -200,6 +255,8 @@ export function initInMemorySubscriptionProviders(opts: {
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent,
+		claimPayDigest,
+		releasePayDigest,
 		setNextCharge,
 		deleteSubscription,
 		seedRow,

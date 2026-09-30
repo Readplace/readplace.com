@@ -44,6 +44,7 @@ import type {
 	RenewSession,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
+	SetQueueDigestOptOut,
 	SetUserAppearance,
 	UpdatePassword,
 	UserAcquisitionAttribution,
@@ -75,6 +76,7 @@ const UserRow = z.object({
 	landing_path: dynamoField(z.string()),
 	deletedAt: dynamoField(z.string()),
 	appearance: dynamoField(AppearancePreferenceSchema),
+	queueDigestOptOutAt: dynamoField(z.string()),
 });
 
 /* Gmail uniqueness claims live in the users table under this PK prefix. Zod
@@ -116,6 +118,7 @@ export function initDynamoDbAuth(deps: {
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
+	setQueueDigestOptOut: SetQueueDigestOptOut;
 } {
 	const users = defineDynamoTable({
 		client: deps.client,
@@ -471,7 +474,11 @@ export function initDynamoDbAuth(deps: {
 		});
 		const row = items[0];
 		if (!row) return null;
-		return { email: row.email, emailVerified: row.emailVerified === true };
+		return {
+			email: row.email,
+			emailVerified: row.emailVerified === true,
+			queueDigestOptOutAt: row.queueDigestOptOutAt,
+		};
 	};
 
 	const findUserById: FindUserById = async (userId) => {
@@ -500,6 +507,25 @@ export function initDynamoDbAuth(deps: {
 			UpdateExpression: "SET appearance = :appearance",
 			ConditionExpression: "attribute_exists(email)",
 			ExpressionAttributeValues: { ":appearance": appearance },
+		});
+	};
+
+	const setQueueDigestOptOut: SetQueueDigestOptOut = async ({ userId, optedOutAt }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		if (optedOutAt === undefined) {
+			await users.update({
+				Key: { email },
+				UpdateExpression: "REMOVE queueDigestOptOutAt",
+				ConditionExpression: "attribute_exists(email)",
+			});
+			return;
+		}
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET queueDigestOptOutAt = :optedOutAt",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":optedOutAt": optedOutAt },
 		});
 	};
 
@@ -539,6 +565,7 @@ export function initDynamoDbAuth(deps: {
 		findUserContactByUserId,
 		findUserById,
 		setUserAppearance,
+		setQueueDigestOptOut,
 	};
 }
 /* c8 ignore stop */

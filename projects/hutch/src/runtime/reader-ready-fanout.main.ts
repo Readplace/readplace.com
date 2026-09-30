@@ -6,9 +6,6 @@ import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-diges
 import { initReaderReadyUsersNotificationFanoutHandler } from "./reader-ready-fanout/reader-ready-fanout-handler";
 import { requireEnv } from "@packages/require-env";
 
-/** TTL safety net on queued digest rows: generous enough that an unverified
- * user can verify and still receive a queued article, bounded so abandoned rows
- * are purged. Rows are normally drained on the next 6h digest send. */
 const DIGEST_QUEUE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");

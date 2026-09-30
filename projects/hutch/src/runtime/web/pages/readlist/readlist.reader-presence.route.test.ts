@@ -75,13 +75,11 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 		const url = "https://example.com/presence-view";
 		const { agent, articleId, userId } = await saveAndResolve(harness, url);
 
-		const before = await harness.articleStore.findUserArticleNotificationState({ userId, url });
-		assert(before, "user-article row must exist after save");
-		expect(before.viewedAt).toBeUndefined();
+		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
 
 		await agent.get(`/queue/${articleId}/view`);
 
-		const after = await harness.articleStore.findUserArticleNotificationState({ userId, url });
+		const [after] = await harness.articleStore.findUserArticlesByUrl(url);
 		expect(after?.viewedAt).toBeInstanceOf(Date);
 	});
 
@@ -92,7 +90,8 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 
 		await agent.get(`/queue/${articleId}/summary?poll=1`);
 
-		const after = await harness.articleStore.findUserArticleNotificationState({ userId, url });
+		const [after] = await harness.articleStore.findUserArticlesByUrl(url);
+		expect(after?.userId).toBe(userId);
 		expect(after?.viewedAt).toBeInstanceOf(Date);
 	});
 
@@ -103,7 +102,8 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 
 		await agent.get(`/queue/${articleId}/reader?poll=1`);
 
-		const after = await harness.articleStore.findUserArticleNotificationState({ userId, url });
+		const [after] = await harness.articleStore.findUserArticlesByUrl(url);
+		expect(after?.userId).toBe(userId);
 		expect(after?.viewedAt).toBeInstanceOf(Date);
 	});
 
@@ -114,8 +114,6 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 
 		await agent.get(`/queue/${articleId}/card`);
 
-		const after = await harness.articleStore.findUserArticleNotificationState({ userId, url });
-		assert(after, "user-article row must exist after save");
-		expect(after.viewedAt).toBeUndefined();
+		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
 	});
 });

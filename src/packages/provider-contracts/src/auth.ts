@@ -88,9 +88,18 @@ export type SetUserAppearance = (input: {
 	appearance: AppearancePreference;
 }) => Promise<void>;
 
+export type SetQueueDigestOptOut = (input: {
+	userId: UserId;
+	optedOutAt: string | undefined;
+}) => Promise<void>;
+
 export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;
 
-export type UserContact = { email: string; emailVerified: boolean };
+export type UserContact = {
+	email: string;
+	emailVerified: boolean;
+	queueDigestOptOutAt: string | undefined;
+};
 
 /** Resolve a user's email + verification status by id (via the userId-index).
  * The reader-ready notifier needs both: it only emails verified addresses. */

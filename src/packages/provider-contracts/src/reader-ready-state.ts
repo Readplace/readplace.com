@@ -9,7 +9,7 @@ import type { UserId } from "@packages/domain/user";
 export type ReaderReadyEmailSlotClaim =
 	| { claimed: false }
 	| { claimed: true; redelivery: false }
-	| { claimed: true; redelivery: true; claimedAt: Date };
+	| { claimed: true; redelivery: true; claimedAt: Date; urls: readonly string[] };
 
 /** Atomically claim the per-user reader-ready email cooldown slot. Succeeds when
  * no email has been sent within `cooldownMs`, writing `now` as the new slot; the
@@ -27,6 +27,7 @@ export type ClaimReaderReadyEmailSlot = (params: {
 	now: Date;
 	cooldownMs: number;
 	messageId: string;
+	urls: readonly string[];
 }) => Promise<ReaderReadyEmailSlotClaim>;
 
 /** Roll back a slot claimed by `claimReaderReadyEmailSlot` when the provider
@@ -35,7 +36,7 @@ export type ClaimReaderReadyEmailSlot = (params: {
  * on the stored claim still being this message's, so a concurrent claim is never
  * undone. Must clear the stored `messageId` along with the instant — a released
  * slot that still remembers the message would send the redrive down the
- * redelivery path, where it drains the queue without ever re-sending.
+ * redelivery path.
  *
  * Never call this for a failure the provider did not confirm: releasing then
  * makes a message that may in fact have been delivered eligible to send again. */
@@ -44,6 +45,13 @@ export type ReleaseReaderReadyEmailSlot = (params: {
 	claimedAt: Date;
 	messageId: string;
 }) => Promise<void>;
+
+export type ReaderReadyEmailState = {
+	lastSentAt: Date | undefined;
+	lastMessageId: string | undefined;
+};
+
+export type FindReaderReadyEmailState = (userId: UserId) => Promise<ReaderReadyEmailState>;
 
 /** Delete the single reader-ready cooldown row for a user (account deletion). */
 export type DeleteReaderReadyState = (userId: UserId) => Promise<void>;

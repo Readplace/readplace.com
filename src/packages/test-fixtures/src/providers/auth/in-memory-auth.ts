@@ -28,6 +28,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
+	SetQueueDigestOptOut,
 	SetUserAppearance,
 	UpdatePassword,
 	UserAcquisitionAttribution,
@@ -46,6 +47,7 @@ interface StoredUser {
 	deletedAt?: string;
 	attribution?: UserAcquisitionAttribution;
 	appearance?: AppearancePreference;
+	queueDigestOptOutAt?: string;
 }
 
 interface StoredSession {
@@ -87,6 +89,7 @@ export function initInMemoryAuth(opts: {
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
+	setQueueDigestOptOut: SetQueueDigestOptOut;
 	deleteUser: (email: string) => Promise<void>;
 	/** Test-only accessor for the attribution persisted at signup, so signup
 	 * tests can assert the raw utm/referrer/landing fields reached the row. */
@@ -323,7 +326,11 @@ export function initInMemoryAuth(opts: {
 	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
 		for (const user of users.values()) {
 			if (user.id === userId) {
-				return { email: user.email, emailVerified: user.emailVerified };
+				return {
+					email: user.email,
+					emailVerified: user.emailVerified,
+					queueDigestOptOutAt: user.queueDigestOptOutAt,
+				};
 			}
 		}
 		return null;
@@ -348,6 +355,15 @@ export function initInMemoryAuth(opts: {
 		for (const user of users.values()) {
 			if (user.id === userId) {
 				user.appearance = appearance;
+				return;
+			}
+		}
+	};
+
+	const setQueueDigestOptOut: SetQueueDigestOptOut = async ({ userId, optedOutAt }) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				user.queueDigestOptOutAt = optedOutAt;
 				return;
 			}
 		}
@@ -398,6 +414,7 @@ export function initInMemoryAuth(opts: {
 		findUserContactByUserId,
 		findUserById,
 		setUserAppearance,
+		setQueueDigestOptOut,
 		getAcquisitionAttribution,
 		deleteUser,
 	};

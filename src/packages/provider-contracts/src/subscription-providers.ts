@@ -30,6 +30,9 @@ export interface SubscriptionRecord {
 	trialFeedbackEmailSentAt?: string;
 	trialReminderEmailSentAt?: string;
 	automationSavesHeldEmailSentAt?: string;
+	payDigestEmailSentAt?: string;
+	payDigestMessageId?: string;
+	payDigestUrls?: readonly string[];
 	plan?: BillingPlan;
 	/** The renewal the provider last told us about. Absent until an /account render
 	 * asks, and cleared by every mutation that ends the current subscription, so a
@@ -46,6 +49,10 @@ export type FindSubscriptionByUserId = (
 export type FindSubscriptionBySubscriptionId = (
 	subscriptionId: string,
 ) => Promise<SubscriptionRecord | undefined>;
+
+export type ListUserIdsBySubscriptionStatus = (
+	status: SubscriptionStatus,
+) => Promise<UserId[]>;
 
 export type UpsertTrialingSubscription = (input: {
 	userId: UserId;
@@ -86,6 +93,25 @@ export type MarkAutomationSavesHeldEmailSent = (input: {
 	userId: UserId;
 	sentAt: string;
 }) => Promise<"claimed" | "already-sent">;
+
+export type PayDigestClaim =
+	| { claimed: false }
+	| { claimed: true; redelivery: false }
+	| { claimed: true; redelivery: true; claimedAt: Date; urls: readonly string[] };
+
+export type ClaimPayDigest = (input: {
+	userId: UserId;
+	trialEndsAt: string;
+	messageId: string;
+	now: Date;
+	urls: readonly string[];
+}) => Promise<PayDigestClaim>;
+
+export type ReleasePayDigest = (input: {
+	userId: UserId;
+	claimedAt: Date;
+	messageId: string;
+}) => Promise<void>;
 
 /** `subscriptionId` is the one the charge was read from, not a lookup key: the
  * write rejects unless the row still carries it, so a cancel or resubscribe landing

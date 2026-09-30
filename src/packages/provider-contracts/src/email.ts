@@ -6,6 +6,7 @@ export interface EmailMessage {
 	subject: string;
 	html: string;
 	text?: string;
+	headers?: Record<string, string>;
 }
 
 export type SendEmail = (message: EmailMessage) => Promise<void>;

@@ -1,0 +1,37 @@
+.plans-page {
+  flex: 1 1 auto;
+  background: var(--muted);
+}
+
+.plans-page__layout {
+  max-width: calc(880px + 2 * var(--page-gutter));
+  margin: 0 auto;
+  padding: var(--page-top) var(--page-gutter) 64px;
+}
+
+.plans-page__header {
+  margin-bottom: var(--stack-gap);
+}
+
+.plans-page__title {
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.plans-page__terms {
+  margin-top: 8px;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+
+@media (min-width: 1024px) {
+  .plans-page__layout {
+    padding-bottom: 80px;
+  }
+}

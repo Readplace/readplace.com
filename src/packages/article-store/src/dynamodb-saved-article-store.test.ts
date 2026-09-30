@@ -22,6 +22,7 @@ interface CapturedCommand {
 		ConditionExpression?: string;
 		ConsistentRead?: boolean;
 		ExclusiveStartKey?: Record<string, unknown>;
+		ExpressionAttributeNames?: Record<string, string>;
 		ExpressionAttributeValues?: Record<string, unknown>;
 		FilterExpression?: string;
 		IndexName?: string;
@@ -1229,6 +1230,305 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	});
 });
 
+describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
+	const SEND_INSTANT = new Date("2026-05-30T12:00:00.000Z");
+	const SAVED_AT_OR_BEFORE = new Date("2026-05-29T12:00:00.000Z");
+
+	it("reads the reader's own partition newest first up to the cutoff, keeping unread rows never emailed or emailed by this same send", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { readlist: [{ Items: [userArticleItem()], Count: 1 }] },
+			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
+		});
+
+		await initStore(client).findUnreadSavesForDigest({
+			userId: USER,
+			savedAtOrBefore: SAVED_AT_OR_BEFORE,
+			emailFilter: { kind: "not-emailed-before", sendInstant: SEND_INSTANT },
+			limit: 11,
+			cursor: undefined,
+		});
+
+		const queries = queryCommands(commands);
+		expect(queries).toHaveLength(1);
+		expect(queries[0]?.input.IndexName).toBe("userId-savedAt-index");
+		expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId AND savedAt <= :cutoff");
+		expect(queries[0]?.input.FilterExpression).toBe(
+			"#status = :unread AND (attribute_not_exists(emailSentAt) OR emailSentAt = :sendInstant)",
+		);
+		expect(queries[0]?.input.ExpressionAttributeNames).toEqual({ "#status": "status" });
+		expect(queries[0]?.input.ExpressionAttributeValues).toEqual({
+			":userId": USER,
+			":cutoff": "2026-05-29T12:00:00.000Z",
+			":unread": "unread",
+			":sendInstant": "2026-05-30T12:00:00.000Z",
+		});
+		expect(queries[0]?.input.ScanIndexForward).toBe(false);
+		expect(queries[0]?.input.ExclusiveStartKey).toBeUndefined();
+	});
+
+	it("keeps every unread row whatever its emailSentAt when the filter is any", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { readlist: [{ Items: [userArticleItem()], Count: 1 }] },
+			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
+		});
+
+		await initStore(client).findUnreadSavesForDigest({
+			userId: USER,
+			savedAtOrBefore: SEND_INSTANT,
+			emailFilter: { kind: "any" },
+			limit: 11,
+			cursor: undefined,
+		});
+
+		const [query] = queryCommands(commands);
+		expect(query?.input.FilterExpression).toBe("#status = :unread");
+		expect(query?.input.ExpressionAttributeValues).toEqual({
+			":userId": USER,
+			":cutoff": "2026-05-30T12:00:00.000Z",
+			":unread": "unread",
+		});
+	});
+
+	it("reads one index page per call with no row Limit, so saves the filter drops cost no extra round trips, and hands back what matched even when that is fewer than limit", async () => {
+		const pageStoppedAt = { userId: USER, url: "skipped", savedAt: "2026-05-29T11:00:00.000Z" };
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [userArticleItem({ url: "a" })], Count: 1, ScannedCount: 900, LastEvaluatedKey: pageStoppedAt },
+					{ Items: [], Count: 0 },
+				],
+			},
+			BatchGetCommand: {
+				default: { Responses: { articles: [articleItem({ url: "a", originalUrl: "https://example.com/a" })] } },
+			},
+		});
+		const store = initStore(client);
+		const query = {
+			userId: USER,
+			savedAtOrBefore: SAVED_AT_OR_BEFORE,
+			emailFilter: { kind: "any" },
+			limit: 3,
+		} as const;
+
+		const page = await store.findUnreadSavesForDigest({ ...query, cursor: undefined });
+		const queriesForFirstPage = queryCommands(commands).length;
+		await store.findUnreadSavesForDigest({ ...query, cursor: page.nextCursor });
+
+		const queries = queryCommands(commands);
+		expect(queriesForFirstPage).toBe(1);
+		expect(queries[0]?.input.Limit).toBeUndefined();
+		expect(page.candidates.map((candidate) => candidate.article.url)).toEqual(["https://example.com/a"]);
+		expect(queries[1]?.input.ExclusiveStartKey).toEqual(pageStoppedAt);
+	});
+
+	it("keeps only the first limit rows of a page, in index order, and resumes the next page right after the last row it kept", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{
+						Items: [
+							userArticleItem({ url: "a", savedAt: "2026-05-29T10:00:00.000Z" }),
+							userArticleItem({ url: "b", savedAt: "2026-05-29T09:00:00.000Z" }),
+							userArticleItem({ url: "c", savedAt: "2026-05-29T08:00:00.000Z" }),
+						],
+						Count: 3,
+						LastEvaluatedKey: { userId: USER, url: "z", savedAt: "2026-05-28T00:00:00.000Z" },
+					},
+					{ Items: [], Count: 0 },
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							articleItem({ url: "b", originalUrl: "https://example.com/b" }),
+							articleItem({ url: "a", originalUrl: "https://example.com/a" }),
+						],
+					},
+				},
+			},
+		});
+		const store = initStore(client);
+		const query = {
+			userId: USER,
+			savedAtOrBefore: SAVED_AT_OR_BEFORE,
+			emailFilter: { kind: "any" },
+			limit: 2,
+		} as const;
+
+		const page = await store.findUnreadSavesForDigest({ ...query, cursor: undefined });
+		await store.findUnreadSavesForDigest({ ...query, cursor: page.nextCursor });
+
+		expect(batchGetKeys(commands)).toEqual([{ url: "a" }, { url: "b" }]);
+		expect(page.candidates.map((candidate) => candidate.article.url)).toEqual([
+			"https://example.com/a",
+			"https://example.com/b",
+		]);
+		expect(queryCommands(commands)[1]?.input.ExclusiveStartKey).toEqual({
+			userId: USER,
+			url: "b",
+			savedAt: "2026-05-29T09:00:00.000Z",
+		});
+	});
+
+	it("hands back where the index read stopped as an opaque cursor that resumes the next page exactly there, and reports no cursor once the index is exhausted", async () => {
+		const stoppedAt = { userId: USER, url: "b", savedAt: "2026-05-29T08:00:00.000Z" };
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{
+						Items: [userArticleItem({ url: "a" }), userArticleItem({ url: "b" })],
+						Count: 2,
+						LastEvaluatedKey: stoppedAt,
+					},
+					{ Items: [], Count: 0 },
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							articleItem({ url: "a", originalUrl: "https://example.com/a" }),
+							articleItem({ url: "b", originalUrl: "https://example.com/b" }),
+						],
+					},
+				},
+			},
+		});
+		const store = initStore(client);
+		const query = {
+			userId: USER,
+			savedAtOrBefore: SAVED_AT_OR_BEFORE,
+			emailFilter: { kind: "any" },
+			limit: 2,
+		} as const;
+
+		const first = await store.findUnreadSavesForDigest({ ...query, cursor: undefined });
+		const second = await store.findUnreadSavesForDigest({ ...query, cursor: first.nextCursor });
+
+		const queries = queryCommands(commands);
+		expect(queries).toHaveLength(2);
+		expect(queries[1]?.input.ExclusiveStartKey).toEqual(stoppedAt);
+		expect(second).toEqual({ candidates: [], nextCursor: undefined });
+		expect(commands.filter((c) => c.name === "BatchGetCommand")).toHaveLength(1);
+	});
+
+	it("hydrates each candidate from the global row's metadata alone, carrying readerAvailableAt and purgedAt for the reader-ready gate", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{
+						Items: [
+							userArticleItem({ url: "ready", savedAt: "2026-05-29T10:00:00.000Z" }),
+							userArticleItem({ url: "purged", savedAt: "2026-05-29T09:00:00.000Z" }),
+							userArticleItem({ url: "loading", savedAt: "2026-05-29T08:00:00.000Z" }),
+						],
+						Count: 3,
+					},
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							articleItem({
+								url: "ready",
+								routeId: ReaderArticleHashId.from("https://example.com/ready").value,
+								originalUrl: "https://example.com/ready",
+								title: "Ready to read",
+								content: undefined,
+								readerAvailableAt: "2026-05-29T10:01:00.000Z",
+							}),
+							articleItem({
+								url: "purged",
+								originalUrl: "https://example.com/purged",
+								content: undefined,
+								readerAvailableAt: "2026-05-29T09:01:00.000Z",
+								purgedAt: "2026-05-29T11:00:00.000Z",
+							}),
+							articleItem({ url: "loading", originalUrl: "https://example.com/loading", content: undefined }),
+						],
+					},
+				},
+			},
+		});
+
+		const page = await initStore(client).findUnreadSavesForDigest({
+			userId: USER,
+			savedAtOrBefore: SAVED_AT_OR_BEFORE,
+			emailFilter: { kind: "not-emailed-before", sendInstant: SEND_INSTANT },
+			limit: 3,
+			cursor: undefined,
+		});
+
+		const batch = commands.find((c) => c.name === "BatchGetCommand");
+		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
+			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt, #readerAvailableAt, #contentFetchedAt",
+		);
+		expect(
+			page.candidates.map((candidate) => ({
+				url: candidate.article.url,
+				readerAvailableAt: candidate.readerAvailableAt,
+				purgedAt: candidate.purgedAt,
+			})),
+		).toEqual([
+			{ url: "https://example.com/ready", readerAvailableAt: new Date("2026-05-29T10:01:00.000Z"), purgedAt: undefined },
+			{
+				url: "https://example.com/purged",
+				readerAvailableAt: new Date("2026-05-29T09:01:00.000Z"),
+				purgedAt: new Date("2026-05-29T11:00:00.000Z"),
+			},
+			{ url: "https://example.com/loading", readerAvailableAt: undefined, purgedAt: undefined },
+		]);
+		const [ready] = page.candidates;
+		expect(ready?.article.id.value).toBe(ReaderArticleHashId.from("https://example.com/ready").value);
+		expect(ready?.article.userId).toBe(USER);
+		expect(ready?.article.metadata.title).toBe("Ready to read");
+		expect(ready?.article.savedAt).toEqual(new Date("2026-05-29T10:00:00.000Z"));
+	});
+
+	it("carries each save's own emailSentAt so a resurfacing digest can tell which saves were emailed before", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{
+						Items: [
+							userArticleItem({ url: "emailed", emailSentAt: "2026-05-28T06:00:00.000Z" }),
+							userArticleItem({ url: "never-emailed" }),
+						],
+						Count: 2,
+					},
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							articleItem({ url: "emailed", originalUrl: "https://example.com/emailed", content: undefined }),
+							articleItem({ url: "never-emailed", originalUrl: "https://example.com/never-emailed", content: undefined }),
+						],
+					},
+				},
+			},
+		});
+
+		const page = await initStore(client).findUnreadSavesForDigest({
+			userId: USER,
+			savedAtOrBefore: SAVED_AT_OR_BEFORE,
+			emailFilter: { kind: "any" },
+			limit: 2,
+			cursor: undefined,
+		});
+
+		expect(
+			page.candidates.map((candidate) => ({ url: candidate.article.url, emailSentAt: candidate.emailSentAt })),
+		).toEqual([
+			{ url: "https://example.com/emailed", emailSentAt: new Date("2026-05-28T06:00:00.000Z") },
+			{ url: "https://example.com/never-emailed", emailSentAt: undefined },
+		]);
+	});
+});
+
 describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 	it("sums COUNT pages without fetching rows", async () => {
 		const { client, commands } = createFakeClient({
@@ -1608,50 +1908,6 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		const versions = await initStore(client).findArticleCrawlVersions(URL);
 
 		expect(versions).toEqual([]);
-	});
-
-	it("findUserArticleNotificationState hydrates every timestamp the gate reads", async () => {
-		const { client } = createFakeClient({
-			GetCommand: {
-				default: {
-					Item: userArticleItem({
-						status: "read",
-						viewedAt: "2026-05-30T09:20:00.000Z",
-						emailSentAt: "2026-05-30T09:40:00.000Z",
-					}),
-				},
-			},
-		});
-
-		const state = await initStore(client).findUserArticleNotificationState({ userId: USER, url: URL });
-
-		expect(state).toEqual({
-			savedAt: new Date("2026-05-30T09:00:00.000Z"),
-			status: "read",
-			viewedAt: new Date("2026-05-30T09:20:00.000Z"),
-			emailSentAt: new Date("2026-05-30T09:40:00.000Z"),
-		});
-	});
-
-	it("findUserArticleNotificationState leaves never-stamped timestamps undefined", async () => {
-		const { client } = createFakeClient({ GetCommand: { default: { Item: userArticleItem() } } });
-
-		const state = await initStore(client).findUserArticleNotificationState({ userId: USER, url: URL });
-
-		expect(state).toEqual({
-			savedAt: new Date("2026-05-30T09:00:00.000Z"),
-			status: "unread",
-			viewedAt: undefined,
-			emailSentAt: undefined,
-		});
-	});
-
-	it("findUserArticleNotificationState returns null when no row exists", async () => {
-		const { client } = createFakeClient({ GetCommand: { default: { Item: undefined } } });
-
-		const state = await initStore(client).findUserArticleNotificationState({ userId: USER, url: URL });
-
-		expect(state).toBeNull();
 	});
 
 	it("findArticleByUrl maps the global row including savedAt and contentSourceTier", async () => {

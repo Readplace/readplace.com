@@ -1,9 +1,10 @@
-import type { UserId } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { initInMemoryReaderReadyState } from "./in-memory-reader-ready-state";
 
 const COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const USER = "user-1" as UserId;
 const MESSAGE = "msg-1";
+const LISTED_URLS = ["https://example.com/newest", "https://example.com/older"];
 
 describe("initInMemoryReaderReadyState", () => {
 	describe("claimReaderReadyEmailSlot", () => {
@@ -14,6 +15,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -26,6 +28,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -33,19 +36,21 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T12:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: "msg-2",
 			});
 
 			expect(second).toEqual({ claimed: false });
 		});
 
-		it("reports a redelivery, with the original claim instant, when the same message claims twice", async () => {
+		it("reports a redelivery, with the original claim instant and the urls that send listed, when the same message claims twice", async () => {
 			const store = initInMemoryReaderReadyState();
 			const first = new Date("2026-05-30T10:00:00.000Z");
 			await store.claimReaderReadyEmailSlot({
 				userId: USER,
 				now: first,
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -53,16 +58,17 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:02:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: ["https://example.com/re-selected"],
 				messageId: MESSAGE,
 			});
 
-			expect(again).toEqual({ claimed: true, redelivery: true, claimedAt: first });
+			expect(again).toEqual({ claimed: true, redelivery: true, claimedAt: first, urls: LISTED_URLS });
 		});
 
 		it("keeps reporting the original instant however many times the message is redelivered", async () => {
 			const store = initInMemoryReaderReadyState();
 			const first = new Date("2026-05-30T10:00:00.000Z");
-			const params = { userId: USER, cooldownMs: COOLDOWN_MS, messageId: MESSAGE };
+			const params = { userId: USER, cooldownMs: COOLDOWN_MS, messageId: MESSAGE, urls: LISTED_URLS };
 			await store.claimReaderReadyEmailSlot({ ...params, now: first });
 			await store.claimReaderReadyEmailSlot({ ...params, now: new Date("2026-05-30T10:02:00.000Z") });
 
@@ -71,12 +77,12 @@ describe("initInMemoryReaderReadyState", () => {
 				now: new Date("2026-05-30T10:04:00.000Z"),
 			});
 
-			expect(third).toEqual({ claimed: true, redelivery: true, claimedAt: first });
+			expect(third).toEqual({ claimed: true, redelivery: true, claimedAt: first, urls: LISTED_URLS });
 		});
 
 		it("treats a receive after the cooldown lapsed as a fresh claim, so a stale redrive re-sends rather than draining", async () => {
 			const store = initInMemoryReaderReadyState();
-			const params = { userId: USER, cooldownMs: COOLDOWN_MS, messageId: MESSAGE };
+			const params = { userId: USER, cooldownMs: COOLDOWN_MS, messageId: MESSAGE, urls: LISTED_URLS };
 			await store.claimReaderReadyEmailSlot({ ...params, now: new Date("2026-05-30T10:00:00.000Z") });
 
 			const muchLater = await store.claimReaderReadyEmailSlot({
@@ -93,6 +99,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -100,6 +107,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T17:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: "msg-2",
 			});
 
@@ -112,6 +120,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -119,6 +128,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: "user-2" as UserId,
 				now: new Date("2026-05-30T10:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: "msg-2",
 			});
 
@@ -134,6 +144,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: claimedAt,
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -143,6 +154,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:01:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: "msg-2",
 			});
 			expect(reclaimed).toEqual({ claimed: true, redelivery: false });
@@ -155,6 +167,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: claimedAt,
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -164,6 +177,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:01:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 			expect(redriven).toEqual({ claimed: true, redelivery: false });
@@ -175,6 +189,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -188,6 +203,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T11:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: "msg-2",
 			});
 			expect(second).toEqual({ claimed: false });
@@ -200,6 +216,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: claimedAt,
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -209,9 +226,80 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T11:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: "msg-3",
 			});
 			expect(second).toEqual({ claimed: false });
+		});
+	});
+
+	describe("findReaderReadyEmailState", () => {
+		it("reads as never sent before any claim", async () => {
+			const store = initInMemoryReaderReadyState();
+
+			const state = await store.findReaderReadyEmailState(USER);
+
+			expect(state).toEqual({ lastSentAt: undefined, lastMessageId: undefined });
+		});
+
+		it("reads the claimed instant and the message that claimed it", async () => {
+			const store = initInMemoryReaderReadyState();
+			const claimedAt = new Date("2026-05-30T10:00:00.000Z");
+			await store.claimReaderReadyEmailSlot({
+				userId: USER,
+				now: claimedAt,
+				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
+				messageId: MESSAGE,
+			});
+
+			const state = await store.findReaderReadyEmailState(USER);
+
+			expect(state).toEqual({ lastSentAt: claimedAt, lastMessageId: MESSAGE });
+		});
+
+		it("keeps reading the original instant after the same message is redelivered", async () => {
+			const store = initInMemoryReaderReadyState();
+			const claimedAt = new Date("2026-05-30T10:00:00.000Z");
+			const params = { userId: USER, cooldownMs: COOLDOWN_MS, messageId: MESSAGE, urls: LISTED_URLS };
+			await store.claimReaderReadyEmailSlot({ ...params, now: claimedAt });
+			await store.claimReaderReadyEmailSlot({ ...params, now: new Date("2026-05-30T10:02:00.000Z") });
+
+			const state = await store.findReaderReadyEmailState(USER);
+
+			expect(state).toEqual({ lastSentAt: claimedAt, lastMessageId: MESSAGE });
+		});
+
+		it("reads as never sent after the claim is released", async () => {
+			const store = initInMemoryReaderReadyState();
+			const claimedAt = new Date("2026-05-30T10:00:00.000Z");
+			await store.claimReaderReadyEmailSlot({
+				userId: USER,
+				now: claimedAt,
+				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
+				messageId: MESSAGE,
+			});
+			await store.releaseReaderReadyEmailSlot({ userId: USER, claimedAt, messageId: MESSAGE });
+
+			const state = await store.findReaderReadyEmailState(USER);
+
+			expect(state).toEqual({ lastSentAt: undefined, lastMessageId: undefined });
+		});
+
+		it("reads only the given user's claim", async () => {
+			const store = initInMemoryReaderReadyState();
+			await store.claimReaderReadyEmailSlot({
+				userId: USER,
+				now: new Date("2026-05-30T10:00:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
+				messageId: MESSAGE,
+			});
+
+			const state = await store.findReaderReadyEmailState(UserIdSchema.parse("user-2"));
+
+			expect(state).toEqual({ lastSentAt: undefined, lastMessageId: undefined });
 		});
 	});
 
@@ -222,6 +310,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:00:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: MESSAGE,
 			});
 
@@ -231,6 +320,7 @@ describe("initInMemoryReaderReadyState", () => {
 				userId: USER,
 				now: new Date("2026-05-30T10:01:00.000Z"),
 				cooldownMs: COOLDOWN_MS,
+				urls: LISTED_URLS,
 				messageId: "msg-2",
 			});
 			expect(reclaimed).toEqual({ claimed: true, redelivery: false });

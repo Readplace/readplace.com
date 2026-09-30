@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildFirstArticleSeededEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type FirstArticleSeededEvent, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildFirstArticleSeededEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type FirstArticleSeededEvent, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
 import { OAUTH_TOKEN_GRANT_TYPES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES, FIRST_ARTICLE_SEEDED_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -108,6 +108,10 @@ function runMiddleware(
 
 function runMiddlewareClicks(req: Partial<Request>, res: Response & EventEmitter): AnalyticsClick[] {
 	return captureEvents(req, res).filter((e): e is AnalyticsClick => e.event === "click");
+}
+
+function runMiddlewareEmailClicks(req: Partial<Request>, res: Response & EventEmitter): AnalyticsEmailClick[] {
+	return captureEvents(req, res).filter((e): e is AnalyticsEmailClick => e.event === "email_click");
 }
 
 describe("createAnalyticsMiddleware", () => {
@@ -542,6 +546,114 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 		});
 		const [click] = runMiddlewareClicks(createReq({ path: "/signup", query: conversionLink }), createRes(200));
 		expect(click).toMatchObject({ utm_source: "homepage", utm_content: "founding-card" });
+	});
+});
+
+describe("createAnalyticsMiddleware — email click events", () => {
+	const emailQuery = {
+		utm_source: "queue-digest",
+		utm_medium: "email",
+		utm_campaign: "pay",
+		utm_content: "keep-readplace",
+		utm_term: "msg-1",
+	};
+	const ownHostReferrer = `https://${OWN_HOST}/login?return=%2Faccount%2Fplans`;
+
+	it("emits exactly one email_click carrying the redirect status when an email link lands on a 303, so a signed-out click bounced to login is still counted", () => {
+		const req = createReq({ path: "/account/plans", query: emailQuery, visitorId: "550e8400-e29b-41d4-a716-446655440000" });
+		expect(captureEvents(req, createRes(303))).toEqual([
+			{
+				stream: "analytics",
+				event: "email_click",
+				timestamp: "2026-04-21T10:00:00.000Z",
+				path: "/account/plans",
+				status_code: 303,
+				utm_source: "queue-digest",
+				utm_campaign: "pay",
+				utm_content: "keep-readplace",
+				utm_term: "msg-1",
+				device_class: "desktop",
+				browser: "chrome",
+				visitor_hash: expect.any(String),
+				visitor_id: "550e8400-e29b-41d4-a716-446655440000",
+				is_authenticated: 0,
+				user_id: null,
+			},
+		]);
+	});
+
+	it("emits the email_click alongside the pageview when the email link renders the page directly", () => {
+		const events = captureEvents(createReq({ path: "/queue", query: emailQuery }), createRes(200));
+		expect(events.map((e) => e.event)).toEqual(["email_click", "pageview"]);
+	});
+
+	it("records the signed-in reader on the email_click, so clicks from one send are countable per reader", () => {
+		const [click] = runMiddlewareEmailClicks(createReq({ query: emailQuery, userId: "user-1" }), createRes(200));
+		expect(click).toMatchObject({ is_authenticated: 1, user_id: "user-1" });
+	});
+
+	it("counts a signed-in email hop that carries our own host as referrer, which is how the page after a password login arrives — in-site links carry utm_medium=internal, so a signed-in request bearing the email medium came from the email", () => {
+		const req = createReq({ query: emailQuery, userId: "user-1", headers: { referer: ownHostReferrer } });
+		const clicks = runMiddlewareEmailClicks(req, createRes(200));
+		expect(clicks).toHaveLength(1);
+		expect(clicks[0]).toMatchObject({ is_authenticated: 1, user_id: "user-1", status_code: 200 });
+	});
+
+	it("does not count an anonymous email click whose referrer is our own host, since no conforming browser sends one", () => {
+		const req = createReq({ query: emailQuery, headers: { referer: ownHostReferrer } });
+		expect(runMiddlewareEmailClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count an email click when isbot flags the user-agent", () => {
+		const req = createReq({ query: emailQuery, headers: { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" } });
+		expect(runMiddlewareEmailClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count a speculatively prefetched email link", () => {
+		const req = createReq({ query: emailQuery, headers: { "sec-purpose": "prefetch" } });
+		expect(runMiddlewareEmailClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count an email click from a request carrying no Accept-Language", () => {
+		const req = createReq({ query: emailQuery, headers: { "accept-language": undefined } });
+		expect(runMiddlewareEmailClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count an email click from a UA claiming Chrome that sends no Sec-CH-UA", () => {
+		const req = createReq({ query: emailQuery, headers: { "sec-ch-ua": undefined } });
+		expect(runMiddlewareEmailClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count an email click when the response is a 4xx/5xx error", () => {
+		expect(runMiddlewareEmailClicks(createReq({ query: emailQuery }), createRes(404))).toEqual([]);
+		expect(runMiddlewareEmailClicks(createReq({ query: emailQuery }), createRes(500))).toEqual([]);
+	});
+
+	it("does not count an email click when the route suppressed the response", () => {
+		const res = createRes(303);
+		suppressClickCount(res);
+		expect(runMiddlewareEmailClicks(createReq({ query: emailQuery }), res)).toEqual([]);
+	});
+
+	it("keeps the browser gates for a signed-in email hop: the own-host referrer is the only rule the session lifts", () => {
+		const signedIn = { query: emailQuery, userId: "user-1" };
+		expect(runMiddlewareEmailClicks(createReq({ ...signedIn, headers: { "sec-purpose": "prefetch" } }), createRes(200))).toEqual([]);
+		expect(runMiddlewareEmailClicks(createReq({ ...signedIn, headers: { "accept-language": undefined } }), createRes(200))).toEqual([]);
+		expect(runMiddlewareEmailClicks(createReq({ ...signedIn, headers: { "sec-ch-ua": undefined } }), createRes(200))).toEqual([]);
+		expect(runMiddlewareEmailClicks(createReq(signedIn), createRes(404))).toEqual([]);
+		const suppressed = createRes(303);
+		suppressClickCount(suppressed);
+		expect(runMiddlewareEmailClicks(createReq(signedIn), suppressed)).toEqual([]);
+	});
+
+	it("records an email link as an email_click only, never as an internal click", () => {
+		expect(runMiddlewareClicks(createReq({ query: emailQuery }), createRes(200))).toEqual([]);
+	});
+
+	it("still records an internal link as a click only, never as an email_click", () => {
+		const internalQuery = { utm_source: "queue", utm_medium: "internal", utm_content: "subscribe" };
+		const events = captureEvents(createReq({ query: internalQuery }), createRes(303));
+		expect(events.map((e) => e.event)).toEqual(["click"]);
 	});
 });
 

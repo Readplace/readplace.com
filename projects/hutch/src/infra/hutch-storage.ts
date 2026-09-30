@@ -279,9 +279,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 		}, { parent: this });
 
 		/* Per-(user, article) reader-ready digest queue. Rows are appended by the
-		 * reader-ready fan-out and drained when the 6h digest sends. Ephemeral by
-		 * definition — no deletion protection or point-in-time recovery; TTL on
-		 * `expiresAt` purges any row a send never got to. */
+		 * reader-ready fan-out. Ephemeral by definition — no deletion protection or
+		 * point-in-time recovery. */
 		this.digestQueueTable = new aws.dynamodb.Table(`hutch-digest-queue`, {
 			name: args.tableNames.digestQueue,
 			billingMode: "PAY_PER_REQUEST",
@@ -306,12 +305,18 @@ export class HutchStorage extends pulumi.ComponentResource {
 			attributes: [
 				{ name: "userId", type: "S" },
 				{ name: "subscriptionId", type: "S" },
+				{ name: "status", type: "S" },
 			],
 			globalSecondaryIndexes: [
 				{
 					name: "subscriptionId-index",
 					hashKey: "subscriptionId",
 					projectionType: "ALL",
+				},
+				{
+					name: "status-index",
+					hashKey: "status",
+					projectionType: "KEYS_ONLY",
 				},
 			],
 		}, { parent: this });

@@ -20,6 +20,7 @@ import {
 	LOG_GROUPS,
 	MCP_TOOL_OUTCOMES,
 	METRICS,
+	QUEUE_DIGEST_EVENTS,
 	SAVE_OUTCOMES,
 	SAVE_SURFACES,
 	STREAMS,
@@ -1068,9 +1069,82 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	widgets.push(
+		logWidget({
+			region,
+			title: "Queue digest — sends per day by kind",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, kind",
+				`| filter stream = "${STREAMS.analytics}" and event = "${QUEUE_DIGEST_EVENTS.sent}"`,
+				...exclude,
+				"| stats count(*) as sends by bin(1d), kind",
+			].join(" "),
+			x: 0, y: 238, width: 24, height: 8,
+			view: "timeSeries",
+		}),
+		logWidget({
+			region,
+			title: "Queue digest — skipped users by reason × tier",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, reason, tier",
+				`| filter stream = "${STREAMS.analytics}" and event = "${QUEUE_DIGEST_EVENTS.skipped}"`,
+				...exclude,
+				"| stats count_distinct(user_id) as users, count(*) as ticks by reason, tier",
+				"| sort users desc",
+			].join(" "),
+			x: 0, y: 246, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Queue digest — signed-in email clicks by source / link",
+			logGroupNames: analyticsSource,
+			query: [
+				'fields @timestamp, user_id, coalesce(utm_source, "-") as source, coalesce(utm_content, "-") as link',
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.emailClick}" and is_authenticated = 1`,
+				...exclude,
+				"| stats count(*) as clicks, count_distinct(user_id) as users by source, link",
+				"| sort users desc",
+				"| limit 50",
+			].join(" "),
+			x: 12, y: 246, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Queue digest — plans page views by terms",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, terms",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.plansPageViewed}"`,
+				...exclude,
+				"| stats count(*) as views, count_distinct(user_id) as users by terms",
+				"| sort views desc",
+			].join(" "),
+			x: 0, y: 254, width: 12, height: 8,
+			view: "bar",
+		}),
+		logWidget({
+			region,
+			title: "Queue digest — unsubscribes by method",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, method",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.queueDigestUnsubscribed}"`,
+				...exclude,
+				"| stats count(*) as unsubscribes, count_distinct(user_id) as users by method",
+				"| sort users desc",
+			].join(" "),
+			x: 12, y: 254, width: 12, height: 8,
+			view: "bar",
+		}),
+	);
+
+	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 238, width: 8, height: 4,
+			x: index * 8, y: 262, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,

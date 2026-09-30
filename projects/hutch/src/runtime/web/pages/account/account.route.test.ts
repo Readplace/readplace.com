@@ -14,7 +14,10 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { CHECKOUT_VARIANTS } from "../../../observability/events";
-import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
+import {
+	SUBSCRIBE_PLANS_POPOVER_ID,
+	renderSubscribePlansGrid,
+} from "../../shared/subscribe-plans/subscribe-plans.component";
 import { ACCOUNT_CANCEL_MAX_POLLS } from "./account.view-model";
 
 function card(id: string, isPrimary: boolean, last4: string): SavedCard {
@@ -1690,6 +1693,66 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 		expect(subscriptionBilling.createdSubscriptions().map((s) => s.priceId)).toEqual([
 			"price_test_monthly",
 		]);
+	});
+});
+
+describe("POST /account/subscribe (where the plan was chosen)", () => {
+	function yearlyFormAction(html: string): string {
+		const form = new JSDOM(html).window.document.querySelector("[data-test-plan='yearly'] form");
+		assert(form, "the plan grid must post the yearly plan through a form");
+		const action = form.getAttribute("action");
+		assert(action, "the yearly plan form must carry an action");
+		return action;
+	}
+
+	async function trialingReader(email: string) {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, email);
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+		const entrySources = () =>
+			harness.subscriptionEvents.events
+				.filter((e) => e.event === "checkout_started")
+				.map((e) => e.entry_source);
+		return { agent, entrySources };
+	}
+
+	it("records the plans page as the checkout's entry source when the reader chose a plan from its grid", async () => {
+		const { agent, entrySources } = await trialingReader("entry-plans-page@example.com");
+
+		const action = yearlyFormAction(renderSubscribePlansGrid({ source: "plans-page" }));
+		const response = await agent.post(action).type("form").send({ plan: "yearly" });
+
+		expect(response.status).toBe(303);
+		expect(entrySources()).toEqual(["plans-page"]);
+	});
+
+	it("records the account page as the checkout's entry source when the reader chose a plan from its popover", async () => {
+		const { agent, entrySources } = await trialingReader("entry-account@example.com");
+
+		const page = await agent.get("/account");
+		const response = await agent.post(yearlyFormAction(page.text)).type("form").send({ plan: "yearly" });
+
+		expect(response.status).toBe(303);
+		expect(entrySources()).toEqual(["account"]);
+	});
+
+	it("records a null entry source when the form names no plan surface, as the no-JS subscribe fallback does", async () => {
+		const { agent, entrySources } = await trialingReader("entry-none@example.com");
+
+		await agent.post("/account/subscribe");
+
+		expect(entrySources()).toEqual([null]);
+	});
+
+	it("records a null entry source for a utm_source that is not a plan surface, rather than trusting whatever the query says", async () => {
+		const { agent, entrySources } = await trialingReader("entry-unknown@example.com");
+
+		await agent.post("/account/subscribe?utm_source=newsletter&utm_medium=internal");
+
+		expect(entrySources()).toEqual([null]);
 	});
 });
 

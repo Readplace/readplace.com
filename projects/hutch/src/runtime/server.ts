@@ -26,6 +26,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
+	SetQueueDigestOptOut,
 	SetUserAppearance,
 	UpdatePassword,
 	MarkAccountDeleted,
@@ -224,7 +225,10 @@ import { initViewRoutes } from "./web/pages/view/view.page";
 import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
+import { initQueueDigestUnsubscribeRoutes } from "./web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page";
+import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
 import { initAccountRoutes } from "./web/pages/account/account.page";
+import { ACCOUNT_PLANS_URL } from "./web/pages/account/account.url";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
 import { initRecordMcpToolCall } from "./web/mcp/mcp-analytics";
@@ -332,6 +336,7 @@ interface AppDependencies {
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
+	setQueueDigestOptOut: SetQueueDigestOptOut;
 	googleAuth?: {
 		exchangeGoogleCode: ExchangeGoogleCode;
 		clientId: string;
@@ -1500,6 +1505,16 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use("/export", requireAuth, exportRouter);
 
+	app.use(
+		initQueueDigestUnsubscribeRoutes({
+			verifyUnsubscribeToken: initQueueDigestUnsubscribeToken(deps.salt).verify,
+			setQueueDigestOptOut: deps.setQueueDigestOptOut,
+			recordUngatedAnalyticsEvent,
+			now: deps.now,
+			buildBannerState,
+		}),
+	);
+
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
@@ -1546,6 +1561,14 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		buildBannerState,
 		recordSubscriptionEvent,
+		recordAnalyticsEvent,
+	});
+	app.get(ACCOUNT_PLANS_URL, (req: Request, res: Response, next: NextFunction) => {
+		if (req.userId) {
+			next();
+			return;
+		}
+		res.redirect(303, `/login?return=${encodeURIComponent(req.originalUrl)}`);
 	});
 	app.use("/account", requireAuth, accountRouter);
 

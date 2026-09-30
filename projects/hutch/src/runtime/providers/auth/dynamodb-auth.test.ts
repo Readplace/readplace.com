@@ -246,6 +246,88 @@ describe("initDynamoDbAuth", () => {
 
 			expect(contact).toBeNull();
 		});
+
+		it("carries the queue digest opt-out instant from the row", async () => {
+			const { client } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					queueDigestOptOutAt: "2026-09-30T10:00:00.000Z",
+				},
+			});
+
+			const contact = await initAuth(client).findUserContactByUserId(USER);
+
+			expect(contact).toStrictEqual({
+				email: "user@example.com",
+				emailVerified: true,
+				queueDigestOptOutAt: "2026-09-30T10:00:00.000Z",
+			});
+		});
+
+		it("reports no queue digest opt-out for a row that never opted out", async () => {
+			const { client } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123", emailVerified: true },
+			});
+
+			const contact = await initAuth(client).findUserContactByUserId(USER);
+
+			expect(contact).toStrictEqual({
+				email: "user@example.com",
+				emailVerified: true,
+				queueDigestOptOutAt: undefined,
+			});
+		});
+	});
+
+	describe("setQueueDigestOptOut", () => {
+		it("sets the opt-out instant conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).setQueueDigestOptOut({
+				userId: USER,
+				optedOutAt: "2026-09-30T10:00:00.000Z",
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET queueDigestOptOutAt = :optedOutAt",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":optedOutAt": "2026-09-30T10:00:00.000Z" },
+			});
+		});
+
+		it("removes the opt-out instant when opting back in", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).setQueueDigestOptOut({ userId: USER, optedOutAt: undefined });
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "REMOVE queueDigestOptOutAt",
+				ConditionExpression: "attribute_exists(email)",
+			});
+		});
+
+		it("no-ops when the user row is already gone", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).setQueueDigestOptOut({
+				userId: USER,
+				optedOutAt: "2026-09-30T10:00:00.000Z",
+			});
+
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
 	});
 
 	describe("findUserById", () => {

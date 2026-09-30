@@ -24,4 +24,23 @@ describe("initLogEmail", () => {
 			text: undefined,
 		});
 	});
+
+	it("logs the custom headers so a local run shows what the provider would receive", async () => {
+		const infoSpy = jest.fn();
+		const logger = HutchLogger.from({ ...noopLogger, info: infoSpy });
+		const { sendEmail } = initLogEmail({ logger });
+
+		await sendEmail({
+			from: "sender@example.com",
+			to: "recipient@example.com",
+			subject: "Test Subject",
+			html: "<p>Test</p>",
+			headers: { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+		});
+
+		expect(infoSpy).toHaveBeenCalledWith(
+			"[Email]",
+			expect.objectContaining({ headers: { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }),
+		);
+	});
 });

@@ -47,7 +47,7 @@ import type {
 	FindArticlesResult,
 	FindReadlistArticleById,
 	FindReadlistArticles,
-	FindUserArticleNotificationState,
+	FindUnreadSavesForDigest,
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
@@ -63,6 +63,7 @@ import type {
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
+import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
 
 interface GlobalArticle {
 	url: string;
@@ -82,6 +83,7 @@ interface GlobalArticle {
 	contentSourceTier?: "tier-0" | "tier-1";
 	crawlVersions?: ArticleCrawlVersion[];
 	purgedAt?: Date;
+	readerAvailableAt?: Date;
 }
 
 interface UserArticle {
@@ -156,7 +158,7 @@ export function initInMemoryArticleStore(): {
 	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
-	findUserArticleNotificationState: FindUserArticleNotificationState;
+	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;
 	findReadlistArticles: FindReadlistArticles;
 	countReadlistArticles: CountReadlistArticles;
@@ -194,6 +196,7 @@ export function initInMemoryArticleStore(): {
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
+	setReaderAvailableAt: (params: { url: string; at: Date }) => Promise<void>;
 	setReadlistArticleStatus: (params: {
 		id: ReaderArticleHashId;
 		userId: UserId;
@@ -769,15 +772,41 @@ export function initInMemoryArticleStore(): {
 		};
 	};
 
-	const findUserArticleNotificationState: FindUserArticleNotificationState = async ({ userId, url }) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
-		if (!ua) return null;
+	const findUnreadSavesForDigest: FindUnreadSavesForDigest = async ({
+		userId,
+		savedAtOrBefore,
+		emailFilter,
+		limit,
+		cursor,
+	}) => {
+		const passesEmailFilter = (ua: UserArticle): boolean =>
+			emailFilter.kind === "any" ||
+			ua.emailSentAt === undefined ||
+			ua.emailSentAt.getTime() === emailFilter.sendInstant.getTime();
+		const matching = [...userArticles.values()]
+			.filter(
+				(ua) =>
+					ua.userId === userId &&
+					ua.readlist === undefined &&
+					ua.status === "unread" &&
+					ua.savedAt.getTime() <= savedAtOrBefore.getTime() &&
+					passesEmailFilter(ua),
+			)
+			.sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime());
+		const start = cursor === undefined ? 0 : Number(cursor);
+		const end = start + limit;
 		return {
-			savedAt: ua.savedAt,
-			status: ua.status,
-			viewedAt: ua.viewedAt,
-			emailSentAt: ua.emailSentAt,
+			candidates: matching.slice(start, end).map((ua) => {
+				const article = articles.get(ua.url);
+				assert(article, "every saved row has a global article");
+				return {
+					article: toSavedArticle(article, ua),
+					emailSentAt: ua.emailSentAt,
+					readerAvailableAt: article.readerAvailableAt,
+					purgedAt: article.purgedAt,
+				};
+			}),
+			nextCursor: end < matching.length ? DigestPageCursorSchema.parse(String(end)) : undefined,
 		};
 	};
 
@@ -872,6 +901,13 @@ export function initInMemoryArticleStore(): {
 		article.purgedAt = params.at;
 	};
 
+	const setReaderAvailableAt = async (params: { url: string; at: Date }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.readerAvailableAt = params.at;
+	};
+
 	return {
 		saveArticle,
 		saveArticleKeepingPosition,
@@ -897,7 +933,7 @@ export function initInMemoryArticleStore(): {
 		markRelatedDismissed,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
-		findUserArticleNotificationState,
+		findUnreadSavesForDigest,
 		saveReadlistArticle,
 		findReadlistArticles,
 		countReadlistArticles,
@@ -925,6 +961,7 @@ export function initInMemoryArticleStore(): {
 		setDisplayUrl,
 		setCrawlVersions,
 		setPurgedAt,
+		setReaderAvailableAt,
 		setReadlistArticleStatus,
 	};
 }

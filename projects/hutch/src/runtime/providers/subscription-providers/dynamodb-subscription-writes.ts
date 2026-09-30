@@ -1,9 +1,11 @@
+import assert from "node:assert";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
 import type {
+	ClaimPayDigest,
 	DeleteSubscription,
 	MarkAutomationSavesHeldEmailSent,
 	MarkSubscriptionActive,
@@ -11,6 +13,7 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
+	ReleasePayDigest,
 	SetSubscriptionNextCharge,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -33,6 +36,8 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
+	claimPayDigest: ClaimPayDigest;
+	releasePayDigest: ReleasePayDigest;
 	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
 } {
@@ -50,7 +55,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, automationSavesHeldEmailSentAt, nextCharge, #plan",
+				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, automationSavesHeldEmailSentAt, payDigestEmailSentAt, payDigestMessageId, payDigestUrls, nextCharge, #plan",
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
@@ -181,6 +186,57 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		}
 	};
 
+	const claimPayDigest: ClaimPayDigest = async ({ userId, trialEndsAt, messageId, now, urls }) => {
+		try {
+			await table.update({
+				Key: { userId },
+				UpdateExpression:
+					"SET payDigestEmailSentAt = :now, payDigestMessageId = :mid, payDigestUrls = :urls, updatedAt = :now",
+				ConditionExpression:
+					"attribute_exists(userId) AND #status = :trialing AND trialEndsAt = :trialEndsAt AND attribute_not_exists(payDigestEmailSentAt)",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: {
+					":now": now.toISOString(),
+					":mid": messageId,
+					":urls": urls,
+					":trialing": "trialing",
+					":trialEndsAt": trialEndsAt,
+				},
+			});
+			return { claimed: true, redelivery: false };
+		} catch (error) {
+			if (!(error instanceof ConditionalCheckFailedException)) throw error;
+		}
+
+		const held = await table.get({ userId }, { consistentRead: true });
+		if (held?.payDigestMessageId !== messageId) return { claimed: false };
+		assert(held.payDigestEmailSentAt, "a stored pay-digest claim carries its instant");
+		assert(held.payDigestUrls, "a stored pay-digest claim carries the urls it listed");
+		return {
+			claimed: true,
+			redelivery: true,
+			claimedAt: new Date(held.payDigestEmailSentAt),
+			urls: held.payDigestUrls,
+		};
+	};
+
+	const releasePayDigest: ReleasePayDigest = async ({ userId, claimedAt, messageId }) => {
+		try {
+			await table.update({
+				Key: { userId },
+				UpdateExpression: "REMOVE payDigestEmailSentAt, payDigestMessageId, payDigestUrls",
+				ConditionExpression: "payDigestEmailSentAt = :claimedAt AND payDigestMessageId = :mid",
+				ExpressionAttributeValues: {
+					":claimedAt": claimedAt.toISOString(),
+					":mid": messageId,
+				},
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
+	};
+
 	const setNextCharge: SetSubscriptionNextCharge = async ({
 		userId,
 		subscriptionId,
@@ -221,6 +277,8 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent,
+		claimPayDigest,
+		releasePayDigest,
 		setNextCharge,
 		deleteSubscription,
 	};

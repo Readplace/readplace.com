@@ -87,11 +87,12 @@ import type {
 	FindArticlesAcrossReadlists,
 	FindArticlesByUser,
 	FindEmailByUserId,
+	FindUserContactByUserId,
 	FindGeneratedSummary,
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	FindSubscriptionNextCharge,
-	FindUserArticleNotificationState,
+	FindUnreadSavesForDigest,
 	SaveReadlistArticle,
 	FindReadlistArticles,
 	CountReadlistArticles,
@@ -182,6 +183,7 @@ import type {
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
 	SaveAppleRefreshToken,
+	SetQueueDigestOptOut,
 	SetUserAppearance,
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
@@ -237,7 +239,9 @@ export interface AuthBundle {
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
+	findUserContactByUserId: FindUserContactByUserId;
 	setUserAppearance: SetUserAppearance;
+	setQueueDigestOptOut: SetQueueDigestOptOut;
 	deleteUser: (email: string) => Promise<void>;
 	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }
@@ -359,7 +363,7 @@ export interface ArticleStoreBundle {
 	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
-	findUserArticleNotificationState: FindUserArticleNotificationState;
+	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;
 	findReadlistArticles: FindReadlistArticles;
 	countReadlistArticles: CountReadlistArticles;
@@ -400,6 +404,7 @@ export interface ArticleStoreBundle {
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
+	setReaderAvailableAt: (params: { url: string; at: Date }) => Promise<void>;
 	setReadlistArticleStatus: (params: {
 		id: ReaderArticleHashId;
 		userId: UserId;

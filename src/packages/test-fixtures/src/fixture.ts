@@ -364,7 +364,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			markRelatedDismissed: articleStoreMemory.markRelatedDismissed,
 			findUserArticlesByUrl: articleStoreMemory.findUserArticlesByUrl,
 			markReaderReadyEmailSent: articleStoreMemory.markReaderReadyEmailSent,
-			findUserArticleNotificationState: articleStoreMemory.findUserArticleNotificationState,
+			findUnreadSavesForDigest: articleStoreMemory.findUnreadSavesForDigest,
 			saveReadlistArticle: articleStoreMemory.saveReadlistArticle,
 			findReadlistArticles: articleStoreMemory.findReadlistArticles,
 			countReadlistArticles: articleStoreMemory.countReadlistArticles,
@@ -394,6 +394,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			setDisplayUrl: articleStoreMemory.setDisplayUrl,
 			setCrawlVersions: articleStoreMemory.setCrawlVersions,
 			setPurgedAt: articleStoreMemory.setPurgedAt,
+			setReaderAvailableAt: articleStoreMemory.setReaderAvailableAt,
 			setReadlistArticleStatus: articleStoreMemory.setReadlistArticleStatus,
 		},
 		articleCrawl: {

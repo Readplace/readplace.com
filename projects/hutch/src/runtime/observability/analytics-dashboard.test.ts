@@ -19,6 +19,7 @@ import {
 	LAMBDA_NAMES,
 	LOG_GROUPS,
 	METRICS,
+	QUEUE_DIGEST_EVENTS,
 	SAVE_SURFACES,
 	STREAMS,
 	SUBSCRIPTION_EVENTS,
@@ -85,9 +86,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 56 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 1 epub-downloads, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 61 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(56);
+		expect(body.widgets).toHaveLength(61);
 	});
 
 	it("counts EPUB visitor/article pairs after a public render or directly from the owner reader, preferring click labels over historical pageviews", () => {
@@ -113,6 +114,96 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain('coalesce(click_browser_label, pageview_browser_label, "unclassified") as browser_label');
 		expect(query).toContain('if(owner_clicks > 0, "reader", "view-article") as source');
 		expect(query).toContain("stats count(*) as downloads, count_distinct(visitor_id) as downloaders by device, browser_label, source");
+	});
+
+	describe("Queue digest widgets", () => {
+		const QUEUE_DIGEST_TITLE_PREFIX = "Queue digest — ";
+
+		function queueDigestWidgets(): DashboardWidget[] {
+			return buildBody().widgets.filter(({ properties }) =>
+				String(properties.title).startsWith(QUEUE_DIGEST_TITLE_PREFIX),
+			);
+		}
+
+		function queueDigestQuery(title: string): string {
+			const widget = queueDigestWidgets().find(({ properties }) => properties.title === title);
+			assert(widget, `the "${title}" widget must exist`);
+			const query = widget.properties.query;
+			assert(typeof query === "string");
+			return query;
+		}
+
+		it("lays one widget per digest metric out as a single block of rows, sends across the full width and the breakdowns paired beneath it", () => {
+			expect(
+				queueDigestWidgets().map(({ type, x, y, width, height, properties }) => ({
+					type, x, y, width, height, title: properties.title, view: properties.view,
+				})),
+			).toEqual([
+				{ type: "log", x: 0, y: 238, width: 24, height: 8, title: "Queue digest — sends per day by kind", view: "timeSeries" },
+				{ type: "log", x: 0, y: 246, width: 12, height: 8, title: "Queue digest — skipped users by reason × tier", view: "table" },
+				{ type: "log", x: 12, y: 246, width: 12, height: 8, title: "Queue digest — signed-in email clicks by source / link", view: "table" },
+				{ type: "log", x: 0, y: 254, width: 12, height: 8, title: "Queue digest — plans page views by terms", view: "bar" },
+				{ type: "log", x: 12, y: 254, width: 12, height: 8, title: "Queue digest — unsubscribes by method", view: "bar" },
+			]);
+		});
+
+		it("references every event the digest's read-out depends on, so none of them can ship without a widget", () => {
+			const queries = queueDigestWidgets().map(({ properties }) => String(properties.query));
+			for (const event of [
+				QUEUE_DIGEST_EVENTS.sent,
+				QUEUE_DIGEST_EVENTS.skipped,
+				ANALYTICS_EVENTS.emailClick,
+				ANALYTICS_EVENTS.plansPageViewed,
+				ANALYTICS_EVENTS.queueDigestUnsubscribed,
+			]) {
+				expect(queries.filter((q) => q.includes(`event = "${event}"`))).toHaveLength(1);
+			}
+		});
+
+		it("prunes the owner, internal visitors and bots from every digest widget, and reads only the analytics stream", () => {
+			const widgets = queueDigestWidgets();
+			expect(widgets).toHaveLength(5);
+			for (const { properties } of widgets) {
+				const query = String(properties.query);
+				expect(query.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
+				expect(query).toContain(`| filter stream = "${STREAMS.analytics}" and event = "`);
+				expect(query).toContain(`(user_id not in ["${EXCLUDED_USER_ID}"])`);
+				expect(query).toContain(`(visitor_id not in ["${EXCLUDED_VISITOR_ID}"])`);
+				expect(query).toContain('(device_class != "bot")');
+			}
+		});
+
+		it("charts sends per day split by regular and pay kind", () => {
+			const query = queueDigestQuery("Queue digest — sends per day by kind");
+			expect(query).toContain(`event = "${QUEUE_DIGEST_EVENTS.sent}"`);
+			expect(query).toContain("| stats count(*) as sends by bin(1d), kind");
+		});
+
+		it("counts skip reasons by distinct users rather than ticks, because a skipped user repeats on every tick", () => {
+			const query = queueDigestQuery("Queue digest — skipped users by reason × tier");
+			expect(query).toContain(`event = "${QUEUE_DIGEST_EVENTS.skipped}"`);
+			expect(query).toContain("| stats count_distinct(user_id) as users, count(*) as ticks by reason, tier");
+			expect(query).toContain("| sort users desc");
+		});
+
+		it("counts only signed-in email clicks, by the email that sent them and the link inside it", () => {
+			const query = queueDigestQuery("Queue digest — signed-in email clicks by source / link");
+			expect(query).toContain(`event = "${ANALYTICS_EVENTS.emailClick}" and is_authenticated = 1`);
+			expect(query).toContain('coalesce(utm_source, "-") as source, coalesce(utm_content, "-") as link');
+			expect(query).toContain("| stats count(*) as clicks, count_distinct(user_id) as users by source, link");
+		});
+
+		it("counts plans page views by the charge terms the page stated", () => {
+			const query = queueDigestQuery("Queue digest — plans page views by terms");
+			expect(query).toContain(`event = "${ANALYTICS_EVENTS.plansPageViewed}"`);
+			expect(query).toContain("| stats count(*) as views, count_distinct(user_id) as users by terms");
+		});
+
+		it("counts unsubscribes by one-click versus confirm-page method", () => {
+			const query = queueDigestQuery("Queue digest — unsubscribes by method");
+			expect(query).toContain(`event = "${ANALYTICS_EVENTS.queueDigestUnsubscribed}"`);
+			expect(query).toContain("| stats count(*) as unsubscribes, count_distinct(user_id) as users by method");
+		});
 	});
 
 	it("carries oauth_client_id on the recent-conversions table so a consent-screen signup names the client that sent it", () => {
@@ -419,12 +510,13 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(missing).toEqual([]);
 	});
 
-	it("every event in ANALYTICS_EVENTS / CONVERSION_EVENTS / SUBSCRIPTION_EVENTS is referenced by at least one widget query", () => {
+	it("every event in ANALYTICS_EVENTS / CONVERSION_EVENTS / SUBSCRIPTION_EVENTS / QUEUE_DIGEST_EVENTS is referenced by at least one widget query", () => {
 		const referenced = collectReferencedEvents();
 		const declared = [
 			...Object.values(ANALYTICS_EVENTS),
 			...Object.values(CONVERSION_EVENTS),
 			...Object.values(SUBSCRIPTION_EVENTS),
+			...Object.values(QUEUE_DIGEST_EVENTS),
 		];
 		const missing = declared.filter((e) => !referenced.has(e));
 		expect(missing).toEqual([]);
@@ -443,6 +535,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			...Object.values(ANALYTICS_EVENTS),
 			...Object.values(CONVERSION_EVENTS),
 			...Object.values(SUBSCRIPTION_EVENTS),
+			...Object.values(QUEUE_DIGEST_EVENTS),
 			GMAIL_FILTER_REWRITE_FAILED_EVENT,
 			GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 		]);

@@ -291,4 +291,212 @@ describe("initInMemorySubscriptionProviders", () => {
 		assert(row, "row must exist");
 		expect(row.nextCharge).toBeUndefined();
 	});
+
+	describe("pay-digest claim", () => {
+		const trialEndsAt = "2026-06-05T00:00:00.000Z";
+		const sendInstant = new Date("2026-06-01T06:00:00.000Z");
+		const urls = ["https://example.com/newest", "https://example.com/older"];
+
+		it("claimPayDigest stamps the marker with the send instant, the message and the urls it listed on this trial's row", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt });
+
+			const claim = await subs.claimPayDigest({
+				userId,
+				trialEndsAt,
+				messageId: "msg-pay-1",
+				now: sendInstant,
+				urls,
+			});
+
+			assert.deepEqual(claim, { claimed: true, redelivery: false });
+			const row = await subs.findByUserId(userId);
+			assert(row, "row must exist");
+			assert.equal(row.payDigestEmailSentAt, "2026-06-01T06:00:00.000Z");
+			assert.equal(row.payDigestMessageId, "msg-pay-1");
+			assert.deepEqual(row.payDigestUrls, urls);
+			assert.equal(row.updatedAt, "2026-06-01T06:00:00.000Z");
+		});
+
+		it("claimPayDigest reports a redelivery with the original instant when the same message claims again", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimPayDigest({ userId, trialEndsAt, messageId: "msg-pay-1", now: sendInstant, urls });
+
+			const claim = await subs.claimPayDigest({
+				userId,
+				trialEndsAt,
+				messageId: "msg-pay-1",
+				now: new Date("2026-06-01T12:00:00.000Z"),
+				urls: ["https://example.com/re-selected"],
+			});
+
+			assert.deepEqual(claim, { claimed: true, redelivery: true, claimedAt: sendInstant, urls });
+			const row = await subs.findByUserId(userId);
+			assert(row, "row must exist");
+			assert.equal(row.payDigestEmailSentAt, "2026-06-01T06:00:00.000Z");
+		});
+
+		it("claimPayDigest refuses a second message once the marker is set", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimPayDigest({ userId, trialEndsAt, messageId: "msg-pay-1", now: sendInstant, urls });
+
+			const claim = await subs.claimPayDigest({
+				userId,
+				trialEndsAt,
+				messageId: "msg-pay-2",
+				now: new Date("2026-06-01T12:00:00.000Z"),
+				urls,
+			});
+
+			assert.deepEqual(claim, { claimed: false });
+			const row = await subs.findByUserId(userId);
+			assert(row, "row must exist");
+			assert.equal(row.payDigestMessageId, "msg-pay-1");
+		});
+
+		it("claimPayDigest refuses a trial end the row no longer carries", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-12T00:00:00.000Z" });
+
+			const claim = await subs.claimPayDigest({
+				userId,
+				trialEndsAt,
+				messageId: "msg-pay-1",
+				now: sendInstant,
+				urls,
+			});
+
+			assert.deepEqual(claim, { claimed: false });
+			const row = await subs.findByUserId(userId);
+			assert(row, "row must exist");
+			assert.equal(row.payDigestEmailSentAt, undefined);
+		});
+
+		it("claimPayDigest refuses a row that is no longer trialing", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			subs.seedRow({
+				userId,
+				provider: "stripe",
+				status: "pending_cancellation",
+				trialEndsAt,
+				cancellationEffectiveAt: trialEndsAt,
+				createdAt: "2026-05-22T00:00:00.000Z",
+				updatedAt: "2026-05-22T00:00:00.000Z",
+			});
+
+			const claim = await subs.claimPayDigest({
+				userId,
+				trialEndsAt,
+				messageId: "msg-pay-1",
+				now: sendInstant,
+				urls,
+			});
+
+			assert.deepEqual(claim, { claimed: false });
+		});
+
+		it("claimPayDigest refuses a user with no subscription row", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+
+			const claim = await subs.claimPayDigest({
+				userId,
+				trialEndsAt,
+				messageId: "msg-pay-1",
+				now: sendInstant,
+				urls,
+			});
+
+			assert.deepEqual(claim, { claimed: false });
+			assert.equal(await subs.findByUserId(userId), undefined);
+		});
+
+		it("releasePayDigest clears the marker this message holds, so the redrive claims afresh", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimPayDigest({ userId, trialEndsAt, messageId: "msg-pay-1", now: sendInstant, urls });
+
+			await subs.releasePayDigest({ userId, claimedAt: sendInstant, messageId: "msg-pay-1" });
+
+			const row = await subs.findByUserId(userId);
+			assert(row, "row must exist");
+			assert.equal("payDigestEmailSentAt" in row, false);
+			assert.equal("payDigestMessageId" in row, false);
+			assert.equal("payDigestUrls" in row, false);
+			const reclaim = await subs.claimPayDigest({
+				userId,
+				trialEndsAt,
+				messageId: "msg-pay-1",
+				now: new Date("2026-06-01T06:05:00.000Z"),
+				urls,
+			});
+			assert.deepEqual(reclaim, { claimed: true, redelivery: false });
+		});
+
+		it("releasePayDigest leaves a marker that another message holds", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimPayDigest({ userId, trialEndsAt, messageId: "msg-pay-2", now: sendInstant, urls });
+
+			await subs.releasePayDigest({ userId, claimedAt: sendInstant, messageId: "msg-pay-1" });
+
+			const row = await subs.findByUserId(userId);
+			assert(row, "row must exist");
+			assert.equal(row.payDigestMessageId, "msg-pay-2");
+		});
+
+		it("releasePayDigest leaves a marker claimed at another instant", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimPayDigest({ userId, trialEndsAt, messageId: "msg-pay-1", now: sendInstant, urls });
+
+			await subs.releasePayDigest({
+				userId,
+				claimedAt: new Date("2026-06-01T00:00:00.000Z"),
+				messageId: "msg-pay-1",
+			});
+
+			const row = await subs.findByUserId(userId);
+			assert(row, "row must exist");
+			assert.equal(row.payDigestEmailSentAt, "2026-06-01T06:00:00.000Z");
+		});
+
+		it("releasePayDigest is a no-op for a user with no subscription row", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+
+			await subs.releasePayDigest({ userId, claimedAt: sendInstant, messageId: "msg-pay-1" });
+
+			assert.equal(await subs.findByUserId(userId), undefined);
+		});
+
+		it("upsertTrialing clears the marker, so a re-opened trial gets its own pay digest", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimPayDigest({ userId, trialEndsAt, messageId: "msg-pay-1", now: sendInstant, urls });
+
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-07-05T00:00:00.000Z" });
+
+			const row = await subs.findByUserId(userId);
+			assert(row, "row must exist");
+			assert.equal("payDigestEmailSentAt" in row, false);
+			assert.equal("payDigestMessageId" in row, false);
+			assert.equal("payDigestUrls" in row, false);
+		});
+	});
+
+	describe("listUserIdsByStatus", () => {
+		it("lists only the users whose row holds the status", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			const secondTrialist = UserIdSchema.parse("u-2");
+			const payer = UserIdSchema.parse("u-3");
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+			await subs.upsertTrialing({ userId: secondTrialist, trialEndsAt: "2026-06-06T00:00:00.000Z" });
+			await subs.upsertActive({ userId: payer, subscriptionId: "sub_3", customerId: "cus_3" });
+
+			assert.deepEqual(await subs.listUserIdsByStatus("trialing"), [userId, secondTrialist]);
+			assert.deepEqual(await subs.listUserIdsByStatus("active"), [payer]);
+			assert.deepEqual(await subs.listUserIdsByStatus("cancelled"), []);
+		});
+	});
 });

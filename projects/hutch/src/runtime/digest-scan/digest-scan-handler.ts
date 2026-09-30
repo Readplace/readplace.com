@@ -7,31 +7,41 @@ import type {
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { SendUserDigestCommand } from "@packages/hutch-infra-components";
 import type { DispatchCommand } from "@packages/hutch-infra-components/runtime";
-import type { ScanPendingDigestUsers } from "@packages/provider-contracts/digest-queue";
+import type {
+	ListUserIdsBySubscriptionStatus,
+	SubscriptionStatus,
+} from "@packages/provider-contracts/subscription-providers";
+
+const DIGEST_AUDIENCE_STATUSES = [
+	"trialing",
+	"active",
+	"pending_cancellation",
+] satisfies readonly SubscriptionStatus[];
 
 export interface DigestScanDeps {
-	scanPendingDigestUsers: ScanPendingDigestUsers;
+	listUserIdsByStatus: ListUserIdsBySubscriptionStatus;
 	dispatchSendUserDigest: DispatchCommand<typeof SendUserDigestCommand>;
 	logger: HutchLogger;
 }
 
-/** Driven by the `rate(6 hours)` scheduler tick (one SQS record per fire). Each
- * record triggers a full scan of the sparse digest-queue table and fans out one
- * `SendUserDigestCommand` per distinct user with a pending article. The record
- * body is an opaque trigger — no payload is parsed. */
+/** Driven by the `rate(6 hours)` scheduler tick (one SQS record per fire). The
+ * record body is an opaque trigger — no payload is parsed. */
 export function initDigestScanHandler(deps: DigestScanDeps): Handler<SQSEvent, SQSBatchResponse> {
-	const { scanPendingDigestUsers, dispatchSendUserDigest, logger } = deps;
+	const { listUserIdsByStatus, dispatchSendUserDigest, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
 		for (const record of event.Records) {
 			try {
-				const users = await scanPendingDigestUsers();
+				const listed = await Promise.all(
+					DIGEST_AUDIENCE_STATUSES.map((status) => listUserIdsByStatus(status)),
+				);
+				const users = [...new Set(listed.flat())];
 				/* Settle each dispatch independently. A single SendMessage rejection
 				 * must not fail the whole tick: a redrive re-scans and re-fans-out to
 				 * *every* user (wasteful, and can DLQ the scan). A user whose dispatch
-				 * fails keeps their queued rows and is picked up on the next 6h tick. */
+				 * fails is picked up on the next 6h tick. */
 				const settled = await Promise.allSettled(
 					users.map((userId) => dispatchSendUserDigest({ userId })),
 				);

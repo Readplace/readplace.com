@@ -1,0 +1,9 @@
+    <main class="plans-page" data-test-plans-page>
+      <div class="plans-page__layout">
+        <div class="plans-page__header">
+          <h1 class="plans-page__title">{{heading}}</h1>
+          <p class="plans-page__terms" data-test-plans-terms="{{terms}}">{{#each termsNote.parts}}{{lead}}<time datetime="{{time.iso}}" data-local-time="{{time.mode}}">{{time.label}}</time>{{/each}}{{termsNote.tail}}</p>
+        </div>
+        {{{plansGridHtml}}}
+      </div>
+    </main>

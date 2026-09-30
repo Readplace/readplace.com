@@ -16,7 +16,6 @@ import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
-import { initInMemoryDigestQueue } from "@packages/test-fixtures/providers/digest-queue";
 import {
 	initInMemoryInboxAddress,
 } from "@packages/test-fixtures/providers/inbox-address";
@@ -67,7 +66,6 @@ function buildSubject() {
 	});
 	const oauthDeps = initInMemoryOAuthModel();
 	const articleStore = initInMemoryArticleStore();
-	const digest = initInMemoryDigestQueue();
 	const readerReady = initInMemoryReaderReadyState();
 	const onboarding = initInMemoryOnboardingSignals({ now: () => SEED_NOW });
 	const subs = initInMemorySubscriptionProviders({ now: () => SEED_NOW });
@@ -80,6 +78,7 @@ function buildSubject() {
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
 	const deleteSubscriptionCalls: UserId[] = [];
+	const deleteDigestByUserCalls: UserId[] = [];
 	const trialEndCalls: UserId[] = [];
 	const deferredCancelCalls: UserId[] = [];
 	const trialFeedbackCalls: UserId[] = [];
@@ -246,7 +245,9 @@ function buildSubject() {
 			tombstoneCalls.push({ url, at });
 		},
 		now: () => SEED_NOW,
-		deleteDigestByUser: digest.deleteDigestByUser,
+		deleteDigestByUser: async (userId: UserId) => {
+			deleteDigestByUserCalls.push(userId);
+		},
 		deleteReaderReadyState: readerReady.deleteReaderReadyState,
 		deleteOnboarding: onboarding.deleteOnboarding,
 		deleteUserExports: async (userId: UserId) => {
@@ -279,7 +280,6 @@ function buildSubject() {
 		auth,
 		oauthDeps,
 		articleStore,
-		digest,
 		readerReady,
 		onboarding,
 		subs,
@@ -290,6 +290,7 @@ function buildSubject() {
 		identities,
 		deleteCustomerCalls,
 		deleteSubscriptionCalls,
+		deleteDigestByUserCalls,
 		trialEndCalls,
 		deferredCancelCalls,
 		trialFeedbackCalls,
@@ -378,18 +379,12 @@ async function seedAccount(
 		savedAt: new Date(),
 	});
 
-	await s.digest.enqueueDigestItem({
-		userId,
-		url: `https://example.com/${label}/digest`,
-		enqueuedAt: SEED_NOW.toISOString(),
-		retentionMs: COOLDOWN_MS,
-	});
-
 	const claim = await s.readerReady.claimReaderReadyEmailSlot({
 		userId,
 		now: SEED_NOW,
 		cooldownMs: COOLDOWN_MS,
 		messageId: "seed",
+		urls: [],
 	});
 	assert(claim.claimed, "expected the reader-ready slot to seed as claimed");
 
@@ -490,6 +485,7 @@ async function readerReadySlotPresent(s: Subject, userId: UserId): Promise<boole
 		now: SEED_NOW,
 		cooldownMs: COOLDOWN_MS,
 		messageId: "probe",
+		urls: [],
 	});
 	return !claim.claimed;
 }
@@ -567,7 +563,7 @@ describe("delete-account handler", () => {
 
 		// Victim: every store now returns empty / none.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId, includeTotal: true })).total, 0);
-		assert.equal((await s.digest.listDigestItemsByUser(victim.userId)).length, 0);
+		assert.deepEqual(s.deleteDigestByUserCalls, [victim.userId]);
 		assert.equal(await readerReadySlotPresent(s, victim.userId), false);
 		assert.deepEqual(await s.onboarding.getOnboardingSignals({ userId: victim.userId }), {
 			nativeApp: {
@@ -655,7 +651,6 @@ describe("delete-account handler", () => {
 
 		// Bystander: everything intact.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: bystander.userId, includeTotal: true })).total, 1);
-		assert.equal((await s.digest.listDigestItemsByUser(bystander.userId)).length, 1);
 		assert.equal(await readerReadySlotPresent(s, bystander.userId), true);
 		assert.deepEqual(await s.onboarding.getOnboardingSignals({ userId: bystander.userId }), {
 			nativeApp: {

@@ -1,3 +1,6 @@
+import assert from "node:assert";
+import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
+
 export const STRIPE_TRIAL_PERIOD_DAYS = 14;
 
 export const TRIAL_REMINDER_LEAD_DAYS = 2;
@@ -13,6 +16,46 @@ export function trialReminderFiresAt(trialEndsAt: string): string {
 	return new Date(
 		Date.parse(trialEndsAt) - TRIAL_REMINDER_LEAD_DAYS * 86_400_000,
 	).toISOString();
+}
+
+export function trialEndToPreserve(input: {
+	row: SubscriptionRecord;
+	now: Date;
+}): string | undefined {
+	assert(input.row.trialEndsAt, "trialing row must have trialEndsAt");
+	const trialRemainingMs = Date.parse(input.row.trialEndsAt) - input.now.getTime();
+	return trialRemainingMs >= STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS
+		? input.row.trialEndsAt
+		: undefined;
+}
+
+export function payCutoff(trialEndsAt: string): string {
+	return new Date(
+		Date.parse(trialEndsAt) - STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS,
+	).toISOString();
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+
+export const PAY_DIGEST_WINDOW_OPENS_LEAD_MS = 96 * HOUR_MS;
+
+export const PAY_DIGEST_WINDOW_CLOSES_LEAD_MS = 60 * HOUR_MS;
+
+export function isPayDigestDue(input: {
+	row: SubscriptionRecord;
+	messageId: string;
+	now: Date;
+}): boolean {
+	const { row, messageId, now } = input;
+	if (row.status !== "trialing") return false;
+	assert(row.trialEndsAt, "trialing row must have trialEndsAt");
+	const trialEndMs = Date.parse(row.trialEndsAt);
+	const nowMs = now.getTime();
+	const inWindow =
+		trialEndMs - PAY_DIGEST_WINDOW_OPENS_LEAD_MS <= nowMs &&
+		nowMs < trialEndMs - PAY_DIGEST_WINDOW_CLOSES_LEAD_MS;
+	if (!inWindow) return false;
+	return row.payDigestEmailSentAt === undefined || row.payDigestMessageId === messageId;
 }
 
 /** Visa requires a pre-charge reminder at least 7 days before the first

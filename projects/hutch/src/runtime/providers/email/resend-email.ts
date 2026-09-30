@@ -14,6 +14,7 @@ export function initResendEmail(apiKey: string): { sendEmail: SendEmail } {
 			...(message.text && { text: message.text }),
 			...(message.bcc && { bcc: message.bcc }),
 			...(message.replyTo && { replyTo: message.replyTo }),
+			...(message.headers && { headers: message.headers }),
 		});
 		if (result.error) {
 			const message = `Resend ${result.error.name}: ${result.error.message}`;

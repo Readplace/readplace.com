@@ -19,6 +19,9 @@ export const SubscriptionProviderRow = z.object({
 	trialFeedbackEmailSentAt: dynamoField(z.string()),
 	trialReminderEmailSentAt: dynamoField(z.string()),
 	automationSavesHeldEmailSentAt: dynamoField(z.string()),
+	payDigestEmailSentAt: dynamoField(z.string()),
+	payDigestMessageId: dynamoField(z.string()),
+	payDigestUrls: dynamoField(z.array(z.string())),
 	plan: dynamoField(BillingPlanSchema.optional().catch(undefined)),
 	/* `.catch` degrades a malformed map to `undefined` rather than throwing. Every
 	 * read of this row runs through `schema.parse`, and that read feeds the save
@@ -49,6 +52,13 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 		...(row.automationSavesHeldEmailSentAt !== undefined
 			? { automationSavesHeldEmailSentAt: row.automationSavesHeldEmailSentAt }
 			: {}),
+		...(row.payDigestEmailSentAt !== undefined
+			? { payDigestEmailSentAt: row.payDigestEmailSentAt }
+			: {}),
+		...(row.payDigestMessageId !== undefined
+			? { payDigestMessageId: row.payDigestMessageId }
+			: {}),
+		...(row.payDigestUrls !== undefined ? { payDigestUrls: row.payDigestUrls } : {}),
 		...(row.plan !== undefined ? { plan: row.plan } : {}),
 		...(row.nextCharge !== undefined ? { nextCharge: row.nextCharge } : {}),
 		createdAt: row.createdAt,

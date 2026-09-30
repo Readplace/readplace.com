@@ -12,6 +12,7 @@ export function initLogEmail(deps: { logger: HutchLogger }): { sendEmail: SendEm
 			subject: message.subject,
 			html: message.html,
 			text: message.text,
+			headers: message.headers,
 		});
 	};
 

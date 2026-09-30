@@ -742,15 +742,7 @@ eventBus.subscribeAll(
 	{ name: "user-data-jobs" },
 );
 
-// --- Reader-ready digest (fan-out + 6h flush + send) ---
-// When an article's clean reader view reaches the successful terminal state,
-// save-link publishes ReaderViewLoadingSucceeded (per-URL, global). The fan-out
-// Lambda reverse-looks-up every saver via the user-articles url-index and — for
-// savers who had opened the reader — appends the article to that user's digest
-// queue. A recurring
-// rate(6 hours) schedule fans the sparse queue into one SendUserDigestCommand
-// per pending user; the send Lambda re-checks every per-article gate against the
-// live row, claims the per-user cooldown, and emails a single digest.
+// --- Reader-ready digest (6h flush + send) ---
 
 // send-user-digest queue is created first so digest-scan can address it.
 const sendUserDigestQueue = new HutchSQS("send-user-digest", {
@@ -760,17 +752,20 @@ const sendUserDigestQueue = new HutchSQS("send-user-digest", {
 const sendUserDigestDynamodb = new HutchDynamoDBAccess("send-user-digest-dynamodb", {
 	tables: [
 		{ arn: storage.articlesTable.arn, includeIndexes: false },
-		{ arn: storage.userArticlesTable.arn, includeIndexes: false },
+		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
 		// users table is read-only here: Query the userId-index to resolve the
 		// saver's verified contact email.
 		{ arn: storage.usersTable.arn, includeIndexes: true },
 		// reader-ready-notifications carries the per-user digest cooldown, claimed
 		// by a direct PK conditional UpdateItem.
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
-		// digest queue: Query one user's items, DeleteItem on send/drain.
-		{ arn: storage.digestQueueTable.arn, includeIndexes: false },
 	],
-	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+});
+
+const sendUserDigestSubscriptionsDynamodb = new HutchDynamoDBAccess("send-user-digest-subscriptions", {
+	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 const sendUserDigestLambda = new HutchLambda("send-user-digest", {
@@ -787,10 +782,14 @@ const sendUserDigestLambda = new HutchLambda("send-user-digest", {
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
-		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
-	policies: [...sendUserDigestDynamodb.policies],
+	policies: [
+		...sendUserDigestDynamodb.policies,
+		...sendUserDigestSubscriptionsDynamodb.policies,
+	],
 });
 
 eventBus.grantPublish(sendUserDigestLambda);
@@ -804,15 +803,13 @@ new HutchSQSBackedLambda("send-user-digest", {
 	batchSize: 1,
 });
 
-// digest-scan: driven by the recurring schedule; scans the sparse queue and
-// dispatches one SendUserDigestCommand per pending user.
 const digestScanQueue = new HutchSQS("digest-scan", {
 	visibilityTimeoutSeconds: 120,
 });
 
 const digestScanDynamodb = new HutchDynamoDBAccess("digest-scan-dynamodb", {
-	tables: [{ arn: storage.digestQueueTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:Scan"],
+	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true }],
+	actions: ["dynamodb:Query"],
 });
 
 const digestScanLambda = new HutchLambda("digest-scan", {
@@ -822,7 +819,7 @@ const digestScanLambda = new HutchLambda("digest-scan", {
 	memorySize: 512,
 	timeout: 60,
 	environment: {
-		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		SEND_USER_DIGEST_QUEUE_URL: sendUserDigestQueue.queueUrl,
 	},
 	policies: [

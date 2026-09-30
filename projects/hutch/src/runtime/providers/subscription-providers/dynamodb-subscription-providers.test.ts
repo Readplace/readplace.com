@@ -718,4 +718,279 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(row.trialFeedbackEmailSentAt).toBe("2026-06-04T00:00:00.000Z");
 		});
 	});
+
+	describe("upsertTrialing clears the pay-digest marker", () => {
+		it("removes both pay-digest attributes, so a re-opened trial gets its own pay digest", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+
+			const command = CapturedUpdateCommand.parse(received);
+			const [, removeClause] = command.input.UpdateExpression.split("REMOVE");
+			expect(removeClause).toContain("payDigestEmailSentAt");
+			expect(removeClause).toContain("payDigestMessageId");
+			expect(removeClause).toContain("payDigestUrls");
+		});
+	});
+
+	describe("pay-digest claim", () => {
+		const CapturedPayDigestCommand = z.object({
+			input: z.object({
+				Key: z.record(z.string(), z.unknown()),
+				ConsistentRead: z.boolean().optional(),
+				UpdateExpression: z.string().optional(),
+				ConditionExpression: z.string().optional(),
+				ExpressionAttributeNames: z.record(z.string(), z.string()).optional(),
+				ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
+			}),
+		});
+		type CapturedPayDigestInput = z.infer<typeof CapturedPayDigestCommand>["input"];
+
+		const TRIAL_ENDS_AT = "2026-06-05T00:00:00.000Z";
+		const SEND_INSTANT = new Date("2026-06-01T06:00:00.000Z");
+		const MESSAGE_ID = "msg-pay-1";
+		const LISTED_URLS = ["https://example.com/newest", "https://example.com/older"];
+		const CONDITION_FAILED = new ConditionalCheckFailedException({
+			message: "The conditional request failed",
+			$metadata: {},
+		});
+
+		function trialingRowHeldBy(payDigest: {
+			payDigestEmailSentAt?: string;
+			payDigestMessageId?: string;
+			payDigestUrls?: string[];
+		}) {
+			return {
+				userId: USER_ID,
+				provider: "stripe",
+				status: "trialing",
+				trialEndsAt: TRIAL_ENDS_AT,
+				...payDigest,
+				createdAt: "2026-05-22T10:00:00.000Z",
+				updatedAt: "2026-06-01T06:00:00.000Z",
+			};
+		}
+
+		function createPayDigestClient(opts: {
+			updateError?: Error;
+			heldRow?: Record<string, unknown>;
+		}) {
+			const commands: CapturedPayDigestInput[] = [];
+			const client = createFakeClient((command) => {
+				const { input } = CapturedPayDigestCommand.parse(command);
+				commands.push(input);
+				if (input.UpdateExpression !== undefined && opts.updateError) throw opts.updateError;
+				if (input.UpdateExpression === undefined) return { Item: opts.heldRow };
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+			return { subs, commands };
+		}
+
+		describe("claimPayDigest", () => {
+			it("claims with one conditional write that only this trial's first sender can satisfy", async () => {
+				const { subs, commands } = createPayDigestClient({});
+
+				const claim = await subs.claimPayDigest({
+					userId: USER_ID,
+					trialEndsAt: TRIAL_ENDS_AT,
+					messageId: MESSAGE_ID,
+					now: SEND_INSTANT,
+					urls: LISTED_URLS,
+				});
+
+				assert.deepEqual(claim, { claimed: true, redelivery: false });
+				assert.equal(commands.length, 1);
+				const [update] = commands;
+				assert(update, "the claim is a single UpdateItem");
+				assert.deepEqual(update.Key, { userId: USER_ID });
+				assert.equal(
+					update.UpdateExpression,
+					"SET payDigestEmailSentAt = :now, payDigestMessageId = :mid, payDigestUrls = :urls, updatedAt = :now",
+				);
+				assert.equal(
+					update.ConditionExpression,
+					"attribute_exists(userId) AND #status = :trialing AND trialEndsAt = :trialEndsAt AND attribute_not_exists(payDigestEmailSentAt)",
+				);
+				assert.deepEqual(update.ExpressionAttributeNames, { "#status": "status" });
+				assert.deepEqual(update.ExpressionAttributeValues, {
+					":now": "2026-06-01T06:00:00.000Z",
+					":mid": MESSAGE_ID,
+					":urls": LISTED_URLS,
+					":trialing": "trialing",
+					":trialEndsAt": TRIAL_ENDS_AT,
+				});
+			});
+
+			it("reports a redelivery carrying the original claim instant and the urls that send listed when the marker already names this message", async () => {
+				const { subs, commands } = createPayDigestClient({
+					updateError: CONDITION_FAILED,
+					heldRow: trialingRowHeldBy({
+						payDigestEmailSentAt: "2026-06-01T00:00:00.000Z",
+						payDigestMessageId: MESSAGE_ID,
+						payDigestUrls: ["https://example.com/emailed"],
+					}),
+				});
+
+				const claim = await subs.claimPayDigest({
+					userId: USER_ID,
+					trialEndsAt: TRIAL_ENDS_AT,
+					messageId: MESSAGE_ID,
+					now: SEND_INSTANT,
+					urls: LISTED_URLS,
+				});
+
+				assert.deepEqual(claim, {
+					claimed: true,
+					redelivery: true,
+					claimedAt: new Date("2026-06-01T00:00:00.000Z"),
+					urls: ["https://example.com/emailed"],
+				});
+				const writes = commands.filter((command) => command.UpdateExpression !== undefined);
+				assert.equal(writes.length, 1);
+				const read = commands.find((command) => command.UpdateExpression === undefined);
+				assert(read, "a rejected claim reads the row back");
+				assert.deepEqual(read.Key, { userId: USER_ID });
+				assert.equal(read.ConsistentRead, true);
+			});
+
+			it("reports no claim when another message already holds the marker", async () => {
+				const { subs } = createPayDigestClient({
+					updateError: CONDITION_FAILED,
+					heldRow: trialingRowHeldBy({
+						payDigestEmailSentAt: "2026-06-01T00:00:00.000Z",
+						payDigestMessageId: "msg-pay-other",
+					}),
+				});
+
+				const claim = await subs.claimPayDigest({
+					userId: USER_ID,
+					trialEndsAt: TRIAL_ENDS_AT,
+					messageId: MESSAGE_ID,
+					now: SEND_INSTANT,
+					urls: LISTED_URLS,
+				});
+
+				assert.deepEqual(claim, { claimed: false });
+			});
+
+			it("reports no claim when the row no longer carries this trial and no marker names this message", async () => {
+				const { subs } = createPayDigestClient({
+					updateError: CONDITION_FAILED,
+					heldRow: {
+						userId: USER_ID,
+						provider: "stripe",
+						status: "active",
+						subscriptionId: "sub_paid",
+						customerId: "cus_paid",
+						createdAt: "2026-05-22T10:00:00.000Z",
+						updatedAt: "2026-06-01T05:00:00.000Z",
+					},
+				});
+
+				const claim = await subs.claimPayDigest({
+					userId: USER_ID,
+					trialEndsAt: TRIAL_ENDS_AT,
+					messageId: MESSAGE_ID,
+					now: SEND_INSTANT,
+					urls: LISTED_URLS,
+				});
+
+				assert.deepEqual(claim, { claimed: false });
+			});
+
+			it("reports no claim when the row vanished before the write", async () => {
+				const { subs } = createPayDigestClient({ updateError: CONDITION_FAILED });
+
+				const claim = await subs.claimPayDigest({
+					userId: USER_ID,
+					trialEndsAt: TRIAL_ENDS_AT,
+					messageId: MESSAGE_ID,
+					now: SEND_INSTANT,
+					urls: LISTED_URLS,
+				});
+
+				assert.deepEqual(claim, { claimed: false });
+			});
+
+			it("propagates a fault that is not the claim being lost", async () => {
+				const { subs } = createPayDigestClient({ updateError: new Error("throttled") });
+
+				await assert.rejects(
+					subs.claimPayDigest({
+						userId: USER_ID,
+						trialEndsAt: TRIAL_ENDS_AT,
+						messageId: MESSAGE_ID,
+						now: SEND_INSTANT,
+						urls: LISTED_URLS,
+					}),
+					/throttled/,
+				);
+			});
+		});
+
+		describe("releasePayDigest", () => {
+			it("removes the marker attributes and the listed urls only while they still hold this message's claim", async () => {
+				const { subs, commands } = createPayDigestClient({});
+
+				await subs.releasePayDigest({
+					userId: USER_ID,
+					claimedAt: SEND_INSTANT,
+					messageId: MESSAGE_ID,
+				});
+
+				assert.equal(commands.length, 1);
+				const [update] = commands;
+				assert(update, "the release is a single UpdateItem");
+				assert.deepEqual(update.Key, { userId: USER_ID });
+				assert.equal(update.UpdateExpression, "REMOVE payDigestEmailSentAt, payDigestMessageId, payDigestUrls");
+				assert.equal(
+					update.ConditionExpression,
+					"payDigestEmailSentAt = :claimedAt AND payDigestMessageId = :mid",
+				);
+				assert.deepEqual(update.ExpressionAttributeValues, {
+					":claimedAt": "2026-06-01T06:00:00.000Z",
+					":mid": MESSAGE_ID,
+				});
+			});
+
+			it("is a no-op when the marker no longer holds this message's claim", async () => {
+				const { subs } = createPayDigestClient({ updateError: CONDITION_FAILED });
+
+				await assert.doesNotReject(
+					subs.releasePayDigest({
+						userId: USER_ID,
+						claimedAt: SEND_INSTANT,
+						messageId: MESSAGE_ID,
+					}),
+				);
+			});
+
+			it("propagates a fault that is not the condition failing", async () => {
+				const { subs } = createPayDigestClient({ updateError: new Error("throttled") });
+
+				await assert.rejects(
+					subs.releasePayDigest({
+						userId: USER_ID,
+						claimedAt: SEND_INSTANT,
+						messageId: MESSAGE_ID,
+					}),
+					/throttled/,
+				);
+			});
+		});
+	});
 });

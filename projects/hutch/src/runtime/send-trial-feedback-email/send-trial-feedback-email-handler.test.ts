@@ -69,6 +69,7 @@ interface SubjectOverrides {
 	articlesTotal?: number;
 	now?: Date;
 	markAutomationSavesHeldEmailSent?: MarkAutomationSavesHeldEmailSent;
+	logger?: HutchLogger;
 }
 
 function buildSubject(overrides: SubjectOverrides = {}) {
@@ -92,7 +93,7 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		appOrigin: "https://readplace.com",
 		now: () => now,
-		logger: HutchLogger.from(noopLogger),
+		logger: overrides.logger ?? HutchLogger.from(noopLogger),
 	};
 	const handler = initSendTrialFeedbackEmailHandler(deps);
 	return { handler, providers, email };
@@ -609,6 +610,41 @@ describe("send-trial-feedback-email handler", () => {
 			);
 
 			assert.equal(subject.email.getSentEmails().length, 1);
+		});
+
+		it("noops when this trial's pay digest was already sent — the pay digest replaces the day-12 reminder", async () => {
+			const info = jest.fn();
+			const subject = buildSubject({
+				articlesTotal: 3,
+				now: new Date("2026-06-18T00:00:00.000Z"),
+				logger: HutchLogger.from({ ...noopLogger, info }),
+			});
+			await seedFutureTrial(subject.providers);
+			const claim = await subject.providers.claimPayDigest({
+				userId: USER_ID,
+				trialEndsAt: "2026-06-20T00:00:00.000Z",
+				messageId: "msg-pay",
+				now: new Date("2026-06-16T06:00:00.000Z"),
+				urls: ["https://example.com/listed"],
+			});
+			assert.deepEqual(claim, { claimed: true, redelivery: false });
+
+			const result = await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem-after-pay", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert(result);
+			assert.equal(result.batchItemFailures.length, 0);
+			assert.equal(subject.email.getSentEmails().length, 0);
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row);
+			assert.equal(row.trialReminderEmailSentAt, undefined);
+			expect(info).toHaveBeenCalledWith(
+				"[send-trial-feedback-email] reminder: pay digest already sent — noop",
+				{ userId: USER_ID, sentAt: "2026-06-16T06:00:00.000Z" },
+			);
 		});
 
 		it("noops when there is no subscription row at all", async () => {

@@ -4,19 +4,19 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { SendUserDigestCommand } from "@packages/hutch-infra-components";
 import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
-import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
+import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDigestScanHandler } from "./digest-scan/digest-scan-handler";
 import { requireEnv } from "@packages/require-env";
 
-const digestQueueTable = requireEnv("DYNAMODB_DIGEST_QUEUE_TABLE");
+const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 const sendUserDigestQueueUrl = requireEnv("SEND_USER_DIGEST_QUEUE_URL");
 
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
 
-const { scanPendingDigestUsers } = initDynamoDbDigestQueue({
+const { listUserIdsByStatus } = initDynamoDbSubscriptionRead({
 	client: dynamoClient,
-	tableName: digestQueueTable,
+	tableName: subscriptionProvidersTable,
 });
 
 const { dispatch: dispatchSendUserDigest } = initSqsCommandDispatcher({
@@ -26,7 +26,7 @@ const { dispatch: dispatchSendUserDigest } = initSqsCommandDispatcher({
 });
 
 export const handler = initDigestScanHandler({
-	scanPendingDigestUsers,
+	listUserIdsByStatus,
 	dispatchSendUserDigest,
 	logger: HutchLogger.from(consoleLogger),
 });

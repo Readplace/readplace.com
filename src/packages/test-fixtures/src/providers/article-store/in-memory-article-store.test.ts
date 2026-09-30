@@ -939,8 +939,7 @@ describe("initInMemoryArticleStore", () => {
 
 			await store.markArticleViewed({ userId: USER_A, url: URL, at });
 
-			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
-			expect(state?.viewedAt).toEqual(at);
+			expect(await store.findUserArticlesByUrl(URL)).toEqual([{ userId: USER_A, viewedAt: at }]);
 		});
 
 		it("mark stamps on a missing row are no-ops so a delete race cannot resurrect the row", async () => {
@@ -951,7 +950,6 @@ describe("initInMemoryArticleStore", () => {
 			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 
 			expect(await store.findUserArticlesByUrl(URL)).toEqual([]);
-			expect(await store.findUserArticleNotificationState({ userId: USER_A, url: URL })).toBeNull();
 		});
 
 		it("findUserArticlesByUrl returns every saver of the URL with their viewedAt, excluding savers of other URLs", async () => {
@@ -971,35 +969,143 @@ describe("initInMemoryArticleStore", () => {
 
 		it("markReaderReadyEmailSent is set-once: a later call does not overwrite the first send", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams());
+			const savedAt = new Date("2026-05-30T09:00:00.000Z");
+			await store.saveArticle(makeArticleParams({ savedAt }));
 			const first = new Date("2026-05-30T10:05:00.000Z");
 			const later = new Date("2026-05-30T11:05:00.000Z");
 
 			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: first });
 			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: later });
 
-			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
-			expect(state?.emailSentAt).toEqual(first);
+			const page = await store.findUnreadSavesForDigest({
+				userId: USER_A,
+				savedAtOrBefore: savedAt,
+				emailFilter: { kind: "any" },
+				limit: 1,
+				cursor: undefined,
+			});
+			expect(page.candidates.map((candidate) => candidate.emailSentAt)).toEqual([first]);
+		});
+	});
+
+	describe("findUnreadSavesForDigest", () => {
+		const SEND_INSTANT = new Date("2026-05-30T12:00:00.000Z");
+
+		it("lists the reader's own unread saves newest first up to the cutoff, leaving out read saves, later saves, readlist copies and other readers' saves", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/older", savedAt: new Date("2026-05-30T09:00:00.000Z") }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/at-cutoff", savedAt: SEND_INSTANT }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/newer", savedAt: new Date("2026-05-30T10:00:00.000Z") }));
+			const { saved: read } = await store.saveArticle(
+				makeArticleParams({ url: "https://example.com/read", savedAt: new Date("2026-05-30T11:00:00.000Z") }),
+			);
+			await store.updateArticleStatus(read.id, USER_A, "read");
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/after-cutoff", savedAt: new Date("2026-05-30T12:00:00.001Z") }));
+			await store.saveReadlistArticle({
+				...makeArticleParams({ url: "https://example.com/readlist-only", savedAt: new Date("2026-05-30T11:30:00.000Z") }),
+				readlist: WORK,
+			});
+			await store.saveArticle(
+				makeArticleParams({ userId: USER_B, url: "https://example.com/other-reader", savedAt: new Date("2026-05-30T11:45:00.000Z") }),
+			);
+
+			const page = await store.findUnreadSavesForDigest({
+				userId: USER_A,
+				savedAtOrBefore: SEND_INSTANT,
+				emailFilter: { kind: "any" },
+				limit: 10,
+				cursor: undefined,
+			});
+
+			expect(page.candidates.map((candidate) => candidate.article.url)).toEqual([
+				"https://example.com/at-cutoff",
+				"https://example.com/newer",
+				"https://example.com/older",
+			]);
+			expect(page.nextCursor).toBeUndefined();
 		});
 
-		it("findUserArticleNotificationState returns the gate fields for an existing row", async () => {
+		it("keeps saves never emailed and saves this same send emailed, and drops saves an earlier send emailed unless the filter is any", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams());
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/never-emailed", savedAt: new Date("2026-05-30T11:00:00.000Z") }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/this-send", savedAt: new Date("2026-05-30T10:00:00.000Z") }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/earlier-send", savedAt: new Date("2026-05-30T09:00:00.000Z") }));
+			await store.markReaderReadyEmailSent({ userId: USER_A, url: "https://example.com/this-send", at: SEND_INSTANT });
+			await store.markReaderReadyEmailSent({
+				userId: USER_A,
+				url: "https://example.com/earlier-send",
+				at: new Date("2026-05-28T12:00:00.000Z"),
+			});
+			const query = { userId: USER_A, savedAtOrBefore: SEND_INSTANT, limit: 10, cursor: undefined };
 
-			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
+			const notEmailedBefore = await store.findUnreadSavesForDigest({
+				...query,
+				emailFilter: { kind: "not-emailed-before", sendInstant: SEND_INSTANT },
+			});
+			const any = await store.findUnreadSavesForDigest({ ...query, emailFilter: { kind: "any" } });
 
-			expect(state?.status).toBe("unread");
-			expect(state?.savedAt).toBeInstanceOf(Date);
-			expect(state?.viewedAt).toBeUndefined();
-			expect(state?.emailSentAt).toBeUndefined();
+			expect(notEmailedBefore.candidates.map((candidate) => candidate.article.url)).toEqual([
+				"https://example.com/never-emailed",
+				"https://example.com/this-send",
+			]);
+			expect(any.candidates.map((candidate) => candidate.article.url)).toEqual([
+				"https://example.com/never-emailed",
+				"https://example.com/this-send",
+				"https://example.com/earlier-send",
+			]);
 		});
 
-		it("findUserArticleNotificationState returns null when the user never saved the URL", async () => {
+		it("pages through the matches with an opaque cursor, and reports no cursor after the last page", async () => {
 			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/first", savedAt: new Date("2026-05-30T11:00:00.000Z") }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/second", savedAt: new Date("2026-05-30T10:00:00.000Z") }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/third", savedAt: new Date("2026-05-30T09:00:00.000Z") }));
+			const query = { userId: USER_A, savedAtOrBefore: SEND_INSTANT, emailFilter: { kind: "any" }, limit: 2 } as const;
 
-			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
+			const first = await store.findUnreadSavesForDigest({ ...query, cursor: undefined });
+			const second = await store.findUnreadSavesForDigest({ ...query, cursor: first.nextCursor });
 
-			expect(state).toBeNull();
+			expect(first.candidates.map((candidate) => candidate.article.url)).toEqual([
+				"https://example.com/first",
+				"https://example.com/second",
+			]);
+			expect(second.candidates.map((candidate) => candidate.article.url)).toEqual(["https://example.com/third"]);
+			expect(second.nextCursor).toBeUndefined();
+		});
+
+		it("carries the global row's readerAvailableAt and purgedAt so the reader-ready gate can judge each candidate", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/ready", savedAt: new Date("2026-05-30T11:00:00.000Z") }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/purged", savedAt: new Date("2026-05-30T10:00:00.000Z") }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/loading", savedAt: new Date("2026-05-30T09:00:00.000Z") }));
+			await store.setReaderAvailableAt({ url: "https://example.com/ready", at: new Date("2026-05-30T11:01:00.000Z") });
+			await store.setReaderAvailableAt({ url: "https://example.com/purged", at: new Date("2026-05-30T10:01:00.000Z") });
+			await store.setPurgedAt({ url: "https://example.com/purged", at: new Date("2026-05-30T11:30:00.000Z") });
+
+			const page = await store.findUnreadSavesForDigest({
+				userId: USER_A,
+				savedAtOrBefore: SEND_INSTANT,
+				emailFilter: { kind: "any" },
+				limit: 10,
+				cursor: undefined,
+			});
+
+			expect(
+				page.candidates.map((candidate) => ({
+					url: candidate.article.url,
+					readerAvailableAt: candidate.readerAvailableAt,
+					purgedAt: candidate.purgedAt,
+				})),
+			).toEqual([
+				{ url: "https://example.com/ready", readerAvailableAt: new Date("2026-05-30T11:01:00.000Z"), purgedAt: undefined },
+				{
+					url: "https://example.com/purged",
+					readerAvailableAt: new Date("2026-05-30T10:01:00.000Z"),
+					purgedAt: new Date("2026-05-30T11:30:00.000Z"),
+				},
+				{ url: "https://example.com/loading", readerAvailableAt: undefined, purgedAt: undefined },
+			]);
+			expect(page.candidates[0]?.article.id.value).toBe(ReaderArticleHashId.from("https://example.com/ready").value);
 		});
 	});
 

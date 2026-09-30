@@ -31,6 +31,7 @@ export const ACCOUNT_REACTIVATE_URL = "/account/reactivate";
 export const ACCOUNT_STATUS_URL = "/account/status";
 export const ACCOUNT_EXPORT_URL = "/export";
 export const ACCOUNT_SUBSCRIBE_URL = "/account/subscribe";
+export const ACCOUNT_PLANS_URL = "/account/plans";
 export const ACCOUNT_ERROR_PAYMENT_METHOD_URL = "/account?error=payment_method";
 
 export const ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL = "/account?error=subscribe_failed";

@@ -44,7 +44,7 @@ import type {
 	FindArticlesResult,
 	FindReadlistArticleById,
 	FindReadlistArticles,
-	FindUserArticleNotificationState,
+	FindUnreadSavesForDigest,
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
@@ -58,7 +58,7 @@ import type {
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
-import type { ContentProvider } from "@packages/provider-contracts/article-store";
+import { DigestPageCursorSchema, type ContentProvider } from "@packages/provider-contracts/article-store";
 import {
 	READLIST_DEFINITION_KEY_PREFIX,
 	decodeUserArticlePartition,
@@ -123,6 +123,8 @@ const SaveCursorRow = z.object({
 
 const SavedUrlRow = z.looseObject({ url: z.string() });
 
+const DigestPageKey = z.record(z.string(), z.unknown());
+
 const UserArticleRow = z.object({
 	userId: UserIdSchema,
 	url: z.string(),
@@ -141,6 +143,12 @@ const UserArticleRow = z.object({
 	relatedDismissedAt: dynamoField(z.string()),
 	relatedDismissedSuggestionId: dynamoField(ReaderArticleHashIdSchema),
 });
+
+function digestIndexKeyOfLast(rows: z.infer<typeof UserArticleRow>[]): Record<string, unknown> {
+	const last = rows.at(-1);
+	assert(last, "a digest page cut at its limit keeps at least one row");
+	return { userId: last.userId, url: last.url, savedAt: last.savedAt };
+}
 
 function toOptionalDate(value: string | undefined): Date | undefined {
 	return value ? new Date(value) : undefined;
@@ -210,7 +218,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
-	findUserArticleNotificationState: FindUserArticleNotificationState;
+	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	readContent: ContentProvider;
 	saveReadlistArticle: SaveReadlistArticle;
 	findReadlistArticles: FindReadlistArticles;
@@ -555,13 +563,27 @@ export function initDynamoDbSavedArticleStore(deps: {
 			return { articles: [], total, hasMore, page, pageSize };
 		}
 
-		const urls = userArts.map((ua) => ({ url: ua.url }));
+		const joined = await joinGlobalArticles({
+			userArticleRows: userArts,
+			projection: query.excludeContent ? ArticleMetadataFields : undefined,
+		});
+		const result = joined.map(({ article, userArticle }) =>
+			toSavedArticle(article, { ...userArticle, userId: query.userId }),
+		);
+
+		return { articles: result, total, hasMore, page, pageSize };
+	};
+
+	const joinGlobalArticles = async (params: {
+		userArticleRows: z.infer<typeof UserArticleRow>[];
+		projection: readonly (keyof z.infer<typeof ArticleRow>)[] | undefined;
+	}): Promise<{ article: z.infer<typeof ArticleRow>; userArticle: z.infer<typeof UserArticleRow> }[]> => {
 		const batchedArticles = await batchGetFromTable({
 			client,
 			tableName,
 			schema: ArticleRow,
-			keys: urls,
-			projection: query.excludeContent ? ArticleMetadataFields : undefined,
+			keys: params.userArticleRows.map((ua) => ({ url: ua.url })),
+			projection: params.projection,
 		});
 
 		const articlesByUrl = new Map<string, z.infer<typeof ArticleRow>>();
@@ -569,15 +591,59 @@ export function initDynamoDbSavedArticleStore(deps: {
 			articlesByUrl.set(article.url, article);
 		}
 
-		const result: SavedArticle[] = [];
-		for (const ua of userArts) {
-			const article = articlesByUrl.get(ua.url);
+		const joined: { article: z.infer<typeof ArticleRow>; userArticle: z.infer<typeof UserArticleRow> }[] = [];
+		for (const userArticle of params.userArticleRows) {
+			const article = articlesByUrl.get(userArticle.url);
 			if (article) {
-				result.push(toSavedArticle(article, { ...ua, userId: query.userId }));
+				joined.push({ article, userArticle });
 			}
 		}
+		return joined;
+	};
 
-		return { articles: result, total, hasMore, page, pageSize };
+	const findUnreadSavesForDigest: FindUnreadSavesForDigest = async ({
+		userId,
+		savedAtOrBefore,
+		emailFilter,
+		limit,
+		cursor,
+	}) => {
+		const emailSentAtFilter =
+			emailFilter.kind === "not-emailed-before"
+				? {
+						expression: " AND (attribute_not_exists(emailSentAt) OR emailSentAt = :sendInstant)",
+						values: { ":sendInstant": emailFilter.sendInstant.toISOString() },
+					}
+				: { expression: "", values: {} };
+
+		const { items, lastEvaluatedKey } = await userArticles.query({
+			IndexName: "userId-savedAt-index",
+			KeyConditionExpression: "userId = :userId AND savedAt <= :cutoff",
+			FilterExpression: `#status = :unread${emailSentAtFilter.expression}`,
+			ExpressionAttributeNames: { "#status": "status" },
+			ExpressionAttributeValues: {
+				":userId": userId,
+				":cutoff": savedAtOrBefore.toISOString(),
+				":unread": "unread",
+				...emailSentAtFilter.values,
+			},
+			ScanIndexForward: false,
+			ExclusiveStartKey: cursor === undefined ? undefined : DigestPageKey.parse(JSON.parse(cursor)),
+		});
+		const rows = items.slice(0, limit);
+		const resumeAfter = items.length > limit ? digestIndexKeyOfLast(rows) : lastEvaluatedKey;
+
+		const joined = await joinGlobalArticles({ userArticleRows: rows, projection: ArticleMetadataFields });
+		return {
+			candidates: joined.map(({ article, userArticle }) => ({
+				article: toSavedArticle(article, userArticle),
+				emailSentAt: toOptionalDate(userArticle.emailSentAt),
+				readerAvailableAt: toOptionalDate(article.readerAvailableAt),
+				purgedAt: toOptionalDate(article.purgedAt),
+			})),
+			nextCursor:
+				resumeAfter === undefined ? undefined : DigestPageCursorSchema.parse(JSON.stringify(resumeAfter)),
+		};
 	};
 
 	const findArticlesByUser: FindArticlesByUser = (query) =>
@@ -1153,18 +1219,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		}
 	};
 
-	const findUserArticleNotificationState: FindUserArticleNotificationState = async ({ userId, url }) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const row = await userArticles.get({ userId, url: articleResourceUniqueId.value });
-		if (!row) return null;
-		return {
-			savedAt: new Date(row.savedAt),
-			status: row.status,
-			viewedAt: toOptionalDate(row.viewedAt),
-			emailSentAt: toOptionalDate(row.emailSentAt),
-		};
-	};
-
 	const findArticleUrlById: FindArticleUrlById = async (id) => {
 		const article = await findArticleByRouteId(id);
 		return article ? article.originalUrl : null;
@@ -1258,7 +1312,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		markRelatedDismissed,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
-		findUserArticleNotificationState,
+		findUnreadSavesForDigest,
 		readContent,
 		saveReadlistArticle,
 		findReadlistArticles,

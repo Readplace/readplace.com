@@ -1,0 +1,15 @@
+    <main class="queue-digest-unsubscribe" data-test-queue-digest-unsubscribe="{{state}}">
+      <div class="queue-digest-unsubscribe__layout">
+        <div class="queue-digest-unsubscribe__card">
+          <h1 class="queue-digest-unsubscribe__title">{{title}}</h1>
+          <p class="queue-digest-unsubscribe__text">{{body}}</p>
+          {{#each forms}}
+          <form method="POST" action="{{action}}" class="queue-digest-unsubscribe__form"
+            hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+            <input type="hidden" name="confirm" value="page">
+            <button type="submit" class="btn btn--primary" data-test-queue-digest-unsubscribe-confirm>{{label}}</button>
+          </form>
+          {{/each}}
+        </div>
+      </div>
+    </main>

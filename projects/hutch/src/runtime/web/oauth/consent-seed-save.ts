@@ -21,7 +21,7 @@ import { FIRST_ARTICLE_SEEDED_OUTCOMES } from "../../observability/events";
 import { resolveSaveProvenance } from "../shared/save-provenance";
 import { saveClientOf } from "../shared/save-client";
 
-const CONSENT_SEED_ARTICLE_URL =
+export const CONSENT_SEED_ARTICLE_URL =
 	"https://fagnerbrack.com/whats-the-point-to-save-articles-youll-never-read-22d07f6609ad";
 
 const CONSENT_SEED_PATH = "/oauth/authorize";

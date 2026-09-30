@@ -10,6 +10,8 @@ import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-harness";
 import { BROWSER_REQUEST_HEADERS, loginAgent, useTestServer } from "./test-app";
+import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
+import { QUEUE_DIGEST_UNSUBSCRIBE_PATH } from "./web/queue-digest-email";
 
 const useApp = useTestServer();
 
@@ -53,6 +55,7 @@ const MEMBER_PATHS = [
 	"/queue?q=article",
 	"/account",
 	"/account?section=subscription",
+	"/account/plans",
 	"/export",
 	"/install",
 	"/install?client=chrome",
@@ -78,8 +81,17 @@ function untrackedOn(path: string, html: string): string[] {
 describe("every same-origin CTA carries its own utm_source", () => {
 	it("holds across the logged-out funnel", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await harness.auth.createUser({ email: "digest-reader@example.com", password: "password123" });
+		const digestReader = await harness.auth.findUserByEmail("digest-reader@example.com");
+		assert(digestReader, "the digest reader must exist");
+		const unsubscribeQuery = new URLSearchParams({
+			t: initQueueDigestUnsubscribeToken("test-analytics-salt").sign(digestReader.userId),
+		});
 		const untracked: string[] = [];
-		for (const path of GUEST_PATHS) {
+		for (const path of [
+			...GUEST_PATHS,
+			`${QUEUE_DIGEST_UNSUBSCRIBE_PATH}?${unsubscribeQuery.toString()}`,
+		]) {
 			const response = await request(harness.server).get(path).set(BROWSER_REQUEST_HEADERS);
 			untracked.push(...untrackedOn(path, response.text));
 		}
@@ -93,6 +105,10 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const reader = await harness.auth.findUserByEmail("test@example.com");
 		assert(reader, "the logged-in reader must exist");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId: reader.userId,
+			trialEndsAt: new Date(Date.now() + 5 * 86_400_000).toISOString(),
+		});
 		await fixture.inboxAddress.inboxAddressStore.createAddress({
 			userId: reader.userId,
 			domain: fixture.inboxAddress.inboxAddressDomain,

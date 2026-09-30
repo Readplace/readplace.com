@@ -1,6 +1,9 @@
 import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
-import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
+import type {
+	FindSubscriptionByUserId,
+	SubscriptionRecord,
+} from "@packages/provider-contracts/subscription-providers";
 
 /** The user can save articles, use the extension, and import. */
 export type FullAccessTier =
@@ -32,60 +35,65 @@ export type EffectiveAccess = FullAccessTier | InactiveAccess;
 
 export type GetEffectiveAccess = (userId: UserId) => Promise<EffectiveAccess>;
 
+export function resolveEffectiveAccess(
+	row: SubscriptionRecord | undefined,
+	now: Date,
+): EffectiveAccess {
+	if (!row) return { tier: "founding", access: "full", banner: "none" };
+	switch (row.status) {
+		case "active":
+			return { tier: "paid", access: "full", banner: "none" };
+		case "pending_cancellation": {
+			assert(
+				row.cancellationEffectiveAt,
+				"pending_cancellation row must have cancellationEffectiveAt",
+			);
+			if (now < new Date(row.cancellationEffectiveAt)) {
+				return {
+					tier: row.trialEndsAt ? "trial" : "paid",
+					access: "full",
+					banner: "cancellation-scheduled",
+					cancellationEffectiveAt: row.cancellationEffectiveAt,
+				};
+			}
+			return {
+				tier: "inactive",
+				access: "read-only",
+				banner: "inactive",
+				reason: "subscription-cancelled",
+			};
+		}
+		case "trialing": {
+			assert(row.trialEndsAt, "trialing row must have trialEndsAt");
+			if (now < new Date(row.trialEndsAt)) {
+				return {
+					tier: "trial",
+					access: "full",
+					banner: "trial-countdown",
+					trialEndsAt: row.trialEndsAt,
+				};
+			}
+			return {
+				tier: "inactive",
+				access: "read-only",
+				banner: "inactive",
+				reason: "trial-expired",
+			};
+		}
+		case "cancelled":
+			return {
+				tier: "inactive",
+				access: "read-only",
+				banner: "inactive",
+				reason: "subscription-cancelled",
+			};
+	}
+}
+
 export function initGetEffectiveAccess(deps: {
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	now: () => Date;
 }): GetEffectiveAccess {
-	return async (userId): Promise<EffectiveAccess> => {
-		const row = await deps.findSubscriptionByUserId(userId);
-		if (!row) return { tier: "founding", access: "full", banner: "none" };
-		switch (row.status) {
-			case "active":
-				return { tier: "paid", access: "full", banner: "none" };
-			case "pending_cancellation": {
-				assert(
-					row.cancellationEffectiveAt,
-					"pending_cancellation row must have cancellationEffectiveAt",
-				);
-				if (deps.now() < new Date(row.cancellationEffectiveAt)) {
-					return {
-						tier: row.trialEndsAt ? "trial" : "paid",
-						access: "full",
-						banner: "cancellation-scheduled",
-						cancellationEffectiveAt: row.cancellationEffectiveAt,
-					};
-				}
-				return {
-					tier: "inactive",
-					access: "read-only",
-					banner: "inactive",
-					reason: "subscription-cancelled",
-				};
-			}
-			case "trialing": {
-				assert(row.trialEndsAt, "trialing row must have trialEndsAt");
-				if (deps.now() < new Date(row.trialEndsAt)) {
-					return {
-						tier: "trial",
-						access: "full",
-						banner: "trial-countdown",
-						trialEndsAt: row.trialEndsAt,
-					};
-				}
-				return {
-					tier: "inactive",
-					access: "read-only",
-					banner: "inactive",
-					reason: "trial-expired",
-				};
-			}
-			case "cancelled":
-				return {
-					tier: "inactive",
-					access: "read-only",
-					banner: "inactive",
-					reason: "subscription-cancelled",
-				};
-		}
-	};
+	return async (userId) =>
+		resolveEffectiveAccess(await deps.findSubscriptionByUserId(userId), deps.now());
 }

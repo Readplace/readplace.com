@@ -636,6 +636,73 @@ describe("initInMemoryAuth", () => {
 
 			expect(contact).toBeNull();
 		});
+
+		it("reports no queue digest opt-out for a user who never opted out", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "contact@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			const contact = await auth.findUserContactByUserId(created.userId);
+
+			expect(contact).toStrictEqual({
+				email: "contact@example.com",
+				emailVerified: false,
+				queueDigestOptOutAt: undefined,
+			});
+		});
+	});
+
+	describe("setQueueDigestOptOut", () => {
+		it("records the opt-out instant on the user's contact", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.setQueueDigestOptOut({
+				userId: created.userId,
+				optedOutAt: "2026-09-30T10:00:00.000Z",
+			});
+
+			const contact = await auth.findUserContactByUserId(created.userId);
+			expect(contact?.queueDigestOptOutAt).toBe("2026-09-30T10:00:00.000Z");
+		});
+
+		it("clears the opt-out instant when opting back in", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			await auth.setQueueDigestOptOut({
+				userId: created.userId,
+				optedOutAt: "2026-09-30T10:00:00.000Z",
+			});
+
+			await auth.setQueueDigestOptOut({ userId: created.userId, optedOutAt: undefined });
+
+			const contact = await auth.findUserContactByUserId(created.userId);
+			expect(contact).toStrictEqual({
+				email: "reader@example.com",
+				emailVerified: false,
+				queueDigestOptOutAt: undefined,
+			});
+		});
+
+		it("is a no-op for an unknown userId, leaving existing users intact", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.setQueueDigestOptOut({
+				userId: UserIdSchema.parse("nobody"),
+				optedOutAt: "2026-09-30T10:00:00.000Z",
+			});
+
+			const contact = await auth.findUserContactByUserId(created.userId);
+			expect(contact).toStrictEqual({
+				email: "reader@example.com",
+				emailVerified: false,
+				queueDigestOptOutAt: undefined,
+			});
+		});
 	});
 
 	describe("sessions", () => {

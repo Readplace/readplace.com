@@ -9,6 +9,7 @@ const FEATURED_PLAN_BADGE = featuredPanel.badge;
 import { parseHTML } from "linkedom";
 import {
 	SUBSCRIBE_PLANS_POPOVER_ID,
+	renderSubscribePlansGrid,
 	renderSubscribePlansPopover,
 	type SubscribePlansSource,
 } from "./subscribe-plans.component";
@@ -139,5 +140,44 @@ describe("renderSubscribePlansPopover", () => {
 		assert(dismiss, "the panel must carry the shell's dismiss control");
 		expect(dismiss.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
 		expect(dismiss.getAttribute("popovertargetaction")).toBe("hide");
+	});
+});
+
+describe("renderSubscribePlansGrid", () => {
+	function gridFor(source: SubscribePlansSource) {
+		const { document } = parseHTML(`<div>${renderSubscribePlansGrid({ source })}</div>`);
+		return document;
+	}
+
+	it("renders the three plans as plain POST forms a page can show inline, with no popover around them", () => {
+		const doc = gridFor("plans-page");
+		const forms = [...doc.querySelectorAll("[data-test-plan] form")].map((form) => ({
+			method: form.getAttribute("method"),
+			action: form.getAttribute("action"),
+			plan: form.querySelector("input[name='plan']")?.getAttribute("value"),
+		}));
+
+		expect(forms).toEqual(
+			PLAN_ORDER.map((key) => ({
+				method: "POST",
+				action: `/account/subscribe?utm_source=plans-page&utm_medium=internal&utm_content=plan-${key}`,
+				plan: key,
+			})),
+		);
+		const wrapper = doc.querySelector("div");
+		assert(wrapper, "the test wraps the grid in a <div>");
+		const [only, ...rest] = [...wrapper.children];
+		assert(only, "the grid renders a root element");
+		expect(rest).toEqual([]);
+		expect(only.classList.contains("subscribe-plans__grid")).toBe(true);
+	});
+
+	it("is the same grid the popover hands the shell, so both surfaces offer identical plans", () => {
+		const grid = gridFor("account").querySelector(".subscribe-plans__grid");
+		const popoverGrid = panelFor("account").querySelector(".subscribe-plans__grid");
+
+		assert(grid, "the grid must render its plan grid element");
+		assert(popoverGrid, "the popover must carry the plan grid element");
+		expect(grid.outerHTML).toBe(popoverGrid.outerHTML);
 	});
 });

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reader views are ready for articles you saved.</title>
+    <title>{{subject}}</title>
     <style>
       @media (min-width: 768px) {
         .email-card__body {
@@ -19,8 +19,8 @@
           <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:100%;background-color:{{colors.card}};border:1px solid {{colors.border}};border-radius:12px;">
             <tr>
               <td class="email-card__body" style="padding:24px;">
-                <h1 style="margin:0 0 16px;font-size:24px;font-weight:600;line-height:1.3;color:{{colors.foreground}};">Reader views are ready for articles you saved.</h1>
-                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">The clean reader views you opened are done — content extracted and summarised, ready to read in peace:</p>
+                <h1 style="margin:0 0 16px;font-size:24px;font-weight:600;line-height:1.3;color:{{colors.foreground}};">{{subject}}</h1>
+                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">{{intro}}</p>
                 {{#each items}}
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid {{../colors.border}};padding:24px 0 0;margin:0 0 24px;">
                   <tr>
@@ -41,13 +41,32 @@
                 {{/each}}
                 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0;">
                   <tr>
-                    <td style="border-radius:6px;background-color:{{colors.primary}};">
-                      <a href="{{queueBottomUrl}}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;line-height:20px;color:{{colors.primaryForeground}};text-decoration:none;border-radius:6px;">Continue reading</a>
+                    <td style="border-radius:6px;background-color:{{continueReading.fill}};border:1px solid {{continueReading.edge}};">
+                      <a href="{{continueReading.href}}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;line-height:20px;color:{{continueReading.ink}};text-decoration:none;border-radius:6px;">{{continueReading.label}}</a>
                     </td>
                   </tr>
                 </table>
+                {{#each payBlocks}}
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid {{@root.colors.border}};padding:24px 0 0;margin:24px 0 0;">
+                  <tr>
+                    <td>
+                      {{#each paragraphs}}
+                      <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{@root.colors.mutedForeground}};">{{this}}</p>
+                      {{/each}}
+                      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 0;">
+                        <tr>
+                          <td style="border-radius:6px;background-color:{{@root.colors.primary}};">
+                            <a href="{{keepUrl}}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;line-height:20px;color:{{@root.colors.primaryForeground}};text-decoration:none;border-radius:6px;">{{@root.keepLabel}}</a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                {{/each}}
                 <p style="margin:24px 0 0;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">{{replyLine}}</p>
-                <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:{{colors.mutedForeground}};">You're getting this because you opened these articles in Readplace before they finished loading.</p>
+                <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:{{colors.mutedForeground}};">{{footerReason}} <a href="{{unsubscribeUrl}}" style="color:{{colors.primaryText}};text-decoration:underline;">{{unsubscribeLabel}}</a>.</p>
+                <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:{{colors.mutedForeground}};">{{postalAddress}}</p>
               </td>
             </tr>
           </table>

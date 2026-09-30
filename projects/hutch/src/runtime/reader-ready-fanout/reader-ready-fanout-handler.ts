@@ -13,7 +13,7 @@ import type { EnqueueDigestItem } from "@packages/provider-contracts/digest-queu
 export interface ReaderReadyUsersNotificationFanoutDeps {
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	enqueueDigestItem: EnqueueDigestItem;
-	/** TTL retention applied to each enqueued digest row (safety purge). */
+	/** TTL retention applied to each enqueued digest row. */
 	digestRetentionMs: number;
 	now: () => Date;
 	logger: HutchLogger;
@@ -35,9 +35,7 @@ export function initReaderReadyUsersNotificationFanoutHandler(
 				const savers = await findUserArticlesByUrl(detail.url);
 				/* Only savers who opened the reader can qualify — never-viewed rows are
 				 * not enqueued at all, which is what defuses the import storm. A skipped
-				 * summary still succeeds the reader view but has nothing to announce.
-				 * Whether the open was *early enough* is decided at send time against
-				 * the article's readerAvailableAt, not here. */
+				 * summary still succeeds the reader view but has nothing to announce. */
 				const eligible = detail.hasSummary
 					? savers.filter((saver) => saver.viewedAt !== undefined)
 					: [];

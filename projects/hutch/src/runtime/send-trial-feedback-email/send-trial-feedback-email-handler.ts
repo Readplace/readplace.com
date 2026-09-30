@@ -294,6 +294,13 @@ async function processReminder(
 		);
 		return;
 	}
+	if (row.payDigestEmailSentAt) {
+		deps.logger.info(
+			"[send-trial-feedback-email] reminder: pay digest already sent — noop",
+			{ userId, sentAt: row.payDigestEmailSentAt },
+		);
+		return;
+	}
 
 	const email = await deps.findEmailByUserId(userId);
 	if (!email) {

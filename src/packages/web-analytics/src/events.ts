@@ -18,6 +18,7 @@ export const STREAMS = {
 export const ANALYTICS_EVENTS = {
 	pageview: "pageview",
 	click: "click",
+	emailClick: "email_click",
 	importUploaded: "import_uploaded",
 	importFromUrlAcquired: "import_from_url_acquired",
 	importCommitted: "import_committed",
@@ -33,7 +34,24 @@ export const ANALYTICS_EVENTS = {
 	oauthTokenRefused: "oauth_token_refused",
 	saveRefused: "save_refused",
 	pageDepth: "page_depth",
+	plansPageViewed: "plans_page_viewed",
+	queueDigestUnsubscribed: "queue_digest_unsubscribed",
 } as const;
+
+export const PLANS_PAGE_TERMS = {
+	trialPreserved: "trial_preserved",
+	chargeToday: "charge_today",
+} as const;
+
+export type PlansPageTerms = (typeof PLANS_PAGE_TERMS)[keyof typeof PLANS_PAGE_TERMS];
+
+export const QUEUE_DIGEST_UNSUBSCRIBE_METHODS = {
+	oneClick: "one-click",
+	page: "page",
+} as const;
+
+export type QueueDigestUnsubscribeMethod =
+	(typeof QUEUE_DIGEST_UNSUBSCRIBE_METHODS)[keyof typeof QUEUE_DIGEST_UNSUBSCRIBE_METHODS];
 
 /**
  * How a reader left the page the depth was measured on. `navigated_onward`
@@ -173,3 +191,5 @@ export const SAVE_LINK_SURFACES = [
  * the analytics middleware (consumer) so the two never drift.
  */
 export const INTERNAL_CLICK_MEDIUM = "internal";
+
+export const EMAIL_CLICK_MEDIUM = "email";

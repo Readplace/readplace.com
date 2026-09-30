@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
+import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initGetEffectiveAccess } from "./effective-access";
+import { initGetEffectiveAccess, resolveEffectiveAccess } from "./effective-access";
 
 const USER_ID = UserIdSchema.parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 const NOW = new Date("2026-05-23T12:00:00.000Z");
@@ -179,5 +180,40 @@ describe("initGetEffectiveAccess", () => {
 
 		assert.equal(result.tier, "inactive");
 		assert.equal(result.access, "read-only");
+	});
+});
+
+describe("resolveEffectiveAccess", () => {
+	it("returns founding/full when there is no subscription row", () => {
+		assert.deepEqual(resolveEffectiveAccess(undefined, NOW), {
+			tier: "founding",
+			access: "full",
+			banner: "none",
+		});
+	});
+
+	it("resolves the same trialing row against the instant it is given, so a caller that captured its instant once gets one answer", () => {
+		const trialEndsAt = "2026-05-25T12:00:00.000Z";
+		const row: SubscriptionRecord = {
+			userId: USER_ID,
+			provider: "stripe",
+			status: "trialing",
+			trialEndsAt,
+			createdAt: "2026-05-11T12:00:00.000Z",
+			updatedAt: "2026-05-11T12:00:00.000Z",
+		};
+
+		assert.deepEqual(resolveEffectiveAccess(row, new Date("2026-05-25T11:59:59.999Z")), {
+			tier: "trial",
+			access: "full",
+			banner: "trial-countdown",
+			trialEndsAt,
+		});
+		assert.deepEqual(resolveEffectiveAccess(row, new Date(trialEndsAt)), {
+			tier: "inactive",
+			access: "read-only",
+			banner: "inactive",
+			reason: "trial-expired",
+		});
 	});
 });

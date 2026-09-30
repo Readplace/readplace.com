@@ -35,6 +35,11 @@ export const SUBSCRIPTION_EVENTS = {
 	resubscribeCompleted: "resubscribe_completed",
 } as const;
 
+export const QUEUE_DIGEST_EVENTS = {
+	sent: "queue_digest_sent",
+	skipped: "queue_digest_skipped",
+} as const;
+
 // The variant union lives in provider-contracts because it is persisted on the
 // pending signup; `satisfies` keeps this lookup table from drifting off it.
 export const CHECKOUT_VARIANTS = {

@@ -55,13 +55,19 @@ import type {
 } from "@packages/provider-contracts/trial-scheduler";
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
 import {
-	STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS,
 	chargeReminderFiresAt,
+	trialEndToPreserve,
 } from "../../../domain/stripe/stripe-trial-config";
 import { type TrialSchedulerPort, startTrial } from "../../../domain/trial/start-trial";
 import { initLoadNextCharge } from "../../../domain/subscription/next-charge";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
-import type { RecordAudienceEvent } from "@packages/web-analytics";
+import {
+	ANALYTICS_EVENTS,
+	type PlansPageViewedEvent,
+	type RecordAudienceEvent,
+	STREAMS,
+} from "@packages/web-analytics";
+import type { UserId } from "@packages/domain/user";
 import {
 	buildCheckoutStartedEvent,
 	buildResubscribeCompletedEvent,
@@ -74,6 +80,8 @@ import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import { AccountPage, renderAccountCard } from "./account.component";
+import { PlansPage } from "./plans-page.component";
+import { type PlansPageViewModel, toPlansPageOutcome } from "./plans-page.view-model";
 import {
 	type CardError,
 	type CardSectionViewModel,
@@ -87,6 +95,10 @@ import {
 	withoutCommerce,
 } from "./account.view-model";
 import { isAppShell, isNativeSurface, nativeSurfaceOf } from "../../onboarding/native-client";
+import {
+	SUBSCRIBE_PLANS_SOURCES,
+	type SubscribePlansSource,
+} from "../../shared/subscribe-plans/subscribe-plans.component";
 import {
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
@@ -135,9 +147,10 @@ interface AccountDependencies {
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 	recordSubscriptionEvent: RecordAudienceEvent<SubscriptionLogEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<PlansPageViewedEvent>;
 }
 
-type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
+export type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
 
 export function initAccountRoutes(deps: AccountDependencies): Router {
 	const router = express.Router();
@@ -273,6 +286,29 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			suppressed: query.cancelling || query.errorPaymentMethod,
 		});
 		await renderAccount(req, res, { access, cardSection, nextCharge });
+	});
+
+	router.get("/plans", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		if (isNativeSurface(req)) {
+			res.redirect(
+				303,
+				buildAccountUrl({ surfacePlatform: nativeSurfaceOf(req), appShell: isAppShell(req) }),
+			);
+			return;
+		}
+		const row = await deps.findSubscriptionByUserId(req.userId);
+		const now = deps.now();
+		const outcome = toPlansPageOutcome({ branch: pickSubscribeBranch(row?.status), row, now });
+		if (outcome.kind === "redirect-to-account") {
+			res.redirect(303, buildAccountUrl());
+			return;
+		}
+		deps.recordAnalyticsEvent(
+			req,
+			buildPlansPageViewedEvent({ req, userId: req.userId, viewModel: outcome.viewModel, now }),
+		);
+		sendComponent(req, res, Base(PlansPage(outcome.viewModel), await deps.buildBannerState(req)));
 	});
 
 	router.get("/status", async (req: Request, res: Response) => {
@@ -646,6 +682,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					variant: params.variant,
 					checkoutSessionId: checkout.id,
 					plan: params.plan,
+					entrySource: entrySourceOf(req),
 				},
 			),
 		);
@@ -681,13 +718,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	> = {
 		trialing: async (req, res, { row, chosenPlan }) => {
 			assert(row, "trialing branch requires a row");
-			assert(row.trialEndsAt, "trialing row must have trialEndsAt");
-			const trialRemainingMs = Date.parse(row.trialEndsAt) - deps.now().getTime();
 			const checkout = await startCheckout(req, {
-				trialEndsAt:
-					trialRemainingMs >= STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS
-						? row.trialEndsAt
-						: undefined,
+				trialEndsAt: trialEndToPreserve({ row, now: deps.now() }),
 				variant: CHECKOUT_VARIANTS.trialCheckout,
 				plan: chosenPlan ?? DEFAULT_BILLING_PLAN,
 			});
@@ -800,6 +832,39 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	});
 
 	return router;
+}
+
+const SubscribePlansSourceSchema = z.enum(SUBSCRIBE_PLANS_SOURCES);
+
+function entrySourceOf(req: Request): SubscribePlansSource | null {
+	const parsed = SubscribePlansSourceSchema.safeParse(req.query.utm_source);
+	return parsed.success ? parsed.data : null;
+}
+
+const PlansPageCampaignSchema = z.object({
+	utm_source: z.string().optional().catch(undefined),
+	utm_campaign: z.string().optional().catch(undefined),
+	utm_term: z.string().optional().catch(undefined),
+});
+
+function buildPlansPageViewedEvent(input: {
+	req: Request;
+	userId: UserId;
+	viewModel: PlansPageViewModel;
+	now: Date;
+}): PlansPageViewedEvent {
+	const campaign = PlansPageCampaignSchema.parse(input.req.query);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.plansPageViewed,
+		timestamp: input.now.toISOString(),
+		user_id: input.userId,
+		tier: input.viewModel.tier,
+		terms: input.viewModel.terms,
+		utm_source: campaign.utm_source,
+		utm_campaign: campaign.utm_campaign,
+		utm_term: campaign.utm_term,
+	};
 }
 
 function pickSubscribeBranch(status: string | undefined): SubscribeBranchKey {

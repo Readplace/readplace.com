@@ -3,6 +3,7 @@ import type { BillingPlan } from "@packages/provider-contracts/subscription-prov
 import type { HutchLogger } from "@packages/hutch-logger";
 import { STREAMS, SUBSCRIPTION_EVENTS } from "./events";
 import type { CheckoutReturnFailureReason, CheckoutVariant } from "./events";
+import type { SubscribePlansSource } from "../web/shared/subscribe-plans/subscribe-plans.component";
 
 interface SubscriptionEventBase {
 	stream: typeof STREAMS.subscriptions;
@@ -32,6 +33,7 @@ export type SubscriptionLogEvent =
 			variant: CheckoutVariant;
 			checkout_session_id: string;
 			plan: BillingPlan;
+			entry_source: SubscribePlansSource | null;
 		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.checkoutCompleted;
@@ -69,6 +71,7 @@ export interface SubscriptionLogEventView {
 	checkout_session_id?: string;
 	paid_now?: boolean;
 	plan?: BillingPlan;
+	entry_source?: SubscribePlansSource | null;
 }
 
 export interface EmitSubscriptionEvent {
@@ -84,6 +87,7 @@ export function buildCheckoutStartedEvent(
 		variant: CheckoutVariant;
 		checkoutSessionId: string;
 		plan: BillingPlan;
+		entrySource: SubscribePlansSource | null;
 	},
 ): SubscriptionLogEvent {
 	return {
@@ -94,6 +98,7 @@ export function buildCheckoutStartedEvent(
 		variant: params.variant,
 		checkout_session_id: params.checkoutSessionId,
 		plan: params.plan,
+		entry_source: params.entrySource,
 	};
 }
 

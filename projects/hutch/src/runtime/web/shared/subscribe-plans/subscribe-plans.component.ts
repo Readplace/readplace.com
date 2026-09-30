@@ -13,7 +13,9 @@ export { SUBSCRIBE_PLANS_STYLES } from "./subscribe-plans.styles";
 
 export const SUBSCRIBE_PLANS_POPOVER_ID = "subscribe-plans";
 
-export type SubscribePlansSource = "queue-banner" | "account";
+export const SUBSCRIBE_PLANS_SOURCES = ["queue-banner", "account", "plans-page"] as const;
+
+export type SubscribePlansSource = (typeof SUBSCRIBE_PLANS_SOURCES)[number];
 
 interface SubscribePlanPanel {
 	key: BillingPlan;
@@ -71,6 +73,16 @@ function toSubscribePlanPanel(input: {
 	};
 }
 
+export function renderSubscribePlansGrid({
+	source,
+}: {
+	source: SubscribePlansSource;
+}): string {
+	return render(SUBSCRIBE_PLANS_ACTIONS_TEMPLATE, {
+		panels: PRICING_PANELS.map((panel) => toSubscribePlanPanel({ panel, source })),
+	});
+}
+
 export function renderSubscribePlansPopover({
 	source,
 }: {
@@ -83,8 +95,6 @@ export function renderSubscribePlansPopover({
 		title: "How would you like to pay?",
 		body: "Every plan is the whole of Readplace. Cancel any time, and everything you have already saved stays readable.",
 		wide: true,
-		actionsHtml: render(SUBSCRIBE_PLANS_ACTIONS_TEMPLATE, {
-			panels: PRICING_PANELS.map((panel) => toSubscribePlanPanel({ panel, source })),
-		}),
+		actionsHtml: renderSubscribePlansGrid({ source }),
 	});
 }

@@ -8,6 +8,7 @@ import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 import { type ViewerIp, viewerOf } from "@packages/viewer-identity";
 import {
 	ANALYTICS_EVENTS,
+	EMAIL_CLICK_MEDIUM,
 	INTERNAL_CLICK_MEDIUM,
 	type McpToolOutcome,
 	SAVE_CLIENTS,
@@ -18,6 +19,8 @@ import {
 	type OAuthTokenGrantType,
 	type OAuthTokenRefusalReason,
 	type PageExitKind,
+	type PlansPageTerms,
+	type QueueDigestUnsubscribeMethod,
 	type SaveRefusalCode,
 	type SaveClient,
 	type SaveOutcome,
@@ -95,6 +98,24 @@ export interface AnalyticsClick {
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
+}
+
+export interface AnalyticsEmailClick {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.emailClick;
+	timestamp: string;
+	path: string;
+	status_code: number;
+	utm_source?: string;
+	utm_campaign?: string;
+	utm_content?: string;
+	utm_term?: string;
+	device_class: DeviceClass;
+	browser: BrowserFamily;
+	visitor_hash: string | null;
+	visitor_id: string | null;
+	is_authenticated: 0 | 1;
+	user_id: UserId | null;
 }
 
 export interface ImportUploadedEvent {
@@ -435,9 +456,30 @@ export interface PageDepthEvent {
 	is_authenticated: 0 | 1;
 }
 
+export interface PlansPageViewedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.plansPageViewed;
+	timestamp: string;
+	user_id: UserId;
+	tier: "founding" | "paid" | "trial" | "inactive";
+	terms: PlansPageTerms;
+	utm_source?: string;
+	utm_campaign?: string;
+	utm_term?: string;
+}
+
+export interface QueueDigestUnsubscribedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.queueDigestUnsubscribed;
+	timestamp: string;
+	user_id: UserId;
+	method: QueueDigestUnsubscribeMethod;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| AnalyticsClick
+	| AnalyticsEmailClick
 	| ImportUploadedEvent
 	| ImportCommittedEvent
 	| ImportFromUrlAcquiredEvent
@@ -452,7 +494,9 @@ export type AnalyticsEvent =
 	| OAuthTokenIssuedEvent
 	| OAuthTokenRefusedEvent
 	| SaveRefusedEvent
-	| PageDepthEvent;
+	| PageDepthEvent
+	| PlansPageViewedEvent
+	| QueueDigestUnsubscribedEvent;
 
 function isRenderedPageStatus(statusCode: number): boolean {
 	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
@@ -492,10 +536,14 @@ function isTopLevelNavigation(req: Request): boolean {
  * stay countable, which is what keeps genuine acquisition traffic measurable.
  */
 export function isCountableBrowserRequest(params: { req: Request; ownHost: string }): boolean {
-	if (isBotRequest(params.req)) return false;
-	if (isPrefetch(params.req)) return false;
 	if (extractReferrerHost(params.req) === params.ownHost) return false;
-	return isBrowserClient(params.req);
+	return isCountableBrowserClient(params.req);
+}
+
+function isCountableBrowserClient(req: Request): boolean {
+	if (isBotRequest(req)) return false;
+	if (isPrefetch(req)) return false;
+	return isBrowserClient(req);
 }
 
 function shouldLog(params: {
@@ -553,6 +601,10 @@ function isInternalClick(req: Request): boolean {
 	return extractQueryString(req, "utm_medium") === INTERNAL_CLICK_MEDIUM;
 }
 
+function isEmailClick(req: Request): boolean {
+	return extractQueryString(req, "utm_medium") === EMAIL_CLICK_MEDIUM;
+}
+
 const suppressedClickResponses = new WeakSet<Response>();
 
 export function suppressClickCount(res: Response): void {
@@ -596,9 +648,19 @@ export function tagPageviewSortOrder(
  * `utm_medium=internal` marker already excludes background polls.
  */
 function shouldCountClick(params: { req: Request; res: Response; ownHost: string }): boolean {
-	if (suppressedClickResponses.has(params.res)) return false;
-	if (params.res.statusCode >= 400) return false;
+	if (!isCountableClickResponse(params.res)) return false;
 	return isCountableBrowserRequest({ req: params.req, ownHost: params.ownHost });
+}
+
+function isCountableClickResponse(res: Response): boolean {
+	if (suppressedClickResponses.has(res)) return false;
+	return res.statusCode < 400;
+}
+
+function shouldCountEmailClick(params: { req: Request; res: Response; ownHost: string }): boolean {
+	if (!params.req.userId) return shouldCountClick(params);
+	if (!isCountableClickResponse(params.res)) return false;
+	return isCountableBrowserClient(params.req);
 }
 
 /**
@@ -905,6 +967,25 @@ export function createAnalyticsMiddleware(deps: {
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					visitor_id: req.visitorId ?? null,
 					is_authenticated: req.userId ? 1 : 0,
+				});
+			}
+			if (isEmailClick(req) && shouldCountEmailClick({ req, res, ownHost: deps.ownHost })) {
+				deps.logger.info({
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.emailClick,
+					timestamp: deps.now().toISOString(),
+					path,
+					status_code: res.statusCode,
+					utm_source: extractQueryString(req, "utm_source"),
+					utm_campaign: extractQueryString(req, "utm_campaign"),
+					utm_content: extractQueryString(req, "utm_content"),
+					utm_term: extractQueryString(req, "utm_term"),
+					device_class: classifyDeviceClass(userAgent),
+					browser: classifyBrowser(userAgent),
+					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+					visitor_id: req.visitorId ?? null,
+					is_authenticated: req.userId ? 1 : 0,
+					user_id: req.userId ?? null,
 				});
 			}
 			if (

@@ -9,6 +9,7 @@ import type {
 import type { ReaderArticleHashId } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { z } from "zod";
 
 export interface SaveArticleParams {
 	userId: UserId;
@@ -217,18 +218,32 @@ export type MarkReaderReadyEmailSent = (params: {
 	at: Date;
 }) => Promise<void>;
 
-export interface UserArticleNotificationState {
-	savedAt: Date;
-	status: ArticleStatus;
-	viewedAt?: Date;
-	emailSentAt?: Date;
+export const DigestPageCursorSchema = z.string().brand<"DigestPageCursor">();
+export type DigestPageCursor = z.infer<typeof DigestPageCursorSchema>;
+
+export type DigestEmailFilter =
+	| { kind: "not-emailed-before"; sendInstant: Date }
+	| { kind: "any" };
+
+export interface DigestCandidate {
+	article: SavedArticle;
+	emailSentAt: Date | undefined;
+	readerAvailableAt: Date | undefined;
+	purgedAt: Date | undefined;
 }
 
-/** The per-user row fields the reader-ready notify gate re-reads at send time. */
-export type FindUserArticleNotificationState = (params: {
+export interface UnreadSavesForDigestPage {
+	candidates: DigestCandidate[];
+	nextCursor: DigestPageCursor | undefined;
+}
+
+export type FindUnreadSavesForDigest = (query: {
 	userId: UserId;
-	url: string;
-}) => Promise<UserArticleNotificationState | null>;
+	savedAtOrBefore: Date;
+	emailFilter: DigestEmailFilter;
+	limit: number;
+	cursor: DigestPageCursor | undefined;
+}) => Promise<UnreadSavesForDigestPage>;
 
 export type ContentProvider = (articleResourceUniqueId: ArticleResourceUniqueId) => Promise<string | undefined>;
 

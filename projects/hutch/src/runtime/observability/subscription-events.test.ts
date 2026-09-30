@@ -101,6 +101,7 @@ describe("buildCheckoutStartedEvent", () => {
 			variant: CHECKOUT_VARIANTS.trialCheckout,
 			checkoutSessionId: "cs_test_1",
 			plan: "triennial",
+			entrySource: "plans-page",
 		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_started",
@@ -109,7 +110,20 @@ describe("buildCheckoutStartedEvent", () => {
 			variant: "trial_checkout",
 			checkout_session_id: "cs_test_1",
 			plan: "triennial",
+			entry_source: "plans-page",
 		});
+	});
+
+	it("records a null entry_source when the plan was chosen from no known plan surface, so the key is always present to group by", () => {
+		const event = buildCheckoutStartedEvent({ now: NOW }, {
+			userId: USER_ID,
+			variant: CHECKOUT_VARIANTS.trialCheckout,
+			checkoutSessionId: "cs_test_1",
+			plan: "yearly",
+			entrySource: null,
+		});
+
+		expect(JSON.parse(JSON.stringify(event))).toMatchObject({ entry_source: null });
 	});
 });
 

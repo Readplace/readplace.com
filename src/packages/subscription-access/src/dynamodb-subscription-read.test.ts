@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { z } from "zod";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbSubscriptionRead } from "./dynamodb-subscription-read";
@@ -79,6 +80,69 @@ describe("initDynamoDbSubscriptionRead", () => {
 			});
 
 			expect(await read.findBySubscriptionId("sub_missing")).toBeUndefined();
+		});
+	});
+
+	describe("listUserIdsByStatus", () => {
+		const CapturedQueryCommand = z.object({
+			input: z.object({
+				IndexName: z.string(),
+				KeyConditionExpression: z.string(),
+				ExpressionAttributeNames: z.record(z.string(), z.string()),
+				ExpressionAttributeValues: z.record(z.string(), z.string()),
+				ExclusiveStartKey: z.record(z.string(), z.string()).optional(),
+			}),
+		});
+
+		it("queries status-index for the status and follows every page, reading only the key the KEYS_ONLY index projects", async () => {
+			const firstPageEnd = { userId: "u-trial-2", status: "trialing" };
+			const pages = [
+				{
+					Items: [
+						{ userId: "u-trial-1", status: "trialing" },
+						{ userId: "u-trial-2", status: "trialing" },
+					],
+					LastEvaluatedKey: firstPageEnd,
+				},
+				{ Items: [{ userId: "u-trial-3", status: "trialing" }] },
+			];
+			const captured: unknown[] = [];
+			const client = createFakeClient((input) => {
+				captured.push(input);
+				return pages.shift();
+			});
+			const read = initDynamoDbSubscriptionRead({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const userIds = await read.listUserIdsByStatus("trialing");
+
+			assert.deepEqual(userIds, [
+				UserIdSchema.parse("u-trial-1"),
+				UserIdSchema.parse("u-trial-2"),
+				UserIdSchema.parse("u-trial-3"),
+			]);
+			const [first, second] = captured.map((command) => CapturedQueryCommand.parse(command).input);
+			assert(first && second, "one Query per page");
+			assert.equal(captured.length, 2);
+			assert.equal(first.IndexName, "status-index");
+			assert.equal(first.KeyConditionExpression, "#status = :status");
+			assert.deepEqual(first.ExpressionAttributeNames, { "#status": "status" });
+			assert.deepEqual(first.ExpressionAttributeValues, { ":status": "trialing" });
+			assert.equal(first.ExclusiveStartKey, undefined);
+			assert.equal(second.IndexName, "status-index");
+			assert.deepEqual(second.ExclusiveStartKey, firstPageEnd);
+		});
+
+		it("returns no user ids when no row holds the status", async () => {
+			const client = createFakeClient(() => ({ Items: [] }));
+			const read = initDynamoDbSubscriptionRead({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			assert.deepEqual(await read.listUserIdsByStatus("pending_cancellation"), []);
 		});
 	});
 });

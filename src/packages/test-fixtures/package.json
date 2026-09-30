@@ -41,10 +41,6 @@
       "types": "./dist/providers/auth/index.d.ts",
       "default": "./dist/providers/auth/index.js"
     },
-    "./providers/digest-queue": {
-      "types": "./dist/providers/digest-queue/index.d.ts",
-      "default": "./dist/providers/digest-queue/index.js"
-    },
     "./providers/email": {
       "types": "./dist/providers/email/index.d.ts",
       "default": "./dist/providers/email/index.js"
@@ -211,9 +207,6 @@
       ],
       "providers/auth": [
         "./dist/providers/auth/index.d.ts"
-      ],
-      "providers/digest-queue": [
-        "./dist/providers/digest-queue/index.d.ts"
       ],
       "providers/email": [
         "./dist/providers/email/index.d.ts"

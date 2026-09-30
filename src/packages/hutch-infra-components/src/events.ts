@@ -877,12 +877,8 @@ export type ReaderViewLoadingSucceededDetail = z.infer<
 >;
 
 /** Per-user command to (maybe) send one reader-ready digest email. Dispatched
- * by the `digest-scan` Lambda — one command per distinct user with at least one
- * queued reader-ready article — on each `rate(6 hours)` flush tick, via direct
- * SQS. The `send-user-digest` Lambda consumes it, re-checks every gate against
- * the live per-article row, claims the per-user cooldown, and sends a single
- * digest of every still-eligible article. Carries only `userId`: the reference
- * instant for each article is that article's own set-once `readerAvailableAt`. */
+ * by the `digest-scan` Lambda on each `rate(6 hours)` flush tick, via direct
+ * SQS. The `send-user-digest` Lambda consumes it. Carries only `userId`. */
 export const SendUserDigestCommand = defineCommand({
 	detailSchema: z.object({
 		userId: z.string(),
@@ -892,12 +888,10 @@ export type SendUserDigestDetail = z.infer<
 	typeof SendUserDigestCommand.detailSchema
 >;
 
-/** Irreversible fact: a reader-ready email was sent to a user. The one email
- * batches every reader-ready URL that came due in the 6-hourly window, so `urls`
- * carries the whole set (was a single `url`). Published by the `send-user-digest`
- * Lambda after the email send and the per-article set-once `emailSentAt` stamps.
- * No load-bearing consumer today — wired so future analytics handlers can
- * subscribe without a schema change. */
+/** Irreversible fact: a reader-ready email was sent to a user. Published by the
+ * `send-user-digest` Lambda after the email send and the per-article set-once
+ * `emailSentAt` stamps. No load-bearing consumer today — wired so future
+ * analytics handlers can subscribe without a schema change. */
 export const ReaderReadyEmailSentEvent = defineEvent({
 	name: "reader-ready-email-sent",
 	source: "hutch.reader-ready",
