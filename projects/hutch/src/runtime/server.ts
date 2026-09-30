@@ -822,8 +822,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			})),
 			{ loc: "/embed/", priority: "0.5", changefreq: "monthly", lastmod: "2026-09-24" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-09-22" },
-			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-09-22" },
+			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-10-01" },
+			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-10-01" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-08-05" },
 		];
 
