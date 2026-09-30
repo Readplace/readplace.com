@@ -373,6 +373,7 @@ The service is provided as-is. Users retain ownership of their content and can e
 - [Read-Only, Not Dark](https://readplace.com/read-it-later-that-wont-die): What happens to a library when a subscription ends
 - [Reflow a PDF](https://readplace.com/pdf-reflow): Read a pasted PDF as text that fits a phone screen, no account
 - [Save Newsletter Links](https://readplace.com/save-newsletter-links): An address per newsletter, and the article links in each issue saved to a readlist
+- [Article to EPUB](https://readplace.com/article-to-epub): Download any pasted article as an EPUB for a Kobo or Kindle, no account
 - [Blog](https://readplace.com/blog): Product updates and comparison articles
 - [Best Read-It-Later Apps 2026](https://readplace.com/blog/best-read-it-later-apps-2026): Honest comparison of 7 apps
 - [Why Readplace Exists](https://readplace.com/blog/why-readplace-exists): Why Readplace exists

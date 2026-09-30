@@ -268,6 +268,7 @@ describe("GET /sitemap.xml", () => {
 			"http://localhost:3000/read-it-later-that-wont-die",
 			"http://localhost:3000/pdf-reflow",
 			"http://localhost:3000/save-newsletter-links",
+			"http://localhost:3000/article-to-epub",
 			"http://localhost:3000/embed/",
 			"http://localhost:3000/login",
 			"http://localhost:3000/llms.txt",

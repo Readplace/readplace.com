@@ -1,4 +1,5 @@
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
+import { withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import {
 	OCR_LANGUAGES_ANSWER,
@@ -132,5 +133,5 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 	},
 	closeTitle: "Try it on a PDF you already have",
 	closeSecondaryAction: START_TRIAL,
-	closeNote: "Paste a link and read the extraction. No account required.",
+	closeNote: `Paste a link and read the extraction. No account required. <a href="${withInternalTracking("/pdf-reflow", { source: "lp-pdf-ocr-close", content: "pdf-reflow" })}">Reading a PDF on a phone</a> and <a href="${withInternalTracking("/article-to-epub", { source: "lp-pdf-ocr-close", content: "article-to-epub" })}">turning one into an EPUB</a> have their own pages.`,
 };

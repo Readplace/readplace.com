@@ -216,6 +216,7 @@ describe("landing pages", () => {
 			"read-it-later-that-wont-die": "/signup",
 			"pdf-reflow": "/view",
 			"save-newsletter-links": "/signup",
+			"article-to-epub": "/view",
 		};
 
 		for (const slug of SLUGS) {
@@ -242,6 +243,7 @@ describe("landing pages", () => {
 			"read-it-later-that-wont-die": [],
 			"pdf-reflow": ["try-reflow", "close-try-reflow"],
 			"save-newsletter-links": [],
+			"article-to-epub": ["try-epub", "close-try-epub"],
 		});
 
 		const { doc } = await loadPage("pdf-ocr");

@@ -69,7 +69,7 @@ export const PDF_REFLOW_CONTENT: LandingPageContent = {
 	mechanismParagraphs: [
 		"The two passes that touch the words are checked against the raw OCR output: the same runs of digits must come back, the length must stay within 30 percent, and the line structure must match. The pass that turns text into HTML is checked for how much text it dropped. A pass that fails is discarded and the rawer text is kept.",
 		`Scans are read in ${OCR_SCRIPT_PACKS.length} scripts, each tested with one language: ${OCR_TESTED_LANGUAGES}.`,
-		`<a href="${track("/blog/save-pdfs-straight-from-your-browser", "post-save-pdfs-from-browser")}">Saving a PDF from the open tab</a> keeps it in your readlist. <a href="${track("/pdf-ocr", "pdf-ocr")}">The PDF page</a> goes through each check.`,
+		`<a href="${track("/blog/save-pdfs-straight-from-your-browser", "post-save-pdfs-from-browser")}">Saving a PDF from the open tab</a> keeps it in your readlist. <a href="${track("/pdf-ocr", "pdf-ocr")}">The PDF page</a> goes through each check, and <a href="${track("/article-to-epub", "article-to-epub")}">the EPUB page</a> covers sending the text to an e-reader.`,
 	],
 	limitsTitle: "What this does not do",
 	limits: [

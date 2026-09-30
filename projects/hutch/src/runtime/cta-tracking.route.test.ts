@@ -42,6 +42,7 @@ const GUEST_PATHS = [
 	"/read-it-later-that-wont-die",
 	"/pdf-reflow",
 	"/save-newsletter-links",
+	"/article-to-epub",
 	"/queue",
 	"/save",
 	"/view/not-a-url",
