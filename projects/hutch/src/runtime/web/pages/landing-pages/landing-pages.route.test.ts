@@ -33,7 +33,7 @@ async function loadPage(slug: LandingPageSlug) {
 }
 
 describe("landing pages", () => {
-	it.each<LandingPageSlug>(["pdf-ocr"])("names every OCR script's tested language on /%s", async (slug) => {
+	it.each<LandingPageSlug>(["pdf-ocr", "pdf-reflow"])("names every OCR script's tested language on /%s", async (slug) => {
 		const { doc } = await loadPage(slug);
 
 		const questions = Array.from(doc.querySelectorAll("[data-test-lp-faq-question]"));
@@ -197,6 +197,7 @@ describe("landing pages", () => {
 			"pdf-ocr": "/view",
 			"ai-reading-list": "/mcp",
 			"read-it-later-that-wont-die": "/signup",
+			"pdf-reflow": "/view",
 		};
 
 		for (const slug of SLUGS) {
@@ -207,7 +208,7 @@ describe("landing pages", () => {
 		}
 	});
 
-	it("gives only the PDF page a paste field, and labels it for screen readers", async () => {
+	it("gives a paste field only to pages whose primary action opens the reader, and labels it for screen readers", async () => {
 		const fieldsBySlug: Record<string, string[]> = {};
 		for (const slug of SLUGS) {
 			const { doc } = await loadPage(slug);
@@ -221,6 +222,7 @@ describe("landing pages", () => {
 			"pdf-ocr": ["try-pdf", "close-try-pdf"],
 			"ai-reading-list": [],
 			"read-it-later-that-wont-die": [],
+			"pdf-reflow": ["try-reflow", "close-try-reflow"],
 		});
 
 		const { doc } = await loadPage("pdf-ocr");

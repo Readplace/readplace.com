@@ -40,6 +40,7 @@ const GUEST_PATHS = [
 	"/pdf-ocr",
 	"/ai-reading-list",
 	"/read-it-later-that-wont-die",
+	"/pdf-reflow",
 	"/queue",
 	"/save",
 	"/view/not-a-url",
