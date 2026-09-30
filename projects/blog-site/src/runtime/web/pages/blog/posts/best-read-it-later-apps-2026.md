@@ -12,7 +12,7 @@ keywords: "read it later apps, Pocket alternative, Omnivore alternative, best re
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For most readers I would start with Readplace: $3/month with AI TL;DR summaries included, funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading.
+Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For most readers I would start with Readplace: from $3/month with AI TL;DR summaries included, funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading.
 
 </div>
 </details>
@@ -33,13 +33,27 @@ These 5 axes leave things out. They say nothing about reading-view typography, p
 
 | App | Price | AI Features | Open Source | Offline Reading | Platforms |
 |-----|-------|-------------|-------------|-----------------|-----------|
-| **Readplace** | $3/month, 14-day free trial, no card | TL;DR summaries | Source-available | Planned | Web, iPhone, Mac, Chrome, Firefox |
+| **Readplace** | From $3/month, 14-day free trial, no card | TL;DR summaries | Source-available | No | Web, iPhone, Mac, Chrome, Firefox |
 | **Readwise Reader** | $119.88/yr | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Instapaper** | Free / Premium | Summaries | No | Yes | Web, iOS, macOS, Android, Kindle/Kobo |
 | **Raindrop.io** | Free / $28/yr | AI Suggestions + Stella | Clients only | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Karakeep** | Free (self-hosted) | AI tagging + summaries | Yes | Planned | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Wallabag** | Free (self-hosted) | No (core) | Yes | Yes | Web, iOS, Android, Chrome, Firefox |
 | **Matter** | Free / $60/yr | AI co-reader | No | Yes | iOS, macOS, Web, Chrome |
+
+## PDFs, newsletters and e-readers
+
+Three things the table above leaves out, as each app documents them on Oct 1, 2026.
+
+| App | PDFs | Newsletters | E-reader |
+|---|---|---|---|
+| **Readplace** | Every plan. Link, extension or iPhone share sheet, scans read by OCR | One address per newsletter, article links saved | EPUB download per article |
+| **Readwise Reader** | Upload, up to 500 MB | Dedicated email address | Sends documents to a Kindle |
+| **Instapaper** | Premium only | Save-by-email address that takes newsletters | Kobo sync free, Kindle digests Premium |
+| **Raindrop.io** | Upload | No email intake | No |
+| **Karakeep** | Upload, text layer only | No email intake | *not reported* |
+| **Wallabag** | *not reported* | Save-by-email address for wallabag.it subscribers | EPUB download per article |
+| **Matter** | Saves PDFs | Gmail connection, a Matter address or forwarding | Sends articles to a Kindle |
 
 ## Readplace
 
@@ -49,7 +63,7 @@ The code is source-available, so you can read every line that touches your data.
 
 The part that matters most after watching Pocket and Omnivore die: the subscription is the entire funding source. No ads, no investors, no data selling. There is no parent company whose shifting priorities can wind it down.
 
-**$3/month, with a 14-day free trial. No credit card required.** Less than a cup of coffee a month for a full-blown reader system powered by AI. If the trial ends and you have not subscribed, nothing is charged. The account drops to read-only, and everything you saved stays readable.
+**From $3/month, with a 14-day free trial. No credit card required.** Less than a cup of coffee a month for a full-blown reader system powered by AI. If the trial ends and you have not subscribed, nothing is charged. The account drops to read-only, and everything you saved stays readable.
 
 ### Strengths
 
@@ -69,7 +83,7 @@ The part that matters most after watching Pocket and Omnivore die: the subscript
 <p class="blog-cta__title">Try Readplace on your own reading</p>
 <p class="blog-cta__text">Save a week's worth of articles and see how the reader view and the TL;DRs hold up. If it does not fit, let the trial lapse. Nothing is charged and the account drops to read-only.</p>
 <a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. $3/month if you stay.</p>
+<p class="blog-cta__note">No credit card required. From $3/month if you stay.</p>
 </div>
 
 ## Readwise Reader
@@ -200,7 +214,7 @@ The pick depends on how you use saved articles. Here is how the axes resolve int
 - **If you want the longest-running open source option:** Wallabag.
 - **If you want reading to be social:** Matter.
 
-If none of the narrower profiles fits, my suggestion is the one I am biased about: start the Readplace trial, bring your Pocket export with you, and let two weeks of your actual reading decide. If Readplace does not earn the $3 a month, nothing is charged and the account goes read-only.
+If none of the narrower profiles fits, my suggestion is the one I am biased about: start the Readplace trial, bring your Pocket export with you, and let two weeks of your actual reading decide. If Readplace does not earn its price, nothing is charged and the account goes read-only.
 
 ## Frequently Asked Questions
 
@@ -224,9 +238,16 @@ Readwise Reader has the most polished mobile apps, with full offline support. In
 
 Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote this page to represent each app fairly and to be honest about where Readplace falls short: no Android app, no offline reading, a smaller feature set, and a younger track record. If you think this page is unfair, I want to hear about it.
 
+## Readplace for specific jobs
+
+- [Saving PDFs, scans included](/pdf-ocr?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pdf-ocr): how scanned pages are read and checked.
+- [Moving from Pocket](/pocket-alternative?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pocket-alternative): what a Pocket export brings across before you make an account.
+- [Reading from an AI assistant](/ai-reading-list?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=ai-reading-list): saving to a readlist from ChatGPT, Claude or Gemini.
+- [When a subscription ends](/read-it-later-that-wont-die?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=read-it-later-that-wont-die): what stays readable if you stop paying.
+
 <div class="blog-cta">
 <p class="blog-cta__title">See whether Readplace fits your reading</p>
 <p class="blog-cta__text">You have read my case and you know my bias. Fourteen days with the full product, on the articles you actually save, answers the question better than this page can.</p>
 <a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. $3/month if you stay. If you don't, nothing is charged and your account goes read-only.</p>
+<p class="blog-cta__note">No credit card required. From $3/month if you stay. If you don't, nothing is charged and your account goes read-only.</p>
 </div>

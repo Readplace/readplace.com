@@ -25,7 +25,7 @@ This post compares the two along that axis, so you can pick the tool that fits h
 
 ## What each tool is
 
-**Karakeep** is free, open-source, and self-hosted. You run it yourself with Docker. It does AI-powered auto-tagging through Ollama (local) or OpenAI, and it ships full-text search, browser extensions, and mobile apps for iOS and Android. It started as Hoarder, rebranded to Karakeep, and now has 38,000+ GitHub stars with active development.
+**Karakeep** is free, open-source, and self-hosted. You run it yourself with Docker. It does AI-powered auto-tagging through Ollama (local) or OpenAI, and it ships full-text search, browser extensions, and mobile apps for iOS and Android. It started as Hoarder, rebranded to Karakeep, and has about 29,000 GitHub stars as of September 2026, with active development.
 
 **Readplace** is hosted, with its current plans on the [home page](/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pricing#pricing). You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, and Pocket import, and you skip Docker, server setup, and ongoing maintenance entirely. It grew out of a personal reading system that ran for 10 years.
 
@@ -74,12 +74,12 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 | **AI features** | Auto-tagging (Ollama / OpenAI) | TL;DR summaries (included) |
 | **Browser extensions** | Chrome, Firefox | Chrome, Firefox |
 | **Mobile apps** | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
-| **Full-text search** | Yes (Meilisearch) | Not yet |
+| **Full-text search** | Yes (Meilisearch) | No |
 | **Pocket import** | Yes | Yes |
 | **Data ownership** | Full (your server) | Export anytime |
 | **Setup time** | 15 to 30 min (Docker experience helps) | 2 minutes |
 | **Maintenance** | You handle updates, backups, uptime | Handled for you |
-| **Community** | 38K+ GitHub stars, active Discord | Growing |
+| **Community** | About 29,000 GitHub stars (Sep 2026), active Discord | 30 GitHub stars (Sep 2026), GitHub issues and discussions |
 
 ## When to pick Karakeep
 
@@ -101,11 +101,18 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 
 ## The honest take
 
-If you enjoy running Docker containers and you want full control over your data, Karakeep is a strong choice. It's well-built, actively maintained, and backed by a large community, and the 38K GitHub stars aren't an accident. I wouldn't steer a homelab owner away from it.
+If you enjoy running Docker containers and you want full control over your data, Karakeep is a strong choice. It's well-built, actively maintained, and backed by a large community, and the 29,000 GitHub stars aren't an accident. Nothing here argues a homelab owner away from it.
 
 If you would rather not run infrastructure for a reading list, that is the work Readplace takes off your plate, and you give up self-hosted control in exchange for an app that works the moment you hit save and stays working without you watching it.
 
 Both tools answer the same question with different philosophies: how much of the stack do you want to own? Karakeep hands you the whole stack and the responsibility that comes with it. Readplace hands you a reading list and keeps the servers out of your life. Both answers are fair, so pick the one that matches how you want to spend the hours you would otherwise lose to maintenance.
+
+## Readplace for specific jobs
+
+- [Saving PDFs, scans included](/pdf-ocr?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pdf-ocr): how scanned pages are read and checked.
+- [Moving from Pocket](/pocket-alternative?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pocket-alternative): what a Pocket export brings across before you make an account.
+- [Reading from an AI assistant](/ai-reading-list?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=ai-reading-list): saving to a readlist from ChatGPT, Claude or Gemini.
+- [When a subscription ends](/read-it-later-that-wont-die?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-it-later-that-wont-die): what stays readable if you stop paying.
 
 ---
 

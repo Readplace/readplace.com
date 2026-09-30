@@ -3,7 +3,7 @@ title: "Pocket Shut Down in 2025. Here's How to Recover and Move Your Reading Li
 description: "Pocket closed on July 8, 2025. If you missed the export, your articles are often still recoverable. Here's how to find them and move to Readplace."
 slug: "pocket-migration"
 date: "2026-05-06"
-lastModified: "2026-09-30"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
@@ -76,7 +76,7 @@ If you came out of the recovery step with a pile of loose URLs and no export fil
 | Save articles from browser | Yes | Yes (Chrome, Firefox) |
 | Reader view | Yes | Yes |
 | AI summaries | No | TL;DR for every article |
-| Tags | Yes | No |
+| Tags | Yes | Readlists (up to 7), no tags |
 | Highlights | No | No |
 | Full-text search | Yes (Premium) | No |
 | Offline reading | Yes (mobile) | Planned |

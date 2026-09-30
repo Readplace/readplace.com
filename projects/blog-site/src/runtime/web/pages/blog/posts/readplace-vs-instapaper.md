@@ -51,9 +51,9 @@ On maturity it is hard to beat. The product has run since 2008 and the company i
 
 Development pace is the other side of that history.
 
-Instapaper has shipped few new features in recent years. It works, and it works well, but it is close to the same product it was in 2023.
+Instapaper's recent changes have mostly moved features behind Premium, such as the PDF reader in 2025 and Kindle digests in 2026. Otherwise it is close to the same product it was in 2023.
 
-On pricing and data, there is a free tier that covers the basics, namely saving, reading later, and basic organisation. A premium tier adds full-text search, speed reading, and text-to-speech. Your data sits on US infrastructure.
+On pricing and data, there is a free tier that covers the basics, namely saving, reading later, and basic organisation. Premium adds full-text search, speed reading, text-to-speech, the PDF reader and Kindle digests. The Kobo sync stays free. Your data sits on US infrastructure.
 
 > **For some readers that stability is the feature. For others it reads as a product in maintenance mode.**
 
@@ -67,7 +67,7 @@ Whether that helps depends on how you read. If you save 3 articles a week and re
 
 But if you save 30 a week and fall behind, a one-paragraph summary per article tells you which ones earn your time, so the list becomes something you work through instead of avoid.
 
-On reading surface it is the narrower of the two. Readplace runs on the web, in a browser extension, and in an iPhone app that saves from the share sheet and opens your saved copy in the app. The same app runs on a Mac. Past that it thins out. No Android app, no e-reader sync beyond an EPUB download of each article, and no offline reading on a train yet. If you read on more than one kind of device, this is a real gap.
+On reading surface it is the narrower of the two. Readplace runs on the web, in a browser extension, and in an iPhone app that saves from the share sheet and opens your saved copy in the app. The same app runs on a Mac. Past that it thins out. There is no Android app and no offline reading on a train. An e-reader gets a file rather than a sync: every article has a Download EPUB button, and the file goes to a Kobo over USB or to a Kindle by email. If you read on more than one kind of device, this is a real gap.
 
 On data it makes a deliberate choice. Readplace is hosted in Australia, so your account and reading history are stored on Australian infrastructure under Australian privacy law, which matters if you care where your data lives. Readplace sends article text to DeepSeek to clean up the text and write the summary.
 
@@ -87,12 +87,16 @@ The table below is the same five axes broken into the concrete features behind t
 | **Browser extension** | Yes | Yes (Firefox, Chrome) |
 | **Free tier** | Yes | No |
 | **Paid price** | $59.99/yr | [Current plans](/?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=pricing#pricing) |
-| **E-reader integration** | Kobo (built-in) | EPUB download per article |
+| **E-reader** | Kobo sync built in, free. Kindle digests need Premium | EPUB download per article, moved to the device by hand |
 | **Pocket import** | Yes | Yes |
 | **Data hosting** | United States | Australia |
 | **Active development** | Limited recent updates | Shipping weekly |
+| **PDFs** | Premium only | Every plan. Link, extension or iPhone share sheet, scans read by OCR |
+| **Newsletters** | Save-by-email address that takes newsletters | One address per newsletter, article links saved |
 | **Text-to-speech** | Premium feature | No |
 | **Full-text search** | Premium feature | No |
+
+Instapaper's PDF support [launched on Aug 6, 2025](/view/blog.instapaper.com/post/791134578856378368/pdf-support-localization-and-international?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=read-blog-instapaper-com) as a Premium feature, and its Kindle digests [have needed Premium since Feb 19, 2026](/view/www.pocket-lint.com/instapaper-send-to-kindle-going-behind-paywall/?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=read-www-pocket-lint-com).
 
 ## Who should pick what
 

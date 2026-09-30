@@ -3,8 +3,8 @@ title: "You're Subscribed to 30 Newsletters. You Read 3. Here's a Better System.
 description: "Most developers subscribe to far more newsletters than they read. The problem isn't the newsletters. It's the lack of a system to extract the few links worth reading from each one."
 slug: "newsletter-overload"
 date: "2026-04-06"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
-lastModified: "2026-09-30"
 keywords: "newsletter overload, developer newsletters, read it later, email newsletters, reading system"
 ---
 

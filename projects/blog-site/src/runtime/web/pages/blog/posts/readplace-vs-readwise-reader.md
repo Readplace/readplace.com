@@ -3,16 +3,16 @@ title: "Readplace vs Readwise Reader: Which Read-It-Later App Is Right for You?"
 description: "A fair look at two read-it-later apps with AI. Where Readwise wins, where Readplace wins, and how to pick the right one for you."
 slug: "readplace-vs-readwise-reader"
 date: "2026-04-06"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
-lastModified: "2026-09-30"
-keywords: "readplace vs readwise, read it later app, readwise alternative, read it later AI"
+keywords: "readplace vs readwise, read it later app, read it later AI"
 ---
 
 <details class="blog-tldr">
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, and a newsletter inbox. Readplace is simpler, with AI TL;DR summaries, Australian hosting, source-available code, and a focused reading experience. Pick Readwise if you need highlighting that syncs into a note-taking tool. Pick Readplace if you want AI summaries and privacy at a lower price.
+Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, or anything beyond reading text. Pick Readplace if you want AI summaries and privacy at a lower price.
 
 </div>
 </details>
@@ -29,11 +29,17 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 
 | | Readplace | Readwise Reader |
 |---|---|---|
-| **Price** | [Plans on the home page](/?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=pricing#pricing) | $119.88/yr ($9.99/mo billed annually) |
+| **Price** | [Plans on the home page](/?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=pricing#pricing) | $119.88/yr ($9.99/mo billed annually, $12.99 month to month) |
 | **AI summaries** | Global TL;DR (included) | Ghostreader (inline AI, Q&A, more advanced) |
 | **Highlights** | No | Full highlighting with sync to Obsidian, Notion, Logseq |
 | **RSS reader** | No | Yes, built in |
-| **Newsletter inbox** | A forwarding address per newsletter | Dedicated email inbox |
+| **Newsletter inbox** | A forwarding address per newsletter, article links saved | Dedicated email address |
+| **PDFs** | Link, extension or iPhone share sheet, scans read by OCR | Upload, up to 500 MB |
+| **EPUB** | Download any article as an EPUB | Upload EPUB books |
+| **Video** | No | YouTube with a highlightable transcript |
+| **Podcasts** | No | Episodes from Spotify, Overcast and Apple Podcasts |
+| **Listening** | No | Yes, AI voices |
+| **E-reader** | EPUB download, moved to the device by hand | Sends documents to a Kindle |
 | **Reader view** | Yes | Yes |
 | **Privacy** | Hosted in Sydney, AU. Australian Privacy Act | US-based |
 | **Source code** | source-available | Proprietary |
@@ -85,7 +91,9 @@ Readwise gives you a dedicated email address for newsletters. Subscribe to anyth
 
 Readplace takes a different route.
 
-Readplace gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, and an account holds up to 25 of them. When an issue arrives, Readplace pulls out the article links, sets aside unsubscribe and confirm links without opening them, and saves the articles to your readlist with a summary.
+Readplace gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, and an account holds up to 25 of them. When an issue arrives, Readplace pulls out the article links, sets aside unsubscribe and confirm links without opening them, and saves the articles to your readlist with a summary. The email itself isn't saved as an article, so a newsletter whose writing lives only in the email body can be read on its inbox page but never reaches the readlist. [How an issue gets sorted](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist).
+
+So the split is simple. Readwise keeps the whole issue, and Readplace keeps the articles the issue points to.
 
 ## Reader View
 
@@ -128,11 +136,11 @@ Fewer features also means less to learn and less to get in your way. If you want
 - You value source-available software and want to read the code behind the product.
 - You prefer a focused tool that does a few things well.
 
-## What's Coming
+## Where the gap stands
 
-I'm not trying to match Readwise feature for feature.
+Readwise Reader does more than Readplace on most rows of the table above. Highlights, RSS, video, podcasts and listening all live in Reader and not in Readplace.
 
-I'm building a reading app that stays simple, private, and affordable, with AI that helps you read more of what's worth reading.
+Readplace covers a narrower job. It saves articles, PDFs and newsletter links, puts a TL;DR on top of each, and keeps them readable if the subscription ends.
 
 The whole comparison comes down to one question: do you want the deepest feature set, or the simplest tool that still does the core job? If you want the depth, especially highlighting that syncs into your notes, Readwise is the better choice today. If you want a simpler, cheaper reading app with AI summaries and stronger privacy, that's the one I'm building.
 

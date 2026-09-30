@@ -5,7 +5,6 @@ slug: "free-read-it-later-apps-2026"
 date: "2026-05-06"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
-lastModified: "2026-09-30"
 keywords: "free read it later app, read it later free, instapaper free, wallabag, karakeep, raindrop free tier"
 ---
 
@@ -28,13 +27,13 @@ Each option costs you something in money or time, and each leaves you exposed to
 
 ### Instapaper (Free Tier)
 
-Instapaper's free tier covers the basics you actually use day to day: saving articles, reading them later, and syncing across devices. The premium tier adds full-text search and text-to-speech for $5.99/month (or $59.99/year), so the free tier is the product minus search.
+Instapaper's free tier covers the basics you actually use day to day: saving articles, reading them later, syncing across devices, and the built-in Kobo sync. Premium adds full-text search, text-to-speech, the PDF reader and Kindle digests for $5.99/month (or $59.99/year), so the free tier is the product minus search, PDFs and Kindle.
 
 Instapaper has been around since 2008, and it has changed hands from Betaworks to Pinterest to Instant Paper Inc without disappearing.
 
 That track record is the strongest argument for it. It does not tell you who will own Instapaper in 5 years, or whether the next owner keeps the free tier intact.
 
-Instapaper Premium costs $59.99/year. The free tier is a genuine bargain right up until the day you want full-text search, which Readplace does not have either. So the free tier's niche is the reader who is confident they will never pay for search or text-to-speech, and who is comfortable not knowing who owns the service in 5 years.
+Instapaper Premium costs $59.99/year. The free tier is a genuine bargain right up until the day you want full-text search, which Readplace does not have either, or PDFs. So the free tier's niche is the reader who is confident they will never pay for search, PDFs or text-to-speech, and who is comfortable not knowing who owns the service in 5 years.
 
 ### Raindrop.io (Free Tier)
 
@@ -131,6 +130,13 @@ It is still not the right fit for every reader, and the table below should tell 
 Every row in that table is a real bargain, not a free lunch.
 
 The choice comes down to which cost you would rather carry: the dollars, the maintenance hours, or the chance of a shutdown email. I carry the first one, obviously. Pick the tradeoff you can live with, and pick it on purpose.
+
+## Readplace for specific jobs
+
+- [Saving PDFs, scans included](/pdf-ocr?utm_source=blog-free-read-it-later-apps-2026&utm_medium=internal&utm_content=pdf-ocr): how scanned pages are read and checked.
+- [Moving from Pocket](/pocket-alternative?utm_source=blog-free-read-it-later-apps-2026&utm_medium=internal&utm_content=pocket-alternative): what a Pocket export brings across before you make an account.
+- [Reading from an AI assistant](/ai-reading-list?utm_source=blog-free-read-it-later-apps-2026&utm_medium=internal&utm_content=ai-reading-list): saving to a readlist from ChatGPT, Claude or Gemini.
+- [When a subscription ends](/read-it-later-that-wont-die?utm_source=blog-free-read-it-later-apps-2026&utm_medium=internal&utm_content=read-it-later-that-wont-die): what stays readable if you stop paying.
 
 <div class="blog-cta">
 <p class="blog-cta__title">Try Readplace for two weeks</p>

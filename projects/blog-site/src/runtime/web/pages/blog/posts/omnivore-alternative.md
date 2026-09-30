@@ -21,7 +21,7 @@ On November 1, 2024, ElevenLabs acquired Omnivore. Two weeks later, on November 
 
 Two weeks was the entire gap between "your app still works fine" and "your data no longer exists."
 
-I want to walk through what actually happened, because the failure was not a bug in the code. Omnivore was open source, it was loved, and it had a clear mission with a real team behind it, and none of that survived the day the acquisition closed. The repository went read-only, the API stopped answering requests, and the newsletters stopped arriving in inboxes.
+I want to walk through what actually happened, because the failure was not a bug in the code. Omnivore was open source, it was loved, and it had a clear mission with a real team behind it, and none of that survived the day the acquisition closed. The hosted service stopped, the API stopped answering requests, and the newsletters stopped arriving in inboxes.
 
 ## The business model is what broke
 
@@ -59,18 +59,17 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | TL;DR summaries | No | Yes | Shipped |
 | Dark mode | Yes | Yes | Shipped |
 | Data export | Yes | JSON list, no article text | Shipped |
-| Open source | Was (archived) | Source-available | Shipped |
+| Open source | Yes (AGPL-3.0, repository still public) | Source-available | Shipped |
 | Highlights and notes | Yes | No | Not built |
 | Full-text search | Yes | No | Planned |
 | Newsletter inbox | Yes | Forwarding address per newsletter | Shipped |
-| Labels / tags | Yes | No | Not built |
+| Labels / tags | Yes | Readlists, up to 7 | Shipped as readlists, no tags |
+| PDFs | Yes | Yes, scans read by OCR | Shipped |
 | Native mobile apps | Yes | iPhone and Mac | Shipped for iPhone and Mac, Android planned |
 | RSS feed reader | Yes | No | Not planned yet |
 | API access | Yes | MCP server with 12 tools | Shipped |
 
-> **I would rather be honest about the gaps than pretend they aren't there.**
-
-Features land one at a time, and the table above shows what is next.
+The table shows what exists today. Rows marked Not built are gaps.
 
 ## Your data, on your terms
 
@@ -94,7 +93,7 @@ Readwise Reader is a strong pick for power users at $119.88/year. Readplace is t
 
 **What happened to Omnivore?**
 
-ElevenLabs acquired it on November 1, 2024 and shut it down on November 15, which left users roughly two weeks to export their data before deletion started. The open-source repository was archived.
+ElevenLabs acquired it on November 1, 2024 and shut it down on November 15, which left users roughly two weeks to export their data before deletion started. Its AGPL-3.0 source is still on GitHub, but the hosted service is gone.
 
 The team went to ElevenLabs to work on text-to-speech rather than reading tools, so Omnivore is not coming back.
 
@@ -105,6 +104,13 @@ Readplace is paid, with its current plans on the [home page](/?utm_source=blog-o
 **Can I import my Omnivore data into Readplace?**
 
 If you exported your data before the shutdown, hold onto that file and [import it yourself](https://readplace.com/import) — the import page works logged out. You can also start fresh right now with the [browser extension](https://readplace.com/install) and save any article with one click.
+
+## Readplace for specific jobs
+
+- [Saving PDFs, scans included](/pdf-ocr?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pdf-ocr): how scanned pages are read and checked.
+- [Moving from Pocket](/pocket-alternative?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pocket-alternative): what a Pocket export brings across before you make an account.
+- [Reading from an AI assistant](/ai-reading-list?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=ai-reading-list): saving to a readlist from ChatGPT, Claude or Gemini.
+- [When a subscription ends](/read-it-later-that-wont-die?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=read-it-later-that-wont-die): what stays readable if you stop paying.
 
 ## Your reading list should not come with an expiry date
 
