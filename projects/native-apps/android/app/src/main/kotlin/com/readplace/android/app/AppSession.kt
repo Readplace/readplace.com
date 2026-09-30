@@ -85,6 +85,11 @@ class AppSession(
 	private val webDataWiper: WebDataWiper,
 	private val shareArtifacts: ShareArtifacts,
 	private val sloganDiagnostics: SloganDiagnostics,
+	/** Forgets the reader's persistent readlist/share choices. Invoked only on a
+	 * deliberate native sign-out, separately from the share-artifact purge — a forced
+	 * or expiry logout (and the account-deletion bridge) deliberately preserves the
+	 * choices. */
+	private val forgetReaderChoices: () -> Unit,
 ) {
 	private val _isLoggedIn = MutableStateFlow(store.isLoggedIn)
 	val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
@@ -156,6 +161,9 @@ class AppSession(
 			oauth.revoke()
 			clearSessionCookie()
 			shareArtifacts.purge()
+			// Separate from the share-artifact purge: a deliberate sign-out also forgets
+			// the reader's readlist/share choices, which a forced logout preserves.
+			forgetReaderChoices()
 			readerWipe.join()
 		}
 		_isLoggedIn.value = false

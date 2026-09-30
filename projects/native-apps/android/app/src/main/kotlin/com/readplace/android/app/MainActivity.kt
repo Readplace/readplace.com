@@ -39,8 +39,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.readplace.android.BuildConfig
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
+import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.NativeCleartextPolicy
 import com.readplace.android.core.ShareArtifacts
+import com.readplace.android.core.ShareTarget
 import com.readplace.android.core.SloganDiagnostics
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJobStore
@@ -84,6 +86,11 @@ class MainActivity : ComponentActivity() {
 		val unseenSave = UnseenSave(filesDir)
 		val discoveryCache = DiscoveryHttpCache(cacheDir)
 		val customTabAuth = CustomTabAuth(this, relays)
+		val readerChoices = PreferenceReaderChoiceStorage(
+			getSharedPreferences(PreferenceReaderChoiceStorage.PREFERENCES_NAME, Context.MODE_PRIVATE),
+		)
+		val lastViewed = LastViewedReadlist(readerChoices)
+		val shareTarget = ShareTarget(readerChoices)
 
 		session = AppSession(
 			baseUrl = AppConfig.serverBaseUrl,
@@ -100,6 +107,12 @@ class MainActivity : ComponentActivity() {
 			webDataWiper = WebViewDataWiper,
 			shareArtifacts = ShareArtifacts(jobs, unseenSave, discoveryCache),
 			sloganDiagnostics = SloganDiagnostics { failure -> Log.w("Slogans", "slogan load failed: $failure") },
+			// A deliberate sign-out forgets the reader's readlist/share choices; a
+			// forced or expiry logout preserves them, so only this action clears them.
+			forgetReaderChoices = {
+				lastViewed.forget()
+				shareTarget.forget()
+			},
 		)
 
 		val api = session.makeApi()
@@ -110,6 +123,8 @@ class MainActivity : ComponentActivity() {
 			ReadingListViewModel(
 				api = api,
 				unseenSave = unseenSave,
+				lastViewed = lastViewed,
+				shareTarget = shareTarget,
 				healBlockedArticle = { url -> heal.run(url) },
 				drainUploadJobs = { drain.run() },
 				onSessionExpired = { session.forceLogout() },
@@ -311,6 +326,10 @@ private fun Root(
 						now = Instant.now(),
 						isForeground = isForeground,
 						onSignOut = { scope.launch { session.logout(); intro.replay() } },
+						// The account-deletion bridge: the account is already gone, so drop
+						// local credentials without a server revoke — and, unlike a deliberate
+						// sign-out, keep the reader's readlist/share choices.
+						onForcedLogout = { session.forceLogout() },
 						onOpenExternally = onOpenExternally,
 					)
 				}

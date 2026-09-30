@@ -107,6 +107,7 @@ class AppSessionTest {
 	private val store = TokenStore(RecordingTokenStorage())
 	private val uploads = RecordingUploadQueue()
 	private val wiper = RecordingWebDataWiper()
+	private var readerChoicesForgotten = 0
 
 	private fun loggedInStore(access: String = "access-1", refresh: String = "refresh-1"): TokenStore {
 		store.save(OAuthTokens(AccessToken(access), RefreshToken(refresh)))
@@ -119,6 +120,7 @@ class AppSessionTest {
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 		newClientBuilder: () -> OkHttpClient.Builder = { OkHttpClient.Builder() },
 		makeWebAuthFlow: (OAuth) -> WebAuthFlow = CapturedFlow().make(),
+		forgetReaderChoices: () -> Unit = { readerChoicesForgotten += 1 },
 	): AppSession =
 		AppSession(
 			baseUrl = baseUrl,
@@ -136,6 +138,7 @@ class AppSessionTest {
 				DiscoveryHttpCache(folder.newFolder()),
 			),
 			sloganDiagnostics = SloganDiagnostics { },
+			forgetReaderChoices = forgetReaderChoices,
 		)
 
 	private fun callback(query: String): String = "${AppConfig.NATIVE_CALLBACK_URL}?$query"
@@ -516,6 +519,34 @@ class AppSessionTest {
 			"a session invalidated behind the user's back leaves the same traces a deliberate sign-out does",
 			1,
 			uploads.purges,
+		)
+		readerWipe.join()
+	}
+
+	@Test
+	fun `logout forgets the reader's readlist and share choices`() = runTest {
+		serveSignOut()
+		val session = session(store = loggedInStore())
+
+		session.logout()
+
+		assertEquals(
+			"a deliberate sign-out clears the reader's persistent choices, separately from the share-artifact purge",
+			1,
+			readerChoicesForgotten,
+		)
+	}
+
+	@Test
+	fun `forceLogout preserves the reader's readlist and share choices`() = runTest {
+		val session = session(store = loggedInStore())
+
+		val readerWipe = session.forceLogout()
+
+		assertEquals(
+			"a forced or expiry logout keeps the reader's choices, including the account-deletion bridge",
+			0,
+			readerChoicesForgotten,
 		)
 		readerWipe.join()
 	}

@@ -6,17 +6,22 @@ import com.readplace.android.core.AccessToken
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
+import com.readplace.android.core.InMemoryReaderChoiceStorage
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.RefreshToken
 import com.readplace.android.core.ServerMessage
+import com.readplace.android.core.ShareTarget
+import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.TokenKey
 import com.readplace.android.core.TokenStorage
 import com.readplace.android.core.TokenStore
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJob
 import com.readplace.android.core.UploadJobStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -27,6 +32,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Cache
@@ -137,6 +143,8 @@ class SaveSharedPageTest {
 	 * never makes — lands in the 404 arm and fails loudly. */
 	private fun serveReadlistAndSave(
 		messagesJson: String? = null,
+		readlistsJson: String? = null,
+		saveStatus: Int = 201,
 		extra: (RecordingServer.Record) -> Stub? = { null },
 	) {
 		server.handle { record ->
@@ -144,9 +152,20 @@ class SaveSharedPageTest {
 				"/" -> Stub.redirect(to = "/queue")
 				"/queue" ->
 					if (record.method == "POST") {
-						Stub.json(201, Fixtures.article(id = "url-saved"))
+						if (saveStatus == 201) {
+							Stub.json(201, Fixtures.article(id = "url-saved"))
+						} else {
+							Stub.json(saveStatus, "{}")
+						}
 					} else {
-						Stub.json(200, Fixtures.collection(listOf(Fixtures.article(id = "a1")), messagesJson = messagesJson))
+						Stub.json(
+							200,
+							Fixtures.collection(
+								listOf(Fixtures.article(id = "a1")),
+								messagesJson = messagesJson,
+								readlistsJson = readlistsJson,
+							),
+						)
 					}
 				else -> Stub.json(404, "{}")
 			}
@@ -160,6 +179,8 @@ class SaveSharedPageTest {
 		stillSavingAfter: Duration = 4.seconds,
 		cache: Cache? = null,
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
+		shareTarget: ShareTarget = ShareTarget(InMemoryReaderChoiceStorage()),
+		readlistChooser: ReadlistChooser = ReadlistChooser { emptySet() },
 	): SaveSharedPage =
 		SaveSharedPage(
 			store = store,
@@ -167,6 +188,8 @@ class SaveSharedPageTest {
 			captor = captor,
 			jobs = jobStore(container),
 			unseenSave = UnseenSave(container),
+			shareTarget = shareTarget,
+			readlistChooser = readlistChooser,
 			clock = Clock.fixed(NOW, ZoneOffset.UTC),
 			stillSavingAfter = stillSavingAfter,
 		)
@@ -235,6 +258,176 @@ class SaveSharedPageTest {
 
 	private fun postedUrl(record: RecordingServer.Record): String? =
 		Json.parseToJsonElement(String(record.body, Charsets.UTF_8)).jsonObject["url"]?.jsonPrimitive?.content
+
+	/** The `queues` array of a save POST body, or null when the field is absent. */
+	private fun postedQueues(record: RecordingServer.Record): List<String>? =
+		Json.parseToJsonElement(String(record.body, Charsets.UTF_8)).jsonObject["queues"]
+			?.jsonArray
+			?.map { it.jsonPrimitive.content }
+
+	/** A chooser that records the rows it was offered and answers a canned set of
+	 * ticked extras. */
+	private class RecordingChooser(private val answer: Set<Readlist>) : ReadlistChooser {
+		var invocations = 0
+		var offered: List<SharedArticlesDrop> = emptyList()
+
+		override suspend fun choose(drops: List<SharedArticlesDrop>): Set<Readlist> {
+			invocations += 1
+			offered = drops
+			return answer
+		}
+	}
+
+	private fun readlist(label: String, href: String) = Readlist(label = label, href = href, isCurrent = false)
+
+	private fun TestScope.chooserSaver(
+		shareTarget: ShareTarget,
+		readlistChooser: ReadlistChooser,
+		saveStatus: Int = 201,
+		readlistsJson: String? = Fixtures.READLISTS,
+	): SaveSharedPage {
+		serveReadlistAndSave(readlistsJson = readlistsJson, saveStatus = saveStatus)
+		return makeSaver(
+			store = loggedInStore(),
+			captor = FakeHtmlCaptor(page = html()),
+			container = temporaryFolder.newFolder("files"),
+			shareTarget = shareTarget,
+			readlistChooser = readlistChooser,
+		)
+	}
+
+	@Test
+	fun `a first share asks once and files into the chosen extras as a sorted queues array`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		val chooser = RecordingChooser(setOf(readlist("Later", "/queue?queue=later"), readlist("Work", "/queue?queue=work")))
+		val saver = chooserSaver(shareTarget, chooser)
+
+		saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals("the reader is asked exactly once", 1, chooser.invocations)
+		assertEquals(
+			"mainline is offered locked; both extras are offered",
+			listOf("All", "Work", "Later"),
+			chooser.offered.map { it.label },
+		)
+		assertEquals(
+			"the save carries the chosen extras, sorted, with mainline (the root) subtracted",
+			listOf("/queue?queue=later", "/queue?queue=work"),
+			postedQueues(urlOnlyPosts().single()),
+		)
+		assertTrue(shareTarget.isDecided)
+		assertEquals(setOf("/queue?queue=work", "/queue?queue=later"), shareTarget.hrefs)
+	}
+
+	@Test
+	fun `a Done with no extras is an answer, sends no queues, and is not asked again`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		val chooser = RecordingChooser(emptySet())
+		val saver = chooserSaver(shareTarget, chooser)
+
+		saver.run(url = "https://example.com/a", fallbackTitle = null, sharedPdf = null)
+		saver.run(url = "https://example.com/b", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals("Done with nothing ticked is a complete answer, so the reader is asked only once", 1, chooser.invocations)
+		assertTrue("an empty Done still decides the choice", shareTarget.isDecided)
+		assertEquals(listOf<List<String>?>(null, null), urlOnlyPosts().map { postedQueues(it) })
+	}
+
+	@Test
+	fun `an already-decided reader is not asked and their stored extras are sent`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		shareTarget.record(setOf("/queue?queue=work"))
+		val chooser = RecordingChooser(setOf(readlist("Later", "/queue?queue=later")))
+		val saver = chooserSaver(shareTarget, chooser)
+
+		saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals("an answered reader is never re-asked", 0, chooser.invocations)
+		assertEquals(listOf("/queue?queue=work"), postedQueues(urlOnlyPosts().single()))
+	}
+
+	@Test
+	fun `a collection with only mainline saves without asking or recording an answer`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		val chooser = RecordingChooser(emptySet())
+		// Only mainline, sitting at the root: nowhere else a share could drop.
+		val saver = chooserSaver(shareTarget, chooser, readlistsJson = """{ "label": "All", "rel": "current", "href": "/queue" }""")
+
+		saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals("only mainline: no chooser", 0, chooser.invocations)
+		assertFalse("only mainline: no answer recorded", shareTarget.isDecided)
+		assertNull(postedQueues(urlOnlyPosts().single()))
+	}
+
+	@Test
+	fun `a collection advertising no readlists saves without asking`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		val chooser = RecordingChooser(emptySet())
+		val saver = chooserSaver(shareTarget, chooser, readlistsJson = null)
+
+		saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(0, chooser.invocations)
+		assertFalse(shareTarget.isDecided)
+		assertNull(postedQueues(urlOnlyPosts().single()))
+	}
+
+	@Test
+	fun `the answer is persisted before the save, so a save failure still retains it`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		val chooser = RecordingChooser(setOf(readlist("Work", "/queue?queue=work")))
+		val saver = chooserSaver(shareTarget, chooser, saveStatus = 500)
+
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertTrue("the save failed", outcome is SaveSharedOutcome.Failed)
+		assertTrue("but the chosen answer was persisted before the save request", shareTarget.isDecided)
+		assertEquals(setOf("/queue?queue=work"), shareTarget.hrefs)
+	}
+
+	@Test
+	fun `stored extras the discovery no longer advertises are still sent`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		shareTarget.record(setOf("/queue?queue=work", "/queue?queue=deleted"))
+		val saver = chooserSaver(shareTarget, RecordingChooser(emptySet()))
+
+		saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(
+			"a stored href the server no longer lists is still sent — the server filters to owned readlists",
+			listOf("/queue?queue=deleted", "/queue?queue=work"),
+			postedQueues(urlOnlyPosts().single()),
+		)
+	}
+
+	@Test
+	fun `a fresh store instance answers with an earlier share's recorded choice`() = runTest {
+		val storage = InMemoryReaderChoiceStorage()
+		ShareTarget(storage).record(setOf("/queue?queue=work"))
+		val chooser = RecordingChooser(emptySet())
+		// A brand-new store over the same storage, as a later share process would build.
+		val saver = chooserSaver(ShareTarget(storage), chooser)
+
+		saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals("the prior process's answer is read back, so no re-ask", 0, chooser.invocations)
+		assertEquals(listOf("/queue?queue=work"), postedQueues(urlOnlyPosts().single()))
+	}
+
+	@Test
+	fun `chooser cancellation is not an empty answer`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+		val saver = chooserSaver(shareTarget, ReadlistChooser { throw CancellationException("share dismissed") })
+
+		try {
+			saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+			fail("cancellation should propagate, not resolve as an empty Done")
+		} catch (_: CancellationException) {
+		}
+
+		assertFalse("a cancelled chooser records no answer", shareTarget.isDecided)
+	}
 
 	private fun html(html: String = "<html>hi</html>", title: String? = "Captured"): CapturedPage =
 		CapturedPage.Html(html = html, title = title)
@@ -715,6 +908,8 @@ class SaveSharedPageTest {
 			captor = FakeHtmlCaptor(page = html()),
 			jobs = null,
 			unseenSave = null,
+			shareTarget = ShareTarget(InMemoryReaderChoiceStorage()),
+			readlistChooser = ReadlistChooser { emptySet() },
 			clock = Clock.fixed(NOW, ZoneOffset.UTC),
 		)
 		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
@@ -1350,18 +1545,29 @@ class SaveSharedPageTest {
 			{ "name": "search", "href": "/queue", "method": "GET", "fields": [{ "name": "status", "type": "text" }] }
 		"""
 
+		/** Two extra readlists beside mainline (`All`, which sits at the `/queue`
+		 * root), so a first share has somewhere other than mainline to offer and the
+		 * chooser is invoked. */
+		const val READLISTS = """
+			{ "label": "All", "rel": "current", "href": "/queue" },
+			{ "label": "Work", "rel": "readlist", "href": "/queue?queue=work" },
+			{ "label": "Later", "rel": "readlist", "href": "/queue?queue=later" }
+		"""
+
 		fun collection(
 			entitiesJson: List<String>,
 			actionsJson: String = COLLECTION_ACTIONS,
 			messagesJson: String? = null,
+			readlistsJson: String? = null,
 		): String {
 			// Injected into `properties` only when set, so a caller that doesn't opt in
 			// models a server that emits no collection-level notice.
 			val messages = if (messagesJson != null) ", \"messages\": [$messagesJson]" else ""
+			val readlists = if (readlistsJson != null) ", \"readlists\": [$readlistsJson]" else ""
 			return """
 				{
 					"class": ["collection", "articles"],
-					"properties": { "total": 1, "page": 1, "pageSize": 20$messages },
+					"properties": { "total": 1, "page": 1, "pageSize": 20$messages$readlists },
 					"entities": [${entitiesJson.joinToString(",\n")}],
 					"links": [
 						{ "rel": ["self"], "href": "/queue?page=1" },

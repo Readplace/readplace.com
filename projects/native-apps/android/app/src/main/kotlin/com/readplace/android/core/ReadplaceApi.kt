@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -67,6 +68,16 @@ class ReadlistPage(collection: SirenCollection) {
 	val articles: List<Article>
 	val nextHref: String?
 
+	/** The href of the collection's structural `root` link — the mainline readlist
+	 * every save also drops into. Null when the server advertised no root, in which
+	 * case the client never guesses which readlist is mainline. */
+	val rootHref: String?
+
+	/** The status tabs and sibling readlists the collection advertised, in server
+	 * order. Empty when the server offered none. */
+	val tabs: List<ReadlistTab>
+	val readlists: List<Readlist>
+
 	/** Every collection-level action and navigable link the server advertised, in
 	 * wire order — the complete set, so the share-sheet save journey can still find
 	 * its bespoke action by name ([action], below). The toolbar does not render this
@@ -85,23 +96,29 @@ class ReadlistPage(collection: SirenCollection) {
 	 * what you render), so the caller renders whatever survives without
 	 * re-checking. Empty when the server offered none. */
 	val noticeMessages: List<ServerMessage>
-	val tabs: List<ReadlistTab>
 	val appearance: String?
 
 	init {
 		articles = collection.entities.orEmpty().mapNotNull { Article.of(it) }
 		val links = collection.links.orEmpty()
 		nextHref = links.firstOrNull { it.rel.contains("next") }?.href
+		rootHref = links.firstOrNull { it.rel.contains("root") }?.href
 		val actionAffordances = collection.actions.orEmpty().mapNotNull { Affordance.of(it) }
 		val linkAffordances = links.mapNotNull { Affordance.of(it) }
 		affordances = actionAffordances + linkAffordances
 		warning = collection.properties?.warning
 		noticeMessages = collection.properties?.messages.orEmpty().filter { it.isRenderable }
-		tabs = collection.properties?.tabs.orEmpty().map { ReadlistTab.of(it) }
 		appearance = collection.properties?.appearance
+		tabs = collection.properties?.tabs.orEmpty().map { ReadlistTab.of(it) }
+		readlists = collection.properties?.readlists.orEmpty().map { Readlist.of(it) }
 	}
 
+	/** The href of the tab the server marked current, or null when none is. */
 	val currentTabHref: String? get() = tabs.firstOrNull { it.isCurrent }?.href
+
+	/** The href of the readlist the server marked current, or null when none is —
+	 * the only signal the client trusts to remember a readlist as last viewed. */
+	val currentReadlistHref: String? get() = readlists.firstOrNull { it.isCurrent }?.href
 
 	/** The advertised action with this name, when present and invokable. The
 	 * share-sheet save journey needs a specific action to build its bespoke body
@@ -363,13 +380,25 @@ class ReadplaceApi(
 		return collected.toByteArray()
 	}
 
-	/** Saves a URL only (no captured HTML) via the `save-article` action. */
-	suspend fun saveArticle(action: SirenAction, url: String): SaveConfirmation {
+	/**
+	 * Saves a URL only (no captured HTML) via the `save-article` action, filing it
+	 * into the extra readlists named by [queues]. The queue hrefs are sent as a
+	 * sorted JSON array of strings (the mainline root is never among them — the
+	 * caller subtracts it, since every save drops there implicitly); an empty set
+	 * omits the `queues` field entirely, so a save with no extra destinations sends
+	 * the same body it always did. The server filters the array to readlists the
+	 * account owns, so a stale href the client still holds is harmless.
+	 */
+	suspend fun saveArticle(action: SirenAction, url: String, queues: Set<String> = emptySet()): SaveConfirmation {
+		val body = buildMap<String, JsonElement> {
+			put("url", JsonPrimitive(url))
+			if (queues.isNotEmpty()) put("queues", JsonArray(queues.sorted().map { JsonPrimitive(it) }))
+		}
 		val request = jsonRequest(
 			absoluteUrl(action.href),
 			method = action.method,
 			contentType = action.type ?: "application/json",
-			body = mapOf("url" to url),
+			body = JsonObject(body),
 		).newBuilder().header("Prefer", "return=representation").build()
 		val answer = send(request)
 		if (answer.status != 201 && answer.status != 200) throw apiError(answer)
@@ -480,19 +509,32 @@ class ReadplaceApi(
 		return followed.build()
 	}
 
+	/** Builds a JSON request from a typed object, so a field the server declares as
+	 * an array (e.g. `queues`) is sent as a real JSON array rather than stringified
+	 * through a `Map<String, String>`. */
 	private fun jsonRequest(
 		url: HttpUrl,
 		method: String,
 		contentType: String,
-		body: Map<String, String>,
+		body: JsonObject,
 	): Request {
-		val payload = JsonObject(body.mapValues { JsonPrimitive(it.value) }).toString()
+		val payload = body.toString()
 		return Request.Builder()
 			.url(url)
 			.method(method, payload.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaTypeOrNull()))
 			.header("Content-Type", contentType)
 			.build()
 	}
+
+	/** The scalar-field convenience over [jsonRequest]: a flat field set the generic
+	 * action invoker posts as a JSON object of strings. */
+	private fun jsonRequest(
+		url: HttpUrl,
+		method: String,
+		contentType: String,
+		body: Map<String, String>,
+	): Request =
+		jsonRequest(url, method, contentType, JsonObject(body.mapValues { JsonPrimitive(it.value) }))
 
 	private fun formRequest(
 		url: HttpUrl,

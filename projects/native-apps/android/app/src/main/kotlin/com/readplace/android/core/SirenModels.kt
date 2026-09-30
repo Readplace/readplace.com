@@ -104,7 +104,11 @@ data class SirenWarning(
 	val message: String,
 )
 
-data class CollectionTab(
+/** A `{label, rel, href}` entry the server lists under a collection's `tabs` or
+ * `readlists`. Both channels share this wire shape; the domain projects each into
+ * [ReadlistTab] / [Readlist]. `rel == "current"` is how the server marks which one
+ * the collection is showing — the client never infers it from position or label. */
+data class CollectionReadlistEntry(
 	val label: String,
 	val rel: String,
 	val href: String,
@@ -113,8 +117,13 @@ data class CollectionTab(
 data class CollectionProperties(
 	val warning: SirenWarning?,
 	val messages: List<ServerMessage>?,
-	val tabs: List<CollectionTab>?,
 	val appearance: String?,
+	/** The status tabs and sibling readlists the server advertised, in wire order.
+	 * Null when the server offered neither (an older server, or a collection with a
+	 * single readlist and no tabs) — decoded leniently so one malformed entry drops
+	 * without blanking the collection. */
+	val tabs: List<CollectionReadlistEntry>?,
+	val readlists: List<CollectionReadlistEntry>?,
 )
 
 data class SirenCollection(
@@ -307,17 +316,21 @@ object SirenDecoding {
 		return CollectionProperties(
 			warning = warning(obj["warning"]),
 			messages = lossyList(obj["messages"], ::serverMessage),
-			tabs = lossyList(obj["tabs"], ::collectionTab),
 			appearance = string(obj["appearance"]),
+			tabs = lossyList(obj["tabs"], ::readlistEntry),
+			readlists = lossyList(obj["readlists"], ::readlistEntry),
 		)
 	}
 
-	private fun collectionTab(element: JsonElement): CollectionTab? {
+	/** One `{label, rel, href}` entry from a collection's `tabs`/`readlists` array.
+	 * All three are required, so an entry missing any is dropped by [lossyList] while
+	 * valid siblings and the collection's articles survive. */
+	fun readlistEntry(element: JsonElement): CollectionReadlistEntry? {
 		val obj = element as? JsonObject ?: return null
 		val label = string(obj["label"]) ?: return null
 		val rel = string(obj["rel"]) ?: return null
 		val href = string(obj["href"]) ?: return null
-		return CollectionTab(label = label, rel = rel, href = href)
+		return CollectionReadlistEntry(label = label, rel = rel, href = href)
 	}
 
 	private fun warning(element: JsonElement?): SirenWarning? {
@@ -447,6 +460,14 @@ data class Article(
 	}
 }
 
+/**
+ * A status tab advertised on a readlist collection. `isCurrent` is the server's
+ * own mark (`rel == "current"`) for the tab the collection is showing, never
+ * inferred from position. The Android list tracks tabs to pick its reload target
+ * and to gate the shared-articles-drop row to the landing tab, and renders them as
+ * the To Read / Read control. `id` is the href — the value the selection control's
+ * tag equals.
+ */
 data class ReadlistTab(
 	val label: String,
 	val href: String,
@@ -455,10 +476,30 @@ data class ReadlistTab(
 	val id: String get() = href
 
 	companion object {
-		fun of(tab: CollectionTab): ReadlistTab =
-			ReadlistTab(label = tab.label, href = tab.href, isCurrent = tab.rel == "current")
+		fun of(entry: CollectionReadlistEntry): ReadlistTab =
+			ReadlistTab(label = entry.label, href = entry.href, isCurrent = entry.rel == CURRENT_REL)
 	}
 }
+
+/**
+ * One of the reader's readlists as advertised on a collection: the server's
+ * `label` and opaque `href`, plus whether the server marked it the current one
+ * (`rel == "current"`). The client follows the href verbatim and never derives a
+ * queue URL, mainline status, or ordering from the label or position.
+ */
+data class Readlist(
+	val label: String,
+	val href: String,
+	val isCurrent: Boolean,
+) {
+	companion object {
+		fun of(entry: CollectionReadlistEntry): Readlist =
+			Readlist(label = entry.label, href = entry.href, isCurrent = entry.rel == CURRENT_REL)
+	}
+}
+
+/** The `rel` the server uses to mark the tab/readlist a collection is showing. */
+private const val CURRENT_REL = "current"
 
 /**
  * One advertised control the client renders — either a Siren action it invokes

@@ -1190,4 +1190,114 @@ class SirenModelsTest {
 		assertFalse(MediaType.matches("text/html; charset=utf-8", "application/json"))
 		assertFalse(MediaType.matches(null, "application/json"))
 	}
+
+	@Test
+	fun `a collection decodes its tabs and readlists in server order`() {
+		val collection = decodedCollection(
+			"""
+			{
+				"class": ["collection"],
+				"properties": {
+					"tabs": [
+						{ "label": "To Read", "rel": "current", "href": "/queue?queue=work" },
+						{ "label": "Read", "rel": "tab", "href": "/queue?queue=work&status=read" }
+					],
+					"readlists": [
+						{ "label": "All", "rel": "readlist", "href": "/queue" },
+						{ "label": "Work", "rel": "current", "href": "/queue?queue=work" }
+					]
+				}
+			}
+			""",
+		)
+
+		val properties = present(collection.properties, "the collection properties")
+		assertEquals(
+			listOf(
+				CollectionReadlistEntry("To Read", "current", "/queue?queue=work"),
+				CollectionReadlistEntry("Read", "tab", "/queue?queue=work&status=read"),
+			),
+			properties.tabs,
+		)
+		assertEquals(
+			listOf(
+				CollectionReadlistEntry("All", "readlist", "/queue"),
+				CollectionReadlistEntry("Work", "current", "/queue?queue=work"),
+			),
+			properties.readlists,
+		)
+	}
+
+	@Test
+	fun `a malformed tab or readlist entry is dropped while valid ones and articles survive`() {
+		val collection = decodedCollection(
+			"""
+			{
+				"class": ["collection"],
+				"properties": {
+					"tabs": [
+						{ "label": "To Read", "rel": "current", "href": "/queue" },
+						{ "label": "No href", "rel": "tab" },
+						"not-an-object"
+					],
+					"readlists": [
+						{ "rel": "readlist", "href": "/queue?queue=work" },
+						{ "label": "All", "rel": "current", "href": "/queue" }
+					]
+				},
+				"entities": [
+					{ "properties": { "id": "a1", "url": "https://example.com/x" } }
+				]
+			}
+			""",
+		)
+
+		val properties = present(collection.properties, "the collection properties")
+		assertEquals(
+			"the tab missing an href and the non-object are dropped",
+			listOf(CollectionReadlistEntry("To Read", "current", "/queue")),
+			properties.tabs,
+		)
+		assertEquals(
+			"the readlist missing a label is dropped",
+			listOf(CollectionReadlistEntry("All", "current", "/queue")),
+			properties.readlists,
+		)
+		assertEquals("the article still decodes", listOf("a1"), collection.entities?.mapNotNull { it.properties?.id })
+	}
+
+	@Test
+	fun `absent tab and readlist metadata decodes as null`() {
+		val properties = present(
+			decodedCollection("""{ "class": ["collection"], "properties": { "total": 1 } }""").properties,
+			"the collection properties",
+		)
+
+		assertNull(properties.tabs)
+		assertNull(properties.readlists)
+	}
+
+	@Test
+	fun `a readlist entry needs all of label rel and href`() {
+		assertNull(SirenDecoding.readlistEntry(element("\"/queue\"")))
+		assertNull(SirenDecoding.readlistEntry(element("""{ "rel": "current", "href": "/queue" }""")))
+		assertNull(SirenDecoding.readlistEntry(element("""{ "label": "All", "href": "/queue" }""")))
+		assertNull(SirenDecoding.readlistEntry(element("""{ "label": "All", "rel": "current" }""")))
+	}
+
+	@Test
+	fun `a tab is current only when its rel is current`() {
+		assertTrue(ReadlistTab.of(CollectionReadlistEntry("To Read", "current", "/queue")).isCurrent)
+		assertFalse(ReadlistTab.of(CollectionReadlistEntry("Read", "tab", "/queue?status=read")).isCurrent)
+		assertEquals("To Read", ReadlistTab.of(CollectionReadlistEntry("To Read", "current", "/queue")).label)
+		assertEquals("/queue", ReadlistTab.of(CollectionReadlistEntry("To Read", "current", "/queue")).href)
+	}
+
+	@Test
+	fun `a readlist is current only when its rel is current`() {
+		assertTrue(Readlist.of(CollectionReadlistEntry("Work", "current", "/queue?queue=work")).isCurrent)
+		assertFalse(Readlist.of(CollectionReadlistEntry("All", "readlist", "/queue")).isCurrent)
+		assertEquals("Work", Readlist.of(CollectionReadlistEntry("Work", "current", "/queue?queue=work")).label)
+		assertEquals("/queue?queue=work", Readlist.of(CollectionReadlistEntry("Work", "current", "/queue?queue=work")).href)
+	}
 }

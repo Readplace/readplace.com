@@ -1,21 +1,29 @@
 package com.readplace.android.share
 
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -24,11 +32,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -36,6 +46,8 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
@@ -43,16 +55,21 @@ import com.readplace.android.BuildConfig
 import com.readplace.android.app.BrandColors
 import com.readplace.android.app.HtmlCaptor
 import com.readplace.android.app.LocalBrandColors
+import com.readplace.android.app.PreferenceReaderChoiceStorage
 import com.readplace.android.app.ProcessCredentials
 import com.readplace.android.app.ReadplaceTheme
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.NativeCleartextPolicy
+import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ServerMessage
+import com.readplace.android.core.ShareTarget
+import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.UnseenSave
 import com.readplace.android.core.UploadJobStore
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -89,6 +106,11 @@ class ShareActivity : ComponentActivity() {
 			.cache(DiscoveryHttpCache(cacheDir).cache)
 			.build()
 		val nativeUserAgent = AppConfig.nativeUserAgent(BuildConfig.VERSION_CODE, Build.VERSION.RELEASE)
+		val shareTarget = ShareTarget(
+			PreferenceReaderChoiceStorage(
+				getSharedPreferences(PreferenceReaderChoiceStorage.PREFERENCES_NAME, Context.MODE_PRIVATE),
+			),
+		)
 		return SaveSharedPage(
 			store = credentials.store,
 			api = ReadplaceApi(
@@ -101,8 +123,26 @@ class ShareActivity : ComponentActivity() {
 			captor = HtmlCaptor(this) { findViewById(android.R.id.content) },
 			jobs = UploadJobStore(filesDir, Dispatchers.IO),
 			unseenSave = UnseenSave(filesDir),
+			shareTarget = shareTarget,
+			readlistChooser = ReadlistChooser { drops -> chooseReadlists(drops) },
 			clock = Clock.systemUTC(),
 		)
+	}
+
+	/** Presents the destination chooser and suspends until the reader taps Done —
+	 * the save journey awaits this before sending the save. If the share is dismissed
+	 * mid-choice the awaiting coroutine is cancelled, which the journey treats as a
+	 * cancellation, not an empty answer. */
+	private suspend fun chooseReadlists(drops: List<SharedArticlesDrop>): Set<Readlist> {
+		val answer = CompletableDeferred<Set<Readlist>>()
+		sheet.chooserAnswer = answer
+		sheet.chooserDrops = drops
+		try {
+			return answer.await()
+		} finally {
+			sheet.chooserDrops = emptyList()
+			sheet.chooserAnswer = null
+		}
 	}
 
 	private suspend fun runJourney(saver: SaveSharedPage) {
@@ -140,6 +180,12 @@ private class ShareSheetState {
 
 	var canDismiss by mutableStateOf(false)
 	var ended by mutableStateOf(false)
+
+	/** The destination chooser's rows while it is up (empty when it is not), and the
+	 * awaited answer Done completes. The answer is a plain field, not Compose state —
+	 * only the composable's Done handler resumes it. */
+	var chooserDrops by mutableStateOf<List<SharedArticlesDrop>>(emptyList())
+	var chooserAnswer: CompletableDeferred<Set<Readlist>>? = null
 }
 
 @Composable
@@ -165,6 +211,14 @@ private fun ShareSheet(
 			),
 		contentAlignment = Alignment.Center,
 	) {
+		val chooserDrops = sheet.chooserDrops
+		if (chooserDrops.isNotEmpty()) {
+			ReadlistChooserCard(
+				drops = chooserDrops,
+				onDone = { ticked -> sheet.chooserAnswer?.complete(ticked) },
+			)
+			return@Box
+		}
 		Surface(
 			modifier = Modifier
 				.width(260.dp)
@@ -235,6 +289,146 @@ private fun colorFor(tone: ShareStatusTone, brand: BrandColors): Color = when (t
 	ShareStatusTone.SUCCESS -> brand.success
 	ShareStatusTone.WARNING -> brand.warning
 	ShareStatusTone.ERROR -> brand.error
+}
+
+/**
+ * The destination chooser shown once during a first share: mainline is locked and
+ * checked (every save drops there), extras start unchecked. Done reports the ticked
+ * extras — even none — as the reader's complete answer; there is no cancel control,
+ * so leaving the share cancels the awaiting save rather than answering it empty.
+ */
+@Composable
+private fun ReadlistChooserCard(
+	drops: List<SharedArticlesDrop>,
+	onDone: (Set<Readlist>) -> Unit,
+) {
+	val ticked = remember { mutableStateListOf<Readlist>() }
+	Surface(
+		modifier = Modifier
+			.width(340.dp)
+			.pointerInput(Unit) { detectTapGestures {} },
+		shape = RoundedCornerShape(16.dp),
+		color = MaterialTheme.colorScheme.surface,
+	) {
+		Column(
+			modifier = Modifier.padding(24.dp),
+			horizontalAlignment = Alignment.CenterHorizontally,
+			verticalArrangement = Arrangement.spacedBy(16.dp),
+		) {
+			Column(
+				horizontalAlignment = Alignment.CenterHorizontally,
+				verticalArrangement = Arrangement.spacedBy(4.dp),
+			) {
+				Text(
+					text = "Where do shared articles drop?",
+					style = MaterialTheme.typography.titleMedium,
+					textAlign = TextAlign.Center,
+				)
+				Text(
+					text = "Tick none and I'll drop them in your main readlist.",
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					textAlign = TextAlign.Center,
+				)
+			}
+			Column(
+				modifier = Modifier
+					.heightIn(max = 320.dp)
+					.verticalScroll(rememberScrollState()),
+				verticalArrangement = Arrangement.spacedBy(8.dp),
+			) {
+				for (drop in drops) {
+					val choice = drop.choice
+					ChooserRow(
+						drop = drop,
+						isTicked = choice == null || ticked.contains(choice),
+						onTap = {
+							if (choice != null) {
+								if (ticked.contains(choice)) ticked.remove(choice) else ticked.add(choice)
+							}
+						},
+					)
+				}
+			}
+			Button(onClick = { onDone(ticked.toSet()) }) {
+				Text(text = "Done")
+			}
+		}
+	}
+}
+
+@Composable
+private fun ChooserRow(
+	drop: SharedArticlesDrop,
+	isTicked: Boolean,
+	onTap: () -> Unit,
+) {
+	val brand = LocalBrandColors.current
+	val locked = drop.choice == null
+	val boxTint = if (isTicked) brand.success else brand.textSecondary
+	val base = Modifier
+		.fillMaxWidth()
+		.clip(RoundedCornerShape(10.dp))
+		.background(brand.surfaceSubtle)
+	Row(
+		modifier = (if (locked) base else base.clickable(onClick = onTap))
+			.heightIn(min = 44.dp)
+			.padding(horizontal = 12.dp, vertical = 10.dp)
+			.semantics { selected = isTicked },
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(10.dp),
+	) {
+		Icon(
+			imageVector = if (isTicked) ChooserGlyph.CHECK_BOX else ChooserGlyph.CHECK_BOX_BLANK,
+			contentDescription = null,
+			tint = boxTint,
+			modifier = Modifier.size(18.dp),
+		)
+		Text(
+			text = drop.label,
+			style = MaterialTheme.typography.bodyMedium,
+			color = if (isTicked) brand.textPrimary else brand.textSecondary,
+			modifier = Modifier.weight(1f),
+		)
+		if (locked) {
+			Icon(
+				imageVector = ChooserGlyph.LOCK,
+				contentDescription = null,
+				tint = brand.textSecondary,
+				modifier = Modifier.size(14.dp),
+			)
+		}
+	}
+}
+
+private object ChooserGlyph {
+	val CHECK_BOX: ImageVector = build(
+		name = "CheckBox",
+		pathData = "M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 " +
+			"14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
+	)
+	val CHECK_BOX_BLANK: ImageVector = build(
+		name = "CheckBoxBlank",
+		pathData = "M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z",
+	)
+	val LOCK: ImageVector = build(
+		name = "Lock",
+		pathData = "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 " +
+			"0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 " +
+			"1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z",
+	)
+
+	private fun build(name: String, pathData: String): ImageVector =
+		ImageVector.Builder(
+			name = name,
+			defaultWidth = 24.dp,
+			defaultHeight = 24.dp,
+			viewportWidth = 24f,
+			viewportHeight = 24f,
+		).addPath(
+			pathData = PathParser().parsePathString(pathData).toNodes(),
+			fill = SolidColor(Color.Black),
+		).build()
 }
 
 private object ShareStatusGlyph {
