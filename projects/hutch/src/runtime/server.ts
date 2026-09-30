@@ -810,7 +810,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		/** Blog URLs live in the blog's own sitemap at /blog/sitemap.xml
 		 * (advertised in robots.txt), since the blog is a separate deployable. */
 		const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
-			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-09-22" },
+			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-10-01" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-09-11" },
 			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-09-29" },
 			{ loc: "/mcp", priority: "0.8", changefreq: "monthly", lastmod: "2026-09-12" },

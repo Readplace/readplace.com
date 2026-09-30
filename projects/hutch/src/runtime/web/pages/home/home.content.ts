@@ -120,7 +120,10 @@ export const HOME_WAYS_WITHOUT_A_CLIENT: readonly HomeWayRow[] = [
 		name: "A file, or a page full of links",
 		bodyLead:
 			"Upload a Pocket, Instapaper, or bookmark export — anything text-shaped — or paste a newsletter or index URL, and Readplace pulls every link out for you to review. All of that works without an account, so you can watch Readplace extract the links first.",
-		links: [{ label: "Import your links", href: "/import", trackContent: "import", order: 1 }],
+		links: [
+			{ label: "Import your links", href: "/import", trackContent: "import", order: 1 },
+			{ label: "Moving from Pocket", href: "/pocket-alternative", trackContent: "pocket-alternative", order: 2 },
+		],
 	},
 	{
 		name: "Your newsletters to your readlist",
@@ -134,6 +137,12 @@ export const HOME_WAYS_WITHOUT_A_CLIENT: readonly HomeWayRow[] = [
 				href: "/blog/save-newsletter-links-to-your-readlist",
 				trackContent: "inbox",
 				order: 1,
+			},
+			{
+				label: "Newsletters in Readplace",
+				href: "/save-newsletter-links",
+				trackContent: "save-newsletter-links",
+				order: 2,
 			},
 		],
 	},
