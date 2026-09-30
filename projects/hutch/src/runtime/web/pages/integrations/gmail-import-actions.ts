@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type {
 	ForwardableSender,
 	GmailConnection,
@@ -34,7 +35,10 @@ export function latestGmailImportsBySender(
 }
 
 export function importFollowsMapping(input: { job: GmailHistoryImportJob; mapping: GmailSenderEntry | undefined }): boolean {
-	return input.mapping?.addedToFilterAt !== undefined && input.mapping.mappedAddress === input.job.destinationAddress;
+	const { job, mapping } = input;
+	if (mapping?.addedToFilterAt === undefined || mapping.mappedAddress !== job.destinationAddress) return false;
+	assert(mapping.mappedAt, "a sender mapped to an address records when it was mapped");
+	return job.createdAt >= mapping.mappedAt;
 }
 
 export interface GmailImportActions {

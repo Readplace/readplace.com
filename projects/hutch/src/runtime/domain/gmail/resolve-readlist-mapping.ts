@@ -30,7 +30,9 @@ export function initMapSenderToReadlist(deps: {
 		]);
 		const previous = existing?.mappedAddress;
 		const remapped = previous !== undefined && previous !== address.address;
-		await deps.senders.mapSenderToAddress({ userId, senderEmail: sender, mappedAddress: address.address });
+		if (previous !== address.address) {
+			await deps.senders.mapSenderToAddress({ userId, senderEmail: sender, mappedAddress: address.address });
+		}
 		await deps.senders.addSenderToFilter({ userId, senderEmail: sender });
 		if (remapped) {
 			await deps.cancelGmailHistoryImports({ userId, senderEmail: sender, reason: "destination-changed" });

@@ -196,8 +196,8 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			counts: { listed: 0, imported: 0, alreadyImported: 0, skippedNoMessageId: 0, skippedSenderMismatch: 0, failed: 0, cancelled: 0 },
 			failureReason: undefined,
 			cancelReason: undefined,
-			createdAt: "2026-09-30T00:00:00.000Z",
-			updatedAt: "2026-09-30T00:00:00.000Z",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
 			completedAt: undefined,
 		});
 		const pickerOpen = `/integrations/gmail?search=tldr&sender=${encodeURIComponent(waiting)}&readlist=default&edit=1&discovery=started`;

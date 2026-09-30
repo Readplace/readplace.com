@@ -58,7 +58,7 @@ interface GmailSeed {
 		state: "awaiting-permission" | "queued" | "running" | "complete" | "failed" | "cancelled";
 		counts?: Partial<Record<"listed" | "imported" | "alreadyImported" | "skippedNoMessageId" | "skippedSenderMismatch" | "failed" | "cancelled", number>>;
 		failureReason?: "gmail-rejected" | "permission-revoked" | "dead-lettered";
-		cancelReason?: "user-cancelled" | "mapping-removed" | "destination-changed" | "disconnected" | "account-changed";
+		cancelReason?: "user-cancelled";
 	}[];
 }
 

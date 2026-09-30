@@ -16,11 +16,13 @@ import { AliasNameSchema, type InboxAddress, InboxAddressSchema } from "@package
 import { type NewsletterCatalogDocument, NewsletterCatalogDocumentSchema } from "@packages/domain/newsletter-catalog";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
+import { initDisconnectGmail } from "../../../domain/gmail/disconnect-gmail";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -106,6 +108,17 @@ function rowAction(element: Element, key: string): HTMLFormElement {
 	return form;
 }
 
+function importSummary(element: Element): { state: string | null; message: (string | null)[]; counts: (string | null)[]; actions: (string | null)[] } {
+	const summary = element.querySelector("[data-test-gmail-import-state]");
+	assert(summary, "the mapping row must render its import summary");
+	return {
+		state: summary.getAttribute("data-test-gmail-import-state"),
+		message: Array.from(summary.querySelectorAll(".gmail-mappings__import-message"), (el) => el.textContent),
+		counts: Array.from(summary.querySelectorAll("[data-test-gmail-import-count]"), (el) => el.textContent),
+		actions: rowActionKeys(element),
+	};
+}
+
 function locationParams(location: string): Record<string, string> {
 	return Object.fromEntries(new URL(location, "https://readplace.com").searchParams);
 }
@@ -135,7 +148,7 @@ function harnessWithGmail(options: { now?: () => Date; appNow?: () => Date; cata
 	};
 	if (options.appNow !== undefined) fixture.shared.now = options.appNow;
 	const harness = useApp(fixture);
-	return { harness, gmail, catalog, articleStore: base.articleStore };
+	return { harness, gmail, catalog, articleStore: base.articleStore, now };
 }
 
 async function seedDiscovery(input: {
@@ -184,7 +197,7 @@ async function connectedAgent(options: {
 	appNow?: () => Date;
 	catalog?: NewsletterCatalogDocument;
 } = {}) {
-	const { harness, gmail, catalog, articleStore } = harnessWithGmail(options);
+	const { harness, gmail, catalog, articleStore, now } = harnessWithGmail(options);
 	const created = await harness.auth.createUser({ email: "reader@example.com", password: "password123" });
 	assert(created.ok);
 	const userId = created.userId;
@@ -247,8 +260,8 @@ async function connectedAgent(options: {
 			},
 			failureReason: input.failureReason,
 			cancelReason: input.cancelReason,
-			createdAt: input.createdAt ?? AT,
-			updatedAt: input.createdAt ?? AT,
+			createdAt: input.createdAt ?? now().toISOString(),
+			updatedAt: input.createdAt ?? now().toISOString(),
 			completedAt: undefined,
 		});
 		return jobId;
@@ -1147,10 +1160,6 @@ describe("Your newsletters", () => {
 		["failed after permission was revoked", { state: "failed", failureReason: "permission-revoked" }, false, "Readplace lost permission to read your Gmail messages.", ["0 imported", "0 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed"], ["edit", "remove"], true],
 		["dead-lettered", { state: "failed", failureReason: "dead-lettered" }, true, "The import stopped after repeated errors.", ["0 imported", "0 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed"], ["edit", "retry-import", "remove"], false],
 		["cancelled", { state: "cancelled", cancelReason: "user-cancelled", counts: { imported: 2, cancelled: 3 } }, false, "Import cancelled.", ["2 imported", "0 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed", "3 cancelled"], ["edit", "start-import", "remove"], false],
-		["stopped by removal", { state: "cancelled", cancelReason: "mapping-removed" }, false, "Import stopped because the mapping was removed.", ["0 imported", "0 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed", "0 cancelled"], ["edit", "start-import", "remove"], false],
-		["stopped by a readlist change", { state: "cancelled", cancelReason: "destination-changed" }, false, "Import stopped because the readlist changed.", ["0 imported", "0 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed", "0 cancelled"], ["edit", "start-import", "remove"], false],
-		["stopped by disconnect", { state: "cancelled", cancelReason: "disconnected" }, false, "Import stopped because Gmail was disconnected.", ["0 imported", "0 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed", "0 cancelled"], ["edit", "start-import", "remove"], false],
-		["stopped by an account change", { state: "cancelled", cancelReason: "account-changed" }, false, "Import stopped because a different Gmail account is connected.", ["0 imported", "0 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed", "0 cancelled"], ["edit", "start-import", "remove"], false],
 	])("reports an import that is %s with the actions it allows", async (_label, job, readonly, message, counts, actions, consent) => {
 		const { agent, mapSender, seedJob } = await connectedAgent({ scope: readonly ? READONLY_SCOPES : GMAIL_SCOPES });
 		const destination = await mapSender(TLDR, "default");
@@ -1187,6 +1196,97 @@ describe("Your newsletters", () => {
 		expect(exhausted.querySelector("#gmail-mappings")?.getAttribute("data-imports-polling")).toBe("false");
 		expect(exhausted.querySelector("#gmail-mappings")?.hasAttribute("hx-get")).toBe(false);
 		expect(exhausted.querySelector("[data-test-gmail-imports-exhausted]")?.textContent).toBe("Still importing. Refresh to check again.");
+	});
+
+	it("shows no import for a newsletter moved to another readlist after its import finished", async () => {
+		let now = new Date("2026-09-30T20:20:00.000Z");
+		const { agent, createReadlist, mapSender, seedJob } = await connectedAgent({ scope: READONLY_SCOPES, now: () => now, appNow: () => now });
+		await createReadlist({ slug: "dev-newsletters", label: "Dev newsletters" });
+		const devNewsletters = await mapSender(TLDR, "dev-newsletters");
+		now = new Date("2026-09-30T20:24:54.000Z");
+		await seedJob({ sender: TLDR, destination: devNewsletters, state: "complete", counts: { listed: 1, alreadyImported: 1 } });
+		expect(importSummary(row(load((await agent.get(GMAIL)).text), TLDR))).toEqual({
+			state: "complete",
+			message: ["Import complete. Article links may still be processing."],
+			counts: ["0 imported", "1 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed"],
+			actions: ["edit", "start-import", "remove"],
+		});
+
+		now = new Date("2026-09-30T20:30:00.000Z");
+		await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" });
+
+		const moved = row(load((await agent.get(GMAIL)).text), TLDR);
+		expect(moved.querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All");
+		expect(importSummary(moved)).toEqual({ state: "none", message: [], counts: [], actions: ["edit", "start-import", "remove"] });
+	});
+
+	it("shows no import for a newsletter mapped to the same readlist after Gmail is disconnected and reconnected, until it imports again", async () => {
+		let now = new Date("2026-09-30T20:20:00.000Z");
+		const { agent, gmail, userId, createReadlist, mapSender, seedJob } = await connectedAgent({ scope: READONLY_SCOPES, now: () => now, appNow: () => now });
+		const disconnectGmail = initDisconnectGmail({
+			connections: gmail.bundle.gmailConnectionStore,
+			credentials: gmail.bundle.gmailCredentialsStore,
+			senders: gmail.bundle.gmailSenderStore,
+			discovery: gmail.bundle.gmailDiscoveryStore,
+			addresses: gmail.addresses,
+			rewriteGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
+			revokeGmailGrant: async () => ({ ok: true }),
+			cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
+			logger: HutchLogger.from(noopLogger),
+		});
+		gmail.bundle.publishDisconnectGmail = async (input) => {
+			await disconnectGmail(input);
+		};
+		await createReadlist({ slug: "dev-newsletters", label: "Dev newsletters" });
+		const devNewsletters = await mapSender(TLDR, "dev-newsletters");
+		now = new Date("2026-09-30T20:24:54.000Z");
+		await seedJob({ sender: TLDR, destination: devNewsletters, state: "complete", counts: { listed: 1, alreadyImported: 1 } });
+
+		now = new Date("2026-09-30T20:40:00.000Z");
+		await agent.post(`${GMAIL}/disconnect`);
+		const reconnectedGateway = await gmail.bundle.mintGatewayAddress({ userId });
+		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress: reconnectedGateway });
+		await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: EMAIL });
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: READONLY_SCOPES });
+		await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
+		await seedDiscovery({ gmail, userId, gatewayAddress: reconnectedGateway, senders: DISCOVERED, generation: "reconnected", state: "complete" });
+
+		now = new Date("2026-09-30T20:43:08.444Z");
+		await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "dev-newsletters" });
+
+		const mappedAgain = row(load((await agent.get(GMAIL)).text), TLDR);
+		expect(mappedAgain.querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to Dev newsletters");
+		expect(importSummary(mappedAgain)).toEqual({ state: "none", message: [], counts: [], actions: ["edit", "start-import", "remove"] });
+
+		now = new Date("2026-09-30T20:44:11.000Z");
+		await agent.post(IMPORT_START).type("form").send({ sender: TLDR });
+
+		expect(importSummary(row(load((await agent.get(GMAIL)).text), TLDR))).toEqual({
+			state: "queued",
+			message: ["Import queued."],
+			counts: [],
+			actions: ["edit", "cancel-import", "remove"],
+		});
+	});
+
+	it("keeps a running import on its newsletter when the newsletter is saved again to the readlist it already uses", async () => {
+		let now = new Date("2026-09-30T20:20:00.000Z");
+		const { agent, createReadlist, mapSender, seedJob } = await connectedAgent({ now: () => now, appNow: () => now });
+		await createReadlist({ slug: "tech", label: "Tech" });
+		const tech = await mapSender(TLDR, "tech");
+		now = new Date("2026-09-30T20:21:00.000Z");
+		await seedJob({ sender: TLDR, destination: tech, state: "running", counts: { listed: 2, imported: 1 } });
+
+		now = new Date("2026-09-30T20:22:00.000Z");
+		const saved = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "tech" });
+
+		expect(saved.headers.location).toBe(`${GMAIL}?notice=sender_remapped&discovery=started`);
+		expect(importSummary(row(load((await agent.get(GMAIL)).text), TLDR))).toEqual({
+			state: "running",
+			message: ["Importing unread messages from the last 30 days…"],
+			counts: ["1 imported", "0 already imported", "0 skipped (no message ID)", "0 skipped (different sender)", "0 failed"],
+			actions: ["edit", "cancel-import", "remove"],
+		});
 	});
 });
 
@@ -1269,7 +1369,7 @@ describe("Import unread messages", () => {
 		]);
 		await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" });
 		const moved = row(load((await agent.get(GMAIL)).text), TLDR);
-		expect(moved.querySelector("[data-test-gmail-import-state]")?.getAttribute("data-test-gmail-import-state")).toBe("failed");
+		expect(moved.querySelector("[data-test-gmail-import-state]")?.getAttribute("data-test-gmail-import-state")).toBe("none");
 		expect(Array.from(moved.querySelectorAll("[data-test-gmail-mapping-action]"), (el) => el.getAttribute("data-test-gmail-mapping-action"))).toEqual([
 			"edit",
 			"start-import",

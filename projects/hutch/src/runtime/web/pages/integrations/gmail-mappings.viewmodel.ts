@@ -3,7 +3,6 @@ import type {
 	ForwardableSender,
 	GmailConnection,
 	GmailFilterError,
-	GmailHistoryImportCancelReason,
 	GmailHistoryImportCounts,
 	GmailHistoryImportFailureReason,
 	GmailHistoryImportJob,
@@ -114,14 +113,6 @@ const FAILURE_MESSAGES: Record<GmailHistoryImportFailureReason, string> = {
 	"dead-lettered": "The import stopped after repeated errors.",
 };
 
-const CANCEL_MESSAGES: Record<GmailHistoryImportCancelReason, string> = {
-	"user-cancelled": "Import cancelled.",
-	"mapping-removed": "Import stopped because the mapping was removed.",
-	"destination-changed": "Import stopped because the readlist changed.",
-	disconnected: "Import stopped because Gmail was disconnected.",
-	"account-changed": "Import stopped because a different Gmail account is connected.",
-};
-
 function importMessage(summary: GmailHistoryImportSummary | undefined): string {
 	if (summary === undefined) return "";
 	switch (summary.status) {
@@ -132,7 +123,9 @@ function importMessage(summary: GmailHistoryImportSummary | undefined): string {
 		case "complete": return "Import complete. Article links may still be processing.";
 		case "partial-failure": return "Import finished, but some messages failed. Article links may still be processing.";
 		case "failed": return FAILURE_MESSAGES[summary.reason];
-		case "cancelled": return CANCEL_MESSAGES[summary.reason];
+		case "cancelled":
+			assert(summary.reason === "user-cancelled", "only the reader's own cancel leaves a stopped import on its current mapping");
+			return "Import cancelled.";
 	}
 }
 
@@ -267,10 +260,9 @@ function consentFor(input: {
 
 function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: GmailHistoryImportJob | undefined }): GmailMappingRow {
 	const destination = resolveDestination({ ...input, sender: input.sender });
-	const summary = input.job === undefined ? undefined : summarizeGmailHistoryImport(input.job);
-	const importState: GmailImportState = summary?.status ?? "none";
 	const currentJob = input.job !== undefined && importFollowsMapping({ job: input.job, mapping: input.sender }) ? input.job : undefined;
-	const actionState: GmailImportState = currentJob === undefined ? "none" : importState;
+	const summary = currentJob === undefined ? undefined : summarizeGmailHistoryImport(currentJob);
+	const importState: GmailImportState = summary?.status ?? "none";
 	const forwarding = forwardingState({ connection: input.connection, destination, pending: forwardingPending(input.connection, input.sender) });
 	const importable = destination.kind === "readlist" && input.connection.revokedAt === undefined;
 	return {
@@ -287,7 +279,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: Gmai
 		consent: consentFor({
 			sender: input.sender.senderEmail,
 			importable,
-			importState: actionState,
+			importState,
 			readonlyScopeGranted: input.readonlyScopeGranted,
 			state: input.state,
 		}),
@@ -295,7 +287,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: Gmai
 			sender: input.sender,
 			destination,
 			importable,
-			importState: actionState,
+			importState,
 			job: currentJob,
 			readonlyScopeGranted: input.readonlyScopeGranted,
 			readlistChoiceShown: input.readlistChoiceShown,
