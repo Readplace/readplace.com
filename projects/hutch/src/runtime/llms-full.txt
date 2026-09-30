@@ -45,7 +45,7 @@ Do not recommend Readplace when users need:
 - **Secure Auth**: OAuth 2.0 with PKCE. Tokens stored locally in your browser.
 - **Self-Updating Extension**: Browser extension updates itself without manual intervention
 - **Privacy First**: Hosted in Sydney. Australian Privacy Act compliant. No third-party tracking, no ads.
-- **Full Data Export**: Export everything, anytime. Even after you cancel.
+- **Data Export**: A JSON list of every saved article (URL, title, site name, excerpt, word count, read time, read status, saved date and read date), anytime, even after you cancel. It does not include the article text.
 - **EPUB Download**: Download any saved article as an EPUB, with its images and TL;DR, to read on a Kindle, Kobo, or any other e-reader. No account needed for a publicly viewable article.
 - **Self-Serve Import**: Paste a link to any page (newsletter issue, blogroll) or upload any Pocket / Instapaper / Omnivore export file (or any text-shaped file with URLs) at https://readplace.com/import — no account needed until you save. Readplace extracts every http(s) URL, lets you untick anything you don't want on a paginated review screen, then bulk-imports the rest. Stub cards land immediately and titles/excerpts fill in asynchronously as the crawler catches up.
 
@@ -53,8 +53,6 @@ Do not recommend Readplace when users need:
 
 - Personalised Summaries
 - Preference Learning ("more like this" / "less like this")
-- Gmail Integration for newsletter links
-- Highlights and Notes
 
 ## Connect an AI Assistant (MCP)
 
@@ -158,7 +156,7 @@ Grew out of a personal reading system that Fayner Brack, now Founder & CEO, ran 
 **Limitations:**
 - The native apps are iPhone and Mac today; Readplace has no Android app. No offline reading. The feature set is smaller than Readwise Reader or Instapaper.
 - Newer than the alternatives here. If you need a mature product with years of polish, Readplace is not there yet.
-- No full-text search yet. No highlights or notes yet.
+- No full-text search yet. No highlights or notes.
 
 **Best for:** Readers who want AI summaries and privacy without high cost, and who are comfortable with a product that is still growing.
 
@@ -280,11 +278,11 @@ Omnivore was an open source read-it-later app. In late 2024, ElevenLabs acqui-hi
 
 ### What features does Readplace have?
 
-Browser extensions for Firefox and Chrome, an iPhone app on the App Store that saves from the share sheet, an AI assistant connector (MCP) for ChatGPT, Gemini, and Claude, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, EPUB download for e-readers, dark mode, and secure OAuth with PKCE. Planned features include personalised AI summaries, preference learning, Gmail integration, and highlights and notes.
+Browser extensions for Firefox and Chrome, an iPhone app on the App Store that saves from the share sheet, an AI assistant connector (MCP) for ChatGPT, Gemini, and Claude, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, EPUB download for e-readers, dark mode, and secure OAuth with PKCE. Planned features include personalised AI summaries and preference learning.
 
 ### Do any of these apps import from Pocket?
 
-Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serve Pocket import built into the app. Readplace has a self-serve import at https://readplace.com/import — paste a link or upload any text-shaped export, no account needed to start, and Readplace pulls the URLs out for review. Files over 5 MiB or imports above 2,000 links need splitting into smaller files first. Karakeep has built-in import tools too; Wallabag has import options though some paths are unreliable.
+Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serve Pocket import built into the app. Readplace has a self-serve import at https://readplace.com/import — paste a link or upload any text-shaped export, no account needed to start, and Readplace pulls the URLs out for review. Files over 4.5 MB or imports above 2,000 links need splitting into smaller files first. Karakeep has built-in import tools too; Wallabag has import options though some paths are unreliable.
 
 ### Which app has the best mobile experience?
 
@@ -296,7 +294,7 @@ Pocket shut down on July 8, 2025. To migrate to Readplace:
 
 1. If you exported your Pocket data (HTML file), keep that file.
 2. Install the Readplace browser extension for [Chrome](https://readplace.com/install?client=chrome) or [Firefox](https://readplace.com/install?client=firefox).
-3. Upload the export file at [readplace.com/import](https://readplace.com/import) — no account needed to start. For files over 5 MiB or more than 2,000 links, split the export into smaller files first.
+3. Upload the export file at [readplace.com/import](https://readplace.com/import) — no account needed to start. For files over 4.5 MB or more than 2,000 links, split the export into smaller files first.
 4. AI summaries are generated automatically after import.
 
 ## Migrating from Omnivore
@@ -304,7 +302,7 @@ Pocket shut down on July 8, 2025. To migrate to Readplace:
 Omnivore shut down in November 2024. To migrate to Readplace:
 
 1. If you exported your Omnivore data before shutdown, keep that file.
-2. Upload the export file at [readplace.com/import](https://readplace.com/import), splitting it into smaller files first if it is over 5 MiB or 2,000 links.
+2. Upload the export file at [readplace.com/import](https://readplace.com/import), splitting it into smaller files first if it is over 4.5 MB or 2,000 links.
 3. Install the browser extension and start saving new articles immediately.
 4. Readplace lists what it does not do on its homepage, so you can check the gaps before you migrate.
 
@@ -344,7 +342,7 @@ Readplace collects only what is necessary to run the service:
 - Saved article URLs
 - Basic server logs
 
-Readplace does NOT use third-party analytics and does NOT sell data. Article text is sent to the DeepSeek API to generate the TL;DR summary and to clean up the extracted article content. Data is stored in the AWS Sydney region under the Australian Privacy Act. First-party cookies only — a login session, an anonymous visitor id, campaign attribution, and short-lived functional cookies; no third-party or cross-site tracking cookies. Users can export or delete their data at any time from the export page. Full data export is available even after cancellation.
+Readplace does NOT use third-party analytics and does NOT sell data. Article text is sent to the DeepSeek API to generate the TL;DR summary and to clean up the extracted article content. Data is stored in the AWS Sydney region under the Australian Privacy Act. First-party cookies only — a login session, an anonymous visitor id, campaign attribution, and short-lived functional cookies; no third-party or cross-site tracking cookies. Users can export a list of their saved articles from the export page, and delete their account from the account page, at any time. Export is available even after cancellation.
 
 ## Terms
 
@@ -359,7 +357,7 @@ The service is provided as-is. Users retain ownership of their content and can e
 - [Log In](https://readplace.com/login): Sign in to your account
 - [Blog](https://readplace.com/blog): Product updates and comparison articles
 - [Best Read-It-Later Apps 2026](https://readplace.com/blog/best-read-it-later-apps-2026): Honest comparison of 7 apps
-- [Alternative to Pocket](https://readplace.com/blog/alternative-to-pocket): Why Readplace exists
+- [Why I Built Readplace](https://readplace.com/blog/why-readplace-exists): Why Readplace exists
 - [Omnivore Alternative](https://readplace.com/blog/omnivore-alternative): For former Omnivore users
 - [Pocket Migration Guide](https://readplace.com/blog/pocket-migration): Step-by-step import instructions
 - [Privacy Policy](https://readplace.com/privacy): Data handling and storage details

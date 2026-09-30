@@ -4,6 +4,7 @@ description: "Readplace can now import links from a single page. Paste a newslet
 slug: "import-links-from-a-page"
 date: "2026-05-31"
 author: "Fayner Brack"
+lastModified: "2026-09-30"
 keywords: "import newsletter links, save all links from a page, bulk save articles, read it later, save newsletter to read later, extract links from web page, blogroll, readplace"
 ---
 
@@ -11,7 +12,7 @@ keywords: "import newsletter links, save all links from a page, bulk save articl
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace now imports links from one page. Open your readlist, hit Import, and switch to the "Paste a link" tab. Drop in a newsletter issue or any page that lists articles. Readplace loads the page and lists every outbound link, each one checked by default. Untick what you skip, then click Import. The articles appear as cards right away and fill in their titles and excerpts within seconds. One page can hold up to 2,000 links, and the same screen still takes a file upload too.
+Readplace now imports links from one page. Open Import Links in the menu. "Paste a link" is the first tab. Drop in a newsletter issue or any page that lists articles. Readplace loads the page and lists every outbound link, each one checked by default. Untick what you skip, then click Import. The articles appear as cards right away and fill in their titles and excerpts within seconds. One page can hold up to 2,000 links, and the same screen still takes a file upload too.
 
 </div>
 </details>
@@ -22,7 +23,7 @@ Readplace now collapses all of that into one paste.
 
 ## Paste the page, pick the links
 
-Open your readlist and find the Import button next to the save bar, then switch to the "Paste a link" tab. Drop in the address of a newsletter issue, a blogroll, or any page that lists articles. Readplace loads that page and reads out every link on it that points somewhere else.
+Open Import Links in the menu. The "Paste a link" tab is the first one. Drop in the address of a newsletter issue, a blogroll, or any page that lists articles. Readplace loads that page and reads out every link on it that points somewhere else.
 
 You get a plain, checkable list, and every link starts ticked.
 

@@ -1,7 +1,7 @@
   <main class="legal-page">
     <div class="legal-page__container">
       <h1 class="legal-page__title">Privacy Policy</h1>
-      <p class="legal-page__updated">Last updated: 22 September 2026</p>
+      <p class="legal-page__updated">Last updated: 30 September 2026</p>
 
       <section class="legal-page__section">
         <h2>Who operates Readplace</h2>
@@ -22,7 +22,7 @@
         <h2>What Readplace does not collect</h2>
         <ul class="legal-page__list legal-page__list--excluded">
           <li class="legal-page__item"><span class="legal-page__marker">{{icon "x"}}</span><span class="legal-page__item-text">Readplace does not use third-party analytics or tracking scripts.</span></li>
-          <li class="legal-page__item"><span class="legal-page__marker">{{icon "x"}}</span><span class="legal-page__item-text">Readplace does not sell or rent your personal data, and shares it only with the providers that run the service: AWS (hosting), Stripe (payments), and Resend (email).</span></li>
+          <li class="legal-page__item"><span class="legal-page__marker">{{icon "x"}}</span><span class="legal-page__item-text">Readplace does not sell or rent your personal data, and shares it only with the providers that run the service: AWS (hosting), Stripe (payments), Resend (email), and DeepSeek (article text, to clean it up and write the summary).</span></li>
           <li class="legal-page__item"><span class="legal-page__marker">{{icon "x"}}</span><span class="legal-page__item-text">The operator of Readplace does not read the content of the articles you save &mdash; article text is sent to DeepSeek to pick and clean up the readable text and to write the summary and excerpt on your cards.</span></li>
         </ul>
       </section>
@@ -53,13 +53,13 @@
 
       <section class="legal-page__section">
         <h2>Data retention and export</h2>
-        <p>Readplace keeps your account and saved articles until you delete them or close your account. Server logs are kept for 30 days, login sessions expire after 7 days, and export downloads are deleted 7 days after you generate them. Usage events, which carry a visitor id and a hashed email rather than your address, are kept indefinitely.</p>
-        <p>You can export all your data at any time from the <a href="{{track '/export' source='privacy' content='export-retention'}}">Export</a> page.</p>
+        <p>Readplace keeps your account and saved articles until you delete them or close your account. Server logs are kept for 30 days, a login session ends after 180 days without a visit, and export downloads are deleted 7 days after you generate them. Usage events, which carry a visitor id and a hashed email rather than your address, are kept indefinitely.</p>
+        <p>You can export a list of your saved articles at any time from the <a href="{{track '/export' source='privacy' content='export-retention'}}">Export</a> page.</p>
       </section>
 
       <section class="legal-page__section">
         <h2>Cookies</h2>
-        <p>Readplace uses first-party cookies only &mdash; one to keep you logged in (7 days), an anonymous id to measure how visitors use the site (1 year), a record of the campaign or referrer you arrived from (30 days), and functional cookies for sign-in state, pending saves, imports, extension detection, and banners you have dismissed. No advertising, third-party, or cross-site tracking cookies.</p>
+        <p>Readplace uses first-party cookies only &mdash; one to keep you logged in (180 days, renewed as you use the site), an anonymous id to measure how visitors use the site (1 year), a record of the campaign or referrer you arrived from (30 days), and functional cookies for sign-in state, pending saves, imports, extension detection, and banners you have dismissed. No advertising, third-party, or cross-site tracking cookies.</p>
       </section>
 
       <section class="legal-page__section">

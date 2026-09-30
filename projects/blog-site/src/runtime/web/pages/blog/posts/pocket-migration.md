@@ -3,7 +3,7 @@ title: "Pocket Shut Down in 2025. Here's How to Recover and Move Your Reading Li
 description: "Pocket closed on July 8, 2025. If you missed the export, your articles are often still recoverable. Here's how to find them and move to Readplace."
 slug: "pocket-migration"
 date: "2026-05-06"
-lastModified: "2026-07-26"
+lastModified: "2026-09-30"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
@@ -12,7 +12,7 @@ keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, sign in to Readplace, open your readlist, and use the "Import from a file" picker. Pick the file, untick anything you don't want, then click Import. Files over 4.5 MB or above 2,000 links have to be split into smaller files first.
+Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, open Import Links in the Readplace menu and use the "Upload a file" tab. Pick the file, untick anything you don't want, then click Import. An account is needed only for that last click. Files over 4.5 MB or above 2,000 links have to be split into smaller files first.
 
 </div>
 </details>
@@ -57,7 +57,7 @@ Between the 4 of them I got most of what I cared about back, and the rest I let 
 
 ## Importing into Readplace
 
-Once I had a Pocket export file in hand, the rest was quick. I signed in, opened my [reading list](/queue?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=queue), and found the "Import from a file" picker sitting next to the save bar. I chose the file, clicked Upload, and Readplace listed every URL it found. I unticked the few I no longer wanted, clicked "Import N selected", and the cards showed up in my readlist right away. Titles and excerpts filled in over the next minute or two.
+Once I had a Pocket export file in hand, the rest was quick. The importer sits on the [Import Links](/import?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=import) page, under the "Upload a file" tab. I chose the file, clicked Upload, and Readplace listed every URL it found. I unticked the few I no longer wanted, clicked "Import N selected", and the cards showed up in my readlist right away. Titles and excerpts filled in over the next minute or two.
 
 The importer pulls in every URL the file holds.
 
@@ -76,9 +76,9 @@ If you came out of the recovery step with a pile of loose URLs and no export fil
 | Save articles from browser | Yes | Yes (Chrome, Firefox) |
 | Reader view | Yes | Yes |
 | AI summaries | No | TL;DR for every article |
-| Tags | Yes | Planned |
-| Highlights | No | Planned |
-| Full-text search | Yes (Premium) | Yes |
+| Tags | Yes | No |
+| Highlights | No | No |
+| Full-text search | Yes (Premium) | No |
 | Offline reading | Yes (mobile) | Planned |
 | Mobile app | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
 | Data export | Yes (before shutdown) | Anytime, even after cancelling |
@@ -106,10 +106,10 @@ If you downloaded the HTML export file before the shutdown, it still works fine.
 
 **How do I import Pocket articles into another app?**
 
-Most read-it-later apps take the HTML export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open your readlist, upload the file with the "Import from a file" picker, and confirm the link list. For files over 4.5 MB or imports above the 2,000-URL cap, split the export into smaller files and import them one at a time.
+Most read-it-later apps take the HTML export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open [Import Links](/import?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=import), upload the file under the "Upload a file" tab, and confirm the link list. For files over 4.5 MB or imports above the 2,000-URL cap, split the export into smaller files and import them one at a time.
 
 **I lost my Omnivore reading list too. Can Readplace help?**
 
-Yes. Omnivore shut down in November 2024. If you still have an Omnivore data export, send it to the same address. For the longer version of what happened there, see [Omnivore shut down: here's a read-it-later app that won't](/blog/omnivore-alternative?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-omnivore-alternative).
+Yes. Omnivore shut down in November 2024. If you still have an Omnivore data export, upload it on the same Import Links page. For the longer version of what happened there, see [Omnivore shut down: here's a read-it-later app that won't](/blog/omnivore-alternative?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-omnivore-alternative).
 
 The lesson I took from this is small and a little embarrassing. Export your data the day a service announces it is closing, and keep that file somewhere you control, because the recovery dance afterward only ever returns part of what you had.

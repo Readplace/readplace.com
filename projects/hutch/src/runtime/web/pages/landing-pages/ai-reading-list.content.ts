@@ -46,10 +46,10 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		},
 		founderLine: founderLine("ai-reading-list"),
 	},
-	mechanismTitle: "Eight tools that act, one that refuses",
+	mechanismTitle: "11 tools that act, 1 that refuses",
 	mechanismLede: "The refusal is the design, not a gap in it.",
 	mechanismParagraphs: [
-		"Eight tools do something: save a link, list your readlist, pull an article's details, its reader view, its summary, or the articles related to it, and mark one read or unread.",
+		"11 tools do something: save a link, list your readlists and what is in them, create a readlist or file an article into one, pull an article's details, its reader view, its summary, or the articles related to it, and mark one read or unread.",
 		"One more — delete — exists only to tell your assistant to send you to the app. It returns without changing anything. An assistant that misreads a sentence can add a link to your readlist or mark one read; it cannot empty it.",
 		"That asymmetry is deliberate. A stray save costs you one line in a list, and a stray read mark costs you one sentence to undo. A stray delete costs you something you meant to read.",
 	],
@@ -69,7 +69,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		{
 			question: "Can my assistant delete things from my readlist?",
 			answer:
-				"No. Delete returns without acting and tells the assistant to send you to the app. It can save a link and mark an article read or unread; taking one out of the readlist is yours to do.",
+				"No. Delete returns without acting and tells the assistant to send you to the app. It can save a link, create a readlist, file an article into one, and mark an article read or unread. Taking one out of the readlist is yours to do.",
 		},
 		{
 			question: "What do I paste into the connector?",
@@ -93,7 +93,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to the connection if I stop paying?",
 			answer:
-				"It stays connected and goes read-only, the same as the account does in a browser. Your assistant can still list your readlist, pull an article, its reader view or its summary, and mark things read or unread as you work through them. Saving is the one tool that stops, and it comes back with a note that new saves are paused rather than an error.",
+				"It stays connected and goes read-only, the same as the account does in a browser. Your assistant can still list your readlist, pull an article, its reader view or its summary, and mark things read or unread as you work through them. Saving and readlist changes (creating a readlist, filing an article into one) stop, and each comes back with a note that the change is paused rather than an error.",
 		},
 	],
 	offer: {
@@ -101,7 +101,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		paragraphs: [
 			`Connecting costs nothing. The readlist behind the connection is a subscription: ${TRIAL_TERMS}`,
 			`${CHEAPEST_MONTHLY_DISPLAY}/month is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
-			"If the subscription lapses, only saving refuses. Your assistant can still list your readlist, pull an article's text or summary, and mark things read as you work through them — it just cannot add anything new.",
+			"If the subscription lapses, saving and readlist changes refuse. Your assistant can still list your readlist, pull an article's text or summary, and mark things read as you work through them. It cannot add anything new.",
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

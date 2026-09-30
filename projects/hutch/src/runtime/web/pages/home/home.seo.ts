@@ -139,7 +139,7 @@ export function buildHomeSeo(input: {
 					"OAuth 2.0 with PKCE authentication",
 					"Data hosted in Sydney, Australia under Australian Privacy Act",
 					"No third-party tracking, no ads, no third-party analytics",
-					"Full data export available at any time, even after cancellation",
+					"Export of every saved article as a JSON list, at any time, even after cancellation",
 				],
 				review: {
 					"@type": "Review",

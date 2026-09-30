@@ -4,6 +4,7 @@ description: "I ran my own reading system on Gmail filters and DynamoDB for ten 
 slug: "why-readplace-exists"
 date: "2026-07-23"
 author: "Fayner Brack"
+lastModified: "2026-09-30"
 keywords: "Readplace founder, why I built Readplace, js-cookie, read-it-later app, Pocket alternative, Omnivore alternative, build in public, data ownership"
 ---
 
@@ -36,7 +37,7 @@ So I started turning my personal system into Readplace, built in Australia, one 
 
 Here's the part that matters most, and it isn't a feature.
 
-A sentence about "we'll always let you export your data" does not survive an acquisition. What survives is the code. So the behaviour is written in rather than promised: if you ever stop paying, your account goes **read-only, not dark**. Your readlist, your saved articles, and the reader all keep working. You keep reading everything you saved. Only saving new links and importing pause. And export carries no subscription gate, so you can pull everything out as JSON any time, paying or not.
+A sentence about "we'll always let you export your data" does not survive an acquisition. What survives is the code. So the behaviour is written in rather than promised: if you ever stop paying, your account goes **read-only, not dark**. Your readlist, your saved articles, and the reader all keep working. You keep reading everything you saved. Only saving new links, importing and readlist changes pause. And export carries no subscription gate, so you can pull a JSON list of every saved article any time, paying or not.
 
 The infrastructure sits in Sydney under Australian privacy law. The codebase is [on GitHub](https://github.com/Readplace/readplace.com) and source-available, so the branch that decides what a cancelled account can still do is something you can go and read rather than take my word for.
 
@@ -46,5 +47,5 @@ I can't promise Readplace will outlive Pocket and Omnivore. I can promise that i
 <p class="blog-cta__title">Read the web the way I do</p>
 <p class="blog-cta__text">Save a week of articles and let the reader view and the TL;DRs decide what's worth your time. If it doesn't fit, let the trial lapse — nothing is charged and your account goes read-only, with everything you saved still readable.</p>
 <a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-why-i-built&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. $3/month if you stay.</p>
+<p class="blog-cta__note">No credit card required. The plans are on the <a href="/?utm_source=blog-why-i-built&utm_medium=internal&utm_content=pricing#pricing">home page</a>.</p>
 </div>

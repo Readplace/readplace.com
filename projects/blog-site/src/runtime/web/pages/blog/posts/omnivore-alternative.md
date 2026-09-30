@@ -3,7 +3,7 @@ title: "Omnivore Shut Down. Here's a Read-It-Later App That Won't."
 description: "Omnivore shut down with two weeks notice. Readplace is a privacy-first read-it-later app built by a developer and no VC funding."
 slug: "omnivore-alternative"
 date: "2026-05-06"
-lastModified: "2026-07-26"
+lastModified: "2026-09-30"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
@@ -12,7 +12,7 @@ keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Omnivore shut down two weeks after ElevenLabs acquired it. The cause was venture capital that needed an exit. Readplace is self-funded at $3/month, so subscriptions pay for servers and no investors are waiting on a sale. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code. It runs in Sydney under Australian privacy law.
+Omnivore shut down two weeks after ElevenLabs acquired it. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law.
 
 </div>
 </details>
@@ -29,7 +29,7 @@ Nothing about Omnivore's intentions was wrong. The team built a product people r
 
 Plenty of Omnivore users landed on [Readwise Reader](https://readwise.io/read) at $119.88/year, while others went self-hosted with Karakeep or Wallabag. Each path costs you something. Readwise has the most features but the highest price, and the self-hosted tools are free right up until you remember that you are now the one running a server and applying the updates when they break.
 
-I built Readplace to sit between those two. It is hosted, so you do not run anything, and the money comes from one place only: subscriptions pay for the servers and the work, and there is no investor in the background waiting for a sale. If you want the side-by-side on every option, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026).
+I built Readplace to sit between those two. It is hosted, so you do not run anything, and it is funded by subscriptions, with no investor in the background. If you want the side-by-side on every option, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026).
 
 ## Built by one developer who actually reads
 
@@ -45,7 +45,7 @@ Here is what is shipped and running right now:
 - **Web app.** Manage your reading list from any browser, with no app store in the way.
 - **Auto dark mode.** It follows your system preference.
 - **Secure auth.** OAuth with PKCE, and tokens stay in your own browser.
-- **Full data export.** Pull your saved articles out whenever you want, including after you cancel.
+- **Data export.** Download a JSON list of every saved article whenever you want, including after you cancel. It carries each article's URL, title, site, excerpt, read status and dates, not the article text.
 - **Privacy first.** Hosted in Sydney under the Australian Privacy Act, with no third-party tracking scripts and no ads.
 
 ## What Omnivore had, and where Readplace stands
@@ -58,15 +58,15 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | Reader view | Yes | Yes | Shipped |
 | TL;DR summaries | No | Yes | Shipped |
 | Dark mode | Yes | Yes | Shipped |
-| Full data export | Yes | Yes | Shipped |
+| Data export | Yes | JSON list, no article text | Shipped |
 | Open source | Was (archived) | Source-available | Shipped |
-| Highlights and notes | Yes | No | Planned |
+| Highlights and notes | Yes | No | Not built |
 | Full-text search | Yes | No | Planned |
-| Newsletter inbox | Yes | No | Planned as Gmail import |
-| Labels / tags | Yes | No | Planned |
+| Newsletter inbox | Yes | Forwarding address per newsletter | Shipped |
+| Labels / tags | Yes | No | Not built |
 | Native mobile apps | Yes | iPhone and Mac | Shipped for iPhone and Mac, Android planned |
 | RSS feed reader | Yes | No | Not planned yet |
-| API access | Yes | OAuth only | Extension API exists but not yet for public consumption |
+| API access | Yes | MCP server with 12 tools | Shipped |
 
 > **I would rather be honest about the gaps than pretend they aren't there.**
 
@@ -74,17 +74,17 @@ Features land one at a time, and the table above shows what is next.
 
 ## Your data, on your terms
 
-**Source-available.** The full source is [on GitHub](https://github.com/Readplace/readplace.com). If Readplace went away tomorrow, anyone could stand it back up, and that is the whole point of putting it there.
+**Source-available.** The full source is [on GitHub](https://github.com/Readplace/readplace.com). The code is there to read. No licence grants the right to reuse it or run it yourself.
 
-**Full export, whenever you want.** You can export all of your data even after you cancel. The export is a core promise, not a perk, so your saved articles stay reachable no matter what your subscription is doing.
+**Export, whenever you want.** You can export a JSON list of every saved article even after you cancel. It carries each article's URL, title and reading history, not the article text. The export is a core promise, not a perk, so your saved articles stay reachable no matter what your subscription is doing.
 
-**Australian hosting.** It runs in Sydney, under the Australian Privacy Act, outside US jurisdiction, with no third-party tracking scripts, no ads, and no data sales.
+**Australian hosting.** It runs in Sydney, under the Australian Privacy Act, with no third-party tracking scripts, no ads, and no data sales. Readplace sends article text to DeepSeek to clean up the text and write the summary.
 
 **No venture capital.** Readplace is self-funded and the revenue comes from subscriptions, which means there is no board counting on an exit and no acquisition for me to go chase at your expense.
 
 ## Pricing
 
-It is $3/month, and the TL;DR summaries are part of that.
+The current plans are in the [pricing section of the home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing), and the TL;DR summaries are part of every plan.
 
 Readwise Reader is a strong pick for power users at $119.88/year. Readplace is the simpler and cheaper option, and it stays pointed at saving and reading articles rather than growing into a full research platform.
 
@@ -100,7 +100,7 @@ The team went to ElevenLabs to work on text-to-speech rather than reading tools,
 
 **Is there a free Omnivore alternative?**
 
-Readplace costs $3/month. The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year.
+Readplace is paid, with its current plans on the [home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing). The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year.
 
 **Can I import my Omnivore data into Readplace?**
 

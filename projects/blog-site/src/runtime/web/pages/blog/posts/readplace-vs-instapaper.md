@@ -3,7 +3,7 @@ title: "Readplace vs Instapaper: Two Different Approaches to Read-It-Later"
 description: "A fair comparison of two read-it-later apps that took different paths after Pocket shut down. One is familiar and stable. The other bets on AI and active development."
 slug: "readplace-vs-instapaper"
 date: "2026-05-01"
-lastModified: "2026-07-26"
+lastModified: "2026-09-30"
 author: "Fayner Brack"
 keywords: "instapaper alternative, read it later, readplace vs instapaper, pocket replacement, AI summaries"
 ---
@@ -12,7 +12,7 @@ keywords: "instapaper alternative, read it later, readplace vs instapaper, pocke
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, $3/month and no free tier, an iPhone app that also runs on Mac but nothing on Android, and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development.
+Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, paid plans and no free tier, an iPhone app that also runs on Mac but nothing on Android, and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development.
 
 </div>
 </details>
@@ -67,11 +67,11 @@ Whether that helps depends on how you read. If you save 3 articles a week and re
 
 But if you save 30 a week and fall behind, a one-paragraph summary per article tells you which ones earn your time, so the list becomes something you work through instead of avoid.
 
-On reading surface it is the narrower of the two. Readplace runs on the web, in a browser extension, and in an iPhone app that saves from the share sheet and opens your saved copy in the app. The same app runs on a Mac. Past that it thins out. No Android app, no e-reader, and no offline reading on a train yet. If you read on more than one kind of device, this is a real gap.
+On reading surface it is the narrower of the two. Readplace runs on the web, in a browser extension, and in an iPhone app that saves from the share sheet and opens your saved copy in the app. The same app runs on a Mac. Past that it thins out. No Android app, no e-reader sync beyond an EPUB download of each article, and no offline reading on a train yet. If you read on more than one kind of device, this is a real gap.
 
-On data it makes a deliberate choice. Readplace is hosted in Australia, so your reading history stays on Australian infrastructure under Australian privacy law, which matters if you care where your data lives.
+On data it makes a deliberate choice. Readplace is hosted in Australia, so your account and reading history are stored on Australian infrastructure under Australian privacy law, which matters if you care where your data lives. Readplace sends article text to DeepSeek to clean up the text and write the summary.
 
-On pricing it is blunt. Readplace costs $3/month with no free tier. It is a paid product from the start.
+On pricing it is blunt. Readplace has no free tier, and its current plans are on the [home page](/?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=pricing#pricing). It is a paid product from the start.
 
 On development pace it moves fast, and here is where my bias is loudest, since I ship those features. New ones land most weeks, so you can watch the product change in close to real time. That pace is real, and so is the instability that comes with any young product.
 
@@ -86,13 +86,13 @@ The table below is the same five axes broken into the concrete features behind t
 | **Mobile apps** | iOS and Android | iPhone and Mac (App Store), no Android |
 | **Browser extension** | Yes | Yes (Firefox, Chrome) |
 | **Free tier** | Yes | No |
-| **Paid price** | $59.99/yr | $3/month |
-| **E-reader integration** | Kobo (built-in) | No |
+| **Paid price** | $59.99/yr | [Current plans](/?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=pricing#pricing) |
+| **E-reader integration** | Kobo (built-in) | EPUB download per article |
 | **Pocket import** | Yes | Yes |
 | **Data hosting** | United States | Australia |
 | **Active development** | Limited recent updates | Shipping weekly |
 | **Text-to-speech** | Premium feature | No |
-| **Full-text search** | Premium feature | Yes |
+| **Full-text search** | Premium feature | No |
 
 ## Who should pick what
 

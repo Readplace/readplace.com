@@ -4,6 +4,7 @@ description: "Most developers subscribe to far more newsletters than they read. 
 slug: "newsletter-overload"
 date: "2026-04-06"
 author: "Fayner Brack"
+lastModified: "2026-09-30"
 keywords: "newsletter overload, developer newsletters, read it later, email newsletters, reading system"
 ---
 
@@ -11,7 +12,7 @@ keywords: "newsletter overload, developer newsletters, read it later, email news
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-You subscribe to dozens of newsletters and read almost none. The fix is plumbing, not discipline. Route the links into a read-it-later app, triage them with summaries, and archive the email. Each issue then costs about 30 seconds of triage instead of a low background guilt. Readplace is building a Gmail import that aims to automate this. You connect once and newsletter links flow into your reading list with AI summaries.
+You subscribe to dozens of newsletters and read almost none. The fix is plumbing, not discipline. Route the links into a read-it-later app, triage them with summaries, and archive the email. Each issue then costs about 30 seconds of triage instead of a low background guilt. Readplace automates this with a forwarding address per newsletter, so the article links in each issue land in your reading list with AI summaries.
 
 </div>
 </details>
@@ -60,21 +61,13 @@ Discipline is what you reach for when the plumbing is missing, and it tends to r
 
 That turns a stack of newsletters into a curated feed you chose. Each issue costs you roughly 30 seconds.
 
-## What I'm building
+## One address per newsletter
 
-I'm working on this exact problem with Readplace.
+Readplace automates the funnel step with a forwarding address for each newsletter, shaped like tldr-a7b2c9@read.place. You subscribe with that address, or forward the issues you already get to it. An account holds up to 25 of them.
 
-The plan is a Gmail import. You connect your Gmail account, pick which newsletters to pull from, and Readplace extracts the links from each issue, writes a short summary for each one, and drops them into your reading list.
+When an issue arrives, Readplace pulls out the links and sets aside unsubscribe and confirm links without opening them. A pass keeps the articles and drops the ads, menus and footers. Each article saves to your reading list with an AI summary, ready to triage.
 
-The links show up ready to triage, which removes the part where you open the email, skim it, and forget.
-
-I want to be plain about where this stands. Gmail import is in development and it has not shipped.
-
-Readplace already works as a read-it-later app today. You can save articles, read them whenever, and keep a clean reading list.
-
-The newsletter workflow I described above still runs by hand for now, which means you open the issue, find the links you want, and save them one at a time.
-
-The Gmail integration is meant to take that manual step off your hands. You connect once, and your newsletter links flow into Readplace with AI summaries to help you sort through them fast.
+That removes the part where you open the email, skim it, and forget. [Most of a Newsletter Isn't the Article](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-newsletter-overload&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist) covers how the sort works.
 
 ## Try this today
 
@@ -86,6 +79,6 @@ You don't need any automation to start. If the unread issues are piling up, here
 
 That much, on its own, is usually enough to break the loop.
 
-When Readplace's Gmail import ships, it does the same routing for you without the manual step.
+Readplace's newsletter addresses do the same routing for you without the manual step.
 
 Your inbox was built to hold messages. It does a poor job of holding a backlog of things you mean to read, so stop asking it to be your reading list.

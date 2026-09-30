@@ -4,6 +4,7 @@ description: "An honest look at what free really means for read-it-later apps, f
 slug: "free-read-it-later-apps-2026"
 date: "2026-05-06"
 author: "Fayner Brack"
+lastModified: "2026-09-30"
 keywords: "free read it later app, read it later free, instapaper free, wallabag, karakeep, raindrop free tier"
 ---
 
@@ -11,7 +12,7 @@ keywords: "free read it later app, read it later free, instapaper free, wallabag
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, costs $3/month, and that price is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there.
+Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, is paid, and the subscription is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there.
 
 </div>
 </details>
@@ -32,7 +33,7 @@ Instapaper has been around since 2008, and it has changed hands from Betaworks t
 
 That track record is the strongest argument for it. It does not tell you who will own Instapaper in 5 years, or whether the next owner keeps the free tier intact.
 
-One number worth holding onto: Instapaper Premium at $59.99/year costs more than Readplace at $3/month. The free tier is a genuine bargain right up until the day you want full-text search, and then the price comparison flips. So the free tier's niche is the reader who is confident they will never pay for search or text-to-speech, and who is comfortable not knowing who owns the service in 5 years.
+Instapaper Premium costs $59.99/year. The free tier is a genuine bargain right up until the day you want full-text search, which Readplace does not have either. So the free tier's niche is the reader who is confident they will never pay for search or text-to-speech, and who is comfortable not knowing who owns the service in 5 years.
 
 ### Raindrop.io (Free Tier)
 
@@ -98,11 +99,11 @@ So self-hosting trades money and a recurring server bill for time and operating 
 
 I built Readplace after watching too many of these services close and wanting one I could trust to still be here in 10 years.
 
-The model is the plain one. You pay for the product, and the money keeps the product alive.
+The model is the plain one. You pay for the product.
 
-Readplace costs $3/month. That is less than a cup of coffee a month for a full-blown reader system powered by AI.
+The current plans are on the [home page](/?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=pricing#pricing).
 
-That subscription is the whole funding source. There is no venture capital to run out, no acqui-hire to pull the team onto someone else's roadmap, no ads, and no data selling. Nothing here needs your reading history to work. The fees cover servers and development. If the product stays good enough that people keep paying, it keeps running, which is the same test any honest business has to pass.
+That subscription is the whole funding source. There is no venture capital to run out, no acqui-hire to pull the team onto someone else's roadmap, no ads, and no data selling. Nothing here needs your reading history to work. If the product stays good enough that people keep paying, it keeps running, which is the same test any honest business has to pass.
 
 You don't have to pay up front to find out whether it deserves the money. Readplace starts with a 14-day free trial that doesn't ask for a credit card, and if the trial ends without a subscription nothing is charged. The account drops to read-only, so what you saved stays readable. Two weeks is enough to judge it by your own reading rather than by this post.
 
@@ -124,15 +125,15 @@ It is still not the right fit for every reader, and the table below should tell 
 | Karakeep | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Wallabag | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Browser bookmarks | $0 | Zero dependencies | No reader view, no offline, no organisation |
-| Readplace | 14-day free trial (no card), then $3/month | Hosted, maintained, no ads | A one-person business can shut down too |
+| Readplace | 14-day free trial (no card), then [a paid plan](/?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=pricing#pricing) | Hosted, maintained, no ads | A one-person business can shut down too |
 
 Every row in that table is a real bargain, not a free lunch.
 
-The choice comes down to which cost you would rather carry: the dollars, the maintenance hours, or the chance of a shutdown email. I carry the first one, obviously. I built the option the dollars keep alive. Pick the tradeoff you can live with, and pick it on purpose.
+The choice comes down to which cost you would rather carry: the dollars, the maintenance hours, or the chance of a shutdown email. I carry the first one, obviously. Pick the tradeoff you can live with, and pick it on purpose.
 
 <div class="blog-cta">
 <p class="blog-cta__title">Try Readplace for two weeks</p>
 <p class="blog-cta__text">Save this week's articles into Readplace and see if it sticks.</p>
 <a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. $3/month if you subscribe.</p>
+<p class="blog-cta__note">No credit card required. The plans are on the <a href="/?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=pricing#pricing">home page</a>.</p>
 </div>

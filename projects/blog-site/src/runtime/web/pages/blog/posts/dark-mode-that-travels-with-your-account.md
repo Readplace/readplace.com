@@ -1,9 +1,10 @@
 ---
 title: "Dark Mode That Travels With Your Account"
-description: "Dark mode in a reading app usually obeys the operating system, or a toggle buried in one browser's storage. Readplace now takes the reader's own answer: System, Light, or Dark, picked once on the account, rendered into the page before it leaves the server, and read by the iPhone and Android apps from the same setting. There is no flash of the wrong theme on the way in."
+description: "Dark mode in a reading app usually obeys the operating system, or a toggle buried in one browser's storage. Readplace now takes the reader's own answer: System, Light, or Dark, picked once on the account, rendered into the page before it leaves the server, and read by the iPhone app from the same setting. There is no flash of the wrong theme on the way in."
 slug: "dark-mode-that-travels-with-your-account"
 date: "2026-09-04"
 author: "Fayner Brack"
+lastModified: "2026-09-30"
 keywords: "dark mode reading app, read it later dark mode, dark theme article reader, override system dark mode, dark mode without the flash, theme flash on page load, account dark mode setting, pocket alternative dark mode, readplace"
 ---
 
@@ -11,7 +12,7 @@ keywords: "dark mode reading app, read it later dark mode, dark theme article re
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Dark, Light, or System is now a choice on the account instead of a property of each screen. Picked once under Account, it reaches the web pages, the reader inside the apps, and the native chrome of the iPhone and Android apps, because Readplace resolves it on the server while the page renders. A dark page doesn't open light first. System stays the default and follows the OS exactly as before.
+Dark, Light, or System is now a choice on the account instead of a property of each screen. Picked once under Account, it reaches the web pages, the reader inside the app, and the native chrome of the iPhone app, because Readplace resolves it on the server while the page renders. A dark page doesn't open light first. System stays the default and follows the OS exactly as before.
 
 </div>
 </details>
@@ -28,7 +29,7 @@ Under [Account](/account?utm_source=blog-dark-mode-that-travels-with-your-accoun
 
 A read-it-later app is split across devices by design. The save happens at a desk, and the reading happens wherever the evening does. A theme preference split the same way falls out of sync within a week.
 
-Stored on the account, it can't. Pick Dark on the laptop and the phone has no say left: the iPhone app reads the setting from the account and themes its native chrome to match, and the Android app does the same. The reader view both apps open inside themselves renders on the same answer, so there is no light page framed by a dark app.
+Stored on the account, it can't. Pick Dark on the laptop and the phone has no say left: the iPhone app reads the setting from the account and themes its native chrome to match. The reader view the app opens inside itself renders on the same answer, so there is no light page framed by a dark app.
 
 ## Dark from the first byte
 

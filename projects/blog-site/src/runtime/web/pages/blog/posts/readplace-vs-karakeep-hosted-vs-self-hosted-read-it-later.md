@@ -3,7 +3,7 @@ title: "Readplace vs Karakeep: Hosted vs Self-Hosted Read-It-Later"
 description: "A fair comparison of two developer-focused read-it-later tools, one self-hosted and one managed, and the tradeoffs each makes."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"
-lastModified: "2026-07-26"
+lastModified: "2026-09-30"
 author: "Fayner Brack"
 keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative"
 ---
@@ -12,12 +12,12 @@ keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alte
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readplace is hosted at $3/month with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list.
+Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readplace is a paid hosted service with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list.
 
 </div>
 </details>
 
-Pocket is winding down, and Omnivore sold to ElevenLabs and shut down overnight, so the developers who depended on those tools are now shopping for a read-it-later app they actually control. Two names keep coming up: **Karakeep** (formerly Hoarder) and **Readplace**.
+Pocket shut down in July 2025, and Omnivore sold to ElevenLabs and shut down overnight, so the developers who depended on those tools are now shopping for a read-it-later app they actually control. Two names keep coming up: **Karakeep** (formerly Hoarder) and **Readplace**.
 
 Both target developers who read a lot, both have AI features, and both care about data ownership. Where they part ways is how the software reaches you, and who is on the hook for keeping it running when something breaks.
 
@@ -27,7 +27,7 @@ This post compares the two along that axis, so you can pick the tool that fits h
 
 **Karakeep** is free, open-source, and self-hosted. You run it yourself with Docker. It does AI-powered auto-tagging through Ollama (local) or OpenAI, and it ships full-text search, browser extensions, and mobile apps for iOS and Android. It started as Hoarder, rebranded to Karakeep, and now has 38,000+ GitHub stars with active development.
 
-**Readplace** is hosted at $3/month. You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, and Pocket import, and you skip Docker, server setup, and ongoing maintenance entirely. I built it as a solo developer after running my own reading system for 10 years.
+**Readplace** is hosted, with its current plans on the [home page](/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pricing#pricing). You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, and Pocket import, and you skip Docker, server setup, and ongoing maintenance entirely. I built it as a solo developer after running my own reading system for 10 years.
 
 ## The real comparison: deployment model
 
@@ -58,9 +58,9 @@ If you self-host, you have likely been burned before, because a service you reli
 "Just trust me" doesn't answer that. Here's what Readplace does in concrete terms instead.
 
 - **Source-available.** The full codebase is public. You can read every line of code that touches your data.
-- **Full data export.** You can export your articles, tags, and metadata at any time, in a standard format, with no lock-in.
-- **Australian hosting.** Data stays in Australia under Australian privacy law, which keeps US jurisdiction out of the picture.
-- **Clear revenue model.** $3/month, with no ads, no third-party tracking, no venture capital, and no growth-at-all-costs pressure. You pay for the service and I keep running it. That is the model, start to finish.
+- **Data export.** You can export a JSON list of every saved article at any time, even after you cancel. It carries each article's URL, title, site, excerpt, read status and dates, not the article text.
+- **Australian hosting.** Readplace stores accounts and saved articles on AWS in Sydney under Australian privacy law. Readplace sends article text to DeepSeek to clean up the text and write the summary.
+- **Clear revenue model.** Paid subscriptions, with no ads, no third-party tracking, and no venture capital.
 
 I can't promise what a hosted service will look like in 5 years. But each of the choices above is checkable today rather than taken on faith, and together they make a hosted service as trustworthy as it can be without putting the database on your own disk.
 
@@ -68,7 +68,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 
 | | Karakeep | Readplace |
 |---|---|---|
-| **Price** | Free | $3/month |
+| **Price** | Free | [Current plans](/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pricing#pricing) |
 | **Hosting** | Self-hosted (Docker) | Managed |
 | **Source code** | Open source | Source-available |
 | **AI features** | Auto-tagging (Ollama / OpenAI) | TL;DR summaries (included) |
@@ -94,10 +94,10 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 
 - You would rather not maintain infrastructure for your reading list.
 - You want AI summaries working from the first save, with no setup.
-- You are comfortable with a hosted service that is source-available and offers full export.
+- You are comfortable with a hosted service that is source-available and exports a list of what you saved.
 - You want a focused, opinionated reading experience over a configurable one.
 - You want someone else handling backups, updates, and uptime.
-- Paying $3/month is worth more to you than the hours you would spend maintaining it.
+- Paying for a subscription is worth more to you than the hours you would spend maintaining it.
 
 ## The honest take
 
@@ -109,4 +109,4 @@ Both tools answer the same question with different philosophies: how much of the
 
 ---
 
-*Readplace is a read-it-later app for people who read a lot. $3/month, no ads, no third-party tracking. Try it at [readplace.com](https://readplace.com).*
+*Readplace is a read-it-later app for people who read a lot. No ads, no third-party tracking. Try it at [readplace.com](https://readplace.com).*
