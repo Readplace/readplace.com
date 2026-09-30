@@ -45,6 +45,7 @@ const app = createBlogApp(
 		secureCookies: false,
 		ownHost: "readplace.test",
 		edgeSecret: "",
+		appOrigin: "https://readplace.test",
 	},
 );
 const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: "readplace.com" });

@@ -53,6 +53,7 @@ const application = express()
 				// its analytics gate reads the same origin.
 				ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
 				edgeSecret: requireEnv("SSR_EDGE_SECRET"),
+				appOrigin: requireEnv("APP_ORIGIN"),
 			},
 		),
 	);

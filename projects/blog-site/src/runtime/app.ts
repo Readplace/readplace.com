@@ -15,7 +15,7 @@ import {
 	createVisitorIdMiddleware,
 	utmValidationMiddleware,
 } from "@packages/web-analytics";
-import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
+import { createViewerIdentityMiddleware, viewerOf } from "@packages/viewer-identity";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { drawFigure } from "./web/pages/blog/blog-figure";
 import { labelTableCells } from "./web/pages/blog/blog-table-labels";
@@ -45,6 +45,7 @@ export function createBlogApp(
 		secureCookies: boolean;
 		ownHost: string;
 		edgeSecret: string;
+		appOrigin: string;
 	},
 ): Express {
 	const app = express();
@@ -56,6 +57,13 @@ export function createBlogApp(
 	const canonicalizeLandingPath = (path: string) => path;
 
 	app.use(createViewerIdentityMiddleware({ edgeSecret: deps.edgeSecret }));
+	app.use((req, res, next) => {
+		if (viewerOf(req).host === "hutch-app.com") {
+			res.redirect(301, `${deps.appOrigin}${req.originalUrl}`);
+			return;
+		}
+		next();
+	});
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
 	app.use(utmValidationMiddleware);
 	app.use(cookieParser());

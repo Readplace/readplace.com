@@ -33,6 +33,7 @@ const app = createBlogApp(
 		secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
 		ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
 		edgeSecret: requireEnv("SSR_EDGE_SECRET"),
+		appOrigin: requireEnv("APP_ORIGIN"),
 	},
 );
 

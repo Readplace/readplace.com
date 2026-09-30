@@ -41,6 +41,7 @@ function makeApp() {
 			secureCookies: false,
 			ownHost: OWN_HOST,
 			edgeSecret: "",
+			appOrigin: "https://readplace.test",
 		},
 	);
 }
