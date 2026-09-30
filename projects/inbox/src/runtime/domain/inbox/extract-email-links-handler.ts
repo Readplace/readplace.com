@@ -6,7 +6,7 @@ import type {
 	SQSEvent,
 } from "aws-lambda";
 import { decodeHtmlEntities } from "@packages/crawl-article";
-import { EmailReceivedEvent } from "@packages/hutch-infra-components";
+import { type EmailReceivedDetail, EmailReceivedEvent } from "@packages/hutch-infra-components";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 import { resolveWriteAccess } from "@packages/subscription-access";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -35,6 +35,12 @@ import { collectEmailAnchors } from "./collect-email-anchors";
 import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
 
 const TRIAGED_ANCHOR_TEXT_MAX_CHARS = 120;
+
+const SUBMITTING_ORIGINS: Record<EmailReceivedDetail["origin"], boolean> = {
+	receive: true,
+	backfill: false,
+	"gmail-import": true,
+};
 
 /**
  * Consumes `EmailReceivedEvent` and turns the links found inside the email into
@@ -229,7 +235,7 @@ export function initExtractEmailLinksHandler(deps: {
 					return existing.status;
 				};
 
-				const canSubmit = origin === "receive" && userId !== UNROUTED_USER_ID;
+				const canSubmit = SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
 				const writeAccess = canSubmit
 					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
 					: undefined;

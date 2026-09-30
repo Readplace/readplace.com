@@ -15,6 +15,8 @@ const artifacts = ciArtifactPaths({
 export default createPlaywrightConfig({
 	testMatch: '**/*.e2e-local.ts',
 	outputDir: artifacts.outputDir,
+	reportDir: './playwright-report',
+	galleryDir: './test-results/screenshot-gallery',
 	baseURL: serverUrl,
 	retries: 0,
 	workers: 2,

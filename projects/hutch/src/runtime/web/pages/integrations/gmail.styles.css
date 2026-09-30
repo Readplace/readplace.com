@@ -217,6 +217,10 @@ form.htmx-request .gmail__submit-loader {
   margin-bottom: 0;
 }
 
+.gmail__mapping-choice > :last-child {
+  margin-bottom: 0;
+}
+
 .gmail__picker {
   position: relative;
   margin-bottom: 20px;
@@ -281,10 +285,12 @@ form.htmx-request .gmail__submit-loader {
 
 .gmail__search {
   position: sticky;
-  top: 0;
+  top: -4px;
   z-index: 1;
   display: flex;
   gap: 8px;
+  margin-top: -4px;
+  padding-top: 4px;
   padding-bottom: 8px;
   background: var(--card);
 }
@@ -302,24 +308,31 @@ form.htmx-request .gmail__submit-loader {
   margin: 0;
 }
 
-.gmail__create-inbox-item {
+.gmail__create-item {
   margin: 4px -4px 0;
   padding: 4px 4px 0;
   border-top: 1px solid var(--border);
 }
 
-.gmail__create-inbox {
+.gmail__create-readlist {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.gmail__create-inbox-button {
+.gmail__create-button {
   flex: none;
   width: var(--input-height);
+  color: var(--muted-foreground);
+  background: transparent;
 }
 
-.gmail__create-inbox-button svg {
+.gmail__create-button:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.gmail__create-button svg {
   display: block;
   width: 1rem;
   height: 1rem;
@@ -347,7 +360,6 @@ form.htmx-request .gmail__submit-loader {
   background: var(--muted);
 }
 
-.gmail__option-detail,
 .gmail__option-email:not(:only-child),
 .gmail__discovery-status {
   font-size: var(--text-sm);
@@ -361,14 +373,6 @@ form.htmx-request .gmail__submit-loader {
   margin: 8px 12px;
 }
 
-.gmail__mapping {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 16px;
-  padding: 16px 20px;
-  background: var(--card);
-}
-
 .gmail__filter {
   margin-bottom: 16px;
 }
@@ -379,52 +383,61 @@ form.htmx-request .gmail__submit-loader {
   margin-top: 12px;
 }
 
-.gmail__mapped-sender {
+.gmail__choice {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.gmail__mapping-source-label,
-.gmail__mapping-destination-label {
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  color: var(--foreground);
-  text-wrap: pretty;
-}
-
-.gmail__mapped-senders {
-  margin: 8px 0;
-  padding: 0;
-  list-style: none;
-}
-
-.gmail__mapped-sender {
-  padding: 8px 0;
-}
-
-.gmail__mapped-sender + .gmail__mapped-sender {
-  border-top: 1px solid var(--border);
-}
-
-.gmail__mapped-sender-email {
-  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--foreground);
 }
 
-.gmail__mapping-disabled,
-.gmail__mapped-sender-state {
-  display: inline-block;
-  margin-top: 4px;
+.gmail__choice-name {
+  font-weight: 600;
+}
+
+.gmail__choice-email {
+  overflow-wrap: anywhere;
+}
+
+.gmail__choice-name + .gmail__choice-email {
   font-size: var(--text-sm);
   color: var(--muted-foreground);
 }
 
-.gmail__manage-inboxes {
-  margin-top: 8px;
+.gmail__results-action {
+  margin: 0 12px 8px;
+}
+
+.gmail__import-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.gmail__import-checkbox {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 2px;
+  accent-color: var(--primary);
+}
+
+.gmail__save-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.gmail__disclosure {
+  flex: 1 1 220px;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  text-wrap: pretty;
+  color: var(--muted-foreground);
 }

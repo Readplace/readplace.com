@@ -10,7 +10,7 @@ import {
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
 } from "@packages/domain/inbox";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbInboxAddress } from "./dynamodb-inbox-address";
 
@@ -670,6 +670,215 @@ describe("initDynamoDbInboxAddress", () => {
 			await store.tombstoneUserAddresses(USER);
 
 			expect(commands.some((c) => c.input.UpdateExpression)).toBe(false);
+		});
+	});
+	describe("readlist addresses", () => {
+		interface SentCommand {
+			name: string;
+			input: {
+				Item?: Record<string, unknown>;
+				Key?: { address: string };
+				ConsistentRead?: boolean;
+				IndexName?: string;
+				ConditionExpression?: string;
+				UpdateExpression?: string;
+				ExpressionAttributeValues?: Record<string, unknown>;
+			};
+		}
+
+		function addressTable(options: { interrupt?: (command: SentCommand) => void } = {}) {
+			const items = new Map<string, Record<string, unknown>>();
+			const commands: SentCommand[] = [];
+			const send = async (command: { constructor: { name: string }; input: SentCommand["input"] }) => {
+				const sent = { name: command.constructor.name, input: command.input };
+				commands.push(sent);
+				options.interrupt?.(sent);
+				const key = sent.input.Key?.address;
+				switch (sent.name) {
+					case "GetCommand":
+						return { Item: key === undefined ? undefined : items.get(key) };
+					case "PutCommand": {
+						const item = sent.input.Item;
+						assert(item);
+						if (items.has(String(item.address))) throw conditionalCheckFailed();
+						items.set(String(item.address), item);
+						return {};
+					}
+					case "UpdateCommand": {
+						assert(key);
+						const row = items.get(key);
+						assert(row);
+						items.set(key, { ...row, disabledAt: sent.input.ExpressionAttributeValues?.[":now"] });
+						return {};
+					}
+					case "DeleteCommand": {
+						assert(key);
+						if (items.get(key)?.claimedAddress !== sent.input.ExpressionAttributeValues?.[":claimed"]) {
+							throw conditionalCheckFailed();
+						}
+						items.delete(key);
+						return {};
+					}
+					case "QueryCommand": {
+						const Items = [...items.values()].filter((item) => item.userId === sent.input.ExpressionAttributeValues?.[":uid"]);
+						return { Items, Count: Items.length };
+					}
+				}
+				throw new Error(`unexpected ${sent.name}`);
+			};
+			const client: Partial<DynamoDBDocumentClient> = { send: send as unknown as SendFn };
+			const store = initDynamoDbInboxAddress({ client: client as DynamoDBDocumentClient, tableName: TABLE, now: () => NOW });
+			return { items, commands, store };
+		}
+
+		it("mints one hidden, uncapped address routed to the readlist and claims it for the user and readlist", async () => {
+			const { items, commands, store } = addressTable();
+
+			const entry = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+
+			expect(entry).toEqual(
+				expect.objectContaining({ userId: USER, name: "gmail", purpose: "gmail-readlist", readlist: WORK, disabledAt: undefined }),
+			);
+			expect(entry.address).toMatch(/^gmail-[a-z0-9]+@read\.place$/);
+			expect(commands.map((c) => c.name)).toEqual(["GetCommand", "PutCommand", "PutCommand"]);
+			expect(commands[0].input).toEqual(
+				expect.objectContaining({ Key: { address: `claim#gmail-readlist#${USER}#${WORK}` }, ConsistentRead: true }),
+			);
+			expect(commands[1].input.ConditionExpression).toBe("attribute_not_exists(address)");
+			expect(items.get(entry.address)).toEqual(expect.objectContaining({ purpose: "gmail-readlist", readlist: WORK }));
+			expect(commands[2].input).toEqual(
+				expect.objectContaining({
+					Item: {
+						address: `claim#gmail-readlist#${USER}#${WORK}`,
+						claimOwner: USER,
+						claimedAddress: entry.address,
+						createdAt: NOW.toISOString(),
+					},
+					ConditionExpression: "attribute_not_exists(address)",
+				}),
+			);
+		});
+
+		it("leaves the All address unrouted so its mail lands in All", async () => {
+			const { items, store } = addressTable();
+
+			const entry = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: DEFAULT_READLIST_SLUG });
+
+			expect(entry.readlist).toBeUndefined();
+			expect(Object.keys(items.get(entry.address) ?? {})).toEqual(["address", "userId", "name", "token", "createdAt", "purpose"]);
+			expect(items.get(`claim#gmail-readlist#${USER}#${DEFAULT_READLIST_SLUG}`)?.claimedAddress).toBe(entry.address);
+		});
+
+		it("returns the claimed address on every later call without minting another", async () => {
+			const { items, commands, store } = addressTable();
+			const first = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+			commands.length = 0;
+
+			const again = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+
+			expect(again).toEqual(first);
+			expect(commands.map((c) => [c.name, c.input.ConsistentRead])).toEqual([
+				["GetCommand", true],
+				["GetCommand", true],
+			]);
+			expect(items.size).toBe(2);
+		});
+
+		it("disables its own minted address and returns the winner when a concurrent call claimed first", async () => {
+			let winner: string | undefined;
+			const { items, store } = addressTable({
+				interrupt: (command) => {
+					const claimed = command.input.Item?.claimedAddress;
+					if (winner !== undefined || typeof claimed !== "string") return;
+					winner = "gmail-w1nner@read.place";
+					items.set(winner, { address: winner, userId: USER, name: "gmail", token: "w1nner", createdAt: NOW.toISOString(), purpose: "gmail-readlist", readlist: WORK });
+					items.set(String(command.input.Item?.address), { ...command.input.Item, claimedAddress: winner });
+				},
+			});
+
+			const entry = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+
+			expect(entry.address).toBe("gmail-w1nner@read.place");
+			const loser = [...items.values()].find((item) => item.address !== winner && item.token !== undefined);
+			expect(loser).toEqual(expect.objectContaining({ purpose: "gmail-readlist", disabledAt: NOW.toISOString() }));
+		});
+
+		it("rethrows a claim failure that is not a lost race", async () => {
+			const offline = new Error("offline");
+			const { store } = addressTable({
+				interrupt: (command) => {
+					if (command.input.Item?.claimedAddress !== undefined) throw offline;
+				},
+			});
+
+			await expect(store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK })).rejects.toBe(offline);
+		});
+
+		it("finds the claimed address with consistent reads, and nothing for an unclaimed readlist", async () => {
+			const { store } = addressTable();
+			const created = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+
+			expect(await store.findReadlistAddress({ userId: USER, readlist: WORK })).toEqual(created);
+			expect(await store.findReadlistAddress({ userId: USER, readlist: DEFAULT_READLIST_SLUG })).toBeUndefined();
+		});
+
+		it("retires a readlist address by disabling it and releasing its claim", async () => {
+			const { items, commands, store } = addressTable();
+			const created = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+			commands.length = 0;
+
+			expect(await store.retireReadlistAddress({ userId: USER, readlist: WORK })).toBe(created.address);
+
+			expect(items.get(created.address)?.disabledAt).toBe(NOW.toISOString());
+			expect(items.has(`claim#gmail-readlist#${USER}#${WORK}`)).toBe(false);
+			const release = commands.find((c) => c.name === "DeleteCommand");
+			expect(release?.input.ConditionExpression).toBe("claimedAddress = :claimed");
+			const replacement = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+			expect(replacement.address).not.toBe(created.address);
+		});
+
+		it("retires nothing when the readlist has no claimed address", async () => {
+			const { commands, store } = addressTable();
+
+			expect(await store.retireReadlistAddress({ userId: USER, readlist: WORK })).toBeUndefined();
+			expect(commands.map((c) => c.name)).toEqual(["GetCommand"]);
+		});
+
+		it("rethrows a claim release failure that is not a lost race", async () => {
+			const offline = new Error("offline");
+			const { store } = addressTable({
+				interrupt: (command) => {
+					if (command.name === "DeleteCommand") throw offline;
+				},
+			});
+			await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+
+			await expect(store.retireReadlistAddress({ userId: USER, readlist: WORK })).rejects.toBe(offline);
+		});
+
+		it("releases every readlist claim the user holds from their own address rows, without scanning", async () => {
+			const { items, commands, store } = addressTable();
+			const work = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+			const all = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: DEFAULT_READLIST_SLUG });
+			await store.retireReadlistAddress({ userId: USER, readlist: WORK });
+			const rework = await store.getOrCreateReadlistAddress({ userId: USER, domain: DOMAIN, readlist: WORK });
+			items.set("in-000001@read.place", { address: "in-000001@read.place", userId: USER, token: "000001", createdAt: NOW.toISOString(), purpose: "user-alias" });
+			commands.length = 0;
+
+			await store.deleteReadlistAddressClaims(USER);
+
+			expect([...items.keys()].filter((key) => key.startsWith("claim#"))).toEqual([]);
+			expect(commands.map((c) => c.name).sort()).toEqual(["DeleteCommand", "DeleteCommand", "DeleteCommand", "QueryCommand"]);
+			expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
+			expect(
+				commands.filter((c) => c.name === "DeleteCommand").map((c) => [c.input.Key?.address, c.input.ExpressionAttributeValues?.[":claimed"]]),
+			).toEqual(
+				expect.arrayContaining([
+					[`claim#gmail-readlist#${USER}#${WORK}`, work.address],
+					[`claim#gmail-readlist#${USER}#${DEFAULT_READLIST_SLUG}`, all.address],
+					[`claim#gmail-readlist#${USER}#${WORK}`, rework.address],
+				]),
+			);
 		});
 	});
 });

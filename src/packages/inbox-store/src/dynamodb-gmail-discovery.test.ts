@@ -11,7 +11,7 @@ const STATE: GmailDiscovery = {
 	userId: USER,
 	accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
 	gatewayAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
-	generation: "run-1", state: "running", mode: "full", page: 0, pageToken: undefined, historyId: "100", scannedCount: 0, estimatedTotalMessages: 250, oldestScannedAt: undefined, updatedAt: NOW.toISOString(), error: undefined,
+	generation: "run-1", state: "running", mode: "full", page: 0, pageToken: undefined, historyId: "100", scannedCount: 0, checkedMessageCount: 40, estimatedTotalMessages: 250, oldestScannedAt: undefined, updatedAt: NOW.toISOString(), error: undefined,
 };
 const SENDER = { email: ForwardableSenderSchema.parse("sender@example.com"), name: "Sender" };
 interface Command {
@@ -106,6 +106,28 @@ describe("initDynamoDbGmailDiscovery", () => {
 		assert(writes[1].Update);
 		assert.equal(writes[1].Update.UpdateExpression, "SET email = :email");
 		assert.deepEqual(writes[1].Update.ExpressionAttributeValues, { ":email": SENDER.email });
+	});
+
+	it("reads a checkpoint stored before the checked-message counter existed as having checked none", async () => {
+		const { checkedMessageCount: _checkedMessageCount, ...storedBeforeCounter } = STATE;
+		const { store } = harness(() => ({ Item: { ...storedBeforeCounter, recordKey: "STATE" } }));
+		const found = await store.findDiscoveryByUserId(USER);
+		assert(found);
+		assert.equal(found.checkedMessageCount, 0);
+	});
+
+	it("stores the carried checked-message count when a discovery starts", async () => {
+		const { store, commands } = harness();
+		await store.startDiscovery({ userId: USER, accountEmail: STATE.accountEmail, gatewayAddress: STATE.gatewayAddress, generation: "run-2", mode: "profile", historyId: undefined, checkedMessageCount: 140 });
+		assert.equal(commands[0].input.Item?.checkedMessageCount, 140);
+	});
+
+	it("adds every page's scanned messages to the lifetime checked count, including a profile reset", async () => {
+		const { store, commands } = harness();
+		await store.savePage({ previous: STATE, senders: [], mode: "full", pageToken: "next", historyId: "102", state: "running", scannedMessages: 25, estimatedTotalMessages: 250, oldestScannedAt: undefined });
+		await store.savePage({ previous: { ...STATE, scannedCount: 75 }, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "running", scannedMessages: 3, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
+		assert.equal(commands[0].input.TransactItems?.[0].Put?.Item.checkedMessageCount, 65);
+		assert.equal(commands[1].input.TransactItems?.[0].Put?.Item.checkedMessageCount, 43);
 	});
 
 	it("resets accumulated scan progress when a new full pass is required", async () => {

@@ -18,6 +18,8 @@ export function createPopupVisualConfig(input: {
 			runId: input.runId,
 			project: input.project,
 		}).outputDir,
+		reportDir: "./playwright-report",
+		galleryDir: "./test-results/screenshot-gallery",
 		baseURL: undefined,
 		retries: 0,
 		workers: 2,

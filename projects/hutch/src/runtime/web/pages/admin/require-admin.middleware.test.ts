@@ -1,12 +1,12 @@
 import type { NextFunction, Request, Response } from "express";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { FindUserByEmail } from "@packages/test-fixtures/providers/auth";
+import type { RefuseAdminAccess } from "./admin-forbidden.page";
 import { initRequireAdmin } from "./require-admin.middleware";
 
 interface RecordedRes {
 	redirectCalledWith?: [number, string];
 	statusCalledWith?: number;
-	sentBody?: string;
 }
 
 function makeReq(partial: Partial<Request>): Request {
@@ -25,11 +25,6 @@ function makeRes(): { res: Response; recorded: RecordedRes } {
 		recorded.statusCalledWith = code;
 		return stub as Response;
 	}) as Response["status"];
-	stub.type = ((() => stub) as unknown) as Response["type"];
-	stub.send = ((body: string) => {
-		recorded.sentBody = body;
-		return stub as Response;
-	}) as Response["send"];
 	return { res: stub as Response, recorded };
 }
 
@@ -38,6 +33,13 @@ describe("initRequireAdmin", () => {
 	const OTHER_ID = authenticatedUserIdFrom("user-bob");
 	const SERVICE_TOKEN = "test-service-token-abc123";
 	const adminEmails = ["alice@example.com", "carol@example.com"];
+	let refusedRequests: Request[] = [];
+	const refuse: RefuseAdminAccess = async (req) => {
+		refusedRequests.push(req);
+	};
+	beforeEach(() => {
+		refusedRequests = [];
+	});
 	const findUserByEmail: FindUserByEmail = async (email) => {
 		if (email === "alice@example.com") {
 			return { userId: ADMIN_ID, emailVerified: true };
@@ -46,7 +48,7 @@ describe("initRequireAdmin", () => {
 	};
 
 	it("redirects to /login when there is no session", async () => {
-		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN });
+		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN, refuse });
 		const { res, recorded } = makeRes();
 		let nextCalls = 0;
 		const next: NextFunction = () => {
@@ -59,23 +61,24 @@ describe("initRequireAdmin", () => {
 		expect(nextCalls).toBe(0);
 	});
 
-	it("responds 403 when the session user is not in the admin allowlist", async () => {
-		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN });
+	it("refuses the session user who is not in the admin allowlist", async () => {
+		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN, refuse });
 		const { res, recorded } = makeRes();
 		let nextCalls = 0;
 		const next: NextFunction = () => {
 			nextCalls += 1;
 		};
 
-		await middleware(makeReq({ userId: OTHER_ID }), res, next);
+		const req = makeReq({ userId: OTHER_ID });
+		await middleware(req, res, next);
 
-		expect(recorded.statusCalledWith).toBe(403);
-		expect(recorded.sentBody).toContain("Admin access required");
+		expect(refusedRequests).toEqual([req]);
+		expect(recorded.redirectCalledWith).toBeUndefined();
 		expect(nextCalls).toBe(0);
 	});
 
 	it("calls next() when the session user matches one of the allowlisted emails", async () => {
-		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN });
+		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN, refuse });
 		const { res, recorded } = makeRes();
 		let nextCalls = 0;
 		const next: NextFunction = () => {
@@ -89,22 +92,24 @@ describe("initRequireAdmin", () => {
 		expect(recorded.redirectCalledWith).toBeUndefined();
 	});
 
-	it("responds 403 when the allowlist is empty even if the user is logged in", async () => {
-		const middleware = initRequireAdmin({ findUserByEmail, adminEmails: [], serviceToken: SERVICE_TOKEN });
+	it("refuses a logged-in user when the allowlist is empty", async () => {
+		const middleware = initRequireAdmin({ findUserByEmail, adminEmails: [], serviceToken: SERVICE_TOKEN, refuse });
 		const { res, recorded } = makeRes();
 		let nextCalls = 0;
 		const next: NextFunction = () => {
 			nextCalls += 1;
 		};
 
-		await middleware(makeReq({ userId: ADMIN_ID }), res, next);
+		const req = makeReq({ userId: ADMIN_ID });
+		await middleware(req, res, next);
 
-		expect(recorded.statusCalledWith).toBe(403);
+		expect(refusedRequests).toEqual([req]);
+		expect(recorded.redirectCalledWith).toBeUndefined();
 		expect(nextCalls).toBe(0);
 	});
 
 	it("calls next() when x-service-token header matches the configured token (no session required)", async () => {
-		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN });
+		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN, refuse });
 		const { res, recorded } = makeRes();
 		let nextCalls = 0;
 		const next: NextFunction = () => {
@@ -123,7 +128,7 @@ describe("initRequireAdmin", () => {
 	});
 
 	it("falls through to session auth when x-service-token header is wrong", async () => {
-		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN });
+		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: SERVICE_TOKEN, refuse });
 		const { res, recorded } = makeRes();
 		let nextCalls = 0;
 		const next: NextFunction = () => {
@@ -141,7 +146,7 @@ describe("initRequireAdmin", () => {
 	});
 
 	it("never auto-accepts when serviceToken is empty (fail-closed)", async () => {
-		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: "" });
+		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: "", refuse });
 		const { res, recorded } = makeRes();
 		let nextCalls = 0;
 		const next: NextFunction = () => {

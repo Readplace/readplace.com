@@ -52,6 +52,10 @@
     "./mcp": {
       "types": "./dist/mcp/index.d.ts",
       "default": "./dist/mcp/index.js"
+    },
+    "./newsletter-catalog": {
+      "types": "./dist/newsletter-catalog/index.d.ts",
+      "default": "./dist/newsletter-catalog/index.js"
     }
   },
   "typesVersions": {
@@ -66,7 +70,8 @@
       "readlist": ["./dist/readlist/index.d.ts"],
       "rate-limit": ["./dist/rate-limit/index.d.ts"],
       "crawler-policy": ["./dist/crawler-policy/index.d.ts"],
-      "mcp": ["./dist/mcp/index.d.ts"]
+      "mcp": ["./dist/mcp/index.d.ts"],
+      "newsletter-catalog": ["./dist/newsletter-catalog/index.d.ts"]
     }
   },
   "private": true,

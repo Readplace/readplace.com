@@ -29,6 +29,7 @@ import { initInMemoryPaymentMethods } from "./providers/payment-methods/in-memor
 import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemoryInboxAddress } from "./providers/inbox-address/in-memory-inbox-address";
+import { initInMemoryNewsletterCatalog } from "./providers/newsletter-catalog/in-memory-newsletter-catalog";
 import { initInMemoryInboxEmail } from "./providers/inbox-email/in-memory-inbox-email";
 import { initInMemoryInboxEmailLink } from "./providers/inbox-email/in-memory-inbox-email-link";
 import { initInMemoryInboxSavedLink } from "./providers/inbox-email/in-memory-inbox-saved-link";
@@ -252,6 +253,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		parseArticle,
 	});
 	const summary = createFakeSummaryProvider();
+	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
 	const email = initInMemoryEmail();
 	const emailVerification = initInMemoryEmailVerification();
 	const passwordReset = initInMemoryPasswordReset();
@@ -457,6 +459,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		onboardingSignals: initInMemoryOnboardingSignals({ now: () => new Date() }),
 		google: undefined,
 		gmailIntegration: undefined,
+		newsletterCatalog: {
+			readNewsletterCatalog: newsletterCatalog.readCatalog,
+			writeNewsletterCatalog: newsletterCatalog.writeCatalog,
+			newsletterCatalogSeed: { version: 1, entries: [] },
+		},
 		/* Apple sign-in is a mandatory dependency — the /auth/apple route is always
 		* mounted so the button always resolves — so the default fixture wires a
 		* stub exchange. Apple-flow tests override `apple` with their own bundle. */

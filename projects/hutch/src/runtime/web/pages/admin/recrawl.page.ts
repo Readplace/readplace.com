@@ -24,6 +24,7 @@ import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-vi
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
 import { AdminRecrawlPage, formatRecrawlDocumentTitle, recrawlPathFor } from "./recrawl.component";
+import { initRefuseAdminAccess } from "./admin-forbidden.page";
 import { initRequireAdmin } from "./require-admin.middleware";
 
 const RecrawlUrlSchema = z.url();
@@ -299,6 +300,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		findUserByEmail: deps.findUserByEmail,
 		adminEmails: deps.adminEmails,
 		serviceToken: deps.serviceToken,
+		refuse: initRefuseAdminAccess({ buildBannerState: deps.buildBannerState }),
 	});
 
 	const reader = initArticleReader({

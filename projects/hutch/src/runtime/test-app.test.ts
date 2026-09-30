@@ -68,6 +68,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 				clientSecret: "test-google-client-secret",
 			},
 			gmailIntegration: undefined,
+			newsletterCatalog: fixture.newsletterCatalog,
 			apple: fixture.apple,
 			admin: fixture.admin,
 			importSession: fixture.importSession,

@@ -3,7 +3,7 @@ import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchDLQEventHandler, HutchStripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/hutch-infra-components/infra";
+import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSharedDlq, HutchSQS, HutchSQSBackedLambda, HutchDLQEventHandler, HutchStripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/hutch-infra-components/infra";
 import {
 	type EvaluateOAuthRefreshCommand,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
@@ -13,7 +13,10 @@ import {
 	DisconnectGmailCommand,
 	GMAIL_FILTER_REWRITE_FAILED_EVENT,
 	GMAIL_FILTER_REWRITE_FAILED_METRIC,
+	GMAIL_HISTORY_IMPORT_DLQ_SOURCES,
 	GMAIL_METRIC_NAMESPACE,
+	GmailHistoryImportMessageIngestedEvent,
+	GmailHistoryImportPageProcessedEvent,
 	GmailForwardingConfirmFailedEvent,
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
@@ -21,6 +24,8 @@ import {
 	GmailSenderDiscoveryProgressedEvent,
 	SendTrialFeedbackEmailCommand,
 	SendFirstInboxEmailNoticeCommand,
+	StartGmailHistoryImportCommand,
+	SubmitNewsletterSenderCommand,
 	ReaderViewLoadingSucceeded,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
@@ -69,6 +74,7 @@ const oauthRefreshRefusedDailyThreshold = config.requireNumber("oauthRefreshRefu
 const gmailFilterRewriteFailedThreshold = config.requireNumber("gmailFilterRewriteFailedThreshold");
 const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
 const rawEmailBucketName = config.require("rawEmailBucketName");
+const newsletterCatalogBucketName = config.require("newsletterCatalogBucketName");
 
 // The inbox stack owns the inbox tables and the SES receiving pipeline. hutch
 // keeps only the access its own workers still need — the forwarding-address page
@@ -103,6 +109,8 @@ const tableNames = {
 	gmailConnections: config.require("dynamodbGmailConnectionsTable"),
 	gmailDiscovery: config.require("dynamodbGmailDiscoveryTable"),
 	gmailSenders: config.require("dynamodbGmailSendersTable"),
+	gmailHistoryImports: config.require("dynamodbGmailHistoryImportsTable"),
+	emailIdentities: config.require("dynamodbInboxEmailIdentitiesTable"),
 };
 
 /* Per-stack "<limit>/<windowSeconds>" rules so staging e2e (one CI egress IP
@@ -132,6 +140,10 @@ const apiThrottle = {
 const storage = new HutchStorage("hutch", {
 	deletionProtection,
 	tableNames,
+});
+
+const newsletterCatalogBucket = new HutchS3ReadWrite("newsletter-catalog-bucket", {
+	bucketName: newsletterCatalogBucketName,
 });
 
 const redirectDomains = config.getObject<string[]>("redirectDomains") ?? [];
@@ -242,6 +254,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
 		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -398,6 +411,8 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
+		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
+		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
 		APPLE_LOGIN_CLIENT_ID: requireEnv("APPLE_LOGIN_CLIENT_ID"),
 		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
 		APPLE_LOGIN_KEY_ID: requireEnv("APPLE_LOGIN_KEY_ID"),
@@ -430,6 +445,8 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		// mtime) and GetObject the %PDF- magic prefix of a client-uploaded object.
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-pending-html-read", pendingHtmlBucketName),
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-pending-pdf-read", pendingPdfBucketName),
+		...newsletterCatalogBucket.readPolicies("hutch-newsletter-catalog"),
+		...newsletterCatalogBucket.writePolicies("hutch-newsletter-catalog"),
 		trialSchedulerManagePolicy,
 	],
 });
@@ -632,6 +649,16 @@ const userDataJobsS3Policy = {
 	}),
 };
 
+const userDataJobsGmailHistoryDynamodb = new HutchDynamoDBAccess("user-data-jobs-gmail-history-dynamodb", {
+	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
+});
+
+const userDataJobsEmailIdentitiesDynamodb = new HutchDynamoDBAccess("user-data-jobs-email-identities-dynamodb", {
+	tables: [{ arn: inboxTableArn(tableNames.emailIdentities), includeIndexes: true }],
+	actions: ["dynamodb:Query", "dynamodb:DeleteItem"],
+});
+
 const userDataJobsQueue = new HutchSQS("user-data-jobs", {
 	// Matches the worker Lambda timeout so a single in-flight job cannot be
 	// redelivered while still running.
@@ -670,6 +697,8 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 		DYNAMODB_PASSWORD_RESET_TOKENS_TABLE: storage.passwordResetTokensTable.name,
 		DYNAMODB_VERIFICATION_TOKENS_TABLE: storage.verificationTokensTable.name,
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
+		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
+		DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE: tableNames.emailIdentities,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		USER_EXPORT_BUCKET_NAME: userExportBucketName,
@@ -689,6 +718,8 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 	},
 	policies: [
 		...userDataJobsDynamodb.policies,
+		...userDataJobsGmailHistoryDynamodb.policies,
+		...userDataJobsEmailIdentitiesDynamodb.policies,
 		userDataJobsS3Policy,
 		...userExportBucket.readPolicies("user-data-jobs-bucket-read"),
 		...userExportBucket.writePolicies("user-data-jobs-bucket-write"),
@@ -1229,6 +1260,11 @@ const rewriteGmailFilterDynamodb = new HutchDynamoDBAccess("hutch-rewrite-gmail-
 	],
 });
 
+const rewriteGmailFilterGmailHistoryDynamodb = new HutchDynamoDBAccess("hutch-rewrite-gmail-filter-gmail-history", {
+	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
+});
+
 const rewriteGmailFilterQueue = new HutchSQS("rewrite-gmail-filter", {
 	visibilityTimeoutSeconds: 60,
 });
@@ -1246,10 +1282,11 @@ const rewriteGmailFilterLambda = new HutchLambda("rewrite-gmail-filter", {
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
+		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 	},
-	policies: [...rewriteGmailFilterDynamodb.policies],
+	policies: [...rewriteGmailFilterDynamodb.policies, ...rewriteGmailFilterGmailHistoryDynamodb.policies],
 });
 
 eventBus.grantPublish(rewriteGmailFilterLambda);
@@ -1361,6 +1398,148 @@ new HutchDLQEventHandler("gmail-discovery-dlq", {
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem"],
+});
+
+const newsletterCatalogSuggestionsQueue = new HutchSQS("newsletter-catalog-suggestions", { visibilityTimeoutSeconds: 90 });
+const newsletterCatalogSuggestionsLambda = new HutchLambda("newsletter-catalog-suggestions", {
+	entryPoint: "./src/runtime/newsletter-catalog-suggestions.main.ts",
+	outputDir: ".lib/newsletter-catalog-suggestions",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
+	},
+	policies: [
+		...newsletterCatalogBucket.readPolicies("newsletter-catalog-suggestions"),
+		...newsletterCatalogBucket.writePolicies("newsletter-catalog-suggestions"),
+	],
+});
+eventBus.grantPublish(newsletterCatalogSuggestionsLambda);
+const newsletterCatalogSuggestionsWithSqs = new HutchSQSBackedLambda("newsletter-catalog-suggestions", {
+	lambda: newsletterCatalogSuggestionsLambda,
+	queue: newsletterCatalogSuggestionsQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+eventBus.subscribe(SubmitNewsletterSenderCommand, newsletterCatalogSuggestionsWithSqs, { name: "hutch-submit-newsletter-sender" });
+
+const gmailHistoryImportFailuresDlq = new HutchSharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail });
+const gmailHistoryImportAccess = new HutchDynamoDBAccess("hutch-gmail-history-import-tables", {
+	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:PutItem",
+		"dynamodb:UpdateItem",
+		"dynamodb:Query",
+		"dynamodb:TransactWriteItems",
+		"dynamodb:ConditionCheckItem",
+	],
+});
+const gmailHistoryImportAccountRead = new HutchDynamoDBAccess("hutch-gmail-history-import-account-read", {
+	tables: [
+		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem"],
+});
+const gmailHistoryImportConnectionUpdate = new HutchDynamoDBAccess("hutch-gmail-history-import-connection-update", {
+	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+const gmailHistoryImportRawWrite = {
+	name: "gmail-history-import-raw-write",
+	policy: JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["s3:PutObject"], Resource: `arn:aws:s3:::${rawEmailBucketName}/gmail-import/*` }],
+	}),
+};
+const gmailHistoryImportQueue = new HutchSQS(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.pages, {
+	visibilityTimeoutSeconds: 120,
+	dlqMaxReceiveCount: 5,
+	sharedDlq: gmailHistoryImportFailuresDlq,
+});
+const gmailHistoryImportLambda = new HutchLambda("gmail-history-import", {
+	entryPoint: "./src/runtime/gmail-history-import.main.ts",
+	outputDir: ".lib/gmail-history-import",
+	assetDir: "./src/runtime",
+	memorySize: 512,
+	timeout: 60,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		GMAIL_HISTORY_IMPORT_QUEUE_URL: gmailHistoryImportQueue.queueUrl,
+		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
+		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+	},
+	policies: [
+		...gmailHistoryImportAccess.policies,
+		...gmailHistoryImportAccountRead.policies,
+		...gmailHistoryImportConnectionUpdate.policies,
+		gmailHistoryImportRawWrite,
+		...gmailHistoryImportQueue.policies,
+	],
+	recursiveLoop: "Allow",
+});
+eventBus.grantPublish(gmailHistoryImportLambda);
+const gmailHistoryImportWithSqs = new HutchSQSBackedLambda("gmail-history-import", {
+	lambda: gmailHistoryImportLambda,
+	queue: gmailHistoryImportQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+eventBus.subscribeAll(
+	[
+		{ ...StartGmailHistoryImportCommand, name: "hutch-start-gmail-history-import" },
+		{ ...GmailHistoryImportPageProcessedEvent, name: "hutch-gmail-history-import-page-processed" },
+	],
+	gmailHistoryImportWithSqs,
+	{ name: "hutch-gmail-history-import" },
+);
+
+const gmailHistoryImportOutcomesAccess = new HutchDynamoDBAccess("hutch-gmail-history-import-outcomes-tables", {
+	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"],
+});
+const gmailHistoryImportOutcomesQueue = new HutchSQS(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.outcomes, {
+	visibilityTimeoutSeconds: 90,
+	sharedDlq: gmailHistoryImportFailuresDlq,
+});
+const gmailHistoryImportOutcomesLambda = new HutchLambda("gmail-history-import-outcomes", {
+	entryPoint: "./src/runtime/gmail-history-import-outcomes.main.ts",
+	outputDir: ".lib/gmail-history-import-outcomes",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
+	},
+	policies: [...gmailHistoryImportOutcomesAccess.policies],
+});
+eventBus.grantPublish(gmailHistoryImportOutcomesLambda);
+const gmailHistoryImportOutcomesWithSqs = new HutchSQSBackedLambda("gmail-history-import-outcomes", {
+	lambda: gmailHistoryImportOutcomesLambda,
+	queue: gmailHistoryImportOutcomesQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+eventBus.subscribe(GmailHistoryImportMessageIngestedEvent, gmailHistoryImportOutcomesWithSqs, { name: "hutch-gmail-history-import-outcomes" });
+
+new HutchDLQEventHandler("gmail-history-import-dlq", {
+	deadLetterQueue: gmailHistoryImportFailuresDlq,
+	tableArn: storage.gmailHistoryImportsTable.arn,
+	tableName: storage.gmailHistoryImportsTable.name,
+	tableNameEnvVar: "DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE",
+	eventBus,
+	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem", "dynamodb:TransactWriteItems"],
 });
 
 // --- Analytics Dashboard ---

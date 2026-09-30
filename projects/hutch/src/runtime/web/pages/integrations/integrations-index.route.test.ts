@@ -5,6 +5,7 @@ import { InboxAddressSchema } from "@packages/domain/inbox";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
+import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -59,6 +60,17 @@ describe("GET /integrations", () => {
 		expect(status.textContent).toBe("Not set up");
 	});
 
+	it("names the Gmail card GMail Newsletters and says it sends newsletters to readlists", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const gmail = load((await agent.get("/integrations")).text).querySelector('[data-test-integration="gmail"]');
+		assert(gmail, "the Gmail row must render");
+
+		expect(gmail.querySelector(".integrations__name")?.textContent).toBe("GMail Newsletters");
+		expect(gmail.querySelector(".integrations__description")?.textContent).toBe("Send newsletters from Gmail to your readlists.");
+	});
+
 	it("offers only Connect to a reader with no connection", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -70,6 +82,7 @@ describe("GET /integrations", () => {
 
 	it("routes a connected-but-unconfirmed reader to finish setup on the Gmail page", async () => {
 		const gmail = initInMemoryGmailIntegration({
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
 			grant: {
 				ok: true,
 				grant: {

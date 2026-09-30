@@ -79,4 +79,8 @@ export interface InboxEmailStore {
 	 * the S3 objects and link rows those rows point at are gone. Idempotent —
 	 * already-absent rows are a no-op — so a redrive converges, never throws. */
 	deleteAllEmailsByUserId: (userId: UserId) => Promise<void>;
+	findReceivedByMessageId: (input: {
+		userId: UserId;
+		messageId: MessageId;
+	}) => Promise<{ receivedAtMessageId: string; senderEmail: string }[]>;
 }

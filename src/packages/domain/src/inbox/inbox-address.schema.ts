@@ -119,7 +119,7 @@ export function normalizeAliasName(raw: string): AliasName | undefined {
  * so a brand-new user lands on `inbox-<token>@…` without having to name one. */
 export const DEFAULT_INBOX_ALIAS: AliasName = AliasNameSchema.parse("inbox");
 
-export const InboxAddressPurposeSchema = z.enum(["user-alias", "gmail-forwarding", "gmail-mapped"]);
+export const InboxAddressPurposeSchema = z.enum(["user-alias", "gmail-forwarding", "gmail-mapped", "gmail-readlist"]);
 
 export type InboxAddressPurpose = z.infer<typeof InboxAddressPurposeSchema>;
 

@@ -42,7 +42,7 @@ function harness() {
 		publishEvent: (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent,
 		logger: HutchLogger.from(noopLogger),
 	};
-	const startState = () => discovery.startDiscovery({ userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gatewayAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"), generation: "run-1", mode: "full", historyId: "100" });
+	const startState = () => discovery.startDiscovery({ checkedMessageCount: 0, userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gatewayAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"), generation: "run-1", mode: "full", historyId: "100" });
 	return { ...deps, deps, published, started, pages, dispatched, startState };
 }
 

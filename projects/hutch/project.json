@@ -33,7 +33,12 @@
     },
     "test-with-coverage": {
       "dependsOn": ["compile"],
-      "outputs": ["{projectRoot}/coverage", "{projectRoot}/test-results/transition-frames"]
+      "outputs": [
+        "{projectRoot}/coverage",
+        "{projectRoot}/test-results/transition-frames",
+        "{projectRoot}/playwright-report",
+        "{projectRoot}/test-results/screenshot-gallery"
+      ]
     },
     "update-visual-baselines": {
       "dependsOn": ["compile"],

@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_mapping_and_readlist_addresses" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_mapping_and_readlist_addresses" name="mapping-and-readlist-addresses" isExecutable="false">
+    <bpmn:serviceTask id="n_P" name="Reader opens the Gmail integration page">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_DN" name="Detect newsletters: catalog detector, approved records only">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:dataStoreReference id="n_CAT" name="Newsletter catalog S3 document, ETag-revalidated cache"></bpmn:dataStoreReference>
+    <bpmn:task id="n_PK" name="Sender picker: approved newsletters by default, any discovered sender on search or advanced">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_RL" name="Readlist picker: reader readlists plus All">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_RC" name="POST readlists/create: upsert by name, reuse, reserved, invalid or limit outcome">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_SAVE" name="POST senders/add with sender, readlist and import choice">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_MAP" name="Map sender to readlist">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_GOC" name="Get-or-create readlist address through claim">
+      <bpmn:incoming>f_8</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_ADDR" name="Inbox addresses: gmail-readlist rows plus claim items"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_SND" name="Gmail senders: mappedAddress, addedToFilterAt"></bpmn:dataStoreReference>
+    <bpmn:task id="n_CX" name="Cancel sender's unfinished imports: destination-changed">
+      <bpmn:incoming>f_11</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:dataStoreReference id="n_IMP" name="Gmail history imports"></bpmn:dataStoreReference>
+    <bpmn:sendTask id="n_RW" name="RewriteGmailFilterCommand reason sender-added">
+      <bpmn:incoming>f_13</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_SUB" name="SubmitNewsletterSenderCommand">
+      <bpmn:incoming>f_14</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:task id="n_IS" name="Start unread import">
+      <bpmn:incoming>f_15</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sendTask id="n_REM" name="POST senders/remove">
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+      <bpmn:outgoing>f_17</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_RW2" name="RewriteGmailFilterCommand reason sender-removed">
+      <bpmn:incoming>f_16</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:task id="n_CX2" name="Cancel sender's unfinished imports: mapping-removed">
+      <bpmn:incoming>f_17</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sendTask id="n_DEL" name="Reader deletes a readlist">
+      <bpmn:outgoing>f_19</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_MV" name="Move Gmail mappings on readlist delete">
+      <bpmn:incoming>f_19</bpmn:incoming>
+      <bpmn:outgoing>f_20</bpmn:outgoing>
+      <bpmn:outgoing>f_23</bpmn:outgoing>
+      <bpmn:outgoing>f_25</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_TOALL" name="Remap senders to All address, cancel their imports: destination-changed">
+      <bpmn:incoming>f_20</bpmn:incoming>
+      <bpmn:outgoing>f_22</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sendTask id="n_RW3" name="RewriteGmailFilterCommand reason readlist-deleted">
+      <bpmn:incoming>f_22</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_RET" name="Retire readlist address: disable row, delete claim">
+      <bpmn:incoming>f_23</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_UNR" name="Existing: unroute named inboxes, then delete readlist definition">
+      <bpmn:incoming>f_25</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_P" targetRef="n_DN" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_DN" targetRef="n_PK" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_PK" targetRef="n_RL" />
+    <bpmn:sequenceFlow id="f_4" name="create readlist inline" sourceRef="n_RL" targetRef="n_RC" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_RC" targetRef="n_RL" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_RL" targetRef="n_SAVE" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_SAVE" targetRef="n_MAP" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_MAP" targetRef="n_GOC" />
+    <bpmn:sequenceFlow id="f_11" name="remapped to another address" sourceRef="n_MAP" targetRef="n_CX" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_SAVE" targetRef="n_RW" />
+    <bpmn:sequenceFlow id="f_14" name="not recognised as approved" sourceRef="n_SAVE" targetRef="n_SUB" />
+    <bpmn:sequenceFlow id="f_15" name="new mapping with import ticked" sourceRef="n_SAVE" targetRef="n_IS" />
+    <bpmn:sequenceFlow id="f_16" name="" sourceRef="n_REM" targetRef="n_RW2" />
+    <bpmn:sequenceFlow id="f_17" name="" sourceRef="n_REM" targetRef="n_CX2" />
+    <bpmn:sequenceFlow id="f_19" name="" sourceRef="n_DEL" targetRef="n_MV" />
+    <bpmn:sequenceFlow id="f_20" name="claim found" sourceRef="n_MV" targetRef="n_TOALL" />
+    <bpmn:sequenceFlow id="f_22" name="" sourceRef="n_TOALL" targetRef="n_RW3" />
+    <bpmn:sequenceFlow id="f_23" name="" sourceRef="n_MV" targetRef="n_RET" />
+    <bpmn:sequenceFlow id="f_25" name="" sourceRef="n_MV" targetRef="n_UNR" />
+    <bpmn:association id="f_1" sourceRef="n_CAT" targetRef="n_DN" associationDirection="One" />
+    <bpmn:association id="f_9" sourceRef="n_GOC" targetRef="n_ADDR" associationDirection="One" />
+    <bpmn:association id="f_10" sourceRef="n_MAP" targetRef="n_SND" associationDirection="One" />
+    <bpmn:association id="f_12" sourceRef="n_CX" targetRef="n_IMP" associationDirection="One" />
+    <bpmn:association id="f_18" sourceRef="n_CX2" targetRef="n_IMP" associationDirection="One" />
+    <bpmn:association id="f_21" sourceRef="n_TOALL" targetRef="n_SND" associationDirection="One" />
+    <bpmn:association id="f_24" sourceRef="n_RET" targetRef="n_ADDR" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_mapping_and_readlist_addresses">
+    <bpmndi:BPMNPlane id="Plane_mapping_and_readlist_addresses" bpmnElement="Process_mapping_and_readlist_addresses">
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="59.84" y="48.25" width="173.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DN_di" bpmnElement="n_DN">
+        <dc:Bounds x="28" y="178.5" width="197" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CAT_di" bpmnElement="n_CAT">
+        <dc:Bounds x="269.59" y="28" width="179.08" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PK_di" bpmnElement="n_PK">
+        <dc:Bounds x="48.5" y="304.5" width="204" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RL_di" bpmnElement="n_RL">
+        <dc:Bounds x="264" y="446.5" width="172" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RC_di" bpmnElement="n_RC">
+        <dc:Bounds x="256" y="556.5" width="185" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SAVE_di" bpmnElement="n_SAVE">
+        <dc:Bounds x="477" y="564.5" width="200.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MAP_di" bpmnElement="n_MAP">
+        <dc:Bounds x="48.5" y="700.5" width="170.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GOC_di" bpmnElement="n_GOC">
+        <dc:Bounds x="152.5" y="822" width="173.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ADDR_di" bpmnElement="n_ADDR">
+        <dc:Bounds x="280.59" y="945.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SND_di" bpmnElement="n_SND">
+        <dc:Bounds x="590.75" y="808.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CX_di" bpmnElement="n_CX">
+        <dc:Bounds x="361.75" y="814" width="193" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_IMP_di" bpmnElement="n_IMP">
+        <dc:Bounds x="506.59" y="959" width="146.08" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RW_di" bpmnElement="n_RW">
+        <dc:Bounds x="255.25" y="698.5" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SUB_di" bpmnElement="n_SUB">
+        <dc:Bounds x="488.5" y="698.5" width="203.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_IS_di" bpmnElement="n_IS">
+        <dc:Bounds x="728" y="700.5" width="156.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_REM_di" bpmnElement="n_REM">
+        <dc:Bounds x="484.67" y="50.25" width="166.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RW2_di" bpmnElement="n_RW2">
+        <dc:Bounds x="261" y="186.5" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CX2_di" bpmnElement="n_CX2">
+        <dc:Bounds x="494.25" y="186.5" width="196.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DEL_di" bpmnElement="n_DEL">
+        <dc:Bounds x="687.42" y="50.25" width="186" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MV_di" bpmnElement="n_MV">
+        <dc:Bounds x="726.75" y="186.5" width="178.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_TOALL_di" bpmnElement="n_TOALL">
+        <dc:Bounds x="509.75" y="304.5" width="159.75" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RW3_di" bpmnElement="n_RW3">
+        <dc:Bounds x="472" y="446.5" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RET_di" bpmnElement="n_RET">
+        <dc:Bounds x="288.5" y="320.5" width="185.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UNR_di" bpmnElement="n_UNR">
+        <dc:Bounds x="705.5" y="312.5" width="179.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="146.71" y="100.25" />
+        <di:waypoint x="146.71" y="139.38" />
+        <di:waypoint x="126.5" y="139.38" />
+        <di:waypoint x="126.5" y="178.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="126.5" y="246.5" />
+        <di:waypoint x="126.5" y="275.5" />
+        <di:waypoint x="150.5" y="275.5" />
+        <di:waypoint x="150.5" y="304.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="150.5" y="388.5" />
+        <di:waypoint x="150.5" y="417.5" />
+        <di:waypoint x="350" y="417.5" />
+        <di:waypoint x="350" y="446.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="350" y="498.5" />
+        <di:waypoint x="348.5" y="556.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="349" y="556.5" />
+        <di:waypoint x="349.69" y="498.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="350" y="498.5" />
+        <di:waypoint x="350" y="531.5" />
+        <di:waypoint x="577.13" y="531.5" />
+        <di:waypoint x="577.13" y="564.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="577.13" y="632.5" />
+        <di:waypoint x="577.13" y="666.5" />
+        <di:waypoint x="133.88" y="666.5" />
+        <di:waypoint x="133.88" y="700.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="133.88" y="748.5" />
+        <di:waypoint x="133.88" y="785.25" />
+        <di:waypoint x="239.13" y="785.25" />
+        <di:waypoint x="239.13" y="822" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="133.88" y="748.5" />
+        <di:waypoint x="133.88" y="781.25" />
+        <di:waypoint x="458.25" y="781.25" />
+        <di:waypoint x="458.25" y="814" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="577.13" y="632.5" />
+        <di:waypoint x="577.13" y="665.5" />
+        <di:waypoint x="353.88" y="665.5" />
+        <di:waypoint x="353.88" y="698.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="577.13" y="632.5" />
+        <di:waypoint x="577.13" y="665.5" />
+        <di:waypoint x="590.25" y="665.5" />
+        <di:waypoint x="590.25" y="698.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="577.13" y="632.5" />
+        <di:waypoint x="577.13" y="666.5" />
+        <di:waypoint x="806.38" y="666.5" />
+        <di:waypoint x="806.38" y="700.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="568.04" y="98.25" />
+        <di:waypoint x="568.04" y="142.38" />
+        <di:waypoint x="359.63" y="142.38" />
+        <di:waypoint x="359.63" y="186.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="568.04" y="98.25" />
+        <di:waypoint x="568.04" y="142.38" />
+        <di:waypoint x="592.5" y="142.38" />
+        <di:waypoint x="592.5" y="186.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_19_di" bpmnElement="f_19">
+        <di:waypoint x="780.42" y="98.25" />
+        <di:waypoint x="780.42" y="142.38" />
+        <di:waypoint x="816" y="142.38" />
+        <di:waypoint x="816" y="186.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_20_di" bpmnElement="f_20">
+        <di:waypoint x="816" y="238.5" />
+        <di:waypoint x="816" y="271.5" />
+        <di:waypoint x="589.63" y="271.5" />
+        <di:waypoint x="589.63" y="304.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_22_di" bpmnElement="f_22">
+        <di:waypoint x="589.63" y="388.5" />
+        <di:waypoint x="589.63" y="417.5" />
+        <di:waypoint x="570.63" y="417.5" />
+        <di:waypoint x="570.63" y="446.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_23_di" bpmnElement="f_23">
+        <di:waypoint x="816" y="238.5" />
+        <di:waypoint x="816" y="279.5" />
+        <di:waypoint x="381.13" y="279.5" />
+        <di:waypoint x="381.13" y="320.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_25_di" bpmnElement="f_25">
+        <di:waypoint x="816" y="238.5" />
+        <di:waypoint x="816" y="275.5" />
+        <di:waypoint x="795.13" y="275.5" />
+        <di:waypoint x="795.13" y="312.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="359.13" y="76" />
+        <di:waypoint x="359.13" y="127.25" />
+        <di:waypoint x="126.5" y="127.25" />
+        <di:waypoint x="126.5" y="178.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="239.13" y="874" />
+        <di:waypoint x="239.13" y="909.75" />
+        <di:waypoint x="375.59" y="909.75" />
+        <di:waypoint x="375.59" y="945.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="133.88" y="748.5" />
+        <di:waypoint x="133.88" y="778.5" />
+        <di:waypoint x="685.75" y="778.5" />
+        <di:waypoint x="685.75" y="808.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="458.25" y="882" />
+        <di:waypoint x="458.25" y="920.5" />
+        <di:waypoint x="579.63" y="920.5" />
+        <di:waypoint x="579.63" y="959" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="592.5" y="238.5" />
+        <di:waypoint x="592.5" y="598.75" />
+        <di:waypoint x="579.63" y="598.75" />
+        <di:waypoint x="579.63" y="959" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_21_di" bpmnElement="f_21">
+        <di:waypoint x="589.63" y="388.5" />
+        <di:waypoint x="589.63" y="598.5" />
+        <di:waypoint x="685.75" y="598.5" />
+        <di:waypoint x="685.75" y="808.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_24_di" bpmnElement="f_24">
+        <di:waypoint x="381.13" y="372.5" />
+        <di:waypoint x="381.13" y="659" />
+        <di:waypoint x="375.59" y="659" />
+        <di:waypoint x="375.59" y="945.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

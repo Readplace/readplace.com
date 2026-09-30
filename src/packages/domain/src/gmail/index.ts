@@ -26,3 +26,40 @@ export type { GmailCredentialsStore } from "./gmail-credentials.types";
 export type { GmailHeldMailEntry, GmailHeldMailStore } from "./gmail-held-mail.types";
 export type { GmailSenderEntry, GmailSenderStore } from "./gmail-sender.types";
 export type { DiscoveredGmailSender, GmailDiscovery, GmailDiscoveryStore } from "./gmail-discovery.types";
+export {
+	GmailHistoryImportJobIdSchema,
+	type GmailHistoryImportJobId,
+	GmailMessageIdSchema,
+	type GmailMessageId,
+	GMAIL_HISTORY_IMPORT_WINDOW_DAYS,
+	GMAIL_HISTORY_IMPORT_PAGE_SIZE,
+	GMAIL_HISTORY_IMPORT_MAX_POLLS,
+	GMAIL_HISTORY_IMPORT_OUTCOME_COUNT,
+	GmailHistoryImportStateSchema,
+	type GmailHistoryImportState,
+	GmailHistoryImportCancelReasonSchema,
+	type GmailHistoryImportCancelReason,
+	GmailHistoryImportFailureReasonSchema,
+	type GmailHistoryImportFailureReason,
+	GmailHistoryImportMessageOutcomeSchema,
+	type GmailHistoryImportMessageOutcome,
+	GmailHistoryImportCountsSchema,
+	type GmailHistoryImportCounts,
+} from "./gmail-history-import.schema";
+export type {
+	GmailConnectionIdentity,
+	GmailHistoryImportWindow,
+	GmailHistoryImportJob,
+	GmailHistoryImportMessage,
+	GmailHistoryImportStore,
+} from "./gmail-history-import.types";
+export {
+	type GmailHistoryImportFetchedRecording,
+	gmailHistoryImportRawKey,
+	settledCount,
+	planFetchedRecording,
+	canRestartGmailHistoryImport,
+	restartedCounts,
+} from "./gmail-history-import";
+export { summarizeGmailHistoryImport, type GmailHistoryImportSummary } from "./gmail-history-import-summary";
+export { hasGmailScope } from "./gmail-scope";

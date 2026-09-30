@@ -28,6 +28,7 @@ import { initDynamoDbEmailVerification } from "./providers/email-verification/dy
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
+import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
 import { initDisconnectGmail } from "./domain/gmail/disconnect-gmail";
 import { initRewriteGmailFilter } from "./domain/gmail/rewrite-gmail-filter";
 import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
@@ -36,7 +37,7 @@ import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
 import { initHandleByDetailType } from "./handle-by-detail-type";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
-import { initDynamoDbGmailDiscovery, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender } from "@packages/inbox-store";
+import { initDynamoDbGmailDiscovery, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailSender, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
 	initPurgeArticleContent,
@@ -131,6 +132,11 @@ const deleteRawEmailObjects = initS3DeleteObjects({
 	bucketName: requireEnv("RAW_EMAIL_BUCKET_NAME"),
 });
 
+const deleteRawEmailObjectsByPrefix = initS3DeleteObjectsByPrefix({
+	client: s3Client,
+	bucketName: requireEnv("RAW_EMAIL_BUCKET_NAME"),
+});
+
 const deleteEmailContentObjects = initS3DeleteObjects({
 	client: s3Client,
 	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
@@ -213,6 +219,8 @@ const gmailConnections = initDynamoDbGmailConnection({ client: dynamoClient, tab
 const gmailCredentials = initDynamoDbGmailCredentials({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"), now });
 const gmailSenders = initDynamoDbGmailSender({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"), now });
 const gmailDiscovery = initDynamoDbGmailDiscovery({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now });
+const gmailHistoryImports = initDynamoDbGmailHistoryImport({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE") });
+const emailIdentities = initDynamoDbEmailIdentity({ client: dynamoClient, tableName: requireEnv("DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE") });
 
 const disconnectGmail = initDisconnectGmail({
 	connections: gmailConnections,
@@ -239,6 +247,7 @@ const disconnectGmail = initDisconnectGmail({
 		logger,
 	}),
 	revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
+	cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports: gmailHistoryImports, now }),
 	logger,
 });
 
@@ -260,8 +269,12 @@ export const handler = initHandleByDetailType({
 				deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,
 				deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
 				tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
+				deleteReadlistAddressClaims: inboxAddress.deleteReadlistAddressClaims,
+				deleteAllGmailHistoryImports: gmailHistoryImports.deleteAllByUserId,
+				deleteAllEmailIdentities: emailIdentities.deleteAllByUserId,
 				disconnectGmail,
 				deleteRawEmailObjects,
+				deleteRawEmailObjectsByPrefix,
 				deleteEmailContentObjects,
 				deleteEmailImageObjects,
 				deleteAllUserArticles: articleStore.deleteAllUserArticles,

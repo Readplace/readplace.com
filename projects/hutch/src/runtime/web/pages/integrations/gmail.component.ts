@@ -4,13 +4,23 @@ import { render, renderAlert, renderInFlightDots } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { GMAIL_PAGE_STYLES } from "./gmail.styles";
+import type { GmailForwardingState, GmailMappingDestination, GmailMappingRow, GmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import type { GmailPageViewModel, GmailPollViewModel } from "./gmail.viewmodel";
 import { toGmailPollViewModel } from "./gmail.viewmodel";
 
-const GMAIL_TEMPLATE = readFileSync(join(__dirname, "gmail.template.html"), "utf-8");
-const GMAIL_POLL_TEMPLATE = readFileSync(join(__dirname, "gmail-poll.template.html"), "utf-8");
-const GMAIL_SENDER_RESULTS_TEMPLATE = readFileSync(join(__dirname, "gmail-sender-results.template.html"), "utf-8");
-const GMAIL_LOAD_BUTTON_TEMPLATE = readFileSync(join(__dirname, "gmail-load-button.template.html"), "utf-8");
+function template(name: string): string {
+	return readFileSync(join(__dirname, name), "utf-8");
+}
+
+const GMAIL_TEMPLATE = template("gmail.template.html");
+const GMAIL_POLL_TEMPLATE = template("gmail-poll.template.html");
+const GMAIL_SENDER_RESULTS_TEMPLATE = template("gmail-sender-results.template.html");
+const GMAIL_LOAD_BUTTON_TEMPLATE = template("gmail-load-button.template.html");
+const GMAIL_READLIST_PICKER_TEMPLATE = template("gmail-readlist-picker.template.html");
+const GMAIL_MAPPING_CHOICE_TEMPLATE = template("gmail-mapping-choice.template.html");
+const GMAIL_MAPPINGS_TEMPLATE = template("gmail-mappings.template.html");
+const GMAIL_MAPPING_ROW_TEMPLATE = template("gmail-mapping-row.template.html");
+const GMAIL_IMPORT_CONSENT_TEMPLATE = template("gmail-import-consent.template.html");
 
 const GMAIL_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
 
@@ -32,6 +42,18 @@ const FORWARDING_SHOT = {
 	height: 282,
 } as const;
 
+const DESTINATION_CLASSES: Record<GmailMappingDestination["kind"], string> = {
+	readlist: "gmail-mappings__destination--readlist",
+	unresolved: "gmail-mappings__destination--unresolved",
+};
+
+const FORWARDING_CLASSES: Record<GmailForwardingState, string> = {
+	live: "gmail-mappings__forwarding--live",
+	failed: "gmail-mappings__forwarding--failed",
+	pending: "",
+	"confirmation-required": "",
+};
+
 export function renderGmailPoll(vm: GmailPollViewModel): string {
 	return render(GMAIL_POLL_TEMPLATE, vm);
 }
@@ -40,21 +62,53 @@ function renderGmailLoadButton(vm: GmailPageViewModel, outOfBand: boolean): stri
 	return render(GMAIL_LOAD_BUTTON_TEMPLATE, { label: vm.chooser.loadButtonLabel, outOfBand });
 }
 
+function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string {
+	if (vm.selectedSender === undefined) return "";
+	return render(GMAIL_MAPPING_CHOICE_TEMPLATE, {
+		save: vm.save,
+		outOfBand,
+		readlistPickerHtml: render(GMAIL_READLIST_PICKER_TEMPLATE, { ...vm.readlistPicker, submitLoader: SUBMIT_LOADER_HTML }),
+		submitLoader: SUBMIT_LOADER_HTML,
+	});
+}
+
 export function renderGmailSenderResults(
 	vm: GmailPageViewModel,
-	options: { outOfBandLoadButton: boolean } = { outOfBandLoadButton: false },
+	options: { outOfBandLoadButton: boolean; outOfBandState: boolean } = { outOfBandLoadButton: false, outOfBandState: false },
 ): string {
-	return render(GMAIL_SENDER_RESULTS_TEMPLATE, {
+	const results = render(GMAIL_SENDER_RESULTS_TEMPLATE, {
 		...vm.chooser,
 		loadButton: options.outOfBandLoadButton ? renderGmailLoadButton(vm, true) : undefined,
+	});
+	if (!options.outOfBandState) return results;
+	return results + renderMappingChoice(vm, true) + renderMappings(vm.mappings, true);
+}
+
+function renderMappingRow(row: GmailMappingRow): string {
+	return render(GMAIL_MAPPING_ROW_TEMPLATE, {
+		...row,
+		destinationClass: DESTINATION_CLASSES[row.destinationKind],
+		forwardingClass: FORWARDING_CLASSES[row.forwarding],
+		consentHtml: row.consent === undefined ? "" : render(GMAIL_IMPORT_CONSENT_TEMPLATE, row.consent),
+	});
+}
+
+function renderMappings(mappings: GmailMappingsViewModel, outOfBand: boolean): string {
+	return render(GMAIL_MAPPINGS_TEMPLATE, {
+		...mappings,
+		outOfBand,
+		rowsHtml: mappings.rows.map(renderMappingRow),
+		filterMessageHtml: mappings.filter.presentation === "alert"
+			? renderAlert({ key: "gmail-filter", content: { variant: "error", message: { text: mappings.filter.message } } })
+			: render('<p class="gmail__step-copy" role="status" data-test-gmail-filter-message>{{message}}</p>', { message: mappings.filter.message }),
 	});
 }
 
 export function GmailPage(vm: GmailPageViewModel): PageBody {
 	return {
 		seo: {
-			title: "Gmail — Readplace",
-			description: "Forward each newsletter from Gmail into your Readplace inboxes.",
+			title: "GMail Newsletters — Readplace",
+			description: "Send newsletters from Gmail to your Readplace readlists.",
 			canonicalUrl: "/integrations/gmail",
 			robots: "noindex, nofollow",
 		},
@@ -65,9 +119,6 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 				...vm,
 				alertsHtml: vm.alerts.map(({ key, message }) => renderAlert({ key, content: { variant: "error", message: { text: message } } })).join(""),
 				noticesHtml: vm.notices.map(({ key, message, variant }) => renderAlert({ key, content: { variant, message: { text: message } } })).join(""),
-				filterMessageHtml: vm.filter.presentation === "alert"
-					? renderAlert({ key: "gmail-filter", content: { variant: "error", message: { text: vm.filter.message } } })
-					: render('<p class="gmail__step-copy" role="status" data-test-gmail-filter-message>{{message}}</p>', { message: vm.filter.message }),
 				settingsShot: SETTINGS_SHOT,
 				forwardingShot: FORWARDING_SHOT,
 				pollLine:
@@ -76,7 +127,8 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 						: renderGmailPoll(toGmailPollViewModel({ pollCount: 0, state: vm.pollState })),
 				loadButton: renderGmailLoadButton(vm, false),
 				senderResults: renderGmailSenderResults(vm),
-				submitLoader: SUBMIT_LOADER_HTML,
+				mappingChoiceHtml: renderMappingChoice(vm, false),
+				mappingsHtml: renderMappings(vm.mappings, false),
 			}),
 		},
 		scripts: GMAIL_COPY_SCRIPT,

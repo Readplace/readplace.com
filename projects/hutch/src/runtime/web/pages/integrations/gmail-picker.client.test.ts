@@ -20,6 +20,14 @@ function key(dom: JSDOM, value: string): void {
 	dom.window.document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: value, bubbles: true }));
 }
 
+function pressFromFocus(dom: JSDOM, value: string): boolean {
+	const focused = dom.window.document.activeElement;
+	assert(focused, "a key press starts from the focused element");
+	const event = new dom.window.KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true });
+	focused.dispatchEvent(event);
+	return event.defaultPrevented;
+}
+
 describe("Gmail details pickers", () => {
 	it("keeps inside clicks open and dismisses the other picker", () => {
 		const dom = fixture();
@@ -63,5 +71,51 @@ describe("Gmail details pickers", () => {
 		element(dom, "#search").focus();
 		key(dom, "Escape");
 		assert.equal(element(dom, "#sender").hasAttribute("open"), false);
+	});
+
+	it("moves focus through an open picker's search and options with the arrow keys, stopping at either end", () => {
+		const dom = new JSDOM(`<details data-gmail-picker id="newsletter" open><summary data-gmail-picker-trigger>Newsletter</summary><input id="search" data-gmail-picker-focus><button id="first" data-gmail-picker-option>TLDR</button><button id="second" data-gmail-picker-option>Morning Brew</button></details>`);
+		initGmailPicker({ document: dom.window.document });
+		element(dom, "#newsletter summary").focus();
+		assert.equal(pressFromFocus(dom, "ArrowDown"), true);
+		assert.equal(dom.window.document.activeElement, element(dom, "#search"));
+		pressFromFocus(dom, "ArrowDown");
+		pressFromFocus(dom, "ArrowDown");
+		assert.equal(dom.window.document.activeElement, element(dom, "#second"));
+		pressFromFocus(dom, "ArrowDown");
+		assert.equal(dom.window.document.activeElement, element(dom, "#second"));
+		pressFromFocus(dom, "ArrowUp");
+		assert.equal(dom.window.document.activeElement, element(dom, "#first"));
+		pressFromFocus(dom, "ArrowUp");
+		pressFromFocus(dom, "ArrowUp");
+		assert.equal(dom.window.document.activeElement, element(dom, "#search"));
+	});
+
+	it("leaves arrow keys alone outside an open picker and in a picker with nothing to choose", () => {
+		const dom = new JSDOM(`<button id="outside">Outside</button>
+			<details data-gmail-picker id="closed"><summary data-gmail-picker-trigger>Closed</summary><button id="hidden-option" data-gmail-picker-option>Hidden</button></details>
+			<details data-gmail-picker id="empty" open><summary data-gmail-picker-trigger>Empty</summary></details>`);
+		initGmailPicker({ document: dom.window.document });
+		element(dom, "#outside").focus();
+		assert.equal(pressFromFocus(dom, "ArrowDown"), false);
+		assert.equal(dom.window.document.activeElement, element(dom, "#outside"));
+		element(dom, "#closed summary").focus();
+		assert.equal(pressFromFocus(dom, "ArrowDown"), false);
+		assert.equal(dom.window.document.activeElement, element(dom, "#closed summary"));
+		element(dom, "#empty summary").focus();
+		assert.equal(pressFromFocus(dom, "ArrowUp"), true);
+		assert.equal(dom.window.document.activeElement, element(dom, "#empty summary"));
+		assert.equal(pressFromFocus(dom, "ArrowLeft"), false);
+	});
+
+	it("focuses the new readlist name when the readlist picker opens beside the newsletter picker", () => {
+		const dom = new JSDOM(`<details data-gmail-picker id="newsletter" open><summary data-gmail-picker-trigger>Newsletter</summary><input id="search" data-gmail-picker-focus></details>
+			<details data-gmail-picker id="readlist"><summary data-gmail-picker-trigger>Readlist</summary><input id="readlist-name" data-gmail-picker-focus></details>`);
+		initGmailPicker({ document: dom.window.document });
+		element(dom, "#readlist summary").click();
+		element(dom, "#readlist").setAttribute("open", "");
+		element(dom, "#readlist").dispatchEvent(new dom.window.Event("toggle"));
+		assert.equal(element(dom, "#newsletter").hasAttribute("open"), false);
+		assert.equal(dom.window.document.activeElement, element(dom, "#readlist-name"));
 	});
 });

@@ -83,5 +83,9 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 				rows.delete(key);
 			}
 		},
+		findReceivedByMessageId: async ({ userId, messageId }) =>
+			[...rows.values()]
+				.filter((row) => row.userId === userId && row.messageId === messageId && row.status === "received")
+				.map((row) => ({ receivedAtMessageId: row.receivedAtMessageId, senderEmail: row.senderEmail })),
 	};
 }

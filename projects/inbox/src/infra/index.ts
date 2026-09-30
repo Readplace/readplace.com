@@ -18,6 +18,7 @@ import {
 	EmailLinksFilteredEvent,
 	EmailLinksFilterFailedEvent,
 	EmailReceivedEvent,
+	GmailHistoryImportMessageFetchedEvent,
 	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
 	GMAIL_METRIC_NAMESPACE,
@@ -96,6 +97,8 @@ const tableNames = {
 	sessions: config.require("dynamodbSessionsTable"),
 	users: config.require("dynamodbUsersTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
+	emailIdentities: config.require("dynamodbInboxEmailIdentitiesTable"),
+	gmailHistoryImports: config.require("dynamodbGmailHistoryImportsTable"),
 };
 
 function tableArn(tableName: string): pulumi.Output<string> {
@@ -114,6 +117,7 @@ const inboxStorage = new InboxStorage("inbox-storage", {
 		savedLinks: tableNames.inboxSavedLinks,
 		gmailSenders: tableNames.gmailSenders,
 		gmailHeldMail: tableNames.gmailHeldMail,
+		emailIdentities: tableNames.emailIdentities,
 	},
 });
 
@@ -129,6 +133,9 @@ const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config)
 // before the size cap applies; 1024 MB OOM'd save-link on those, so match its
 // crawl Lambdas rather than run tighter here.
 const CRAWL_LAMBDA_MEMORY_MB = 3008;
+
+// 20 MiB — half SES's ~40 MB hard inbound cap; bounds parse memory.
+const INBOX_MAX_EMAIL_BYTES = String(20 * 1024 * 1024);
 
 // --- Web Lambda (GET /inbox + ANY /inbox/{proxy+}) ---
 
@@ -244,6 +251,16 @@ const receiveEmailDynamodb = new HutchDynamoDBAccess("inbox-receive-email-dynamo
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
+const receiveEmailIdentities = new HutchDynamoDBAccess("inbox-receive-email-identities", {
+	tables: [{ arn: inboxStorage.emailIdentitiesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
+
+const receiveEmailByMessageId = new HutchDynamoDBAccess("inbox-receive-email-by-message-id", {
+	tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: true }],
+	actions: ["dynamodb:Query"],
+});
+
 const receiveEmailQueue = new HutchSQS("inbox-receive-email", {
 	// Worker timeout plus a receive-to-invoke buffer (matching the extract
 	// queue's guard): image rehosting can push a multi-recipient parse near the
@@ -259,20 +276,22 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 	timeout: 120,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
+		DYNAMODB_INBOX_EMAILS_TABLE: inboxStorage.emailsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		DYNAMODB_GMAIL_HELD_MAIL_TABLE: tableNames.gmailHeldMail,
+		DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE: inboxStorage.emailIdentitiesTable.name,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		// Rehosted image srcs are rewritten to this CDN origin at ingest.
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
-		// 20 MiB — half SES's ~40 MB hard inbound cap; bounds parse memory.
-		INBOX_MAX_EMAIL_BYTES: String(20 * 1024 * 1024),
+		INBOX_MAX_EMAIL_BYTES,
 	},
 	policies: [
 		...receiveEmailDynamodb.policies,
+		...receiveEmailIdentities.policies,
+		...receiveEmailByMessageId.policies,
 		// Reads the raw bucket (the .eml) and only writes the content bucket (the
 		// sanitized body and the rehosted images) — no content-bucket read.
 		...HutchS3ReadWrite.readPoliciesForBucket("inbox-receive-email-raw-read", rawEmailBucketName),
@@ -505,14 +524,82 @@ const failuresDlqLambda = new HutchLambda(`${INBOX_FAILURES_DLQ}-dlq`, {
 	timeout: 30,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
 	policies: [...failuresDlqDynamodb.policies],
 });
+
+eventBus.grantPublish(failuresDlqLambda);
 
 attachDlqConsumer(`${INBOX_FAILURES_DLQ}-dlq`, {
 	deadLetterQueue: failuresDlq,
 	lambda: failuresDlqLambda,
 	batchSize: 1,
+});
+
+const ingestGmailImportDynamodb = new HutchDynamoDBAccess("inbox-ingest-gmail-import-dynamodb", {
+	tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: true }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+});
+
+const ingestGmailImportIdentities = new HutchDynamoDBAccess("inbox-ingest-gmail-import-identities", {
+	tables: [{ arn: inboxStorage.emailIdentitiesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
+
+const ingestGmailImportLookups = new HutchDynamoDBAccess("inbox-ingest-gmail-import-lookups", {
+	tables: [
+		{ arn: inboxStorage.addressesTable.arn, includeIndexes: false },
+		{ arn: tableArn(tableNames.gmailHistoryImports), includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem"],
+});
+
+const INGEST_GMAIL_IMPORT_TIMEOUT_SECONDS = 120;
+
+const ingestGmailImportQueue = new HutchSQS(INBOX_DLQ_SOURCES.ingestGmailImport, {
+	visibilityTimeoutSeconds: INGEST_GMAIL_IMPORT_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
+	sharedDlq: failuresDlq,
+});
+
+const ingestGmailImportLambda = new HutchLambda("inbox-ingest-gmail-import", {
+	entryPoint: "./src/runtime/ingest-gmail-import.main.ts",
+	outputDir: ".lib/inbox-ingest-gmail-import",
+	assetDir: "./src/runtime",
+	memorySize: CRAWL_LAMBDA_MEMORY_MB,
+	timeout: INGEST_GMAIL_IMPORT_TIMEOUT_SECONDS,
+	layers: [curlImpersonateLayerArn],
+	environment: {
+		DYNAMODB_INBOX_EMAILS_TABLE: inboxStorage.emailsTable.name,
+		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
+		DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE: inboxStorage.emailIdentitiesTable.name,
+		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: tableNames.gmailHistoryImports,
+		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
+		INBOX_MAX_EMAIL_BYTES,
+	},
+	policies: [
+		...ingestGmailImportDynamodb.policies,
+		...ingestGmailImportIdentities.policies,
+		...ingestGmailImportLookups.policies,
+		...HutchS3ReadWrite.readPoliciesForBucket("inbox-ingest-gmail-import-raw-read", rawEmailBucketName),
+		...HutchS3ReadWrite.writePoliciesForBucket("inbox-ingest-gmail-import-content-write", contentBucketName),
+	],
+});
+
+eventBus.grantPublish(ingestGmailImportLambda);
+
+const ingestGmailImportWithSQS = new HutchSQSBackedLambda("inbox-ingest-gmail-import", {
+	lambda: ingestGmailImportLambda,
+	queue: ingestGmailImportQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(GmailHistoryImportMessageFetchedEvent, ingestGmailImportWithSQS, {
+	name: "inbox-ingest-gmail-import",
 });
 
 const crawlEmailLinkPreviewDynamodb = new HutchDynamoDBAccess(

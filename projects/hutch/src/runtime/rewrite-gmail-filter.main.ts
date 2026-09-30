@@ -1,7 +1,7 @@
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbInboxAddress } from "@packages/inbox-store";
+import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbGmailHistoryImport, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import {
 	DisconnectGmailCommand,
@@ -10,6 +10,7 @@ import {
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
 } from "@packages/hutch-infra-components";
+import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
 import { initDisconnectGmail } from "./domain/gmail/disconnect-gmail";
 import { initDisconnectGmailHandler } from "./domain/gmail/disconnect-gmail-handler";
 import { initGmailForwardingConfirmFailedHandler } from "./domain/gmail/gmail-forwarding-confirm-failed-handler";
@@ -99,6 +100,10 @@ export const handler = initHandleByDetailType({
 					addresses,
 					rewriteGmailFilter,
 					revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
+					cancelGmailHistoryImports: initCancelGmailHistoryImports({
+						imports: initDynamoDbGmailHistoryImport({ client, tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE") }),
+						now,
+					}),
 					logger,
 				}),
 				publishEvent,

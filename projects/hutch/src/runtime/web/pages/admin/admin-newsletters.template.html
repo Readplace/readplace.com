@@ -1,0 +1,122 @@
+<main class="admin-newsletters" data-test-admin-newsletters hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+  <div class="admin-newsletters__layout">
+    <header class="admin-newsletters__header">
+      <h1 class="admin-newsletters__title">Newsletters</h1>
+      <p class="admin-newsletters__intro">Only approved records identify newsletters for readers. Pending and rejected records stay private to this page.</p>
+    </header>
+
+    {{{noticeAlert}}}
+    {{{conflictAlert}}}
+    {{{storageAlert}}}
+
+    {{{formHtml}}}
+
+    <nav class="admin-newsletters__tabs" aria-label="Newsletter status">
+      {{#each tabs}}
+      <form class="admin-newsletters__tab-form" method="{{form.method}}" action="{{form.action}}" hx-boost="{{form.boost}}">
+        {{#each form.fields}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        <button type="submit" class="admin-newsletters__tab" aria-current="{{ariaCurrent}}" data-test-admin-newsletters-tab="{{status}}">{{label}}</button>
+      </form>
+      {{/each}}
+    </nav>
+
+    <div class="admin-newsletters__toolbar">
+      <form class="admin-newsletters__search" method="{{search.method}}" action="{{search.action}}" hx-boost="{{search.boost}}" role="search">
+        {{#each search.fields}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        <label class="form-field__label admin-newsletters__search-label" for="admin-newsletters-q">Search FROM address or name</label>
+        <div class="admin-newsletters__search-row">
+          <input id="admin-newsletters-q" class="form-input admin-newsletters__search-input" type="search" name="q" value="{{q}}" autocomplete="off">
+          <button type="submit" class="btn btn--secondary admin-newsletters__search-button">Search</button>
+        </div>
+      </form>
+      <div class="admin-newsletters__toolbar-actions">
+        <form method="{{add.method}}" action="{{add.action}}" hx-boost="{{add.boost}}" data-test-admin-newsletters-add>
+          {{#each add.fields}}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {{/each}}
+          <button type="submit" class="btn btn--primary">Add newsletter</button>
+        </form>
+        {{#if seed}}
+        <form method="{{seed.method}}" action="{{seed.action}}" hx-boost="{{seed.boost}}" data-test-admin-newsletters-seed>
+          {{#each seed.fields}}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {{/each}}
+          <button type="submit" class="btn btn--secondary">Import seed</button>
+        </form>
+        {{/if}}
+      </div>
+    </div>
+
+    <p class="admin-newsletters__summary" data-test-admin-newsletters-summary>{{summary}}</p>
+    <p class="admin-newsletters__empty {{emptyModifier}}" data-test-admin-newsletters-empty="{{listStatus}}" data-empty="{{emptyFlag}}">{{empty.text}}</p>
+
+    <table class="admin-newsletters__table {{tableModifier}}">
+      <thead>
+        <tr>
+          <th scope="col">FROM address</th>
+          <th scope="col">Name</th>
+          <th scope="col">Status</th>
+          <th scope="col">Evidence</th>
+          <th scope="col">Updated</th>
+          <th scope="col"><span class="admin-newsletters__visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each rows}}
+        <tr class="admin-newsletters__row" data-test-admin-newsletter-row="{{from}}" data-status="{{status}}">
+          <td class="admin-newsletters__cell admin-newsletters__cell--from" data-label="FROM address">
+            <span class="admin-newsletters__from">{{from}}</span>
+            {{#if replacedBy}}<span class="admin-newsletters__replaced" data-test-admin-newsletter-replaced-by>Replaced by {{replacedBy}}</span>{{/if}}
+          </td>
+          <td class="admin-newsletters__cell {{nameModifier}}" data-label="Name">{{nameLabel}}</td>
+          <td class="admin-newsletters__cell" data-label="Status"><span class="admin-newsletters__status {{statusModifier}}">{{statusLabel}}</span></td>
+          <td class="admin-newsletters__cell" data-label="Evidence">
+            <ul class="admin-newsletters__evidence">
+              {{#each evidence}}
+              <li class="admin-newsletters__evidence-item">
+                <span class="admin-newsletters__evidence-kind">{{kindLabel}}</span>
+                {{#if note}}<span class="admin-newsletters__evidence-note">{{note}}</span>{{/if}}
+                {{#if url}}<a class="admin-newsletters__evidence-link" href="{{url}}" rel="noopener noreferrer">{{url}}</a>{{/if}}
+              </li>
+              {{/each}}
+            </ul>
+          </td>
+          <td class="admin-newsletters__cell" data-label="Updated"><time datetime="{{updatedAt}}">{{updatedLabel}}</time></td>
+          <td class="admin-newsletters__cell admin-newsletters__cell--actions" data-label="Actions">
+            <div class="admin-newsletters__actions">
+              {{#each actions}}
+              <form method="{{form.method}}" action="{{form.action}}" hx-boost="{{form.boost}}">
+                {{#each form.fields}}
+                <input type="hidden" name="{{name}}" value="{{value}}">
+                {{/each}}
+                <button type="submit" class="btn btn--{{variant}} btn--s" data-test-admin-newsletter-action="{{key}}">{{label}}</button>
+              </form>
+              {{/each}}
+            </div>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    {{#if pagination}}
+    <nav class="admin-newsletters__pagination" aria-label="Pagination" data-test-admin-newsletters-pagination>
+      <span class="admin-newsletters__pagination-info" data-test-pagination-page="{{pagination.page}}">Page <strong>{{pagination.page}}</strong> of {{pagination.totalPages}}</span>
+      <div class="admin-newsletters__pagination-controls">
+        {{#each pagination.controls}}
+        <form method="{{form.method}}" action="{{form.action}}" hx-boost="{{form.boost}}">
+          {{#each form.fields}}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {{/each}}
+          <button type="submit" class="btn btn--secondary btn--s" data-test-admin-newsletters-page="{{key}}"{{#if disabled}} disabled{{/if}}>{{label}}</button>
+        </form>
+        {{/each}}
+      </div>
+    </nav>
+    {{/if}}
+  </div>
+</main>

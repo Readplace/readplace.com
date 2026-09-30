@@ -9,7 +9,7 @@ const EMAIL = ForwardableSenderSchema.parse("sender@example.com");
 const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
 const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 const NOW = new Date("2026-09-12T00:00:00.000Z");
-const START = { userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "run-1", mode: "profile", historyId: undefined } as const;
+const START = { userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "run-1", mode: "profile", historyId: undefined, checkedMessageCount: 0 } as const;
 
 describe("initInMemoryGmailDiscovery", () => {
 	it("deduplicates pages, preserves names and resumes without clearing cached senders", async () => {
@@ -74,6 +74,7 @@ describe("initInMemoryGmailDiscovery", () => {
 			page: 0,
 			pageToken: undefined,
 			scannedCount: 0,
+			checkedMessageCount: 0,
 			estimatedTotalMessages: undefined,
 			oldestScannedAt: undefined,
 			updatedAt: new Date(instant).toISOString(),
@@ -143,5 +144,20 @@ describe("initInMemoryGmailDiscovery", () => {
 		assert.equal(await store.findDiscoveryByUserId(USER), undefined);
 		await store.failDiscovery({ userId: USER, generation: "run-1", error: "late" });
 		await store.deleteDiscoveryByUserId(USER);
+	});
+	it("counts every checked message across passes and restarts, even when a profile pass resets the scan", async () => {
+		const store = initInMemoryGmailDiscovery({ now: () => NOW });
+		await store.startDiscovery({ ...START, checkedMessageCount: 40 });
+		const initial = await store.findDiscoveryByUserId(USER);
+		assert(initial);
+		assert.equal(initial.checkedMessageCount, 40);
+		await store.savePage({ previous: initial, senders: [], mode: "history", pageToken: "next", historyId: "100", state: "running", scannedMessages: 25, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
+		const afterHistory = await store.findDiscoveryByUserId(USER);
+		assert(afterHistory);
+		await store.savePage({ previous: afterHistory, senders: [], mode: "profile", pageToken: undefined, historyId: undefined, state: "complete", scannedMessages: 10, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
+		const completed = await store.findDiscoveryByUserId(USER);
+		assert(completed);
+		assert.equal(completed.scannedCount, 10);
+		assert.equal(completed.checkedMessageCount, 75);
 	});
 });

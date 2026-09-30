@@ -19,6 +19,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly gmailCredentialsTable: aws.dynamodb.Table;
 	public readonly gmailConnectionsTable: aws.dynamodb.Table;
 	public readonly gmailDiscoveryTable: aws.dynamodb.Table;
+	public readonly gmailHistoryImportsTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
@@ -38,6 +39,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		gmailCredentials: string;
 		gmailConnections: string;
 		gmailDiscovery: string;
+		gmailHistoryImports: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
 
@@ -130,6 +132,16 @@ export class HutchStorage extends pulumi.ComponentResource {
 
 		this.gmailDiscoveryTable = new aws.dynamodb.Table("hutch-gmail-discovery", {
 			name: args.tableNames.gmailDiscovery,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			rangeKey: "recordKey",
+			attributes: [{ name: "userId", type: "S" }, { name: "recordKey", type: "S" }],
+		}, { parent: this });
+
+		this.gmailHistoryImportsTable = new aws.dynamodb.Table("hutch-gmail-history-imports", {
+			name: args.tableNames.gmailHistoryImports,
 			billingMode: "PAY_PER_REQUEST",
 			deletionProtectionEnabled: args.deletionProtection,
 			pointInTimeRecovery: { enabled: true },

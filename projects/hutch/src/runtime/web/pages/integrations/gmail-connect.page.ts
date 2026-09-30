@@ -4,49 +4,29 @@ import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import { baseCookieOptions } from "@packages/web-analytics";
-import type {
-	GmailConnectionStore,
-	GmailCredentialsStore,
-	GmailDiscoveryStore,
-	GmailSenderStore,
-} from "@packages/domain/gmail";
-import type { AliasName, InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
-import type { UserId } from "@packages/domain/user";
-import { UserIdSchema } from "@packages/domain/user";
-import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
-import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
-import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
+import { ForwardableSenderSchema, hasGmailScope, summarizeGmailHistoryImport } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailConnection, GmailHistoryImportSummary } from "@packages/domain/gmail";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
+import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { signState, verifyState } from "../../auth/oauth-state";
 import { buildIntegrationsUrl, GMAIL_CALLBACK_PATH } from "./gmail-connect.url";
-import { buildGmailUrl } from "./gmail.url";
+import { buildGmailUrl, GmailPickerStateSchema, parseGmailPickerState } from "./gmail.url";
+import { importFollowsMapping, initGmailImportActions, latestGmailImportsBySender } from "./gmail-import-actions";
+import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 
 const STATE_COOKIE = "hutch_gmail_state";
 const STATE_TTL_MS = 5 * 60 * 1000;
 
 const CallbackQuerySchema = z.object({ code: z.string(), state: z.string() });
-const StatePayloadSchema = z.object({ nonce: z.string(), createdAt: z.number() });
-
-export interface GmailIntegrationDependencies {
-	exchangeGmailCode: ExchangeGmailCode;
-	findGmailAccountEmail: FindGmailAccountEmail;
-	clientId: string;
-	stateSecret: string;
-	gmailCredentialsStore: GmailCredentialsStore;
-	gmailConnectionStore: GmailConnectionStore;
-	gmailSenderStore: GmailSenderStore;
-	gmailDiscoveryStore: GmailDiscoveryStore;
-	publishStartGmailSenderDiscovery: (input: { userId: UserId }) => Promise<void>;
-	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
-	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
-	mintInboxAddress: (input: { userId: UserId; name: AliasName }) => Promise<InboxAddress>;
-	listInboxAddresses: (userId: UserId) => Promise<InboxAddressEntry[]>;
-	publishRewriteGmailFilter: (input: {
-		userId: UserId;
-		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested" | "reconnected";
-	}) => Promise<void>;
-	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
-}
+const ConnectIntentSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("connect") }),
+	z.object({ kind: z.literal("import"), sender: ForwardableSenderSchema, state: GmailPickerStateSchema }),
+]);
+type ConnectIntent = z.infer<typeof ConnectIntentSchema>;
+const StatePayloadSchema = z.object({ nonce: z.string(), createdAt: z.number(), intent: ConnectIntentSchema });
+const ImportIntentBodySchema = z.object({ intent: z.literal("import"), sender: ForwardableSenderSchema });
+const RETRYABLE_IMPORT_STATUSES: ReadonlySet<GmailHistoryImportSummary["status"]> = new Set(["failed", "partial-failure"]);
 
 export interface GmailConnectContext {
 	appOrigin: string;
@@ -65,6 +45,35 @@ export function registerGmailConnectRoutes(
 ): void {
 	const redirectUri = `${context.appOrigin}${GMAIL_CALLBACK_PATH}`;
 	const write = [context.requireAuth, context.requireNotLocked, context.requireWriteAccess];
+	const imports = initGmailImportActions({ gmail, now: context.now });
+
+	const verifiedPayload = (stateCookie: unknown): z.infer<typeof StatePayloadSchema> | undefined => {
+		if (typeof stateCookie !== "string") return undefined;
+		const verified = verifyState({ signed: stateCookie, secret: gmail.stateSecret });
+		if (verified === null) return undefined;
+		const payload = StatePayloadSchema.safeParse(JSON.parse(verified));
+		return payload.success ? payload.data : undefined;
+	};
+
+	const resumeImports = async (input: { userId: UserId; sender: ForwardableSender }): Promise<number> => {
+		const [jobs, mapping] = await Promise.all([
+			gmail.gmailHistoryImportStore.listJobsByUserId(input.userId),
+			gmail.gmailSenderStore.findSender({ userId: input.userId, senderEmail: input.sender }),
+		]);
+		const latest = latestGmailImportsBySender(jobs).get(input.sender);
+		const retry = latest !== undefined
+			&& RETRYABLE_IMPORT_STATUSES.has(summarizeGmailHistoryImport(latest).status)
+			&& importFollowsMapping({ job: latest, mapping });
+		const resumable = [...jobs.filter((job) => job.state === "awaiting-permission"), ...(retry ? [latest] : [])];
+		const resumed = await Promise.all(resumable.map((job) => imports.resume({ userId: input.userId, jobId: job.jobId })));
+		return resumed.filter(Boolean).length;
+	};
+
+	const reconnectRequired = async (input: { intent: ConnectIntent; existing: GmailConnection; userId: UserId }): Promise<boolean> => {
+		if (input.intent.kind === "connect" || input.existing.revokedAt !== undefined) return true;
+		const discovery = await gmail.gmailDiscoveryStore.findDiscoveryByUserId(input.userId);
+		return discovery?.requiresReconnect === true;
+	};
 
 	const returnSignedOutReaderToIntegrations: RequestHandler = (req, res, next) => {
 		if (req.userId) {
@@ -78,9 +87,15 @@ export function registerGmailConnectRoutes(
 	router.post("/gmail/connect", write, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
+		const importBody = ImportIntentBodySchema.safeParse(req.body);
+		const { sender: _picked, edit: _edit, ...state } = parseGmailPickerState(req.body);
+		const intent: ConnectIntent = importBody.success
+			? { kind: "import", sender: importBody.data.sender, state }
+			: { kind: "connect" };
 		const statePayload = JSON.stringify({
 			nonce: randomBytes(16).toString("hex"),
 			createdAt: context.now().getTime(),
+			intent,
 		});
 		const signedState = signState({ payload: statePayload, secret: gmail.stateSecret });
 
@@ -93,7 +108,7 @@ export function registerGmailConnectRoutes(
 			client_id: gmail.clientId,
 			redirect_uri: redirectUri,
 			response_type: "code",
-			scope: GMAIL_SCOPES,
+			scope: intent.kind === "import" ? GMAIL_READONLY_SCOPE : GMAIL_SCOPES,
 			// Google issues a refresh token only for an offline grant, and re-issues
 			// one only when consent is forced; without both, a reconnect returns an
 			// access token with nothing to renew it.
@@ -101,6 +116,7 @@ export function registerGmailConnectRoutes(
 			prompt: "consent",
 			state: signedState,
 		});
+		if (intent.kind === "import") params.set("include_granted_scopes", "true");
 		const existing = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		if (existing?.accountEmail !== undefined) params.set("login_hint", existing.accountEmail);
 
@@ -118,31 +134,21 @@ export function registerGmailConnectRoutes(
 		const stateCookie = req.cookies?.[STATE_COOKIE];
 		res.clearCookie(STATE_COOKIE, { path: "/" });
 
+		const payload = verifiedPayload(stateCookie);
 		if (typeof req.query.error === "string") {
-			res.redirect(303, buildIntegrationsUrl({ error: "oauth_denied" }));
+			const destination = payload?.intent.kind === "import"
+				? buildGmailUrl({ ...payload.intent.state, notice: "import_permission_refused" })
+				: buildIntegrationsUrl({ error: "oauth_denied" });
+			res.redirect(303, destination);
 			return;
 		}
 
 		const parsedQuery = CallbackQuerySchema.safeParse(req.query);
-		if (!parsedQuery.success || typeof stateCookie !== "string") {
+		if (!parsedQuery.success || payload === undefined || parsedQuery.data.state !== stateCookie) {
 			res.redirect(303, buildIntegrationsUrl({ error: "oauth_state" }));
 			return;
 		}
-		if (parsedQuery.data.state !== stateCookie) {
-			res.redirect(303, buildIntegrationsUrl({ error: "oauth_state" }));
-			return;
-		}
-		const verified = verifyState({ signed: stateCookie, secret: gmail.stateSecret });
-		if (verified === null) {
-			res.redirect(303, buildIntegrationsUrl({ error: "oauth_state" }));
-			return;
-		}
-		const statePayload = StatePayloadSchema.safeParse(JSON.parse(verified));
-		if (!statePayload.success) {
-			res.redirect(303, buildIntegrationsUrl({ error: "oauth_state" }));
-			return;
-		}
-		if (context.now().getTime() - statePayload.data.createdAt > STATE_TTL_MS) {
+		if (context.now().getTime() - payload.createdAt > STATE_TTL_MS) {
 			res.redirect(303, buildIntegrationsUrl({ error: "oauth_state" }));
 			return;
 		}
@@ -190,7 +196,7 @@ export function registerGmailConnectRoutes(
 		}
 
 		await gmail.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: found.value });
-		if (existing !== undefined) {
+		if (existing !== undefined && await reconnectRequired({ intent: payload.intent, existing, userId })) {
 			const connectedAt = await gmail.gmailConnectionStore.clearRevoked({ userId });
 			try {
 				await gmail.gmailDiscoveryStore.clearRequiresReconnect({ userId, generation: randomBytes(16).toString("hex") });
@@ -208,6 +214,16 @@ export function registerGmailConnectRoutes(
 				}
 				throw error;
 			}
+		}
+		if (payload.intent.kind === "import") {
+			const state = payload.intent.state;
+			if (!hasGmailScope({ grantedScope: grant.grant.grantedScope, scope: GMAIL_READONLY_SCOPE })) {
+				res.redirect(303, buildGmailUrl({ ...state, notice: "import_permission_refused" }));
+				return;
+			}
+			const resumed = await resumeImports({ userId, sender: payload.intent.sender });
+			res.redirect(303, buildGmailUrl({ ...state, notice: resumed > 0 ? "import_started" : "import_permission_granted" }));
+			return;
 		}
 		res.redirect(303, buildGmailUrl({ notice: "connected" }));
 	});

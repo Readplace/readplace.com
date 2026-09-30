@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import type { FindUserByEmail } from "@packages/provider-contracts/auth";
+import type { RefuseAdminAccess } from "./admin-forbidden.page";
 
 export interface RequireAdminDeps {
 	findUserByEmail: FindUserByEmail;
@@ -12,6 +13,7 @@ export interface RequireAdminDeps {
 	 * silently accept header-less requests.
 	 */
 	serviceToken: string;
+	refuse: RefuseAdminAccess;
 }
 
 function constantTimeEquals(a: string, b: string): boolean {
@@ -56,11 +58,6 @@ export function initRequireAdmin(deps: RequireAdminDeps) {
 				return;
 			}
 		}
-		res
-			.status(403)
-			.type("html")
-			.send(
-				"<!doctype html><title>403 Forbidden</title><p>Admin access required.</p>",
-			);
+		await deps.refuse(req, res);
 	};
 }

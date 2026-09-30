@@ -18,6 +18,8 @@ const SNAPSHOT_PATH_TEMPLATE =
 interface PlaywrightConfigOptions {
 	testMatch: string
 	outputDir: string
+	reportDir: string
+	galleryDir: string
 	baseURL: string | undefined
 	retries: number
 	headless: boolean
@@ -46,7 +48,10 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
 		fullyParallel: true,
 		workers: options.workers,
 		forbidOnly: true,
-		reporter: 'html',
+		reporter: [
+			['html', { outputFolder: options.reportDir, open: 'never' }],
+			[require.resolve('./screenshot-gallery-reporter'), { outputFolder: options.galleryDir }],
+		],
 		retries: options.retries,
 		timeout: options.timeout ?? 120000,
 		expect: {

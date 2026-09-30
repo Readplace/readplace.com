@@ -10,13 +10,13 @@ import {
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
-import { AliasNameSchema } from "@packages/domain/inbox";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryGmailFilters } from "@packages/test-fixtures/providers/gmail-filters";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
+import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initGmailForwardingConfirmedHandler } from "../../../domain/gmail/gmail-forwarding-confirmed-handler";
 import { initRewriteGmailFilter } from "../../../domain/gmail/rewrite-gmail-filter";
@@ -47,6 +47,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 				grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES },
 			},
 			accountEmail: { ok: true, value: GmailAccountEmailSchema.parse("reader@gmail.com") },
+			addresses: initInMemoryInboxAddress({ now: () => NOW }),
 			now: () => NOW,
 		});
 		const gmailFilters = initInMemoryGmailFilters();
@@ -150,6 +151,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const senderEmail = ForwardableSenderSchema.parse("dan@tldr.tech");
 		const discovery = gmail.bundle.gmailDiscoveryStore;
 		await discovery.startDiscovery({
+			checkedMessageCount: 0,
 			userId,
 			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
 			gatewayAddress: gateway,
@@ -175,16 +177,16 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const added = await agent
 			.post("/integrations/gmail/senders/add")
 			.type("form")
-			.send({ sender: senderEmail, destination: "new", inbox_name: "tldr" });
+			.send({ sender: senderEmail, readlist: "default" });
 		assert.equal(added.status, 303);
-		assert.equal(added.headers.location, "/integrations/gmail?notice=inbox_created&discovery=started");
+		assert.equal(added.headers.location, "/integrations/gmail?notice=sender_mapped&discovery=started");
 		assert.deepEqual(gmail.rewriteRequests, [{ userId, reason: "sender-added" }]);
 		const senderRow = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail });
-		assert(senderRow?.mappedAddress, "the sender must be mapped to a live inbox");
+		assert(senderRow?.mappedAddress, "the sender must be mapped to its readlist address");
 		const mapped = senderRow.mappedAddress;
 		const mappedEntry = await gmail.addresses.findByAddress(mapped);
-		assert.equal(mappedEntry?.purpose, "gmail-mapped");
-		assert.equal(mappedEntry?.name, AliasNameSchema.parse("tldr"));
+		assert.equal(mappedEntry?.purpose, "gmail-readlist");
+		assert.equal(mappedEntry?.readlist, undefined);
 
 		// (5) draining the sender-added rewrite forwards the unconfirmed inbox via
 		// the gateway and records the filter on the connection.
@@ -209,11 +211,9 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const page = await agent.get(GMAIL_PAGE);
 		assert.equal(page.status, 200);
 		const { document } = new JSDOM(page.text).window;
-		const mapping = document.querySelector(`[data-test-gmail-mapping="${mapped}"]`);
-		assert(mapping, "the mapped inbox must appear in the mapping list");
-		assert(
-			mapping.querySelector(`[data-test-gmail-mapped-sender="${senderEmail}"]`),
-			"the mapped sender must appear under its inbox",
-		);
+		const mapping = document.querySelector(`[data-test-gmail-mapping-row="${senderEmail}"]`);
+		assert(mapping, "the mapped newsletter must appear in the mapping list");
+		assert.equal(mapping.querySelector("[data-test-gmail-mapping-destination]")?.textContent, "Saved to All");
+		assert.equal(mapping.querySelector("[data-test-gmail-forwarding-state]")?.getAttribute("data-test-gmail-forwarding-state"), "live");
 	});
 });

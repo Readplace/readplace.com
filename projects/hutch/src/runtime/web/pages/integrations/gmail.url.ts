@@ -9,6 +9,10 @@ export const GMAIL_FILTER_RETRY_PATH = "/integrations/gmail/filter/retry";
 export const GMAIL_DISCOVERY_START_PATH = "/integrations/gmail/discovery/start";
 export const GMAIL_SENDERS_PATH = "/integrations/gmail/senders";
 export const GMAIL_DISCONNECT_PATH = "/integrations/gmail/disconnect";
+export const GMAIL_READLIST_CREATE_PATH = "/integrations/gmail/readlists/create";
+export const GMAIL_IMPORT_START_PATH = "/integrations/gmail/imports/start";
+export const GMAIL_IMPORT_RETRY_PATH = "/integrations/gmail/imports/retry";
+export const GMAIL_IMPORT_CANCEL_PATH = "/integrations/gmail/imports/cancel";
 
 const GMAIL_MAIL_URL = "https://mail.google.com/mail/u/0/";
 
@@ -22,39 +26,91 @@ export const GMAIL_CONFIRM_MAX_POLLS = 100;
 export const GMAIL_DISCOVERY_MAX_POLLS = 260;
 export const GMAIL_DISCOVERY_FAST_POLLS = 20;
 
+export const GMAIL_SENDER_OPTION_LIMIT = 100;
+
 export type GmailPageError =
 	| "sender_invalid"
 	| "sender_unknown"
 	| "metadata_required"
-	| "destination_invalid"
-	| "inbox_name_invalid"
-	| "inbox_name_taken"
-	| "inbox_limit";
+	| "readlist_invalid"
+	| "readlist_name_invalid"
+	| "readlist_limit"
+	| "import_in_progress"
+	| "import_unavailable"
+	| "import_reconnect_required"
+	| "import_revoked";
 
 export type GmailPageNotice =
 	| "connected"
 	| "confirmed"
 	| "sender_removed"
 	| "sender_mapped"
-	| "inbox_created"
+	| "sender_remapped"
+	| "readlist_created"
+	| "readlist_reused"
+	| "import_started"
+	| "import_permission_needed"
+	| "import_permission_refused"
+	| "import_permission_granted"
+	| "import_cancelled"
 	| "filter_retry_requested";
 
-export function buildGmailUrl(params: {
+export interface GmailPickerState {
+	search?: string;
+	advanced?: "1";
+	sender?: string;
+	readlist?: string;
+	readlist_name?: string;
+	import?: "0";
+	edit?: "1";
+	discovery_after?: string;
+}
+
+export interface GmailUrlParams extends GmailPickerState {
 	error?: GmailPageError;
 	notice?: GmailPageNotice;
-	search?: string;
-	sender?: string;
-	destination?: string;
-	inbox_name?: string;
 	discovery?: "started";
-	discovery_after?: string;
-} = {}): string {
+}
+
+const GMAIL_URL_PARAM_ORDER = [
+	"error",
+	"notice",
+	"search",
+	"advanced",
+	"sender",
+	"readlist",
+	"readlist_name",
+	"import",
+	"edit",
+	"discovery",
+	"discovery_after",
+] as const satisfies readonly (keyof GmailUrlParams)[];
+
+export function buildGmailUrl(params: GmailUrlParams = {}): string {
 	const query = new URLSearchParams();
-	for (const [key, value] of Object.entries(params)) {
+	for (const key of GMAIL_URL_PARAM_ORDER) {
+		const value = params[key];
 		if (value !== undefined) query.set(key, value);
 	}
 	const suffix = query.toString();
 	return suffix === "" ? GMAIL_PATH : `${GMAIL_PATH}?${suffix}`;
+}
+
+const optionalText = z.string().optional().catch(undefined);
+
+export const GmailPickerStateSchema = z.object({
+	search: optionalText,
+	advanced: z.literal("1").optional().catch(undefined),
+	sender: optionalText,
+	readlist: optionalText,
+	readlist_name: optionalText,
+	import: z.literal("0").optional().catch(undefined),
+	edit: z.literal("1").optional().catch(undefined),
+	discovery_after: optionalText,
+});
+
+export function parseGmailPickerState(source: unknown): GmailPickerState {
+	return GmailPickerStateSchema.catch({}).parse(source);
 }
 
 export const GMAIL_POLL_STATES = ["awaiting-confirmation", "confirm-failed"] as const;

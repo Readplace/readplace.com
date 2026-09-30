@@ -23,6 +23,7 @@ function capturingLogger() {
 
 const startRunning = (discovery: ReturnType<typeof initInMemoryGmailDiscovery>) =>
 	discovery.startDiscovery({
+		checkedMessageCount: 0,
 		userId: USER,
 		accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
 		gatewayAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),

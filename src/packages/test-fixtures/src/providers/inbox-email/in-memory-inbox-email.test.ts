@@ -374,4 +374,25 @@ describe("initInMemoryInboxEmail", () => {
 			expect(remaining.emails).toHaveLength(0);
 		});
 	});
+	it("finds the owner's received rows that carry a Message-ID, whichever inbox they arrived at", async () => {
+		const store = initInMemoryInboxEmail();
+		const forwarded = makeEntry({ receivedAtMessageId: "2026-06-23T00:00:00.000Z#<m-1@example.com>" });
+		const imported = makeEntry({
+			receivedAtMessageId: "2026-06-24T00:00:00.000Z#<m-1@example.com>",
+			recipientAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
+			senderEmail: "News <news@example.com>",
+		});
+		await store.putEmail(forwarded);
+		await store.putEmail(imported);
+		await store.putEmail(makeEntry({ receivedAtMessageId: "2026-06-25T00:00:00.000Z#<m-1@example.com>", status: "rejected", bodyS3Key: undefined }));
+		await store.putEmail(makeEntry({ receivedAtMessageId: "2026-06-26T00:00:00.000Z#<m-2@example.com>", messageId: MessageIdSchema.parse("<m-2@example.com>") }));
+		await store.putEmail(makeEntry({ userId: otherUser }));
+
+		const found = await store.findReceivedByMessageId({ userId: owner, messageId: MessageIdSchema.parse("<m-1@example.com>") });
+
+		expect(found).toEqual([
+			{ receivedAtMessageId: forwarded.receivedAtMessageId, senderEmail: "news@example.com" },
+			{ receivedAtMessageId: imported.receivedAtMessageId, senderEmail: "News <news@example.com>" },
+		]);
+	});
 });

@@ -10,8 +10,15 @@ export function isLiveAddress(entry: InboxAddressEntry): boolean {
 	return entry.disabledAt === undefined;
 }
 
+const CAPPED_PURPOSES: Record<InboxAddressPurpose, boolean> = {
+	"user-alias": true,
+	"gmail-forwarding": false,
+	"gmail-mapped": true,
+	"gmail-readlist": false,
+};
+
 export function isCappedAddress(entry: InboxAddressEntry): boolean {
-	return entry.purpose !== "gmail-forwarding";
+	return CAPPED_PURPOSES[entry.purpose];
 }
 
 export function countLiveCappedAddresses(entries: readonly InboxAddressEntry[]): number {
@@ -23,7 +30,7 @@ export function addressCapReached(input: {
 	owned: readonly InboxAddressEntry[];
 }): boolean {
 	return (
-		input.purpose !== "gmail-forwarding" &&
+		CAPPED_PURPOSES[input.purpose] &&
 		countLiveCappedAddresses(input.owned) >= INBOX_ADDRESS_MAX_PER_USER
 	);
 }

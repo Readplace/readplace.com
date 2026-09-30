@@ -8,6 +8,7 @@ import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { RevokeGmailGrant } from "@packages/provider-contracts/gmail-oauth";
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { CancelGmailHistoryImports } from "./cancel-gmail-history-imports";
 import type { RewriteGmailFilter } from "./rewrite-gmail-filter";
 
 export type DisconnectGmailOutcome =
@@ -25,6 +26,7 @@ export function initDisconnectGmail(deps: {
 	addresses: InboxAddressStore;
 	rewriteGmailFilter: RewriteGmailFilter;
 	revokeGmailGrant: RevokeGmailGrant;
+	cancelGmailHistoryImports: CancelGmailHistoryImports;
 	logger: HutchLogger;
 }): DisconnectGmail {
 	const { connections, credentials, senders, addresses, rewriteGmailFilter, revokeGmailGrant, logger } = deps;
@@ -36,6 +38,7 @@ export function initDisconnectGmail(deps: {
 			return { ok: false, reason: "not-connected" };
 		}
 
+		await deps.cancelGmailHistoryImports({ userId, senderEmail: undefined, reason: "disconnected" });
 		await senders.deleteAllSendersByUserId(userId);
 		const rewritten = await rewriteGmailFilter({ userId });
 		if (!rewritten.ok && rewritten.reason === "unavailable") {

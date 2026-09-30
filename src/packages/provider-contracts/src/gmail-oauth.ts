@@ -24,3 +24,5 @@ export type RevokeGmailGrantResult =
 export type RevokeGmailGrant = (input: {
 	refreshToken: string;
 }) => Promise<RevokeGmailGrantResult>;
+
+export const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";

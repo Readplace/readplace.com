@@ -13,6 +13,7 @@ import { AliasNameSchema, GMAIL_FORWARDING_ALIAS, parseEmail } from "@packages/d
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gmail-held-mail";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -21,8 +22,10 @@ import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initConfirmForwardingAddress } from "./confirm-forwarding-address";
 import { initConfirmGmailForwardingHandler } from "./confirm-gmail-forwarding-handler";
 import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
+import { initIngestParsedEmail } from "../inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "../inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "../inbox/receive-email-handler";
+import { initResolveEmailIdentity } from "../inbox/resolve-email-identity";
 
 // The whole confirmation leg had never completed once in production or staging
 // (commit 3bcecf5a): every hop is unit-tested against stubbed neighbours, so no
@@ -68,8 +71,18 @@ function makeInbox() {
 		putEmail: emails.putEmail,
 		parseEmail,
 		downloadEmailImages: async () => [],
-		storeBody: async () => "content/email/content.html",
-		publishEvent,
+		resolveIdentity: initResolveEmailIdentity({
+			identities: initInMemoryEmailIdentity(),
+			findReceivedByMessageId: emails.findReceivedByMessageId,
+			getEmail: emails.getEmail,
+			now,
+		}),
+		ingest: initIngestParsedEmail({
+			storeBody: async () => "content/email/content.html",
+			putEmail: emails.putEmail,
+			publishEvent,
+			logger,
+		}),
 		interceptGmailConfirmation: initInterceptGmailConfirmation({
 			publishConfirmGmailForwarding: (detail) => publishEvent(ConfirmGmailForwardingCommand, detail),
 			logger,

@@ -70,8 +70,19 @@ import {
 	initDynamoDbGmailCredentials,
 	initDynamoDbGmailSender,
 	initDynamoDbGmailDiscovery,
+	initDynamoDbGmailHistoryImport,
 } from "@packages/inbox-store";
-import { DisconnectGmailCommand, RewriteGmailFilterCommand, StartGmailSenderDiscoveryCommand } from "@packages/hutch-infra-components";
+import {
+	DisconnectGmailCommand,
+	RewriteGmailFilterCommand,
+	StartGmailHistoryImportCommand,
+	StartGmailSenderDiscoveryCommand,
+	SubmitNewsletterSenderCommand,
+} from "@packages/hutch-infra-components";
+import { randomBytes, randomUUID } from "node:crypto";
+import { type ForwardableSender, type GmailHistoryImportJobId, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
+import { initCancelGmailHistoryImports } from "../domain/gmail/cancel-gmail-history-imports";
+import { NEWSLETTER_CATALOG_OBJECT_KEY, initS3NewsletterCatalog } from "./newsletter-catalog/s3-newsletter-catalog";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
@@ -84,8 +95,8 @@ import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/articl
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
-import type { AliasName } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import { initReportReadlistCap } from "../observability/readlist-cap";
 import type { ReadlistCapApproachedLine } from "../observability/events";
 
@@ -308,6 +319,17 @@ export function initProdProviders(input: { appOrigin: string }) {
 		now: () => new Date(),
 	});
 
+	const gmailHistoryImportStore = initDynamoDbGmailHistoryImport({
+		client,
+		tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE"),
+	});
+	const newsletterCatalog = initS3NewsletterCatalog({
+		client: s3Client,
+		bucketName: requireEnv("NEWSLETTER_CATALOG_BUCKET_NAME"),
+		key: NEWSLETTER_CATALOG_OBJECT_KEY,
+		logger,
+	});
+
 	const gmailIntegration = {
 		exchangeGmailCode: initExchangeGmailCode({
 			clientId: gmailClientId,
@@ -349,25 +371,29 @@ export function initProdProviders(input: { appOrigin: string }) {
 			return entry.address;
 		},
 		findInboxAddress: inboxAddressStore.findByAddress,
-		mintInboxAddress: async ({ userId, name }: { userId: UserId; name: AliasName }) => {
-			const entry = await inboxAddressStore.createAddress({
-				userId,
-				domain: inboxAddressDomain,
-				name,
-				purpose: "gmail-mapped",
-			});
-			return entry.address;
-		},
-		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		publishRewriteGmailFilter: async (detail: {
 			userId: UserId;
-			reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested" | "reconnected";
+			reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested" | "reconnected" | "readlist-deleted";
 		}) => {
 			await publishEvent(RewriteGmailFilterCommand, detail);
 		},
 		publishDisconnectGmail: async (detail: { userId: UserId }) => {
 			await publishEvent(DisconnectGmailCommand, detail);
 		},
+		getOrCreateReadlistAddress: ({ userId, readlist }: { userId: UserId; readlist: ReadlistSlug }) =>
+			inboxAddressStore.getOrCreateReadlistAddress({ userId, domain: inboxAddressDomain, readlist }),
+		findReadlistAddress: inboxAddressStore.findReadlistAddress,
+		retireReadlistAddress: inboxAddressStore.retireReadlistAddress,
+		gmailHistoryImportStore,
+		cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports: gmailHistoryImportStore, now: () => new Date() }),
+		publishStartGmailHistoryImport: async (detail: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }) => {
+			await publishEvent(StartGmailHistoryImportCommand, detail);
+		},
+		publishSubmitNewsletterSender: async (detail: { senderEmail: ForwardableSender }) => {
+			await publishEvent(SubmitNewsletterSenderCommand, detail);
+		},
+		newGmailHistoryImportJobId: () => GmailHistoryImportJobIdSchema.parse(randomBytes(16).toString("hex")),
+		newGmailHistoryImportGeneration: randomUUID,
 	};
 	const { consumeRateLimit } = initDynamoDbRateLimit({
 		client,
@@ -431,6 +457,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		...pendingSignup,
 		googleAuth,
 		gmailIntegration,
+		readNewsletterCatalog: newsletterCatalog.readCatalog,
+		writeNewsletterCatalog: newsletterCatalog.writeCatalog,
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,

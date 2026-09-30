@@ -17,6 +17,7 @@ export class InboxStorage extends pulumi.ComponentResource {
 	public readonly savedLinksTable: aws.dynamodb.Table;
 	public readonly gmailSendersTable: aws.dynamodb.Table;
 	public readonly gmailHeldMailTable: aws.dynamodb.Table;
+	public readonly emailIdentitiesTable: aws.dynamodb.Table;
 
 	constructor(
 		name: string,
@@ -29,6 +30,7 @@ export class InboxStorage extends pulumi.ComponentResource {
 				savedLinks: string;
 				gmailSenders: string;
 				gmailHeldMail: string;
+				emailIdentities: string;
 			};
 		},
 		opts?: pulumi.ComponentResourceOptions,
@@ -71,6 +73,16 @@ export class InboxStorage extends pulumi.ComponentResource {
 			attributes: [
 				{ name: "userId", type: "S" },
 				{ name: "receivedAtMessageId", type: "S" },
+				{ name: "messageId", type: "S" },
+			],
+			globalSecondaryIndexes: [
+				{
+					name: "messageId-index",
+					hashKey: "messageId",
+					rangeKey: "userId",
+					projectionType: "INCLUDE",
+					nonKeyAttributes: ["senderEmail", "status"],
+				},
 			],
 		}, { parent: this });
 
@@ -143,6 +155,21 @@ export class InboxStorage extends pulumi.ComponentResource {
 			],
 			localSecondaryIndexes: [
 				{ name: "senderReceivedAt-index", rangeKey: "senderReceivedAt", projectionType: "ALL" },
+			],
+		}, { parent: this });
+
+		this.emailIdentitiesTable = new aws.dynamodb.Table(`hutch-inbox-email-identities`, {
+			name: args.tableNames.emailIdentities,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "identityKey",
+			attributes: [
+				{ name: "identityKey", type: "S" },
+				{ name: "userId", type: "S" },
+			],
+			globalSecondaryIndexes: [
+				{ name: "userId-index", hashKey: "userId", projectionType: "KEYS_ONLY" },
 			],
 		}, { parent: this });
 

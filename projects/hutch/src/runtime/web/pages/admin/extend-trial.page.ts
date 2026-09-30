@@ -24,6 +24,7 @@ import {
 	toDateTimeLocalInput,
 	toExtendTrialViewModel,
 } from "./extend-trial.view-model";
+import { initRefuseAdminAccess } from "./admin-forbidden.page";
 import { initRequireAdmin } from "./require-admin.middleware";
 
 export interface AdminExtendTrialDependencies {
@@ -52,6 +53,7 @@ export function initAdminExtendTrialRoutes(deps: AdminExtendTrialDependencies): 
 			findUserByEmail: deps.findUserByEmail,
 			adminEmails: deps.adminEmails,
 			serviceToken: deps.serviceToken,
+			refuse: initRefuseAdminAccess({ buildBannerState: deps.buildBannerState }),
 		}),
 	);
 

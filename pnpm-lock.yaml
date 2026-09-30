@@ -390,6 +390,9 @@ importers:
       '@packages/crawl-article':
         specifier: workspace:*
         version: link:../../src/packages/crawl-article
+      '@packages/dead-letter-routing':
+        specifier: workspace:*
+        version: link:../../src/packages/dead-letter-routing
       '@packages/domain':
         specifier: workspace:*
         version: link:../../src/packages/domain

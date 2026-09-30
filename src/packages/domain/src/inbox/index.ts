@@ -52,6 +52,20 @@ export type {
 	ListInboxEmailsResult,
 } from "./inbox-email.types";
 export {
+	NormalizedMessageIdSchema,
+	type NormalizedMessageId,
+	normalizeMessageId,
+	EmailIdentityKeySchema,
+	type EmailIdentityKey,
+	messageIdentityKey,
+	IngestionAttemptSchema,
+	type IngestionAttempt,
+	ingestionAttemptKey,
+	type EmailIdentityClaim,
+	type ClaimEmailIdentityResult,
+	type EmailIdentityStore,
+} from "./email-identity";
+export {
 	MessageIdSchema,
 	type MessageId,
 	InboxEmailStatusSchema,

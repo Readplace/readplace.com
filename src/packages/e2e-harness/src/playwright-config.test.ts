@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import { createPlaywrightConfig } from "./playwright-config";
 import { READY_NONCE_ENV, readyProbePath } from "./ready-probe";
 
@@ -6,6 +7,8 @@ function localConfig() {
 	return createPlaywrightConfig({
 		testMatch: "**/*.e2e-local.ts",
 		outputDir: "./test-results/local",
+		reportDir: "./playwright-report",
+		galleryDir: "./test-results/screenshot-gallery",
 		baseURL: "http://localhost:4001",
 		retries: 0,
 		headless: true,
@@ -51,6 +54,8 @@ describe("createPlaywrightConfig", () => {
 		const config = createPlaywrightConfig({
 			testMatch: "**/*.e2e-staging.ts",
 			outputDir: "./test-results/staging",
+			reportDir: "./playwright-report",
+			galleryDir: "./test-results/screenshot-gallery",
 			baseURL: "https://staging.readplace.com",
 			retries: 2,
 			headless: true,
@@ -68,6 +73,8 @@ describe("createPlaywrightConfig", () => {
 		const config = createPlaywrightConfig({
 			testMatch: "**/*.e2e-local.ts",
 			outputDir: "./test-results/local",
+			reportDir: "./playwright-report",
+			galleryDir: "./test-results/screenshot-gallery",
 			baseURL: "http://localhost:4001",
 			retries: 0,
 			headless: false,
@@ -90,6 +97,8 @@ describe("createPlaywrightConfig", () => {
 		const shared = {
 			testMatch: "**/*-visual.e2e-local.ts",
 			outputDir: "./test-results/local",
+			reportDir: "./playwright-report",
+			galleryDir: "./test-results/screenshot-gallery",
 			baseURL: undefined,
 			retries: 0,
 			headless: true,
@@ -111,6 +120,8 @@ describe("createPlaywrightConfig", () => {
 		const shared = {
 			testMatch: "**/*-visual.e2e-local.ts",
 			outputDir: "./test-results/local",
+			reportDir: "./playwright-report",
+			galleryDir: "./test-results/screenshot-gallery",
 			baseURL: undefined,
 			retries: 0,
 			headless: true,
@@ -131,6 +142,8 @@ describe("createPlaywrightConfig", () => {
 		const shared = {
 			testMatch: "**/*-visual.e2e-local.ts",
 			outputDir: "./test-results/local",
+			reportDir: "./playwright-report",
+			galleryDir: "./test-results/screenshot-gallery",
 			baseURL: undefined,
 			retries: 0,
 			headless: true,
@@ -149,6 +162,8 @@ describe("createPlaywrightConfig", () => {
 		const shared = {
 			testMatch: "**/*.e2e-local.ts",
 			outputDir: "./test-results/local",
+			reportDir: "./playwright-report",
+			galleryDir: "./test-results/screenshot-gallery",
 			baseURL: "http://localhost:4001",
 			retries: 0,
 			headless: true,
@@ -165,6 +180,8 @@ describe("createPlaywrightConfig", () => {
 		const shared = {
 			testMatch: "**/*-visual.e2e-local.ts",
 			outputDir: "./test-results/local",
+			reportDir: "./playwright-report",
+			galleryDir: "./test-results/screenshot-gallery",
 			baseURL: undefined,
 			retries: 0,
 			headless: true,
@@ -175,5 +192,28 @@ describe("createPlaywrightConfig", () => {
 
 		expect(createPlaywrightConfig({ ...shared }).workers).toBeUndefined();
 		expect(createPlaywrightConfig({ ...shared, workers: 2 }).workers).toBe(2);
+	});
+
+	it("writes the HTML report and the screenshot gallery to the folders the suite names, never opening a browser", () => {
+		const config = createPlaywrightConfig({
+			testMatch: "**/*.e2e-local.ts",
+			outputDir: "/frames/run-7/playwright/hutch",
+			reportDir: "./playwright-report",
+			galleryDir: "./test-results/screenshot-gallery",
+			baseURL: "http://localhost:4001",
+			retries: 0,
+			headless: true,
+			video: "off",
+			launchOptions: undefined,
+			webServer: undefined,
+		});
+
+		expect(config.reporter).toEqual([
+			["html", { outputFolder: "./playwright-report", open: "never" }],
+			[
+				path.join(__dirname, "screenshot-gallery-reporter.js"),
+				{ outputFolder: "./test-results/screenshot-gallery" },
+			],
+		]);
 	});
 });

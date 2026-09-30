@@ -228,6 +228,26 @@ describe("Inbox emails list route", () => {
 		expect(names).toEqual(["inbox", "my-newsletter"]);
 	});
 
+	it("lists exactly the reader's own addresses, leaving Gmail forwarding and readlist addresses out", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist before seeding addresses");
+		const store = fixture.inboxAddress.inboxAddressStore;
+		const own = await store.createAddress({ userId: user.userId, domain: "read.place", name: AliasNameSchema.parse("inbox"), purpose: "user-alias" });
+		await store.createAddress({ userId: user.userId, domain: "read.place", name: AliasNameSchema.parse("gmail"), purpose: "gmail-forwarding" });
+		await store.createAddress({ userId: user.userId, domain: "read.place", name: AliasNameSchema.parse("gmail"), purpose: "gmail-readlist" });
+
+		const response = await agent.get("/inbox");
+
+		const list = new JSDOM(response.text).window.document.querySelector("[data-test-inbox-empty-addresses]");
+		assert(list, "address list must render");
+		expect(
+			Array.from(list.querySelectorAll("[data-test-inbox-empty-address] input"), (input) => input.getAttribute("value")),
+		).toEqual([own.address]);
+	});
+
 	it("drops the setup CTA once mail has arrived", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

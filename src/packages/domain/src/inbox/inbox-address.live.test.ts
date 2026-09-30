@@ -58,13 +58,18 @@ describe("isCappedAddress", () => {
 	it("exempts the Gmail gateway address", () => {
 		assert.equal(isCappedAddress(makeEntry({ purpose: "gmail-forwarding" })), false);
 	});
+
+	it("exempts a hidden Gmail readlist address", () => {
+		assert.equal(isCappedAddress(makeEntry({ purpose: "gmail-readlist" })), false);
+	});
 });
 
 describe("countLiveCappedAddresses", () => {
-	it("counts every live address except the Gmail gateway", () => {
+	it("counts every live address except the Gmail gateway and readlist addresses", () => {
 		const entries = [
 			makeEntry(),
 			makeEntry({ purpose: "gmail-forwarding" }),
+			makeEntry({ purpose: "gmail-readlist" }),
 			makeEntry({ purpose: "gmail-mapped" }),
 			makeEntry({ disabledAt: DISABLED_AT }),
 		];
@@ -93,6 +98,19 @@ describe("addressCapReached", () => {
 	it("never caps the Gmail gateway address, even when the cap is full", () => {
 		const owned = liveUserAliases(INBOX_ADDRESS_MAX_PER_USER);
 		assert.equal(addressCapReached({ purpose: "gmail-forwarding", owned }), false);
+	});
+
+	it("never caps a Gmail readlist address, even when the cap is full", () => {
+		const owned = liveUserAliases(INBOX_ADDRESS_MAX_PER_USER);
+		assert.equal(addressCapReached({ purpose: "gmail-readlist", owned }), false);
+	});
+
+	it("leaves room for a user alias when the user holds many readlist addresses", () => {
+		const owned = [
+			...liveUserAliases(INBOX_ADDRESS_MAX_PER_USER - 1),
+			...Array.from({ length: INBOX_ADDRESS_MAX_PER_USER }, () => makeEntry({ purpose: "gmail-readlist" })),
+		];
+		assert.equal(addressCapReached({ purpose: "user-alias", owned }), false);
 	});
 
 	it("caps a Gmail-mapped inbox once the cap is full, since it now counts", () => {

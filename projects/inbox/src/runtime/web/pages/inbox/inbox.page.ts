@@ -216,7 +216,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		const activeAddresses =
 			result.emails.length === 0
 				? (await deps.inboxAddressStore.listAddressesByUserId(userId))
-						.filter(isLiveAddress)
+						.filter((entry) => isLiveAddress(entry) && isCappedAddress(entry))
 						.map((entry) => ({ name: entry.name, address: entry.address }))
 				: [];
 		const vm = toInboxEmailsViewModel(result, {

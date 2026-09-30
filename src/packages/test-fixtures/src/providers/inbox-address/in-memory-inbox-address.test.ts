@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	AliasNameSchema,
@@ -308,6 +308,103 @@ describe("initInMemoryInboxAddress", () => {
 			expect(otherRow.address).toBe(otherOwned.address);
 			expect(otherRow.userId).toBe(otherUser);
 			expect(otherRow.disabledAt).toBeUndefined();
+		});
+	});
+	describe("readlist addresses", () => {
+		it("mints one hidden, uncapped readlist address per readlist and reuses it for every later sender", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date("2026-09-30T00:00:00.000Z") });
+			for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+				await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+			}
+
+			const minted = await store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: WORK });
+			const reused = await store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: WORK });
+
+			expect(minted.address).toMatch(/^gmail-[0-9a-z]{6}@read\.place$/);
+			expect(minted).toEqual({
+				address: minted.address,
+				userId: owner,
+				name: "gmail",
+				token: minted.token,
+				createdAt: "2026-09-30T00:00:00.000Z",
+				disabledAt: undefined,
+				purpose: "gmail-readlist",
+				readlist: WORK,
+			});
+			expect(reused).toEqual(minted);
+			expect(await store.findByAddress(minted.address)).toEqual(minted);
+		});
+
+		it("leaves the readlist unset on the All address", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+
+			const all = await store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: DEFAULT_READLIST_SLUG });
+
+			expect(all.purpose).toBe("gmail-readlist");
+			expect(all.readlist).toBeUndefined();
+			expect(await store.findReadlistAddress({ userId: owner, readlist: DEFAULT_READLIST_SLUG })).toEqual(all);
+		});
+
+		it("keeps readlists and users apart", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+
+			const work = await store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: WORK });
+			const reading = await store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: READING });
+			const othersWork = await store.getOrCreateReadlistAddress({ userId: otherUser, domain: DOMAIN, readlist: WORK });
+
+			expect(new Set([work.address, reading.address, othersWork.address]).size).toBe(3);
+			expect(othersWork.userId).toBe(otherUser);
+		});
+
+		it("converges concurrent creations on one live address and disables the loser's row", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+
+			const [first, second] = await Promise.all([
+				store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: WORK }),
+				store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: WORK }),
+			]);
+
+			expect(second).toEqual(first);
+			const rows = await store.listAddressesByUserId(owner);
+			expect(rows.map((row) => row.disabledAt === undefined).sort()).toEqual([false, true]);
+			expect(rows.find((row) => row.disabledAt === undefined)?.address).toBe(first.address);
+		});
+
+		it("finds no readlist address before one is created", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+
+			expect(await store.findReadlistAddress({ userId: owner, readlist: WORK })).toBeUndefined();
+		});
+
+		it("retires a readlist address by disabling it and freeing the readlist for a fresh address", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date("2026-09-30T00:00:00.000Z") });
+			const retired = await store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: WORK });
+
+			expect(await store.retireReadlistAddress({ userId: owner, readlist: WORK })).toBe(retired.address);
+
+			expect((await store.findByAddress(retired.address))?.disabledAt).toBe("2026-09-30T00:00:00.000Z");
+			expect(await store.findReadlistAddress({ userId: owner, readlist: WORK })).toBeUndefined();
+			const fresh = await store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: WORK });
+			expect((await store.listAddressesByUserId(owner)).map((row) => row.address)).toEqual([retired.address, fresh.address]);
+			expect(await store.findReadlistAddress({ userId: owner, readlist: WORK })).toEqual(fresh);
+		});
+
+		it("retires nothing when the readlist never had an address", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+
+			expect(await store.retireReadlistAddress({ userId: owner, readlist: WORK })).toBeUndefined();
+		});
+
+		it("deletes only the owner's readlist claims, leaving the address rows in place", async () => {
+			const store = initInMemoryInboxAddress({ now: () => new Date() });
+			const owned = await store.getOrCreateReadlistAddress({ userId: owner, domain: DOMAIN, readlist: WORK });
+			const others = await store.getOrCreateReadlistAddress({ userId: otherUser, domain: DOMAIN, readlist: WORK });
+
+			await store.deleteReadlistAddressClaims(owner);
+
+			expect(await store.findReadlistAddress({ userId: owner, readlist: WORK })).toBeUndefined();
+			expect(await store.findReadlistAddress({ userId: otherUser, readlist: WORK })).toEqual(others);
+			expect(await store.findByAddress(owned.address)).toEqual(owned);
 		});
 	});
 });

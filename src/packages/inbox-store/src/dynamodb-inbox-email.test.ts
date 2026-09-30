@@ -76,6 +76,7 @@ interface CapturedCommand {
 		ExpressionAttributeValues?: Record<string, unknown>;
 		ExclusiveStartKey?: Record<string, unknown>;
 		UpdateExpression?: string;
+		ConsistentRead?: boolean;
 	};
 }
 
@@ -498,6 +499,7 @@ describe("initDynamoDbInboxEmail", () => {
 				userId: USER,
 				receivedAtMessageId: "2026-06-23T00:00:00.000Z#<m-1@example.com>",
 			});
+			expect(captured?.input.ConsistentRead).toBe(true);
 			assert(entry, "expected the row to be returned");
 			expect(entry.subject).toBe("Weekly digest");
 			expect(entry.linkCounts).toEqual({ kept: 2, skipped: 1, truncated: false });
@@ -717,6 +719,39 @@ describe("initDynamoDbInboxEmail", () => {
 			await store.deleteAllEmailsByUserId(USER);
 
 			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+		});
+	});
+	describe("findReceivedByMessageId", () => {
+		it("queries the Message-ID index for the user's received rows across every page", async () => {
+			const { client, commands } = createPaginatedClient([
+				{
+					rows: [{ userId: "user-1", messageId: "<m-1@example.com>", receivedAtMessageId: "r1", senderEmail: "News <news@example.com>", status: "received" }],
+					lastEvaluatedKey: { messageId: "<m-1@example.com>", userId: "user-1", receivedAtMessageId: "r1" },
+				},
+				{
+					rows: [{ userId: "user-1", messageId: "<m-1@example.com>", receivedAtMessageId: "r2", senderEmail: "news@example.com", status: "received" }],
+				},
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const received = await store.findReceivedByMessageId({ userId: USER, messageId: MessageIdSchema.parse("<m-1@example.com>") });
+
+			expect(received).toEqual([
+				{ receivedAtMessageId: "r1", senderEmail: "News <news@example.com>" },
+				{ receivedAtMessageId: "r2", senderEmail: "news@example.com" },
+			]);
+			expect(commands).toHaveLength(2);
+			expect(commands[0]?.input).toEqual(
+				expect.objectContaining({
+					TableName: TABLE,
+					IndexName: "messageId-index",
+					KeyConditionExpression: "messageId = :messageId AND userId = :uid",
+					FilterExpression: "#status = :received",
+					ExpressionAttributeNames: { "#status": "status" },
+					ExpressionAttributeValues: { ":messageId": "<m-1@example.com>", ":uid": USER, ":received": "received" },
+				}),
+			);
+			expect(commands[1]?.input.ExclusiveStartKey).toEqual({ messageId: "<m-1@example.com>", userId: "user-1", receivedAtMessageId: "r1" });
 		});
 	});
 });

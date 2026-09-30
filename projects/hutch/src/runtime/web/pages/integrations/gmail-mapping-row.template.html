@@ -1,0 +1,28 @@
+<li class="gmail-mappings__row" data-test-gmail-mapping-row="{{sender}}">
+              <div class="gmail-mappings__route">
+                <p class="gmail-mappings__source" data-test-gmail-mapping-source>{{#if newsletterName}}<span class="gmail-mappings__name">{{newsletterName}}</span>{{/if}}<span class="gmail-mappings__from">{{sender}}</span></p>
+                <span class="gmail-mappings__arrow" aria-hidden="true">{{icon "arrow-right"}}</span>
+                <p class="gmail-mappings__destination {{destinationClass}}" data-test-gmail-mapping-destination data-destination-kind="{{destinationKind}}"><span class="sr-only">Saved to </span>{{destinationLabel}}</p>
+              </div>
+              {{#if destinationNote}}<p class="gmail-mappings__note">{{destinationNote}}</p>{{/if}}
+              <p class="gmail-mappings__forwarding {{forwardingClass}}" data-test-gmail-forwarding-state="{{forwarding}}">{{forwardingLabel}}</p>
+              <div class="gmail-mappings__import" data-test-gmail-import-state="{{importState}}">
+                {{#if importMessage}}<p class="gmail-mappings__import-message" role="status">{{importMessage}}</p>{{/if}}
+                <ul class="gmail-mappings__counts">
+                  {{#each importCounts}}
+                  <li class="gmail-mappings__count" data-test-gmail-import-count="{{key}}">{{label}}</li>
+                  {{/each}}
+                </ul>
+                {{{consentHtml}}}
+              </div>
+              <div class="gmail-mappings__actions">
+                {{#each actions}}
+                <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+                  {{#each fields}}
+                  <input type="hidden" name="{{name}}" value="{{value}}">
+                  {{/each}}
+                  <button class="btn btn--{{variant}} btn--s" type="submit" data-test-gmail-mapping-action="{{key}}">{{label}}</button>
+                </form>
+                {{/each}}
+              </div>
+            </li>

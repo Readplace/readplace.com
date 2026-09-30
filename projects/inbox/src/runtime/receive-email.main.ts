@@ -13,17 +13,20 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
+import { initIngestParsedEmail } from "./domain/inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "./domain/inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "./domain/inbox/receive-email-handler";
+import { initResolveEmailIdentity } from "./domain/inbox/resolve-email-identity";
 import { initStoreEmailBody } from "./domain/inbox/store-email-body";
 import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
-import { initDynamoDbGmailHeldMail, initDynamoDbGmailSender, initDynamoDbInboxAddress, initDynamoDbInboxEmail, initS3ReadRawEmail, initS3WriteEmailContent } from "@packages/inbox-store";
+import { initDynamoDbEmailIdentity, initDynamoDbGmailHeldMail, initDynamoDbGmailSender, initDynamoDbInboxAddress, initDynamoDbInboxEmail, initS3ReadRawEmail, initS3WriteEmailContent } from "@packages/inbox-store";
 import { initRouteGmailForwardedEmail } from "./domain/gmail/route-gmail-forwarded-email";
 
 const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
 const gmailSendersTable = requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE");
 const gmailHeldMailTable = requireEnv("DYNAMODB_GMAIL_HELD_MAIL_TABLE");
+const emailIdentitiesTable = requireEnv("DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE");
 const rawEmailBucketName = requireEnv("RAW_EMAIL_BUCKET_NAME");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
@@ -72,8 +75,13 @@ export const handler = initReceiveEmailHandler({
 	putEmail: inboxEmailStore.putEmail,
 	parseEmail,
 	downloadEmailImages: initDownloadEmailImages({ crawlFetch, logger }),
-	storeBody,
-	publishEvent,
+	resolveIdentity: initResolveEmailIdentity({
+		identities: initDynamoDbEmailIdentity({ client: dynamoClient, tableName: emailIdentitiesTable }),
+		findReceivedByMessageId: inboxEmailStore.findReceivedByMessageId,
+		getEmail: inboxEmailStore.getEmail,
+		now: () => new Date(),
+	}),
+	ingest: initIngestParsedEmail({ storeBody, putEmail: inboxEmailStore.putEmail, publishEvent, logger }),
 	interceptGmailConfirmation: initInterceptGmailConfirmation({
 		publishConfirmGmailForwarding: (detail) => publishEvent(ConfirmGmailForwardingCommand, detail),
 		logger,

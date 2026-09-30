@@ -74,4 +74,18 @@ export interface InboxAddressStore {
 	/** Tombstones every address the user owns as part of account deletion. See
 	 * {@link TombstoneUserAddresses}. */
 	tombstoneUserAddresses: TombstoneUserAddresses;
+	getOrCreateReadlistAddress: (input: {
+		userId: UserId;
+		domain: string;
+		readlist: ReadlistSlug;
+	}) => Promise<InboxAddressEntry>;
+	findReadlistAddress: (input: {
+		userId: UserId;
+		readlist: ReadlistSlug;
+	}) => Promise<InboxAddressEntry | undefined>;
+	retireReadlistAddress: (input: {
+		userId: UserId;
+		readlist: ReadlistSlug;
+	}) => Promise<InboxAddress | undefined>;
+	deleteReadlistAddressClaims: (userId: UserId) => Promise<void>;
 }

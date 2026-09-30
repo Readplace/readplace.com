@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
-import type { GmailAccountEmail } from "@packages/domain/gmail";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import type { GmailAccountEmail, GmailHistoryImportJob } from "@packages/domain/gmail";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
-import { GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
+import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import { signState } from "../../auth/oauth-state";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -32,7 +35,7 @@ function fixtureWithGmail(
 	grant: GmailGrantResult = grantOk(),
 	accountEmail: GmailApiResult<GmailAccountEmail> = { ok: true, value: GmailAccountEmailSchema.parse("reader@gmail.com") },
 ) {
-	const gmail = initInMemoryGmailIntegration({ grant, accountEmail });
+	const gmail = initInMemoryGmailIntegration({ grant, accountEmail, addresses: initInMemoryInboxAddress({ now: () => new Date() }) });
 	const fixture = {
 		...createDefaultTestAppFixture(TEST_APP_ORIGIN),
 		gmailIntegration: gmail.bundle,
@@ -272,6 +275,7 @@ describe("GET /integrations/gmail/callback", () => {
 			grantedScope: GMAIL_SCOPES,
 		});
 		await gmail.bundle.gmailDiscoveryStore.startDiscovery({
+			checkedMessageCount: 0,
 			userId,
 			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
 			gatewayAddress,
@@ -489,6 +493,46 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent, { state: "forged-state" });
 
 		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/integrations?error=oauth_state");
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
+	});
+
+	it("refuses a callback that returns after the consent state expired", async () => {
+		const { fixture, gmailCredentialsStore } = fixtureWithGmail();
+		let offsetMs = 0;
+		fixture.shared.now = () => new Date(Date.now() + offsetMs);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const started = await agent.post(CONNECT).send();
+		offsetMs = 5 * 60 * 1000 + 1000;
+
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: new URL(started.headers.location).searchParams.get("state") });
+
+		expect(response.headers.location).toBe("/integrations?error=oauth_state");
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
+	});
+
+	it.each([
+		["a tampered signature", "tampered.signature"],
+		["a payload signed before connect intents existed", signState({ payload: JSON.stringify({ nonce: "n", createdAt: Date.now() }), secret: "test-state-secret" })],
+	])("refuses a callback whose state cookie carries %s", async (_label, state) => {
+		const { fixture, gmailCredentialsStore } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+		const login = await request(harness.server).post("/login").set("User-Agent", BROWSER_USER_AGENT).type("form").send({ email: "test@example.com", password: "password123" });
+		const session = login.headers["set-cookie"];
+		assert(Array.isArray(session), "signing in must set the session cookie");
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+
+		const response = await request(harness.server)
+			.get(CALLBACK)
+			.query({ code: "auth-code", state })
+			.set("User-Agent", BROWSER_USER_AGENT)
+			.set("Cookie", [...session.map((cookie) => cookie.split(";")[0]), `hutch_gmail_state=${encodeURIComponent(state)}`].join("; "));
+
 		expect(response.headers.location).toBe("/integrations?error=oauth_state");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 	});
@@ -716,5 +760,167 @@ describe("GET /integrations after the Gmail callback", () => {
 		expect(response.status).toBe(200);
 		expect(response.text).toContain('data-test-integration-status="awaiting-confirmation"');
 		expect(response.text).toContain('data-test-integration-action="finish-setup"');
+	});
+});
+
+describe("Gmail read permission for an import", () => {
+	const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
+	const READER = GmailAccountEmailSchema.parse("reader@gmail.com");
+
+	async function awaitingImport(
+		grantedScope: string,
+		job: Pick<GmailHistoryImportJob, "state" | "failureReason"> & { failed?: number; destination?: "mapped" | "previous" } = { state: "awaiting-permission", failureReason: undefined },
+	) {
+		const { fixture, gmail, gmailConnectionStore } = fixtureWithGmail({
+			ok: true,
+			grant: { refreshToken: "refresh-value", accessToken: "access-value", grantedScope },
+		});
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: READER });
+		await gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "prior-grant", grantedScope: GMAIL_SCOPES });
+		await gmail.bundle.gmailDiscoveryStore.startDiscovery({ checkedMessageCount: 0, userId, accountEmail: READER, gatewayAddress, generation: "run-1", mode: "full", historyId: "100" });
+		const destination = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
+		const previous = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse("tech") });
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddress: destination.address });
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		const jobId = gmail.bundle.newGmailHistoryImportJobId();
+		await gmail.bundle.gmailHistoryImportStore.createJob({
+			userId,
+			jobId,
+			senderEmail: TLDR,
+			destinationAddress: job.destination === "previous" ? previous.address : destination.address,
+			connection: { gatewayAddress, accountEmail: READER },
+			window: undefined,
+			generation: "waiting",
+			page: 0,
+			pageToken: undefined,
+			listingCompletedAt: undefined,
+			state: job.state,
+			counts: { listed: job.failed ?? 0, imported: 0, alreadyImported: 0, skippedNoMessageId: 0, skippedSenderMismatch: 0, failed: job.failed ?? 0, cancelled: 0 },
+			failureReason: job.failureReason,
+			cancelReason: undefined,
+			createdAt: "2026-09-30T00:00:00.000Z",
+			updatedAt: "2026-09-30T00:00:00.000Z",
+			completedAt: undefined,
+		});
+		const askForPermission = async (state: Record<string, string> = {}) => {
+			const started = await agent.post(CONNECT).type("form").send({ ...state, intent: "import", sender: TLDR });
+			return new URL(started.headers.location);
+		};
+		const findJob = () => gmail.bundle.gmailHistoryImportStore.findJob({ userId, jobId });
+		return { agent, gmail, gmailConnectionStore, userId, jobId, askForPermission, findJob };
+	}
+
+	it("asks Google for read access on top of the scopes already granted", async () => {
+		const { askForPermission } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
+		const url = await askForPermission();
+		expect(url.searchParams.get("scope")).toBe(GMAIL_READONLY_SCOPE);
+		expect(url.searchParams.get("include_granted_scopes")).toBe("true");
+		expect(url.searchParams.get("login_hint")).toBe("reader@gmail.com");
+	});
+
+	it("resumes waiting imports without rewriting the connection or its discovery", async () => {
+		const { agent, gmail, gmailConnectionStore, userId, jobId, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
+		const before = await gmailConnectionStore.findConnectionByUserId(userId);
+		const url = await askForPermission();
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect(response.headers.location).toBe("/integrations/gmail?notice=import_started");
+		const job = await findJob();
+		expect(job?.state).toBe("queued");
+		expect(gmail.importStartRequests).toEqual([{ userId, jobId, generation: job?.generation }]);
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.connectedAt).toBe(before?.connectedAt);
+		expect((await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId))?.generation).toBe("run-1");
+		expect(await gmail.bundle.gmailCredentialsStore.findGrantedScopeByUserId(userId)).toBe(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
+		expect(gmail.rewriteRequests).toEqual([]);
+	});
+
+	it.each([
+		["failed after losing permission", { state: "failed", failureReason: "permission-revoked" }],
+		["finished with failed messages", { state: "complete", failureReason: undefined, failed: 1 }],
+	] as const)("restarts the newsletter's import that %s once Google grants read access", async (_label, job) => {
+		const { agent, gmail, userId, jobId, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`, job);
+		const url = await askForPermission();
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect(response.headers.location).toBe("/integrations/gmail?notice=import_started");
+		const restarted = await findJob();
+		expect(restarted?.state).toBe("queued");
+		expect(gmail.importStartRequests).toEqual([{ userId, jobId, generation: restarted?.generation }]);
+	});
+
+	it("says permission was granted, restarting nothing, when the failed import went to the newsletter's previous readlist", async () => {
+		const { agent, gmail, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`, {
+			state: "failed",
+			failureReason: "permission-revoked",
+			destination: "previous",
+		});
+		const url = await askForPermission();
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect(response.headers.location).toBe("/integrations/gmail?notice=import_permission_granted");
+		expect((await findJob())?.state).toBe("failed");
+		expect(gmail.importStartRequests).toEqual([]);
+		const page = new JSDOM((await agent.get(response.headers.location)).text).window.document;
+		expect(page.querySelector('[data-test-alert="import_permission_granted"]')?.textContent).toBe(
+			"Readplace can now read your Gmail messages. Start the import from the newsletter below.",
+		);
+	});
+
+	it("returns the reader to the picker state they left from, whatever Google answers", async () => {
+		const pickerState = { search: "dan", advanced: "1", readlist: "default", edit: "1", discovery_after: "none" };
+		const back = "search=dan&advanced=1&readlist=default&discovery_after=none";
+		const granted = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
+		const grantedUrl = await granted.askForPermission(pickerState);
+		expect((await granted.agent.get(CALLBACK).query({ code: "auth-code", state: grantedUrl.searchParams.get("state") })).headers.location)
+			.toBe(`/integrations/gmail?notice=import_started&${back}`);
+		const withheld = await awaitingImport(GMAIL_SCOPES);
+		const withheldUrl = await withheld.askForPermission(pickerState);
+		expect((await withheld.agent.get(CALLBACK).query({ code: "auth-code", state: withheldUrl.searchParams.get("state") })).headers.location)
+			.toBe(`/integrations/gmail?notice=import_permission_refused&${back}`);
+		await withheld.askForPermission(pickerState);
+		expect((await withheld.agent.get(CALLBACK).query({ error: "access_denied" })).headers.location)
+			.toBe(`/integrations/gmail?notice=import_permission_refused&${back}`);
+	});
+
+	it("keeps the import waiting when Google grants everything but read access", async () => {
+		const { agent, gmail, askForPermission, findJob } = await awaitingImport(GMAIL_SCOPES);
+		const url = await askForPermission();
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect(response.headers.location).toBe("/integrations/gmail?notice=import_permission_refused");
+		expect((await findJob())?.state).toBe("awaiting-permission");
+		expect(gmail.importStartRequests).toEqual([]);
+	});
+
+	it("tells the reader the import is waiting when they refuse on Google's screen", async () => {
+		const { agent, gmail, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
+		await askForPermission();
+		const response = await agent.get(CALLBACK).query({ error: "access_denied" });
+		expect(response.headers.location).toBe("/integrations/gmail?notice=import_permission_refused");
+		expect((await findJob())?.state).toBe("awaiting-permission");
+		expect(gmail.exchangedCodes).toEqual([]);
+	});
+
+	it("reconnects a revoked grant while resuming the import", async () => {
+		const { agent, gmail, gmailConnectionStore, userId, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
+		await gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		const url = await askForPermission();
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect(response.headers.location).toBe("/integrations/gmail?notice=import_started");
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
+		expect((await findJob())?.state).toBe("queued");
+	});
+
+	it("clears a discovery reconnect requirement while resuming the import", async () => {
+		const { agent, gmail, userId, askForPermission } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
+		await gmail.bundle.gmailDiscoveryStore.failDiscovery({ userId, generation: "run-1", error: "Reconnect", requiresReconnect: true });
+		expect((await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId))?.requiresReconnect).toBe(true);
+		const url = await askForPermission();
+		await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect((await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId))?.requiresReconnect).toBe(false);
 	});
 });

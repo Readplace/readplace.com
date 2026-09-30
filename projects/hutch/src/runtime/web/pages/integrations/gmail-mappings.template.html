@@ -1,0 +1,20 @@
+<section id="gmail-mappings" class="gmail__mappings"{{#if outOfBand}} hx-swap-oob="outerHTML"{{/if}} data-test-gmail-mappings data-imports-polling="{{#if polling}}true{{else}}false{{/if}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-select="#gmail-mappings" hx-swap="outerHTML"{{/if}}>
+          <h2 class="gmail__section-title">Your newsletters</h2>
+          <div class="gmail__filter" data-test-gmail-filter-state="{{filter.state}}">
+            {{{filterMessageHtml}}}
+            <div class="gmail__filter-actions">
+              {{#each filter.actions}}
+              <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+                <button class="btn btn--{{variant}} btn--s" type="submit" data-test-gmail-filter-action="{{key}}">{{label}}</button>
+              </form>
+              {{/each}}
+            </div>
+          </div>
+          {{#if exhausted}}<p class="gmail__step-copy" role="status" data-test-gmail-imports-exhausted>Still importing. Refresh to check again.</p>{{/if}}
+          <ul class="gmail-mappings__list">
+            {{#each rowsHtml}}
+            {{{this}}}
+            {{/each}}
+          </ul>
+          {{#unless hasRows}}<p class="gmail__empty" data-test-gmail-mappings-empty>No newsletters mapped yet. Choose a newsletter and a readlist above.</p>{{/unless}}
+        </section>

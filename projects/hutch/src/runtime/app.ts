@@ -15,6 +15,7 @@ import type { AnalyticsEvent } from "@packages/web-analytics";
 import { httpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initCachedUserCount } from "./web/auth/cached-user-count";
+import { readNewsletterCatalogSeed } from "./domain/newsletter-catalog/newsletter-catalog-seed";
 import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { getEnv, requireEnv } from "@packages/require-env";
 
@@ -34,7 +35,8 @@ type AssemblyProvidedKeys =
 	| "subscriptionLogger"
 	| "analytics"
 	| "salt"
-	| "foundingAllocation";
+	| "foundingAllocation"
+	| "newsletterCatalogSeed";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
 
 function parseAdminEmails(raw: string): readonly string[] {
@@ -87,6 +89,7 @@ export function assembleReadplaceApp(input: {
 		analytics: analyticsLogger,
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
+		newsletterCatalogSeed: readNewsletterCatalogSeed(),
 	});
 
 	return { app, analyticsLogger };

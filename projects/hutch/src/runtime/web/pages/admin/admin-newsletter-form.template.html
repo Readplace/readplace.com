@@ -1,0 +1,63 @@
+<section class="admin-newsletters__panel" data-test-admin-newsletter-form-panel="{{kind}}">
+      <h2 class="admin-newsletters__panel-title">{{title}}</h2>
+      <p class="admin-newsletters__panel-intro">{{intro}}</p>
+      {{#if subject}}<p class="admin-newsletters__subject" data-test-admin-newsletter-form-subject>{{subject}}</p>{{/if}}
+      {{#if conflict}}
+      <div class="admin-newsletters__conflict" data-test-admin-newsletter-conflict>
+        <h3 class="admin-newsletters__conflict-title">Current record</h3>
+        <dl class="admin-newsletters__facts">
+          <dt>FROM address</dt>
+          <dd data-test-admin-newsletter-conflict-from>{{conflict.from}}</dd>
+          <dt>Name</dt>
+          <dd data-test-admin-newsletter-conflict-name>{{conflict.nameLabel}}</dd>
+          <dt>Status</dt>
+          <dd data-test-admin-newsletter-conflict-status>{{conflict.statusLabel}}</dd>
+          <dt>Updated</dt>
+          <dd><time datetime="{{conflict.updatedAt}}">{{conflict.updatedLabel}}</time></dd>
+        </dl>
+      </div>
+      {{/if}}
+      <form class="admin-newsletters__form" method="{{submit.method}}" action="{{submit.action}}" hx-boost="{{submit.boost}}" data-test-admin-newsletter-form="{{kind}}">
+        {{#each submit.fields}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        {{#each fields}}
+        <div class="form-field admin-newsletters__field">
+          <label class="form-field__label" for="{{id}}">{{label}}</label>
+          {{#if multiline}}
+          <textarea
+            id="{{id}}"
+            class="form-input form-input--multiline"
+            name="{{name}}"
+            maxlength="{{maxLength}}"
+            rows="3"
+            aria-describedby="{{id}}-hint{{#if error}} {{id}}-error{{/if}}"
+            {{#if error}}aria-invalid="true"{{/if}}>{{value}}</textarea>
+          {{else}}
+          <input
+            id="{{id}}"
+            class="form-input"
+            type="{{type}}"
+            name="{{name}}"
+            value="{{value}}"
+            maxlength="{{maxLength}}"
+            autocomplete="off"
+            aria-describedby="{{id}}-hint{{#if error}} {{id}}-error{{/if}}"
+            {{#if required}}required{{/if}}
+            {{#if error}}aria-invalid="true"{{/if}}>
+          {{/if}}
+          <p class="admin-newsletters__hint" id="{{id}}-hint">{{hint}}</p>
+          {{#if error}}
+          <p class="form-field__error" id="{{id}}-error" data-test-error="{{name}}">{{error}}</p>
+          {{/if}}
+        </div>
+        {{/each}}
+        <button type="submit" class="btn btn--primary admin-newsletters__submit" data-test-admin-newsletter-submit>{{submitLabel}}</button>
+      </form>
+      <form class="admin-newsletters__cancel" method="{{cancel.method}}" action="{{cancel.action}}" hx-boost="{{cancel.boost}}">
+        {{#each cancel.fields}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        <button type="submit" class="btn btn--secondary">Cancel</button>
+      </form>
+    </section>

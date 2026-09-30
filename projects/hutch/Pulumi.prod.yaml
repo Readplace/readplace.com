@@ -47,6 +47,8 @@ config:
   hutch:dynamodbGmailConnectionsTable: hutch-gmail-connections-prod
   hutch:dynamodbGmailDiscoveryTable: hutch-gmail-discovery-prod
   hutch:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-prod
+  hutch:dynamodbGmailHistoryImportsTable: hutch-gmail-history-imports-prod
+  hutch:dynamodbInboxEmailIdentitiesTable: hutch-inbox-email-identities-prod
   hutch:rateLimitViewCrawl: 100/3600
   hutch:rateLimitLogin: 10/900
   hutch:rateLimitLoginAccount: 20/900
@@ -65,6 +67,7 @@ config:
   hutch:userExportBucketName: hutch-user-exports-prod
   hutch:inboxAddressDomain: read.place
   hutch:rawEmailBucketName: hutch-inbox-raw-email-prod
+  hutch:newsletterCatalogBucketName: hutch-newsletter-catalog-prod
   hutch:alertEmail: readplace+devops@readplace.com
   hutch:gmailConnectionCapWarnThreshold: 50
   hutch:oauthRefreshRefusedDailyThreshold: 5

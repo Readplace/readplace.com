@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { Expect, Page } from "@playwright/test";
+import type { Expect, Page, TestInfo } from "@playwright/test";
 import {
 	type VisualCheckpoint,
 	captureCheckpoint,
@@ -34,14 +34,22 @@ function fakeElement(input: { rect: Box; computedTransform?: string }): FakeElem
 	};
 }
 
-type LocatorFake = { count: () => Promise<number>; boundingBox: () => Promise<Box | null> };
+type ScreenshotOptions = Record<string, unknown>;
+
+type LocatorFake = {
+	count: () => Promise<number>;
+	boundingBox: () => Promise<Box | null>;
+	screenshot: (options: ScreenshotOptions) => Promise<Buffer>;
+};
 
 function createCheckpointPage(plan: PagePlan): {
 	page: Page;
 	calls: string[];
 	locatorFor: (selector: string) => LocatorFake;
+	imageCaptures: { source: string; options: ScreenshotOptions }[];
 } {
 	const calls: string[] = [];
+	const imageCaptures: { source: string; options: ScreenshotOptions }[] = [];
 	const locators = new Map<string, LocatorFake>();
 	const windowStub = {
 		scrollX: plan.scroll.x,
@@ -88,6 +96,11 @@ function createCheckpointPage(plan: PagePlan): {
 				reads += 1;
 				return box;
 			},
+			screenshot: async (options) => {
+				calls.push(`capture:${selector}`);
+				imageCaptures.push({ source: selector, options });
+				return Buffer.from(`pixels of ${selector}`);
+			},
 		};
 		locators.set(selector, locator);
 		return locator;
@@ -106,11 +119,42 @@ function createCheckpointPage(plan: PagePlan): {
 			return locatorFor(selector);
 		},
 		viewportSize: () => plan.viewport,
+		screenshot: async (options: ScreenshotOptions) => {
+			calls.push("capture:page");
+			imageCaptures.push({ source: "page", options });
+			return Buffer.from("pixels of the page");
+		},
 	};
-	return { page: page as unknown as Page, calls, locatorFor };
+	return { page: page as unknown as Page, calls, locatorFor, imageCaptures };
 }
 
-function createExpectFake(calls: string[]): {
+type AttachedImage = { name: string; body: Buffer | undefined; contentType: string | undefined };
+
+function createTestInfoFake(): {
+	testInfo: () => Pick<TestInfo, "attach" | "errors">;
+	errors: TestInfo["errors"];
+	attached: AttachedImage[];
+} {
+	const errors: TestInfo["errors"] = [];
+	const attached: AttachedImage[] = [];
+	const info: Pick<TestInfo, "attach" | "errors"> = {
+		errors,
+		attach: async (name, options) => {
+			const body = options?.body;
+			attached.push({
+				name,
+				body: typeof body === "string" ? Buffer.from(body) : body,
+				contentType: options?.contentType,
+			});
+		},
+	};
+	return { testInfo: () => info, errors, attached };
+}
+
+function createExpectFake(
+	calls: string[],
+	comparison: { mismatchInto: TestInfo["errors"] | undefined } = { mismatchInto: undefined },
+): {
 	expect: Pick<Expect, "poll" | "soft">;
 	screenshots: { target: unknown; name: string; options?: unknown }[];
 	probeCount: () => number;
@@ -131,6 +175,7 @@ function createExpectFake(calls: string[]): {
 			toHaveScreenshot: async (name: string, options?: unknown) => {
 				calls.push(`screenshot:${name}`);
 				screenshots.push({ target, name, options });
+				comparison.mismatchInto?.push({ message: `${name} differs from its baseline` });
 			},
 		}),
 	};
@@ -171,7 +216,7 @@ describe("captureCheckpoint", () => {
 	it("captures an element once its box stops moving, then restores the scroll", async () => {
 		const clock = { textContent: "just now" };
 		const card = fakeElement({ rect: { x: 0, y: 48, width: 320, height: 96 } });
-		const { page, calls, locatorFor } = createCheckpointPage({
+		const { page, calls, locatorFor, imageCaptures } = createCheckpointPage({
 			locators: {
 				"[data-test-card]": {
 					count: 1,
@@ -201,7 +246,9 @@ describe("captureCheckpoint", () => {
 			pinnedText: [{ selector: "[data-test-clock]", text: "12 minutes ago" }],
 		};
 
-		await initCaptureCheckpoint({ expect: expectFake })(page, checkpoint);
+		const { testInfo, attached } = createTestInfoFake();
+
+		await initCaptureCheckpoint({ expect: expectFake, testInfo })(page, checkpoint);
 
 		expect(calls).toEqual([
 			"settled",
@@ -219,6 +266,7 @@ describe("captureCheckpoint", () => {
 			"geometry",
 			"evaluate",
 			"screenshot:queue-card.png",
+			"capture:[data-test-card]",
 			"evaluate",
 			"scrollTo:24,180",
 		]);
@@ -229,6 +277,70 @@ describe("captureCheckpoint", () => {
 		expect(screenshots[0].name).toBe("queue-card.png");
 		expect(screenshots[0].target).toBe(locatorFor("[data-test-card]"));
 		expect(screenshots[0].options).toBeUndefined();
+		expect(imageCaptures).toEqual([
+			{ source: "[data-test-card]", options: { animations: "disabled", caret: "hide", scale: "css" } },
+		]);
+		expect(attached).toEqual([
+			{ name: "queue-card.png", body: Buffer.from("pixels of [data-test-card]"), contentType: "image/png" },
+		]);
+	});
+
+	it("attaches nothing for a capture that differs from its baseline, leaving the report to show the diff", async () => {
+		const card = fakeElement({ rect: { x: 0, y: 48, width: 320, height: 96 } });
+		const { page, calls, imageCaptures } = createCheckpointPage({
+			locators: {
+				"[data-test-card]": { count: 1, boxes: [{ x: 0, y: 48, width: 320, height: 96 }] },
+			},
+			viewport: { width: 1280, height: 720 },
+			scroll: { x: 0, y: 0 },
+			pinned: new Map(),
+			elements: new Map([["[data-test-card]", card]]),
+		});
+		const { testInfo, errors, attached } = createTestInfoFake();
+		const { expect: expectFake, screenshots } = createExpectFake(calls, { mismatchInto: errors });
+		const checkpoint: VisualCheckpoint = {
+			name: "queue-card",
+			settled: async () => {},
+			geometry: async () => {},
+			target: "[data-test-card]",
+			capture: "element",
+			pinnedText: [],
+		};
+
+		await initCaptureCheckpoint({ expect: expectFake, testInfo })(page, checkpoint);
+
+		expect(screenshots.map((shot) => shot.name)).toEqual(["queue-card.png"]);
+		expect(errors).toEqual([{ message: "queue-card.png differs from its baseline" }]);
+		expect(imageCaptures).toEqual([]);
+		expect(attached).toEqual([]);
+	});
+
+	it("attaches a checkpoint's capture even when an earlier assertion in the test already failed", async () => {
+		const card = fakeElement({ rect: { x: 0, y: 48, width: 320, height: 96 } });
+		const { page, calls } = createCheckpointPage({
+			locators: {
+				"[data-test-card]": { count: 1, boxes: [{ x: 0, y: 48, width: 320, height: 96 }] },
+			},
+			viewport: { width: 1280, height: 720 },
+			scroll: { x: 0, y: 0 },
+			pinned: new Map(),
+			elements: new Map([["[data-test-card]", card]]),
+		});
+		const { testInfo, errors, attached } = createTestInfoFake();
+		errors.push({ message: "an earlier checkpoint differed" });
+		const { expect: expectFake } = createExpectFake(calls);
+		const checkpoint: VisualCheckpoint = {
+			name: "queue-card",
+			settled: async () => {},
+			geometry: async () => {},
+			target: "[data-test-card]",
+			capture: "element",
+			pinnedText: [],
+		};
+
+		await initCaptureCheckpoint({ expect: expectFake, testInfo })(page, checkpoint);
+
+		expect(attached.map((image) => image.name)).toEqual(["queue-card.png"]);
 	});
 
 	it("tightens an element capture to the pixel budget the checkpoint asks for", async () => {
@@ -253,14 +365,14 @@ describe("captureCheckpoint", () => {
 			maxDiffPixelRatio: 0,
 		};
 
-		await initCaptureCheckpoint({ expect: expectFake })(page, checkpoint);
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, checkpoint);
 
 		expect(screenshots).toHaveLength(1);
 		expect(screenshots[0].options).toEqual({ maxDiffPixelRatio: 0 });
 	});
 
 	it("clips a page-from-top capture to the viewport width and the target's lower edge", async () => {
-		const { page, calls } = createCheckpointPage({
+		const { page, calls, imageCaptures } = createCheckpointPage({
 			locators: {
 				"[data-test-panel]": {
 					count: 1,
@@ -275,6 +387,7 @@ describe("captureCheckpoint", () => {
 			]),
 		});
 		const { expect: expectFake, screenshots } = createExpectFake(calls);
+		const { testInfo, attached } = createTestInfoFake();
 		const checkpoint: VisualCheckpoint = {
 			name: "queue-top",
 			settled: async () => {},
@@ -284,7 +397,7 @@ describe("captureCheckpoint", () => {
 			pinnedText: [],
 		};
 
-		await initCaptureCheckpoint({ expect: expectFake })(page, checkpoint);
+		await initCaptureCheckpoint({ expect: expectFake, testInfo })(page, checkpoint);
 
 		expect(screenshots).toHaveLength(1);
 		expect(screenshots[0].name).toBe("queue-top.png");
@@ -292,6 +405,20 @@ describe("captureCheckpoint", () => {
 		expect(screenshots[0].options).toEqual({
 			clip: { x: 0, y: 0, width: 1280, height: 41 },
 		});
+		expect(imageCaptures).toEqual([
+			{
+				source: "page",
+				options: {
+					clip: { x: 0, y: 0, width: 1280, height: 41 },
+					animations: "disabled",
+					caret: "hide",
+					scale: "css",
+				},
+			},
+		]);
+		expect(attached).toEqual([
+			{ name: "queue-top.png", body: Buffer.from("pixels of the page"), contentType: "image/png" },
+		]);
 	});
 
 	it("tightens a page-from-top capture to the pixel budget the checkpoint asks for", async () => {
@@ -320,7 +447,7 @@ describe("captureCheckpoint", () => {
 			maxDiffPixelRatio: 0,
 		};
 
-		await initCaptureCheckpoint({ expect: expectFake })(page, checkpoint);
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, checkpoint);
 
 		expect(screenshots).toHaveLength(1);
 		expect(screenshots[0].options).toEqual({
@@ -355,7 +482,7 @@ describe("captureCheckpoint", () => {
 		const { page, calls } = createCheckpointPage(snapPlanFor(card));
 		const { expect: expectFake, screenshots } = createExpectFake(calls);
 
-		await initCaptureCheckpoint({ expect: expectFake })(page, snapCheckpoint);
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, snapCheckpoint);
 
 		expect(card.style.transform).toBe("translate(0px, 0.5px)");
 		expect(screenshots).toHaveLength(1);
@@ -369,7 +496,7 @@ describe("captureCheckpoint", () => {
 		const { page, calls } = createCheckpointPage(snapPlanFor(card));
 		const { expect: expectFake, screenshots } = createExpectFake(calls);
 
-		await initCaptureCheckpoint({ expect: expectFake })(page, snapCheckpoint);
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, snapCheckpoint);
 
 		expect(card.style.transform).toBe("");
 		expect(screenshots).toHaveLength(1);
@@ -382,7 +509,7 @@ describe("captureCheckpoint", () => {
 		const { page, calls } = createCheckpointPage(plan);
 		const { expect: expectFake } = createExpectFake(calls);
 
-		await expect(initCaptureCheckpoint({ expect: expectFake })(page, snapCheckpoint)).rejects.toThrow(
+		await expect(initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, snapCheckpoint)).rejects.toThrow(
 			'snap target "[data-test-card]" matched nothing',
 		);
 	});
@@ -409,7 +536,7 @@ describe("captureCheckpoint", () => {
 			pinnedText: [],
 		};
 
-		await expect(initCaptureCheckpoint({ expect: expectFake })(page, checkpoint)).rejects.toThrow(
+		await expect(initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, checkpoint)).rejects.toThrow(
 			'visual checkpoint "viewportless": capture "page-from-top" requires a fixed viewport to size the clip',
 		);
 	});
@@ -459,7 +586,7 @@ describe("captureCheckpoint", () => {
 			pinnedText: [],
 		};
 
-		await initCaptureCheckpoint({ expect: expectFake })(page, checkpoint);
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, checkpoint);
 
 		expect(email.textContent).toBe("reader@example.com");
 		expect(drawerEmail.textContent).toBe("reader@example.com");
@@ -485,7 +612,7 @@ describe("captureCheckpoint", () => {
 			pinnedText: [{ selector: "[data-test-clock]", text: "12 minutes ago" }],
 		};
 
-		await expect(initCaptureCheckpoint({ expect: expectFake })(page, checkpoint)).rejects.toThrow(
+		await expect(initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, checkpoint)).rejects.toThrow(
 			'pinned text selector "[data-test-clock]" matched nothing',
 		);
 	});

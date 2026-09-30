@@ -77,6 +77,24 @@ describe("initDiscoverGmailSenders", () => {
 		assert.deepEqual(await h.discovery.listSendersByUserId(USER), [SENDER, OTHER_SENDER]);
 	});
 
+	it("keeps counting checked messages across every later run of the same mailbox", async () => {
+		const h = await harness();
+		h.mailbox.listChangedMessageSenders = async (input) => {
+			h.calls.push({ history: input });
+			return { ok: true, value: { ...EMPTY_PAGE, scannedMessages: 3, historyId: "200" } };
+		};
+
+		const first = await h.discover.start(USER);
+		assert(first);
+		assert.equal(await h.discover.page(first), undefined);
+		assert.equal((await h.state()).checkedMessageCount, 4);
+
+		assert.equal(await h.discover.start(USER), undefined);
+
+		assert.equal((await h.state()).checkedMessageCount, 7);
+		assert.equal((await h.state()).scannedCount, 3);
+	});
+
 	it("keeps a display name a later full-scan page omits", async () => {
 		const h = await harness();
 		let calls = 0;
@@ -163,7 +181,7 @@ describe("initDiscoverGmailSenders", () => {
 
 	it("does not end a scan saved before message dates were tracked until it has a page to compare against", async () => {
 		const h = await harness();
-		await h.discovery.startDiscovery({ userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "legacy", mode: "full", historyId: "100",
+		await h.discovery.startDiscovery({ checkedMessageCount: 0, userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "legacy", mode: "full", historyId: "100",
 			resume: { page: 3, pageToken: "legacy-cursor", scannedCount: 7_500, estimatedTotalMessages: 60_000, oldestScannedAt: undefined } });
 		const pages = [
 			{ nextPageToken: "after-legacy", newestMessageAt: NEWEST - 50_000, oldestMessageAt: NEWEST - 51_000 },
@@ -375,7 +393,7 @@ describe("initDiscoverGmailSenders", () => {
 			await h.discovery.deleteDiscoveryByUserId(USER);
 			await h.connections.createConnection({ userId: USER, gatewayAddress: replacementGateway });
 			await h.connections.recordAccountEmail({ userId: USER, accountEmail: OTHER_ACCOUNT });
-			await h.discovery.startDiscovery({ userId: USER, accountEmail: OTHER_ACCOUNT, gatewayAddress: replacementGateway, generation: "replacement", mode: "profile", historyId: undefined });
+			await h.discovery.startDiscovery({ checkedMessageCount: 0, userId: USER, accountEmail: OTHER_ACCOUNT, gatewayAddress: replacementGateway, generation: "replacement", mode: "profile", historyId: undefined });
 			return { ok: false, reason: "reauth-required" };
 		};
 
@@ -468,7 +486,7 @@ describe("initDiscoverGmailSenders", () => {
 
 	it("asserts a malformed non-profile checkpoint cannot run without a history baseline", async () => {
 		const h = await harness();
-		await h.discovery.startDiscovery({ userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "broken", mode: "history", historyId: undefined });
+		await h.discovery.startDiscovery({ checkedMessageCount: 0, userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "broken", mode: "history", historyId: undefined });
 		await assert.rejects(h.discover.start(USER), /history baseline/);
 	});
 });

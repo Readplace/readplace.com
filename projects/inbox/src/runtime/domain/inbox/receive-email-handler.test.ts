@@ -6,17 +6,30 @@ import {
 	GMAIL_FORWARDING_ALIAS,
 	InboxAddressSchema,
 	type InboxEmailStore,
+	type IngestionAttempt,
 	MessageIdSchema,
+	messageIdentityKey,
+	NormalizedMessageIdSchema,
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
+import {
+	ForwardableSenderSchema,
+	GmailAccountEmailSchema,
+	GmailHistoryImportJobIdSchema,
+	GmailMessageIdSchema,
+} from "@packages/domain/gmail";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { RouteGmailForwardedEmail } from "../gmail/route-gmail-forwarded-email";
+import { initIngestParsedEmail } from "./ingest-parsed-email";
 import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "./receive-email-handler";
+import { initResolveEmailIdentity } from "./resolve-email-identity";
 import type { StoreEmailBody } from "./store-email-body";
 
 const OWNER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -24,6 +37,19 @@ const SECOND = UserIdSchema.parse("00000000000000000000000000000002");
 const UNROUTED = UserIdSchema.parse("__unrouted__");
 const RECEIVED_AT = "2026-06-24T09:00:00.000Z";
 const RAW_KEY = "inbound/ses-msg-1";
+const IMPORTED_AT = "2026-06-20T08:00:00.000Z";
+const IMPORTED_ROW = `${IMPORTED_AT}#<real@x>`;
+const MESSAGE_KEY = messageIdentityKey({
+	userId: OWNER,
+	sender: ForwardableSenderSchema.parse("news@example.com"),
+	messageId: NormalizedMessageIdSchema.parse("real@x"),
+});
+const IMPORT_ATTEMPT: IngestionAttempt = {
+	origin: "gmail-import",
+	jobId: GmailHistoryImportJobIdSchema.parse("0123456789abcdef0123456789abcdef"),
+	accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+	gmailMessageId: GmailMessageIdSchema.parse("18c2f0a1b2c3d4e5"),
+};
 
 function sesNotification(recipients: string[]): string {
 	return JSON.stringify({
@@ -62,6 +88,7 @@ function makeHarness(opts?: {
 }) {
 	const addressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const emailStore = initInMemoryInboxEmail();
+	const identities = initInMemoryEmailIdentity();
 	const rawMap = new Map<string, Buffer>();
 	const published: { detail: { receivedAtMessageId: string; userId: string; recipientAddress: string } }[] = [];
 	const imageDownloadCalls: { html: string }[] = [];
@@ -77,12 +104,22 @@ function makeHarness(opts?: {
 			imageDownloadCalls.push({ html });
 			return [];
 		},
-		storeBody: opts?.storeBody ?? (async () => "content/email/content.html"),
-		publishEvent: async (_event, detail) => {
-			published.push({
-				detail: detail as { receivedAtMessageId: string; userId: string; recipientAddress: string },
-			});
-		},
+		resolveIdentity: initResolveEmailIdentity({
+			identities,
+			findReceivedByMessageId: emailStore.findReceivedByMessageId,
+			getEmail: emailStore.getEmail,
+			now: () => new Date(RECEIVED_AT),
+		}),
+		ingest: initIngestParsedEmail({
+			storeBody: opts?.storeBody ?? (async () => "content/email/content.html"),
+			putEmail: emailStore.putEmail,
+			publishEvent: async (_event, detail) => {
+				published.push({
+					detail: detail as { receivedAtMessageId: string; userId: string; recipientAddress: string },
+				});
+			},
+			logger: HutchLogger.from(noopLogger),
+		}),
 		interceptGmailConfirmation:
 			opts?.interceptGmailConfirmation ??
 			(async ({ resolvedRecipients }) => {
@@ -110,6 +147,7 @@ function makeHarness(opts?: {
 	return {
 		addressStore,
 		emailStore,
+		identities,
 		rawMap,
 		published,
 		imageDownloadCalls,
@@ -611,5 +649,114 @@ describe("initReceiveEmailHandler", () => {
 		const [row] = await listEmails(emailStore, OWNER);
 		expect(row.status).toBe("received");
 		expect(published).toHaveLength(1);
+	});
+
+	it("drops a forwarded copy of a message the reader already imported: no row, no event, no image fetch", async () => {
+		const { addressStore, emailStore, identities, rawMap, published, imageDownloadCalls, run } = makeHarness();
+		const address = await mintAddress(addressStore);
+		await emailStore.putEmail({
+			userId: OWNER,
+			receivedAtMessageId: IMPORTED_ROW,
+			messageId: MessageIdSchema.parse("<real@x>"),
+			recipientAddress: address,
+			senderEmail: "news@example.com",
+			subject: "Digest",
+			status: "received",
+			receivedAt: IMPORTED_AT,
+			rawEmailS3Key: "gmail-import/owner/job/18c2f0a1b2c3d4e5.eml",
+			bodyS3Key: "content/imported/content.html",
+			linkCounts: undefined,
+		});
+		await identities.claim({ key: MESSAGE_KEY, userId: OWNER, receivedAtMessageId: IMPORTED_ROW, attempt: IMPORT_ATTEMPT, now: new Date(IMPORTED_AT) });
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await run(address);
+
+		assert(result);
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual((await listEmails(emailStore, OWNER)).map((row) => row.receivedAtMessageId), [IMPORTED_ROW]);
+		assert.deepEqual(published, []);
+		assert.deepEqual(imageDownloadCalls, []);
+	});
+
+	it("adopts a row stored before identity claims existed instead of storing the copy again", async () => {
+		const { addressStore, emailStore, identities, rawMap, published, run } = makeHarness();
+		const address = await mintAddress(addressStore);
+		await emailStore.putEmail({
+			userId: OWNER,
+			receivedAtMessageId: "2026-06-01T00:00:00.000Z#<real@x>",
+			messageId: MessageIdSchema.parse("<real@x>"),
+			recipientAddress: address,
+			senderEmail: "News@Example.com",
+			subject: "Digest",
+			status: "received",
+			receivedAt: "2026-06-01T00:00:00.000Z",
+			rawEmailS3Key: "inbound/earlier",
+			bodyS3Key: "content/earlier/content.html",
+			linkCounts: undefined,
+		});
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(address);
+
+		assert.equal((await listEmails(emailStore, OWNER)).length, 1);
+		assert.deepEqual(published, []);
+		assert.deepEqual(await identities.find(MESSAGE_KEY), {
+			key: MESSAGE_KEY,
+			userId: OWNER,
+			receivedAtMessageId: "2026-06-01T00:00:00.000Z#<real@x>",
+			attempt: { origin: "pre-claim-row" },
+			claimedAt: RECEIVED_AT,
+		});
+	});
+
+	it("takes over an import's claim that never wrote its row, storing under the claimed row id", async () => {
+		const { addressStore, emailStore, identities, rawMap, published, run } = makeHarness();
+		const address = await mintAddress(addressStore);
+		await identities.claim({ key: MESSAGE_KEY, userId: OWNER, receivedAtMessageId: IMPORTED_ROW, attempt: IMPORT_ATTEMPT, now: new Date(IMPORTED_AT) });
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(address);
+
+		assert.deepEqual((await listEmails(emailStore, OWNER)).map((row) => row.receivedAtMessageId), [IMPORTED_ROW]);
+		assert.deepEqual(published.map((entry) => entry.detail.receivedAtMessageId), [IMPORTED_ROW]);
+		assert.deepEqual((await identities.find(MESSAGE_KEY))?.attempt, { origin: "receive", sesMessageId: "ses-msg-1" });
+	});
+
+	it("delivers a message without a Message-ID without claiming an identity for it", async () => {
+		const { addressStore, emailStore, identities, rawMap, published, run } = makeHarness({
+			parseEmail: async () => {
+				const parsed = parsedOk();
+				assert(parsed.ok);
+				return { ok: true, email: { ...parsed.email, messageId: MessageIdSchema.parse(`sha256:${"a".repeat(64)}`) } };
+			},
+		});
+		const address = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(address);
+
+		const [row] = await listEmails(emailStore, OWNER);
+		assert.equal(row.receivedAtMessageId, `${RECEIVED_AT}#sha256:${"a".repeat(64)}`);
+		assert.equal(published.length, 1);
+		assert.equal(await identities.find(MESSAGE_KEY), undefined);
+	});
+
+	it("delivers mail sent straight to a readlist address as addressed, without sender routing", async () => {
+		const { addressStore, emailStore, rawMap, published, routings, run } = makeHarness();
+		const readlistAddress = await addressStore.getOrCreateReadlistAddress({
+			userId: OWNER,
+			domain: "read.place",
+			readlist: ReadlistSlugSchema.parse("a1b2c3d4"),
+		});
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(readlistAddress.address);
+
+		assert.deepEqual(routings, []);
+		const [row] = await listEmails(emailStore, OWNER);
+		assert.equal(row.status, "received");
+		assert.equal(row.recipientAddress, readlistAddress.address);
+		assert.deepEqual(published.map((entry) => entry.detail.recipientAddress), [readlistAddress.address]);
 	});
 });

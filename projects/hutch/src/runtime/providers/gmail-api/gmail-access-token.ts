@@ -2,7 +2,9 @@ import { z } from "zod";
 import type { GmailCredentialsStore } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { GetGmailAccessToken } from "@packages/provider-contracts/gmail-filters";
+import type { GetGmailAccessToken, GmailApiResult } from "@packages/provider-contracts/gmail-filters";
+import type { GetGmailReadonlyAccessToken } from "@packages/provider-contracts/gmail-history";
+import { GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { readGoogleTokenError } from "../gmail-oauth/google-token-error";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
@@ -14,14 +16,23 @@ const RefreshResponse = z.object({
 	expires_in: z.number(),
 });
 
-export function initGmailAccessToken(deps: {
+interface AccessTokenDependencies {
 	clientId: string;
 	clientSecret: string;
 	credentials: GmailCredentialsStore;
 	fetch: typeof globalThis.fetch;
 	now: () => Date;
 	logger: HutchLogger;
-}): GetGmailAccessToken {
+}
+
+interface RequestedScope<TScopeRefusal> {
+	parameters: Record<string, string>;
+	refusal: (error: string | undefined) => TScopeRefusal | undefined;
+}
+
+function initRefreshedAccessToken<TScopeRefusal>(
+	deps: AccessTokenDependencies & { scope: RequestedScope<TScopeRefusal> },
+): (input: { userId: UserId; forceRefresh: boolean }) => Promise<GmailApiResult<string> | TScopeRefusal> {
 	const cached = new Map<UserId, { accessToken: string; expiresAt: number; refreshToken: string }>();
 
 	return async ({ userId, forceRefresh }) => {
@@ -42,11 +53,21 @@ export function initGmailAccessToken(deps: {
 				client_secret: deps.clientSecret,
 				refresh_token: refreshToken,
 				grant_type: "refresh_token",
+				...deps.scope.parameters,
 			}).toString(),
 		});
 
 		if (response.status === 400 || response.status === 401) {
 			const { error, errorDescription } = readGoogleTokenError(await response.json().catch(() => undefined));
+			const refused = deps.scope.refusal(error);
+			if (refused !== undefined) {
+				deps.logger.info("[gmail-access-token] requested scope not granted", {
+					userId,
+					status: response.status,
+					errorDescription,
+				});
+				return refused;
+			}
 			if (error === "invalid_grant") {
 				deps.logger.info("[gmail-access-token] refresh token rejected", {
 					userId,
@@ -79,4 +100,22 @@ export function initGmailAccessToken(deps: {
 		});
 		return { ok: true, value: parsed.data.access_token };
 	};
+}
+
+export function initGmailAccessToken(deps: AccessTokenDependencies): GetGmailAccessToken {
+	return initRefreshedAccessToken<never>({
+		...deps,
+		scope: { parameters: {}, refusal: () => undefined },
+	});
+}
+
+export function initGmailReadonlyAccessToken(deps: AccessTokenDependencies): GetGmailReadonlyAccessToken {
+	return initRefreshedAccessToken({
+		...deps,
+		scope: {
+			parameters: { scope: GMAIL_READONLY_SCOPE },
+			refusal: (error) =>
+				error === "invalid_scope" ? ({ ok: false, reason: "readonly-permission-required" } as const) : undefined,
+		},
+	});
 }

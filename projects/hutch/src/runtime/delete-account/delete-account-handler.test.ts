@@ -8,7 +8,10 @@ import {
 	InboxAddressSchema,
 	MessageIdSchema,
 	emailImageS3KeyPrefix,
+	messageIdentityKey,
+	normalizeMessageId,
 } from "@packages/domain/inbox";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
@@ -37,7 +40,8 @@ import { initRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
 import { initDisconnectGmail } from "../domain/gmail/disconnect-gmail";
 import { initRevokeGmailGrant } from "../providers/gmail-api/gmail-revoke";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
-import { GmailAccountEmailSchema, ForwardableSenderSchema } from "@packages/domain/gmail";
+import { GmailAccountEmailSchema, ForwardableSenderSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
+import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 
 const SEED_NOW = new Date("2026-07-05T00:00:00.000Z");
@@ -71,7 +75,8 @@ function buildSubject() {
 	const inboxLink = initInMemoryInboxEmailLink();
 	const inboxSavedLink = initInMemoryInboxSavedLink();
 	const inboxAddress = initInMemoryInboxAddress({ now: () => SEED_NOW });
-	const gmail = initInMemoryGmailIntegration({ grant: { ok: false, reason: "exchange-failed", status: 400, error: undefined, errorDescription: undefined } });
+	const gmail = initInMemoryGmailIntegration({ grant: { ok: false, reason: "exchange-failed", status: 400, error: undefined, errorDescription: undefined }, addresses: initInMemoryInboxAddress({ now: () => new Date() }) });
+	const identities = initInMemoryEmailIdentity();
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
 	const deleteSubscriptionCalls: UserId[] = [];
@@ -81,6 +86,7 @@ function buildSubject() {
 	const trialReminderCalls: UserId[] = [];
 	const chargeReminderCalls: UserId[] = [];
 	const rawEmailDeleteArgs: string[][] = [];
+	const rawEmailPrefixDeleteArgs: string[][] = [];
 	const bodyEmailDeleteArgs: string[][] = [];
 	const emailImageDeleteArgs: string[][] = [];
 	const deleteExportsCalls: UserId[] = [];
@@ -134,6 +140,7 @@ function buildSubject() {
 				return new Response(null, { status: 200 });
 			},
 		}),
+		cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
 		logger: HutchLogger.from(noopLogger),
 	});
 
@@ -189,6 +196,18 @@ function buildSubject() {
 			teardownOrder.push("tombstone");
 			await inboxAddress.tombstoneUserAddresses(userId);
 		},
+		deleteReadlistAddressClaims: async (userId: UserId) => {
+			teardownOrder.push("readlist-claims");
+			await gmail.addresses.deleteReadlistAddressClaims(userId);
+		},
+		deleteAllGmailHistoryImports: async (userId: UserId) => {
+			teardownOrder.push("imports");
+			await gmail.bundle.gmailHistoryImportStore.deleteAllByUserId(userId);
+		},
+		deleteAllEmailIdentities: async (userId: UserId) => {
+			teardownOrder.push("identities");
+			await identities.deleteAllByUserId(userId);
+		},
 		disconnectGmail,
 		deleteRawEmailObjects: async (keys: string[]) => {
 			if (injectedFailures.deleteRawEmailOnce) {
@@ -196,6 +215,10 @@ function buildSubject() {
 				throw new Error("simulated deleteRawEmailObjects failure");
 			}
 			rawEmailDeleteArgs.push(keys);
+		},
+		deleteRawEmailObjectsByPrefix: async (prefixes: string[]) => {
+			teardownOrder.push("imported-raw-email");
+			rawEmailPrefixDeleteArgs.push(prefixes);
 		},
 		deleteEmailContentObjects: async (keys: string[]) => {
 			bodyEmailDeleteArgs.push(keys);
@@ -264,6 +287,7 @@ function buildSubject() {
 		inboxLink,
 		inboxAddress,
 		gmail,
+		identities,
 		deleteCustomerCalls,
 		deleteSubscriptionCalls,
 		trialEndCalls,
@@ -272,6 +296,7 @@ function buildSubject() {
 		trialReminderCalls,
 		chargeReminderCalls,
 		rawEmailDeleteArgs,
+		rawEmailPrefixDeleteArgs,
 		bodyEmailDeleteArgs,
 		emailImageDeleteArgs,
 		deleteExportsCalls,
@@ -342,7 +367,7 @@ async function seedAccount(
 	await s.gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
 	await s.gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: `gmail-${label}`, grantedScope: GMAIL_SCOPES });
 	await s.gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: ForwardableSenderSchema.parse("newsletter@example.com") });
-	await s.gmail.bundle.gmailDiscoveryStore.startDiscovery({ userId, accountEmail: GmailAccountEmailSchema.parse(email), gatewayAddress, generation: label, mode: "profile", historyId: undefined });
+	await s.gmail.bundle.gmailDiscoveryStore.startDiscovery({ checkedMessageCount: 0, userId, accountEmail: GmailAccountEmailSchema.parse(email), gatewayAddress, generation: label, mode: "profile", historyId: undefined });
 
 	await s.articleStore.saveArticle({
 		userId,
@@ -467,6 +492,44 @@ async function readerReadySlotPresent(s: Subject, userId: UserId): Promise<boole
 		messageId: "probe",
 	});
 	return !claim.claimed;
+}
+
+async function seedGmailImport(s: Subject, account: SeededAccount) {
+	const sender = ForwardableSenderSchema.parse("newsletter@example.com");
+	const destination = await s.gmail.bundle.getOrCreateReadlistAddress({ userId: account.userId, readlist: ReadlistSlugSchema.parse("work") });
+	await s.gmail.bundle.getOrCreateReadlistAddress({ userId: account.userId, readlist: DEFAULT_READLIST_SLUG });
+	const connection = await s.gmail.bundle.gmailConnectionStore.findConnectionByUserId(account.userId);
+	assert(connection, "the seeded account is connected to Gmail");
+	await s.gmail.bundle.gmailHistoryImportStore.createJob({
+		userId: account.userId,
+		jobId: GmailHistoryImportJobIdSchema.parse("c".repeat(32)),
+		senderEmail: sender,
+		destinationAddress: destination.address,
+		connection: { gatewayAddress: connection.gatewayAddress, accountEmail: GmailAccountEmailSchema.parse(account.email) },
+		window: undefined,
+		generation: "generation-1",
+		page: 0,
+		pageToken: undefined,
+		listingCompletedAt: undefined,
+		state: "awaiting-permission",
+		counts: { listed: 0, imported: 0, alreadyImported: 0, skippedNoMessageId: 0, skippedSenderMismatch: 0, failed: 0, cancelled: 0 },
+		failureReason: undefined,
+		cancelReason: undefined,
+		createdAt: SEED_NOW.toISOString(),
+		updatedAt: SEED_NOW.toISOString(),
+		completedAt: undefined,
+	});
+	const messageId = normalizeMessageId(MessageIdSchema.parse(`<${account.userId}-issue@example.com>`));
+	assert(messageId, "the seeded Message-ID normalizes");
+	const identityKey = messageIdentityKey({ userId: account.userId, sender, messageId });
+	await s.identities.claim({
+		key: identityKey,
+		userId: account.userId,
+		receivedAtMessageId: account.ramA,
+		attempt: { origin: "receive", sesMessageId: `ses-${account.userId}` },
+		now: SEED_NOW,
+	});
+	return { identityKey };
 }
 
 async function run(s: Subject, records: Array<{ messageId: string; body: string }>) {
@@ -925,6 +988,26 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.chargeReminderCalls, [account.userId, account.userId]);
 	});
 
+	it("erases the account's Gmail imports, imported raw mail, message identities and readlist claims, and leaves another account's", async () => {
+		const s = buildSubject();
+		const victim = await seedAccount(s, { label: "imports-1", email: "imports-1@example.com", subscription: "none" });
+		const bystander = await seedAccount(s, { label: "imports-2", email: "imports-2@example.com", subscription: "none" });
+		const victimImport = await seedGmailImport(s, victim);
+		const bystanderImport = await seedGmailImport(s, bystander);
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(victim.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(s.rawEmailPrefixDeleteArgs, [[`gmail-import/${victim.userId}`]]);
+		assert.deepEqual(await s.gmail.bundle.gmailHistoryImportStore.listJobsByUserId(victim.userId), []);
+		assert.equal(await s.identities.find(victimImport.identityKey), undefined);
+		assert.equal(await s.gmail.bundle.findReadlistAddress({ userId: victim.userId, readlist: DEFAULT_READLIST_SLUG }), undefined);
+		assert.equal(await s.gmail.bundle.findReadlistAddress({ userId: victim.userId, readlist: ReadlistSlugSchema.parse("work") }), undefined);
+		assert.equal((await s.gmail.bundle.gmailHistoryImportStore.listJobsByUserId(bystander.userId)).length, 1);
+		assert.equal((await s.identities.find(bystanderImport.identityKey))?.userId, bystander.userId);
+		assert.equal((await s.gmail.bundle.findReadlistAddress({ userId: bystander.userId, readlist: DEFAULT_READLIST_SLUG }))?.userId, bystander.userId);
+	});
+
 	it("runs the Gmail teardown before the addresses are tombstoned", async () => {
 		const s = buildSubject();
 		const account = await seedAccount(s, {
@@ -936,7 +1019,7 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.deepEqual(s.teardownOrder, ["rewrite", "tombstone"]);
+		assert.deepEqual(s.teardownOrder, ["imported-raw-email", "imports", "identities", "rewrite", "readlist-claims", "tombstone"]);
 	});
 
 	it("redrives when Google cannot revoke the grant, then completes on the retry", async () => {

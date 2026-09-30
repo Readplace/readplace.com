@@ -28,7 +28,12 @@
       "dependsOn": ["compile"]
     },
     "test-with-coverage": {
-      "dependsOn": ["compile"]
+      "dependsOn": ["compile"],
+      "outputs": [
+        "{projectRoot}/coverage",
+        "{projectRoot}/playwright-report",
+        "{projectRoot}/test-results/screenshot-gallery"
+      ]
     },
     "test": {}
   }

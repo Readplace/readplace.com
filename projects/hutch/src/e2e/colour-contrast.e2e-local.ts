@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
+import { z } from "zod";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 import { markReadWithConfirmation } from "./page-interactions";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
@@ -393,6 +395,191 @@ test.describe("Alert variants hold their WCAG contrast in both themes", () => {
 			const measurements = await stableMeasurements(page, '[data-test-alert="import-truncated"]');
 			assert.ok(measurements.length > 0);
 			assertContrast(measurements, { theme, view: "warning" });
+		}
+	});
+});
+
+const GMAIL_ROOT = "main.gmail";
+const ADMIN_INDEX_ROOT = "main.admin-index";
+const ADMIN_NEWSLETTERS_ROOT = "main.admin-newsletters";
+const CATALOG_COOKIE = "e2e_catalog_ns";
+const CATALOG_AT = "2026-09-01T00:00:00.000Z";
+const CreatedReader = z.object({ ok: z.literal(true), userId: z.string() });
+
+async function seedNewsletterCatalog(
+	page: Page,
+	input: {
+		namespace: string;
+		mode: "available" | "unavailable";
+		records: { from: string; name: string; status: "pending" | "approved" | "rejected"; replacedBy?: string }[];
+	},
+): Promise<void> {
+	await page.context().addCookies([{ name: CATALOG_COOKIE, value: input.namespace, url: BASE_URL }]);
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-newsletter-catalog`, {
+		data: {
+			namespace: input.namespace,
+			mode: input.mode,
+			records: input.records.map((record) => ({
+				...record,
+				evidence: [{ kind: "admin", url: "https://publisher.example/newsletter", note: "Seen in the From header", addedAt: CATALOG_AT }],
+				createdAt: CATALOG_AT,
+				updatedAt: CATALOG_AT,
+			})),
+		},
+	});
+	assert.equal(seeded.status(), 201);
+}
+
+async function auditRoot(page: Page, input: { root: string; theme: string; view: string }): Promise<void> {
+	await page.mouse.move(0, 0);
+	const measurements = await stableMeasurements(page, input.root);
+	assert.ok(
+		measurements.length > 0,
+		`${input.theme}/${input.view}: the audit measured nothing inside ${input.root}`,
+	);
+	assertContrast(measurements, { theme: input.theme, view: input.view });
+}
+
+test.describe("GMail Newsletters colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the open pickers and every mapping row clear their contrast minimum", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		await seedNewsletterCatalog(page, {
+			namespace: `colour-contrast-gmail-${run}`,
+			mode: "available",
+			records: [
+				{ from: "dan@tldr.tech", name: "TLDR", status: "approved" },
+				{ from: "crew@morningbrew.com", name: "Morning Brew", status: "approved" },
+			],
+		});
+		const email = `colour-contrast-gmail-${run}@example.com`;
+		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email, password: PASSWORD, verified: true },
+		});
+		assert.equal(created.status(), 201);
+		const { userId } = CreatedReader.parse(await created.json());
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, {
+			data: {
+				userId,
+				filter: "failed-rejected",
+				readlists: ["Tech"],
+				discoveredSenders: [
+					{ email: "dan@tldr.tech", name: "TLDR" },
+					{ email: "crew@morningbrew.com", name: "Morning Brew" },
+				],
+				mappings: [
+					{ destination: "readlist", email: "awaiting@publisher.example", readlist: "Tech" },
+					{ destination: "readlist", email: "running@publisher.example", readlist: "Tech" },
+					{ destination: "readlist", email: "complete@publisher.example", readlist: "All" },
+					{ destination: "readlist", email: "failed@publisher.example", readlist: "All" },
+					{ destination: "missing", email: "missing@publisher.example" },
+					{ destination: "readlist", email: "pending@publisher.example", readlist: "All", pending: true },
+				],
+				imports: [
+					{ sender: "awaiting@publisher.example", state: "awaiting-permission" },
+					{ sender: "running@publisher.example", state: "running", counts: { listed: 9, imported: 3 } },
+					{ sender: "complete@publisher.example", state: "complete", counts: { imported: 4, alreadyImported: 1, failed: 1 } },
+					{ sender: "failed@publisher.example", state: "failed", failureReason: "gmail-rejected" },
+				],
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.locator("#email").fill(email);
+		await page.locator("#password").fill(PASSWORD);
+		await page.locator('[data-test-form="login"] button[type="submit"]').click();
+		await page.waitForSelector("body.page-readlist");
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/integrations/gmail?discovery=started&notice=sender_mapped&sender=dan%40tldr.tech`, {
+				waitUntil: "domcontentloaded",
+			});
+			await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
+			await expect(page.locator("[data-test-gmail-import-consent]").first()).toBeVisible({ timeout: SETTLE_MS });
+
+			await page.locator("[data-test-gmail-sender-picker] summary").click();
+			await expect(page.locator('[data-test-gmail-sender-results][data-results-state="listed"]')).toBeVisible({
+				timeout: SETTLE_MS,
+			});
+			await auditRoot(page, { root: GMAIL_ROOT, theme, view: "gmail/sender-picker" });
+
+			await page.keyboard.press("Escape");
+			await expect(page.locator("[data-test-gmail-sender-picker]")).not.toHaveAttribute("open");
+			const readlistPicker = page.locator("[data-test-gmail-readlist-picker]");
+			if ((await readlistPicker.getAttribute("open")) === null) await readlistPicker.locator("summary").click();
+			await expect(page.locator("[data-test-gmail-readlist-create]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: GMAIL_ROOT, theme, view: "gmail/readlist-picker" });
+		}
+	});
+});
+
+test.describe("Admin newsletter colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the admin index, every status list, the review form and the failure alerts clear their contrast minimum", async ({
+		page,
+	}, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD },
+		});
+		assert.equal(created.status(), 201);
+		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.locator("#email").fill(E2E_ADMIN_EMAIL);
+		await page.locator("#password").fill(E2E_ADMIN_PASSWORD);
+		await page.locator('[data-test-form="login"] button[type="submit"]').click();
+		await page.waitForSelector("body.page-readlist");
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/admin`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-admin");
+			await auditRoot(page, { root: ADMIN_INDEX_ROOT, theme, view: "admin/index" });
+
+			await seedNewsletterCatalog(page, {
+				namespace: `colour-contrast-admin-${theme}-${run}`,
+				mode: "available",
+				records: [
+					{ from: "pending@publisher.example", name: "Pending Weekly", status: "pending" },
+					{ from: "approved@publisher.example", name: "Approved Daily", status: "approved" },
+					{ from: "old@publisher.example", name: "Replaced Digest", status: "rejected", replacedBy: "approved@publisher.example" },
+				],
+			});
+			await page.goto(`${BASE_URL}/admin/newsletters?list_status=all&notice=approved`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-alert="newsletter-notice"]')).toBeVisible({ timeout: SETTLE_MS });
+			await expect(page.locator("[data-test-admin-newsletter-row]")).toHaveCount(3);
+			await auditRoot(page, { root: ADMIN_NEWSLETTERS_ROOT, theme, view: "admin/all-statuses" });
+
+			await page.goto(`${BASE_URL}/admin/newsletters?new=1`, { waitUntil: "domcontentloaded" });
+			const form = page.locator('[data-test-admin-newsletter-form="create"]');
+			await form.locator('input[name="from"]').fill("no-evidence@publisher.example");
+			await form.locator("[data-test-admin-newsletter-submit]").click();
+			await expect(page.locator('[data-test-admin-newsletter-form="create"] [data-test-error]').first()).toBeVisible({
+				timeout: SETTLE_MS,
+			});
+			await auditRoot(page, { root: ADMIN_NEWSLETTERS_ROOT, theme, view: "admin/create-validation" });
+
+			await page.goto(`${BASE_URL}/admin/newsletters?list_status=approved&edit=${encodeURIComponent("approved@publisher.example")}`, {
+				waitUntil: "domcontentloaded",
+			});
+			const edit = page.locator('[data-test-admin-newsletter-form="edit"]');
+			await edit.locator('input[name="updated_at"]').evaluate((input: HTMLInputElement) => {
+				input.value = "2026-01-01T00:00:00.000Z";
+			});
+			await edit.locator("[data-test-admin-newsletter-submit]").click();
+			await expect(page.locator("[data-test-admin-newsletter-conflict]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: ADMIN_NEWSLETTERS_ROOT, theme, view: "admin/conflict" });
+
+			await seedNewsletterCatalog(page, {
+				namespace: `colour-contrast-admin-unavailable-${theme}-${run}`,
+				mode: "unavailable",
+				records: [],
+			});
+			await page.goto(`${BASE_URL}/admin/newsletters`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-alert="newsletter-storage"]')).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: ADMIN_NEWSLETTERS_ROOT, theme, view: "admin/storage-failure" });
 		}
 	});
 });

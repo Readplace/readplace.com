@@ -10,7 +10,7 @@ export function initLocalGmailCommands(deps: {
 }): {
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
-		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested" | "reconnected";
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested" | "reconnected" | "readlist-deleted";
 	}) => Promise<void>;
 	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
 } {

@@ -1,0 +1,20 @@
+<main class="admin-index" data-test-admin-index>
+  <div class="admin-index__layout">
+    <h1 class="admin-index__title">Admin</h1>
+    <ul class="admin-index__links">
+      {{#each links}}
+      <li class="admin-index__item">
+        <form class="admin-index__form" method="{{method}}" action="{{action}}">
+          {{#each fields}}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {{/each}}
+          <button type="submit" class="admin-index__link" data-test-admin-link="{{key}}">
+            <span class="admin-index__label">{{label}}</span>
+            <span class="admin-index__description">{{description}}</span>
+          </button>
+        </form>
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+</main>

@@ -284,7 +284,17 @@ import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
 import { initIntegrationsRoutes } from "./web/pages/integrations";
-import type { GmailIntegrationDependencies } from "./web/pages/integrations/gmail-connect.page";
+import type { GmailIntegrationProviders } from "./web/pages/integrations/gmail-integration.types";
+import { initAdminIndexHandlers } from "./web/pages/admin/admin-index.page";
+import { initAdminNewslettersRoutes } from "./web/pages/admin/admin-newsletters.page";
+import { initMoveGmailMappingsOnReadlistDelete } from "./domain/gmail/move-gmail-mappings-on-readlist-delete";
+import { initUpdateNewsletterCatalog } from "./domain/newsletter-catalog/update-newsletter-catalog";
+import {
+	type NewsletterCatalogSeed,
+	initCatalogNewsletterDetector,
+	initNewsletterDetectorChain,
+} from "@packages/domain/newsletter-catalog";
+import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import { LANDING_PAGE_CONTENT, LandingPage } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
@@ -331,7 +341,10 @@ interface AppDependencies {
 	 * client, which is a separate Google Cloud project from sign-in: the
 	 * gmail.settings.basic scope is restricted, and sharing the sign-in client
 	 * would pull sign-in into that verification regime. */
-	gmailIntegration?: GmailIntegrationDependencies;
+	gmailIntegration?: GmailIntegrationProviders;
+	readNewsletterCatalog: ReadNewsletterCatalog;
+	writeNewsletterCatalog: WriteNewsletterCatalog;
+	newsletterCatalogSeed: NewsletterCatalogSeed;
 	appleAuth: {
 		exchangeAppleCode: ExchangeAppleCode;
 		clientId: string;
@@ -550,6 +563,31 @@ export function createApp(dependencies: AppDependencies): Express {
 		salt: deps.salt,
 	});
 	const upsertReadlist = initUpsertReadlist({ ...deps, generateReadlistSlug });
+	const gmailIntegration = deps.gmailIntegration === undefined
+		? undefined
+		: {
+				...deps.gmailIntegration,
+				detectNewsletters: initNewsletterDetectorChain({
+					detectors: [initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog })],
+				}),
+				upsertReadlist,
+				listReadlistDefinitions: deps.listReadlistDefinitions,
+			};
+	const unrouteInboxesOnReadlistDelete = initUnrouteInboxesOnReadlistDelete({
+		deleteReadlistDefinition: deps.deleteReadlistDefinition,
+		clearReadlistFromAddresses: deps.clearReadlistFromAddresses,
+	});
+	const deleteReadlistDefinition = gmailIntegration === undefined
+		? unrouteInboxesOnReadlistDelete
+		: initMoveGmailMappingsOnReadlistDelete({
+				deleteReadlistDefinition: unrouteInboxesOnReadlistDelete,
+				senders: gmailIntegration.gmailSenderStore,
+				findReadlistAddress: gmailIntegration.findReadlistAddress,
+				getOrCreateReadlistAddress: gmailIntegration.getOrCreateReadlistAddress,
+				retireReadlistAddress: gmailIntegration.retireReadlistAddress,
+				cancelGmailHistoryImports: gmailIntegration.cancelGmailHistoryImports,
+				publishRewriteGmailFilter: gmailIntegration.publishRewriteGmailFilter,
+			});
 	const fileArticleIntoReadlist = initFileArticleIntoReadlist(deps);
 	const addArticleToReadlist = initAddArticleToReadlist(deps);
 	const resolveOwnedArticle = initResolveOwnedArticle(deps);
@@ -1269,10 +1307,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		renameReadlistDefinition: deps.renameReadlistDefinition,
 		setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 		createReadlistDefinition: deps.createReadlistDefinition,
-		deleteReadlistDefinition: initUnrouteInboxesOnReadlistDelete({
-			deleteReadlistDefinition: deps.deleteReadlistDefinition,
-			clearReadlistFromAddresses: deps.clearReadlistFromAddresses,
-		}),
+		deleteReadlistDefinition,
 		listInboxAddresses: deps.listInboxAddresses,
 		setInboxAddressReadlist: deps.setInboxAddressReadlist,
 		markSummaryToggled: deps.markSummaryToggled,
@@ -1430,6 +1465,32 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use("/admin/extend-trial", adminExtendTrialRouter);
 
+	app.use(
+		"/admin/newsletters",
+		initAdminNewslettersRoutes({
+			findUserByEmail: deps.findUserByEmail,
+			adminEmails: deps.adminEmails,
+			readNewsletterCatalog: deps.readNewsletterCatalog,
+			updateNewsletterCatalog: initUpdateNewsletterCatalog({
+				readCatalog: deps.readNewsletterCatalog,
+				writeCatalog: deps.writeNewsletterCatalog,
+				maxAttempts: 3,
+			}),
+			newsletterCatalogSeed: deps.newsletterCatalogSeed,
+			now: deps.now,
+			logError: deps.logError,
+			buildBannerState,
+		}),
+	);
+	app.get(
+		"/admin",
+		...initAdminIndexHandlers({
+			findUserByEmail: deps.findUserByEmail,
+			adminEmails: deps.adminEmails,
+			buildBannerState,
+		}),
+	);
+
 	const exportRouter = initExportRoutes({
 		publishExportUserDataCommand: deps.publishExportUserDataCommand,
 		findEmailByUserId: deps.findEmailByUserId,
@@ -1499,7 +1560,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			secureCookies,
 			logError: deps.logError,
 			now: deps.now,
-			gmail: deps.gmailIntegration,
+			gmail: gmailIntegration,
 		}),
 	);
 

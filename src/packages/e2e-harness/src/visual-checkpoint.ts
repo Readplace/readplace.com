@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type Expect, type Page, expect } from "@playwright/test";
+import { type Expect, type Page, type TestInfo, expect, test } from "@playwright/test";
 import { waitForBrandFonts } from "./hermetic-cdn";
 
 export type CaptureMode = "element" | "page-from-top";
@@ -40,7 +40,12 @@ export async function snapToWholePixels(page: Page, selector: string): Promise<v
 	}, selector);
 }
 
-export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "soft"> }) {
+const SCREENSHOT_OPTIONS = { animations: "disabled", caret: "hide", scale: "css" } as const;
+
+export function initCaptureCheckpoint(deps: {
+	expect: Pick<Expect, "poll" | "soft">;
+	testInfo: () => Pick<TestInfo, "attach" | "errors">;
+}) {
 	return async function captureCheckpoint(
 		page: Page,
 		checkpoint: VisualCheckpoint,
@@ -89,6 +94,9 @@ export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "sof
 			checkpoint.maxDiffPixelRatio === undefined
 				? []
 				: [{ maxDiffPixelRatio: checkpoint.maxDiffPixelRatio }];
+		const testInfo = deps.testInfo();
+		const errorsBeforeComparison = testInfo.errors.length;
+		let captureSettledImage: () => Promise<Buffer>;
 		if (checkpoint.capture === "page-from-top") {
 			const viewport = page.viewportSize();
 			assert.ok(
@@ -96,12 +104,21 @@ export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "sof
 				`visual checkpoint "${checkpoint.name}": capture "page-from-top" requires a fixed viewport to size the clip`,
 			);
 			const box = await measuredBox(page, checkpoint.target);
+			const clip = { x: 0, y: 0, width: viewport.width, height: Math.ceil(box.y + box.height) };
 			await deps.expect.soft(page).toHaveScreenshot(`${checkpoint.name}.png`, {
-				clip: { x: 0, y: 0, width: viewport.width, height: Math.ceil(box.y + box.height) },
+				clip,
 				...budgetArgs[0],
 			});
+			captureSettledImage = () => page.screenshot({ clip, ...SCREENSHOT_OPTIONS });
 		} else {
 			await deps.expect.soft(target).toHaveScreenshot(`${checkpoint.name}.png`, ...budgetArgs);
+			captureSettledImage = () => target.screenshot(SCREENSHOT_OPTIONS);
+		}
+		if (testInfo.errors.length === errorsBeforeComparison) {
+			await testInfo.attach(`${checkpoint.name}.png`, {
+				body: await captureSettledImage(),
+				contentType: "image/png",
+			});
 		}
 		await page.evaluate((scroll) => {
 			window.scrollTo(scroll.x, scroll.y);
@@ -109,4 +126,4 @@ export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "sof
 	};
 }
 
-export const captureCheckpoint = initCaptureCheckpoint({ expect });
+export const captureCheckpoint = initCaptureCheckpoint({ expect, testInfo: test.info });

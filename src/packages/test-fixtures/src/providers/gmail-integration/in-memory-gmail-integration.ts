@@ -1,15 +1,16 @@
-import type { GmailAccountEmail } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailAccountEmail, GmailHistoryImportJobId } from "@packages/domain/gmail";
+import { GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
-import type { AliasName, InboxAddressStore } from "@packages/domain/inbox";
+import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { GmailIntegrationBundle } from "@packages/web-test-harness";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
-import { initInMemoryInboxAddress } from "../inbox-address";
 import { initInMemoryGmailConnection } from "../gmail-connection";
 import { initInMemoryGmailCredentials } from "../gmail-credentials";
 import { initInMemoryGmailSender } from "../gmail-sender";
 import { initInMemoryGmailDiscovery } from "../gmail-discovery";
+import { initInMemoryGmailHistoryImport } from "../gmail-history-import";
 
 export interface InMemoryGmailIntegration {
 	bundle: GmailIntegrationBundle;
@@ -18,10 +19,13 @@ export interface InMemoryGmailIntegration {
 	rewriteRequests: { userId: UserId; reason: string }[];
 	disconnectRequests: { userId: UserId }[];
 	discoveryRequests: { userId: UserId }[];
+	importStartRequests: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }[];
+	newsletterSenderSubmissions: { senderEmail: ForwardableSender }[];
 }
 
 export function initInMemoryGmailIntegration(input: {
 	grant: GmailGrantResult;
+	addresses: InboxAddressStore;
 	accountEmail?: GmailApiResult<GmailAccountEmail>;
 	domain?: string;
 	now?: () => Date;
@@ -32,7 +36,12 @@ export function initInMemoryGmailIntegration(input: {
 	};
 	const now = input.now ?? (() => new Date());
 	const domain = input.domain ?? "read.place";
-	const addresses = initInMemoryInboxAddress({ now });
+	const addresses = input.addresses;
+	const imports = initInMemoryGmailHistoryImport();
+	const importStartRequests: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }[] = [];
+	const newsletterSenderSubmissions: { senderEmail: ForwardableSender }[] = [];
+	let jobSequence = 0;
+	let generationSequence = 0;
 	const exchangedCodes: string[] = [];
 	const rewriteRequests: { userId: UserId; reason: string }[] = [];
 	const disconnectRequests: { userId: UserId }[] = [];
@@ -44,6 +53,8 @@ export function initInMemoryGmailIntegration(input: {
 		rewriteRequests,
 		disconnectRequests,
 		discoveryRequests,
+		importStartRequests,
+		newsletterSenderSubmissions,
 		bundle: {
 			exchangeGmailCode: async ({ code }) => {
 				exchangedCodes.push(code);
@@ -69,21 +80,31 @@ export function initInMemoryGmailIntegration(input: {
 				return entry.address;
 			},
 			findInboxAddress: addresses.findByAddress,
-			mintInboxAddress: async ({ userId, name }: { userId: UserId; name: AliasName }) => {
-				const entry = await addresses.createAddress({
-					userId,
-					domain,
-					name,
-					purpose: "gmail-mapped",
-				});
-				return entry.address;
-			},
-			listInboxAddresses: (userId: UserId) => addresses.listAddressesByUserId(userId),
 			publishRewriteGmailFilter: async (detail) => {
 				rewriteRequests.push(detail);
 			},
 			publishDisconnectGmail: async (detail) => {
 				disconnectRequests.push(detail);
+			},
+			getOrCreateReadlistAddress: ({ userId, readlist }) =>
+				addresses.getOrCreateReadlistAddress({ userId, domain, readlist }),
+			findReadlistAddress: addresses.findReadlistAddress,
+			retireReadlistAddress: addresses.retireReadlistAddress,
+			gmailHistoryImportStore: imports,
+			cancelGmailHistoryImports: (detail) => imports.cancelJobs({ ...detail, now: now() }),
+			publishStartGmailHistoryImport: async (detail) => {
+				importStartRequests.push(detail);
+			},
+			publishSubmitNewsletterSender: async (detail) => {
+				newsletterSenderSubmissions.push(detail);
+			},
+			newGmailHistoryImportJobId: () => {
+				jobSequence += 1;
+				return GmailHistoryImportJobIdSchema.parse(jobSequence.toString(16).padStart(32, "0"));
+			},
+			newGmailHistoryImportGeneration: () => {
+				generationSequence += 1;
+				return `generation-${generationSequence}`;
 			},
 		},
 	};

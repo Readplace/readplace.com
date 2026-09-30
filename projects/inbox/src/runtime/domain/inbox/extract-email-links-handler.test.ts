@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { EmailReceivedDetail } from "@packages/hutch-infra-components";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import {
 	AliasNameSchema,
@@ -86,7 +87,7 @@ function parsedOk(html: string, listUnsubscribeUrls: string[] = []): ParseEmailR
 }
 
 function eventBody(
-	over: Partial<{ userId: string; receivedAtMessageId: string; origin: "receive" | "backfill" }> = {},
+	over: Partial<{ userId: string; receivedAtMessageId: string; origin: EmailReceivedDetail["origin"] }> = {},
 ): string {
 	return JSON.stringify({
 		detail: {
@@ -341,6 +342,18 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.subscriptionReads).toEqual([]);
 		expect(harness.submitted).toEqual([]);
 		expect(harness.firstInboxNotices).toEqual([]);
+		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x"]);
+	});
+
+	it("sends a Gmail import's kept links to the save pipeline like forwarded mail", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x" });
+
+		await harness.run(eventBody({ origin: "gmail-import" }));
+
+		expect(harness.subscriptionReads).toEqual([USER]);
+		expect(harness.submitted).toEqual([
+			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+		]);
 		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x"]);
 	});
 

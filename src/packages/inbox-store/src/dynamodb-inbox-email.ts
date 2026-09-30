@@ -37,6 +37,12 @@ const InboxEmailRow = z.object({
 	),
 });
 
+const MessageIdIndexRow = z.object({
+	receivedAtMessageId: z.string(),
+	senderEmail: z.string(),
+	status: InboxEmailStatusSchema,
+});
+
 export function initDynamoDbInboxEmail(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -45,6 +51,11 @@ export function initDynamoDbInboxEmail(deps: {
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: InboxEmailRow,
+	});
+	const messageIdIndex = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.tableName,
+		schema: MessageIdIndexRow,
 	});
 
 	return {
@@ -104,7 +115,7 @@ export function initDynamoDbInboxEmail(deps: {
 			return { emails: emails.reverse(), hasNewer: hasMore, hasOlder: true };
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
-			table.get({ userId, receivedAtMessageId }),
+			table.get({ userId, receivedAtMessageId }, { consistentRead: true }),
 		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts }) => {
 			await table.update({
 				Key: { userId, receivedAtMessageId },
@@ -143,6 +154,25 @@ export function initDynamoDbInboxEmail(deps: {
 				},
 			);
 			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys, emailImageS3KeyPrefixes };
+		},
+		findReceivedByMessageId: async ({ userId, messageId }) => {
+			const received: { receivedAtMessageId: string; senderEmail: string }[] = [];
+			await forEachQueryPage(
+				messageIdIndex,
+				{
+					IndexName: "messageId-index",
+					KeyConditionExpression: "messageId = :messageId AND userId = :uid",
+					FilterExpression: "#status = :received",
+					ExpressionAttributeNames: { "#status": "status" },
+					ExpressionAttributeValues: { ":messageId": messageId, ":uid": userId, ":received": "received" },
+				},
+				async (rows) => {
+					for (const row of rows) {
+						received.push({ receivedAtMessageId: row.receivedAtMessageId, senderEmail: row.senderEmail });
+					}
+				},
+			);
+			return received;
 		},
 		deleteAllEmailsByUserId: async (userId) => {
 			await forEachQueryPage(

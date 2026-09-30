@@ -926,7 +926,7 @@ export const EmailReceivedEvent = defineEvent({
 		recipientAddress: z.string(),
 		/** "receive" saves kept links to the reader's queue; a "backfill" replay
 		 * re-derives preview rows only — historical mail must never mass-save. */
-		origin: z.enum(["receive", "backfill"]),
+		origin: z.enum(["receive", "backfill", "gmail-import"]),
 	}),
 });
 export type EmailReceivedDetail = z.infer<typeof EmailReceivedEvent.detailSchema>;
@@ -1049,7 +1049,7 @@ export const RewriteGmailFilterCommand = defineEvent({
 	detailType: "RewriteGmailFilter",
 	detailSchema: z.object({
 		userId: z.string(),
-		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed", "retry-requested", "reconnected"]),
+		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed", "retry-requested", "reconnected", "readlist-deleted"]),
 	}),
 });
 export type RewriteGmailFilterDetail = z.infer<typeof RewriteGmailFilterCommand.detailSchema>;
@@ -1128,6 +1128,130 @@ export const GmailSenderDiscoveryProgressedEvent = defineEvent({
 		nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(),
 	}),
 });
+
+export const SubmitNewsletterSenderCommand = defineEvent({
+	name: "submit-newsletter-sender",
+	source: "hutch.app",
+	detailType: "SubmitNewsletterSender",
+	detailSchema: z.object({ senderEmail: z.string() }),
+});
+export type SubmitNewsletterSenderDetail = z.infer<typeof SubmitNewsletterSenderCommand.detailSchema>;
+
+export const NewsletterSenderSubmittedEvent = defineEvent({
+	name: "newsletter-sender-submitted",
+	source: "hutch.app",
+	detailType: "NewsletterSenderSubmitted",
+	detailSchema: z.object({
+		senderEmail: z.string(),
+		outcome: z.enum(["created-pending", "already-present"]),
+	}),
+});
+export type NewsletterSenderSubmittedDetail = z.infer<typeof NewsletterSenderSubmittedEvent.detailSchema>;
+
+export const StartGmailHistoryImportCommand = defineEvent({
+	name: "start-gmail-history-import",
+	source: "hutch.app",
+	detailType: "StartGmailHistoryImport",
+	detailSchema: z.object({ userId: z.string(), jobId: z.string(), generation: z.string() }),
+});
+export type StartGmailHistoryImportDetail = z.infer<typeof StartGmailHistoryImportCommand.detailSchema>;
+
+export const ProcessGmailHistoryImportPageCommand = defineEvent({
+	name: "process-gmail-history-import-page",
+	source: "hutch.app",
+	detailType: "ProcessGmailHistoryImportPage",
+	detailSchema: z.object({
+		userId: z.string(),
+		jobId: z.string(),
+		generation: z.string(),
+		page: z.number().int().nonnegative(),
+	}),
+});
+export type ProcessGmailHistoryImportPageDetail = z.infer<typeof ProcessGmailHistoryImportPageCommand.detailSchema>;
+
+export const GmailHistoryImportPageProcessedEvent = defineEvent({
+	name: "gmail-history-import-page-processed",
+	source: "hutch.app",
+	detailType: "GmailHistoryImportPageProcessed",
+	detailSchema: z.object({
+		userId: z.string(),
+		jobId: z.string(),
+		nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(),
+	}),
+});
+export type GmailHistoryImportPageProcessedDetail = z.infer<typeof GmailHistoryImportPageProcessedEvent.detailSchema>;
+
+export const GmailHistoryImportMessageFetchedEvent = defineEvent({
+	name: "gmail-history-import-message-fetched",
+	source: "hutch.app",
+	detailType: "GmailHistoryImportMessageFetched",
+	detailSchema: z.object({
+		userId: z.string(),
+		jobId: z.string(),
+		generation: z.string(),
+		gmailMessageId: z.string(),
+		accountEmail: z.string(),
+		senderEmail: z.string(),
+		destinationAddress: z.string(),
+		rawEmailS3Key: z.string(),
+		internalDate: z.iso.datetime(),
+	}),
+});
+export type GmailHistoryImportMessageFetchedDetail = z.infer<typeof GmailHistoryImportMessageFetchedEvent.detailSchema>;
+
+export const GmailHistoryImportMessageIngestedEvent = defineEvent({
+	name: "gmail-history-import-message-ingested",
+	source: "hutch.inbox",
+	detailType: "GmailHistoryImportMessageIngested",
+	detailSchema: z.object({
+		userId: z.string(),
+		jobId: z.string(),
+		generation: z.string(),
+		gmailMessageId: z.string(),
+		outcome: z.enum([
+			"imported",
+			"already-imported",
+			"skipped-no-message-id",
+			"skipped-sender-mismatch",
+			"failed",
+			"cancelled",
+		]),
+		receivedAtMessageId: z.string().optional(),
+	}),
+});
+export type GmailHistoryImportMessageIngestedDetail = z.infer<typeof GmailHistoryImportMessageIngestedEvent.detailSchema>;
+
+export const GmailHistoryImportCompletedEvent = defineEvent({
+	name: "gmail-history-import-completed",
+	source: "hutch.app",
+	detailType: "GmailHistoryImportCompleted",
+	detailSchema: z.object({
+		userId: z.string(),
+		jobId: z.string(),
+		counts: z.object({
+			listed: z.number().int().nonnegative(),
+			imported: z.number().int().nonnegative(),
+			alreadyImported: z.number().int().nonnegative(),
+			skippedNoMessageId: z.number().int().nonnegative(),
+			skippedSenderMismatch: z.number().int().nonnegative(),
+			failed: z.number().int().nonnegative(),
+			cancelled: z.number().int().nonnegative(),
+		}),
+	}),
+});
+export type GmailHistoryImportCompletedDetail = z.infer<typeof GmailHistoryImportCompletedEvent.detailSchema>;
+
+export const GmailHistoryImportFailedEvent = defineEvent({
+	name: "gmail-history-import-failed",
+	source: "hutch.app",
+	detailType: "GmailHistoryImportFailed",
+	detailSchema: z.object({
+		userId: z.string(),
+		jobId: z.string(),
+		reason: z.enum(["gmail-rejected", "permission-revoked", "dead-lettered"]),
+	}),
+});
+export type GmailHistoryImportFailedDetail = z.infer<typeof GmailHistoryImportFailedEvent.detailSchema>;
 
 export type { HutchEvent, HutchCommand };
 

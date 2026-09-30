@@ -49,6 +49,7 @@ export function initInMemoryGmailDiscovery(deps: { now: () => Date }): GmailDisc
 				state,
 				page: previous.page + 1,
 				scannedCount: mode === "profile" ? scannedMessages : previous.scannedCount + scannedMessages,
+				checkedMessageCount: previous.checkedMessageCount + scannedMessages,
 				estimatedTotalMessages,
 				oldestScannedAt,
 				updatedAt: deps.now().toISOString(),

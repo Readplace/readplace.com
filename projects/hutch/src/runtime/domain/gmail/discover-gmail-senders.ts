@@ -130,6 +130,7 @@ export function initDiscoverGmailSenders(deps: {
 					generation: deps.newGeneration(),
 					mode: current?.state === "complete" ? "history" : current?.mode ?? "profile",
 					historyId: current?.historyId,
+					checkedMessageCount: current?.checkedMessageCount ?? 0,
 					resume: current?.state === "failed" ? current : undefined,
 				});
 			}

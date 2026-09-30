@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
@@ -9,11 +10,37 @@ import {
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
 import { type UserId, UserIdSchema } from '@packages/domain/user'
-import { ForwardableSenderSchema, GmailAccountEmailSchema } from '@packages/domain/gmail'
-import { AliasNameSchema } from '@packages/domain/inbox'
-import { ReadlistSlugSchema } from '@packages/domain/readlist'
-import { GMAIL_SCOPES } from '@packages/provider-contracts/gmail-oauth'
+import {
+	ForwardableSenderSchema,
+	GMAIL_HISTORY_IMPORT_OUTCOME_COUNT,
+	GMAIL_HISTORY_IMPORT_WINDOW_DAYS,
+	GmailAccountEmailSchema,
+	GmailHistoryImportCancelReasonSchema,
+	GmailHistoryImportCountsSchema,
+	GmailHistoryImportFailureReasonSchema,
+	type GmailHistoryImportJobId,
+	GmailHistoryImportMessageOutcomeSchema,
+	GmailMessageIdSchema,
+	gmailHistoryImportRawKey,
+	settledCount,
+} from '@packages/domain/gmail'
+import { AliasNameSchema, type InboxAddress, InboxAddressSchema } from '@packages/domain/inbox'
+import { NewsletterCatalogDocumentSchema, NewsletterCatalogRecordSchema } from '@packages/domain/newsletter-catalog'
+import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema, generateReadlistSlug } from '@packages/domain/readlist'
+import {
+	GMAIL_METADATA_SCOPE,
+	GMAIL_READONLY_SCOPE,
+	GMAIL_SCOPES,
+	GMAIL_SETTINGS_SCOPE,
+} from '@packages/provider-contracts/gmail-oauth'
+import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from '@packages/provider-contracts/newsletter-catalog'
 import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
+import {
+	type InMemoryNewsletterCatalog,
+	initInMemoryNewsletterCatalog,
+} from '@packages/test-fixtures/providers/newsletter-catalog'
+import { initUpsertReadlist } from '@packages/save-article'
+import { readNewsletterCatalogSeed } from '../runtime/domain/newsletter-catalog/newsletter-catalog-seed'
 import { createTestApp } from '../runtime/test-app'
 import {
 	createDefaultTestAppFixture,
@@ -112,7 +139,15 @@ const e2eValidateSaveableUrl: ValidateSaveableUrl = (value) => {
 
 const fixture = createDefaultTestAppFixture(origin)
 
+let lastGmailInstant = 0
+const gmailNow = () => {
+	lastGmailInstant = Math.max(Date.now(), lastGmailInstant + 1)
+	return new Date(lastGmailInstant)
+}
+
 const gmailIntegration = initInMemoryGmailIntegration({
+	addresses: fixture.inboxAddress.inboxAddressStore,
+	now: gmailNow,
 	grant: {
 		ok: true,
 		grant: {
@@ -150,6 +185,88 @@ gmailIntegration.bundle.publishStartGmailSenderDiscovery = async (detail) => {
 		}),
 	)
 }
+const GmailImportOutcomeCountsSchema = GmailHistoryImportCountsSchema.omit({ listed: true }).partial()
+const completeGmailImportOnStart = new Map<UserId, z.infer<typeof GmailImportOutcomeCountsSchema>>()
+const recordGmailImportStart = gmailIntegration.bundle.publishStartGmailHistoryImport
+gmailIntegration.bundle.publishStartGmailHistoryImport = async (detail) => {
+	await recordGmailImportStart(detail)
+	const outcomeCounts = completeGmailImportOnStart.get(detail.userId)
+	if (outcomeCounts === undefined) return
+	await completeGmailImport({ ...detail, outcomeCounts })
+}
+
+async function completeGmailImport(input: {
+	userId: UserId
+	jobId: GmailHistoryImportJobId
+	generation: string
+	outcomeCounts: z.infer<typeof GmailImportOutcomeCountsSchema>
+}): Promise<void> {
+	const imports = gmailIntegration.bundle.gmailHistoryImportStore
+	const { userId, jobId, generation } = input
+	const now = gmailNow()
+	assert(await imports.claimPage({ userId, jobId, generation, page: 0, now }))
+	const outcomes = GmailHistoryImportMessageOutcomeSchema.options.flatMap((outcome) =>
+		Array.from({ length: input.outcomeCounts[GMAIL_HISTORY_IMPORT_OUTCOME_COUNT[outcome]] ?? 0 }, () => outcome),
+	)
+	const messages = outcomes.map((outcome, index) => ({ outcome, gmailMessageId: GmailMessageIdSchema.parse(`e2e${index}`) }))
+	const fetched: typeof messages = []
+	for (const message of messages) {
+		const rawS3Key = gmailHistoryImportRawKey({ userId, jobId, gmailMessageId: message.gmailMessageId })
+		const recorded = await imports.recordFetched({ userId, jobId, generation, gmailMessageId: message.gmailMessageId, rawS3Key, now })
+		assert.notEqual(recorded, 'stale')
+		if (recorded === 'recorded') fetched.push(message)
+	}
+	const claimed = await imports.findJob({ userId, jobId })
+	assert(claimed)
+	assert(await imports.savePage({ previous: claimed, pageToken: undefined, now }))
+	for (const { gmailMessageId, outcome } of fetched) {
+		assert.equal(await imports.recordOutcome({ userId, jobId, generation, gmailMessageId, outcome, now }), 'recorded')
+	}
+	assert(await imports.completeIfSettled({ userId, jobId, now }))
+}
+
+const CATALOG_NAMESPACE_COOKIE = 'e2e_catalog_ns'
+const SHARED_CATALOG_NAMESPACE = 'shared'
+const CatalogNamespaceSchema = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/)
+const newsletterCatalogs = new Map<string, InMemoryNewsletterCatalog>()
+const newsletterCatalogNamespace = new AsyncLocalStorage<string>()
+const activeNewsletterCatalog = (): InMemoryNewsletterCatalog => {
+	const namespace = newsletterCatalogNamespace.getStore()
+	assert(namespace, 'every request runs inside the newsletter catalog namespace middleware')
+	const existing = newsletterCatalogs.get(namespace)
+	if (existing) return existing
+	const created = initInMemoryNewsletterCatalog(undefined)
+	newsletterCatalogs.set(namespace, created)
+	return created
+}
+const readE2eNewsletterCatalog: ReadNewsletterCatalog = () => activeNewsletterCatalog().readCatalog()
+const writeE2eNewsletterCatalog: WriteNewsletterCatalog = (input) => activeNewsletterCatalog().writeCatalog(input)
+
+function catalogNamespaceOf(cookieHeader: string | undefined): string {
+	const cookie = (cookieHeader ?? '')
+		.split(';')
+		.map((part) => part.trim())
+		.find((part) => part.startsWith(`${CATALOG_NAMESPACE_COOKIE}=`))
+	if (cookie === undefined) return SHARED_CATALOG_NAMESPACE
+	return cookie.slice(CATALOG_NAMESPACE_COOKIE.length + 1)
+}
+
+const upsertE2eReadlist = initUpsertReadlist({
+	listReadlistDefinitions: fixture.articleStore.listReadlistDefinitions,
+	createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
+	generateReadlistSlug,
+	now: () => new Date(),
+})
+
+async function seedReadlistSlug(input: { userId: UserId; label: string }): Promise<ReadlistSlug> {
+	const outcome = await upsertE2eReadlist({ userId: input.userId, name: input.label })
+	assert(
+		outcome.status === 'ok' || outcome.status === 'reserved-name',
+		`seeded readlist "${input.label}" could not be created: ${outcome.status}`,
+	)
+	return outcome.readlist.slug
+}
+
 // E2E exercises the HTMX polling UI end-to-end, so opt the summary fake into
 // transitioning pending → ready after a few reads. Unit/route tests use the
 // default (stays pending) for deterministic HTML assertions.
@@ -219,6 +336,11 @@ const { app: readplaceApp, auth, email } = createTestApp({
 	},
 	hostedCheckout: e2eStripe,
 	gmailIntegration: gmailIntegration.bundle,
+	newsletterCatalog: {
+		readNewsletterCatalog: readE2eNewsletterCatalog,
+		writeNewsletterCatalog: writeE2eNewsletterCatalog,
+		newsletterCatalogSeed: readNewsletterCatalogSeed(),
+	},
 	parser: { parseArticle, crawlArticle },
 	events: {
 		publishLinkSaved,
@@ -265,6 +387,15 @@ server.use('/e2e', express.json())
 
 server.get(readyProbePath(requireEnv(READY_NONCE_ENV)), (_req, res) => {
 	res.status(200).end()
+})
+
+server.use((req, res, next) => {
+	const namespace = CatalogNamespaceSchema.safeParse(catalogNamespaceOf(req.headers.cookie))
+	if (!namespace.success) {
+		res.status(400).json({ error: `the ${CATALOG_NAMESPACE_COOKIE} cookie is not a valid namespace` })
+		return
+	}
+	newsletterCatalogNamespace.run(namespace.data, next)
 })
 
 const CreateUserBody = z.object({
@@ -468,64 +599,245 @@ server.post('/e2e/seed-inbox-addresses', async (req, res) => {
 	res.status(201).json({ ok: true, addresses })
 })
 
-const SeedGmailStateBody = z.object({
-	userId: UserIdSchema,
-	discoveredSenders: z.array(z.object({ email: ForwardableSenderSchema, name: z.string().optional() })).default([]),
-	discoveryState: z.enum(['running', 'complete']).default('complete'),
-	discoveryMode: z.enum(['profile', 'full', 'history']).default('full'),
-	discoveryScannedMessages: z.number().int().nonnegative().optional(),
-	discoveryEstimatedTotalMessages: z.number().int().nonnegative().optional(),
-	completeDiscoveryOnStart: z.boolean().default(false),
-	senders: z
-		.array(
-			z.object({
-				email: z.string(),
-				place: z.enum(['filter', 'unsorted', 'mapped']),
-				subject: z.string().optional(),
-				name: AliasNameSchema.optional(),
+const SEEDED_GMAIL_ACCOUNT_EMAIL = GmailAccountEmailSchema.parse('reader@gmail.com')
+const MISSING_MAPPING_DESTINATION = InboxAddressSchema.parse('gmail-000000@missing.invalid')
+const DAY_MS = 24 * 60 * 60 * 1000
+
+const GMAIL_SCOPE_GRANTS = {
+	settings: GMAIL_SETTINGS_SCOPE,
+	metadata: GMAIL_METADATA_SCOPE,
+	readonly: GMAIL_READONLY_SCOPE,
+} as const
+
+const SeedGmailConnectionSchema = z.enum([
+	'setup',
+	'awaiting-confirmation',
+	'confirm-failed',
+	'confirm-exhausted',
+	'connected',
+	'revoked',
+	'disconnecting',
+])
+type SeedGmailConnection = z.infer<typeof SeedGmailConnectionSchema>
+
+const SEED_GMAIL_CONNECTION: Record<
+	SeedGmailConnection,
+	{ beforeSenders: (userId: UserId) => Promise<void>; afterSenders: (userId: UserId) => Promise<void> }
+> = {
+	setup: { beforeSenders: async () => {}, afterSenders: async () => {} },
+	'awaiting-confirmation': { beforeSenders: async () => {}, afterSenders: async () => {} },
+	'confirm-exhausted': { beforeSenders: async () => {}, afterSenders: async () => {} },
+	'confirm-failed': {
+		beforeSenders: (userId) =>
+			gmailIntegration.bundle.gmailConnectionStore.recordConfirmError({
+				userId,
+				error: { reason: 'token-rejected', at: gmailNow().toISOString() },
 			}),
-		)
-		.default([]),
-})
-server.post('/e2e/seed-gmail-state', async (req, res) => {
-	const parsed = SeedGmailStateBody.safeParse(req.body)
-	if (!parsed.success) {
-		res.status(400).json({ error: parsed.error.flatten() })
-		return
+		afterSenders: async () => {},
+	},
+	connected: {
+		beforeSenders: (userId) => gmailIntegration.bundle.gmailConnectionStore.markForwardingConfirmed({ userId }),
+		afterSenders: async () => {},
+	},
+	revoked: {
+		beforeSenders: (userId) => gmailIntegration.bundle.gmailConnectionStore.markForwardingConfirmed({ userId }),
+		afterSenders: (userId) => gmailIntegration.bundle.gmailConnectionStore.markRevoked({ userId, reason: 'invalid-grant' }),
+	},
+	disconnecting: {
+		beforeSenders: (userId) => gmailIntegration.bundle.gmailConnectionStore.markForwardingConfirmed({ userId }),
+		afterSenders: (userId) => gmailIntegration.bundle.gmailConnectionStore.markDisconnectRequested({ userId }),
+	},
+}
+
+const SeedGmailFilterSchema = z.enum(['none', 'live', 'updating', 'failed-too-long', 'failed-rejected'])
+type SeedGmailFilter = z.infer<typeof SeedGmailFilterSchema>
+
+const SEED_GMAIL_FILTER_ERROR: Record<
+	SeedGmailFilter,
+	((input: { userId: UserId; forwardTo: InboxAddress; senderCount: number }) => Promise<void>) | undefined
+> = {
+	none: undefined,
+	live: undefined,
+	updating: undefined,
+	'failed-too-long': ({ userId, forwardTo, senderCount }) =>
+		gmailIntegration.bundle.gmailConnectionStore.recordFilterError({
+			userId,
+			error: {
+				code: 'query-too-long',
+				forwardTo,
+				senderCount: senderCount + 1,
+				senderCapacity: senderCount,
+				at: gmailNow().toISOString(),
+			},
+		}),
+	'failed-rejected': ({ userId }) =>
+		gmailIntegration.bundle.gmailConnectionStore.recordFilterError({
+			userId,
+			error: { code: 'rejected', message: 'Filter rejected by Gmail', at: gmailNow().toISOString() },
+		}),
+}
+
+const SeedGmailMappingBody = z.discriminatedUnion('destination', [
+	z.object({
+		destination: z.literal('readlist'),
+		email: ForwardableSenderSchema,
+		readlist: z.string().min(1),
+		pending: z.boolean().default(false),
+	}),
+	z.object({
+		destination: z.literal('legacy-inbox'),
+		email: ForwardableSenderSchema,
+		readlist: z.string().min(1),
+		inboxName: AliasNameSchema,
+		pending: z.boolean().default(false),
+	}),
+	z.object({
+		destination: z.literal('disabled'),
+		email: ForwardableSenderSchema,
+		readlist: z.string().min(1),
+		pending: z.boolean().default(false),
+	}),
+	z.object({
+		destination: z.literal('missing'),
+		email: ForwardableSenderSchema,
+		pending: z.boolean().default(false),
+	}),
+])
+type SeedGmailMapping = z.infer<typeof SeedGmailMappingBody>
+
+async function seedMappingDestination(input: { userId: UserId; mapping: SeedGmailMapping }): Promise<InboxAddress> {
+	const { userId, mapping } = input
+	if (mapping.destination === 'missing') return MISSING_MAPPING_DESTINATION
+	const readlist = await seedReadlistSlug({ userId, label: mapping.readlist })
+	if (mapping.destination === 'legacy-inbox') {
+		const { inboxAddressStore, inboxAddressDomain } = fixture.inboxAddress
+		const inbox = await inboxAddressStore.createAddress({
+			userId,
+			domain: inboxAddressDomain,
+			name: mapping.inboxName,
+			purpose: 'gmail-mapped',
+		})
+		await inboxAddressStore.setAddressReadlist({
+			userId,
+			address: inbox.address,
+			readlist: readlist === DEFAULT_READLIST_SLUG ? undefined : readlist,
+		})
+		return inbox.address
 	}
-	const {
-		userId,
-		senders,
-		discoveredSenders,
-		discoveryState,
-		discoveryMode,
-		discoveryScannedMessages,
-		discoveryEstimatedTotalMessages,
-		completeDiscoveryOnStart,
-	} = parsed.data
-	const { gmailConnectionStore, gmailSenderStore, gmailCredentialsStore, gmailDiscoveryStore, mintGatewayAddress, mintInboxAddress } =
-		gmailIntegration.bundle
-	const gatewayAddress = await mintGatewayAddress({ userId })
-	const accountEmail = GmailAccountEmailSchema.parse('reader@gmail.com')
-	await gmailConnectionStore.createConnection({
-		userId,
-		gatewayAddress,
+	const entry = await gmailIntegration.bundle.getOrCreateReadlistAddress({ userId, readlist })
+	if (mapping.destination === 'disabled') {
+		await fixture.inboxAddress.inboxAddressStore.disableAddress({ userId, address: entry.address })
+	}
+	return entry.address
+}
+
+const SeedGmailImportCommon = {
+	sender: ForwardableSenderSchema,
+	counts: GmailHistoryImportCountsSchema.partial().default({}),
+	listingCompletedAt: z.iso.datetime().optional(),
+}
+const SeedGmailImportBody = z.union([
+	z.object({ ...SeedGmailImportCommon, state: z.enum(['awaiting-permission', 'queued', 'running', 'complete']) }),
+	z.object({ ...SeedGmailImportCommon, state: z.literal('failed'), failureReason: GmailHistoryImportFailureReasonSchema }),
+	z.object({ ...SeedGmailImportCommon, state: z.literal('cancelled'), cancelReason: GmailHistoryImportCancelReasonSchema }),
+])
+
+const SeedGmailStateBody = z
+	.object({
+		userId: UserIdSchema,
+		connection: SeedGmailConnectionSchema.default('connected'),
+		grantedScopes: z
+			.array(z.enum(['settings', 'metadata', 'readonly']))
+			.default(['settings', 'metadata']),
+		discoveredSenders: z.array(z.object({ email: ForwardableSenderSchema, name: z.string().optional() })).default([]),
+		discoveryState: z.enum(['idle', 'running', 'complete', 'failed']).default('complete'),
+		discoveryRequiresReconnect: z.boolean().default(false),
+		discoveryMode: z.enum(['profile', 'full', 'history']).default('full'),
+		discoveryScannedMessages: z.number().int().nonnegative().optional(),
+		discoveryCheckedMessages: z.number().int().nonnegative().optional(),
+		discoveryEstimatedTotalMessages: z.number().int().nonnegative().optional(),
+		completeDiscoveryOnStart: z.boolean().default(false),
+		filter: SeedGmailFilterSchema.default('live'),
+		readlists: z.array(z.string().min(1)).default([]),
+		senders: z
+			.array(
+				z.object({
+					email: z.string(),
+					place: z.enum(['filter', 'unsorted', 'mapped']),
+					subject: z.string().optional(),
+					name: AliasNameSchema.optional(),
+				}),
+			)
+			.default([]),
+		mappings: z.array(SeedGmailMappingBody).default([]),
+		imports: z.array(SeedGmailImportBody).default([]),
+		completeImportsOnStart: GmailImportOutcomeCountsSchema.optional(),
 	})
-	await gmailConnectionStore.recordAccountEmail({ userId, accountEmail })
-	await gmailCredentialsStore.saveCredentials({ userId, refreshToken: 'e2e-refresh', grantedScope: GMAIL_SCOPES })
-	await gmailDiscoveryStore.startDiscovery({ userId, accountEmail, gatewayAddress, generation: 'e2e', mode: discoveryMode, historyId: '100' })
+	.superRefine((body, context) => {
+		if (body.discoveryRequiresReconnect && body.discoveryState !== 'failed') {
+			context.addIssue({ code: 'custom', path: ['discoveryRequiresReconnect'], message: 'only a failed discovery can require a reconnect' })
+		}
+		if (body.discoveryCheckedMessages === undefined) return
+		if (body.discoveryState === 'idle') {
+			context.addIssue({ code: 'custom', path: ['discoveryCheckedMessages'], message: 'an idle discovery has checked no messages' })
+		}
+		const scanned = body.discoveryScannedMessages ?? body.discoveredSenders.length
+		if (body.discoveryCheckedMessages < scanned) {
+			context.addIssue({
+				code: 'custom',
+				path: ['discoveryCheckedMessages'],
+				message: 'the cumulative checked count includes the messages scanned by the seeded page',
+			})
+		}
+	})
+type SeedGmailState = z.infer<typeof SeedGmailStateBody>
+
+async function seedGmailDiscovery(input: {
+	body: SeedGmailState
+	gatewayAddress: InboxAddress
+}): Promise<void> {
+	const { body, gatewayAddress } = input
+	const { userId, discoveryState, discoveryMode, discoveredSenders } = body
+	if (discoveryState === 'idle') return
+	const { gmailDiscoveryStore } = gmailIntegration.bundle
+	const scannedMessages = body.discoveryScannedMessages ?? discoveredSenders.length
+	await gmailDiscoveryStore.startDiscovery({
+		checkedMessageCount: (body.discoveryCheckedMessages ?? scannedMessages) - scannedMessages,
+		userId,
+		accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL,
+		gatewayAddress,
+		generation: 'e2e',
+		mode: discoveryMode,
+		historyId: '100',
+	})
 	await gmailDiscoveryStore.claimPage({ userId, generation: 'e2e', page: 0 })
 	const previous = await gmailDiscoveryStore.findDiscoveryByUserId(userId)
 	assert(previous)
-	await gmailDiscoveryStore.savePage({ previous,
+	const pageState = discoveryState === 'complete' ? 'complete' : 'running'
+	await gmailDiscoveryStore.savePage({
+		previous,
 		senders: discoveredSenders.map((entry) => ({ email: entry.email, name: entry.name })),
-		mode: discoveryMode, pageToken: discoveryState === 'running' ? 'e2e-next' : undefined, historyId: '100', state: discoveryState,
-		scannedMessages: discoveryScannedMessages ?? discoveredSenders.length,
-		estimatedTotalMessages: discoveryEstimatedTotalMessages ?? discoveredSenders.length,
+		mode: discoveryMode,
+		pageToken: pageState === 'running' ? 'e2e-next' : undefined,
+		historyId: '100',
+		state: pageState,
+		scannedMessages,
+		estimatedTotalMessages: body.discoveryEstimatedTotalMessages ?? discoveredSenders.length,
 		oldestScannedAt: undefined,
 	})
-	if (completeDiscoveryOnStart) completeGmailDiscoveryOnStart.add(userId)
-	await gmailConnectionStore.markForwardingConfirmed({ userId })
+	if (discoveryState !== 'failed') return
+	await gmailDiscoveryStore.failDiscovery({
+		userId,
+		generation: 'e2e',
+		error: 'e2e seeded discovery failure',
+		requiresReconnect: body.discoveryRequiresReconnect,
+	})
+}
+
+async function seedLegacyGmailSenders(input: { userId: UserId; senders: SeedGmailState['senders'] }): Promise<number> {
+	const { userId, senders } = input
+	const { gmailSenderStore } = gmailIntegration.bundle
+	const { inboxAddressStore, inboxAddressDomain } = fixture.inboxAddress
 	for (const entry of senders) {
 		const senderEmail = ForwardableSenderSchema.parse(entry.email)
 		if (entry.place === 'unsorted') {
@@ -541,20 +853,156 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		}
 		if (entry.place === 'mapped') {
 			assert(entry.name, 'a mapped sender must carry the inbox name to route it to')
-			await gmailSenderStore.mapSenderToAddress({
+			const inbox = await inboxAddressStore.createAddress({
 				userId,
-				senderEmail,
-				mappedAddress: await mintInboxAddress({ userId, name: entry.name }),
+				domain: inboxAddressDomain,
+				name: entry.name,
+				purpose: 'gmail-mapped',
 			})
+			await gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddress: inbox.address })
 		}
 		await gmailSenderStore.addSenderToFilter({ userId, senderEmail })
 	}
-	await gmailConnectionStore.recordFilter({
+	return senders.filter((entry) => entry.place !== 'unsorted').length
+}
+
+async function seedGmailMappings(input: {
+	userId: UserId
+	mappings: readonly SeedGmailMapping[]
+}): Promise<InboxAddress[]> {
+	const { userId, mappings } = input
+	const { gmailSenderStore } = gmailIntegration.bundle
+	const destinations: InboxAddress[] = []
+	for (const mapping of mappings) {
+		const mappedAddress = await seedMappingDestination({ userId, mapping })
+		await gmailSenderStore.mapSenderToAddress({ userId, senderEmail: mapping.email, mappedAddress })
+		await gmailSenderStore.addSenderToFilter({ userId, senderEmail: mapping.email })
+		destinations.push(mappedAddress)
+	}
+	return destinations
+}
+
+async function seedGmailImports(input: {
+	userId: UserId
+	gatewayAddress: InboxAddress
+	imports: SeedGmailState['imports']
+}): Promise<void> {
+	const { userId, gatewayAddress } = input
+	const { gmailSenderStore, gmailHistoryImportStore, newGmailHistoryImportJobId } = gmailIntegration.bundle
+	for (const entry of input.imports) {
+		const sender = await gmailSenderStore.findSender({ userId, senderEmail: entry.sender })
+		assert(sender?.mappedAddress, `a seeded import for ${entry.sender} needs that sender mapped in the same seed`)
+		const now = gmailNow()
+		const counts = {
+			imported: 0,
+			alreadyImported: 0,
+			skippedNoMessageId: 0,
+			skippedSenderMismatch: 0,
+			failed: 0,
+			cancelled: 0,
+			...entry.counts,
+		}
+		await gmailHistoryImportStore.createJob({
+			userId,
+			jobId: newGmailHistoryImportJobId(),
+			senderEmail: entry.sender,
+			destinationAddress: sender.mappedAddress,
+			connection: { gatewayAddress, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL },
+			window:
+				entry.state === 'awaiting-permission'
+					? undefined
+					: {
+							start: new Date(now.getTime() - GMAIL_HISTORY_IMPORT_WINDOW_DAYS * DAY_MS).toISOString(),
+							end: now.toISOString(),
+						},
+			generation: 'e2e-import',
+			page: 0,
+			pageToken: undefined,
+			listingCompletedAt: entry.listingCompletedAt,
+			state: entry.state,
+			counts: { ...counts, listed: entry.counts.listed ?? settledCount({ ...counts, listed: 0 }) },
+			failureReason: entry.state === 'failed' ? entry.failureReason : undefined,
+			cancelReason: entry.state === 'cancelled' ? entry.cancelReason : undefined,
+			createdAt: now.toISOString(),
+			updatedAt: now.toISOString(),
+			completedAt: entry.state === 'complete' ? now.toISOString() : undefined,
+		})
+	}
+}
+
+server.post('/e2e/seed-gmail-state', async (req, res) => {
+	const parsed = SeedGmailStateBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const body = parsed.data
+	const { userId, filter, mappings } = body
+	const { gmailConnectionStore, gmailCredentialsStore, mintGatewayAddress } = gmailIntegration.bundle
+	const connection = SEED_GMAIL_CONNECTION[body.connection]
+	const gatewayAddress = await mintGatewayAddress({ userId })
+	await gmailConnectionStore.createConnection({ userId, gatewayAddress })
+	await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL })
+	await gmailCredentialsStore.saveCredentials({
 		userId,
-		filterCount: 1,
-		filterSenderCount: senders.filter((s) => s.place !== 'unsorted').length,
+		refreshToken: 'e2e-refresh',
+		grantedScope: [...new Set(body.grantedScopes)].map((grant) => GMAIL_SCOPE_GRANTS[grant]).join(' '),
 	})
-	res.status(201).json({ ok: true })
+	await seedGmailDiscovery({ body, gatewayAddress })
+	if (body.completeDiscoveryOnStart) completeGmailDiscoveryOnStart.add(userId)
+	completeGmailImportOnStart.delete(userId)
+	if (body.completeImportsOnStart !== undefined) completeGmailImportOnStart.set(userId, body.completeImportsOnStart)
+	await connection.beforeSenders(userId)
+	for (const label of body.readlists) await seedReadlistSlug({ userId, label })
+	const filtered = filter === 'updating' ? [] : mappings.filter((mapping) => !mapping.pending)
+	const afterFilter = filter === 'updating' ? mappings : mappings.filter((mapping) => mapping.pending)
+	const legacySenderCount = await seedLegacyGmailSenders({ userId, senders: body.senders })
+	const filteredDestinations = await seedGmailMappings({ userId, mappings: filtered })
+	const filterSenderCount = legacySenderCount + filtered.length
+	if (filter !== 'none') await gmailConnectionStore.recordFilter({ userId, filterCount: 1, filterSenderCount })
+	await seedGmailMappings({ userId, mappings: afterFilter })
+	await SEED_GMAIL_FILTER_ERROR[filter]?.({
+		userId,
+		forwardTo: filteredDestinations[0] ?? gatewayAddress,
+		senderCount: filterSenderCount,
+	})
+	await seedGmailImports({ userId, gatewayAddress, imports: body.imports })
+	await connection.afterSenders(userId)
+	res.status(201).json({ ok: true, gatewayAddress })
+})
+
+const SeedNewsletterCatalogBody = z.object({
+	namespace: CatalogNamespaceSchema,
+	records: z.array(NewsletterCatalogRecordSchema).default([]),
+	mode: z.enum(['available', 'unavailable', 'conflict-next-write', 'fail-next-write']).default('available'),
+})
+
+const SEED_NEWSLETTER_CATALOG_MODE: Record<
+	z.infer<typeof SeedNewsletterCatalogBody>['mode'],
+	(catalog: InMemoryNewsletterCatalog) => void
+> = {
+	available: () => {},
+	unavailable: (catalog) => catalog.failReads(true),
+	'conflict-next-write': (catalog) => catalog.conflictNextWrite(),
+	'fail-next-write': (catalog) => catalog.failNextWrite(),
+}
+
+server.post('/e2e/seed-newsletter-catalog', (req, res) => {
+	const parsed = SeedNewsletterCatalogBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const { namespace, records, mode } = parsed.data
+	const document = NewsletterCatalogDocumentSchema.safeParse({ version: 1, records })
+	if (!document.success) {
+		res.status(400).json({ error: document.error.flatten() })
+		return
+	}
+	const catalog = initInMemoryNewsletterCatalog(document.data)
+	SEED_NEWSLETTER_CATALOG_MODE[mode](catalog)
+	newsletterCatalogs.set(namespace, catalog)
+	res.status(201).json({ ok: true, namespace })
 })
 
 const SUBSCRIPTION_TRIAL_DEFAULT_OFFSET_MS = ((9 * 24 + 23) * 60 + 18) * 60 * 1000

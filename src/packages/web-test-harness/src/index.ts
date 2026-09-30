@@ -18,6 +18,7 @@ export type {
 	ImportSessionBundle,
 	InboxAddressBundle,
 	InboxEmailBundle,
+	NewsletterCatalogBundle,
 	OnboardingSignalsBundle,
 	OAuthBundle,
 	ParserBundle,

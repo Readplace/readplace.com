@@ -49,6 +49,10 @@
       "types": "./dist/providers/email/index.d.ts",
       "default": "./dist/providers/email/index.js"
     },
+    "./providers/email-identity": {
+      "types": "./dist/providers/email-identity/index.d.ts",
+      "default": "./dist/providers/email-identity/index.js"
+    },
     "./providers/email-verification": {
       "types": "./dist/providers/email-verification/index.d.ts",
       "default": "./dist/providers/email-verification/index.js"
@@ -77,6 +81,14 @@
       "types": "./dist/providers/gmail-held-mail/index.d.ts",
       "default": "./dist/providers/gmail-held-mail/index.js"
     },
+    "./providers/gmail-history": {
+      "types": "./dist/providers/gmail-history/index.d.ts",
+      "default": "./dist/providers/gmail-history/index.js"
+    },
+    "./providers/gmail-history-import": {
+      "types": "./dist/providers/gmail-history-import/index.d.ts",
+      "default": "./dist/providers/gmail-history-import/index.js"
+    },
     "./providers/gmail-integration": {
       "types": "./dist/providers/gmail-integration/index.d.ts",
       "default": "./dist/providers/gmail-integration/index.js"
@@ -104,6 +116,10 @@
     "./providers/inbox-email": {
       "types": "./dist/providers/inbox-email/index.d.ts",
       "default": "./dist/providers/inbox-email/index.js"
+    },
+    "./providers/newsletter-catalog": {
+      "types": "./dist/providers/newsletter-catalog/index.d.ts",
+      "default": "./dist/providers/newsletter-catalog/index.js"
     },
     "./providers/oauth": {
       "types": "./dist/providers/oauth/index.d.ts",
@@ -202,6 +218,9 @@
       "providers/email": [
         "./dist/providers/email/index.d.ts"
       ],
+      "providers/email-identity": [
+        "./dist/providers/email-identity/index.d.ts"
+      ],
       "providers/email-verification": [
         "./dist/providers/email-verification/index.d.ts"
       ],
@@ -223,6 +242,12 @@
       "providers/gmail-held-mail": [
         "./dist/providers/gmail-held-mail/index.d.ts"
       ],
+      "providers/gmail-history": [
+        "./dist/providers/gmail-history/index.d.ts"
+      ],
+      "providers/gmail-history-import": [
+        "./dist/providers/gmail-history-import/index.d.ts"
+      ],
       "providers/gmail-integration": [
         "./dist/providers/gmail-integration/index.d.ts"
       ],
@@ -243,6 +268,9 @@
       ],
       "providers/inbox-email": [
         "./dist/providers/inbox-email/index.d.ts"
+      ],
+      "providers/newsletter-catalog": [
+        "./dist/providers/newsletter-catalog/index.d.ts"
       ],
       "providers/oauth": [
         "./dist/providers/oauth/index.d.ts"

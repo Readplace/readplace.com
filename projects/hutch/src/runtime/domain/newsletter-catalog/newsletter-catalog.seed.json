@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "from": "enewsletter@scottishnews.com",
+      "name": "Scottish Legal News",
+      "evidence": [
+        {
+          "url": "https://www.scottishlegal.com/email-delivery-issues",
+          "note": "Publisher whitelisting page names enewsletter@scottishnews.com as the newsletter sender (fetched 2026-09-30)."
+        }
+      ]
+    },
+    {
+      "from": "newsletter@energyandcapital.com",
+      "name": "Energy & Capital",
+      "evidence": [
+        {
+          "url": "https://www.energyandcapital.com/whitelist/",
+          "note": "Publisher whitelist page names newsletter@energyandcapital.com for every provider (fetched 2026-09-30)."
+        }
+      ]
+    },
+    {
+      "from": "hello@cgxapp.com",
+      "name": "CGX",
+      "evidence": [
+        {
+          "url": "https://support.cgxapp.com/hc/en-gb/articles/30688454926353-Why-haven-t-I-received-the-email-newsletter",
+          "note": "Support article: 'whitelist the email address we send the newsletter from (hello@cgxapp.com)' (fetched via Zendesk article API 2026-09-30)."
+        }
+      ]
+    },
+    {
+      "from": "briefs@dailydosebriefs.com",
+      "name": "Daily Dose",
+      "evidence": [
+        {
+          "url": "https://www.dailydosebriefs.com/",
+          "note": "FAQ: 'Daily Dose (briefs@dailydosebriefs.com). Add it to contacts so it doesn't land in spam.' (fetched 2026-09-30)."
+        }
+      ]
+    },
+    {
+      "from": "pragmaticengineer@substack.com",
+      "name": "The Pragmatic Engineer",
+      "evidence": [
+        {
+          "note": "Supplied user feedback (Substack publication sender); verify FROM header before approving"
+        }
+      ]
+    }
+  ]
+}

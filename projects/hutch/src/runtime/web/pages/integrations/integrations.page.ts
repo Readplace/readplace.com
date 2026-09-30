@@ -5,11 +5,8 @@ import { sendComponent } from "@packages/web-shell";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import {
-	type GmailConnectContext,
-	type GmailIntegrationDependencies,
-	registerGmailConnectRoutes,
-} from "./gmail-connect.page";
+import { type GmailConnectContext, registerGmailConnectRoutes } from "./gmail-connect.page";
+import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import { registerGmailPageRoutes } from "./gmail.page";
 import { IntegrationsIndexPage } from "./integrations-index.component";
 import { toIntegrationsIndexViewModel } from "./integrations-index.viewmodel";
@@ -46,6 +43,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 			requireAuth: deps.requireAuth,
 			requireNotLocked: deps.requireNotLocked,
 			requireWriteAccess: deps.requireWriteAccess,
+			now: deps.now,
 		});
 	}
 

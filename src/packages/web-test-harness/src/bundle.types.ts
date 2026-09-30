@@ -2,11 +2,18 @@ import type { CrawlArticle } from "@packages/crawl-article";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 import type {
+	ForwardableSender,
 	GmailConnectionStore,
 	GmailCredentialsStore,
 	GmailDiscoveryStore,
+	GmailHistoryImportCancelReason,
+	GmailHistoryImportJob,
+	GmailHistoryImportJobId,
+	GmailHistoryImportStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
+import type { NewsletterCatalogSeed } from "@packages/domain/newsletter-catalog";
+import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	ArticleMetadata,
@@ -199,7 +206,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts";
 import type { UserId } from "@packages/domain/user";
-import type { AliasName, InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
+import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
 
@@ -527,13 +534,30 @@ export interface GmailIntegrationBundle {
 	publishStartGmailSenderDiscovery: (input: { userId: UserId }) => Promise<void>;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
 	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
-	mintInboxAddress: (input: { userId: UserId; name: AliasName }) => Promise<InboxAddress>;
-	listInboxAddresses: (userId: UserId) => Promise<InboxAddressEntry[]>;
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;
-		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested" | "reconnected";
+		reason: "forwarding-confirmed" | "sender-added" | "sender-removed" | "retry-requested" | "reconnected" | "readlist-deleted";
 	}) => Promise<void>;
 	publishDisconnectGmail: (input: { userId: UserId }) => Promise<void>;
+	getOrCreateReadlistAddress: (input: { userId: UserId; readlist: ReadlistSlug }) => Promise<InboxAddressEntry>;
+	findReadlistAddress: (input: { userId: UserId; readlist: ReadlistSlug }) => Promise<InboxAddressEntry | undefined>;
+	retireReadlistAddress: (input: { userId: UserId; readlist: ReadlistSlug }) => Promise<InboxAddress | undefined>;
+	gmailHistoryImportStore: GmailHistoryImportStore;
+	cancelGmailHistoryImports: (input: {
+		userId: UserId;
+		senderEmail: ForwardableSender | undefined;
+		reason: GmailHistoryImportCancelReason;
+	}) => Promise<GmailHistoryImportJob[]>;
+	publishStartGmailHistoryImport: (input: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }) => Promise<void>;
+	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
+	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
+	newGmailHistoryImportGeneration: () => string;
+}
+
+export interface NewsletterCatalogBundle {
+	readNewsletterCatalog: ReadNewsletterCatalog;
+	writeNewsletterCatalog: WriteNewsletterCatalog;
+	newsletterCatalogSeed: NewsletterCatalogSeed;
 }
 
 export interface AppleAuthBundle {
@@ -614,6 +638,7 @@ export interface TestAppFixture {
 	onboardingSignals: OnboardingSignalsBundle;
 	google: GoogleAuthBundle | undefined;
 	gmailIntegration: GmailIntegrationBundle | undefined;
+	newsletterCatalog: NewsletterCatalogBundle;
 	apple: AppleAuthBundle;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;

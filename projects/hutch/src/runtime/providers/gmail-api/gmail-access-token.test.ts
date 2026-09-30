@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
-import { initGmailAccessToken } from "./gmail-access-token";
+import { GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { initGmailAccessToken, initGmailReadonlyAccessToken } from "./gmail-access-token";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic";
@@ -40,16 +41,18 @@ function makeHarness(responses: FakeResponse[]) {
 		};
 	}) as unknown as typeof globalThis.fetch;
 
-	const accessToken = initGmailAccessToken({
+	const deps = {
 		clientId: "client-id",
 		clientSecret: "client-secret",
 		credentials,
 		fetch: fetchFake,
 		now: () => clock,
 		logger,
-	});
+	};
+	const accessToken = initGmailAccessToken(deps);
 
 	return {
+		deps,
 		accessToken,
 		requests,
 		credentials,
@@ -253,5 +256,58 @@ describe("initGmailAccessToken", () => {
 		const result = await harness.accessToken({ userId: USER, forceRefresh: false });
 
 		assert.deepEqual(result, { ok: false, reason: "unavailable", status: 200 });
+	});
+});
+
+describe("initGmailReadonlyAccessToken", () => {
+	it("asks Google for a token narrowed to read-only Gmail access", async () => {
+		const harness = makeHarness([{ status: 200, body: { access_token: "readonly-1", expires_in: 3600 } }]);
+		await harness.credentials.saveCredentials({ userId: USER, refreshToken: "refresh-1", grantedScope: `${SCOPE} ${GMAIL_READONLY_SCOPE}` });
+		const readonlyToken = initGmailReadonlyAccessToken(harness.deps);
+
+		assert.deepEqual(await readonlyToken({ userId: USER, forceRefresh: false }), { ok: true, value: "readonly-1" });
+		assert.equal(harness.requests[0].get("scope"), GMAIL_READONLY_SCOPE);
+		assert.equal(harness.requests[0].get("refresh_token"), "refresh-1");
+	});
+
+	it("keeps its own cache apart from the granted-scope token for the same user", async () => {
+		const harness = makeHarness([
+			{ status: 200, body: { access_token: "granted-1", expires_in: 3600 } },
+			{ status: 200, body: { access_token: "readonly-1", expires_in: 3600 } },
+		]);
+		await harness.credentials.saveCredentials({ userId: USER, refreshToken: "refresh-1", grantedScope: `${SCOPE} ${GMAIL_READONLY_SCOPE}` });
+		const readonlyToken = initGmailReadonlyAccessToken(harness.deps);
+
+		assert.deepEqual(await harness.accessToken({ userId: USER, forceRefresh: false }), { ok: true, value: "granted-1" });
+		assert.deepEqual(await readonlyToken({ userId: USER, forceRefresh: false }), { ok: true, value: "readonly-1" });
+		assert.deepEqual(await harness.accessToken({ userId: USER, forceRefresh: false }), { ok: true, value: "granted-1" });
+		assert.deepEqual(await readonlyToken({ userId: USER, forceRefresh: false }), { ok: true, value: "readonly-1" });
+		assert.equal(harness.requests.length, 2);
+		assert.equal(harness.requests[0].get("scope"), null);
+		assert.equal(harness.requests[1].get("scope"), GMAIL_READONLY_SCOPE);
+	});
+
+	it("asks for read-only permission, logging it as expected, when the grant lacks the read-only scope", async () => {
+		const harness = makeHarness([
+			{ status: 400, body: { error: "invalid_scope", error_description: "Bad Request" } },
+		]);
+		await harness.credentials.saveCredentials({ userId: USER, refreshToken: "refresh-1", grantedScope: SCOPE });
+		const readonlyToken = initGmailReadonlyAccessToken(harness.deps);
+
+		const result = await readonlyToken({ userId: USER, forceRefresh: false });
+
+		assert.deepEqual(result, { ok: false, reason: "readonly-permission-required" });
+		assert.deepEqual(harness.infoLines, [
+			["[gmail-access-token] requested scope not granted", { userId: USER, status: 400, errorDescription: "Bad Request" }],
+		]);
+		assert.deepEqual(harness.errorLines, []);
+	});
+
+	it("still asks the user to reconnect when Google revoked the refresh token itself", async () => {
+		const harness = makeHarness([{ status: 400, body: { error: "invalid_grant" } }]);
+		await harness.credentials.saveCredentials({ userId: USER, refreshToken: "refresh-1", grantedScope: SCOPE });
+		const readonlyToken = initGmailReadonlyAccessToken(harness.deps);
+
+		assert.deepEqual(await readonlyToken({ userId: USER, forceRefresh: false }), { ok: false, reason: "reauth-required" });
 	});
 });

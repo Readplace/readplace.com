@@ -19,6 +19,7 @@ export interface GmailDiscovery {
 	pageToken: string | undefined;
 	historyId: string | undefined;
 	scannedCount: number;
+	checkedMessageCount: number;
 	estimatedTotalMessages: number | undefined;
 	oldestScannedAt: number | undefined;
 	updatedAt: string;
@@ -36,6 +37,7 @@ export interface GmailDiscoveryStore {
 		generation: string;
 		mode: GmailDiscovery["mode"];
 		historyId: string | undefined;
+		checkedMessageCount: number;
 		resume?: Pick<GmailDiscovery, "page" | "pageToken" | "scannedCount" | "estimatedTotalMessages" | "oldestScannedAt">;
 	}) => Promise<boolean>;
 	claimPage: (input: { userId: UserId; generation: string; page: number }) => Promise<boolean>;

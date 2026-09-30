@@ -5,9 +5,8 @@ import type {
 	SQSEvent,
 } from "aws-lambda";
 import { z } from "zod";
-import { EmailReceivedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { parseForwardableSender } from "@packages/domain/gmail";
 import {
 	type InboxAddress,
 	type InboxAddressEntry,
@@ -16,14 +15,16 @@ import {
 	type InboxEmailEntry,
 	type InboxEmailStore,
 	MessageIdSchema,
+	normalizeMessageId,
 	type ParseEmailResult,
 	UNROUTED_USER_ID,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { RouteGmailForwardedEmail } from "../gmail/route-gmail-forwarded-email";
-import type { DownloadEmailImages } from "./download-email-images";
+import type { DownloadedEmailImage, DownloadEmailImages } from "./download-email-images";
+import type { IngestParsedEmail } from "./ingest-parsed-email";
 import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
-import type { StoreEmailBody } from "./store-email-body";
+import type { ResolveEmailIdentity } from "./resolve-email-identity";
 
 /** The SES "Received" notification SES publishes (via the S3 action's topic) for
  * each inbound message. Only the fields the receive path needs are validated. */
@@ -42,8 +43,8 @@ export function initReceiveEmailHandler(deps: {
 	putEmail: InboxEmailStore["putEmail"];
 	parseEmail: (input: { raw: Buffer; receivedAt: string }) => Promise<ParseEmailResult>;
 	downloadEmailImages: DownloadEmailImages;
-	storeBody: StoreEmailBody;
-	publishEvent: PublishEvent;
+	resolveIdentity: ResolveEmailIdentity;
+	ingest: IngestParsedEmail;
 	interceptGmailConfirmation: InterceptGmailConfirmation;
 	routeGmailForwardedEmail: RouteGmailForwardedEmail;
 	logger: HutchLogger;
@@ -55,8 +56,8 @@ export function initReceiveEmailHandler(deps: {
 		putEmail,
 		parseEmail,
 		downloadEmailImages,
-		storeBody,
-		publishEvent,
+		resolveIdentity,
+		ingest,
 		interceptGmailConfirmation,
 		routeGmailForwardedEmail,
 		logger,
@@ -199,14 +200,14 @@ export function initReceiveEmailHandler(deps: {
 				}
 
 				const receivedAtMessageId = `${receivedAt}#${parsed.email.messageId}`;
+				const sender = parseForwardableSender(parsed.email.from);
+				const normalizedMessageId = normalizeMessageId(parsed.email.messageId);
 				// Remote images download ONCE per message — the HTML is identical for
 				// every co-addressed recipient, so per-recipient fetches would multiply
 				// both the sender-visible requests and the wall time against the Lambda
 				// timeout. Gated on a deliverable recipient: dictionary-guessed spam to
 				// the public catch-all must not get to trigger outbound fetches.
-				const downloadedImages = hasDeliverable
-					? await downloadEmailImages({ html: parsed.email.html })
-					: [];
+				let downloadedImages: Promise<DownloadedEmailImage[]> | undefined;
 				for (const { recipientAddress, resolved, userId } of resolvedRecipients) {
 					if (resolved === undefined) {
 						// Unknown address — a guessed/mistyped `in-xxxxxx@`, expected on a
@@ -244,49 +245,32 @@ export function initReceiveEmailHandler(deps: {
 							continue;
 						}
 					}
-					const base = {
-						userId,
-						receivedAtMessageId,
-						messageId: parsed.email.messageId,
-						recipientAddress: deliveryAddress,
-						senderEmail: parsed.email.from,
-						subject: parsed.email.subject,
-						receivedAt,
-						rawEmailS3Key: s3Key,
-						linkCounts: undefined,
-					};
-					// Body (and its inline images) to S3 BEFORE the row, and the row BEFORE
-					// the event: a crash anywhere re-delivers and replays idempotently. The
-					// body key is user-scoped so co-addressed recipients never collide.
-					const bodyS3Key = await storeBody({
-						userId,
-						receivedAtMessageId,
-						html: parsed.email.html,
-						inlineImages: parsed.email.inlineImages,
-						downloadedImages,
-					});
-					if (bodyS3Key === undefined) {
-						// Parsed fine but sanitized to nothing — a body composed entirely of
-						// stripped tags (`<style>`/`<script>`). There is nothing to render, so
-						// persist `unparsed` (no body pointer, no event): the detail page shows
-						// its graceful unavailable panel — never a blank iframe — and the list
-						// surfaces the "Couldn't render" badge. The sanitizer did its job, so
-						// this is not a fault — ACK, with the immutable raw .eml as the record.
-						await putEmail({ ...base, status: "unparsed", bodyS3Key: undefined });
-						logger.warn("[receive-email] empty body after sanitize", { receivedAtMessageId });
+					const resolution =
+						sender === undefined || normalizedMessageId === undefined
+							? { proceed: true as const, receivedAtMessageId }
+							: await resolveIdentity({
+									userId,
+									sender,
+									messageId: parsed.email.messageId,
+									normalizedMessageId,
+									proposedReceivedAtMessageId: receivedAtMessageId,
+									attempt: { origin: "receive", sesMessageId },
+								});
+					if (!resolution.proceed) {
+						logger.info("[receive-email] already ingested", { userId, deliveryAddress });
 						continue;
 					}
-					const outcome = await putEmail({ ...base, status: "received", bodyS3Key });
-					// Re-publish even on a duplicate row: a crash between the row write and
-					// the publish would otherwise lose the event. The consumer is
-					// idempotent, so a redundant publish is safe.
-					await publishEvent(EmailReceivedEvent, {
+					downloadedImages ??= downloadEmailImages({ html: parsed.email.html });
+					await ingest({
 						userId,
-						receivedAtMessageId,
-						recipientAddress: deliveryAddress,
+						destination: deliveryAddress,
+						email: parsed.email,
+						receivedAt,
+						rawEmailS3Key: s3Key,
+						receivedAtMessageId: resolution.receivedAtMessageId,
+						downloadedImages: await downloadedImages,
 						origin: "receive",
 					});
-					logger.info("[receive-email] stored", { receivedAtMessageId, outcome });
 				}
 			} catch (error) {
 				logger.error("[receive-email] record failed", {

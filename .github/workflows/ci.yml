@@ -90,6 +90,19 @@ jobs:
 
       - run: pnpm check --exclude=ios,android
 
+      - name: Upload Playwright reports and screenshot galleries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-reports-and-galleries-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            projects/hutch/playwright-report
+            projects/hutch/test-results/screenshot-gallery
+            projects/inbox/playwright-report
+            projects/inbox/test-results/screenshot-gallery
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Hand the transition frames to the visual review
         if: always() && runner.environment != 'github-hosted'
         run: |

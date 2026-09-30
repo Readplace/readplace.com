@@ -1,6 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
@@ -16,7 +16,13 @@ import { initDiscoverGmailSenders } from "../domain/gmail/discover-gmail-senders
 import { initLocalGmailCommands } from "../domain/gmail/local-gmail-commands";
 import { initRewriteGmailFilter } from "../domain/gmail/rewrite-gmail-filter";
 import { initRunGmailDiscoveryLocally } from "../domain/gmail/run-gmail-discovery-locally";
-import type { GmailIntegrationDependencies } from "../web/pages/integrations/gmail-connect.page";
+import type { GmailIntegrationProviders } from "../web/pages/integrations/gmail-integration.types";
+import { initCancelGmailHistoryImports } from "../domain/gmail/cancel-gmail-history-imports";
+import { initUpdateNewsletterCatalog } from "../domain/newsletter-catalog/update-newsletter-catalog";
+import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
+import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
+import { GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
+import { mergeSubmittedSender } from "@packages/domain/newsletter-catalog";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
 import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
@@ -92,7 +98,6 @@ import { initInMemoryImportSession } from "@packages/test-fixtures/providers/imp
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
-import type { AliasName } from "@packages/domain/inbox";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
@@ -179,12 +184,20 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const gmailCredentialsStore = initInMemoryGmailCredentials({ now: () => new Date() });
 	const gmailConnectionStore = initInMemoryGmailConnection({ now: () => new Date() });
 	const gmailDiscoveryStore = initInMemoryGmailDiscovery({ now: () => new Date() });
+	const gmailHistoryImportStore = initInMemoryGmailHistoryImport();
+	const cancelGmailHistoryImports = initCancelGmailHistoryImports({ imports: gmailHistoryImportStore, now: () => new Date() });
+	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
+	const updateNewsletterCatalog = initUpdateNewsletterCatalog({
+		readCatalog: newsletterCatalog.readCatalog,
+		writeCatalog: newsletterCatalog.writeCatalog,
+		maxAttempts: 3,
+	});
 
 	const buildGmailIntegration = (settings: {
 		clientId: string;
 		clientSecret: string;
 		stateSeed: string;
-	}): GmailIntegrationDependencies => {
+	}): GmailIntegrationProviders => {
 		const { clientId, clientSecret, stateSeed } = settings;
 		const gmailSenderStore = initInMemoryGmailSender({ now: () => new Date() });
 		const gmailAccessToken = initGmailAccessToken({ clientId, clientSecret, credentials: gmailCredentialsStore, fetch: globalThis.fetch, now: () => new Date(), logger });
@@ -204,6 +217,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 			addresses: inboxAddressStore,
 			rewriteGmailFilter,
 			revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
+			cancelGmailHistoryImports,
 			logger,
 		});
 		const { publishRewriteGmailFilter, publishDisconnectGmail } = initLocalGmailCommands({ rewriteGmailFilter, disconnectGmail, logger });
@@ -245,18 +259,22 @@ export function initDevProviders(input: { appOrigin: string }) {
 				return entry.address;
 			},
 			findInboxAddress: inboxAddressStore.findByAddress,
-			mintInboxAddress: async ({ userId, name }: { userId: UserId; name: AliasName }) => {
-				const entry = await inboxAddressStore.createAddress({
-					userId,
-					domain: inboxAddressDomain,
-					name,
-					purpose: "gmail-mapped",
-				});
-				return entry.address;
-			},
-			listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 			publishRewriteGmailFilter,
 			publishDisconnectGmail,
+			getOrCreateReadlistAddress: ({ userId, readlist }) =>
+				inboxAddressStore.getOrCreateReadlistAddress({ userId, domain: inboxAddressDomain, readlist }),
+			findReadlistAddress: inboxAddressStore.findReadlistAddress,
+			retireReadlistAddress: inboxAddressStore.retireReadlistAddress,
+			gmailHistoryImportStore,
+			cancelGmailHistoryImports,
+			publishStartGmailHistoryImport: async (detail) => {
+				logger.info("[gmail-history-import] start requested; the job stays queued without a local runner", detail);
+			},
+			publishSubmitNewsletterSender: async ({ senderEmail }) => {
+				await updateNewsletterCatalog((document) => mergeSubmittedSender(document, { from: senderEmail, now: new Date() }));
+			},
+			newGmailHistoryImportJobId: () => GmailHistoryImportJobIdSchema.parse(randomBytes(16).toString("hex")),
+			newGmailHistoryImportGeneration: randomUUID,
 		};
 	};
 	const gmailIntegration =
@@ -494,6 +512,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 		consumePendingSignup: devPendingSignup.consumePendingSignup,
 		googleAuth,
 		gmailIntegration,
+		readNewsletterCatalog: newsletterCatalog.readCatalog,
+		writeNewsletterCatalog: newsletterCatalog.writeCatalog,
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens,

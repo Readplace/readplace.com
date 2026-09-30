@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
@@ -9,6 +9,8 @@ import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
+import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
+import { initCancelGmailHistoryImports } from "./cancel-gmail-history-imports";
 import { initDisconnectGmail } from "./disconnect-gmail";
 import type { RewriteGmailFilterOutcome } from "./rewrite-gmail-filter";
 
@@ -28,6 +30,7 @@ async function makeHarness(options: {
 	const senders = initInMemoryGmailSender({ now: () => NOW });
 	const discovery = initInMemoryGmailDiscovery({ now: () => NOW });
 	const addresses = initInMemoryInboxAddress({ now: () => NOW });
+	const imports = initInMemoryGmailHistoryImport();
 	const rewrites: string[] = [];
 	const revokes: string[] = [];
 	const gatewayEntry = await addresses.createAddress({
@@ -37,7 +40,7 @@ async function makeHarness(options: {
 		purpose: "gmail-forwarding",
 	});
 	const gateway = gatewayEntry.address;
-	await discovery.startDiscovery({ userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gatewayAddress: gateway, generation: "initial", mode: "profile", historyId: undefined });
+	await discovery.startDiscovery({ checkedMessageCount: 0, userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gatewayAddress: gateway, generation: "initial", mode: "profile", historyId: undefined });
 
 	if (options.connected !== false) {
 		await connections.createConnection({
@@ -69,13 +72,43 @@ async function makeHarness(options: {
 			revokes.push(refreshToken);
 			return options.revoked ?? { ok: true };
 		},
+		cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports, now: () => NOW }),
 		logger: HutchLogger.from(noopLogger),
 	});
 
-	return { disconnect, connections, credentials, senders, discovery, addresses, gateway, rewrites, revokes };
+	return { disconnect, connections, credentials, senders, discovery, addresses, gateway, rewrites, revokes, imports };
 }
 
 describe("initDisconnectGmail", () => {
+	it("cancels every unfinished import of the mailbox before the senders go", async () => {
+		const harness = await makeHarness();
+		const jobId = GmailHistoryImportJobIdSchema.parse("0".repeat(32));
+		await harness.imports.createJob({
+			userId: USER,
+			jobId,
+			senderEmail: TLDR,
+			destinationAddress: harness.gateway,
+			connection: { gatewayAddress: harness.gateway, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") },
+			window: undefined,
+			generation: "generation-1",
+			page: 0,
+			pageToken: undefined,
+			listingCompletedAt: undefined,
+			state: "awaiting-permission",
+			counts: { listed: 0, imported: 0, alreadyImported: 0, skippedNoMessageId: 0, skippedSenderMismatch: 0, failed: 0, cancelled: 0 },
+			failureReason: undefined,
+			cancelReason: undefined,
+			createdAt: NOW.toISOString(),
+			updatedAt: NOW.toISOString(),
+			completedAt: undefined,
+		});
+
+		await harness.disconnect({ userId: USER });
+
+		const job = await harness.imports.findJob({ userId: USER, jobId });
+		assert.deepEqual([job?.state, job?.cancelReason], ["cancelled", "disconnected"]);
+	});
+
 	it("clears the senders, removes the filter, revokes at Google, then forgets the token", async () => {
 		const harness = await makeHarness();
 

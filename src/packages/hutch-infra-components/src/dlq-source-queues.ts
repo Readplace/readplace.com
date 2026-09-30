@@ -20,6 +20,12 @@ export const INBOX_DLQ_SOURCES = {
 	extractEmailLinks: "inbox-extract-email-links",
 	crawlEmailLinkPreview: "inbox-crawl-email-link-preview",
 	confirmGmailForwarding: "inbox-confirm-gmail-forwarding",
+	ingestGmailImport: "inbox-ingest-gmail-import",
+} as const;
+
+export const GMAIL_HISTORY_IMPORT_DLQ_SOURCES = {
+	pages: "gmail-history-import",
+	outcomes: "gmail-history-import-outcomes",
 } as const;
 
 type SqsQueueName<T extends string> = `${T}-q`;
@@ -48,4 +54,10 @@ export const INBOX_DLQ_SOURCE_QUEUES = {
 	extractEmailLinks: `${INBOX_DLQ_SOURCES.extractEmailLinks}-q`,
 	crawlEmailLinkPreview: `${INBOX_DLQ_SOURCES.crawlEmailLinkPreview}-q`,
 	confirmGmailForwarding: `${INBOX_DLQ_SOURCES.confirmGmailForwarding}-q`,
+	ingestGmailImport: `${INBOX_DLQ_SOURCES.ingestGmailImport}-q`,
 } as const satisfies QueueNamesFor<typeof INBOX_DLQ_SOURCES>;
+
+export const GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES = {
+	pages: `${GMAIL_HISTORY_IMPORT_DLQ_SOURCES.pages}-q`,
+	outcomes: `${GMAIL_HISTORY_IMPORT_DLQ_SOURCES.outcomes}-q`,
+} as const satisfies QueueNamesFor<typeof GMAIL_HISTORY_IMPORT_DLQ_SOURCES>;

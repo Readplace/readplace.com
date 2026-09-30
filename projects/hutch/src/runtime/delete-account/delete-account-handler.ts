@@ -42,7 +42,9 @@ import type {
 	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
+import type { GmailHistoryImportStore } from "@packages/domain/gmail";
 import type {
+	EmailIdentityStore,
 	InboxAddressStore,
 	InboxEmailLinkStore,
 	InboxEmailStore,
@@ -67,8 +69,12 @@ export interface DeleteAccountHandlerDependencies {
 	deleteAllInboxLinks: InboxEmailLinkStore["deleteAllLinksByUserId"];
 	deleteAllInboxSavedLinks: InboxSavedLinkStore["deleteAllByUserId"];
 	tombstoneInboxAddresses: InboxAddressStore["tombstoneUserAddresses"];
+	deleteReadlistAddressClaims: InboxAddressStore["deleteReadlistAddressClaims"];
+	deleteAllGmailHistoryImports: GmailHistoryImportStore["deleteAllByUserId"];
+	deleteAllEmailIdentities: EmailIdentityStore["deleteAllByUserId"];
 	disconnectGmail: DisconnectGmail;
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
+	deleteRawEmailObjectsByPrefix: (prefixes: string[]) => Promise<void>;
 	deleteEmailContentObjects: (keys: string[]) => Promise<void>;
 	deleteEmailImageObjects: (prefixes: string[]) => Promise<void>;
 	deleteAllUserArticles: DeleteAllUserArticles;
@@ -143,11 +149,15 @@ async function processCommand(
 	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
 	await deps.deleteAllInboxSavedLinks(userId);
 	await deps.deleteAllInboxEmails(userId);
+	await deps.deleteRawEmailObjectsByPrefix([`gmail-import/${userId}`]);
+	await deps.deleteAllGmailHistoryImports(userId);
+	await deps.deleteAllEmailIdentities(userId);
 	const gmailTeardown = await deps.disconnectGmail({ userId });
 	assert(
 		gmailTeardown.ok || gmailTeardown.reason === "not-connected",
 		"Gmail teardown must remove the filter and revoke the grant before the account is erased",
 	);
+	await deps.deleteReadlistAddressClaims(userId);
 	await deps.tombstoneInboxAddresses(userId);
 
 	// Saved articles: purge every URL the user was the last saver of BEFORE

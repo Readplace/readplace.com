@@ -12,20 +12,22 @@ const BREW = "crew@morningbrew.com";
 const KALE = "kale@hackernewsletter.com";
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SENDER_PICKER = "[data-test-gmail-sender-picker]";
-const INBOX_PICKER = "[data-test-gmail-inbox-picker]";
+const READLIST_PICKER = "[data-test-gmail-readlist-picker]";
 const RESULTS = "[data-test-gmail-sender-results]";
-const MAPPING = "[data-test-gmail-mapping]";
-const CREATE_ROW = "[data-test-gmail-destination-create]";
-const CREATE_INBOX = "[data-test-gmail-create-inbox]";
+const SENDER_OPTION = "[data-test-gmail-sender-option]";
+const CREATE_READLIST = "[data-test-gmail-readlist-create]";
+const CUSTOM_READLIST_OPTION = '[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])';
+const CATALOG_COOKIE = "e2e_catalog_ns";
+const CATALOG_TIMESTAMP = "2026-09-01T00:00:00.000Z";
 
 interface GmailSeed {
-	senders?: {
-		email: string;
-		place: "filter" | "unsorted" | "mapped";
-		subject?: string;
-		name?: string;
-	}[];
+	approvedNewsletters?: { from: string; name: string }[];
 	discoveredSenders?: { email: string; name?: string }[];
+	mappings?: (
+		| { destination: "readlist"; email: string; readlist: string }
+		| { destination: "legacy-inbox"; email: string; readlist: string; inboxName: string }
+	)[];
+	readlists?: string[];
 	discoveryState?: "running" | "complete";
 	discoveryMode?: "profile" | "full" | "history";
 	discoveryScannedMessages?: number;
@@ -34,11 +36,35 @@ interface GmailSeed {
 	enhanced?: boolean;
 }
 
-async function openGmail(
+async function seedApprovedNewsletters(
 	page: Page,
-	stamp: string,
-	seed: GmailSeed = {},
+	input: { namespace: string; newsletters: { from: string; name: string }[] },
 ): Promise<void> {
+	await page.context().addCookies([{ name: CATALOG_COOKIE, value: input.namespace, url: BASE_URL }]);
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-newsletter-catalog`, {
+		data: {
+			namespace: input.namespace,
+			records: input.newsletters.map((newsletter) => ({
+				from: newsletter.from,
+				name: newsletter.name,
+				status: "approved",
+				evidence: [],
+				createdAt: CATALOG_TIMESTAMP,
+				updatedAt: CATALOG_TIMESTAMP,
+			})),
+		},
+	});
+	assert.equal(seeded.status(), 201);
+}
+
+async function openGmail(page: Page, stamp: string, seed: GmailSeed = {}): Promise<void> {
+	await seedApprovedNewsletters(page, {
+		namespace: `gmail-picker-${stamp}`,
+		newsletters: seed.approvedNewsletters ?? [
+			{ from: TLDR, name: "TLDR" },
+			{ from: BREW, name: "Morning Brew" },
+		],
+	});
 	const email = `gmail-picker-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -48,7 +74,8 @@ async function openGmail(
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, {
 		data: {
 			userId,
-			senders: seed.senders ?? [{ email: TLDR, place: "mapped", name: "tldr" }],
+			mappings: seed.mappings ?? [],
+			readlists: seed.readlists ?? [],
 			discoveredSenders: seed.discoveredSenders ?? [
 				{ email: TLDR, name: "TLDR" },
 				{ email: BREW, name: "Morning Brew" },
@@ -57,8 +84,7 @@ async function openGmail(
 			discoveryState: seed.discoveryState,
 			discoveryMode: seed.discoveryMode,
 			discoveryScannedMessages: seed.discoveryScannedMessages,
-			discoveryEstimatedTotalMessages:
-				seed.discoveryEstimatedTotalMessages,
+			discoveryEstimatedTotalMessages: seed.discoveryEstimatedTotalMessages,
 			completeDiscoveryOnStart: seed.completeDiscoveryOnStart,
 		},
 	});
@@ -68,173 +94,92 @@ async function openGmail(
 	await page.locator('input[name="password"]').fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	await page.goto(`${BASE_URL}/integrations`, {
-		waitUntil: "domcontentloaded",
-	});
-	await page
-		.locator(
-			'[data-test-integration="gmail"] [data-test-integration-action="manage"]',
-		)
-		.click();
+	await page.goto(`${BASE_URL}/integrations`, { waitUntil: "domcontentloaded" });
+	await page.locator('[data-test-integration="gmail"] [data-test-integration-action="manage"]').click();
 	await expect(page.locator(SENDER_PICKER)).toBeVisible();
 	if (seed.enhanced !== false) {
-		await expect(page.locator("html")).toHaveAttribute(
-			"data-gmail-picker-attached",
-			"",
-		);
+		await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 		if (seed.completeDiscoveryOnStart !== true) {
 			await expect(
-				page.locator(
-					`${RESULTS} > input[form="gmail-sender-search-form"][name="discovery_after"]`,
-				),
+				page.locator(`${RESULTS} > input[form="gmail-sender-search-form"][name="discovery_after"]`),
 			).toHaveCount(1);
 		}
 	}
 }
 
-async function chooseSender(page: Page, email: string): Promise<void> {
+async function chooseSender(page: Page, input: { email: string; search?: string }): Promise<void> {
 	await page.locator(`${SENDER_PICKER} summary`).click();
-	await page.locator(`[data-test-gmail-sender-option="${email}"]`).click();
-	await expect(page.locator("#gmail-sender-choice")).toHaveText(email);
-	await expect(page.locator(INBOX_PICKER)).toBeVisible();
+	if (input.search !== undefined) {
+		await page.locator("#gmail-sender-search").fill(input.search);
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+	}
+	await page.locator(`[data-test-gmail-sender-option="${input.email}"]`).click();
+	await expect(page.locator("#gmail-sender-choice")).toContainText(input.email);
+	await expect(page.locator(READLIST_PICKER)).toBeVisible();
 }
 
-async function expectTrackedInboxManagement(page: Page): Promise<void> {
-	const manage = page.locator("[data-test-gmail-manage-inboxes]");
-	await expect(manage).toHaveCount(1);
-	await expect(manage).toHaveText("Manage Your Inboxes");
-	const href = await manage.getAttribute("href");
-	assert.ok(href, "the inbox management CTA must carry a destination");
-	const destination = new URL(href, BASE_URL);
-	assert.equal(destination.pathname, "/inbox/addresses");
-	assert.equal(
-		destination.searchParams.get("utm_source"),
-		"integrations-gmail",
-	);
-	assert.equal(destination.searchParams.get("utm_medium"), "internal");
-	assert.equal(destination.searchParams.get("utm_content"), "manage-inboxes");
+async function openReadlistPicker(page: Page): Promise<void> {
+	const picker = page.locator(READLIST_PICKER);
+	if ((await picker.getAttribute("open")) === null) await picker.locator("summary").click();
+	await expect(picker).toHaveAttribute("open", "");
+}
+
+async function saveMapping(page: Page, sender: string): Promise<void> {
+	await expect(page.locator("[data-test-gmail-save]")).toBeEnabled();
+	await page.locator("[data-test-gmail-save]").click();
+	await expect(page.locator(`[data-test-gmail-mapping-row="${sender}"]`)).toBeVisible();
+}
+
+function mappingRow(page: Page, sender: string) {
+	return page.locator(`[data-test-gmail-mapping-row="${sender}"]`);
 }
 
 test.describe("Gmail sender picker", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("remaps cached-absent mapped and legacy senders, then removes the card with its final sender", async ({
+	test("maps a searched sender, moves a legacy inbox mapping to All, then removes every mapping", async ({
 		page,
 	}, testInfo) => {
-		const discoveryRequest = page.waitForRequest(
-			(request) =>
-				request.method() === "POST" &&
-				request.url().includes("/integrations/gmail/discovery/start"),
-		);
 		await openGmail(page, `mapping-${testInfo.workerIndex}-${Date.now()}`, {
-			senders: [
-				{ email: TLDR, place: "mapped", name: "tldr" },
-				{ email: BREW, place: "mapped", name: "morningbrew" },
-				{ email: KALE, place: "filter" },
-			],
-			discoveredSenders: [],
+			readlists: ["Tech"],
+			mappings: [{ destination: "legacy-inbox", email: BREW, readlist: "Tech", inboxName: "morningbrew" }],
 		});
-		await discoveryRequest;
-		await expect(page.locator("#gmail-sender-label")).toHaveText(
-			"Articles From ...",
+		await expect(mappingRow(page, BREW).locator("[data-test-gmail-mapping-destination]")).toHaveAttribute(
+			"data-destination-kind",
+			"readlist",
 		);
-		await expectTrackedInboxManagement(page);
-		const morningBrewMapping = page.locator(MAPPING).filter({
-			has: page.locator(`[data-test-gmail-mapped-sender="${BREW}"]`),
-		});
-		const morningBrewDestination = await morningBrewMapping.getAttribute(
-			"data-test-gmail-mapping",
-		);
-		assert.ok(
-			morningBrewDestination,
-			"the mapped sender must expose its existing destination",
-		);
-		const legacyMapping = page.locator(MAPPING).filter({
-			has: page.locator(`[data-test-gmail-mapped-sender="${KALE}"]`),
-		});
-		await expect(
-			legacyMapping.locator("[data-test-gmail-mapping-destination-label]"),
-		).toHaveText("still need an inbox. Choose the sender in the picker above, then pick an inbox.");
 
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await expect(page.locator("#gmail-sender-search")).toBeFocused();
-		await expect(page.locator("[data-test-gmail-sender-option]")).toHaveCount(
-			3,
-		);
+		await expect(page.locator(RESULTS)).toHaveAttribute("data-results-state", "listed");
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(2);
 		await page.locator("#gmail-sender-search").fill("kale@");
-		await expect(page.locator("[data-test-gmail-sender-option]")).toHaveCount(
-			1,
-		);
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
 		await page.locator(`[data-test-gmail-sender-option="${KALE}"]`).click();
-		await expect(page.locator("#gmail-sender-choice")).toHaveText(KALE);
-		await expect(page.locator("#gmail-destination-label")).toHaveText(
-			"... are saved to ...",
-		);
+		await expect(page.locator("#gmail-sender-choice")).toContainText(KALE);
 
-		await page.locator(`${INBOX_PICKER} summary`).click();
-		await page
-			.locator(
-				`[data-test-gmail-destination-option="${morningBrewDestination}"]`,
-			)
-			.click();
+		await openReadlistPicker(page);
+		await expect(page.locator("[data-test-gmail-readlist-option]")).toHaveCount(2);
+		await page.locator(CUSTOM_READLIST_OPTION).click();
+		await saveMapping(page, KALE);
+		const kale = mappingRow(page, KALE).locator("[data-test-gmail-mapping-destination]");
+		await expect(kale).toHaveAttribute("data-destination-kind", "readlist");
+		await expect(kale).toContainText("Tech");
+
+		await mappingRow(page, BREW).locator('[data-test-gmail-mapping-action="edit"]').click();
+		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
+		await page.locator('[data-test-gmail-readlist-option="default"]').click();
 		await page.locator("[data-test-gmail-save]").click();
-		await expect(
-			morningBrewMapping.locator(`[data-test-gmail-mapped-sender="${KALE}"]`),
-		).toBeVisible();
-		await chooseSender(page, TLDR);
-		await page.locator(`${INBOX_PICKER} summary`).click();
-		await page
-			.locator(
-				`[data-test-gmail-destination-option="${morningBrewDestination}"]`,
-			)
-			.click();
-		await page.locator("[data-test-gmail-save]").click();
+		await expect(page.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
+		await expect(mappingRow(page, BREW).locator("[data-test-gmail-mapping-destination]")).toContainText("All");
 
-		const mapping = page.locator(MAPPING);
-		await expect(mapping).toHaveCount(1);
-		await expect(
-			mapping.locator("[data-test-gmail-mapped-sender]"),
-		).toHaveCount(3);
-		await expect(
-			mapping.locator("[data-test-gmail-mapping-source-label]"),
-		).toHaveText("Articles from");
-		await expect(
-			mapping.locator("[data-test-gmail-mapping-destination-label]"),
-		).toHaveText("are saved to morningbrew.");
-		const mappingBox = await measuredBox(page, MAPPING);
-		const managementBox = await measuredBox(
-			page,
-			"[data-test-gmail-manage-inboxes]",
-		);
-		assert.ok(
-			managementBox.y >= mappingBox.y + mappingBox.height,
-			"inbox management must follow the mapping list",
-		);
-		await expect(mapping.locator("button")).toHaveText([
-			"Exclude",
-			"Exclude",
-			"Exclude",
-		]);
-		for (const sender of [TLDR, BREW, KALE]) {
-			const senderRow = mapping.locator(
-				`[data-test-gmail-mapped-sender="${sender}"]`,
-			);
-			await expect(senderRow).toContainText(sender);
-			await expect(senderRow.locator("a")).toHaveCount(0);
-			await expect(senderRow.locator("button")).toHaveText("Exclude");
-		}
-
-		await page.locator(`[data-test-gmail-exclude-sender="${KALE}"]`).click();
-		await expect(page.locator("[data-test-gmail-mapped-sender]")).toHaveCount(
-			2,
-		);
-		await page.locator(`[data-test-gmail-exclude-sender="${BREW}"]`).click();
-		await expect(page.locator("[data-test-gmail-mapped-sender]")).toHaveCount(
-			1,
-		);
-		await page.locator(`[data-test-gmail-exclude-sender="${TLDR}"]`).click();
-		await expect(page.locator("[data-test-gmail-empty]")).toBeVisible();
-		await expect(page.locator(MAPPING)).toHaveCount(0);
+		const rows = page.locator("[data-test-gmail-mapping-row]");
+		await expect(rows).toHaveCount(2);
+		await mappingRow(page, KALE).locator('[data-test-gmail-mapping-action="remove"]').click();
+		await expect(rows).toHaveCount(1);
+		await mappingRow(page, BREW).locator('[data-test-gmail-mapping-action="remove"]').click();
+		await expect(rows).toHaveCount(0);
+		await expect(page.locator("[data-test-gmail-mappings-empty]")).toBeVisible();
 	});
 
 	test("restores Load senders when an automatic discovery completes before its redirect settles", async ({
@@ -260,133 +205,97 @@ test.describe("Gmail sender picker", () => {
 			discoveryEstimatedTotalMessages: 12,
 			completeDiscoveryOnStart: true,
 		});
-		await expect(page.locator("#gmail-load-senders-button")).toHaveText(
-			"Checking 4 of 12 messages…",
-		);
+		await expect(page.locator("#gmail-load-senders-button")).toHaveText("Checking…");
 		await expect(page.locator(RESULTS)).toHaveAttribute("hx-get", /poll=1/);
 		assert(releaseDiscovery);
 		releaseDiscovery();
 		await discoveryResponse;
-		await expect(page.locator("#gmail-load-senders-button")).toHaveText(
-			"Load senders",
-		);
+		await expect(page.locator("#gmail-load-senders-button")).toHaveText("Load senders");
 		await expect(page.locator(RESULTS)).not.toHaveAttribute("hx-get");
 	});
 
-	test("keeps an invalid inline inbox name in the reopened picker, then creates and maps it", async ({
+	test("keeps an invalid readlist name in the reopened picker, then reuses and creates readlists before saving", async ({
 		page,
 	}, testInfo) => {
-		await openGmail(page, `create-${testInfo.workerIndex}-${Date.now()}`);
-		await chooseSender(page, KALE);
-		await page.locator(`${INBOX_PICKER} summary`).click();
+		await openGmail(page, `create-${testInfo.workerIndex}-${Date.now()}`, { readlists: ["Tech"] });
+		await chooseSender(page, { email: TLDR });
+		await openReadlistPicker(page);
 
-		const row = page.locator(CREATE_ROW);
-		const input = row.locator('input[name="inbox_name"]');
-		const submit = row.locator(`${CREATE_INBOX}[type="submit"]`);
+		const form = page.locator(CREATE_READLIST);
+		const input = form.locator('input[name="readlist_name"]');
+		const submit = form.locator('button[type="submit"]');
 		await expect(input).toHaveAttribute("required", "");
-		await expect(submit).toBeVisible();
-		const fieldBox = await measuredBox(
-			page,
-			`${CREATE_ROW} input[name="inbox_name"]`,
-		);
-		const submitBox = await measuredBox(page, `${CREATE_ROW} ${CREATE_INBOX}`);
-		assert.ok(
-			submitBox.x >= fieldBox.x + fieldBox.width,
-			"the plus button must follow the name input",
-		);
+		await expect(input).toHaveAttribute("maxlength", "24");
+		const fieldBox = await measuredBox(page, `${CREATE_READLIST} input[name="readlist_name"]`);
+		const submitBox = await measuredBox(page, `${CREATE_READLIST} button[type="submit"]`);
+		assert.ok(submitBox.x >= fieldBox.x + fieldBox.width, "the plus button must follow the name input");
 		assert.equal(Math.round(submitBox.height), Math.round(fieldBox.height));
 
-		await input.fill("tldr");
+		await input.fill("   ");
 		await submit.click();
-		await expect(
-			page.locator('[data-test-alert="inbox_name_taken"]'),
-		).toBeVisible();
-		await expect(page.locator(INBOX_PICKER)).toHaveAttribute("open", "");
-		await expect(
-			page.locator(`${CREATE_ROW} input[name="inbox_name"]`),
-		).toHaveValue("tldr");
+		await expect(page.locator('[data-test-alert="readlist_name_invalid"]')).toBeVisible();
+		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
+		await expect(page.locator("#gmail-sender-choice")).toContainText(TLDR);
 
-		await page
-			.locator(`${CREATE_ROW} input[name="inbox_name"]`)
-			.fill("science");
-		await page.locator(`${CREATE_ROW} ${CREATE_INBOX}`).click();
-		const science = page.locator(MAPPING).filter({
-			has: page.locator(`[data-test-gmail-mapped-sender="${KALE}"]`),
-		});
-		await expect(
-			science.locator(`[data-test-gmail-mapped-sender="${KALE}"]`),
-		).toBeVisible();
-		await expect(
-			science.locator("[data-test-gmail-mapping-destination-label]"),
-		).toHaveText("are saved to science.");
+		await openReadlistPicker(page);
+		await page.locator(`${CREATE_READLIST} input[name="readlist_name"]`).fill("Tech");
+		await page.locator(`${CREATE_READLIST} button[type="submit"]`).click();
+		await expect(page.locator('[data-test-alert="readlist_reused"]')).toBeVisible();
+		await expect(page.locator(CUSTOM_READLIST_OPTION)).toHaveCount(1);
+
+		await openReadlistPicker(page);
+		await page.locator(`${CREATE_READLIST} input[name="readlist_name"]`).fill("Science");
+		await page.locator(`${CREATE_READLIST} button[type="submit"]`).click();
+		await expect(page.locator('[data-test-alert="readlist_created"]')).toBeVisible();
+		await expect(page.locator(CUSTOM_READLIST_OPTION)).toHaveCount(2);
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Science");
+
+		await saveMapping(page, TLDR);
+		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-mapping-destination]")).toContainText("Science");
 	});
 
-	test("omits inline creation at the inbox cap while keeping existing inboxes selectable", async ({
+	test("omits inline creation at the readlist cap while keeping existing readlists selectable", async ({
 		page,
 	}, testInfo) => {
-		const mappedSenders = Array.from({ length: 25 }, (_, index) => ({
-			email: `news@publisher-${index}.com`,
-			place: "mapped" as const,
-			name: `publisher-${index}`,
-		}));
 		await openGmail(page, `cap-${testInfo.workerIndex}-${Date.now()}`, {
-			senders: mappedSenders,
-			discoveredSenders: [{ email: KALE, name: "Hacker Newsletter" }],
+			readlists: Array.from({ length: 7 }, (_, index) => `Shelf ${index}`),
 		});
-		await chooseSender(page, KALE);
-		await page.locator(`${INBOX_PICKER} summary`).click();
-		await expect(page.locator("[data-test-gmail-inbox-limit]")).toBeVisible();
-		await expect(
-			page.locator("[data-test-gmail-destination-option]"),
-		).toHaveCount(25);
-		await expect(page.locator(CREATE_ROW)).toHaveCount(0);
-		await page.locator("[data-test-gmail-destination-option]").first().click();
-		await expect(page.locator("[data-test-gmail-save]")).toBeEnabled();
-		await page.locator("[data-test-gmail-save]").click();
-		await expect(
-			page.locator(`[data-test-gmail-mapped-sender="${KALE}"]`),
-		).toBeVisible();
+		await chooseSender(page, { email: KALE, search: "kale@" });
+		await openReadlistPicker(page);
+		await expect(page.locator("[data-test-gmail-readlist-limit]")).toBeVisible();
+		await expect(page.locator(CUSTOM_READLIST_OPTION)).toHaveCount(7);
+		await expect(page.locator(CREATE_READLIST)).toHaveCount(0);
+		const shelf = page.locator(CUSTOM_READLIST_OPTION).first();
+		const shelfName = await shelf.textContent();
+		assert.ok(shelfName, "a readlist option must name its readlist");
+		await shelf.click();
+		await saveMapping(page, KALE);
+		await expect(mappingRow(page, KALE).locator("[data-test-gmail-mapping-destination]")).toContainText(shelfName);
 	});
 
-	test("keeps sender search pinned while its results scroll on a narrow screen", async ({
-		page,
-	}, testInfo) => {
+	test("keeps sender search pinned while its results scroll on a narrow screen", async ({ page }, testInfo) => {
 		await page.setViewportSize({ width: 375, height: 500 });
-		const discoveredSenders = Array.from({ length: 30 }, (_, index) => ({
+		const digests = Array.from({ length: 30 }, (_, index) => ({
 			email: `digest-${index}@publisher-${index}.com`,
-			name: `Digest ${index}`,
+			name: `Digest ${String(index).padStart(2, "0")}`,
 		}));
 		await openGmail(page, `sticky-${testInfo.workerIndex}-${Date.now()}`, {
-			discoveredSenders,
+			approvedNewsletters: digests.map((digest) => ({ from: digest.email, name: digest.name })),
+			discoveredSenders: digests,
 		});
 		await waitForBrandFonts(page, ["Inter"]);
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await expect(page.locator(RESULTS)).toBeVisible();
 		await expect(page.locator("#gmail-sender-search")).toBeFocused();
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(30);
 
-		const firstResult =
-			'[data-test-gmail-sender-option="digest-0@publisher-0.com"]';
-		const measured = [
-			SENDER_PICKER,
-			`${SENDER_PICKER} .gmail__picker-menu`,
-			"#gmail-sender-search-form",
-			firstResult,
-		];
-		const [picker, menu, searchBefore, firstBefore] = await page.evaluate(
-			measureBoxes,
-			measured,
-		);
+		const firstResult = '[data-test-gmail-sender-option="digest-0@publisher-0.com"]';
+		const measured = [SENDER_PICKER, `${SENDER_PICKER} .gmail__picker-menu`, "#gmail-sender-search-form", firstResult];
+		const [picker, menu, searchBefore, firstBefore] = await page.evaluate(measureBoxes, measured);
+		assert.ok(menu.x >= 0 && menu.x + menu.width <= 375, "the menu must fit the viewport");
+		assert.ok(menu.y >= picker.y, "the menu must open below the sender trigger");
 		assert.ok(
-			menu.x >= 0 && menu.x + menu.width <= 375,
-			"the menu must fit the viewport",
-		);
-		assert.ok(
-			menu.y >= picker.y,
-			"the menu must open below the sender trigger",
-		);
-		assert.ok(
-			searchBefore.x >= menu.x &&
-				searchBefore.x + searchBefore.width <= menu.x + menu.width,
+			searchBefore.x >= menu.x && searchBefore.x + searchBefore.width <= menu.x + menu.width,
 			"search must fit inside the menu",
 		);
 		assert.ok(
@@ -394,20 +303,12 @@ test.describe("Gmail sender picker", () => {
 			`the sender options must start 4px inside the menu border, measured ${firstBefore.x - menu.x - 1}px`,
 		);
 
-		const scrollTop = await page
-			.locator(`${SENDER_PICKER} .gmail__picker-menu`)
-			.evaluate((element) => {
-				element.scrollTop = element.scrollHeight;
-				return element.scrollTop;
-			});
-		assert.ok(
-			scrollTop > 0,
-			"the sender results must overflow the picker menu",
-		);
-		const [, , searchAfter, firstAfter] = await page.evaluate(
-			measureBoxes,
-			measured,
-		);
+		const scrollTop = await page.locator(`${SENDER_PICKER} .gmail__picker-menu`).evaluate((element) => {
+			element.scrollTop = element.scrollHeight;
+			return element.scrollTop;
+		});
+		assert.ok(scrollTop > 0, "the sender results must overflow the picker menu");
+		const [, , searchAfter, firstAfter] = await page.evaluate(measureBoxes, measured);
 		assert.ok(
 			Math.abs(searchAfter.y - searchBefore.y) <= 1,
 			`the sender search must stay pinned while results scroll (before ${searchBefore.y}, after ${searchAfter.y})`,
@@ -426,34 +327,22 @@ test.describe("Gmail sender picker", () => {
 test.describe("Gmail sender picker without JavaScript", () => {
 	test.use({ javaScriptEnabled: false });
 
-	test("loads, searches, creates an inbox and saves its sender through ordinary forms", async ({
+	test("loads, searches, creates a readlist and saves its sender through ordinary forms", async ({
 		page,
 	}, testInfo) => {
-		await openGmail(page, `nojs-${testInfo.workerIndex}-${Date.now()}`, {
-			enhanced: false,
-		});
+		await openGmail(page, `nojs-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false });
 		await page.locator("#gmail-load-senders-button").click();
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await page.locator("#gmail-sender-search").fill("Hacker");
-		await page
-			.locator('#gmail-sender-search-form button[type="submit"]')
-			.click();
+		await page.locator('#gmail-sender-search-form button[type="submit"]').click();
 		await page.locator(`${SENDER_PICKER} summary`).click();
-		await expect(page.locator("[data-test-gmail-sender-option]")).toHaveCount(
-			1,
-		);
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
 		await page.locator(`[data-test-gmail-sender-option="${KALE}"]`).click();
-		await page.locator(`${INBOX_PICKER} summary`).click();
-		await page.locator(`${CREATE_ROW} input[name="inbox_name"]`).fill("news");
-		await page.locator(`${CREATE_ROW} ${CREATE_INBOX}`).click();
-		const news = page.locator(MAPPING).filter({
-			has: page.locator(`[data-test-gmail-mapped-sender="${KALE}"]`),
-		});
-		await expect(
-			news.locator(`[data-test-gmail-mapped-sender="${KALE}"]`),
-		).toBeVisible();
-		await expect(
-			news.locator("[data-test-gmail-mapping-destination-label]"),
-		).toHaveText("are saved to news.");
+		await page.locator(`${READLIST_PICKER} summary`).click();
+		await page.locator(`${CREATE_READLIST} input[name="readlist_name"]`).fill("News");
+		await page.locator(`${CREATE_READLIST} button[type="submit"]`).click();
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("News");
+		await page.locator("[data-test-gmail-save]").click();
+		await expect(mappingRow(page, KALE).locator("[data-test-gmail-mapping-destination]")).toContainText("News");
 	});
 });
