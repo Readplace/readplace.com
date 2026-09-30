@@ -1,5 +1,5 @@
 {{#if loadButton}}{{{loadButton}}}{{/if}}
-<div id="gmail-sender-results" data-test-gmail-sender-results data-results-state="{{resultsState}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="{{pollTrigger}}" hx-swap="outerHTML" hx-sync="#gmail-sender-search-form:drop"{{/if}}>
+<div id="gmail-sender-results" data-test-gmail-sender-results data-results-state="{{resultsState}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="{{pollTrigger}}" hx-swap="outerHTML" hx-sync="#gmail-sender-search-form:drop" hx-disinherit="hx-sync"{{/if}}>
   <p class="gmail__discovery-status" role="status" data-test-gmail-discovery-status data-discovery-state="{{discoveryState}}">{{statusLead}}{{#if checkedLabel}}<span data-test-gmail-checked-count>{{checkedLabel}}</span>{{/if}}</p>
   {{#if discoveryAfter}}<input type="hidden" form="gmail-sender-search-form" name="discovery_after" value="{{discoveryAfter}}">{{/if}}
   {{#if reconnectAction}}<form method="POST" action="{{reconnectAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"><button class="btn btn--{{reconnectVariant}}" type="submit" data-test-gmail-discovery-reconnect>Reconnect Gmail</button></form>{{/if}}

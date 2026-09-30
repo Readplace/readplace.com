@@ -55,7 +55,7 @@
         {{#if showSenders}}
         <section class="gmail__senders" data-test-gmail-senders>
           <h2 class="gmail__section-title">Send a newsletter to a readlist</h2>
-          <form class="gmail__load" method="POST" action="{{discoveryAction}}" hx-post="{{discoveryAction}}" hx-trigger="{{#if autoDiscover}}load, {{/if}}submit" hx-target="#gmail-sender-results" hx-select="#gmail-sender-results" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML" hx-include="#gmail-sender-search-form" data-test-gmail-load-senders>
+          <form class="gmail__load" method="POST" action="{{discoveryAction}}" hx-post="{{discoveryAction}}" hx-trigger="{{#if autoDiscover}}load, {{/if}}submit" hx-target="#gmail-sender-results" hx-select="#gmail-sender-results" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML" hx-include="#gmail-sender-search-form" hx-sync="#gmail-sender-search-form:replace" data-test-gmail-load-senders>
             {{{loadButton}}}
           </form>
           <div class="gmail__mapping-form">
@@ -65,7 +65,7 @@
                 <span id="gmail-sender-choice" class="gmail__choice">{{#if senderChoiceName}}<span class="gmail__choice-name">{{senderChoiceName}}</span>{{/if}}<span class="gmail__choice-email">{{senderChoiceLabel}}</span></span>{{icon "chevron-down"}}
               </summary>
               <div class="gmail__picker-menu">
-                <form id="gmail-sender-search-form" class="gmail__search" method="GET" action="{{pagePath}}" hx-get="{{searchPath}}" hx-trigger="submit, input changed delay:300ms" hx-target="#gmail-sender-results" hx-swap="outerHTML" hx-sync="this:replace">
+                <form id="gmail-sender-search-form" class="gmail__search" method="GET" action="{{pagePath}}" hx-get="{{searchPath}}" hx-trigger="submit, input changed delay:300ms" hx-target="#gmail-sender-results" hx-swap="outerHTML" hx-sync="this:queue last">
                   {{#each searchFields}}
                   <input type="hidden" name="{{name}}" value="{{value}}">
                   {{/each}}
