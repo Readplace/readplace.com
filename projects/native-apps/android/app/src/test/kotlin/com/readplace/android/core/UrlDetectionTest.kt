@@ -306,4 +306,181 @@ class UrlDetectionTest {
 			UrlDetection.firstWebUrl("see [https://example.com/a]"),
 		)
 	}
+
+	@Test
+	fun `defaults a scheme-less domain to http`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("example.com/post"))
+	}
+
+	@Test
+	fun `finds a scheme-less domain surrounded by prose`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("Read example.com/post today"))
+	}
+
+	@Test
+	fun `keeps the path query and fragment of a scheme-less www domain`() {
+		assertEquals(
+			"http://www.example.com/a?q=1#part",
+			UrlDetection.firstWebUrl("www.example.com/a?q=1#part"),
+		)
+	}
+
+	@Test
+	fun `drops the sentence stop after a scheme-less domain`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("Read example.com/post."))
+	}
+
+	@Test
+	fun `keeps a scheme-less domain wrapped in parentheses`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("(example.com/post)"))
+	}
+
+	@Test
+	fun `drops the parenthesis and stop around a scheme-less domain`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("(example.com/post)."))
+	}
+
+	@Test
+	fun `takes a scheme-less domain that comes before an explicit url`() {
+		assertEquals(
+			"http://example.com/first",
+			UrlDetection.firstWebUrl("example.com/first then https://example.com/second"),
+		)
+	}
+
+	@Test
+	fun `takes an explicit url that comes before a scheme-less domain`() {
+		assertEquals(
+			"https://example.com/first",
+			UrlDetection.firstWebUrl("https://example.com/first then example.com/second"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain in an email address`() {
+		assertNull(UrlDetection.firstWebUrl("someone@example.com"))
+	}
+
+	@Test
+	fun `finds no scheme-less domain in a mailto payload`() {
+		assertNull(UrlDetection.firstWebUrl("mailto:someone@example.com"))
+	}
+
+	@Test
+	fun `does not recover a web url from a file scheme host`() {
+		assertNull(
+			"the host inside an unsupported scheme must not be rescued as a bare domain",
+			UrlDetection.firstWebUrl("file://example.com/a"),
+		)
+	}
+
+	@Test
+	fun `does not recover a web url from a content scheme host`() {
+		assertNull(
+			"the host inside an unsupported scheme must not be rescued as a bare domain",
+			UrlDetection.firstWebUrl("content://example.com/a"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain in a version number`() {
+		assertNull("a dotted number has no alphabetic final label", UrlDetection.firstWebUrl("version 1.2.3"))
+	}
+
+	@Test
+	fun `finds no scheme-less domain in a bare filename`() {
+		assertNull(
+			"a dotted token without a path is ordinary prose, not a link",
+			UrlDetection.firstWebUrl("the file report.pdf is attached"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when only an empty query follows the host`() {
+		assertNull(
+			"a dangling ? carries no query, so the host is bare and stays undetected",
+			UrlDetection.firstWebUrl("example.com?"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when only an empty fragment follows the host`() {
+		assertNull(
+			"a dangling # carries no fragment, so the host is bare and stays undetected",
+			UrlDetection.firstWebUrl("example.com#"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when a sentence ends in a bare host and question mark`() {
+		assertNull(
+			"the trailing ? is sentence punctuation, not a query, so the host stays bare",
+			UrlDetection.firstWebUrl("Have you tried notion.so?"),
+		)
+	}
+
+	@Test
+	fun `keeps a scheme-less domain that carries a non-empty query`() {
+		assertEquals("http://example.com?q=1", UrlDetection.firstWebUrl("example.com?q=1"))
+	}
+
+	@Test
+	fun `keeps a scheme-less domain that carries a non-empty fragment`() {
+		assertEquals("http://example.com#part", UrlDetection.firstWebUrl("example.com#part"))
+	}
+
+	@Test
+	fun `keeps a scheme-less domain path when an empty query trails it`() {
+		assertEquals(
+			"http://example.com/a",
+			UrlDetection.firstWebUrl("example.com/a?"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when a bracketed sentence ends in a bare host and question mark`() {
+		assertNull(
+			"the ? and the closing bracket are both punctuation, so the host stays bare",
+			UrlDetection.firstWebUrl("(have you tried notion.so?)"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when a bare host ends in stacked sentence punctuation`() {
+		assertNull(
+			"?! is sentence punctuation, not a query, so the host stays bare",
+			UrlDetection.firstWebUrl("Have you tried notion.so?!"),
+		)
+	}
+
+	@Test
+	fun `finds no scheme-less domain when punctuation follows an empty fragment`() {
+		assertNull(
+			"the full stop is trimmed, leaving a dangling # that carries no fragment",
+			UrlDetection.firstWebUrl("example.com#."),
+		)
+	}
+
+	@Test
+	fun `keeps a scheme-less domain path when an unopened bracket and full stop trail it`() {
+		assertEquals("http://example.com/post", UrlDetection.firstWebUrl("(see example.com/post)."))
+	}
+
+	@Test
+	fun `keeps a scheme-less domain whose only path is a slash before a full stop`() {
+		assertEquals(
+			"a / path counts even when empty, so the host is not bare",
+			"http://example.com/",
+			UrlDetection.firstWebUrl("see example.com/."),
+		)
+	}
+
+	@Test
+	fun `keeps a dangling fragment mark after a scheme-less domain path`() {
+		assertEquals(
+			"the path already makes it a link, so the # stays as explicit-scheme urls keep it",
+			"http://example.com/x#",
+			UrlDetection.firstWebUrl("example.com/x#)"),
+		)
+	}
 }

@@ -12,11 +12,19 @@ import java.net.URI
  */
 object UrlDetection {
 	private val CANDIDATE = Regex("""[A-Za-z][A-Za-z0-9+.\-]*://[^\s<>"']+""")
+	private val BARE_DOMAIN =
+		Regex("""(?<![A-Za-z0-9@:/._+-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?:/[^\s<>"']*|[?#][^\s<>"']+)""")
 
-	fun firstWebUrl(text: String): String? =
-		CANDIDATE.findAll(text)
-			.map { trimTrailingPunctuation(it.value) }
-			.firstNotNullOfOrNull(::normalizeWebUrl)
+	fun firstWebUrl(text: String): String? {
+		val explicit = CANDIDATE.findAll(text).map { it.range.first to trimTrailingPunctuation(it.value) }
+		val bare = BARE_DOMAIN.findAll(text)
+			.map { it.range.first to trimTrailingPunctuation(it.value) }
+			.filter { (_, domain) -> BARE_DOMAIN.matches(domain) }
+			.map { (position, domain) -> position to "http://$domain" }
+		return (explicit + bare)
+			.sortedBy { (position, _) -> position }
+			.firstNotNullOfOrNull { (_, candidate) -> normalizeWebUrl(candidate) }
+	}
 
 	fun normalizeWebUrl(value: String): String? {
 		val normalized = encodeBrowserSupportedSuffix(value)
