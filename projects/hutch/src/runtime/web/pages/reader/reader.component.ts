@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
+import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { nextReadDismissalOf } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
@@ -245,7 +245,7 @@ export function ReaderPage(
 		bodyClass: actions.bodyClass,
 		content: { html: content },
 		scripts: readerScripts({
-			navHide: NAV_HIDE_SCRIPT,
+			navHide: NAV_HIDE_DISABLED,
 			page:
 				SHARE_BALLOON_SCRIPT +
 				NEXT_READ_SCRIPT +

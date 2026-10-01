@@ -103,7 +103,12 @@ export type {
 export type {
 	ConfirmPopover,
 } from "./shared/confirm-popover/confirm-popover.component";
-export { BASE_CSS_VARIABLES, EMAIL_FRAME_CANVAS, LIGHT_ONLY_BODY_CLASS } from "./base.styles";
+export {
+	BASE_CSS_VARIABLES,
+	DISTRACTION_FREE_BODY_CLASS,
+	EMAIL_FRAME_CANVAS,
+	LIGHT_ONLY_BODY_CLASS,
+} from "./base.styles";
 export { etagMatches } from "./etag";
 export {
 	MAX_CAPTURE_POLLS,

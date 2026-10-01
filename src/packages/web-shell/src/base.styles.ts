@@ -179,6 +179,8 @@ export const LIGHT_ONLY_BODY_CLASS = "theme-light";
 
 export const DARK_ONLY_BODY_CLASS = "theme-dark";
 
+export const DISTRACTION_FREE_BODY_CLASS = "page-distraction-free";
+
 export type AppearanceSetting = "system" | "light" | "dark";
 
 const APPEARANCE_BODY_CLASS: Record<AppearanceSetting, string | undefined> = {
@@ -669,10 +671,7 @@ export const HEADER_STYLES = `
 		z-index: 100;
 		transition: transform 0.25s ease;
 	}
-	/* Reader views slide the nav offscreen on scroll-down (reader-nav.client.ts).
-		-100% is exactly the header's height and the changelog banner rises with it
-		— the same distance the sticky mark-read toolbar rises — so the three move
-		in lockstep with no content gap. */
+	/* -100% is exactly the header's height and the changelog banner rises with it. */
 	.nav-hidden .header {
 		transform: translateY(calc(-100% - var(--changelog-banner-height, 0px)));
 	}
@@ -1322,6 +1321,17 @@ export const BANNER_BAR_STYLES = `
 		.banner-bar:has(.banner-bar__close) {
 			padding-right: 72px;
 		}
+	}
+`;
+
+export const DISTRACTION_FREE_STYLES = `
+	.${DISTRACTION_FREE_BODY_CLASS} .header,
+	.${DISTRACTION_FREE_BODY_CLASS} .changelog-banner,
+	.${DISTRACTION_FREE_BODY_CLASS} .verify-banner {
+		display: none;
+	}
+	html:has(> body.${DISTRACTION_FREE_BODY_CLASS}) {
+		scroll-padding-top: var(--banner-area-height, 52px);
 	}
 `;
 

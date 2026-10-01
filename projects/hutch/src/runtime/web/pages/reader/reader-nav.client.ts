@@ -17,11 +17,10 @@ const HIDDEN_CLASS = "nav-hidden";
 const DELTA_PX = 6;
 
 /** Slides the global nav up out of view on scroll-down and back on scroll-up (or
- * at the top), so the reader — or the queue's saved cards — gets the whole
- * viewport. The `.nav-hidden` rules in base.styles.ts / reader.styles.css do the
+ * at the top). The `.nav-hidden` rules in base.styles.ts do the
  * movement; this only toggles the class on `<html>`.
  *
- * Injected per page by the readers and the queue, not loaded globally — a page
+ * Injected per page by the queue, not loaded globally — a page
  * that omits it keeps a static nav, so there is no gate here. It
  * stays armed across the in-place hx-boost swaps those pages make (save, filter,
  * mark-read): those swap <main> but keep the same document, so the one scroll

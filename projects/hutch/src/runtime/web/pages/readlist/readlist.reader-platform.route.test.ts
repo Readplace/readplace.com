@@ -129,6 +129,18 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(doc.querySelector(".header")).not.toBe(null);
 	});
 
+	it("marks the web reader distraction-free so the shell hides its nav and banners, while the queue keeps its chrome", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-distraction-free");
+
+		const readerDoc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+		const queueDoc = new JSDOM((await agent.get("/queue")).text).window.document;
+
+		expect(readerDoc.body.classList.contains("page-distraction-free")).toBe(true);
+		expect(queueDoc.body.className).toBe("page-readlist");
+	});
+
 	it("pins the web reader's mark-as-read in a sticky toolbar with no bottom bar, same as chromeless", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);

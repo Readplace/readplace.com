@@ -359,9 +359,8 @@ describe("Admin recrawl routes", () => {
 			assert(recrawlMain);
 			assert(recrawlMain.querySelector(".admin-recrawl__body [data-test-reader-slot]"));
 			assert(recrawlMain.querySelector(".admin-recrawl__body[data-article-body]"));
-			expect(response.text).toContain(
-				'<script src="/client-dist/reader-nav.client.js" defer></script>',
-			);
+			expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
+			expect(doc.body.className).toBe("page-admin-recrawl page-distraction-free");
 			expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 				"noindex, nofollow",
 			);

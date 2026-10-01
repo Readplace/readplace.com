@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initBase } from "./base.component";
+import { DISTRACTION_FREE_BODY_CLASS } from "./base.styles";
 import { type HtmxDelivery, HtmxLoaded, HtmxOmitted } from "./htmx-script";
 import { GlobalNav, GlobalEmptyNav } from "./nav.component";
 import { FETCH_CHANGELOG_BANNER_IN_BROWSER, isChangelogVersion } from "./changelog-banner";
@@ -58,6 +59,21 @@ function inlineNonces(doc: Document): { script: (string | null)[]; style: (strin
 		),
 		style: Array.from(doc.querySelectorAll("style")).map((el) => el.getAttribute("nonce")),
 	};
+}
+
+function headDeclaration(doc: Document, query: { selector: string; property: string }): string {
+	const rules = Array.from(doc.styleSheets).flatMap((sheet) => Array.from(sheet.cssRules));
+	const rule = rules.find(
+		(candidate): candidate is CSSStyleRule =>
+			"selectorText" in candidate &&
+			typeof candidate.selectorText === "string" &&
+			candidate.selectorText
+				.split(",")
+				.map((selector) => selector.trim())
+				.includes(query.selector),
+	);
+	assert(rule, `the shell head must style ${query.selector}`);
+	return rule.style.getPropertyValue(query.property);
 }
 
 function loadedClientScripts(doc: Document): string[] {
@@ -200,6 +216,19 @@ describe("Base component", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(doc.body.classList.contains("page-home")).toBe(true);
+	});
+
+	it("hides the header, changelog banner and verify banner from the shell head for a distraction-free page, so a page swapped into <main> still loses the chrome", () => {
+		const page = createTestPageBody({ bodyClass: `page-reader ${DISTRACTION_FREE_BODY_CLASS}` });
+		const doc = new JSDOM(Base(page, GUEST_STATE).to("text/html").body).window.document;
+
+		expect(doc.body.classList.contains(DISTRACTION_FREE_BODY_CLASS)).toBe(true);
+		for (const chrome of [".header", ".changelog-banner", ".verify-banner"]) {
+			expect(headDeclaration(doc, { selector: `.${DISTRACTION_FREE_BODY_CLASS} ${chrome}`, property: "display" })).toBe("none");
+		}
+		expect(
+			headDeclaration(doc, { selector: `html:has(> body.${DISTRACTION_FREE_BODY_CLASS})`, property: "scroll-padding-top" }),
+		).toBe("var(--banner-area-height, 52px)");
 	});
 
 	function themeColorMetas(doc: Document): { content: string | null; media: string | null }[] {

@@ -138,9 +138,8 @@ describe("View routes", () => {
 			const content = doc.querySelector("[data-test-reader-content]");
 			assert(content, "reader content must be rendered");
 			expect(content.innerHTML.trim()).toBe("<p>Body copy.</p>");
-			expect(response.text).toContain(
-				'<script src="/client-dist/reader-nav.client.js" defer></script>',
-			);
+			expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
+			expect(doc.body.className).toBe("page-view page-distraction-free");
 		});
 
 		it("renders the Last crawled at bookmark once a crawl timestamp exists", async () => {

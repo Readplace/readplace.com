@@ -49,7 +49,7 @@ async function seedArticle(page: Page): Promise<void> {
 }
 
 // Sign up a fresh user through the real form. New accounts are unverified, so
-// the shell renders the countdown banner on every page — and a
+// the shell renders the countdown banner — and a
 // just-registered user is deterministically 7 days out.
 async function signUpUnverified(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/signup`, { waitUntil: "domcontentloaded" });
@@ -64,13 +64,8 @@ async function signUpUnverified(page: Page, email: string): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
-async function openReaderAsUnverified(page: Page, email: string): Promise<void> {
-	await seedArticle(page);
+async function openQueueAsUnverified(page: Page, email: string): Promise<void> {
 	await signUpUnverified(page, email);
-	await page.goto(`${BASE_URL}/view/${CANONICAL_PATH}`, {
-		waitUntil: "domcontentloaded",
-	});
-	await page.waitForSelector("[data-article-body]");
 	await waitForBrandFonts(page, ["Inter"]);
 	// Confirms we are authenticated-but-unverified before we measure or capture:
 	// this copy only renders for a counting-down verification state.
@@ -180,7 +175,7 @@ test.describe("Verify banner never overlaps the nav", () => {
 	test("the nav stays fully below the banner after it wraps to two lines", async ({
 		page,
 	}, testInfo) => {
-		await openReaderAsUnverified(
+		await openQueueAsUnverified(
 			page,
 			`verify-nav-guard-${testInfo.workerIndex}-${Date.now()}@example.com`,
 		);
@@ -193,7 +188,7 @@ test.describe("Verify banner never overlaps the nav", () => {
 		page,
 	}, testInfo) => {
 		await page.setExtraHTTPHeaders({ [E2E_CHANGELOG_BANNER_HEADER]: "1" });
-		await openReaderAsUnverified(
+		await openQueueAsUnverified(
 			page,
 			`verify-nav-changelog-${testInfo.workerIndex}-${Date.now()}@example.com`,
 		);
@@ -208,7 +203,7 @@ test.describe("Verify banner never overlaps the nav", () => {
 	test("the nav stays clear of the banner when the offline notice expands", async ({
 		page,
 	}, testInfo) => {
-		await openReaderAsUnverified(
+		await openQueueAsUnverified(
 			page,
 			`verify-nav-offline-${testInfo.workerIndex}-${Date.now()}@example.com`,
 		);
@@ -219,9 +214,35 @@ test.describe("Verify banner never overlaps the nav", () => {
 		await navClearsBannerGeometry(page);
 	});
 
+	test("the public reader hides the nav, verify banner and changelog banner, and the queue shows them again", async ({
+		page,
+	}, testInfo) => {
+		await page.setExtraHTTPHeaders({ [E2E_CHANGELOG_BANNER_HEADER]: "1" });
+		await openQueueAsUnverified(
+			page,
+			`verify-nav-reader-${testInfo.workerIndex}-${Date.now()}@example.com`,
+		);
+		await seedArticle(page);
+		await page.goto(`${BASE_URL}/view/${CANONICAL_PATH}`, {
+			waitUntil: "domcontentloaded",
+		});
+		await page.waitForSelector("body.page-view.page-distraction-free [data-article-body]");
+
+		await expect(page.locator(".header")).toBeHidden();
+		await expect(page.locator("[data-test-verify-banner]")).toBeHidden();
+		await expect(page.locator("body > .banner-area [data-test-changelog-banner]")).toBeHidden();
+
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-readlist");
+
+		await expect(page.locator(".header")).toBeVisible();
+		await expect(page.locator("[data-test-verify-banner]")).toBeVisible();
+		await expect(page.locator("[data-test-changelog-banner]")).toHaveClass(/changelog-banner--visible/);
+	});
+
 	test("renders the banner above the nav (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await openReaderAsUnverified(
+		await openQueueAsUnverified(
 			page,
 			`verify-nav-light-${testInfo.workerIndex}-${Date.now()}@example.com`,
 		);
@@ -231,7 +252,7 @@ test.describe("Verify banner never overlaps the nav", () => {
 
 	test("renders the banner above the nav (dark)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openReaderAsUnverified(
+		await openQueueAsUnverified(
 			page,
 			`verify-nav-dark-${testInfo.workerIndex}-${Date.now()}@example.com`,
 		);

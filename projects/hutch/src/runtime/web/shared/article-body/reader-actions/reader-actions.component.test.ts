@@ -349,8 +349,8 @@ describe("RegularReader", () => {
 		).toBe(true);
 	});
 
-	it("carries the standard page body class (no chromeless offset)", () => {
-		expect(RegularReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader");
+	it("carries the distraction-free page body class (no chromeless offset)", () => {
+		expect(RegularReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader page-distraction-free");
 	});
 });
 
@@ -374,8 +374,8 @@ describe("StickyReader", () => {
 		expect(bottom.to("text/html").body).toBe("");
 	});
 
-	it("carries the standard page body class so the toolbar pins below the web header", () => {
-		expect(StickyReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader");
+	it("carries the distraction-free page body class so the shell hides its chrome and the toolbar pins at the top", () => {
+		expect(StickyReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader page-distraction-free");
 	});
 });
 

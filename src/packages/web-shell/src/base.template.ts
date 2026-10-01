@@ -85,6 +85,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		{{{toastStyles}}}
 		{{{verifyBannerStyles}}}
 		{{{extensionSuggestionBannerStyles}}}
+		{{{distractionFreeStyles}}}
 	</style>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>

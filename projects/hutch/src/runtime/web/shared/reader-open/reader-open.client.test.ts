@@ -259,6 +259,7 @@ describe("initReaderOpen", () => {
 			"https://example.com/post",
 		);
 		expect(app.body.classList.contains("page-reader")).toBe(true);
+		expect(app.body.classList.contains("page-distraction-free")).toBe(true);
 		expect(app.body.classList.contains("page-readlist")).toBe(false);
 		expect(app.body.classList.contains("theme-dark")).toBe(true);
 		expect(app.scrolls()).toBe(1);
@@ -311,6 +312,7 @@ describe("initReaderOpen", () => {
 		const xhr = app.arm();
 		app.fire("htmx:beforeHistoryUpdate", { xhr, history: { type: "push" } });
 		expect(app.body.classList.contains("page-reader")).toBe(true);
+		expect(app.body.classList.contains("page-distraction-free")).toBe(true);
 		expect(app.body.classList.contains("page-readlist")).toBe(false);
 		expect(app.scrolls()).toBe(1);
 	});
@@ -361,6 +363,20 @@ describe("initReaderOpen", () => {
 		expect(app.cleared).toEqual([]);
 		expect(app.scrolls()).toBe(0);
 		expect(app.body.className).toBe("page-readlist theme-dark");
+	});
+
+	it("gives a boosted swap out of the reader its destination's body class, so marking read brings the queue's chrome back", () => {
+		const app = setup('<main class="reader" hx-history="false"></main>', {
+			bodyClass: "page-reader page-distraction-free theme-dark",
+		});
+		const historyUpdate = { type: "push" };
+		app.fire("htmx:beforeHistoryUpdate", {
+			xhr: app.makeXhr(readerResponse("page-readlist theme-dark")),
+			history: historyUpdate,
+		});
+		expect(app.body.className).toBe("page-readlist theme-dark");
+		expect(historyUpdate.type).toBe("push");
+		expect(app.scrolls()).toBe(0);
 	});
 
 	it("falls back to a plain navigation when the request ends without committing", () => {

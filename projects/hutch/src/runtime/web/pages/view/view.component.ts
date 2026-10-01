@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
+import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
 import type {
 	ArticleDestinationUrl,
 	Minutes,
@@ -11,7 +11,13 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { requireEnv } from "@packages/require-env";
-import { CLICK_SURFACES, CONFIRM_POPOVER_STYLES, render, withClickSurface } from "@packages/web-shell";
+import {
+	CLICK_SURFACES,
+	CONFIRM_POPOVER_STYLES,
+	DISTRACTION_FREE_BODY_CLASS,
+	render,
+	withClickSurface,
+} from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
@@ -208,12 +214,12 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			structuredData: input.readerNotice === undefined ? [structuredData] : [],
 		},
 		styles: `${VIEW_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
-		bodyClass: "page-view",
+		bodyClass: `page-view ${DISTRACTION_FREE_BODY_CLASS}`,
 		clickSurface: CLICK_SURFACES.readerPublic,
 		followsSystemTheme: true,
 		content: { html: content },
 		scripts: readerScripts({
-			navHide: NAV_HIDE_SCRIPT,
+			navHide: NAV_HIDE_DISABLED,
 			page:
 				SHARE_BALLOON_SCRIPT +
 				PROGRESS_BAR_SCRIPT +

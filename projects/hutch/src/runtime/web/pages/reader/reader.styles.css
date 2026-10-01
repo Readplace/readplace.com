@@ -23,8 +23,7 @@
 /**
  * The reader action toolbar (Back + Mark as read) sticks above the article so the
  * controls stay reachable while the body scrolls — the same behaviour in every
- * context. On the web shell it pins just below the sticky global header (the same
- * banner + header offset `html` uses for `scroll-padding-top`). The chromeless iOS
+ * context. The chromeless iOS
  * reader (body class page-reader--chromeless) has no header, so it pins to the very
  * top; a small gap clears the native sheet's rounded corners, since there is no top
  * safe-area inset inside the sheet.
@@ -39,20 +38,6 @@
   padding-block: 0.5rem;
   background: var(--background);
   border-bottom: 1px solid var(--border);
-  transition: transform 0.25s ease;
-}
-
-/* When the nav auto-hides (reader-nav.client.ts toggles .nav-hidden on <html>),
- * the toolbar rises by the header's height plus the changelog banner's to stay
- * pinned at the top — reusing the same --header-height its `top` above already uses. */
-.nav-hidden .article-body__actions--sticky {
-  transform: translateY(calc(-1 * (var(--header-height, 72px) + var(--changelog-banner-height, 0px))));
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .article-body__actions--sticky {
-    transition: none;
-  }
 }
 
 .article-body__actions--sticky .article-body__actions--top {
@@ -64,4 +49,8 @@
 .page-reader--chromeless .article-body__actions--sticky {
   top: 0;
   padding-top: 1rem;
+}
+
+.page-distraction-free .article-body__actions--sticky {
+  top: var(--banner-area-height, 0px);
 }

@@ -3,7 +3,13 @@ import { join } from "node:path";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { IconName } from "@packages/ui-icons";
 import type { SaveClient } from "@packages/web-analytics";
-import { type Component, HtmlPage, render, renderInFlightDots } from "@packages/web-shell";
+import {
+	type Component,
+	DISTRACTION_FREE_BODY_CLASS,
+	HtmlPage,
+	render,
+	renderInFlightDots,
+} from "@packages/web-shell";
 import { articleEpubHref } from "../../epub/epub-link";
 
 export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker.client.js" defer></script>`;
@@ -109,14 +115,13 @@ export const RegularReader: RenderReaderActions = ({ actionBtns }) => ({
 	bottom: HtmlPage(
 		bottomBar(actionBtns, actionBtns.markReadActions?.find((action) => action.position === "bottom")),
 	),
-	bodyClass: "page-reader",
+	bodyClass: `page-reader ${DISTRACTION_FREE_BODY_CLASS}`,
 });
 
 /** The reader action bar for the reading experience — one sticky toolbar that
  * keeps Back + Mark-as-read reachable while the article scrolls, with no bottom
  * bar. Both readers render it identically; `StickyReader` and `ChromelessReader`
- * differ only in the body class, which decides where the toolbar pins (below the
- * web header vs. the top of the iOS native sheet). */
+ * differ only in the body class, which decides where the toolbar pins. */
 function stickyReaderActions(actionBtns: ActionButtons): { top: Component; bottom: Component } {
 	return {
 		top: HtmlPage(`<div class="article-body__actions--sticky">${topBar(actionBtns)}</div>`),
@@ -126,7 +131,7 @@ function stickyReaderActions(actionBtns: ActionButtons): { top: Component; botto
 
 export const StickyReader: RenderReaderActions = ({ actionBtns }) => ({
 	...stickyReaderActions(actionBtns),
-	bodyClass: "page-reader",
+	bodyClass: `page-reader ${DISTRACTION_FREE_BODY_CLASS}`,
 });
 
 export const ChromelessReader: RenderReaderActions = ({ actionBtns }) => ({

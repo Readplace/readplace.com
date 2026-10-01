@@ -116,7 +116,7 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 		main.replaceChildren(deps.document.importNode(template.content, true));
 		copyFields({ main, card: open.card });
 		deps.document.body.classList.remove(requiredAttribute(template, "data-body-class-from"));
-		deps.document.body.classList.add(requiredAttribute(template, "data-body-class"));
+		deps.document.body.classList.add(...requiredAttribute(template, "data-body-class").split(" "));
 		deps.scrollToTop();
 		open.painted = true;
 	}
@@ -133,7 +133,7 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 	function fallbackBodyClass(): void {
 		const template = skeletonTemplate();
 		deps.document.body.classList.remove(requiredAttribute(template, "data-body-class-from"));
-		deps.document.body.classList.add(requiredAttribute(template, "data-body-class"));
+		deps.document.body.classList.add(...requiredAttribute(template, "data-body-class").split(" "));
 	}
 
 	function transplantShellBanner(response: Document): void {
@@ -192,8 +192,11 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 
 	deps.addHtmxListener("htmx:beforeHistoryUpdate", (event) => {
 		const open = pending;
-		if (open === null) return;
 		const detail = read(event, "detail");
+		if (open === null) {
+			applyFinalBodyClass(deps.parseHtml(stringValue(read(read(detail, "xhr"), "response")) ?? ""));
+			return;
+		}
 		if (read(detail, "xhr") !== open.xhr) return;
 		deps.clearTimeoutFn(open.timer);
 		Reflect.set(Object(read(detail, "history")), "type", "replace");

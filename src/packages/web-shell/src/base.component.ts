@@ -7,6 +7,7 @@ import {
 	BUTTON_STYLES,
 	FORM_CONTROL_STYLES,
 	CHANGELOG_BANNER_STYLES,
+	DISTRACTION_FREE_STYLES,
 	FOOTER_STYLES,
 	HEADER_STYLES,
 	NAV_STYLES,
@@ -283,6 +284,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			toastStyles: TOAST_STYLES,
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
+			distractionFreeStyles: DISTRACTION_FREE_STYLES,
 			changelogBanner: renderChangelogBannerSlot({
 				banner: state.changelogBanner,
 				returnTo: state.currentPath,

@@ -5,8 +5,8 @@ import type {
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import type { CspNonce, PageBody } from "@packages/web-shell";
-import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
+import { type CspNonce, DISTRACTION_FREE_BODY_CLASS, type PageBody } from "@packages/web-shell";
+import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
@@ -132,10 +132,10 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 			robots: "noindex, nofollow",
 		},
 		styles: RECRAWL_STYLES,
-		bodyClass: "page-admin-recrawl",
+		bodyClass: `page-admin-recrawl ${DISTRACTION_FREE_BODY_CLASS}`,
 		content: { html: content },
 		scripts: readerScripts({
-			navHide: NAV_HIDE_SCRIPT,
+			navHide: NAV_HIDE_DISABLED,
 			page: PROGRESS_BAR_SCRIPT + CRAWL_BOOKMARK_SCRIPT + triggerScript,
 		}),
 	};
