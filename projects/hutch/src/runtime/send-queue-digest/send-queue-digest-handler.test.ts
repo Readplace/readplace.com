@@ -313,6 +313,34 @@ describe("initSendQueueDigestHandler", () => {
 				expect.objectContaining({ event: "queue_digest_sent", kind: "regular", tier: "trial", trial_day: 11 }),
 			]);
 		});
+
+		it("records no trial day for a trialist whose trial was extended past fourteen days", async () => {
+			const subject = createSubject();
+			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-07-09T12:00:00.000Z" });
+			await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: DAY_OLD_SAVE });
+
+			await subject.run();
+
+			expect(campaignsOf(onlySentEmail(subject).html)).toEqual(["regular"]);
+			expect(subject.events).toEqual([
+				expect.objectContaining({ event: "queue_digest_sent", kind: "regular", tier: "trial", trial_day: null }),
+			]);
+		});
+
+		it.each<[string, number | null, string]>([
+			["exactly fourteen days", 1, "2026-06-24T12:00:00.000Z"],
+			["fourteen days and a millisecond", null, "2026-06-24T12:00:00.001Z"],
+		])("records a trialist with %s left as trial day %p", async (_left, trialDay, trialEndsAt) => {
+			const subject = createSubject();
+			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt });
+			await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: DAY_OLD_SAVE });
+
+			await subject.run();
+
+			expect(subject.events).toEqual([
+				expect.objectContaining({ event: "queue_digest_sent", kind: "regular", tier: "trial", trial_day: trialDay }),
+			]);
+		});
 	});
 
 	describe("item selection", () => {

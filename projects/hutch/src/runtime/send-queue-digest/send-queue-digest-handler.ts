@@ -377,7 +377,8 @@ function trialDayOf(input: { row: SubscriptionRecord; tier: "trial" | "paid"; se
 	if (input.tier === "paid") return null;
 	assert(input.row.trialEndsAt, "a trial tier is always resolved from a row carrying trialEndsAt");
 	const msToTrialEnd = Date.parse(input.row.trialEndsAt) - input.sendInstant.getTime();
-	return STRIPE_TRIAL_PERIOD_DAYS + 1 - Math.ceil(msToTrialEnd / DAY_MS);
+	const trialDay = STRIPE_TRIAL_PERIOD_DAYS + 1 - Math.ceil(msToTrialEnd / DAY_MS);
+	return trialDay >= 1 ? trialDay : null;
 }
 
 async function finishDigest(params: {
