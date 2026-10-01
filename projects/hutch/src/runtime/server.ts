@@ -245,6 +245,7 @@ import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
+import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
 import { initSeedFirstArticleOnConsent } from "./web/oauth/consent-seed-save";
@@ -1277,6 +1278,9 @@ export function createApp(dependencies: AppDependencies): Express {
 	const dualAuthMiddleware = initDualAuth({
 		validateAccessToken: deps.validateAccessToken,
 	});
+	const markdownBearerAuth = initMarkdownBearerAuth({
+		validateAccessToken: deps.validateAccessToken,
+	});
 
 	const queueRouter = initReadlistRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
@@ -1357,6 +1361,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordMarkReadAcrossQueuesAcknowledged: deps.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: deps.recordDeleteArticleAcknowledged,
 		dualAuth: dualAuthMiddleware,
+		markdownBearerAuth,
+		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requireWriteAccess,
 		getEffectiveAccess,

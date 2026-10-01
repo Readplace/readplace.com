@@ -132,6 +132,8 @@ import {
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { initReaderPermalink } from "./reader-permalink";
+import { initOwnerArticleMarkdown } from "./reader-markdown";
+import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
@@ -403,6 +405,8 @@ interface ReadlistDependencies {
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
+	resolveOwnedArticle: ResolveOwnedArticle;
+	markdownBearerAuth: RequestHandler;
 	/** The reader's Back + Mark-as-read action bar, injected per variant: the sticky
 	 * toolbar for the web reader, the chromeless sticky variant for the iOS app. Both
 	 * pin the toolbar and drop the bottom bar; they differ only in where it pins. */
@@ -1040,6 +1044,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			contentVersion,
 		};
 	};
+
+	router.get(
+		"/:id/view",
+		noindexMiddleware,
+		deps.markdownBearerAuth,
+		initOwnerArticleMarkdown(deps),
+	);
 
 	router.get("/:id/view", noindexMiddleware, async (req: Request<{ id: string }>, res: Response) => {
 		const resolved = await resolveOwnerReader(req);
