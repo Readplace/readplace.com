@@ -1,6 +1,6 @@
 ---
-title: "Readplace vs Instapaper: Two Different Approaches to Read-It-Later"
-description: "A fair comparison of two read-it-later apps that took different paths after Pocket shut down. One is familiar and stable. The other bets on AI and active development."
+title: "Instapaper vs Readplace in 2026: Which One to Pick"
+description: "Instapaper has run since 2008 with a free tier, Android apps and Kobo sync. Readplace is a newer, paid app that writes an AI summary on its own when you save."
 slug: "readplace-vs-instapaper"
 date: "2026-05-01"
 lastModified: "2026-10-01"
@@ -61,7 +61,7 @@ On pricing and data, there is a free tier that covers the basics, namely saving,
 
 Readplace comes at the same 5 axes from the opposite end. It is a newer product, built in Australia, and it scores its highest on **triage** and **development pace** while it is still catching up on reading surface.
 
-Triage is where it makes its bet. Readplace generates an AI summary of each saved article, so you can scan the gist before deciding to read the full piece. Instapaper has AI summaries too, but they are metered (5 a month on the free tier, unlimited on Premium) and generated on request rather than automatically for everything you save.
+Triage is where it makes its bet. Readplace writes an AI summary on its own when you save an article, so you can scan the gist before deciding to read the full piece. Instapaper has AI summaries too, but they are metered (5 a month on the free tier, unlimited on Premium) and generated on request rather than automatically for everything you save.
 
 Whether that helps depends on how you read. If you save 3 articles a week and read all of them, the summaries change little.
 
@@ -82,7 +82,7 @@ The table below is the same 5 axes broken into the concrete features behind them
 | | Instapaper | Readplace |
 |---|---|---|
 | **Core reading** | Clean, distraction-free reader | Clean, distraction-free reader |
-| **AI summaries** | Metered (5/mo free, unlimited Premium) | Automatic on every save |
+| **AI summaries** | Metered (5/mo free, unlimited Premium) | Automatic on save, no request needed |
 | **Mobile apps** | iOS and Android | iPhone and Mac (App Store), no Android |
 | **Browser extension** | Yes | Yes (Firefox, Chrome) |
 | **Free tier** | Yes | No |

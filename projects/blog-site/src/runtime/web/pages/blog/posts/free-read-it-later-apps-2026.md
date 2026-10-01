@@ -1,6 +1,6 @@
 ---
-title: "Free Read-It-Later Apps in 2026: What You Actually Get"
-description: "An honest look at what free really means for read-it-later apps, from hosted tiers to self-hosted options, and where a paid subscription with a 14-day free trial fits."
+title: "Free Read-It-Later Apps in 2026: 5 Options and Their Costs"
+description: "Instapaper and Raindrop free tiers, self-hosted Karakeep and Wallabag, and bookmarks, with the catch in each: shutdown risk, a server bill or no reader view."
 slug: "free-read-it-later-apps-2026"
 date: "2026-05-06"
 lastModified: "2026-10-01"
@@ -89,7 +89,7 @@ You own the data, and nobody can switch off your instance because nobody else is
 
 The catch is that the bill moves from money to time. You need a server, and a VPS runs $5 to $15 a month, so it is not even free in dollars. On top of that you own the updates, the backups, the security patches, and the SSL certificates, and you are the one debugging at 2am when something breaks.
 
-Notice what the dollars alone add up to: $5 to $15 a month is $60 to $180 a year, which is already more than a Readplace subscription before you count a single hour of your time.
+Notice what the dollars alone add up to: $5 to $15 a month is $60 to $180 a year, which already overlaps the cost of [a Readplace subscription](/?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=pricing#pricing) before you count a single hour of your time.
 
 If you are a developer who finds the operating itself satisfying, this is the strongest option on the list, and no hosted app will match the control it gives you. If you want to save an article and read it on the train, you have signed up for a side job instead.
 

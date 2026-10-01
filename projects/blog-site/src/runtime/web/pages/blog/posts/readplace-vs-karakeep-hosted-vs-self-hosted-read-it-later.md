@@ -1,6 +1,6 @@
 ---
-title: "Readplace vs Karakeep: Hosted vs Self-Hosted Read-It-Later"
-description: "A fair comparison of two developer-focused read-it-later tools, one self-hosted and one managed, and the tradeoffs each makes."
+title: "Karakeep vs Readeck, wallabag and Hosted Readplace"
+description: "Karakeep (formerly Hoarder), Readeck and wallabag compared as self-hosted read-it-later apps on install, AI and search, then Karakeep vs hosted Readplace."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"
 lastModified: "2026-10-01"
@@ -12,16 +12,16 @@ keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alte
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readplace is a paid hosted service with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list.
+Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readeck and wallabag are 2 more open-source, self-hosted options, compared with Karakeep in their own table. Readplace is a paid hosted service with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list.
 
 </div>
 </details>
 
-Pocket shut down in July 2025, and Omnivore sold to ElevenLabs and shut down overnight, so the developers who depended on those tools are now shopping for a read-it-later app they actually control. Two names keep coming up: **Karakeep** (formerly Hoarder) and **Readplace**.
+Pocket shut down in July 2025, and Omnivore shut down 2 weeks after its team joined ElevenLabs, so the developers who depended on those tools are now shopping for a read-it-later app they actually control. Two names keep coming up: **Karakeep** (formerly Hoarder) and **Readplace**.
 
 Both target developers who read a lot, both have AI features, and both care about data ownership. Where they part ways is how the software reaches you, and who is on the hook for keeping it running when something breaks.
 
-This post compares the two along that axis, so you can pick the tool that fits how you work.
+This post compares the two along that axis, so you can pick the tool that fits how you work. A later section sets Karakeep beside Readeck and wallabag, 2 more open-source, self-hosted apps.
 
 ## What each tool is
 
@@ -72,7 +72,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 | **Hosting** | Self-hosted (Docker) | Managed |
 | **Source code** | Open source | Source-available |
 | **AI features** | Auto-tagging, plus summaries on request or opt-in (Ollama / OpenAI) | TL;DR summaries (included) |
-| **Browser extensions** | Chrome, Firefox | Chrome, Firefox |
+| **Browser extensions** | Chrome, Firefox, Safari | Chrome, Firefox |
 | **Mobile apps** | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
 | **Full-text search** | Yes (Meilisearch) | No |
 | **Pocket import** | Yes | Yes |

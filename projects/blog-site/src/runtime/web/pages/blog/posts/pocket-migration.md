@@ -112,6 +112,6 @@ Most read-it-later apps take the HTML export file that Pocket handed out. Readwi
 
 **I lost my Omnivore reading list too. Can Readplace help?**
 
-Yes. Omnivore shut down in November 2024. If you still have an Omnivore data export, upload it on the same Import Links page. For the longer version of what happened there, see [Omnivore shut down: here's a read-it-later app that won't](/blog/omnivore-alternative?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-omnivore-alternative).
+Yes. Omnivore shut down in November 2024. If you still have an Omnivore data export, upload it on the same Import Links page. For the longer version of what happened there, see [Omnivore alternative: a read-it-later app with no investors](/blog/omnivore-alternative?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-omnivore-alternative).
 
 The lesson I took from this is small and a little embarrassing. Export your data the day a service announces it is closing, and keep that file somewhere you control, because the recovery dance afterward only ever returns part of what you had.

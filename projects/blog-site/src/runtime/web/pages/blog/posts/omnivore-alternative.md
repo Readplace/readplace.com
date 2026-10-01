@@ -1,6 +1,6 @@
 ---
-title: "Omnivore Shut Down. Here's a Read-It-Later App That Won't."
-description: "Omnivore shut down with 2 weeks' notice. Readplace is a privacy-first read-it-later app with no VC funding."
+title: "Omnivore Alternative: A Read-It-Later App With No Investors"
+description: "Why Omnivore shut down 2 weeks after its team joined ElevenLabs, and a table of what Readplace matches and still lacks, like highlights and full-text search."
 slug: "omnivore-alternative"
 date: "2026-05-06"
 lastModified: "2026-10-01"
@@ -12,16 +12,16 @@ keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Omnivore shut down two weeks after ElevenLabs acquired it. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law.
+Omnivore shut down 2 weeks after its team joined ElevenLabs. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law.
 
 </div>
 </details>
 
-On November 1, 2024, ElevenLabs acquired Omnivore. Two weeks later, on November 15, the service shut down and data deletion began. If you had years of saved articles, highlights, and notes in there, you had 14 days to get them out before they were gone.
+On October 29, 2024, Omnivore announced its team was joining ElevenLabs. About 2 weeks later, on November 15, the service shut down and data deletion began. If you had years of saved articles, highlights, and notes in there, you had 17 days to get them out before they were gone.
 
 Two weeks was the entire gap between "your app still works fine" and "your data no longer exists."
 
-I want to walk through what actually happened, because the failure was not a bug in the code. Omnivore was open source, it was loved, and it had a clear mission with a real team behind it, and none of that survived the day the acquisition closed. The hosted service stopped, the API stopped answering requests, and the newsletters stopped arriving in inboxes.
+I want to walk through what actually happened, because the failure was not a bug in the code. Omnivore was open source, it was loved, and it had a clear mission with a real team behind it, and none of that survived the team's move to ElevenLabs. The hosted service stopped, the API stopped answering requests, and the newsletters stopped arriving in inboxes.
 
 ## The business model is what broke
 
@@ -33,7 +33,7 @@ I built Readplace to sit between those two. It is hosted, so you do not run anyt
 
 ## Built from a 10-year reading pipeline
 
-I ran a personal reading pipeline for myself for 10 years before any of this became a product, watching the apps I leaned on disappear one after another. Pocket got abandoned. Omnivore got bought and shut down. So I took the system I had already been depending on for a decade and turned it into something other people could use too, built in the open and shipping one feature at a time.
+I ran a personal reading pipeline for myself for 10 years before any of this became a product, watching the apps I leaned on disappear one after another. Pocket got abandoned. Omnivore's team left for ElevenLabs and the app shut down. So I took the system I had already been depending on for a decade and turned it into something other people could use too, built in the open and shipping one feature at a time.
 
 ## What works today
 
@@ -56,7 +56,7 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | --- | --- | --- | --- |
 | Browser extension | Yes | Yes | Shipped |
 | Reader view | Yes | Yes | Shipped |
-| TL;DR summaries | No | Yes | Shipped |
+| TL;DR summaries | In a daily AI digest, not per article | Yes | Shipped |
 | Dark mode | Yes | Yes | Shipped |
 | Data export | Yes | JSON list, no article text | Shipped |
 | Open source | Yes (AGPL-3.0, repository still public) | Source-available | Shipped |
@@ -95,7 +95,7 @@ Readwise Reader is a strong pick for power users at $119.88/year. Readplace is t
 
 **What happened to Omnivore?**
 
-ElevenLabs acquired it on November 1, 2024 and shut it down on November 15, which left users roughly 2 weeks to export their data before deletion started. Its AGPL-3.0 source is still on GitHub, but the hosted service is gone.
+On October 29, 2024, Omnivore announced its team was joining ElevenLabs, and the service shut down on November 15, which left users about 2 weeks to export their data before deletion started. Its AGPL-3.0 source is still on GitHub, but the hosted service is gone.
 
 The team went to ElevenLabs to work on text-to-speech rather than reading tools, so Omnivore is not coming back.
 

@@ -1,6 +1,6 @@
 ---
-title: "Best Read-It-Later Apps in 2026 (Honest Comparison)"
-description: "Honest comparison of read-it-later apps in 2026: Readplace, Readwise Reader, Instapaper, Raindrop.io, Karakeep, Wallabag, and Matter."
+title: "Best Read-It-Later Apps in 2026: 7 Compared, Pros and Cons"
+description: "7 read-it-later apps compared on AI, offline reading, platforms and price: Readwise Reader, Instapaper, Raindrop.io, Karakeep, Wallabag, Matter, Readplace."
 slug: "best-read-it-later-apps-2026"
 date: "2026-05-06"
 lastModified: "2026-10-01"
@@ -17,7 +17,7 @@ Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For 
 </div>
 </details>
 
-Mozilla acquired Pocket and then let it wind down. Omnivore shut down overnight after ElevenLabs acqui-hired the team. Millions of readers lost the tool that held their saved articles, and most of them are still deciding where to go next.
+Mozilla acquired Pocket and then let it wind down. Omnivore shut down 2 weeks after its team joined ElevenLabs. Millions of readers lost the tool that held their saved articles, and most of them are still deciding where to go next.
 
 These apps optimise for different things, so the right one depends on what you do with articles once they are saved. This page covers 7 options against a fixed set of axes, with honest pros and cons for each, including Readplace's own limitations. I built Readplace, so I have an obvious bias. I wrote this to be fair anyway.
 
@@ -35,10 +35,10 @@ These 5 axes leave things out. They say nothing about reading-view typography, p
 |-----|-------|-------------|-------------|-----------------|-----------|
 | **Readplace** | [Plans on the home page](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing), 14-day free trial, no card | TL;DR summaries | Source-available | No | Web, iPhone, Mac, Chrome, Firefox |
 | **Readwise Reader** | $119.88/yr | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
-| **Instapaper** | Free / Premium | Summaries | No | Yes | Web, iOS, macOS, Android, Kindle/Kobo |
+| **Instapaper** | Free / $59.99/yr | Summaries | No | Yes | Web, iOS, macOS, Android, Kindle/Kobo |
 | **Raindrop.io** | Free / $28/yr | AI Suggestions + Stella | Clients only | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Karakeep** | Free (self-hosted) | AI tagging + summaries | Yes | Planned | Web, iOS, Android, Chrome, Firefox, Safari |
-| **Wallabag** | Free (self-hosted) | No (core) | Yes | Yes | Web, iOS (no longer official), Android, Chrome, Firefox |
+| **Wallabag** | Free (self-hosted) / 11 EUR/yr hosted | No (core) | Yes | Yes | Web, iOS (no longer official), Android, Chrome, Firefox |
 | **Matter** | Free / $60/yr | AI co-reader | No | Yes | iOS, macOS, Web, Chrome |
 
 ## PDFs, newsletters and e-readers
@@ -113,7 +113,7 @@ Instapaper is the original read-it-later app, and it predates Pocket. Ownership 
 
 It is now the default reading app on Kobo e-readers, which gives it an edge for people who read on dedicated hardware. It does have AI features (AI-generated summaries and higher-quality AI Voices for text-to-speech) but no AI chat assistant, and the reading experience is mature and comfortable. [Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=post-readplace-vs-instapaper) puts the 2 apps side by side on 5 axes.
 
-**Free (with optional premium tier)**
+**Free / $59.99/year Premium**
 
 ### Strengths
 
@@ -170,7 +170,7 @@ Karakeep, previously known as Hoarder, is a self-hosted bookmarking and read-it-
 
 Wallabag is the longest-standing open source read-it-later application. It has been around since 2013 and supports self-hosting, article parsing, tagging, and export, and a managed hosting option exists for a small fee. Wallabag does what it says, which is save articles and let you read them later. The trade-off is a user interface that has not kept pace with what people expect now, and reviewers reliably describe it as dated.
 
-**Free (self-hosted) or small fee for managed hosting**
+**Free (self-hosted) or 11 EUR/year for managed hosting**
 
 ### Strengths
 

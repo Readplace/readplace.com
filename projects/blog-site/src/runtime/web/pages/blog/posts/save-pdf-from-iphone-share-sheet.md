@@ -1,11 +1,11 @@
 ---
-title: "The Share Sheet That Left Out Every PDF"
-description: "Sharing a PDF from an iPhone used to skip Readplace, because the app was missing from the share sheet for any PDF. Fixing how the share extension declares what it accepts brings it back for Safari's viewer, Files, and mail attachments, and it uploads the file's bytes directly so a PDF behind a login still saves."
+title: "Save a Safari PDF From the iPhone Share Sheet to Read Later"
+description: "In Safari on iPhone, tap Share on a PDF and pick Readplace to read it later. The app uploads files up to 25 MiB itself, so a PDF behind a login still saves."
 slug: "save-pdf-from-iphone-share-sheet"
 date: "2026-07-03"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
-keywords: "save pdf from iphone, save pdf to read later iphone, share pdf to read it later, iphone share sheet pdf, save safari pdf ios, read pdf later app iphone, save pdf behind login, ios share extension pdf, save mail attachment pdf, readplace iphone"
+keywords: "save pdf from iphone, save pdf to read later iphone, share pdf to read it later, iphone share sheet pdf, save safari pdf ios, read pdf later app iphone, save pdf behind login, ios share extension pdf, readplace iphone"
 ---
 
 <details class="blog-tldr">
@@ -17,7 +17,7 @@ On an iPhone, a PDF was the one thing you could not hand to Readplace. Open a PD
 </div>
 </details>
 
-Every app in the iPhone share sheet has to declare what it accepts. Readplace's declaration named web pages and plain text. It left PDFs off, so sharing a PDF from Safari did not show Readplace in the list at all.
+Every app in the iPhone share sheet has to declare what it accepts. Readplace's declaration named web pages and plain text. It left PDFs off, so sharing a PDF from Safari did not show Readplace in the list at all. The declaration now names PDFs too, so tapping Share on a PDF in Safari and picking Readplace saves it.
 
 I found the gap the way these gaps usually turn up. I opened a PDF in Safari, tapped share, and went looking for Readplace. It was not there. The web page in the next tab shared fine, so the extension itself worked. The PDF was the one thing it would not take.
 
@@ -68,6 +68,6 @@ when: f2,c2=2 -> ok | Sends the link | A failed marker check, or a PDF past the 
 else: ok | Uploads the bytes | The share sheet passes the app its bytes directly, so the app uploads those bytes as they are and skips the browser view.
 ```
 
-So the share sheet now offers Readplace for a PDF wherever one shows up on the phone, from Safari's viewer to a mail attachment to a file that came off a web page. Share it, and the app sends the bytes it was already holding, which is what gets a login-guarded PDF into your readlist. The iPhone app is on the App Store, linked from [readplace.com/install](https://readplace.com/install?client=iphone). Put a PDF into it from your phone and open it back in the [in-app reader](/blog/read-saved-articles-in-the-iphone-app?utm_source=blog-save-pdf-from-iphone-share-sheet&utm_medium=internal&utm_content=post-read-saved-articles-in-the-iphone-app).
+So the share sheet now offers Readplace for a PDF wherever one shows up on the phone. Share one that came off a web page, like a PDF open in Safari's viewer, and the app sends the bytes it was already holding, which is what gets a login-guarded PDF into your readlist. The iPhone app is on the App Store, linked from [readplace.com/install](https://readplace.com/install?client=iphone). Put a PDF into it from your phone and open it back in the [in-app reader](/blog/read-saved-articles-in-the-iphone-app?utm_source=blog-save-pdf-from-iphone-share-sheet&utm_medium=internal&utm_content=post-read-saved-articles-in-the-iphone-app).
 
 [Saving PDFs, scans included](/pdf-ocr?utm_source=blog-save-pdf-from-iphone-share-sheet&utm_medium=internal&utm_content=pdf-ocr) covers the other ways in.
