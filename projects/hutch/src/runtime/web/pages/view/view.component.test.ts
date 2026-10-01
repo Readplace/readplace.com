@@ -379,12 +379,12 @@ describe("ViewPage", () => {
 		).toBe("View on Readplace.");
 	});
 
-	it("emits the default indexable robots meta so the reader page is open to crawlers", () => {
+	it("emits noindex robots meta so a copy of someone else's article stays out of search results", () => {
 		const doc = render();
 
 		expect(
 			doc.querySelector('meta[name="robots"]')?.getAttribute("content"),
-		).toBe("index, follow");
+		).toBe("noindex, follow");
 	});
 
 	it("emits JSON-LD Article whose url is the original source (not the /view wrapper)", () => {

@@ -206,6 +206,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			description,
 			canonicalUrl: input.articleUrl,
 			canonicalIsExternal: true,
+			robots: "noindex, follow",
 			ogUrl: shareableViewUrl,
 			ogType: "article",
 			ogImage,

@@ -221,7 +221,7 @@ describe("View routes", () => {
 			expect(article.headline).toBe("Hello World");
 		});
 
-		it("emits the default indexable robots meta", async () => {
+		it("emits noindex robots meta", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -260,7 +260,7 @@ describe("View routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(
 				doc.querySelector('meta[name="robots"]')?.getAttribute("content"),
-			).toBe("index, follow");
+			).toBe("noindex, follow");
 		});
 	});
 
@@ -1177,7 +1177,7 @@ describe("View routes", () => {
 			});
 		}
 
-		it("serves the HTML article page without a noindex header so importers and search engines may use it", async () => {
+		it("serves the HTML article page without a noindex header so importers may use it", async () => {
 			const harness = headerHarness();
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
