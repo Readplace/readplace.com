@@ -42,11 +42,147 @@
       ]
     },
     {
-      "from": "pragmaticengineer@substack.com",
-      "name": "The Pragmatic Engineer",
+      "from": "googlealerts-noreply@google.com",
+      "name": "Google Alerts",
       "evidence": [
         {
-          "note": "Supplied user feedback (Substack publication sender); verify FROM header before approving"
+          "url": "https://support.google.com/websearch/answer/4815696",
+          "note": "Google Alerts help: 'If you use Gmail, add googlealerts-noreply@google.com to your contacts.' (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "newsletter.email@businessinsider.com",
+      "name": "Business Insider",
+      "evidence": [
+        {
+          "url": "https://businessinsider.zendesk.com/hc/en-us/articles/7238332605965-I-m-not-receiving-the-newsletters-I-subscribed-to",
+          "note": "Help article: 'Adding our email address (newsletter.email@businessinsider.com) to your contacts/allowlist ensures smooth delivery of newsletters' (fetched via Zendesk article API 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "newsletters@analystratings.net",
+      "name": "MarketBeat",
+      "evidence": [
+        {
+          "url": "https://www.marketbeat.com/safe-sender",
+          "note": "Safe-sender page: 'receive your MarketBeat newsletter by adding our email address (newsletters@analystratings.net) to your white list.' (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "oxford@mp.oxfordclub.com",
+      "name": "The Oxford Club",
+      "evidence": [
+        {
+          "url": "https://oxfordclub.com/whitelist",
+          "note": "Whitelist page: 'add the address in the \"From\" line of the desired e-letter to your address book. This address is oxford@mp.oxfordclub.com' (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "dr@email.paradigmpressgroup.com",
+      "name": "The Daily Reckoning",
+      "evidence": [
+        {
+          "url": "https://dailyreckoning.com/whitelist",
+          "note": "Whitelist page lists dr@email.paradigmpressgroup.com among the addresses 'in the \"From\" line of your most recent subscription email' (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "dailyproof@email.paradigmpressgroup.com",
+      "name": "The Daily Reckoning",
+      "evidence": [
+        {
+          "url": "https://dailyreckoning.com/whitelist",
+          "note": "Whitelist page lists dailyproof@email.paradigmpressgroup.com among the addresses 'in the \"From\" line of your most recent subscription email' (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "dailyfwd@email.paradigmpressgroup.com",
+      "name": "The Daily Reckoning",
+      "evidence": [
+        {
+          "url": "https://dailyreckoning.com/whitelist",
+          "note": "Whitelist page lists dailyfwd@email.paradigmpressgroup.com among the addresses 'in the \"From\" line of your most recent subscription email' (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "info@mp.paradigmpressgroup.com",
+      "name": "Paradigm Press",
+      "evidence": [
+        {
+          "url": "https://paradigmpressgroup.com/whitelist-us",
+          "note": "Whitelist page lists info@mp.paradigmpressgroup.com as an address to whitelist ('Please use these email addresses... or simply open an email from us') (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "info@mb.paradigmpressgroup.com",
+      "name": "Paradigm Press",
+      "evidence": [
+        {
+          "url": "https://paradigmpressgroup.com/whitelist-us",
+          "note": "Whitelist page lists info@mb.paradigmpressgroup.com as an address to whitelist ('Please use these email addresses... or simply open an email from us') (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "vip@mb.paradigmpressgroup.com",
+      "name": "Paradigm Press",
+      "evidence": [
+        {
+          "url": "https://paradigmpressgroup.com/whitelist-us",
+          "note": "Whitelist page lists vip@mb.paradigmpressgroup.com as an address to whitelist ('Please use these email addresses... or simply open an email from us') (fetched 2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "jsw@peterc.org",
+      "name": "JavaScript Weekly",
+      "evidence": [
+        {
+          "note": "From header 'JavaScript Weekly <jsw@peterc.org>' of real mail in a Readplace test Gmail mailbox, seen by staging Gmail sender discovery (2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "jakub@programmingdigest.net",
+      "name": "Programming Digest",
+      "evidence": [
+        {
+          "note": "From header 'Programming Digest <jakub@programmingdigest.net>' of real mail in a Readplace test Gmail mailbox, seen by staging Gmail sender discovery (2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "jakub@mail.leadershipintech.com",
+      "name": "Leadership in Tech",
+      "evidence": [
+        {
+          "note": "From header 'Leadership in Tech <jakub@mail.leadershipintech.com>' of real mail in a Readplace test Gmail mailbox, seen by staging Gmail sender discovery (2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "anton@newsletter.manager.dev",
+      "name": "Manager.dev",
+      "evidence": [
+        {
+          "note": "From header 'Anton from Manager.dev <anton@newsletter.manager.dev>' of real mail in a Readplace test Gmail mailbox, seen by staging Gmail sender discovery (2026-10-01)."
+        }
+      ]
+    },
+    {
+      "from": "mamund@substack.com",
+      "name": "Signals from Our Futures Past",
+      "evidence": [
+        {
+          "note": "From header <mamund@substack.com>, display name starting 'Mike Amundsen from Signals', of real mail in a Readplace test Gmail mailbox, seen by staging Gmail sender discovery (2026-10-01). The publication at mamund.substack.com is 'Signals from Our Futures Past'."
         }
       ]
     }

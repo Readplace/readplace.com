@@ -34,11 +34,35 @@ The version-controlled seed is `src/runtime/domain/newsletter-catalog/newsletter
 
 | FROM address | Name | Evidence |
 |---|---|---|
-| `enewsletter@scottishnews.com` | Scottish Legal News | The publisher's [email delivery page](https://www.scottishlegal.com/email-delivery-issues) names this address as the newsletter sender (fetched 2026-09-30). |
-| `newsletter@energyandcapital.com` | Energy & Capital | The publisher's [whitelist page](https://www.energyandcapital.com/whitelist/) names this address for every mail provider (fetched 2026-09-30). |
-| `hello@cgxapp.com` | CGX | The [support article](https://support.cgxapp.com/hc/en-gb/articles/30688454926353-Why-haven-t-I-received-the-email-newsletter) asks readers to whitelist the address the newsletter is sent from, `hello@cgxapp.com` (fetched through the Zendesk article API, 2026-09-30). |
-| `briefs@dailydosebriefs.com` | Daily Dose | The [site FAQ](https://www.dailydosebriefs.com/) says to add `briefs@dailydosebriefs.com` to contacts (fetched 2026-09-30). |
-| `pragmaticengineer@substack.com` | The Pragmatic Engineer | Supplied user feedback about a Substack publication sender. There is no publisher page naming the address. **Verify it against the From header of a real issue before approving.** |
+| `enewsletter@scottishnews.com` | Scottish Legal News | The publisher's [email delivery page](https://www.scottishlegal.com/email-delivery-issues) names this address as the newsletter sender (fetched 2026-09-30, re-checked 2026-10-01). |
+| `newsletter@energyandcapital.com` | Energy & Capital | The publisher's [whitelist page](https://www.energyandcapital.com/whitelist/) names this address for every mail provider (fetched 2026-09-30, re-checked 2026-10-01). |
+| `hello@cgxapp.com` | CGX | The [support article](https://support.cgxapp.com/hc/en-gb/articles/30688454926353-Why-haven-t-I-received-the-email-newsletter) asks readers to whitelist the address the newsletter is sent from, `hello@cgxapp.com` (fetched through the Zendesk article API, 2026-09-30, re-checked 2026-10-01). |
+| `briefs@dailydosebriefs.com` | Daily Dose | The [site FAQ](https://www.dailydosebriefs.com/) says to add `briefs@dailydosebriefs.com` to contacts (fetched 2026-09-30, re-checked 2026-10-01). |
+| `googlealerts-noreply@google.com` | Google Alerts | Google's [Alerts help page](https://support.google.com/websearch/answer/4815696) tells Gmail users to add this address to contacts (fetched 2026-10-01). |
+| `newsletter.email@businessinsider.com` | Business Insider | The [help-centre article](https://businessinsider.zendesk.com/hc/en-us/articles/7238332605965-I-m-not-receiving-the-newsletters-I-subscribed-to) asks readers to allowlist this address for newsletter delivery (fetched through the Zendesk article API, 2026-10-01). |
+| `newsletters@analystratings.net` | MarketBeat | MarketBeat's [safe-sender page](https://www.marketbeat.com/safe-sender) names this address as the newsletter sender (fetched 2026-10-01). |
+| `oxford@mp.oxfordclub.com` | The Oxford Club | The [whitelist page](https://oxfordclub.com/whitelist) names this address as the "From" line of its e-letters (fetched 2026-10-01). |
+| `dr@email.paradigmpressgroup.com`, `dailyproof@email.paradigmpressgroup.com`, `dailyfwd@email.paradigmpressgroup.com` | The Daily Reckoning | The [whitelist page](https://dailyreckoning.com/whitelist) lists all three as the "From" line of subscription email (fetched 2026-10-01). One record each. |
+| `info@mp.paradigmpressgroup.com`, `info@mb.paradigmpressgroup.com`, `vip@mb.paradigmpressgroup.com` | Paradigm Press | The publisher's [whitelist page](https://paradigmpressgroup.com/whitelist-us) lists all three as sending addresses (fetched 2026-10-01). One record each. |
+| `jsw@peterc.org` | JavaScript Weekly | From header of real mail in a Readplace test mailbox, seen by staging Gmail sender discovery (2026-10-01). No publisher page names it. |
+| `jakub@programmingdigest.net` | Programming Digest | From header of real mail in a Readplace test mailbox (2026-10-01). |
+| `jakub@mail.leadershipintech.com` | Leadership in Tech | From header of real mail in a Readplace test mailbox (2026-10-01). |
+| `anton@newsletter.manager.dev` | Manager.dev | From header of real mail in a Readplace test mailbox (2026-10-01). The publication's site has since moved off `newsletter.manager.dev`; re-check the sender if issues arrive from another address. |
+| `mamund@substack.com` | Signals from Our Futures Past | From header of real mail in a Readplace test mailbox (2026-10-01); `mamund.substack.com` is that publication. |
+
+The seed has no domain wildcards. No checked domain had evidence that it sends newsletter issues only: each also carries support, account or sign-in mail, or is shared by many publishers.
+
+Checked and left out:
+
+| Sender | Why |
+|---|---|
+| `pragmaticengineer@substack.com` | No publisher page or real From header names it. Substack only documents the `[subdomain]@substack.com` format, which is inference. |
+| `noreply@medium.com` | Medium's help centre says this address also sends sign-in links. |
+| `subscriptions@medium.com` | No evidence of what it sends. |
+| `newsletters-noreply@linkedin.com` | A platform relay for any author's LinkedIn newsletter; no page names it. |
+| `02ship@mail.beehiiv.com` | The publication could not be identified, and beehiiv also sends subscription-verification mail from publication addresses. |
+| `hn@ycombinator.com` | The Hacker News moderator and support mailbox, not a newsletter. |
+| `info@mb.banyanhill.com` | The publisher says "All Banyan Hill emails" come from it, which can include account mail. |
 
 Every seed entry imports as `pending`. Adding an entry to the seed file only makes it available to the next import; it does not change a live catalog.
 
@@ -52,6 +76,7 @@ Approve a record only when you know the exact address in the `From` header of th
 Rules:
 
 - Use the address exactly. Keep dots and plus tags (`news+weekly@example.com` is not `news@example.com`). Addresses are compared after lower-casing only.
+- Never approve an address that also sends sign-in links, password resets or receipts. A reader's mapping forwards everything that address sends into a readlist.
 - Never infer an address from a website's domain, a sign-up form or a "reply-to" address. A publication on `example.com` may send from `example.substack.com`, from a mailing-list provider, or from several addresses.
 - One FROM address has one record, even when several editions share it. Name the record after the publication a reader would recognise.
 - Record where the address came from: an evidence link, a note, or both. The admin create form requires one of them.
