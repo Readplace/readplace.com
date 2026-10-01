@@ -38,6 +38,7 @@ interface CallTracker {
 		publishLinkQueued: number;
 		publishQueueEntryCreated: number;
 		updateArticleStatusUnread: number;
+		pinContentSource: number;
 	};
 	queueEntryCreated: Array<{ url: string; userId: string }>;
 	deps: SaveArticleFromUrlDependencies;
@@ -54,6 +55,7 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 		publishLinkQueued: 0,
 		publishQueueEntryCreated: 0,
 		updateArticleStatusUnread: 0,
+		pinContentSource: 0,
 	};
 	const deps: SaveArticleFromUrlDependencies = {
 		saveArticle: async () => ({ saved, createdUserArticle: true, wroteUserArticle: true }),
@@ -81,7 +83,10 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 			queueEntryCreated.push({ url: params.url, userId: params.userId });
 		},
 		refreshArticleIfStale: async () => ({ action: "new" }),
-		resolveCanonicalIdentity: async (url) => url,
+		resolveSaveIdentity: async (url) => ({ url }),
+		pinContentSource: async () => {
+			calls.pinContentSource += 1;
+		},
 	};
 	return { saved, calls, queueEntryCreated, deps };
 }
@@ -106,6 +111,7 @@ describe("saveArticleFromUrl", () => {
 			publishLinkQueued: 1,
 			publishQueueEntryCreated: 1,
 			updateArticleStatusUnread: 0,
+			pinContentSource: 0,
 		});
 	});
 
@@ -129,6 +135,7 @@ describe("saveArticleFromUrl", () => {
 			publishLinkQueued: 1,
 			publishQueueEntryCreated: 1,
 			updateArticleStatusUnread: 0,
+			pinContentSource: 0,
 		});
 	});
 
@@ -153,7 +160,7 @@ describe("saveArticleFromUrl", () => {
 		const keyedOn: string[] = [];
 		const deps: SaveArticleFromUrlDependencies = {
 			...tracker.deps,
-			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+			resolveSaveIdentity: async () => ({ url: "https://example.com/canonical" }),
 			saveArticle: async (p) => {
 				keyedOn.push(`saveArticle:${p.url}`);
 				return { saved: tracker.saved, createdUserArticle: true, wroteUserArticle: true };
@@ -179,7 +186,7 @@ describe("saveArticleFromUrl", () => {
 		const tracker = makeTracker();
 		const deps: SaveArticleFromUrlDependencies = {
 			...tracker.deps,
-			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+			resolveSaveIdentity: async () => ({ url: "https://example.com/canonical" }),
 		};
 
 		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "new" } });
@@ -328,7 +335,7 @@ describe("saveArticleFromUrl", () => {
 		const queued: string[] = [];
 		const deps: SaveArticleFromUrlDependencies = {
 			...tracker.deps,
-			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+			resolveSaveIdentity: async () => ({ url: "https://example.com/canonical" }),
 			publishLinkQueued: async ({ url }) => {
 				queued.push(url);
 			},
@@ -411,5 +418,56 @@ describe("saveArticleFromUrl", () => {
 
 		expect(tracker.calls.updateArticleStatusUnread).toBe(0);
 		expect(result.saved.status).toBe("read");
+	});
+
+	describe("an identity that carries a content source (an archive capture keyed on its original)", () => {
+		const snapshot = "https://web.archive.org/web/20081203185222/https://example.com/post";
+
+		it("pins the snapshot right after the row is written and before the crawl is primed", async () => {
+			const tracker = makeTracker();
+			const order: string[] = [];
+			const deps: SaveArticleFromUrlDependencies = {
+				...tracker.deps,
+				resolveSaveIdentity: async (url) => ({ url, contentSourceUrl: snapshot }),
+				saveArticle: async (p) => {
+					order.push(`saveArticle:${p.url}`);
+					return { saved: tracker.saved, createdUserArticle: true, wroteUserArticle: true };
+				},
+				pinContentSource: async ({ articleUrl, contentSourceUrl }) => {
+					order.push(`pinContentSource:${articleUrl}→${contentSourceUrl}`);
+				},
+				markCrawlPending: async ({ url }) => {
+					order.push(`markCrawlPending:${url}`);
+				},
+			};
+
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "new" } });
+
+			expect(order).toEqual([
+				`saveArticle:${exampleUrl}`,
+				`pinContentSource:${exampleUrl}→${snapshot}`,
+				`markCrawlPending:${exampleUrl}`,
+			]);
+		});
+
+		it("pins nothing on a 'skip' verdict — a row with live content is never re-pointed at the snapshot", async () => {
+			const tracker = makeTracker();
+			const deps: SaveArticleFromUrlDependencies = {
+				...tracker.deps,
+				resolveSaveIdentity: async (url) => ({ url, contentSourceUrl: snapshot }),
+			};
+
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "skip" } });
+
+			expect(tracker.calls.pinContentSource).toBe(0);
+		});
+	});
+
+	it("pins nothing when the identity carries no content source", async () => {
+		const tracker = makeTracker();
+
+		await initSaveArticleFromUrl(tracker.deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "new" } });
+
+		expect(tracker.calls.pinContentSource).toBe(0);
 	});
 });

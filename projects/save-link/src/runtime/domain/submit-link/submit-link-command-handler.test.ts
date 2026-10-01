@@ -118,7 +118,8 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		markSummaryPending: jest.fn().mockResolvedValue(undefined),
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		refreshArticleIfStale: jest.fn().mockResolvedValue({ action: "new" }),
-		resolveCanonicalIdentity: async (url) => url,
+		resolveSaveIdentity: async (url) => ({ url }),
+		pinContentSource: jest.fn().mockResolvedValue(undefined),
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -182,7 +183,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			publishEvent,
-			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+			resolveSaveIdentity: async () => ({ url: "https://example.com/canonical" }),
 		});
 
 		await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));

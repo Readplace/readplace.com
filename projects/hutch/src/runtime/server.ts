@@ -124,7 +124,7 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
+import type { PinContentSource, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -242,7 +242,7 @@ import { buildMcpServerCard } from "./web/mcp/server-card";
 import { MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./web/mcp/protocol";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
-import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl } from "@packages/save-article";
+import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
@@ -431,11 +431,16 @@ interface AppDependencies {
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	refreshArticleIfStaleStored: RefreshArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	saveArticleKeepingPosition: SaveArticle;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	resolveSaveIdentity: ResolveSaveIdentity;
+	resolveFirstVisitIdentity: ResolveSaveIdentity;
+	resolveWrapperTarget: ResolveWrapperTarget;
+	pinContentSource: PinContentSource;
 	getOnboardingSignals: GetOnboardingSignals;
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
@@ -1343,10 +1348,13 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleCrawlStatuses: deps.findArticleCrawlStatuses,
 		markCrawlPending: deps.markCrawlPending,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
+		refreshArticleIfStaleStored: deps.refreshArticleIfStaleStored,
 		allocateSavedAt: deps.allocateSavedAt,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
 		findSavedUrls: deps.findSavedUrls,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
+		resolveSaveIdentity: deps.resolveSaveIdentity,
+		pinContentSource: deps.pinContentSource,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
 		stickyReader: StickyReader,
@@ -1393,9 +1401,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
 		publishQueueEntryCreated: deps.publishQueueEntryCreated,
-		refreshArticleIfStale: deps.refreshArticleIfStale,
+		refreshArticleIfStale: deps.refreshArticleIfStaleStored,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
-		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
+		resolveSaveIdentity: deps.resolveSaveIdentity,
+		pinContentSource: deps.pinContentSource,
 		logError: deps.logError,
 		recordAnalyticsEvent,
 		salt: deps.salt,
@@ -1433,6 +1442,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		markCrawlPending: deps.markCrawlPending,
 		saveArticleGlobally: deps.saveArticleGlobally,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
+		resolveSaveIdentity: deps.resolveFirstVisitIdentity,
+		pinContentSource: deps.pinContentSource,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		consumeRateLimit: deps.consumeRateLimit,
@@ -1448,6 +1459,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
+		resolveWrapperTarget: deps.resolveWrapperTarget,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,

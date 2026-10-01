@@ -1,6 +1,6 @@
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "./canonical-alias";
+import { initCanonicalAliasStore } from "./canonical-alias";
 
 /**
  * 1. The DocumentClient `send` is a heavily-overloaded generic the test fake
@@ -335,19 +335,5 @@ describe("initCanonicalAliasStore", () => {
 
 			expect(await resolveAlias("https://site.com/page")).toBeUndefined();
 		});
-	});
-});
-
-describe("initResolveCanonicalIdentity", () => {
-	it("returns the alias target when the url is an adopted terminal", async () => {
-		const resolve = initResolveCanonicalIdentity({ resolveAlias: async () => "https://site.com/page.html" });
-
-		expect(await resolve("https://site.com/page")).toBe("https://site.com/page.html");
-	});
-
-	it("returns the url unchanged when it is not an alias", async () => {
-		const resolve = initResolveCanonicalIdentity({ resolveAlias: async () => undefined });
-
-		expect(await resolve("https://site.com/page")).toBe("https://site.com/page");
 	});
 });

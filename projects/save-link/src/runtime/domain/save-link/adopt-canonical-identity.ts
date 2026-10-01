@@ -4,6 +4,7 @@ import type {
 	ReconcileStubMetadata,
 	SetArticleDisplayUrl,
 } from "@packages/article-store";
+import { isArchiveHost, unwrapWrapperUrl } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { matchingSiteRuleUrl, type SiteRules } from "@packages/site-rules";
 
@@ -70,6 +71,7 @@ export function adoptableTerminal(params: {
 	if (finalUrl === undefined) return undefined;
 	if (identityOf(finalUrl) === identityOf(url)) return undefined;
 	if (isSiteRuleUrl(finalUrl)) return undefined;
+	if (isArchiveHost(finalUrl) || unwrapWrapperUrl(finalUrl).url !== finalUrl) return undefined;
 	return finalUrl;
 }
 

@@ -23,7 +23,7 @@ function createFreshness(overrides: Partial<FreshnessDeps> = {}) {
 	return initSubmitFreshness({
 		findArticleByUrl: jest.fn().mockResolvedValue(null),
 		findArticleCrawlStatus: jest.fn().mockResolvedValue({ status: "ready" }),
-		resolveCanonicalIdentity: async (url) => url,
+		resolveSaveIdentity: async (url) => ({ url }),
 		publishStaleCheckRequested: jest.fn().mockResolvedValue(undefined),
 		...overrides,
 	});
@@ -112,7 +112,7 @@ describe("initSubmitFreshness", () => {
 		const publishStaleCheckRequested = jest.fn().mockResolvedValue(undefined);
 		const { refreshArticleIfStale } = createFreshness({
 			findArticleByUrl,
-			resolveCanonicalIdentity: async () => canonicalUrl,
+			resolveSaveIdentity: async () => ({ url: canonicalUrl }),
 			publishStaleCheckRequested,
 		});
 
@@ -120,5 +120,44 @@ describe("initSubmitFreshness", () => {
 
 		expect(findArticleByUrl).toHaveBeenCalledWith(canonicalUrl);
 		expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: canonicalUrl });
+	});
+
+	describe("an archive capture keyed on its original", () => {
+		const snapshot = "https://web.archive.org/web/20081203185222/https://example.com/canonical";
+		const keyedOnOriginal = async () => ({ url: canonicalUrl, contentSourceUrl: snapshot });
+
+		it.each([
+			{ status: "failed" as const, reason: "x" },
+			{ status: "unsupported" as const, reason: "pdf" },
+		])("verdicts 'new' when the original's crawl is $status, so the save pins the snapshot and re-primes", async (crawl) => {
+			const publishStaleCheckRequested = jest.fn().mockResolvedValue(undefined);
+			const { refreshArticleIfStale } = createFreshness({
+				findArticleByUrl: jest.fn().mockResolvedValue(makeGlobalArticle()),
+				findArticleCrawlStatus: jest.fn().mockResolvedValue(crawl),
+				resolveSaveIdentity: keyedOnOriginal,
+				publishStaleCheckRequested,
+			});
+
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new" });
+			expect(publishStaleCheckRequested).not.toHaveBeenCalled();
+		});
+
+		it("verdicts 'skip' when the original already has live content — it is never re-pointed at the snapshot", async () => {
+			const publishStaleCheckRequested = jest.fn().mockResolvedValue(undefined);
+			const { refreshArticleIfStale } = createFreshness({
+				findArticleByUrl: jest.fn().mockResolvedValue(makeGlobalArticle()),
+				resolveSaveIdentity: keyedOnOriginal,
+				publishStaleCheckRequested,
+			});
+
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "skip" });
+			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: canonicalUrl });
+		});
+
+		it("verdicts 'new' when the original has no row yet", async () => {
+			const { refreshArticleIfStale } = createFreshness({ resolveSaveIdentity: keyedOnOriginal });
+
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new" });
+		});
 	});
 });

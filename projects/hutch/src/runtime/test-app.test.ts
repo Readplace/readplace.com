@@ -57,6 +57,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			emailVerification: fixture.emailVerification,
 			passwordReset: fixture.passwordReset,
 			rateLimit: fixture.rateLimit,
+			wrapperTarget: fixture.wrapperTarget,
 			onboardingSignals: fixture.onboardingSignals,
 			google: {
 				exchangeGoogleCode: async () => ({

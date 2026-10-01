@@ -516,6 +516,12 @@ export interface RateLimitBundle {
 	rules: RateLimitRules;
 }
 
+export interface WrapperTargetBundle {
+	resolveWrapperTarget: (url: string) => Promise<string | undefined>;
+	targets: Map<string, string>;
+	calls: string[];
+}
+
 export interface OnboardingSignalsBundle {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
@@ -647,6 +653,7 @@ export interface TestAppFixture {
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
 	rateLimit: RateLimitBundle;
+	wrapperTarget: WrapperTargetBundle;
 	onboardingSignals: OnboardingSignalsBundle;
 	google: GoogleAuthBundle | undefined;
 	gmailIntegration: GmailIntegrationBundle | undefined;

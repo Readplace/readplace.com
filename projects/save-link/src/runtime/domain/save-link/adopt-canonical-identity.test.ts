@@ -48,6 +48,15 @@ describe("adoptableTerminal", () => {
 		expect(adoptableTerminal({ ...base, isSiteRuleUrl: () => true })).toBeUndefined();
 	});
 
+	it.each([
+		["a Wayback timestamp redirect", "https://web.archive.org/web/20180630081250/https://site.com/page"],
+		["an archive.today short id", "https://archive.ph/Ab1cD"],
+		["a tweet intent wrapping another URL", "https://twitter.com/intent/tweet?url=https%3A%2F%2Fsite.com%2Fpage"],
+	])("rejects %s as a terminal — the article is keyed on the original, never the wrapper", (_label, finalUrl) => {
+		expect(adoptableTerminal({ ...base, finalUrl })).toBeUndefined();
+		expect(adoptableTerminal({ ...crawlFailed, finalUrl })).toBeUndefined();
+	});
+
 	it("adopts a failed crawl's terminal — there is no content to weigh, only the redirect chain", () => {
 		expect(adoptableTerminal(crawlFailed)).toBe("https://site.com/page");
 	});

@@ -72,7 +72,7 @@ import { initMultipartUpload } from "../import/multipart-upload";
 import { UPLOAD_COMPLETION_MAX_AGE_SECONDS } from "./upload-slot-ttl";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
 import { initSaveArticlesLimitHandler } from "./save-articles-limit-handler";
-import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { PinContentSource, ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import type {
 	ArticleCrawl,
@@ -105,6 +105,7 @@ import {
 	initPublishLinkDequeuedUnlessSavedElsewhere,
 	initSaveArticleAtReadlistTop, initSaveArticleFromUrl,
 	rankNewLinksAbove,
+	type ResolveSaveIdentity,
 } from "@packages/save-article";
 import type { PublishQueueEntryCreated } from "@packages/provider-contracts/events";
 import type { PublishComputeRelatedPastReads } from "@packages/provider-contracts/events";
@@ -399,10 +400,13 @@ interface ReadlistDependencies {
 	findArticleCrawlStatuses: FindArticleCrawlStatuses;
 	markCrawlPending: MarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	refreshArticleIfStaleStored: RefreshArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	resolveSaveIdentity: ResolveSaveIdentity;
+	pinContentSource: PinContentSource;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	resolveOwnedArticle: ResolveOwnedArticle;
@@ -1887,7 +1891,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const prepareOnePage = async (job: PageJob): Promise<PreparedPage | PageOutcome> => {
 			try {
 				const [freshness, canonicalUrl] = await Promise.all([
-					deps.refreshArticleIfStale({ url: job.url }),
+					deps.refreshArticleIfStaleStored({ url: job.url }),
 					deps.resolveCanonicalIdentity(job.url),
 				]);
 				return { job, freshness, canonicalUrl };

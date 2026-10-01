@@ -50,10 +50,6 @@ const useApp = useTestServer();
 
 const ALIAS_URL = "https://example.com/alias-of-saved";
 const CANONICAL_URL = "https://example.com/canonical-saved";
-const useAliasFoldingApp = useTestServer({
-	resolveCanonicalIdentity: async (url: string) => (url === ALIAS_URL ? CANONICAL_URL : url),
-});
-
 function setup(): {
 	testApp: TestAppHarness;
 	publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][];
@@ -192,7 +188,7 @@ describe("POST /queue/save-articles", () => {
 
 	it("ranks a tab whose URL only aliases an already-saved article as a re-save, not as a new link", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const testApp = useAliasFoldingApp(fixture);
+		const testApp = useApp(fixture);
 		const accessToken = await createAccessToken(testApp);
 
 		const first = await request(testApp.server)
@@ -201,6 +197,7 @@ describe("POST /queue/save-articles", () => {
 			.set("Authorization", `Bearer ${accessToken}`)
 			.field("manifest", manifest([{ url: CANONICAL_URL }, { url: "https://example.com/companion" }]));
 		expect(first.status).toBe(200);
+		await fixture.articleStore.claimAlias({ aliasUrl: ALIAS_URL, targetOriginalUrl: CANONICAL_URL, now: new Date() });
 
 		const second = await request(testApp.server)
 			.post("/queue/save-articles")
@@ -214,6 +211,25 @@ describe("POST /queue/save-articles", () => {
 			"https://example.com/companion",
 			CANONICAL_URL,
 		]);
+	});
+
+	it("saves a newsletter tracker as-is — the bulk path never resolves wrappers over the network", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const tracker = "https://javascriptweekly.com/link/100000/rss";
+		fixture.wrapperTarget.targets.set(tracker, "https://sqlite.org/lang_with.html");
+		const testApp = useApp(fixture);
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: tracker }]));
+
+		expect(response.status).toBe(200);
+		expect(fixture.wrapperTarget.calls).toEqual([]);
+		const { articles } = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(articles.map((a) => a.url)).toEqual([tracker]);
 	});
 
 	it("re-saving a window bumps every tab onto fresh consecutive instants and ranks the article deleted from its middle above them", async () => {

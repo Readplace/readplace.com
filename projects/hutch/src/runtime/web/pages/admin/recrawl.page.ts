@@ -21,6 +21,9 @@ import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
 import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-view-failed-oob";
 import { initResolveStoredArticle, type ResolveStoredArticle } from "../../shared/resolve-stored-article";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { wrapperFamilyOf } from "@packages/domain/article";
+import { cleanWrapperTarget, type ResolveWrapperTarget } from "@packages/save-article";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
 import { AdminRecrawlPage, formatRecrawlDocumentTitle, recrawlPathFor } from "./recrawl.component";
@@ -33,6 +36,7 @@ export interface AdminRecrawlDependencies {
 	appOrigin: string;
 	findArticleByUrl: FindArticleByUrl;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	resolveWrapperTarget: ResolveWrapperTarget;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
@@ -222,6 +226,23 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArtic
 			// saved URL. Do not create a stub; surface 404.
 			await renderNotFound(deps, req, res);
 			return;
+		}
+		if (articleUrl !== requestedUrl && wrapperFamilyOf(requestedUrl) !== undefined) {
+			const target = await deps.resolveWrapperTarget(requestedUrl);
+			if (target === undefined) {
+				res.status(502).type("text/plain").send("The wrapper could not be resolved to an article.");
+				return;
+			}
+			const cleaned = cleanWrapperTarget({ wrapperUrl: requestedUrl, targetUrl: target });
+			if (cleaned.status === "ERROR") {
+				res.status(502).type("text/plain").send(`The wrapper resolved to a URL that cannot be saved: ${cleaned.error.message}.`);
+				return;
+			}
+			const fresh = await deps.resolveCanonicalIdentity(cleaned.url);
+			if (ArticleResourceUniqueId.parse(fresh).value !== ArticleResourceUniqueId.parse(articleUrl).value) {
+				res.status(409).type("text/plain").send("The wrapper now resolves to a different article than the one it was saved as.");
+				return;
+			}
 		}
 
 		// Always recrawl. No cache, no TTL. Force crawl back to pending (even if

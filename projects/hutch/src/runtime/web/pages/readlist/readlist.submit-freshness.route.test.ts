@@ -18,7 +18,7 @@ describe("Readlist save through submit freshness", () => {
 		const { refreshArticleIfStale } = initSubmitFreshness({
 			findArticleByUrl: fixture.articleStore.findArticleByUrl,
 			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
-			resolveCanonicalIdentity: async (url) => url,
+			resolveSaveIdentity: async (url) => ({ url }),
 			publishStaleCheckRequested: async (params) => {
 				staleChecks.push(params);
 			},

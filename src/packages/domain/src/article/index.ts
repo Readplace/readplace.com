@@ -52,6 +52,14 @@ export {
 export { sanitizeArticleHtml } from "./sanitize-article-html";
 export { isBlockedIpAddress } from "./blocked-address";
 export { isNonArticleHost } from "./non-article-host";
+export {
+	isArchiveHost,
+	stripRedirectAddedParams,
+	unwrapWrapperUrl,
+	wrapperFamilyOf,
+	type UnwrappedUrl,
+	type WrapperFamily,
+} from "./wrapper-url";
 export { calculateReadTime } from "./estimated-read-time";
 export {
 	displayableReadTime,

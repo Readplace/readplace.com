@@ -32,10 +32,13 @@ import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/arti
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
 	CRAWL_PERSONAS,
+	DEFAULT_CRAWL_HEADERS,
 	initCrawlArticle,
 	initFetchPinnedCrawl,
 	initCrawlFetch,
+	initFetchRedirectHop,
 	initFetchThumbnailImage,
+	initResolveAppleNewsStoryUrl,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
@@ -105,6 +108,13 @@ import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
 import { initInMemoryHostedCheckout } from "@packages/test-fixtures/providers/hosted-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import {
+	WRAPPER_RESOLVE_BUDGETS,
+	initResolveCanonicalIdentity,
+	initResolveSaveIdentity,
+	initResolveWrapperTarget,
+	neverResolveWrapperTarget,
+} from "@packages/save-article";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
@@ -436,9 +446,22 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const { putPendingPdf } = initInMemoryPendingPdf();
-	/* The in-memory composition has no alias store, so identity resolution is a
-	 * no-op — dedup-by-redirect is a production DynamoDB behaviour only. */
-	const resolveCanonicalIdentity = async (url: string) => url;
+	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ findIdentityRow: articleStore.findIdentityRow });
+	const resolveWrapperTarget = initResolveWrapperTarget({
+		fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
+		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch, logError }),
+		headers: DEFAULT_CRAWL_HEADERS,
+		...WRAPPER_RESOLVE_BUDGETS,
+		logger,
+	});
+	const saveIdentityDeps = {
+		findIdentityRow: articleStore.findIdentityRow,
+		claimAlias: articleStore.claimAlias,
+		now: () => new Date(),
+		logger,
+	};
+	const resolveSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget });
+	const resolveStoredSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: neverResolveWrapperTarget });
 	const { createUploadSlot, statPendingUpload, readPendingUploadPrefix } = initInMemoryPendingUpload({
 		uploadBaseUrl: `${input.appOrigin}/e2e/s3`,
 		now: () => new Date(),
@@ -451,7 +474,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		parseHtml,
 		publishRefreshArticleContent,
 		publishUpdateFetchTimestamp,
-		resolveCanonicalIdentity,
+		resolveCanonicalIdentity: async (url) => (await resolveSaveIdentity(url)).url,
 		now: () => new Date(),
 		staleTtlMs,
 	});
@@ -554,7 +577,12 @@ export function initDevProviders(input: { appOrigin: string }) {
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
+		refreshArticleIfStaleStored: refreshArticleIfStale,
 		resolveCanonicalIdentity,
+		resolveSaveIdentity: resolveStoredSaveIdentity,
+		resolveFirstVisitIdentity: resolveSaveIdentity,
+		resolveWrapperTarget,
+		pinContentSource: articleStore.pinContentSource,
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,

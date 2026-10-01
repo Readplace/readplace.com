@@ -45,7 +45,8 @@ export function initSubmitLinkCommandHandler(deps: {
 	allocateSavedAt: AllocateSavedAt;
 	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
-	resolveCanonicalIdentity: SaveArticleFromUrlDependencies["resolveCanonicalIdentity"];
+	resolveSaveIdentity: SaveArticleFromUrlDependencies["resolveSaveIdentity"];
+	pinContentSource: SaveArticleFromUrlDependencies["pinContentSource"];
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
 	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
 	putTierSource: PutTierSource;
@@ -134,7 +135,8 @@ export function initSubmitLinkCommandHandler(deps: {
 					markSummaryPending: deps.markSummaryPending,
 					publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 					refreshArticleIfStale: deps.refreshArticleIfStale,
-					resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
+					resolveSaveIdentity: deps.resolveSaveIdentity,
+					pinContentSource: deps.pinContentSource,
 					publishLinkSaved: async (params) => {
 						enrichment.push(params);
 					},

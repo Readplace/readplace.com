@@ -53,7 +53,7 @@ import {
 import { getEnv, requireEnv } from "@packages/require-env"
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
 import { initRefreshArticleIfStale } from '@packages/finalize-article'
-import { initSubmitFreshness } from '@packages/save-article'
+import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from '@packages/save-article'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
@@ -280,7 +280,13 @@ const summary = createFakeSummaryProvider({ readyAfterReads: 3 })
 const eventLogger = getEnv('CI') === 'true' ? noopLogger : logger
 const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: eventLogger })
 const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: eventLogger })
-const resolveCanonicalIdentity = async (url: string) => url
+const resolveSaveIdentity = initResolveSaveIdentity({
+	findIdentityRow: fixture.articleStore.findIdentityRow,
+	claimAlias: fixture.articleStore.claimAlias,
+	resolveWrapperTarget: neverResolveWrapperTarget,
+	now: () => new Date(),
+	logger: eventLogger,
+})
 
 const applyParseResult = createFakeApplyParseResult({
 	articleStore: fixture.articleStore,
@@ -301,7 +307,7 @@ const SAVE_PIPELINES = {
 			parseHtml,
 			publishRefreshArticleContent,
 			publishUpdateFetchTimestamp,
-			resolveCanonicalIdentity,
+			resolveCanonicalIdentity: async (url) => (await resolveSaveIdentity(url)).url,
 			now: () => new Date(),
 			staleTtlMs: 0,
 		}).refreshArticleIfStale,
@@ -311,7 +317,7 @@ const SAVE_PIPELINES = {
 		refreshArticleIfStale: initSubmitFreshness({
 			findArticleByUrl: fixture.articleStore.findArticleByUrl,
 			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
-			resolveCanonicalIdentity,
+			resolveSaveIdentity,
 			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 		}).refreshArticleIfStale,
 		publishLinkSaved: initInMemoryLinkSaved({ logger: eventLogger }).publishLinkSaved,

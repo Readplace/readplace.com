@@ -7,10 +7,8 @@ export { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";
 export { initDynamoDbPastReads } from "./dynamodb-past-reads";
 export {
 	initCanonicalAliasStore,
-	initResolveCanonicalIdentity,
 	type ClaimCanonicalAlias,
 	type ResolveCanonicalAlias,
-	type ResolveCanonicalIdentity,
 	type IdentityRow,
 	type FindIdentityRow,
 	type SetArticleDisplayUrl,

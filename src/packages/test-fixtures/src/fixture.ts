@@ -17,6 +17,7 @@ import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
 import { initInMemoryRateLimit } from "./providers/rate-limit/in-memory-rate-limit";
+import { initInMemoryWrapperTarget } from "./providers/wrapper-target/in-memory-wrapper-target";
 import { initInMemoryOnboardingSignals } from "./providers/onboarding-signals/in-memory-onboarding-signals";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
@@ -462,6 +463,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		emailVerification,
 		passwordReset,
 		rateLimit,
+		wrapperTarget: initInMemoryWrapperTarget(),
 		onboardingSignals: initInMemoryOnboardingSignals({ now: () => new Date() }),
 		google: undefined,
 		gmailIntegration: undefined,

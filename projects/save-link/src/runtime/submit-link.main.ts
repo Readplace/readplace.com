@@ -5,16 +5,23 @@ import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
-import { validateSaveableUrl } from "@packages/domain/article";
+import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
+import { DEFAULT_CRAWL_HEADERS, initFetchRedirectHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
 import {
 	initCanonicalAliasStore,
 	initDynamoDbArticleCrawl,
 	initDynamoDbGeneratedSummary,
 	initDynamoDbSavedArticleStore,
-	initResolveCanonicalIdentity,
 } from "@packages/article-store";
 import { initSubmitLinkCommandHandler } from "./domain/submit-link/submit-link-command-handler";
-import { initFileArticleIntoReadlist, initSubmitFreshness } from "@packages/save-article";
+import {
+	WRAPPER_RESOLVE_BUDGETS,
+	initFileArticleIntoReadlist,
+	initResolveSaveIdentity,
+	initResolveWrapperTarget,
+	initSubmitFreshness,
+	neverResolveWrapperTarget,
+} from "@packages/save-article";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -88,13 +95,24 @@ const savedArticleStore = initDynamoDbSavedArticleStore({
 });
 const crawlStore = initDynamoDbArticleCrawl({ client: dynamoClient, tableName: articlesTable, now });
 const summaryStore = initDynamoDbGeneratedSummary({ client: dynamoClient, tableName: articlesTable, now });
-const resolveCanonicalIdentity = initResolveCanonicalIdentity({
-	resolveAlias: canonicalAliasStore.resolveAlias,
+const resolveWrapperTarget = initResolveWrapperTarget({
+	fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
+	resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch: parser.crawlFetch, logError: observability.logError }),
+	headers: DEFAULT_CRAWL_HEADERS,
+	...WRAPPER_RESOLVE_BUDGETS,
+	logger: consoleLogger,
 });
+const saveIdentityDeps = {
+	findIdentityRow: canonicalAliasStore.findIdentityRow,
+	claimAlias: canonicalAliasStore.claimAlias,
+	now,
+	logger: consoleLogger,
+};
+const resolveStoredSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: neverResolveWrapperTarget });
 const { refreshArticleIfStale } = initSubmitFreshness({
 	findArticleByUrl: savedArticleStore.findArticleByUrl,
 	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-	resolveCanonicalIdentity,
+	resolveSaveIdentity: initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget }),
 	publishStaleCheckRequested: (params) => events.publishEvent(StaleCheckRequestedEvent, params),
 });
 
@@ -122,5 +140,6 @@ export const handler = initSubmitLinkCommandHandler({
 	markSummaryPending: summaryStore.markSummaryPending,
 	publishUpdateFetchTimestamp: articleCrawl.updateFetchTimestamp,
 	refreshArticleIfStale,
-	resolveCanonicalIdentity,
+	resolveSaveIdentity: resolveStoredSaveIdentity,
+	pinContentSource: canonicalAliasStore.pinContentSource,
 });

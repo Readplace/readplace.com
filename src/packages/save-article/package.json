@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@packages/domain": "workspace:*",
+    "@packages/hutch-logger": "workspace:*",
     "@packages/provider-contracts": "workspace:*"
   },
   "devDependencies": {

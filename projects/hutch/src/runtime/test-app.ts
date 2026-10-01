@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget } from "@packages/save-article";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import type {
@@ -22,6 +23,7 @@ import type {
 	SubscriptionProvidersBundle,
 	TestAppFixture,
 	TrialSchedulerBundle,
+	WrapperTargetBundle,
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { createApp } from "./server";
@@ -94,6 +96,7 @@ export interface TestAppResult {
 	auth: AuthBundle;
 	articleStore: ArticleStoreBundle;
 	articleCrawl: ArticleCrawlBundle;
+	wrapperTarget: WrapperTargetBundle;
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
 	pendingUpload: PendingUploadBundle;
@@ -220,7 +223,24 @@ function flattenFixtureToAppDependencies(
 		findGeneratedSummaries: batchFromSingular(fixture.summary.findGeneratedSummary),
 		markSummaryPending: fixture.summary.markSummaryPending,
 		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
-		resolveCanonicalIdentity: async (url: string) => url,
+		refreshArticleIfStaleStored: fixture.freshness.refreshArticleIfStale,
+		resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: fixture.articleStore.findIdentityRow }),
+		resolveSaveIdentity: initResolveSaveIdentity({
+			findIdentityRow: fixture.articleStore.findIdentityRow,
+			claimAlias: fixture.articleStore.claimAlias,
+			resolveWrapperTarget: neverResolveWrapperTarget,
+			now: fixture.shared.now,
+			logger: noopLogger,
+		}),
+		resolveFirstVisitIdentity: initResolveSaveIdentity({
+			findIdentityRow: fixture.articleStore.findIdentityRow,
+			claimAlias: fixture.articleStore.claimAlias,
+			resolveWrapperTarget: fixture.wrapperTarget.resolveWrapperTarget,
+			now: fixture.shared.now,
+			logger: noopLogger,
+		}),
+		resolveWrapperTarget: fixture.wrapperTarget.resolveWrapperTarget,
+		pinContentSource: fixture.articleStore.pinContentSource,
 		oauthModel: fixture.oauth.oauthModel,
 		revokeAllUserOAuthTokens: fixture.oauth.revokeAllUserOAuthTokens,
 		validateAccessToken: fixture.oauth.validateAccessToken,
@@ -325,8 +345,8 @@ export const BROWSER_REQUEST_HEADERS: Record<string, string> = {
 /** `overrides` lets a test swap a single dependency without rebuilding the whole
  * fixture — `getSessionUserId` (so a test can make the session
  * lookup throw and assert the request still degrades to guest),
- * and `resolveCanonicalIdentity` (which defaults to identity, so a test that
- * needs a real alias fold has to say so). */
+ * and `resolveCanonicalIdentity` (which defaults to the fixture store's own
+ * alias fold, so a test that needs a scripted fold has to say so). */
 export function createTestApp(
 	fixture: TestAppFixture,
 	overrides?: TestAppOverrides,
@@ -358,6 +378,7 @@ export function createTestApp(
 		auth: fixture.auth,
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,
+		wrapperTarget: fixture.wrapperTarget,
 		pendingHtml: fixture.pendingHtml,
 		pendingPdf: fixture.pendingPdf,
 		pendingUpload: fixture.pendingUpload,

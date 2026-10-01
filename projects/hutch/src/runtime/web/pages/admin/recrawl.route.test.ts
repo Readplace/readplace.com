@@ -38,6 +38,7 @@ interface RecrawlHarness {
 	auth: TestAppHarness["auth"];
 	articleStore: TestAppHarness["articleStore"];
 	articleCrawl: TestAppHarness["articleCrawl"];
+	wrapperTarget: TestAppHarness["wrapperTarget"];
 	summary: ReturnType<typeof createFakeSummaryProvider>;
 	recrawlPublishedCalls: { url: string }[];
 	publishedQueueEntryCreated: { url: string; userId: UserId }[];
@@ -105,6 +106,7 @@ function buildHarness(
 		auth: harness.auth,
 		articleStore: harness.articleStore,
 		articleCrawl: harness.articleCrawl,
+		wrapperTarget: harness.wrapperTarget,
 		summary,
 		recrawlPublishedCalls,
 		publishedQueueEntryCreated: fixture.publishedQueueEntryCreated,
@@ -811,6 +813,102 @@ describe("Admin recrawl routes", () => {
 				"article-header",
 				"document-title",
 			]);
+		});
+	});
+
+	describe("wrapper URLs aliased at save time", () => {
+		const TRACKER = "https://javascriptweekly.com/link/100000/rss";
+		const TRACKER_ENCODED = encodeURIComponent(TRACKER);
+		const PUBLISHER = "https://sqlite.org/lang_with.html";
+
+		async function seedResolvedWrapper() {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: PUBLISHER,
+				metadata: { title: "T", siteName: "sqlite.org", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+			await harness.articleStore.claimAlias({ aliasUrl: TRACKER, targetOriginalUrl: PUBLISHER, now: new Date() });
+			return harness;
+		}
+
+		it("re-resolves the wrapper and recrawls the article it still points at", async () => {
+			const harness = await seedResolvedWrapper();
+			harness.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(`/admin/recrawl?url=${encodeURIComponent(PUBLISHER)}&started=1`);
+			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
+			expect(harness.recrawlPublishedCalls).toEqual([{ url: PUBLISHER }]);
+		});
+
+		it("accepts a fresh target that differs from the saved article only by tracking params", async () => {
+			const harness = await seedResolvedWrapper();
+			harness.wrapperTarget.targets.set(TRACKER, `${PUBLISHER}?utm_source=newsletter`);
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
+
+			expect(response.status).toBe(303);
+			expect(harness.recrawlPublishedCalls).toEqual([{ url: PUBLISHER }]);
+		});
+
+		it("answers 502 and recrawls nothing when the wrapper no longer resolves", async () => {
+			const harness = await seedResolvedWrapper();
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
+
+			expect(response.status).toBe(502);
+			expect(harness.recrawlPublishedCalls).toEqual([]);
+		});
+
+		it("answers 502 when the wrapper resolves to a URL that cannot be saved", async () => {
+			const harness = await seedResolvedWrapper();
+			harness.wrapperTarget.targets.set(TRACKER, "ftp://files.example/a");
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
+
+			expect(response.status).toBe(502);
+			expect(harness.recrawlPublishedCalls).toEqual([]);
+		});
+
+		it("answers 409 when the wrapper now resolves to a different article than it was saved as", async () => {
+			const harness = await seedResolvedWrapper();
+			harness.wrapperTarget.targets.set(TRACKER, "https://sqlite.org/other-page.html");
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
+
+			expect(response.status).toBe(409);
+			expect(harness.recrawlPublishedCalls).toEqual([]);
+		});
+
+		it("recrawls a row keyed by the wrapper itself without resolving it", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: TRACKER,
+				metadata: { title: "T", siteName: "javascriptweekly.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: TRACKER });
+			harness.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
+
+			expect(response.status).toBe(303);
+			expect(harness.wrapperTarget.calls).toEqual([]);
+			expect(harness.recrawlPublishedCalls).toEqual([{ url: TRACKER }]);
 		});
 	});
 });

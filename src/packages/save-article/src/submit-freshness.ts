@@ -2,11 +2,12 @@ import type { RefreshArticleIfStale } from "@packages/provider-contracts/article
 import type { FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type { FindArticleByUrl } from "@packages/provider-contracts/article-store";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
+import type { ResolveSaveIdentity } from "./resolve-save-identity";
 
 export interface SubmitFreshnessDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
-	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	resolveSaveIdentity: ResolveSaveIdentity;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 }
 
@@ -16,18 +17,21 @@ export function initSubmitFreshness(deps: SubmitFreshnessDependencies): {
 	const {
 		findArticleByUrl,
 		findArticleCrawlStatus,
-		resolveCanonicalIdentity,
+		resolveSaveIdentity,
 		publishStaleCheckRequested,
 	} = deps;
 
 	const refreshArticleIfStale: RefreshArticleIfStale = async ({ url }) => {
-		const resolved = await resolveCanonicalIdentity(url);
+		const { url: resolved, contentSourceUrl } = await resolveSaveIdentity(url);
 		const existing = await findArticleByUrl(resolved);
 		if (!existing || existing.purgedAt) {
 			return { action: "new" };
 		}
 		const crawl = await findArticleCrawlStatus(resolved);
 		if (!crawl || crawl.status === "pending") {
+			return { action: "new" };
+		}
+		if (contentSourceUrl !== undefined && crawl.status !== "ready") {
 			return { action: "new" };
 		}
 		await publishStaleCheckRequested({ url: resolved });

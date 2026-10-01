@@ -1696,6 +1696,9 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../hutch-logger
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts

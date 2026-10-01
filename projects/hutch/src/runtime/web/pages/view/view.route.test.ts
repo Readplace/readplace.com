@@ -10,6 +10,7 @@ import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/art
 import { useTestServer, BROWSER_REQUEST_HEADERS } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
+	type TestAppFixture,
 	createDefaultTestAppFixture,
 	createFakeApplyParseResult,
 	createFakePublishLinkSaved,
@@ -60,9 +61,10 @@ const useApp = useTestServer();
 const CANONICAL_OF_ALIAS = "https://example.com/canonical-post";
 const useAppWithAliasFold = useTestServer({ resolveCanonicalIdentity: async () => CANONICAL_OF_ALIAS });
 
-function buildReaderHarness(mountApp: typeof useApp = useApp) {
+function buildReaderHarness(mountApp: typeof useApp = useApp, prepare: (fixture: TestAppFixture) => void = () => {}) {
 	const parseArticle: ParseArticle = async () => buildParseResult();
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	prepare(fixture);
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,
@@ -2317,6 +2319,116 @@ describe("View routes", () => {
 			const response = await request(harness.server).get(`/view/reader?url=${ENCODED}`);
 
 			expect(response.status).toBe(404);
+		});
+	});
+
+	describe("GET /view/<wrapper-url> — the first visit resolves the wrapper", () => {
+		const TRACKER = "https://javascriptweekly.com/link/100000/rss";
+		const TRACKER_PATH = "javascriptweekly.com/link/100000/rss";
+		const PUBLISHER = "https://sqlite.org/lang_with.html";
+
+		it("keys the first-visit row on the publisher, aliases the tracker and renders the publisher as the article", async () => {
+			const harness = buildReaderHarness(useApp, (fixture) => {
+				fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			});
+
+			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
+			expect(await harness.articleStore.findArticleByUrl(TRACKER)).toBeNull();
+			expect(await harness.articleStore.findArticleByUrl(PUBLISHER)).not.toBeNull();
+			expect(await harness.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "alias", targetUrl: PUBLISHER });
+			expect(response.text).toContain(`href="${PUBLISHER}"`);
+		});
+
+		it("attaches a visit to the publisher's existing row instead of re-stubbing it", async () => {
+			const harness = buildReaderHarness(useApp, (fixture) => {
+				fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			});
+			await harness.articleStore.saveArticleGlobally({
+				url: PUBLISHER,
+				metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+
+			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
+			expect(await harness.articleStore.findArticleByUrl(TRACKER)).toBeNull();
+			expect((await harness.articleStore.findArticleByUrl(PUBLISHER))?.metadata.title).toBe("Seeded title");
+			expect(await harness.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "alias", targetUrl: PUBLISHER });
+		});
+
+		it("resolves the wrapper once — the alias answers the second visit", async () => {
+			const harness = buildReaderHarness(useApp, (fixture) => {
+				fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			});
+
+			await request(harness.server).get(`/view/${TRACKER_PATH}`);
+			const second = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(second.status).toBe(200);
+			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
+		});
+
+		it("does not resolve the wrapper for a prefetch", async () => {
+			const harness = buildReaderHarness(useApp, (fixture) => {
+				fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			});
+
+			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`).set("Sec-Purpose", "prefetch");
+
+			expect(response.status).toBe(200);
+			expect(harness.wrapperTarget.calls).toEqual([]);
+			expect(await harness.articleStore.findArticleByUrl(PUBLISHER)).toBeNull();
+		});
+
+		it("spends the per-IP budget before resolving — a throttled visit never reaches the network", async () => {
+			const other = "https://javascriptweekly.com/link/100001/rss";
+			const harness = buildReaderHarness(useApp, (fixture) => {
+				fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+				fixture.wrapperTarget.targets.set(other, "https://sqlite.org/other.html");
+				fixture.rateLimit = {
+					consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+					rules: { ...fixture.rateLimit.rules, viewCrawl: { limit: 1, windowSeconds: 60 } },
+				};
+			});
+
+			await request(harness.server).get(`/view/${TRACKER_PATH}`);
+			const throttled = await request(harness.server).get("/view/javascriptweekly.com/link/100001/rss");
+
+			expect(throttled.status).toBe(429);
+			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
+		});
+
+		it("keeps the wrapper as the row when the resolver finds no target", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
+			expect(await harness.articleStore.findArticleByUrl(TRACKER)).not.toBeNull();
+		});
+
+		it("keys a Wayback capture on the original article and pins its content to the snapshot, without any network", async () => {
+			const snapshot = "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106.html";
+			const original = "http://www.onscreenasia.com/article-106.html";
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(
+				"/view/web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106.html",
+			);
+
+			expect(response.status).toBe(200);
+			expect(harness.wrapperTarget.calls).toEqual([]);
+			expect(await harness.articleStore.findArticleByUrl(snapshot)).toBeNull();
+			expect(await harness.articleStore.findArticleByUrl(original)).not.toBeNull();
+			expect(await harness.articleStore.findAdoptedFetchUrl(original)).toBe(snapshot);
 		});
 	});
 });

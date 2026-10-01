@@ -12,6 +12,7 @@ import type {
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
+	PinContentSource,
 	SaveArticleGlobally,
 } from "@packages/provider-contracts/article-store";
 import type { ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
@@ -65,6 +66,7 @@ import {
 } from "../../shared/epub/article-epub";
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import { initResolveStoredArticle } from "../../shared/resolve-stored-article";
+import type { ResolveSaveIdentity } from "@packages/save-article";
 import {
 	ViewPage,
 	renderViewDownloadsOob,
@@ -90,6 +92,8 @@ interface ViewDependencies {
 	markCrawlPending: MarkCrawlPending;
 	saveArticleGlobally: SaveArticleGlobally;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	resolveSaveIdentity: ResolveSaveIdentity;
+	pinContentSource: PinContentSource;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	consumeRateLimit: ConsumeRateLimit;
@@ -249,7 +253,7 @@ function handleViewArticle(
 		// Collapse an adopted terminal URL onto the article it aliases before any
 		// read/write, so viewing the terminal shows the deduped article and never
 		// mints a real row on top of the inert alias marker.
-		const { articleUrl, existing } = await resolveStoredArticle(validation.url);
+		let { articleUrl, existing } = await resolveStoredArticle(validation.url);
 
 		// Freshness/conditional-GET is delegated to the stale-check Lambda so
 		// /view never blocks on a remote crawl (Medium-hosted articles can take
@@ -298,10 +302,6 @@ function handleViewArticle(
 				.send(Buffer.from(bytes));
 			return;
 		}
-		const hostname = articleHostFrom(articleUrl);
-		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
-		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
-		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };
 		const stubReadTime = calculateReadTime(0);
 		const gated = isNonArticleHost(articleUrl);
 		// A prefetch gets the rendered page (stub metadata below) but triggers
@@ -326,18 +326,32 @@ function handleViewArticle(
 					sendRateLimited(res, decision.retryAfterSeconds);
 					return;
 				}
-				await deps.saveArticleGlobally({
-					url: articleUrl,
-					metadata: stubMetadata,
-					estimatedReadTime: stubReadTime,
-					savedAt: deps.now(),
-				});
-				await deps.markCrawlPending({ url: articleUrl });
-				await deps.markSummaryPending({ url: articleUrl });
-				await deps.publishSaveAnonymousLink({ url: articleUrl });
+				const identity = await deps.resolveSaveIdentity(validation.url);
+				if (identity.url !== validation.url) {
+					articleUrl = identity.url;
+					existing = await deps.findArticleByUrl(articleUrl);
+				}
+				if (!existing) {
+					const stubHost = articleHostFrom(articleUrl);
+					const stubMetadata: ArticleMetadata = { title: stubHost, siteName: stubHost, excerpt: "", wordCount: 0 };
+					await deps.saveArticleGlobally({
+						url: articleUrl,
+						metadata: stubMetadata,
+						estimatedReadTime: stubReadTime,
+						savedAt: deps.now(),
+					});
+					if (identity.contentSourceUrl !== undefined) {
+						await deps.pinContentSource({ articleUrl, contentSourceUrl: identity.contentSourceUrl });
+					}
+					await deps.markCrawlPending({ url: articleUrl });
+					await deps.markSummaryPending({ url: articleUrl });
+					await deps.publishSaveAnonymousLink({ url: articleUrl });
+				}
 			}
 			await deps.publishStaleCheckRequested({ url: articleUrl });
 		}
+		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
+		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };
 
 		// Re-read metadata after any first-visit save. In production this returns
 		// the stub we just wrote (the worker is async); in tests where the

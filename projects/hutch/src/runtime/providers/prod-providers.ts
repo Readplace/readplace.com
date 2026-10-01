@@ -9,9 +9,16 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initDynamoDbReadlistDefinitions, initDynamoDbSavedArticleStore } from "@packages/article-store";
-import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
+import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, initCrawlFetch, initFetchRedirectHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import { initSubmitFreshness } from "@packages/save-article";
+import {
+	WRAPPER_RESOLVE_BUDGETS,
+	initResolveCanonicalIdentity,
+	initResolveSaveIdentity,
+	initResolveWrapperTarget,
+	initSubmitFreshness,
+	neverResolveWrapperTarget,
+} from "@packages/save-article";
 import { initDynamoDbOAuthModel } from "./oauth/dynamodb-oauth-model";
 import { initDynamoDbOAuthClients } from "./oauth/dynamodb-oauth-clients";
 import { initOAuthClientLookup } from "@packages/domain/oauth";
@@ -37,7 +44,7 @@ import { initStripePrices } from "./stripe-prices/stripe-prices";
 import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-payment-methods";
 import { initAwsTrialScheduler } from "./trial-scheduler/aws-trial-scheduler";
 import { initReadArticleContent } from "@packages/article-store";
-import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "@packages/article-store";
+import { initCanonicalAliasStore } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkDequeued } from "./events/eventbridge-link-dequeued";
 import { initEventBridgeQueueEntryCreated } from "./events/eventbridge-queue-entry-created";
@@ -154,7 +161,22 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
 	const queueDefinitions = initDynamoDbReadlistDefinitions({ client, userArticlesTableName: userArticlesTable });
 	const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
-	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
+	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ findIdentityRow: canonicalAlias.findIdentityRow });
+	const resolveWrapperTarget = initResolveWrapperTarget({
+		fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
+		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch, logError }),
+		headers: DEFAULT_CRAWL_HEADERS,
+		...WRAPPER_RESOLVE_BUDGETS,
+		logger,
+	});
+	const saveIdentityDeps = {
+		findIdentityRow: canonicalAlias.findIdentityRow,
+		claimAlias: canonicalAlias.claimAlias,
+		now: () => new Date(),
+		logger,
+	};
+	const resolveSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget });
+	const resolveStoredSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: neverResolveWrapperTarget });
 	const readArticleContent = initReadArticleContent({
 		storageProviderQueryOrder: [
 			initS3ReadContent({ send: (cmd) => s3Client.send(cmd), bucketName: contentBucketName }),
@@ -240,7 +262,13 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { refreshArticleIfStale } = initSubmitFreshness({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-		resolveCanonicalIdentity,
+		resolveSaveIdentity,
+		publishStaleCheckRequested,
+	});
+	const { refreshArticleIfStale: refreshArticleIfStaleStored } = initSubmitFreshness({
+		findArticleByUrl: articleStore.findArticleByUrl,
+		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		resolveSaveIdentity: resolveStoredSaveIdentity,
 		publishStaleCheckRequested,
 	});
 	const googleAuth = {
@@ -499,7 +527,12 @@ export function initProdProviders(input: { appOrigin: string }) {
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
+		refreshArticleIfStaleStored,
 		resolveCanonicalIdentity,
+		resolveSaveIdentity: resolveStoredSaveIdentity,
+		resolveFirstVisitIdentity: resolveSaveIdentity,
+		resolveWrapperTarget,
+		pinContentSource: canonicalAlias.pinContentSource,
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,

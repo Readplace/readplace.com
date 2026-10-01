@@ -16,6 +16,20 @@ export {
 	initSubmitFreshness,
 	type SubmitFreshnessDependencies,
 } from "./submit-freshness";
+export { initResolveCanonicalIdentity } from "./resolve-canonical-identity";
+export {
+	cleanWrapperTarget,
+	initResolveSaveIdentity,
+	type ResolveSaveIdentity,
+	type ResolveSaveIdentityDependencies,
+	type SaveIdentity,
+} from "./resolve-save-identity";
+export {
+	WRAPPER_RESOLVE_BUDGETS,
+	initResolveWrapperTarget,
+	neverResolveWrapperTarget,
+	type ResolveWrapperTarget,
+} from "./resolve-wrapper-target";
 export { rankNewLinksAbove } from "./rank-new-links-above";
 export {
 	bindArticleStoreToReadlist,

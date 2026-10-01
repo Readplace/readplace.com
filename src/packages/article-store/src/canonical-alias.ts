@@ -7,6 +7,12 @@ import {
 	defineDynamoTable,
 	dynamoField,
 } from "@packages/hutch-storage-client";
+import type {
+	ClaimCanonicalAlias,
+	FindIdentityRow,
+	IdentityRow,
+	PinContentSource,
+} from "@packages/provider-contracts/article-store";
 import { z } from "zod";
 
 /**
@@ -31,39 +37,12 @@ const CanonicalAliasRow = z.object({
 	contentSourceUrl: dynamoField(z.string()),
 });
 
-export type IdentityRow =
-	| { kind: "absent" }
-	| { kind: "article" }
-	| { kind: "alias"; targetUrl: string };
-
-export type FindIdentityRow = (url: string) => Promise<IdentityRow>;
-
-export type PinContentSource = (params: {
-	articleUrl: string;
-	contentSourceUrl: string;
-}) => Promise<void>;
-
-/**
- * First-writer-wins claim of `id(aliasUrl) → targetOriginalUrl`.
- * `"claimed"` when this call created the marker; `"occupied"` when the identity
- * is already taken (by another alias OR a real article row) — the caller must
- * never overwrite either.
- */
-export type ClaimCanonicalAlias = (params: {
-	aliasUrl: string;
-	targetOriginalUrl: string;
-	now: Date;
-}) => Promise<"claimed" | "occupied">;
+export type { ClaimCanonicalAlias, FindIdentityRow, IdentityRow, PinContentSource };
 
 /** Full original URL an alias resolves to, or `undefined` when `id(url)` is not
  * an alias (no row, or a real article row). Depth-1 by construction: the value
  * is a stored URL, never itself resolved again. */
 export type ResolveCanonicalAlias = (url: string) => Promise<string | undefined>;
-
-/** The identity a save/view should operate on: the alias target when `url` is an
- * adopted terminal, else `url` unchanged. Depth-1 — an alias never points at
- * another alias, so one lookup is total. */
-export type ResolveCanonicalIdentity = (url: string) => Promise<string>;
 
 /** Stamp the redirect destination onto the origin article at `id(articleUrl)` so
  * the reader / readlist / API can show where it lives while `url` stays the lookup
@@ -209,10 +188,4 @@ export function initCanonicalAliasStore(deps: {
 		reconcileStubMetadata,
 		findAdoptedFetchUrl,
 	};
-}
-
-export function initResolveCanonicalIdentity(deps: {
-	resolveAlias: ResolveCanonicalAlias;
-}): ResolveCanonicalIdentity {
-	return async (url) => (await deps.resolveAlias(url)) ?? url;
 }

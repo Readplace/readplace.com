@@ -153,6 +153,10 @@
       "types": "./dist/providers/rate-limit/index.d.ts",
       "default": "./dist/providers/rate-limit/index.js"
     },
+    "./providers/wrapper-target": {
+      "types": "./dist/providers/wrapper-target/index.d.ts",
+      "default": "./dist/providers/wrapper-target/index.js"
+    },
     "./providers/reader-ready-state": {
       "types": "./dist/providers/reader-ready-state/index.d.ts",
       "default": "./dist/providers/reader-ready-state/index.js"
@@ -291,6 +295,9 @@
       ],
       "providers/rate-limit": [
         "./dist/providers/rate-limit/index.d.ts"
+      ],
+      "providers/wrapper-target": [
+        "./dist/providers/wrapper-target/index.d.ts"
       ],
       "providers/reader-ready-state": [
         "./dist/providers/reader-ready-state/index.d.ts"
