@@ -1,8 +1,9 @@
 ---
 title: "Read Any Article in a Clean Reader, No Account Needed"
-description: "Paste any link at readplace.com/view and the article opens in a clean reader with a short summary, no signup. Share the link, and anyone reads it the same way. One button saves it to your own readlist."
+description: "Paste any link into the box on the readplace.com homepage and the article opens in a clean reader with a short summary, no signup. Share the link, and anyone reads it the same way. One button saves it to your own readlist."
 slug: "read-any-article-clean-reader"
 date: "2026-06-05"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "reader view, read any article, distraction-free reader, clean reader link, share article, read without an account, read it later, markdown article, no login reader, readplace"
 ---
@@ -11,7 +12,7 @@ keywords: "reader view, read any article, distraction-free reader, clean reader 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-You can read any article in Readplace without an account. Paste a link at readplace.com/view and the page opens in a clean reader, clutter stripped out, with a short summary on top. Share that link and the next person reads it the same way, no signup. One button saves the article to your own readlist. Readplace can also hand back the same article as plain markdown, which helps notes apps and AI assistants read it cleanly.
+You can read any article in Readplace without an account. Paste a link into the box at the top of the readplace.com homepage and the page opens in a clean reader, clutter stripped out, with a short summary on top. Share that link and the next person reads it the same way, no signup. One button saves the article to your own readlist. Readplace can also hand back the same article as plain markdown, which helps notes apps and AI assistants read it cleanly.
 
 </div>
 </details>
@@ -20,7 +21,7 @@ Most articles you want to read come wrapped in noise. There are popups, a cookie
 
 You opened the page for 800 words of writing and instead you have to fight your way to them.
 
-Readplace has a page that skips that. Go to [readplace.com/view](/view?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=view), paste a link, and the article opens in a clean reader with just the title, the text, the pictures, and a short summary at the top. You don't need an account to read it.
+Readplace has a page that skips that. Go to [the paste box on the readplace.com homepage](/?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=paste-a-link#paste-a-link), paste a link, and the article opens in a clean reader with just the title, the text, the pictures, and a short summary at the top. You don't need an account to read it. The same reader opens [plain text pages](/blog/read-plain-text-pages?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=post-read-plain-text-pages), and [a video tag in the article becomes a short link to the original page](/blog/embedded-videos-stop-breaking-your-reader?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=post-embedded-videos-stop-breaking-your-reader).
 
 ## Read first, decide later
 
@@ -28,7 +29,7 @@ The reader works for anyone, signed in or not. So you can send a clean link to a
 
 That is the part that matters for sharing. You read something good and you want one person in particular to read it too.
 
-A raw link drops them onto the original page with all its clutter. A Readplace reader link drops them straight into the words.
+A raw link drops them onto the original page with all its clutter. A Readplace reader link drops them straight into the words, and [its preview in the chat comes out clean too](/blog/share-a-clean-article-link?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=post-share-a-clean-article-link).
 
 ## It loads right away, then fills in
 
@@ -52,6 +53,6 @@ Ask Readplace for an article as markdown and it hands back the same clean text w
 
 ## Try it
 
-Find an article you keep meaning to read. Copy the link, open [readplace.com/view](/view?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=view), and paste it. Read it clean, then save it if it earns a spot.
+Find an article you keep meaning to read. Copy the link, open [the paste box on the readplace.com homepage](/?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=paste-a-link#paste-a-link), and paste it. Read it clean, then save it if it earns a spot.
 
 Reading an article without an account is fine. Reading it without the clutter, and keeping the clean copy, is better. Start at [readplace.com](/?utm_source=blog-read-any-article-clean-reader&utm_medium=internal&utm_content=home).

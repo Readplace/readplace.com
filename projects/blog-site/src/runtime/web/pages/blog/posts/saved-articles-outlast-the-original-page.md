@@ -3,6 +3,7 @@ title: "Read It Later, Even After the Original Page Is Gone"
 description: "Save a link to Readplace and it builds a clean copy on its own servers. The source page can change, hide behind a paywall, or go offline, and your saved article stays readable, with no expiry on your copy."
 slug: "saved-articles-outlast-the-original-page"
 date: "2026-06-17"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "read it later no expiry, saved article disappeared, link rot, save a copy of a web page, article deleted read later, page went offline, Pocket alternative, read it later that keeps your copy, save article before it changes"
 ---
@@ -24,15 +25,15 @@ Whole services vanish too. Pocket shut down on July 8, 2025. Omnivore shut down 
 
 ## What saving does here
 
-When you save a link, Readplace opens the page on its own servers and builds a clean reader copy. It downloads the images and stores them on its own host, so your reader loads from that host and not from the source site. Your saved article does not phone home to the original page every time you open it. It reads off the copy Readplace holds. A source that goes offline next week does not empty your readlist.
+When you save a link, Readplace opens the page on its own servers and builds a clean reader copy. It [downloads the images and stores them on its own host](/blog/saved-articles-keep-their-images?utm_source=blog-saved-articles-outlast-the-original-page&utm_medium=internal&utm_content=post-saved-articles-keep-their-images), so your reader loads from that host and not from the source site. Your saved article does not phone home to the original page every time you open it. It reads off the copy Readplace holds. A source that goes offline next week does not empty your readlist.
 
 ## Your copy does not run out
 
-Your saved copy carries no expiry countdown. The article you keep today opens the same way next month, with the same text and pictures. Your readlist holds what you put in it, on your timetable, not the source site's.
+Your saved copy carries no expiry countdown. The article you keep today opens the same way next month, with the same text and pictures. A small bookmark on the reader [shows the date and time Readplace captured your copy](/blog/saved-article-shows-when-it-was-captured?utm_source=blog-saved-articles-outlast-the-original-page&utm_medium=internal&utm_content=post-saved-article-shows-when-it-was-captured). Your readlist holds what you put in it, on your timetable, not the source site's.
 
 ## When the source updates, so can your copy
 
-Readplace re-checks saved articles over time. If the source corrects a typo or swaps a photo, your copy can pick up the better version for as long as the page stays up. If the source disappears, your stored copy stays. You get the current good version for as long as one exists, and a kept version once it does not.
+Readplace re-checks saved articles over time, and [when the text comes back changed it keeps that version too, dated](/blog/saved-article-version-history?utm_source=blog-saved-articles-outlast-the-original-page&utm_medium=internal&utm_content=post-saved-article-version-history). If the source corrects a typo or swaps a photo, your copy can pick up the better version for as long as the page stays up. If the source disappears, your stored copy stays. You get the current good version for as long as one exists, and a kept version once it does not.
 
 ## Why this matters to you
 

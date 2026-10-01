@@ -88,7 +88,7 @@ The [Pocket alternative page](/pocket-alternative?utm_source=blog-pocket-migrati
 
 Readplace is smaller than Pocket was. It has no tags, and its app covers iPhone and Mac.
 
-What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026).
+What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026). [Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-readplace-vs-instapaper) sets Readplace against the app many Pocket readers moved to.
 
 ## AI summaries for imported articles
 

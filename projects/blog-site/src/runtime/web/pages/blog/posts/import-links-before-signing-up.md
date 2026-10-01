@@ -3,6 +3,7 @@ title: "Import Your Reading List Before You Make an Account"
 description: "Readplace's link importer is now reachable logged out. Upload a file or paste a link, review the URLs it finds, and pick what to keep before you sign up. The account waits until you commit, and your reviewed selections survive it."
 slug: "import-links-before-signing-up"
 date: "2026-06-23"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "import reading list, import Pocket links, import without signing up, Pocket alternative import, Omnivore import, migrate read it later, self serve import, try before signup, import bookmarks, read it later import"
 tags: ["changelog"]
@@ -24,7 +25,7 @@ Readplace moved that form to the end. The upload, the review, and the picking no
 
 ## What you do before the account
 
-Say your links live in a Pocket export, the file that service handed you on the way out. Or they sit on one page, a column of bookmarks you saved years ago. You open [readplace.com/import](/import?utm_source=blog-import-links-before-signing-up&utm_medium=internal&utm_content=import) and give it the file, or paste the link.
+Say your links live in a Pocket export, the file that service handed you on the way out. Or they sit on one page, a column of bookmarks you saved years ago. You open [readplace.com/import](/import?utm_source=blog-import-links-before-signing-up&utm_medium=internal&utm_content=import) and give it the file, or [paste the link to that page](/blog/import-links-from-a-page?utm_source=blog-import-links-before-signing-up&utm_medium=internal&utm_content=post-import-links-from-a-page).
 
 Readplace reads what you give it as text. It finds every `http` and `https` address inside and lays them out as a list, each one checked by default. You page through and untick what you do not want. The list saves each choice on the server as you make it, so a long export does not lose your place.
 

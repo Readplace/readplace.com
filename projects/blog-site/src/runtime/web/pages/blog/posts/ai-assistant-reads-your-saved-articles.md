@@ -3,7 +3,7 @@ title: "Your AI Assistant Can Read Your Saved Articles and Mark Them Read"
 description: "Connect an AI assistant to Readplace and it can read your saved articles: the cleaned reader text and the AI summary, looked up by id. It can also mark one read or unread, the same write the app makes and just as easy to undo. Deleting is the one thing that stays with you."
 slug: "ai-assistant-reads-your-saved-articles"
 date: "2026-06-22"
-lastModified: "2026-08-12"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "AI assistant read saved articles, Claude read it later, ChatGPT read saved articles, MCP read article content, get_article_content, mark_as_read, mark_as_unread, mark an article read from your assistant, AI summary of saved article, Readplace MCP, read your reading list with AI, MCP read it later"
 tags: ["changelog"]
@@ -71,4 +71,4 @@ A reading list pays off in the stretch between saving an article and getting to 
 
 Reading your saved articles, and moving them along as you get through them, is the half I gave the assistant. Emptying the list is the half I kept.
 
-The setup is the same one page for every client, at [readplace.com/mcp](https://readplace.com/mcp), and it still asks for [no API key](/blog/connect-ai-assistant-without-an-api-key?utm_source=blog-ai-assistant-reads-your-saved-articles&utm_medium=internal&utm_content=post-connect-ai-assistant-without-an-api-key), only a sign-in you approve. Connect once, then ask your assistant to read back something you saved.
+The setup is the same one page for every client, at [readplace.com/mcp](https://readplace.com/mcp), and it still asks for [no API key](/blog/connect-ai-assistant-without-an-api-key?utm_source=blog-ai-assistant-reads-your-saved-articles&utm_medium=internal&utm_content=post-connect-ai-assistant-without-an-api-key), only a sign-in you approve. In ChatGPT, [Readplace is now an official plugin](/blog/connect-chatgpt-in-one-click?utm_source=blog-ai-assistant-reads-your-saved-articles&utm_medium=internal&utm_content=post-connect-chatgpt-in-one-click), so connecting it is an Add button and that one sign-in. Connect once, then ask your assistant to read back something you saved.

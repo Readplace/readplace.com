@@ -3,7 +3,7 @@ title: "Read It Later on Your iPhone, From the Share Sheet"
 description: "The Readplace iPhone app saves from the iOS share sheet. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your readlist and renders in the background, with no copy-paste and no opening the app first."
 slug: "read-it-later-iphone-app"
 date: "2026-06-09"
-lastModified: "2026-07-26"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "read it later iphone app, save articles iphone, ios share sheet, save to read later ios, pocket alternative iphone, save article from safari, app store, readplace"
 ---
@@ -27,7 +27,7 @@ Open the page in Safari, Chrome, or any browser, tap Share, and pick Readplace. 
 
 ## How saving works
 
-Tap Share and choose Readplace, the way you would share a link to WhatsApp. The app reads the page and saves it in the background, so you stay on the page you were reading.
+Tap Share and choose Readplace, the way you would share a link to WhatsApp. The app reads the page and saves it in the background, so you stay on the page you were reading. [A PDF opened from a web page goes through the same Share button](/blog/save-pdf-from-iphone-share-sheet?utm_source=blog-read-it-later-iphone-app&utm_medium=internal&utm_content=post-save-pdf-from-iphone-share-sheet).
 
 Switch back to your browser and carry on. A moment later the article shows up at readplace.com, with its title and clean text pulled out.
 
@@ -39,7 +39,7 @@ This is the part worth trying first. If saving from the share sheet works on you
 
 The app also shows your saved articles. They appear in order, you pull down to refresh, and you swipe an item left to mark it read or delete it, so you can see what you have lined up and clear the ones you are done with without leaving the app.
 
-Tap an article and the clean Readplace reader opens in the app, the summary with it.
+Tap an article and [the clean Readplace reader opens in the app](/blog/read-saved-articles-in-the-iphone-app?utm_source=blog-read-it-later-iphone-app&utm_medium=internal&utm_content=post-read-saved-articles-in-the-iphone-app), the summary with it.
 
 The app keeps to the three things you do on the move, which are saving fast, glancing at your list, and reading what you saved.
 
@@ -47,7 +47,7 @@ The app keeps to the three things you do on the move, which are saving fast, gla
 
 The app is on the App Store. Setup takes a couple of minutes.
 
-Install Readplace, then open it once and sign in. Opening it the first time registers the "Share to Readplace" option in iOS, so saving works from then on.
+Install Readplace, then open it once and sign in, [with Apple if you would rather keep your email private](/blog/sign-in-with-apple-hide-your-email?utm_source=blog-read-it-later-iphone-app&utm_medium=internal&utm_content=post-sign-in-with-apple-hide-your-email). Opening it the first time registers the "Share to Readplace" option in iOS, so saving works from then on.
 
 That first launch matters, because iOS only adds the share option after the app has run at least once.
 

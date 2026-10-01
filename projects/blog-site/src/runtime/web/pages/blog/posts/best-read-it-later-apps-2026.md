@@ -12,7 +12,7 @@ keywords: "read it later apps, Pocket alternative, Omnivore alternative, best re
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For most readers I would start with Readplace: from $3/month with AI TL;DR summaries included, funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading.
+Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For most readers I would start with Readplace: AI TL;DR summaries included on every plan ([current plans](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing)), funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading.
 
 </div>
 </details>
@@ -33,17 +33,17 @@ These 5 axes leave things out. They say nothing about reading-view typography, p
 
 | App | Price | AI Features | Open Source | Offline Reading | Platforms |
 |-----|-------|-------------|-------------|-----------------|-----------|
-| **Readplace** | From $3/month, 14-day free trial, no card | TL;DR summaries | Source-available | No | Web, iPhone, Mac, Chrome, Firefox |
+| **Readplace** | [Plans on the home page](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing), 14-day free trial, no card | TL;DR summaries | Source-available | No | Web, iPhone, Mac, Chrome, Firefox |
 | **Readwise Reader** | $119.88/yr | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Instapaper** | Free / Premium | Summaries | No | Yes | Web, iOS, macOS, Android, Kindle/Kobo |
 | **Raindrop.io** | Free / $28/yr | AI Suggestions + Stella | Clients only | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Karakeep** | Free (self-hosted) | AI tagging + summaries | Yes | Planned | Web, iOS, Android, Chrome, Firefox, Safari |
-| **Wallabag** | Free (self-hosted) | No (core) | Yes | Yes | Web, iOS, Android, Chrome, Firefox |
+| **Wallabag** | Free (self-hosted) | No (core) | Yes | Yes | Web, iOS (no longer official), Android, Chrome, Firefox |
 | **Matter** | Free / $60/yr | AI co-reader | No | Yes | iOS, macOS, Web, Chrome |
 
 ## PDFs, newsletters and e-readers
 
-Three things the table above leaves out, as each app documents them on Oct 1, 2026.
+The table above leaves out 3 things, shown here as each app documents them on Oct 1, 2026.
 
 | App | PDFs | Newsletters | E-reader |
 |---|---|---|---|
@@ -65,7 +65,7 @@ The code is source-available, so you can read every line that touches your data.
 
 The part that matters most after watching Pocket and Omnivore die: the subscription is the entire funding source. No ads, no investors, no data selling. There is no parent company whose shifting priorities can wind it down.
 
-**From $3/month, with a 14-day free trial. No credit card required.** Less than a cup of coffee a month for a full-blown reader system powered by AI. If the trial ends and you have not subscribed, nothing is charged. The account drops to read-only, and everything you saved stays readable.
+**A 14-day free trial, no credit card required.** [Current plans are on the home page](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing). If the trial ends and you have not subscribed, nothing is charged. The account drops to read-only, and everything you saved stays readable.
 
 ### Strengths
 
@@ -85,7 +85,7 @@ The part that matters most after watching Pocket and Omnivore die: the subscript
 <p class="blog-cta__title">Try Readplace on your own reading</p>
 <p class="blog-cta__text">Save a week's worth of articles and see how the reader view and the TL;DRs hold up. If it does not fit, let the trial lapse. Nothing is charged and the account drops to read-only.</p>
 <a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. From $3/month if you stay.</p>
+<p class="blog-cta__note">No credit card required. <a href="/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing">See the plans</a> if you stay.</p>
 </div>
 
 ## Readwise Reader
@@ -111,7 +111,7 @@ Readwise Reader packs in more than any other read-it-later app I have used. It f
 
 Instapaper is the original read-it-later app, and it predates Pocket. Ownership changed several times, from Marco Arment to Betaworks to Pinterest and now Instant Paper, Inc., and the core reading experience stayed clean and reliable through each handoff.
 
-It is now the default reading app on Kobo e-readers, which gives it an edge for people who read on dedicated hardware. It does have AI features (AI-generated summaries and higher-quality AI Voices for text-to-speech) but no AI chat assistant, and the reading experience is mature and comfortable.
+It is now the default reading app on Kobo e-readers, which gives it an edge for people who read on dedicated hardware. It does have AI features (AI-generated summaries and higher-quality AI Voices for text-to-speech) but no AI chat assistant, and the reading experience is mature and comfortable. [Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=post-readplace-vs-instapaper) puts the 2 apps side by side on 5 axes.
 
 **Free (with optional premium tier)**
 
@@ -119,7 +119,7 @@ It is now the default reading app on Kobo e-readers, which gives it an edge for 
 
 - The closest thing to a direct Pocket replacement: mature, stable, and focused on the core save-and-read loop.
 - Native Kobo e-reader integration. Save an article on your phone, read it on your Kobo.
-- The free tier is genuinely usable rather than a teaser for the paid one.
+- The free tier is genuinely usable rather than a teaser for the paid one, and [the guide to free read-it-later apps](/blog/free-read-it-later-apps-2026?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=post-free-read-it-later-apps-2026) lists what it leaves out.
 
 ### Limitations
 
@@ -149,7 +149,7 @@ Raindrop.io is a bookmark manager first and a read-it-later tool second. It hand
 
 ## Karakeep (formerly Hoarder)
 
-Karakeep, previously known as Hoarder, is a self-hosted bookmarking and read-it-later app built for developers. It uses AI to auto-tag and summarize saved content and supports full-text search. Setup takes Docker and some comfort with self-hosting, which is the price of admission. The project is fully open source and growing fast in the developer community. If you want complete control over your data and you enjoy running your own services, Karakeep is a strong option.
+Karakeep, previously known as Hoarder, is a self-hosted bookmarking and read-it-later app built for developers. It uses AI to auto-tag and summarize saved content and supports full-text search. Setup takes Docker and some comfort with self-hosting, which is the price of admission. The project is fully open source and growing fast in the developer community. If you want complete control over your data and you enjoy running your own services, Karakeep is a strong option. [Readplace vs Karakeep](/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=post-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later) weighs that control against a hosted app with no server to run.
 
 **Free (self-hosted, requires Docker)**
 
@@ -180,7 +180,7 @@ Wallabag is the longest-standing open source read-it-later application. It has b
 ### Limitations
 
 - The interface feels dated, which is the most common criticism and a fair one.
-- The core app has no AI features (the official iOS app adds an optional paid assistant), and development moves slower than newer alternatives like Karakeep.
+- The core app has no AI features (the iOS app, no longer the official one, adds an optional paid assistant), and development moves slower than newer alternatives like Karakeep.
 
 **Good fit for:** Users who want a long-running, self-hosted option and who value stability over modern design.
 
@@ -216,7 +216,7 @@ The pick depends on how you use saved articles. Here is how the axes resolve int
 - **If you want the longest-running open source option:** Wallabag.
 - **If you want reading to be social:** Matter.
 
-If none of the narrower profiles fits, my suggestion is the one I am biased about: start the Readplace trial, bring your Pocket export with you, and let two weeks of your actual reading decide. If Readplace does not earn its price, nothing is charged and the account goes read-only.
+If none of the narrower profiles fits, my suggestion is the one I am biased about: start the Readplace trial, bring your Pocket export with you, and let 2 weeks of your actual reading decide. If Readplace does not earn its price, nothing is charged and the account goes read-only.
 
 ## Frequently Asked Questions
 
@@ -255,5 +255,5 @@ Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote t
 <p class="blog-cta__title">See whether Readplace fits your reading</p>
 <p class="blog-cta__text">You have read my case and you know my bias. Fourteen days with the full product, on the articles you actually save, answers the question better than this page can.</p>
 <a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. From $3/month if you stay. If you don't, nothing is charged and your account goes read-only.</p>
+<p class="blog-cta__note">No credit card required. <a href="/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing">See the plans</a> if you stay. If you don't, nothing is charged and your account goes read-only.</p>
 </div>

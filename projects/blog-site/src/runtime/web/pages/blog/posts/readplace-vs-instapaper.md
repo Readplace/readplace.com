@@ -33,13 +33,13 @@ Both apps save articles for later. Past that, they pull in different directions,
 
 Five things separate one read-it-later tool from another once you get past the save button, and I will compare both apps on each of them. **Reading surface** is where you actually read: a native app, a browser, an e-reader, or all three. **Triage** is how you decide what to read when the list grows faster than you clear it. **Maturity** is how long the product has run and how stable it feels. **Development pace** is how often it changes under you, for better and worse. **Pricing and data** cover what you pay and where your reading history lives.
 
-Instapaper and Readplace score very differently on those five, so the choice mostly comes down to which trade-offs you want.
+Instapaper and Readplace score very differently on those 5, so the choice mostly comes down to which trade-offs you want.
 
 They agree on the basics. You find something on the web, save it, and read it later in a clean view with the clutter stripped out, and both let you organise what you saved.
 
 That shared base is where the overlap ends.
 
-## Instapaper on the five axes
+## Instapaper on the 5 axes
 
 Instapaper is the closest thing to Pocket that still exists. If you used Pocket for years and want a tool that works the same way, it is the natural pick, and it scores its highest on **reading surface** and **maturity**.
 
@@ -57,11 +57,11 @@ On pricing and data, there is a free tier that covers the basics, namely saving,
 
 > **For some readers that stability is the feature. For others it reads as a product in maintenance mode.**
 
-## Readplace on the five axes
+## Readplace on the 5 axes
 
-Readplace comes at the same five axes from the opposite end. It is a newer product, built in Australia, and it scores its highest on **triage** and **development pace** while it is still catching up on reading surface.
+Readplace comes at the same 5 axes from the opposite end. It is a newer product, built in Australia, and it scores its highest on **triage** and **development pace** while it is still catching up on reading surface.
 
-Triage is where it makes its bet. Readplace generates an AI summary of each saved article, so you can scan the gist before deciding to read the full piece. Instapaper has AI summaries too, but they are metered (five a month on the free tier, unlimited on Premium) and generated on request rather than automatically for everything you save.
+Triage is where it makes its bet. Readplace generates an AI summary of each saved article, so you can scan the gist before deciding to read the full piece. Instapaper has AI summaries too, but they are metered (5 a month on the free tier, unlimited on Premium) and generated on request rather than automatically for everything you save.
 
 Whether that helps depends on how you read. If you save 3 articles a week and read all of them, the summaries change little.
 
@@ -77,7 +77,7 @@ On development pace it moves fast, and here is where my bias is loudest, since I
 
 ## Feature comparison
 
-The table below is the same five axes broken into the concrete features behind them, so you can match each row to the trade-off it represents.
+The table below is the same 5 axes broken into the concrete features behind them, so you can match each row to the trade-off it represents.
 
 | | Instapaper | Readplace |
 |---|---|---|
@@ -118,7 +118,7 @@ Instapaper's PDF support [launched on Aug 6, 2025](/view/blog.instapaper.com/pos
 
 ## What this comparison does and does not settle
 
-The five axes settle the trade-offs you can name in advance. They do not settle the things you only find by living in a tool for a month: how the reader feels on your phone, how good a given summary turns out for the articles you actually save, how much the weekly changes annoy you versus help you. I have not benchmarked summary quality across topics here, and I have not measured battery or sync reliability, so treat both as open until you test them yourself.
+The 5 axes settle the trade-offs you can name in advance. They do not settle the things you only find by living in a tool for a month: how the reader feels on your phone, how good a given summary turns out for the articles you actually save, how much the weekly changes annoy you versus help you. I have not benchmarked summary quality across topics here, and I have not measured battery or sync reliability, so treat both as open until you test them yourself.
 
 What the comparison does settle is the choice you can make up front: a tool that stays still, or a tool that helps you triage and keeps changing.
 

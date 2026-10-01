@@ -35,7 +35,7 @@ Connecting an assistant should not hand over your password. It does not here. Re
 
 ## How to connect
 
-Each assistant has its own connector settings, but the shape is the same everywhere: paste the Readplace server URL, choose OAuth, and approve the login. The full walkthrough for Claude, ChatGPT, Perplexity, and developer tools like Claude Code, Cursor, and VS Code lives on one page: **[readplace.com/mcp](https://readplace.com/mcp)**. It is the canonical guide, so it stays current as each client evolves.
+Each assistant has its own connector settings, but the shape is the same everywhere: paste the Readplace server URL, choose OAuth, and approve the login. ChatGPT has a shorter route now, because [Readplace is an official ChatGPT plugin](/blog/connect-chatgpt-in-one-click?utm_source=blog-save-articles-with-your-ai-assistant&utm_medium=internal&utm_content=post-connect-chatgpt-in-one-click) and adding it takes an Add button and one sign-in. The full walkthrough for Claude, ChatGPT, Perplexity, and developer tools like Claude Code, Cursor, and VS Code lives on one page: **[readplace.com/mcp](https://readplace.com/mcp)**. It is the canonical guide, so it stays current as each client evolves.
 
 ## Why this helps you
 

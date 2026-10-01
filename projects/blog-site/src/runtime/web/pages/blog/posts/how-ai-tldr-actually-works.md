@@ -3,6 +3,7 @@ title: "How AI TL;DR Actually Works in Readplace (And Why It's Not Slop)"
 description: "Readplace uses AI to generate short article summaries for triage, not replacement. Here's how it works technically, and why it avoids the usual AI content problems."
 slug: "how-ai-tldr-actually-works"
 date: "2026-05-06"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "ai summary, read it later, article tl;dr, deepseek, ai slop, readplace app"
 ---
@@ -54,7 +55,7 @@ The rules it enforces are simple: active voice, short sentences, plain connector
 
 ## How It Works Under the Hood
 
-Summaries come from DeepSeek V3, the `deepseek-chat` model. I chose it for this job because it handles concise factual summarisation well and the economics hold up at scale. The cost sits inside the subscription, so you don't pay per summary.
+Summaries come from DeepSeek V3, the `deepseek-chat` model. I chose it for this job because it handles concise factual summarisation well and the economics hold up at scale. The cost sits inside the subscription, so you don't pay per summary. You don't [paste the article into ChatGPT](/blog/stop-copy-pasting-articles-into-chatgpt?utm_source=blog-how-ai-tldr-actually-works&utm_medium=internal&utm_content=post-stop-copy-pasting-articles-into-chatgpt) to get one either.
 
 The design choice that matters most is **one summary per URL, cached globally**.
 

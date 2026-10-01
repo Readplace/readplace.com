@@ -33,7 +33,7 @@ Instapaper has been around since 2008, and it has changed hands from Betaworks t
 
 That track record is the strongest argument for it. It does not tell you who will own Instapaper in 5 years, or whether the next owner keeps the free tier intact.
 
-Instapaper Premium costs $59.99/year. The free tier is a genuine bargain right up until the day you want full-text search, which Readplace does not have either, or PDFs. So the free tier's niche is the reader who is confident they will never pay for search, PDFs or text-to-speech, and who is comfortable not knowing who owns the service in 5 years.
+Instapaper Premium costs $59.99/year. The free tier is a genuine bargain right up until the day you want PDFs or full-text search, and Readplace has no full-text search either. So the free tier's niche is the reader who is confident they will never pay for search, PDFs or text-to-speech, and who is comfortable not knowing who owns the service in 5 years. [Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-free-read-it-later-apps-2026&utm_medium=internal&utm_content=post-readplace-vs-instapaper) lines the 2 apps up on 5 axes.
 
 ### Raindrop.io (Free Tier)
 
@@ -47,7 +47,7 @@ Karakeep is open-source and self-hosted, which means you run it on hardware you 
 
 The download costs nothing.
 
-The server, the domain, the backups, the security updates, and the hour you lose debugging why the container won't start after an update all cost something real. The self-hosting section below puts numbers on that second bill.
+The server, the domain, the backups, the security updates, and the hour you lose debugging why the container won't start after an update all cost something real. The self-hosting section below puts numbers on that second bill, and [Readplace vs Karakeep](/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later?utm_source=blog-free-read-it-later-apps-2026&utm_medium=internal&utm_content=post-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later) sets it against a hosted app, feature by feature.
 
 ### Wallabag (Self-Hosted, Free)
 

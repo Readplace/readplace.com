@@ -1,6 +1,6 @@
 ---
 title: "Omnivore Shut Down. Here's a Read-It-Later App That Won't."
-description: "Omnivore shut down with two weeks notice. Readplace is a privacy-first read-it-later app with no VC funding."
+description: "Omnivore shut down with 2 weeks' notice. Readplace is a privacy-first read-it-later app with no VC funding."
 slug: "omnivore-alternative"
 date: "2026-05-06"
 lastModified: "2026-10-01"
@@ -27,7 +27,7 @@ I want to walk through what actually happened, because the failure was not a bug
 
 Nothing about Omnivore's intentions was wrong. The team built a product people relied on every day, and then it vanished anyway, which tells you the problem lived one layer up from the product. A venture-backed app has to produce an exit for the people who funded it. When the exit shows up, the users who were the whole point a month earlier turn into an afterthought.
 
-Plenty of Omnivore users landed on [Readwise Reader](https://readwise.io/read) at $119.88/year, while others went self-hosted with Karakeep or Wallabag. Each path costs you something. Readwise has the most features but the highest price, and the self-hosted tools are free right up until you remember that you are now the one running a server and applying the updates when they break.
+Plenty of Omnivore users landed on [Readwise Reader](https://readwise.io/read) at $119.88/year, while others went [self-hosted with Karakeep](/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later) or Wallabag. Each path costs you something. Readwise has the most features but the highest price, and the self-hosted tools are free right up until you are the one running a server and applying the updates when they break.
 
 I built Readplace to sit between those two. It is hosted, so you do not run anything, and it is funded by subscriptions, with no investor in the background. If you want the side-by-side on every option, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026).
 
@@ -95,13 +95,13 @@ Readwise Reader is a strong pick for power users at $119.88/year. Readplace is t
 
 **What happened to Omnivore?**
 
-ElevenLabs acquired it on November 1, 2024 and shut it down on November 15, which left users roughly two weeks to export their data before deletion started. Its AGPL-3.0 source is still on GitHub, but the hosted service is gone.
+ElevenLabs acquired it on November 1, 2024 and shut it down on November 15, which left users roughly 2 weeks to export their data before deletion started. Its AGPL-3.0 source is still on GitHub, but the hosted service is gone.
 
 The team went to ElevenLabs to work on text-to-speech rather than reading tools, so Omnivore is not coming back.
 
 **Is there a free Omnivore alternative?**
 
-Readplace is paid, with its current plans on the [home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing). The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year.
+Readplace is paid, with its current plans on the [home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing). The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year. [Free read-it-later apps in 2026](/blog/free-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-free-read-it-later-apps-2026) breaks down what each free option costs in money and time.
 
 **Can I import my Omnivore data into Readplace?**
 

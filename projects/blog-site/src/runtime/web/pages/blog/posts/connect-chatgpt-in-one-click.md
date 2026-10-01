@@ -3,7 +3,7 @@ title: "Connect ChatGPT to Your Reading List in One Click"
 description: "ChatGPT can save a page to your Readplace readlist, read back a saved article's clean copy and its TL;DR, surface related saves, and mark one read. Connecting it used to mean turning on Developer Mode and hand-building a custom connector. Readplace is an official ChatGPT plugin now, so the setup is an Add button and one sign-in."
 slug: "connect-chatgpt-in-one-click"
 date: "2026-08-18"
-lastModified: "2026-09-11"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "connect chatgpt to reading list, readplace chatgpt plugin, official chatgpt plugin, chatgpt read it later, save articles from chatgpt, chatgpt readlist, chatgpt mcp connector, add readplace to chatgpt, ai assistant reading list, pocket alternative chatgpt"
 tags: ["changelog"]
@@ -29,7 +29,7 @@ Open the listing, choose Add, approve the sign-in. [The install page](/install?c
 
 ## The 12 tools behind the chat
 
-A connected chat reaches 12 tools on the Readplace [MCP](/view/modelcontextprotocol.io?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=read-modelcontextprotocol-io) server, and 11 of them do what they say. [Saving a link](/blog/save-articles-with-your-ai-assistant?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-save-articles-with-your-ai-assistant) puts the URL in your readlist and lets the title, the clean copy, and the TL;DR fill in behind it, the same way a save from the browser extension does. Listing the readlist reads back what is waiting, filtered to unread or already read. [Reading one back](/blog/ai-assistant-reads-your-saved-articles?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-ai-assistant-reads-your-saved-articles) returns its details, its clean text, or its TL;DR, depending on which you asked for.
+A connected chat reaches 12 tools on the Readplace [MCP](/view/modelcontextprotocol.io?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=read-modelcontextprotocol-io) server, and 11 of them do what they say. [Saving a link](/blog/save-articles-with-your-ai-assistant?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-save-articles-with-your-ai-assistant) puts the URL in your readlist and lets the title, the clean copy, and the TL;DR fill in behind it, the same way a save from the browser extension does. Listing the readlist reads back what is waiting, filtered to unread or already read. [Reading one back](/blog/ai-assistant-reads-your-saved-articles?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-ai-assistant-reads-your-saved-articles) returns its details, its clean text, or its TL;DR, depending on which you asked for. That puts a saved article's text in the chat without [copying and pasting it by hand](/blog/stop-copy-pasting-articles-into-chatgpt?utm_source=blog-connect-chatgpt-in-one-click&utm_medium=internal&utm_content=post-stop-copy-pasting-articles-into-chatgpt).
 
 Your assistant can also list your readlists, create one by name, and file saved articles into them.
 

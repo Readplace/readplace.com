@@ -4,7 +4,7 @@ import { READLIST_SHOT, EARLY_USER_QUOTE, TRIAL_TERMS, READ_ONLY_CLOSE, START_TR
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-09-07",
+	lastModified: "2026-10-01",
 	title: "Pocket Alternative — Recover Your Saved Links | Readplace",
 	description:
 		"Readplace is a read-it-later app. Upload the export file Pocket gave you, pick the links you still want, and review them before you make an account.",
@@ -104,7 +104,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		title: "What it costs once the links are across",
 		paragraphs: [
 			`Uploading and reviewing costs nothing and needs no account. Saving the selection does, and that account is a subscription: ${TRIAL_TERMS}`,
-			`${CHEAPEST_MONTHLY_DISPLAY}/month is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of.`,
+			`${CHEAPEST_MONTHLY_DISPLAY}/month is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of. <a href="${withInternalTracking("/blog/free-read-it-later-apps-2026", { source: "lp-pocket-alternative-body", content: "post-free-read-it-later-apps-2026" })}">The free read-it-later apps</a> are compared on the same thing: who pays the bill when you don't.`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
@@ -112,5 +112,5 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	closeTitle: "Start with the file Pocket gave you",
 	closeSecondaryAction: START_TRIAL,
 	closeNote:
-		`No account needed to see what comes across. <a href="${withInternalTracking("/blog/pocket-migration", { source: "lp-pocket-alternative-close", content: "pocket-guide" })}">The recovery guide</a> covers getting the export out of Pocket.`,
+		`No account needed to see what comes across. <a href="${withInternalTracking("/blog/pocket-migration", { source: "lp-pocket-alternative-close", content: "pocket-guide" })}">The recovery guide</a> covers getting the export out of Pocket, and <a href="${withInternalTracking("/blog/best-read-it-later-apps-2026", { source: "lp-pocket-alternative-close", content: "post-best-read-it-later-apps-2026" })}">the 2026 comparison of read-it-later apps</a> lists the other apps that take it.`,
 };

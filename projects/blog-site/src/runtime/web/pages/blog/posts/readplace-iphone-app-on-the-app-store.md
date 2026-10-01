@@ -3,6 +3,7 @@ title: "Readplace for iPhone Is on the App Store"
 description: "The Readplace iPhone app has left TestFlight and is on the App Store. Save any page or PDF from the share sheet, read your saved copy with its TL;DR in the app, and sign in without leaving it. It runs on a Mac too. There is still no Android app and no offline reading."
 slug: "readplace-iphone-app-on-the-app-store"
 date: "2026-07-26"
+lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "read it later app iphone app store, readplace iphone app, save articles from iphone share sheet, pocket alternative iphone app, ios read it later app, save pdf from iphone, app store read it later app, save to read later ios, best read it later app iphone"
 ---
@@ -38,7 +39,7 @@ The build I submitted first sent you out to the default browser to log in and wa
 
 > **Review did not care that the browser login worked. It cared that the app left to do it.**
 
-Login and Sign up now run in a sheet the app owns, and the callback comes back to the code that asked for it. Nothing about your account changed. The screen just stopped leaving, and there is no server field on it either, which is one fewer thing to get wrong than the beta had.
+Login and Sign up now run in a sheet the app owns, and the callback comes back to the code that asked for it. The sheet offers the same choices as the website, [Sign in with Apple](/blog/sign-in-with-apple-hide-your-email?utm_source=blog-readplace-iphone-app-on-the-app-store&utm_medium=internal&utm_content=post-sign-in-with-apple-hide-your-email) among them. Nothing about your account changed. The screen just stopped leaving, and there is no server field on it either, which is one fewer thing to get wrong than the beta had.
 
 One related behaviour is worth naming, because you will notice it. When the app opens a readplace.com link that is not a login, it opens in Chrome if you have Chrome. Most people browse in Chrome and never change the iOS default browser setting, which leaves them signed out in Safari and staring at a login form for a page they own. A link to anyone else's site is handed to the system untouched, so your default browser stays your default browser everywhere it matters.
 
