@@ -5,7 +5,7 @@ slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
-keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative"
+keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative, readeck, wallabag"
 ---
 
 <details class="blog-tldr">
@@ -71,7 +71,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 | **Price** | Free | [Current plans](/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pricing#pricing) |
 | **Hosting** | Self-hosted (Docker) | Managed |
 | **Source code** | Open source | Source-available |
-| **AI features** | Auto-tagging (Ollama / OpenAI) | TL;DR summaries (included) |
+| **AI features** | Auto-tagging, plus summaries on request or opt-in (Ollama / OpenAI) | TL;DR summaries (included) |
 | **Browser extensions** | Chrome, Firefox | Chrome, Firefox |
 | **Mobile apps** | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
 | **Full-text search** | Yes (Meilisearch) | No |
@@ -89,6 +89,26 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 - You like tinkering with your tools and do not mind the Docker upkeep.
 - You want to contribute to an open-source project with an active community.
 - Free matters to you, and Karakeep costs nothing beyond the infrastructure you already pay for.
+
+## Karakeep, Readeck or wallabag
+
+Readeck and wallabag are 2 more self-hosted read-it-later apps that get compared with Karakeep, and all 3 are open source.
+
+| | Karakeep | Readeck | wallabag |
+|---|---|---|---|
+| **Licence** | AGPL-3.0 | AGPL-3.0 | MIT |
+| **Install** | Docker | One Go binary, or the official container image | PHP app, or the wallabag/wallabag Docker image |
+| **AI features** | Auto-tagging, plus summaries on request or opt-in (Ollama / OpenAI) | None | None documented |
+| **Full-text search** | Yes (Meilisearch) | Yes (text, title, authors, site, labels) | Yes (content, title, URL) |
+| **Mobile apps** | iOS, Android | iOS, Android | Android. The iOS app is no longer the official one |
+| **Latest release** | [0.33.2, Aug 11, 2026](/view/github.com/karakeep-app/karakeep/releases/tag/v0.33.2?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-github-com) | [0.23.4, Sep 17, 2026](/view/codeberg.org/readeck/readeck/src/branch/main/CHANGELOG.md?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-codeberg-org) | [2.6.14, Oct 7, 2025](/view/github.com/wallabag/wallabag/releases/tag/2.6.14?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-github-com) |
+| **Stars (Oct 1, 2026)** | [About 29,000 on GitHub](/view/github.com/karakeep-app/karakeep?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-github-com) | [1,128 on Codeberg](/view/codeberg.org/readeck/readeck?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-codeberg-org) | [12,994 on GitHub](/view/github.com/wallabag/wallabag?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-github-com) |
+
+Readeck runs as one Go binary with SQLite as its default database, and it needs at least [512 MB of RAM](/view/readeck.org/en/docs/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-readeck-org). It exports articles and whole collections as EPUB for an e-reader, but saving PDFs is an [open request, filed Sep 5, 2023](/view/codeberg.org/readeck/readeck/issues/24?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-codeberg-org). Its [Get Started page](/view/readeck.org/en/start?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-readeck-org) offers self-hosting as the only option today, with a hosted version still marked as coming in 2026.
+
+On the server, wallabag is a PHP app that runs on MySQL, PostgreSQL or SQLite. It also comes hosted as [wallabag.it](/view/wallabag.it/en/pricing/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=read-wallabag-it), which runs the same open-source code at 4 EUR for 3 months or 11 EUR for a year. It exports to EPUB, PDF, JSON and CSV, and community apps connect it to Kobo, Kindle and PocketBook readers.
+
+Readplace sits apart from all 3 as a hosted-only service, and it writes an AI summary for every saved article with nothing to configure.
 
 ## When to pick Readplace
 
