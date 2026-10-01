@@ -181,6 +181,52 @@ describe("initCanonicalAliasStore", () => {
 		});
 	});
 
+	describe("pinContentSource", () => {
+		it("stamps the snapshot the content is read from onto the article, gated on it being a real row", async () => {
+			let captured: unknown;
+			const client = createFakeClient((input) => {
+				captured = input;
+				return {};
+			});
+			const { pinContentSource } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await pinContentSource({
+				articleUrl: "http://dead.example/article",
+				contentSourceUrl: "https://web.archive.org/web/20140413140620/http://dead.example/article",
+			});
+
+			const { input } = CapturedCommand.parse(captured);
+			expect(input.Key).toEqual({ url: "dead.example/article" });
+			expect(input.UpdateExpression).toBe("SET contentSourceUrl = :contentSourceUrl");
+			expect(input.ConditionExpression).toBe("attribute_exists(routeId)");
+			expect(input.ExpressionAttributeValues).toEqual({
+				":contentSourceUrl": "https://web.archive.org/web/20140413140620/http://dead.example/article",
+			});
+		});
+
+		it("is a no-op when the target is not a real article (conditional check fails)", async () => {
+			const client = createFakeClient(() => {
+				throw conditionalCheckFailed();
+			});
+			const { pinContentSource } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await expect(
+				pinContentSource({ articleUrl: "http://dead.example/article", contentSourceUrl: "https://archive.example/x" }),
+			).resolves.toBeUndefined();
+		});
+
+		it("propagates non-conditional write errors", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("DDB unavailable");
+			});
+			const { pinContentSource } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await expect(
+				pinContentSource({ articleUrl: "http://dead.example/article", contentSourceUrl: "https://archive.example/x" }),
+			).rejects.toThrow("DDB unavailable");
+		});
+	});
+
 	describe("findAdoptedFetchUrl", () => {
 		it("returns the pinned destination for an adopted article", async () => {
 			const client = createFakeClient(() => ({
@@ -191,13 +237,76 @@ describe("initCanonicalAliasStore", () => {
 			expect(await findAdoptedFetchUrl("https://evil.com/x")).toBe("https://victim.com/article");
 		});
 
-		it("returns undefined for a normal (un-adopted) article or a missing row", async () => {
+		it("prefers the pinned content source over the adopted destination", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					url: "dead.example/article",
+					routeId: "a".repeat(32),
+					originalUrl: "http://dead.example/article",
+					displayUrl: "https://dead.example/article",
+					contentSourceUrl: "https://web.archive.org/web/20140413140620/http://dead.example/article",
+				},
+			}));
+			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findAdoptedFetchUrl("http://dead.example/article")).toBe(
+				"https://web.archive.org/web/20140413140620/http://dead.example/article",
+			);
+		});
+
+		it("returns undefined for a normal (un-adopted) article", async () => {
 			const client = createFakeClient(() => ({
 				Item: { url: "site.com/page", routeId: "a".repeat(32), originalUrl: "https://site.com/page" },
 			}));
 			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
 
 			expect(await findAdoptedFetchUrl("https://site.com/page")).toBeUndefined();
+		});
+
+		it("returns undefined for a missing row", async () => {
+			const client = createFakeClient(() => ({ Item: undefined }));
+			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findAdoptedFetchUrl("https://site.com/page")).toBeUndefined();
+		});
+	});
+
+	describe("findIdentityRow", () => {
+		it("reports an alias row with its target", async () => {
+			const client = createFakeClient(() => ({
+				Item: { url: "site.com/page", rowKind: "alias", aliasTargetUrl: "https://site.com/page.html" },
+			}));
+			const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findIdentityRow("https://site.com/page")).toEqual({
+				kind: "alias",
+				targetUrl: "https://site.com/page.html",
+			});
+		});
+
+		it("reports a real article row", async () => {
+			const client = createFakeClient(() => ({
+				Item: { url: "site.com/page", routeId: "a".repeat(32), originalUrl: "https://site.com/page", title: "Real" },
+			}));
+			const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findIdentityRow("https://site.com/page")).toEqual({ kind: "article" });
+		});
+
+		it("reports an absent identity", async () => {
+			const client = createFakeClient(() => ({ Item: undefined }));
+			const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findIdentityRow("https://site.com/page")).toEqual({ kind: "absent" });
+		});
+
+		it("fails loudly on an alias marker that lost its target", async () => {
+			const client = createFakeClient(() => ({
+				Item: { url: "site.com/page", rowKind: "alias" },
+			}));
+			const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await expect(findIdentityRow("https://site.com/page")).rejects.toThrow("has no aliasTargetUrl");
 		});
 	});
 

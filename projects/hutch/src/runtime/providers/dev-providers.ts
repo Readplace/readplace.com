@@ -328,7 +328,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
-		findAdoptedFetchUrl: async () => undefined,
+		findAdoptedFetchUrl: articleStore.findAdoptedFetchUrl,
 	});
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({

@@ -38,6 +38,64 @@ function makeArticleParams(
 }
 
 describe("initInMemoryArticleStore", () => {
+	describe("canonical aliases and the pinned content source", () => {
+		const NOW = new Date("2026-07-15T10:00:00.000Z");
+
+		it("claims an alias once and reports it occupied afterwards", async () => {
+			const store = initInMemoryArticleStore();
+
+			expect(
+				await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW }),
+			).toBe("claimed");
+			expect(
+				await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW }),
+			).toBe("occupied");
+			expect(await store.resolveAlias("https://wrapper.example/x")).toBe(URL);
+		});
+
+		it("refuses to alias an identity a real article already occupies", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+
+			expect(
+				await store.claimAlias({ aliasUrl: URL, targetOriginalUrl: "https://other.example/y", now: NOW }),
+			).toBe("occupied");
+			expect(await store.resolveAlias(URL)).toBeUndefined();
+		});
+
+		it("tells an article row, an alias row and an absent identity apart", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW });
+
+			expect(await store.findIdentityRow(URL)).toEqual({ kind: "article" });
+			expect(await store.findIdentityRow("https://wrapper.example/x")).toEqual({
+				kind: "alias",
+				targetUrl: URL,
+			});
+			expect(await store.findIdentityRow("https://nowhere.example/z")).toEqual({ kind: "absent" });
+		});
+
+		it("re-crawls a pinned article from its content source ahead of its adopted destination", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+
+			expect(await store.findAdoptedFetchUrl(URL)).toBeUndefined();
+			await store.setDisplayUrl({ url: URL, displayUrl: "https://example.com/article-final" });
+			expect(await store.findAdoptedFetchUrl(URL)).toBe("https://example.com/article-final");
+			await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot" });
+			expect(await store.findAdoptedFetchUrl(URL)).toBe("https://archive.example/snapshot");
+		});
+
+		it("ignores a pin or a fetch-url lookup for an unknown article", async () => {
+			const store = initInMemoryArticleStore();
+
+			await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot" });
+
+			expect(await store.findAdoptedFetchUrl(URL)).toBeUndefined();
+		});
+	});
+
 	describe("saveArticle + findArticleById", () => {
 		it("should save and retrieve an article", async () => {
 			const store = initInMemoryArticleStore();

@@ -11,7 +11,10 @@ export {
 	type ClaimCanonicalAlias,
 	type ResolveCanonicalAlias,
 	type ResolveCanonicalIdentity,
+	type IdentityRow,
+	type FindIdentityRow,
 	type SetArticleDisplayUrl,
+	type PinContentSource,
 	type ReconcileStubMetadata,
 	type FindAdoptedFetchUrl,
 } from "./canonical-alias";

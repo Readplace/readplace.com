@@ -69,6 +69,7 @@ interface GlobalArticle {
 	url: string;
 	originalUrl: string;
 	displayUrl?: string;
+	contentSourceUrl?: string;
 	routeId: ReaderArticleHashId;
 	metadata: ArticleMetadata;
 	content?: string;
@@ -194,6 +195,13 @@ export function initInMemoryArticleStore(): {
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
+	claimAlias: (params: { aliasUrl: string; targetOriginalUrl: string; now: Date }) => Promise<"claimed" | "occupied">;
+	resolveAlias: (url: string) => Promise<string | undefined>;
+	findIdentityRow: (
+		url: string,
+	) => Promise<{ kind: "absent" } | { kind: "article" } | { kind: "alias"; targetUrl: string }>;
+	pinContentSource: (params: { articleUrl: string; contentSourceUrl: string }) => Promise<void>;
+	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 	setReaderAvailableAt: (params: { url: string; at: Date }) => Promise<void>;
@@ -894,6 +902,40 @@ export function initInMemoryArticleStore(): {
 		article.displayUrl = params.displayUrl;
 	};
 
+	const aliases = new Map<string, { targetUrl: string; createdAt: Date }>();
+
+	const claimAlias = async (params: { aliasUrl: string; targetOriginalUrl: string; now: Date }) => {
+		const key = ArticleResourceUniqueId.parse(params.aliasUrl).value;
+		if (articles.has(key) || aliases.has(key)) return "occupied" as const;
+		aliases.set(key, { targetUrl: params.targetOriginalUrl, createdAt: params.now });
+		return "claimed" as const;
+	};
+
+	const resolveAlias = async (url: string) => {
+		return aliases.get(ArticleResourceUniqueId.parse(url).value)?.targetUrl;
+	};
+
+	const findIdentityRow = async (url: string) => {
+		const key = ArticleResourceUniqueId.parse(url).value;
+		if (articles.has(key)) return { kind: "article" } as const;
+		const alias = aliases.get(key);
+		if (alias) return { kind: "alias", targetUrl: alias.targetUrl } as const;
+		return { kind: "absent" } as const;
+	};
+
+	const pinContentSource = async (params: { articleUrl: string; contentSourceUrl: string }) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(params.articleUrl).value);
+		if (!article) return;
+		article.contentSourceUrl = params.contentSourceUrl;
+	};
+
+	const findAdoptedFetchUrl = async (url: string) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(url).value);
+		if (!article) return undefined;
+		if (article.contentSourceUrl !== undefined) return article.contentSourceUrl;
+		return article.displayUrl;
+	};
+
 	const setPurgedAt = async (params: { url: string; at: Date }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
@@ -959,6 +1001,11 @@ export function initInMemoryArticleStore(): {
 		setContentSourceTier,
 		setContentFetchedAt,
 		setDisplayUrl,
+		claimAlias,
+		resolveAlias,
+		findIdentityRow,
+		pinContentSource,
+		findAdoptedFetchUrl,
 		setCrawlVersions,
 		setPurgedAt,
 		setReaderAvailableAt,

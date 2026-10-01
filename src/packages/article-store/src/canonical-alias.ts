@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { stubMetadataFor } from "@packages/domain/article";
 import {
@@ -27,7 +28,20 @@ const CanonicalAliasRow = z.object({
 	// A real article's redirect destination, read back through this same table
 	// handle so a re-crawl can pin its fetch to the terminal (see findAdoptedFetchUrl).
 	displayUrl: dynamoField(z.string()),
+	contentSourceUrl: dynamoField(z.string()),
 });
+
+export type IdentityRow =
+	| { kind: "absent" }
+	| { kind: "article" }
+	| { kind: "alias"; targetUrl: string };
+
+export type FindIdentityRow = (url: string) => Promise<IdentityRow>;
+
+export type PinContentSource = (params: {
+	articleUrl: string;
+	contentSourceUrl: string;
+}) => Promise<void>;
 
 /**
  * First-writer-wins claim of `id(aliasUrl) → targetOriginalUrl`.
@@ -65,7 +79,8 @@ export type ReconcileStubMetadata = (params: {
 	displayUrl: string;
 }) => Promise<void>;
 
-/** The URL a re-crawl of `url` must actually fetch: the redirect terminal an
+/** The URL a re-crawl of `url` must actually fetch: the snapshot an archive save
+ * pinned its content to (`contentSourceUrl`), else the redirect terminal an
  * adopted article was pinned to (its `displayUrl`), or `undefined` for a normal
  * article, so the crawl fetches `url` itself. Closes the content-poisoning
  * vector — a re-crawl never re-fetches the origin that redirected here. */
@@ -77,7 +92,9 @@ export function initCanonicalAliasStore(deps: {
 }): {
 	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: ResolveCanonicalAlias;
+	findIdentityRow: FindIdentityRow;
 	setDisplayUrl: SetArticleDisplayUrl;
+	pinContentSource: PinContentSource;
 	reconcileStubMetadata: ReconcileStubMetadata;
 	findAdoptedFetchUrl: FindAdoptedFetchUrl;
 } {
@@ -111,6 +128,29 @@ export function initCanonicalAliasStore(deps: {
 		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value });
 		if (row?.rowKind !== "alias") return undefined;
 		return row.aliasTargetUrl;
+	};
+
+	const findIdentityRow: FindIdentityRow = async (url) => {
+		const key = ArticleResourceUniqueId.parse(url).value;
+		const row = await table.get({ url: key });
+		if (!row) return { kind: "absent" };
+		if (row.rowKind !== "alias") return { kind: "article" };
+		assert(row.aliasTargetUrl !== undefined, `alias row "${key}" has no aliasTargetUrl`);
+		return { kind: "alias", targetUrl: row.aliasTargetUrl };
+	};
+
+	const pinContentSource: PinContentSource = async ({ articleUrl, contentSourceUrl }) => {
+		try {
+			await table.update({
+				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+				UpdateExpression: "SET contentSourceUrl = :contentSourceUrl",
+				ConditionExpression: "attribute_exists(routeId)",
+				ExpressionAttributeValues: { ":contentSourceUrl": contentSourceUrl },
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
 	};
 
 	const setDisplayUrl: SetArticleDisplayUrl = async ({ articleUrl, displayUrl }) => {
@@ -153,12 +193,22 @@ export function initCanonicalAliasStore(deps: {
 
 	const findAdoptedFetchUrl: FindAdoptedFetchUrl = async (url) => {
 		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value });
+		if (row === undefined) return undefined;
+		if (row.contentSourceUrl !== undefined) return row.contentSourceUrl;
 		// Only an adopted real article carries displayUrl; a normal article and an
 		// alias row both lack it, so the crawl falls back to fetching `url` as-is.
-		return row?.displayUrl;
+		return row.displayUrl;
 	};
 
-	return { claimAlias, resolveAlias, setDisplayUrl, reconcileStubMetadata, findAdoptedFetchUrl };
+	return {
+		claimAlias,
+		resolveAlias,
+		findIdentityRow,
+		setDisplayUrl,
+		pinContentSource,
+		reconcileStubMetadata,
+		findAdoptedFetchUrl,
+	};
 }
 
 export function initResolveCanonicalIdentity(deps: {

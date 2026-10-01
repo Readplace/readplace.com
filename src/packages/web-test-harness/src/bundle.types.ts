@@ -402,6 +402,13 @@ export interface ArticleStoreBundle {
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
+	claimAlias: (params: { aliasUrl: string; targetOriginalUrl: string; now: Date }) => Promise<"claimed" | "occupied">;
+	resolveAlias: (url: string) => Promise<string | undefined>;
+	findIdentityRow: (
+		url: string,
+	) => Promise<{ kind: "absent" } | { kind: "article" } | { kind: "alias"; targetUrl: string }>;
+	pinContentSource: (params: { articleUrl: string; contentSourceUrl: string }) => Promise<void>;
+	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 	setReaderAvailableAt: (params: { url: string; at: Date }) => Promise<void>;
