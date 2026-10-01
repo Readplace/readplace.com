@@ -4,7 +4,9 @@ import {
 	HutchAPIGatewayLambdaRoute,
 	HutchDynamoDBAccess,
 	HutchLambda,
+	ssrEdgeSecretFromPlatformStack,
 } from "@packages/hutch-infra-components/infra";
+import { requireEnv } from "@packages/require-env";
 
 /**
  * web-embed is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -56,6 +58,8 @@ const lambda = new HutchLambda("web-embed", {
 		APP_ORIGIN: appOrigin,
 		STATIC_BASE_URL: staticBaseUrl,
 		DYNAMODB_SESSIONS_TABLE: sessionsTableName,
+		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		SSR_EDGE_SECRET: ssrEdgeSecretFromPlatformStack(config),
 	},
 	policies: [...sessionsRead.policies],
 });

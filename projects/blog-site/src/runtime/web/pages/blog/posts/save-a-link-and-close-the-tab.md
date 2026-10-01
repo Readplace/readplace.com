@@ -18,7 +18,7 @@ Clicking save in the browser extension used to read the whole rendered page, upl
 
 Saving a link and uploading its page are two different jobs. The browser extension used to run them as one. A click on save, and the button sat on "Saving" while it read the whole rendered page, uploaded the bytes, and waited for the server to answer. Only then did it say Saved.
 
-None of that work decides whether the link is in your readlist. The save is finished the instant the server writes the row and answers [201](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/201?utm_source=blog-save-a-link-and-close-the-tab&utm_medium=internal&utm_content=read-developer-mozilla-org). Capturing the page and uploading it are a separate errand, and the old popup made you stand in line for it before it would admit the first job was done.
+None of that work decides whether the link is in your readlist. The save is finished the instant the server writes the row and answers [201](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/201?utm_source=blog-save-a-link-and-close-the-tab&utm_medium=internal&utm_content=read-mdn-201). Capturing the page and uploading it are a separate errand, and the old popup made you stand in line for it before it would admit the first job was done.
 
 > **A save should tell you the link is in your readlist, not make you wait for the page to arrive.**
 
@@ -32,7 +32,7 @@ That pre-flight check is worth a word, because dropping it changed a behaviour. 
 
 Capture and upload didn't vanish. They moved to a readlist that keeps running after the popup is gone. A background wake nudges it, it walks the pending jobs oldest first, and it writes down each job before the capture starts.
 
-That last part is the one that matters when things go wrong. A background page in an extension is disposable. The browser can decide the worker is idle and reclaim it, and if that lands in the middle of a capture, the job is already recorded, so the next wake finds it and starts over. The captured bytes wait their turn in the browser's own on-disk store, [IndexedDB](/view/developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API?utm_source=blog-save-a-link-and-close-the-tab&utm_medium=internal&utm_content=read-developer-mozilla-org), so a page you saved before you shut the laptop is still there to upload when it opens.
+That last part is the one that matters when things go wrong. A background page in an extension is disposable. The browser can decide the worker is idle and reclaim it, and if that lands in the middle of a capture, the job is already recorded, so the next wake finds it and starts over. The captured bytes wait their turn in the browser's own on-disk store, [IndexedDB](/view/developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API?utm_source=blog-save-a-link-and-close-the-tab&utm_medium=internal&utm_content=read-mdn-indexeddb), so a page you saved before you shut the laptop is still there to upload when it opens.
 
 > **The link is saved in one round trip. The page catches up on its own time.**
 

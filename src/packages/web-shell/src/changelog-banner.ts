@@ -75,7 +75,7 @@ export const FETCH_CHANGELOG_BANNER_IN_BROWSER = "fetch-in-browser";
 
 const CHANGELOG_BANNER_ENDPOINT = "/blog/changelog-banner";
 
-const CHANGELOG_LOADER_TEMPLATE = `<div class="changelog-banner changelog-banner--hidden" role="status" aria-live="polite" data-test-changelog-banner hx-get="{{url}}" hx-trigger="load" hx-swap="outerHTML"></div>`;
+const CHANGELOG_LOADER_TEMPLATE = `<div class="changelog-banner changelog-banner--hidden" role="status" aria-live="polite" data-test-changelog-banner data-background-request hx-get="{{url}}" hx-trigger="load" hx-swap="outerHTML"></div>`;
 
 function renderChangelogBannerLoader(input: {
 	returnTo?: string;

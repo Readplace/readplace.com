@@ -630,6 +630,10 @@ describe("buildCardSectionViewModel", () => {
 		assert.equal(vm.showAddButton, true);
 		assert.equal(vm.showLimitHint, false);
 		assert.equal(vm.addUrl, "/account/cards/new?utm_source=account&utm_medium=internal&utm_content=add-card");
+		assert.equal(
+			vm.confirmUrl,
+			"/account/cards/confirm?utm_source=account&utm_medium=internal&utm_content=save-card",
+		);
 	});
 
 	it("hides the add button and shows the limit hint at the 3-card cap", () => {

@@ -1,4 +1,4 @@
-<section id="article-body-topic-reads-slot" class="past-reads {{stateClass}}" data-test-reader-topic-reads data-topic-reads-status="{{status}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
+<section id="article-body-topic-reads-slot" class="past-reads {{stateClass}}" data-test-reader-topic-reads data-topic-reads-status="{{status}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
   {{#if preview}}
   <details class="past-reads__card">
     <summary class="past-reads__toggle">
@@ -25,7 +25,7 @@
   </details>
   {{/if}}
   {{#if computeUrl}}
-  <form class="past-reads__request" hidden method="POST" action="{{computeUrl}}" hx-post="{{computeUrl}}" hx-trigger="load" hx-swap="none ignoreTitle:true">
+  <form class="past-reads__request" hidden method="POST" action="{{computeUrl}}" data-background-request hx-post="{{computeUrl}}" hx-trigger="load" hx-swap="none ignoreTitle:true">
     <button type="submit" tabindex="-1" aria-hidden="true">Refresh previously read</button>
   </form>
   {{/if}}

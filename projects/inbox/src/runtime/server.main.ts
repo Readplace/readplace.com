@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { randomUUID } from "node:crypto";
 import {
 	AliasNameSchema,
 	EmailLinkOrdinalSchema,
@@ -15,6 +16,8 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-port";
+import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
+import { requireEnv } from "@packages/require-env";
 import { createInboxApp, PORT } from "./app";
 
 const logger = HutchLogger.from(consoleLogger);
@@ -169,6 +172,12 @@ async function main(): Promise<void> {
 			logError: (message, error) =>
 				logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),
 			now: () => new Date(),
+			analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+			salt: requireEnv("ANALYTICS_SALT"),
+			generateVisitorId: randomUUID,
+			secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
+			ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
+			edgeSecret: requireEnv("SSR_EDGE_SECRET"),
 		},
 	);
 

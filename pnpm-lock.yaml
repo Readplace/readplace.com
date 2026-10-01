@@ -649,6 +649,12 @@ importers:
       '@packages/subscription-access':
         specifier: workspace:*
         version: link:../../src/packages/subscription-access
+      '@packages/viewer-identity':
+        specifier: workspace:*
+        version: link:../../src/packages/viewer-identity
+      '@packages/web-analytics':
+        specifier: workspace:*
+        version: link:../../src/packages/web-analytics
       '@packages/web-session':
         specifier: workspace:*
         version: link:../../src/packages/web-session
@@ -919,12 +925,21 @@ importers:
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env
+      '@packages/viewer-identity':
+        specifier: workspace:*
+        version: link:../../src/packages/viewer-identity
+      '@packages/web-analytics':
+        specifier: workspace:*
+        version: link:../../src/packages/web-analytics
       '@packages/web-session':
         specifier: workspace:*
         version: link:../../src/packages/web-session
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../src/packages/web-shell
+      cookie-parser:
+        specifier: 1.4.7
+        version: 1.4.7
       express:
         specifier: 5.2.1
         version: 5.2.1
@@ -968,6 +983,9 @@ importers:
       '@types/aws-lambda':
         specifier: 8.10.161
         version: 8.10.161
+      '@types/cookie-parser':
+        specifier: 1.4.10
+        version: 1.4.10(@types/express@5.0.6)
       '@types/express':
         specifier: 5.0.6
         version: 5.0.6

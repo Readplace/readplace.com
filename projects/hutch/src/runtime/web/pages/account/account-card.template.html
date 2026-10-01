@@ -1,4 +1,4 @@
-<section class="{{stateClass}}" data-test-account-card data-test-account-state="{{state}}" data-test-account-poll="{{pollState}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
+<section class="{{stateClass}}" data-test-account-card data-test-account-state="{{state}}" data-test-account-poll="{{pollState}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
           {{#if stateIsErrorPaymentMethod}}
           {{{errorAlertHtml}}}
           {{else}}

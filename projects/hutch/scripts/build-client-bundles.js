@@ -228,7 +228,7 @@ const BUNDLES = [
       "  confirmAdd: function (confirmInput) {",
       "    var form = window.document.createElement('form');",
       "    form.method = 'POST';",
-      "    form.action = '/account/cards/confirm';",
+      "    form.action = confirmInput.confirmUrl;",
       "    var input = window.document.createElement('input');",
       "    input.type = 'hidden';",
       "    input.name = 'setupId';",

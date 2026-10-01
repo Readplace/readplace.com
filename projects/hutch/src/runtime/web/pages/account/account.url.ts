@@ -41,6 +41,7 @@ export function buildAccountStatusPollUrl(pollCount: number): string {
 }
 
 export const ACCOUNT_CARDS_NEW_URL = "/account/cards/new";
+export const ACCOUNT_CARDS_CONFIRM_URL = "/account/cards/confirm";
 export const ACCOUNT_ERROR_CARD_LIMIT_URL = "/account?error=card_limit";
 export const ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL = "/account?error=cannot_remove_primary";
 export const ACCOUNT_ERROR_ADD_CARD_FAILED_URL = "/account?error=add_card_failed";

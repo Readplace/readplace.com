@@ -494,9 +494,6 @@ describe("GMail Newsletters page", () => {
 			readlist: "tech",
 			discovery: "started",
 			discovery_after: expect.any(String),
-			utm_source: "integrations-gmail",
-			utm_medium: "internal",
-			utm_content: "load-senders",
 			poll: "1",
 		});
 		expect(results(doc).getAttribute("hx-trigger")).toBe("every 3s");
@@ -541,6 +538,23 @@ describe("GMail Newsletters page", () => {
 		expect(results(stopped).hasAttribute("hx-get")).toBe(false);
 		expect(stopped.querySelector("[data-test-gmail-discovery-status]")?.textContent).toBe("Still checking. Checked 25 messages so far…");
 		expect(stopped.querySelector("#gmail-load-senders-button")?.textContent).toBe("Load senders");
+	});
+
+	it("auto-loads senders through an untracked request and keeps the tracked load-senders action for the reader's own submit", async () => {
+		const { agent } = await connectedAgent();
+		const page = load((await agent.get(GMAIL)).text);
+		const autoLoad = page.querySelector("[data-test-gmail-auto-load-senders]");
+		assert(autoLoad);
+		expect(autoLoad.getAttribute("hx-post")).toBe("/integrations/gmail/discovery/start");
+		expect(autoLoad.getAttribute("hx-trigger")).toBe("load");
+		const form = page.querySelector("[data-test-gmail-load-senders]");
+		assert(form);
+		expect(form.getAttribute("hx-trigger")).toBe("submit");
+		expect(form.getAttribute("hx-post")).toBe(
+			"/integrations/gmail/discovery/start?utm_source=integrations-gmail&utm_medium=internal&utm_content=load-senders",
+		);
+		const started = load((await agent.get(`${GMAIL}?discovery=started`)).text);
+		expect(started.querySelector("[data-test-gmail-auto-load-senders]")).toBeNull();
 	});
 
 	it("exposes a completed load button from the redirected discovery response", async () => {

@@ -9,6 +9,9 @@
       </p>
 
       <form class="admin-extend-trial__form" method="GET" action="/admin/extend-trial" data-test-extend-trial-lookup-form>
+        <input type="hidden" name="utm_source" value="admin-extend-trial">
+        <input type="hidden" name="utm_medium" value="internal">
+        <input type="hidden" name="utm_content" value="look-up">
         <label class="form-field__label" for="extend-trial-email">User email (exact)</label>
         <div class="admin-extend-trial__row">
           <input
@@ -54,7 +57,7 @@
       <form
         class="admin-extend-trial__form admin-extend-trial__extend"
         method="POST"
-        action="/admin/extend-trial"
+        action="{{track '/admin/extend-trial' source='admin-extend-trial' content='extend-trial'}}"
         data-test-extend-trial-form>
         <input type="hidden" name="email" value="{{email}}">
         <label class="form-field__label" for="extend-trial-ends-at">New trial end (UTC)</label>

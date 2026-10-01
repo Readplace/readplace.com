@@ -45,7 +45,7 @@ const app = createBlogApp(
 		edgeSecret: "",
 	},
 );
-const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret });
+const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: "readplace.com" });
 const firstPost = blogPosts.getAllPosts()[0];
 
 const FAKE_VERSION = "a1b2c3d4";

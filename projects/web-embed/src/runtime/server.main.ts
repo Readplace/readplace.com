@@ -1,10 +1,12 @@
+import { randomUUID } from "node:crypto";
 import express from "express";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initBase, GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import { initResolveLogin } from "@packages/web-session";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
-import { initEmbedRoutes } from "./embed/embed.page";
+import type { AnalyticsEvent } from "@packages/web-analytics";
+import { createEmbedApp } from "./app";
 import { requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
@@ -32,7 +34,20 @@ app.get(readyProbePath(requireEnv(READY_NONCE_ENV)), (_req, res) => {
 	res.status(200).end();
 });
 
-app.use("/embed", initEmbedRoutes({ appOrigin, base, resolveLogin }));
+app.use(
+	createEmbedApp({
+		appOrigin,
+		base,
+		resolveLogin,
+		analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+		salt: requireEnv("ANALYTICS_SALT"),
+		now: () => new Date(),
+		generateVisitorId: randomUUID,
+		secureCookies: false,
+		ownHost: new URL(appOrigin).hostname,
+		edgeSecret: requireEnv("SSR_EDGE_SECRET"),
+	}),
+);
 
 process.on("SIGTERM", () => process.exit(0));
 process.on("SIGINT", () => process.exit(0));

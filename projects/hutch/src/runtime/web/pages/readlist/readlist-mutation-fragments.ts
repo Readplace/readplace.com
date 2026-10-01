@@ -34,7 +34,7 @@ export function renderStatusToast(toast: StatusToastModel): string {
  * refresh off the mutation's critical path via GET /queue/counts. Sharing one
  * renderer keeps the two copies from drifting. */
 const COUNTS_TRIGGER_TEMPLATE =
-	`<span id="readlist-counts" hx-get="{{countsUrl}}" hx-trigger="load" hx-swap="none" data-test-readlist-counts{{#if oob}} hx-swap-oob="outerHTML"{{/if}}></span>`;
+	`<span id="readlist-counts" data-background-request hx-get="{{countsUrl}}" hx-trigger="load" hx-swap="none" data-test-readlist-counts{{#if oob}} hx-swap-oob="outerHTML"{{/if}}></span>`;
 
 export function renderReadlistCountsTrigger(input: { countsUrl: string; oob?: boolean }): string {
 	return render(COUNTS_TRIGGER_TEMPLATE, input);

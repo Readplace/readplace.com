@@ -84,14 +84,17 @@ export function readElementsConfig(container: Element): ElementsConfig | undefin
 	return { publishableKey, clientSecret, setupId };
 }
 
+export type ConfirmAdd = (input: { setupId: string; confirmUrl: string }) => void;
+
 interface SubmitDeps {
 	stripe: StripeLike;
 	card: StripeElement;
 	clientSecret: string;
 	setupId: string;
+	confirmUrl: string;
 	errorEl: Element;
 	submitButton: HTMLButtonElement;
-	confirmAdd: (input: { setupId: string }) => void;
+	confirmAdd: ConfirmAdd;
 }
 
 export async function confirmSetup(deps: SubmitDeps): Promise<void> {
@@ -105,13 +108,13 @@ export async function confirmSetup(deps: SubmitDeps): Promise<void> {
 		deps.submitButton.disabled = false;
 		return;
 	}
-	deps.confirmAdd({ setupId: deps.setupId });
+	deps.confirmAdd({ setupId: deps.setupId, confirmUrl: deps.confirmUrl });
 }
 
 export interface AccountCardsDeps {
 	document: Document;
 	loadStripe: LoadStripe;
-	confirmAdd: (input: { setupId: string }) => void;
+	confirmAdd: ConfirmAdd;
 	addSettleListener: (listener: () => void) => void;
 }
 
@@ -127,8 +130,9 @@ export async function mountElements(deps: AccountCardsDeps): Promise<void> {
 	const mountPoint = container.querySelector("[data-card-element]");
 	const errorEl = container.querySelector("[data-card-error]");
 	const submitButton = container.querySelector<HTMLButtonElement>("[data-card-submit]");
+	const confirmUrl = submitButton?.getAttribute("data-card-confirm-url");
 	const view = deps.document.defaultView;
-	if (!mountPoint || !errorEl || !submitButton || !view) return;
+	if (!mountPoint || !errorEl || !submitButton || !confirmUrl || !view) return;
 
 	let stripe: StripeLike;
 	try {
@@ -157,6 +161,7 @@ export async function mountElements(deps: AccountCardsDeps): Promise<void> {
 			card,
 			clientSecret: config.clientSecret,
 			setupId: config.setupId,
+			confirmUrl,
 			errorEl,
 			submitButton,
 			confirmAdd: deps.confirmAdd,

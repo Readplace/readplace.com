@@ -1,4 +1,4 @@
-<article class="readlist-article{{statusClass}}" data-test-article="{{id}}"{{#if isFirst}} id="latest-saved"{{/if}}{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s [!this.querySelector('details[open]')]" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
+<article class="readlist-article{{statusClass}}" data-test-article="{{id}}"{{#if isFirst}} id="latest-saved"{{/if}}{{#if cardPollUrl}} data-background-request hx-get="{{cardPollUrl}}" hx-trigger="every 3s [!this.querySelector('details[open]')]" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
   <div class="readlist-article__body">
     <div class="readlist-article__main">
       <div class="readlist-article__head">

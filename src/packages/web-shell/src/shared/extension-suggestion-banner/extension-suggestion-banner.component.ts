@@ -1,4 +1,5 @@
 import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
+import type { ClickSurface } from "../../internal-link-tracking";
 import { render } from "../../render";
 import { EXTENSION_SUGGESTION_BANNER_TEMPLATE } from "./extension-suggestion-banner.template";
 
@@ -29,23 +30,27 @@ function renderTemplate(input: {
 	show: boolean;
 	extensionInstalled: boolean;
 	oob: boolean;
+	clickSurface: ClickSurface | undefined;
 }): string {
 	return render(EXTENSION_SUGGESTION_BANNER_TEMPLATE, {
 		show: input.show ? "true" : "false",
 		extensionInstalled: input.extensionInstalled,
 		clientsPhrase: CONTENT_CAPTURE_PHRASE,
 		oob: input.oob,
+		clickSurface: input.clickSurface,
 	});
 }
 
 export function renderExtensionSuggestionBanner(input: {
 	show: boolean;
 	extensionInstalled?: boolean;
+	clickSurface: ClickSurface | undefined;
 }): string {
 	return renderTemplate({
 		show: input.show,
 		extensionInstalled: input.extensionInstalled ?? false,
 		oob: false,
+		clickSurface: input.clickSurface,
 	});
 }
 
@@ -57,5 +62,6 @@ export function renderExtensionSuggestionBannerOob(input: {
 		show: input.show,
 		extensionInstalled: input.extensionInstalled,
 		oob: true,
+		clickSurface: undefined,
 	});
 }

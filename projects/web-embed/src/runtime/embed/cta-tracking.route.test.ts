@@ -13,6 +13,8 @@ afterEach(async () => {
 	);
 });
 
+const APP_ORIGIN = "https://readplace.com";
+
 const guestResolver: ResolveLogin = async () => ({ isAuthenticated: false });
 
 function makeServer(): Server {
@@ -26,7 +28,7 @@ function makeServer(): Server {
 	app.use(
 		"/embed",
 		initEmbedRoutes({
-			appOrigin: "https://readplace.com",
+			appOrigin: APP_ORIGIN,
 			base,
 			resolveLogin: guestResolver,
 		}),
@@ -43,7 +45,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const untracked: string[] = [];
 		for (const path of ["/embed", "/embed/preview"]) {
 			const response = await request(server).get(path);
-			const found = findUntrackedCtas(response.text, { skipSelectors: [] });
+			const found = findUntrackedCtas(response.text, { skipSelectors: [], ownOrigin: APP_ORIGIN });
 			for (const line of describeUntrackedCtas(found)) untracked.push(`${path}  ${line}`);
 		}
 

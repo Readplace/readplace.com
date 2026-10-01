@@ -4,7 +4,7 @@ import { labelTableCells } from "./blog-table-labels";
 import { withTldrCaret } from "./blog-tldr-caret";
 import { deriveChangelogBanner, initBlogPosts, parseBlogFrontmatter } from "./blog.posts";
 
-const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret });
+const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: "readplace.com" });
 
 const VALID_FRONTMATTER = {
 	title: "A Post",

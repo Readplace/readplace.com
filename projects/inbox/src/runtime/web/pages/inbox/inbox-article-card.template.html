@@ -1,4 +1,4 @@
-<article class="inbox-article-card" id="{{domId}}" data-test-inbox-article-card="{{ordinal}}"{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
+<article class="inbox-article-card" id="{{domId}}" data-test-inbox-article-card="{{ordinal}}"{{#if cardPollUrl}} data-background-request hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
             <div class="inbox-article-card__head">
               {{#if hasTitle}}
               <a class="inbox-article-card__title" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-title>{{title}}</a>

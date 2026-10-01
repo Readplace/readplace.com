@@ -234,7 +234,7 @@ function openFormControl(input: { key: "edit" | "correct"; from: string; state: 
 	return trackedForm({
 		method: "GET",
 		path: ADMIN_NEWSLETTERS_PATH,
-		content: input.key,
+		content: `open-${input.key}`,
 		fields: [...adminNewslettersListFields(input.state), { name: input.key, value: input.from }],
 	});
 }

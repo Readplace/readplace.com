@@ -15,12 +15,7 @@ import { QUEUE_DIGEST_UNSUBSCRIBE_PATH } from "./web/queue-digest-email";
 
 const useApp = useTestServer();
 
-const ARTICLE_CONTENT_REGIONS = [
-	"[data-test-reader-content]",
-	// The past-reads compute triggers fire automatically on load rather than on a
-	// reader click, so tagging them would count a click on every reader open.
-	".past-reads__request",
-];
+const ARTICLE_CONTENT_REGIONS = ["[data-test-reader-content]"];
 
 const GUEST_PATHS = [
 	"/",
@@ -33,6 +28,8 @@ const GUEST_PATHS = [
 	"/install?client=chatgpt",
 	"/install?client=gemini",
 	"/install?client=claude",
+	"/install?client=android&feature=android",
+	"/?feature=gmail",
 	"/import",
 	"/privacy",
 	"/terms",
@@ -63,9 +60,14 @@ const MEMBER_PATHS = [
 	"/install?client=chatgpt",
 	"/install?client=gemini",
 	"/install?client=claude",
+	"/install?client=android&feature=android",
 	"/import",
 	"/import?mode=upload",
 	"/integrations",
+	"/integrations?feature=gmail",
+	"/queue?feature=gmail",
+	"/queue?feature=pref",
+	"/account?feature=gmail",
 	"/mcp",
 	"/save",
 	"/view/not-a-url",
@@ -74,7 +76,7 @@ const MEMBER_PATHS = [
 
 function untrackedOn(path: string, html: string): string[] {
 	return describeUntrackedCtas(
-		findUntrackedCtas(html, { skipSelectors: ARTICLE_CONTENT_REGIONS }),
+		findUntrackedCtas(html, { skipSelectors: ARTICLE_CONTENT_REGIONS, ownOrigin: TEST_APP_ORIGIN }),
 	).map((line) => `${path}  ${line}`);
 }
 
@@ -125,7 +127,11 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			TEST_APP_ORIGIN,
 		).searchParams.get("queue");
 		const readlistPaths = madeReadlist
-			? [`/queue/queues/${madeReadlist}/preferences?feature=pref`]
+			? [
+					`/queue?queue=${madeReadlist}&feature=pref`,
+					`/queue/queues/${madeReadlist}/preferences?feature=pref`,
+					`/queue/queues/${madeReadlist}/preferences/inboxes?feature=pref`,
+				]
 			: [];
 
 		const untracked: string[] = [];
@@ -139,7 +145,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		}
 
 		expect(readerHref).toContain("/view");
-		expect(readlistPaths.length).toBe(1);
+		expect(readlistPaths.length).toBe(3);
 		expect(untracked).toEqual([]);
 	});
 

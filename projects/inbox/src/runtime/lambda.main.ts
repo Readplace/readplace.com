@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Handler } from "aws-lambda";
 import type { Request, Response } from "express";
 import express from "express";
@@ -18,6 +19,7 @@ import { initS3ReadContent } from "@packages/article-store";
 import { SubmitLinkCommand } from "@packages/hutch-infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
+import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { createInboxApp, PORT } from "./app";
 import { initDynamoDbUserStanding } from "./providers/user-standing/dynamodb-user-standing";
@@ -100,6 +102,12 @@ const application = express()
 				logError: (message, error) =>
 					logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),
 				now: () => new Date(),
+				analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+				salt: requireEnv("ANALYTICS_SALT"),
+				generateVisitorId: randomUUID,
+				secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
+				ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
+				edgeSecret: requireEnv("SSR_EDGE_SECRET"),
 			},
 		),
 	);

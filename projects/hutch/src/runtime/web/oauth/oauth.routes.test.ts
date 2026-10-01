@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { createHash, randomBytes } from "node:crypto";
+import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
 import {
@@ -172,6 +173,59 @@ describe("OAuth routes", () => {
 			expect(response.text).toContain("Signed in as");
 			expect(response.text).toContain("test@example.com");
 			expect(response.text).toContain("Use a different account");
+		});
+
+		it("gives Approve, Deny and Use a different account their own tracked formaction, each still reaching the authorize handler", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const page = await agent.get("/oauth/authorize").query({
+				client_id: TEST_CLIENT_ID,
+				redirect_uri: TEST_REDIRECT_URI,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+				state: "formaction-state",
+			});
+			const form = new JSDOM(page.text).window.document.querySelector('form[action^="/oauth/authorize"]');
+			assert(form, "the consent form must render");
+			const hiddenFields = Object.fromEntries(
+				Array.from(form.querySelectorAll('input[type="hidden"]'), (input) => [
+					input.getAttribute("name") ?? "",
+					input.getAttribute("value") ?? "",
+				]),
+			);
+			const buttons = Array.from(form.querySelectorAll('button[name="action"]'), (button) => ({
+				action: button.getAttribute("value") ?? "",
+				formaction: button.getAttribute("formaction") ?? "",
+			}));
+			expect(buttons).toEqual([
+				{ action: "approve", formaction: "/oauth/authorize?utm_source=oauth-authorize&utm_medium=internal&utm_content=approve" },
+				{ action: "deny", formaction: "/oauth/authorize?utm_source=oauth-authorize&utm_medium=internal&utm_content=deny" },
+				{ action: "switch", formaction: "/oauth/authorize?utm_source=oauth-authorize&utm_medium=internal&utm_content=switch-account" },
+			]);
+
+			const submit = (button: { action: string; formaction: string }) =>
+				agent.post(button.formaction).type("form").send({ ...hiddenFields, action: button.action });
+			const [approve, deny, switchAccount] = buttons;
+
+			const approved = await submit(approve);
+			expect(approved.status).toBe(302);
+			expect(new URL(approved.headers.location).searchParams.get("code")).toBeTruthy();
+			const denied = await submit(deny);
+			expect(denied.status).toBe(302);
+			expect(denied.headers.location).toContain("error=access_denied");
+			const switched = await submit(switchAccount);
+			expect(switched.status).toBe(303);
+			expect(switched.headers.location.startsWith("/login?return=")).toBe(true);
 		});
 
 		it("still offers the switch but omits the signed-in line when the email lookup misses", async () => {

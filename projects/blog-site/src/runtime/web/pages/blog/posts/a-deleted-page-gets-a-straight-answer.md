@@ -16,7 +16,7 @@ Save a link to a page its site has since deleted, and the explanation under it u
 </div>
 </details>
 
-Sites delete pages and leave the addresses behind. Follow one of those addresses today and the answer is a [404](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/404?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=read-developer-mozilla-org), or a [410](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/410?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=read-developer-mozilla-org) from a site tidy enough to admit the page is gone for good. 22 of the crawls that failed in Readplace last week ended at a 404.
+Sites delete pages and leave the addresses behind. Follow one of those addresses today and the answer is a [404](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/404?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=read-mdn-404), or a [410](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/410?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=read-mdn-410) from a site tidy enough to admit the page is gone for good. 22 of the crawls that failed in Readplace last week ended at a 404.
 
 The trouble was the story the reader told about them.
 

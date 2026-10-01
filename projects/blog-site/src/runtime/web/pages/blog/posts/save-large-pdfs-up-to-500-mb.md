@@ -26,7 +26,7 @@ A copy you can't make is not a copy. A read-it-later tool that only holds the sm
 
 ## The request that can only carry so much
 
-When you save a page, the file travels inside one web request to a small server that runs only for the length of the save. That kind of server, [a Lambda function](/view/docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html?utm_source=blog-save-large-pdfs-up-to-500-mb&utm_medium=internal&utm_content=read-docs-aws-amazon-com), caps a single request at 6 megabytes. Room for the rest of the request comes out of that, so Readplace advertised a budget near 3 megabytes for the file itself.
+When you save a page, the file travels inside one web request to a small server that runs only for the length of the save. That kind of server, [a Lambda function](/view/docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html?utm_source=blog-save-large-pdfs-up-to-500-mb&utm_medium=internal&utm_content=read-aws-lambda-limits), caps a single request at 6 megabytes. Room for the rest of the request comes out of that, so Readplace advertised a budget near 3 megabytes for the file itself.
 
 Under the budget, the save goes straight through, and it still does. Over it, the file had nowhere to go. The only answer was the slow path Readplace keeps for anything above the caps, [handled by email](/blog/import-page-findable-in-search?utm_source=blog-save-large-pdfs-up-to-500-mb&utm_medium=internal&utm_content=post-import-page-findable-in-search) rather than saved on the spot.
 
@@ -34,7 +34,7 @@ So the size of one web request set the size of what you could keep. A limit buil
 
 ## A one-time key straight to storage
 
-A big file doesn't need to travel inside the request. It needs a place to land and a way to reach it. So over the budget, Readplace mints one: a [presigned upload address](/view/docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html?utm_source=blog-save-large-pdfs-up-to-500-mb&utm_medium=internal&utm_content=read-docs-aws-amazon-com), a single-use key that points straight at storage and expires in 15 minutes.
+A big file doesn't need to travel inside the request. It needs a place to land and a way to reach it. So over the budget, Readplace mints one: a [presigned upload address](/view/docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html?utm_source=blog-save-large-pdfs-up-to-500-mb&utm_medium=internal&utm_content=read-aws-s3-presigned-url), a single-use key that points straight at storage and expires in 15 minutes.
 
 The browser sends the file's bytes to that address on its own. The request-size cap doesn't apply, because the file no longer rides the request. Readplace hands out the key, the file lands in storage, and the save picks up from there.
 

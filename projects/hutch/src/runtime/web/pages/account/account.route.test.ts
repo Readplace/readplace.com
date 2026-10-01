@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
+import { CardSetupIdSchema, PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import {
 	BROWSER_USER_AGENT,
@@ -2167,7 +2167,7 @@ describe("GET /account — card management section", () => {
 		assert(addingSection.querySelector("[data-card-cancel]"), "the adding state must render its cancel link");
 
 		const untracked = [listingSection, addingSection].flatMap((section) =>
-			describeUntrackedCtas(findUntrackedCtas(section.outerHTML, { skipSelectors: [] })),
+			describeUntrackedCtas(findUntrackedCtas(section.outerHTML, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })),
 		);
 		expect(untracked).toEqual([]);
 	});
@@ -2338,6 +2338,30 @@ describe("POST /account/cards/new", () => {
 		assert(error, "the Stripe card field must have an error slot");
 		expect(error.classList.contains("form-field__error")).toBe(true);
 		expect(error.getAttribute("role")).toBe("alert");
+	});
+
+	it("hands the Save card button a tagged confirm URL that still reaches the confirm route", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "add-confirm-url@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const doc = new JSDOM((await agent.post("/account/cards/new")).text).window.document;
+		const setupId = doc.querySelector("[data-test-card-elements]")?.getAttribute("data-setup-id");
+		const confirmUrl = doc.querySelector("[data-card-submit]")?.getAttribute("data-card-confirm-url");
+		assert(setupId, "the adding state must carry a setup id");
+		assert(confirmUrl, "the Save card button must carry its confirm URL");
+		expect(confirmUrl).toBe(
+			"/account/cards/confirm?utm_source=account&utm_medium=internal&utm_content=save-card",
+		);
+		harness.paymentMethods.completeCardSetup({ setupId: CardSetupIdSchema.parse(setupId), card: card("pm_new", false, "9999") });
+
+		const confirm = await agent.post(confirmUrl).type("form").send({ setupId });
+
+		expect(confirm.status).toBe(303);
+		expect(confirm.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_primary", "pm_new"]);
 	});
 
 	it("redirects to the card-limit error when already at 3 cards", async () => {

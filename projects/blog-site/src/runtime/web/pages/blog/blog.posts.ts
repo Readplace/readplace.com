@@ -124,7 +124,7 @@ export function initBlogPosts(deps: RenderPostBodyDeps): BlogPosts {
 
 			return {
 				...frontmatter,
-				htmlContent: renderPostBody(content),
+				htmlContent: renderPostBody({ slug: frontmatter.slug, content }),
 				markdownContent: content,
 				formattedDate: toAbsoluteDate({ iso: `${frontmatter.date}T00:00:00Z` }).label,
 			};

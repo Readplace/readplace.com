@@ -196,3 +196,30 @@ describe("bannerStateFromRequest feature toggle", () => {
 		expect(state.gmailFeatureEnabled).toBe(false);
 	});
 });
+
+describe("header nav internal-click tagging across every feature-flag combination", () => {
+	const flagMatrix = [false, true].flatMap((accessIsReadOnly) =>
+		[false, true].map((gmailFeatureEnabled) => ({ accessIsReadOnly, gmailFeatureEnabled })),
+	);
+	const navs = flagMatrix.flatMap((flags) => [
+		{ name: `guest ${JSON.stringify(flags)}`, groups: buildGuestNavGroups() },
+		{ name: `authenticated ${JSON.stringify(flags)}`, groups: buildNavGroups(flags) },
+	]);
+
+	it.each(navs)("tags every $name item with source, internal medium and content on both the href and the hidden inputs", ({ groups }) => {
+		for (const item of groups.flatMap((g) => g.items)) {
+			const url = new URL(item.href, "https://readplace.com");
+			expect([item.key, url.searchParams.get("utm_source")]).toEqual([item.key, "header-nav"]);
+			expect([item.key, url.searchParams.get("utm_medium")]).toEqual([item.key, "internal"]);
+			expect([item.key, url.searchParams.get("utm_content")]).toEqual([item.key, item.key]);
+			expect([item.key, item.trackSource, item.trackContent]).toEqual([item.key, "header-nav", item.key]);
+		}
+	});
+
+	it.each(navs)("gives every $name item a utm_content no other item in the nav shares", ({ groups }) => {
+		const contents = groups
+			.flatMap((g) => g.items)
+			.map((item) => new URL(item.href, "https://readplace.com").searchParams.get("utm_content"));
+		expect(new Set(contents).size).toBe(contents.length);
+	});
+});

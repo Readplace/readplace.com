@@ -179,6 +179,55 @@ describe("Admin extend-trial routes", () => {
 		});
 	});
 
+	describe("tracked forms", () => {
+		it("submits the lookup form as a tracked click that still looks the user up", async () => {
+			const harness = buildHarness();
+			const agent = await createAdmin(harness);
+			await createTrialingUser(harness);
+			const landing = doc((await agent.get("/admin/extend-trial")).text);
+			const form = landing.querySelector("[data-test-extend-trial-lookup-form]");
+			assert(form);
+			const hidden = Array.from(form.querySelectorAll('input[type="hidden"]'), (input) => [
+				input.getAttribute("name") ?? "",
+				input.getAttribute("value") ?? "",
+			]);
+			expect(hidden).toEqual([
+				["utm_source", "admin-extend-trial"],
+				["utm_medium", "internal"],
+				["utm_content", "look-up"],
+			]);
+			const query = new URLSearchParams([...hidden, ["email", USER_EMAIL]]);
+
+			const response = await agent.get(`/admin/extend-trial?${query.toString()}`);
+
+			expect(response.status).toBe(200);
+			expect(doc(response.text).querySelector("[data-test-extend-trial-status]")?.textContent?.trim()).toBe(
+				"trialing",
+			);
+		});
+
+		it("posts the extend form to a tracked action that still extends the trial", async () => {
+			const harness = buildHarness();
+			const agent = await createAdmin(harness);
+			const id = await createTrialingUser(harness);
+			const page = doc((await agent.get(`/admin/extend-trial?email=${USER_EMAIL}`)).text);
+			const action = page.querySelector("[data-test-extend-trial-form]")?.getAttribute("action");
+			assert(action);
+			expect(action).toBe(
+				"/admin/extend-trial?utm_source=admin-extend-trial&utm_medium=internal&utm_content=extend-trial",
+			);
+
+			const response = await agent
+				.post(action)
+				.type("form")
+				.send({ email: USER_EMAIL, trialEndsAt: NEW_TRIAL_END });
+
+			expect(response.status).toBe(303);
+			const row = await harness.subscriptionProviders.findByUserId(id);
+			expect(row?.trialEndsAt).toBe(NEW_TRIAL_END_ISO);
+		});
+	});
+
 	describe("extending", () => {
 		it("re-opens the window and re-arms both schedules", async () => {
 			const harness = buildHarness();

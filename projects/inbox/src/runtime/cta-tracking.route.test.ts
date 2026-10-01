@@ -21,7 +21,7 @@ const KEPT_LINK_COUNT = 21;
 const SKIPPED_LINK_COUNT = 2;
 
 function untrackedOn(page: { path: string; html: string }): string[] {
-	return describeUntrackedCtas(findUntrackedCtas(page.html, { skipSelectors: [] })).map(
+	return describeUntrackedCtas(findUntrackedCtas(page.html, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })).map(
 		(line) => `${page.path}  ${line}`,
 	);
 }

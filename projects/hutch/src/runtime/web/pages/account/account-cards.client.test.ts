@@ -12,7 +12,7 @@ const CONTAINER_HTML = `
 <div data-card-elements data-publishable-key="pk_test_123" data-client-secret="seti_123_secret" data-setup-id="seti_123">
 	<div data-card-element></div>
 	<p data-card-error></p>
-	<button type="button" data-card-submit>Save card</button>
+	<button type="button" data-card-submit data-card-confirm-url="/account/cards/confirm?utm_content=save-card">Save card</button>
 </div>
 `;
 
@@ -91,7 +91,7 @@ describe("confirmSetup", () => {
 		const errorEl = doc.querySelector("[data-card-error]");
 		const submitButton = doc.querySelector<HTMLButtonElement>("[data-card-submit]");
 		assert(errorEl && submitButton, "fixture must contain error + submit");
-		const confirmedAdds: string[] = [];
+		const confirmedAdds: { setupId: string; confirmUrl: string }[] = [];
 		const { stripe } = fakeStripe(confirmResult);
 		return {
 			errorEl,
@@ -102,17 +102,20 @@ describe("confirmSetup", () => {
 				card: { mount: () => undefined },
 				clientSecret: "seti_123_secret",
 				setupId: "seti_123",
+				confirmUrl: "/account/cards/confirm?utm_content=save-card",
 				errorEl,
 				submitButton,
-				confirmAdd: (input: { setupId: string }) => confirmedAdds.push(input.setupId),
+				confirmAdd: (input: { setupId: string; confirmUrl: string }) => confirmedAdds.push(input),
 			},
 		};
 	}
 
-	it("hands the server-minted setup id back to the server on success", async () => {
+	it("hands the server-minted setup id back to the server-rendered confirm URL on success", async () => {
 		const d = deps({});
 		await confirmSetup(d.args);
-		expect(d.confirmedAdds).toEqual(["seti_123"]);
+		expect(d.confirmedAdds).toEqual([
+			{ setupId: "seti_123", confirmUrl: "/account/cards/confirm?utm_content=save-card" },
+		]);
 		expect(d.errorEl.textContent).toBe("");
 	});
 
@@ -138,7 +141,7 @@ describe("mountElements", () => {
 		options: { confirmResult?: ConfirmResult; loadStripeFails?: boolean } = {},
 	) {
 		const loadCalls: string[] = [];
-		const confirmedAdds: string[] = [];
+		const confirmedAdds: { setupId: string; confirmUrl: string }[] = [];
 		const { stripe, mounted, elementsOptions, cardOptions } = fakeStripe(options.confirmResult ?? {});
 		const accountDeps: AccountCardsDeps = {
 			document: doc,
@@ -147,7 +150,7 @@ describe("mountElements", () => {
 				if (options.loadStripeFails) throw new Error("Failed to load Stripe.js");
 				return stripe;
 			},
-			confirmAdd: (input) => confirmedAdds.push(input.setupId),
+			confirmAdd: (input) => confirmedAdds.push(input),
 			addSettleListener: () => undefined,
 		};
 		return { accountDeps, loadCalls, confirmedAdds, mounted, elementsOptions, cardOptions };
@@ -182,6 +185,15 @@ describe("mountElements", () => {
 		expect(d.loadCalls).toEqual([]);
 	});
 
+	it("is a no-op when the submit button carries no confirm URL", async () => {
+		const doc = makeDoc(
+			'<div data-card-elements data-publishable-key="pk_x" data-client-secret="seti_x" data-setup-id="seti_1"><div data-card-element></div><p data-card-error></p><button type="button" data-card-submit>Save card</button></div>',
+		);
+		const d = deps(doc);
+		await mountElements(d.accountDeps);
+		expect(d.loadCalls).toEqual([]);
+	});
+
 	it("is a no-op when the document has no window to resolve the card field's styles", async () => {
 		const doc = makeDoc("").implementation.createHTMLDocument("");
 		doc.body.innerHTML = CONTAINER_HTML;
@@ -196,7 +208,7 @@ describe("mountElements", () => {
 <div data-card-elements data-publishable-key="pk_test_123" data-client-secret="seti_123_secret" data-setup-id="seti_123">
 	<div data-card-element style="color: rgb(228, 228, 228); font-family: Inter; font-size: 16px; --input-placeholder: #6b6b6b"></div>
 	<p data-card-error style="color: rgb(210, 128, 128)"></p>
-	<button type="button" data-card-submit>Save card</button>
+	<button type="button" data-card-submit data-card-confirm-url="/account/cards/confirm?utm_content=save-card">Save card</button>
 </div>
 `);
 		const d = deps(doc);
@@ -240,7 +252,9 @@ describe("mountElements", () => {
 		submit.dispatchEvent(new (doc.defaultView ?? globalThis).Event("click"));
 		await flush();
 
-		expect(d.confirmedAdds).toEqual(["seti_123"]);
+		expect(d.confirmedAdds).toEqual([
+			{ setupId: "seti_123", confirmUrl: "/account/cards/confirm?utm_content=save-card" },
+		]);
 	});
 
 	it("surfaces a retryable error and stays unmounted when Stripe.js fails to load", async () => {

@@ -21,6 +21,7 @@ import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscri
 import {
 	ACCOUNT_APPEARANCE_URL,
 	ACCOUNT_CANCEL_URL,
+	ACCOUNT_CARDS_CONFIRM_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
 	ACCOUNT_REACTIVATE_URL,
@@ -249,6 +250,7 @@ export interface CardSectionViewModel {
 	cards: CardViewItem[];
 	showAddButton: boolean;
 	addUrl: string;
+	confirmUrl: string;
 	showLimitHint: boolean;
 	limitHint: string;
 	isAdding: boolean;
@@ -319,6 +321,11 @@ const ADD_CARD_URL = withInternalTracking(ACCOUNT_CARDS_NEW_URL, {
 	content: "add-card",
 });
 
+const CONFIRM_CARD_URL = withInternalTracking(ACCOUNT_CARDS_CONFIRM_URL, {
+	source: ACCOUNT_SOURCE,
+	content: "save-card",
+});
+
 function toCardViewItem(card: SavedCard): CardViewItem {
 	return {
 		itemClass: `account-cards__item account-cards__item--${card.isPrimary ? "primary" : "backup"}`,
@@ -347,6 +354,7 @@ function unavailableSection(
 		cards: [],
 		showAddButton: false,
 		addUrl: ADD_CARD_URL,
+		confirmUrl: CONFIRM_CARD_URL,
 		showLimitHint: false,
 		limitHint: "",
 		isAdding: false,
@@ -381,6 +389,7 @@ export function buildCardSectionViewModel(input: CardSectionInput): CardSectionV
 		// drive Elements; without a key (local dev) the list/manage actions still render.
 		showAddButton: canAddCard && hasKey && !isAdding,
 		addUrl: ADD_CARD_URL,
+		confirmUrl: CONFIRM_CARD_URL,
 		showLimitHint: !canAddCard,
 		limitHint: LIMIT_HINT,
 		isAdding,

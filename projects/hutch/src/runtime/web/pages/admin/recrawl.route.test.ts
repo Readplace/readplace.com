@@ -191,6 +191,37 @@ describe("Admin recrawl routes", () => {
 			assert(doc.querySelector("[data-test-admin-recrawl]"));
 		});
 
+		it("submits the landing form as a tracked click that still renders the recrawl page", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const landing = new JSDOM((await agent.get("/admin/recrawl")).text).window.document;
+			const form = landing.querySelector("[data-test-admin-recrawl-form]");
+			assert(form);
+			const hidden = Array.from(form.querySelectorAll('input[type="hidden"]'), (input) => [
+				input.getAttribute("name") ?? "",
+				input.getAttribute("value") ?? "",
+			]);
+			expect(hidden).toEqual([
+				["utm_source", "admin-recrawl"],
+				["utm_medium", "internal"],
+				["utm_content", "recrawl"],
+			]);
+			const query = new URLSearchParams([...hidden, ["url", ARTICLE_URL]]);
+
+			const response = await agent.get(`/admin/recrawl?${query.toString()}`);
+
+			expect(response.status).toBe(200);
+			assert(new JSDOM(response.text).window.document.querySelector("[data-test-admin-recrawl]"));
+		});
+
 		it("returns 404 when the submitted ?url is not a valid URL", async () => {
 			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

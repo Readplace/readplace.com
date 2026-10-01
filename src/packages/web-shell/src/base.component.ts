@@ -294,6 +294,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			extensionSuggestionBanner: renderExtensionSuggestionBanner({
 				show: state.showExtensionSuggestionBanner ?? false,
 				extensionInstalled: state.extensionInstalled ?? false,
+				clickSurface: body.clickSurface,
 			}),
 			bodyClass: appearanceBodyClass(body.bodyClass, appearance),
 			themeColorMetas: THEME_COLOR_METAS[appearance],

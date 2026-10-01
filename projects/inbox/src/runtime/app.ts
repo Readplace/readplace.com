@@ -19,6 +19,15 @@ import type { UserId } from "@packages/domain/user";
 import type { SaveProvenance } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { ResolveLogin } from "@packages/web-session";
+import type { HutchLogger } from "@packages/hutch-logger";
+import {
+	type AnalyticsEvent,
+	createAnalyticsMiddleware,
+	createClickAttributionMiddleware,
+	createVisitorIdMiddleware,
+	utmValidationMiddleware,
+} from "@packages/web-analytics";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initBuildBannerState } from "./web/banner-state";
 import { requireAuth } from "./web/middleware/require-auth";
@@ -59,14 +68,50 @@ export function createInboxApp(
 		}) => Promise<void>;
 		logError: (message: string, error?: Error) => void;
 		now: () => Date;
+		analyticsLogger: HutchLogger.Typed<AnalyticsEvent>;
+		salt: string;
+		generateVisitorId: () => string;
+		secureCookies: boolean;
+		ownHost: string;
+		edgeSecret: string;
 	},
 ): Express {
 	const app: Express = express();
 	app.disable("x-powered-by");
 
+	const isStaticAssetPath = () => false;
+	const canonicalizeLandingPath = (path: string) => path;
+
+	app.use(createViewerIdentityMiddleware({ edgeSecret: deps.edgeSecret }));
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
+	app.use(utmValidationMiddleware);
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
+	app.use(
+		createVisitorIdMiddleware({
+			generateVisitorId: deps.generateVisitorId,
+			secure: deps.secureCookies,
+			isStaticAssetPath,
+		}),
+	);
+	app.use(
+		createClickAttributionMiddleware({
+			now: deps.now,
+			secure: deps.secureCookies,
+			isStaticAssetPath,
+			canonicalizeLandingPath,
+			ownHost: deps.ownHost,
+		}),
+	);
+	app.use(
+		createAnalyticsMiddleware({
+			logger: deps.analyticsLogger,
+			salt: deps.salt,
+			now: deps.now,
+			isStaticAssetPath,
+			ownHost: deps.ownHost,
+		}),
+	);
 
 	app.use("/client-dist", express.static(resolve(__dirname, "web", "client-dist")));
 

@@ -44,6 +44,8 @@ const ADMIN_PATHS = [
 	"/admin/newsletters?new=1",
 	"/admin/newsletters?edit=issue2%40letters.example",
 	"/admin/newsletters?correct=issue2%40letters.example",
+	"/admin/recrawl",
+	"/admin/extend-trial",
 ];
 
 describe("every same-origin CTA on the admin surfaces carries its own utm_source", () => {
@@ -77,7 +79,7 @@ describe("every same-origin CTA on the admin surfaces carries its own utm_source
 		for (const path of ADMIN_PATHS) {
 			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
 			statuses.push(response.status);
-			untracked.push(...describeUntrackedCtas(findUntrackedCtas(response.text, { skipSelectors: [] })).map((line) => `${path}  ${line}`));
+			untracked.push(...describeUntrackedCtas(findUntrackedCtas(response.text, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })).map((line) => `${path}  ${line}`));
 		}
 
 		const failedRenders = [
@@ -108,7 +110,7 @@ describe("every same-origin CTA on the admin surfaces carries its own utm_source
 		});
 		for (const { label, response } of failedRenders) {
 			statuses.push(response.status);
-			untracked.push(...describeUntrackedCtas(findUntrackedCtas(response.text, { skipSelectors: [] })).map((line) => `${label}  ${line}`));
+			untracked.push(...describeUntrackedCtas(findUntrackedCtas(response.text, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })).map((line) => `${label}  ${line}`));
 		}
 
 		expect(statuses).toEqual([...ADMIN_PATHS.map(() => 200), 422, 409, 503]);

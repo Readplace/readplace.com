@@ -24,7 +24,7 @@ export const EXTENSION_SUGGESTION_BANNER_TEMPLATE = `<div
 			<p class="extension-suggestion-banner__message" data-test-extension-suggestion-variant="not-installed">
 				Some sites don&rsquo;t allow Readplace to save the full article. Use {{clientsPhrase}} to save the complete page.
 			</p>
-			<a class="btn btn--secondary btn--s extension-suggestion-banner__cta" href="/install?utm_source=reader-failed&amp;utm_medium=banner&amp;utm_campaign=extension-suggestion&amp;utm_content=cta-button" data-test-extension-suggestion-cta>See ways to save</a>
+			<a class="btn btn--secondary btn--s extension-suggestion-banner__cta" href="{{track '/install' source='extension-suggestion-banner' content='see-ways-to-save' term=clickSurface}}" data-test-extension-suggestion-cta>See ways to save</a>
 		{{/if}}
 	</div>
 </div>

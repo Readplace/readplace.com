@@ -12,8 +12,8 @@ function parse(html: string): Document {
 
 describe("renderExtensionSuggestionBanner", () => {
 	it("always renders the banner element regardless of the show flag", () => {
-		const shown = parse(renderExtensionSuggestionBanner({ show: true }));
-		const hidden = parse(renderExtensionSuggestionBanner({ show: false }));
+		const shown = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
+		const hidden = parse(renderExtensionSuggestionBanner({ show: false, clickSurface: undefined }));
 
 		assert(
 			shown.querySelector(".extension-suggestion-banner"),
@@ -26,7 +26,7 @@ describe("renderExtensionSuggestionBanner", () => {
 	});
 
 	it("roots the banner in the shared banner bar, dismissed through the bar's close box", () => {
-		const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+		const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 		const banner = doc.querySelector(".extension-suggestion-banner");
 		assert(banner, "banner must be rendered");
@@ -35,7 +35,7 @@ describe("renderExtensionSuggestionBanner", () => {
 	});
 
 	it("sets data-show-extension-suggestion='true' when show=true", () => {
-		const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+		const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 		const banner = doc.querySelector(".extension-suggestion-banner");
 		assert(banner, "banner must be rendered");
@@ -43,7 +43,7 @@ describe("renderExtensionSuggestionBanner", () => {
 	});
 
 	it("sets data-show-extension-suggestion='false' when show=false", () => {
-		const doc = parse(renderExtensionSuggestionBanner({ show: false }));
+		const doc = parse(renderExtensionSuggestionBanner({ show: false, clickSurface: undefined }));
 
 		const banner = doc.querySelector(".extension-suggestion-banner");
 		assert(banner, "banner must be rendered");
@@ -51,7 +51,7 @@ describe("renderExtensionSuggestionBanner", () => {
 	});
 
 	it("renders a close button with an accessible label and the dismiss data attribute", () => {
-		const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+		const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 		const closeBtn = doc.querySelector("[data-extension-suggestion-close]");
 		assert(closeBtn, "close button must be rendered");
@@ -62,7 +62,7 @@ describe("renderExtensionSuggestionBanner", () => {
 
 	describe("out-of-band swap envelope", () => {
 		it("gives the banner a stable id so an OOB swap can target it", () => {
-			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+			const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 			const banner = doc.querySelector(".extension-suggestion-banner");
 			assert(banner, "banner must be rendered");
@@ -70,7 +70,7 @@ describe("renderExtensionSuggestionBanner", () => {
 		});
 
 		it("omits hx-swap-oob on the inline (SSR) render", () => {
-			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+			const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 			const banner = doc.querySelector("#extension-suggestion-banner");
 			assert(banner, "banner must be rendered");
@@ -118,7 +118,7 @@ describe("renderExtensionSuggestionBanner", () => {
 	describe("when the extension is NOT installed (default)", () => {
 		it("renders the install pitch variant", () => {
 			const doc = parse(
-				renderExtensionSuggestionBanner({ show: true, extensionInstalled: false }),
+				renderExtensionSuggestionBanner({ show: true, extensionInstalled: false, clickSurface: undefined }),
 			);
 
 			const message = doc.querySelector(
@@ -130,8 +130,8 @@ describe("renderExtensionSuggestionBanner", () => {
 			);
 		});
 
-		it("renders a CTA button to /install with utm_content=cta-button", () => {
-			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+		it("tags the /install CTA as an internal click from the extension-suggestion banner", () => {
+			const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 			const cta = doc.querySelector("[data-test-extension-suggestion-cta]");
 			assert(cta, "cta must be rendered");
@@ -139,14 +139,23 @@ describe("renderExtensionSuggestionBanner", () => {
 			assert(href, "cta must have an href");
 			const url = new URL(href, "https://readplace.com");
 			expect(url.pathname).toBe("/install");
-			expect(url.searchParams.get("utm_source")).toBe("reader-failed");
-			expect(url.searchParams.get("utm_medium")).toBe("banner");
-			expect(url.searchParams.get("utm_campaign")).toBe("extension-suggestion");
-			expect(url.searchParams.get("utm_content")).toBe("cta-button");
+			expect(url.searchParams.get("utm_source")).toBe("extension-suggestion-banner");
+			expect(url.searchParams.get("utm_medium")).toBe("internal");
+			expect(url.searchParams.get("utm_content")).toBe("see-ways-to-save");
+			expect(url.searchParams.has("utm_campaign")).toBe(false);
+			expect(url.searchParams.has("utm_term")).toBe(false);
+		});
+
+		it("stamps the click surface on the /install CTA so a public reader's banner click is told apart", () => {
+			const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: "reader-public" }));
+
+			const href = doc.querySelector("[data-test-extension-suggestion-cta]")?.getAttribute("href");
+			assert(href, "cta must have an href");
+			expect(new URL(href, "https://readplace.com").searchParams.get("utm_term")).toBe("reader-public");
 		});
 
 		it("labels the CTA 'See ways to save' as a small secondary button", () => {
-			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+			const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 			const cta = doc.querySelector("[data-test-extension-suggestion-cta]");
 			assert(cta, "cta must be rendered");
@@ -155,7 +164,7 @@ describe("renderExtensionSuggestionBanner", () => {
 		});
 
 		it("says why the full article is missing and what to use instead, with the CTA as its only link", () => {
-			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+			const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 			const message = doc.querySelector(
 				"[data-test-extension-suggestion-variant='not-installed']",
@@ -172,7 +181,7 @@ describe("renderExtensionSuggestionBanner", () => {
 		});
 
 		it("names every advertised content-capture surface — the browser extension and the iPhone app — and no other", () => {
-			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+			const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 			const message = doc.querySelector(
 				"[data-test-extension-suggestion-variant='not-installed']",
@@ -190,7 +199,7 @@ describe("renderExtensionSuggestionBanner", () => {
 	describe("when the extension IS installed", () => {
 		it("renders the re-save variant marker", () => {
 			const doc = parse(
-				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
+				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true, clickSurface: undefined }),
 			);
 
 			const message = doc.querySelector(
@@ -204,7 +213,7 @@ describe("renderExtensionSuggestionBanner", () => {
 
 		it("renders the installed variant, which has no install CTA button (the user already has it)", () => {
 			const doc = parse(
-				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
+				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true, clickSurface: undefined }),
 			);
 
 			const banner = doc.querySelector(
@@ -225,7 +234,7 @@ describe("renderExtensionSuggestionBanner", () => {
 
 		it("tells the reader to save again using the extension", () => {
 			const doc = parse(
-				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
+				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true, clickSurface: undefined }),
 			);
 
 			const message = doc.querySelector(

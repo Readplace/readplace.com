@@ -56,7 +56,7 @@
             <div class="form-input form-input--within"><div class="form-input__control" data-card-element></div></div>
             <p class="form-field__error" data-card-error role="alert"></p>
             <div class="account-cards__elements-actions">
-              <button type="button" class="btn btn--primary" data-card-submit><span class="account__action-label">Save card</span>{{{actionLoaderHtml}}}</button>
+              <button type="button" class="btn btn--primary" data-card-submit data-card-confirm-url="{{cardSection.confirmUrl}}"><span class="account__action-label">Save card</span>{{{actionLoaderHtml}}}</button>
               <a class="btn btn--secondary" href="{{track '/account' source='account' content='cancel-add-card'}}" data-card-cancel>Cancel</a>
             </div>
           </div>

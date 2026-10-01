@@ -43,7 +43,7 @@
             maxlength="{{maxLength}}"
             autocomplete="off"
             aria-describedby="{{id}}-hint {{id}}-error"
-            {{#if liveCheckPath}}hx-get="{{liveCheckPath}}" hx-trigger="input changed delay:300ms" hx-target="#{{id}}-error" hx-swap="textContent" hx-sync="this:replace"{{/if}}
+            {{#if liveCheckPath}}data-background-request hx-get="{{liveCheckPath}}" hx-trigger="input changed delay:300ms" hx-target="#{{id}}-error" hx-swap="textContent" hx-sync="this:replace"{{/if}}
             {{#if required}}required{{/if}}
             {{#if error}}aria-invalid="true"{{/if}}>
           {{/if}}

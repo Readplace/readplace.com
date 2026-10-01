@@ -109,14 +109,14 @@ describe("GMail Newsletters discovery status", () => {
 		const vm = toGmailPageViewModel(input({ discoveredSenders: [], discovery: { state: "idle", mode: "profile", checkedMessageCount: 0 } }));
 		assert.equal(vm.chooser.statusLead, "Load senders from your Gmail account to choose one.");
 		assert.equal(vm.chooser.checkedLabel, undefined);
-		assert.equal(vm.autoDiscover, true);
+		assert.equal(vm.autoDiscoverAction, "/integrations/gmail/discovery/start");
 	});
 
 	it("reports progress from zero while a requested discovery has not started yet", () => {
 		const vm = toGmailPageViewModel(input({ discoveredSenders: [], discovery: { state: "idle", mode: "profile", checkedMessageCount: 0 }, discoveryStarted: true }));
 		assert.equal(`${vm.chooser.statusLead}${vm.chooser.checkedLabel}`, "Checking… Checked 0 messages");
 		assert.equal(vm.chooser.loadButtonLabel, "Checking…");
-		assert.equal(vm.autoDiscover, false);
+		assert.equal(vm.autoDiscoverAction, undefined);
 	});
 
 	it("keeps cached choices usable when discovery fails", () => {

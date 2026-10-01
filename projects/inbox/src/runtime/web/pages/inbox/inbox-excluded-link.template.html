@@ -1,4 +1,4 @@
-<div class="inbox-excluded-link" id="{{domId}}" data-test-inbox-excluded-link="{{ordinal}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
+<div class="inbox-excluded-link" id="{{domId}}" data-test-inbox-excluded-link="{{ordinal}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
             <div class="inbox-excluded-link__info">
               <span class="inbox-excluded-link__url" data-test-inbox-excluded-url>{{url}}</span>
               <span class="inbox-excluded-link__reason" data-test-inbox-excluded-reason>{{reasonLabel}}</span>

@@ -139,7 +139,7 @@ export interface GmailPageViewModel {
 	showReconnect: boolean;
 	showMetadataReconnect: boolean;
 	commitVariant: "primary" | "neutral";
-	autoDiscover: boolean;
+	autoDiscoverAction: string | undefined;
 	search: string;
 	searchFields: FormField[];
 	selectedSender: string | undefined;
@@ -356,8 +356,8 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	});
 	const discovering = input.discoveryPending || input.discovery.state === "running" || (input.discoveryStarted && input.discovery.state === "idle");
 	const polling = discovering && input.pollCount < GMAIL_DISCOVERY_MAX_POLLS;
-	const poll = new URL(GMAIL_SENDERS_PATH, "https://readplace.com");
-	for (const field of gmailGetFields(pickerState, "load-senders")) poll.searchParams.set(field.name, field.value);
+	const poll = new URL(buildGmailUrl({ ...pickerState, discovery: "started" }), "https://readplace.com");
+	poll.pathname = GMAIL_SENDERS_PATH;
 	poll.searchParams.set("poll", String(input.pollCount + 1));
 	const status = discoveryStatus(input, discovering);
 	const showStep = pollState !== undefined && input.gatewayLive;
@@ -381,7 +381,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		showReconnect: revoked,
 		showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
 		commitVariant,
-		autoDiscover: !input.discoveryStarted,
+		autoDiscoverAction: input.discoveryStarted ? undefined : GMAIL_DISCOVERY_START_PATH,
 		search: pickerState.search ?? "",
 		searchFields: gmailGetFields(pickerState, "search-senders").filter((field) => field.name !== "search" && field.name !== "discovery_after"),
 		selectedSender: selectedCandidate?.email,

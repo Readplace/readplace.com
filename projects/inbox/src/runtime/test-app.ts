@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import type { Express } from "express";
 import request from "supertest";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import type { AnalyticsEvent } from "@packages/web-analytics";
 import type {
 	AuthBundle,
 	RunningServer,
@@ -13,8 +14,14 @@ import { useTestServer as useServerForFixture } from "@packages/web-test-harness
 import { initResolveLogin, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createInboxApp } from "./app";
 
+export interface AnalyticsBundle {
+	logger: HutchLogger.Typed<AnalyticsEvent>;
+	events: AnalyticsEvent[];
+}
+
 export interface TestAppResult {
 	app: Express;
+	analytics: AnalyticsBundle;
 	auth: AuthBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
 	submittedLinks: Array<{ userId: string; url: string; readlist: string }>;
@@ -40,6 +47,19 @@ export function createInboxTestApp(
 		}),
 	});
 	const submittedLinks: Array<{ userId: string; url: string; readlist: string }> = [];
+	const analyticsEvents: AnalyticsEvent[] = [];
+	const captureAnalytics = (event: AnalyticsEvent) => {
+		analyticsEvents.push(event);
+	};
+	const analytics: AnalyticsBundle = {
+		logger: {
+			info: captureAnalytics,
+			error: captureAnalytics,
+			warn: captureAnalytics,
+			debug: captureAnalytics,
+		},
+		events: analyticsEvents,
+	};
 	const app = createInboxApp(
 		{
 			inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain,
@@ -63,10 +83,17 @@ export function createInboxTestApp(
 			},
 			logError: fixture.shared.logError,
 			now: fixture.shared.now,
+			analyticsLogger: analytics.logger,
+			salt: "test-analytics-salt",
+			generateVisitorId: () => "00000000-0000-4000-8000-000000000000",
+			secureCookies: false,
+			ownHost: new URL(fixture.shared.appOrigin).hostname,
+			edgeSecret: "test-edge-secret",
 		},
 	);
 	return {
 		app,
+		analytics,
 		auth: fixture.auth,
 		subscriptionProviders: fixture.subscriptionProviders,
 		submittedLinks,

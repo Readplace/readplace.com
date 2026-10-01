@@ -508,6 +508,9 @@ describe("Readlist routes", () => {
 			expect(
 				topForm?.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
 			).toBe("unread");
+			expect(topForm?.getAttribute("action")).toBe(
+				`/queue/${articleId}/status?utm_source=reader&utm_medium=internal&utm_content=mark-unread-top`,
+			);
 		});
 
 		it("redirects the legacy /queue/:id/read URL to /queue/:id/view with a 301 so old bookmarks, shares and Siren read links keep resolving", async () => {

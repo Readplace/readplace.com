@@ -87,7 +87,7 @@ export function createBlogApp(
 	);
 
 	const base = initBase(config);
-	const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret });
+	const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: deps.ownHost });
 
 	app.use(contentSignalMiddleware);
 	app.use("/blog", initBlogRoutes({ blogPosts, base, resolveLogin: deps.resolveLogin }));

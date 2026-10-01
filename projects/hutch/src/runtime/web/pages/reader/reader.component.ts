@@ -142,7 +142,7 @@ export function ReaderPage(
 	const markReadActions: MarkReadAction[] = [
 		{
 			position: "top",
-			postUrl: markReadPostUrl({ articleId, utmContent: "mark-read-top" }),
+			postUrl: markReadPostUrl({ articleId, utmContent: isRead ? "mark-unread-top" : "mark-read-top" }),
 			label: markReadLabel,
 			shortLabel: markReadShortLabel,
 			iconName: markReadIcon,

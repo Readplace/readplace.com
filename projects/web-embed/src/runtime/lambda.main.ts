@@ -1,11 +1,12 @@
+import { randomUUID } from "node:crypto";
 import type { Handler } from "aws-lambda";
-import express from "express";
 import serverless from "serverless-http";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initBase, GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import { initGetSessionUserId, initResolveLogin } from "@packages/web-session";
-import { initEmbedRoutes } from "./embed/embed.page";
+import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
+import { createEmbedApp } from "./app";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 const appOrigin = requireEnv("APP_ORIGIN");
@@ -24,8 +25,17 @@ const getSessionUserId = initGetSessionUserId({
 });
 const resolveLogin = initResolveLogin({ getSessionUserId, logger });
 
-const app = express();
-app.disable("x-powered-by");
-app.use("/embed", initEmbedRoutes({ appOrigin, base, resolveLogin }));
+const app = createEmbedApp({
+	appOrigin,
+	base,
+	resolveLogin,
+	analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+	salt: requireEnv("ANALYTICS_SALT"),
+	now: () => new Date(),
+	generateVisitorId: randomUUID,
+	secureCookies: isHttpsOrigin(appOrigin),
+	ownHost: new URL(appOrigin).hostname,
+	edgeSecret: requireEnv("SSR_EDGE_SECRET"),
+});
 
 export const handler: Handler = serverless(app);
