@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { readdirSync } from "node:fs";
+import { basename, join } from "node:path";
 import express from "express";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import {
@@ -337,6 +340,63 @@ describe("old hutch-vs-* slug redirects", () => {
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/why-readplace-exists");
 	});
+
+	it("should 301 redirect the deleted pdf-ocr-pipeline post to the post that replaced it", async () => {
+		const response = await request(app).get("/blog/pdf-ocr-pipeline-tesseract-llm-hybrid");
+		expect(response.status).toBe(301);
+		expect(response.headers.location).toBe("/blog/readplace-now-reads-scans-in-15-languages");
+	});
+
+	it("should 301 redirect the truncated karakeep slug to the full one", async () => {
+		const response = await request(app).get("/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it");
+		expect(response.status).toBe(301);
+		expect(response.headers.location).toBe("/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later");
+	});
+});
+
+const SOURCE_POSTS_DIR = join(__dirname, "..", "..", "..", "..", "..", "src", "runtime", "web", "pages", "blog", "posts");
+
+const SLUGS_REMOVED_WITHOUT_A_SUCCESSOR = new Set(["read-a-short-article-without-signing-in"]);
+
+function gitLinesInPostsDir(args: string[]): string[] {
+	return execFileSync("git", args, { cwd: SOURCE_POSTS_DIR, encoding: "utf-8" }).split("\n").filter(Boolean);
+}
+
+const isShallowClone = gitLinesInPostsDir(["rev-parse", "--is-shallow-repository"])[0] === "true";
+
+function postSlugsRemovedFromGitHistory(): string[] {
+	const onDisk = new Set(readdirSync(SOURCE_POSTS_DIR).filter((file) => file.endsWith(".md")));
+	const everTracked = new Set(
+		gitLinesInPostsDir(["log", "--no-renames", "--name-only", "--format=", "--", "."])
+			.filter((path) => path.endsWith(".md"))
+			.map((path) => basename(path)),
+	);
+	return [...everTracked].filter((file) => !onDisk.has(file)).map((file) => file.replace(/\.md$/, ""));
+}
+
+describe("slugs removed from the posts directory", () => {
+	(isShallowClone ? it.skip : it)(
+		"301 to a live post, unless the slug was removed without a successor",
+		async () => {
+			const removed = postSlugsRemovedFromGitHistory();
+			expect(removed).toContain("why-i-built-readplace");
+
+			for (const slug of removed) {
+				const response = await request(app).get(`/blog/${slug}`);
+				if (SLUGS_REMOVED_WITHOUT_A_SUCCESSOR.has(slug)) {
+					expect({ slug, status: response.status }).toEqual({ slug, status: 404 });
+					continue;
+				}
+				expect({ slug, status: response.status }).toEqual({ slug, status: 301 });
+				const target = await request(app).get(response.headers.location);
+				expect({ slug, target: response.headers.location, status: target.status }).toEqual({
+					slug,
+					target: response.headers.location,
+					status: 200,
+				});
+			}
+		},
+	);
 });
 
 describe("GET /blog/sitemap.xml", () => {

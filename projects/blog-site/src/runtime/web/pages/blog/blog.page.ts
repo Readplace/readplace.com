@@ -63,6 +63,8 @@ const SLUG_REDIRECTS: Record<string, string> = {
 	"hutch-vs-karakeep-hosted-vs-self-hosted-read-it-later": "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later",
 	"save-newsletter-links-to-your-queue": "save-newsletter-links-to-your-readlist",
 	"why-i-built-readplace": "why-readplace-exists",
+	"pdf-ocr-pipeline-tesseract-llm-hybrid": "readplace-now-reads-scans-in-15-languages",
+	"readplace-vs-karakeep-hosted-vs-self-hosted-read-it": "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later",
 };
 
 const BLOG_POST_PRIORITY: Record<string, string> = {
