@@ -295,8 +295,14 @@ async function expandedSettled(page: Page): Promise<void> {
 	await setCardOpen(page, true);
 }
 
+async function betaTagIsBadgeSize(page: Page): Promise<void> {
+	const beta = await measuredBox(page, "[data-test-past-reads-beta]");
+	assert.ok(Math.abs(beta.height - 22) <= 0.5, `the Beta tag must be 22px high, measured ${beta.height}px`);
+}
+
 async function cardCollapsed(page: Page): Promise<void> {
 	await sectionBetweenSummaryAndBody(page);
+	await betaTagIsBadgeSize(page);
 	assert.equal(await page.locator(CARD).getAttribute("open"), null, "the card starts collapsed");
 
 	const summaryBackground = await page
@@ -347,6 +353,7 @@ async function cardCollapsed(page: Page): Promise<void> {
 
 async function cardExpanded(page: Page): Promise<void> {
 	assert.equal(await page.locator(CARD).getAttribute("open"), "", "the card is open");
+	await betaTagIsBadgeSize(page);
 	await expect(page.locator(PREVIEW)).toBeHidden();
 	await rowsCompactAndPlain(page);
 

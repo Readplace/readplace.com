@@ -16,13 +16,13 @@
   <p class="readlist-subscription__note">Cancel anytime.</p>
   {{/if}}
   {{#if isCancellationScheduled}}
-  <span class="readlist-subscription__chip readlist-subscription__chip--warning">Ends <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time></span>
+  <span class="chip chip--status chip--error" data-test-subscription-chip="cancellation-scheduled"><span>Ends <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time></span></span>
   <h2 class="readlist-subscription__title">Your subscription is ending soon</h2>
   <p class="readlist-subscription__body" data-test-banner-message>Your subscription will end on <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time>. You'll keep full access until then.</p>
   <a class="btn btn--primary readlist-subscription__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate Subscription</a>
   {{/if}}
   {{#if isInactive}}
-  <span class="readlist-subscription__chip readlist-subscription__chip--error">Subscription inactive</span>
+  <span class="chip chip--status chip--error" data-test-subscription-chip="inactive">Subscription inactive</span>
   <h2 class="readlist-subscription__title">Your subscription has ended</h2>
   <p class="readlist-subscription__body" data-test-banner-message>Your saved articles are still here. Subscribe again to regain full access to Readplace.</p>
   <button class="btn btn--primary readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>

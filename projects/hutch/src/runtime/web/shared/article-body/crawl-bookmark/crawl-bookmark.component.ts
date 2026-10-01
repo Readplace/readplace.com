@@ -12,12 +12,18 @@ export const CRAWL_BOOKMARK_SCRIPT = `<script src="/client-dist/crawl-bookmark.c
 
 /** Owner-only removal controls for the reader bookmark. Present only on the
  * authenticated owner reader (never the public `/view` or the iOS WKWebView),
- * so a viewer with no removal rights sees no "me" badges and no remove forms.
+ * so a viewer with no removal rights sees no "Me" badges and no remove forms.
  * `authoredMinuteIds` names the version snapshots this viewer authored — matched
  * against each tab's minute id (`LocalTime.iso`) to decide the per-tab controls. */
 export interface CrawlBookmarkRemoval {
 	authoredMinuteIds: string[];
 	removeVersionUrl: string;
+}
+
+interface CrawlBookmarkBadge {
+	key: "state" | "me";
+	label: "Current" | "Best" | "Me";
+	className: string;
 }
 
 interface CrawlBookmarkTab {
@@ -26,11 +32,12 @@ interface CrawlBookmarkTab {
 	iso: string;
 	mode: LocalTimeMode;
 	label: string;
-	badgeLabel: "current" | "best" | "";
+	badges: CrawlBookmarkBadge[];
 	ariaDisabled: "true" | "false";
-	authoredByViewer: boolean;
 	removeVersion?: { url: string; minuteId: string };
 }
+
+const ME_BADGE: CrawlBookmarkBadge = { key: "me", label: "Me", className: "chip chip--badge" };
 
 export function renderCrawlBookmark(input: {
 	versions: LocalTime[];
@@ -38,7 +45,11 @@ export function renderCrawlBookmark(input: {
 }): string {
 	if (input.versions.length === 0) return "";
 	const { removal } = input;
-	const newestBadge = input.versions.length > 1 ? "best" : "current";
+	const stateBadge: CrawlBookmarkBadge = {
+		key: "state",
+		label: input.versions.length > 1 ? "Best" : "Current",
+		className: "chip chip--badge chip--accent",
+	};
 	const tabs: CrawlBookmarkTab[] = input.versions.map((version, index) => {
 		const authoredByViewer =
 			removal?.authoredMinuteIds.includes(version.iso) ?? false;
@@ -48,9 +59,8 @@ export function renderCrawlBookmark(input: {
 			iso: version.iso,
 			mode: version.mode,
 			label: version.label,
-			badgeLabel: index === 0 ? newestBadge : "",
+			badges: [...(index === 0 ? [stateBadge] : []), ...(authoredByViewer ? [ME_BADGE] : [])],
 			ariaDisabled: index === 0 ? "false" : "true",
-			authoredByViewer,
 		};
 		return authoredByViewer && removal !== undefined
 			? { ...base, removeVersion: { url: removal.removeVersionUrl, minuteId: version.iso } }

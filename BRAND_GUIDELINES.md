@@ -118,7 +118,7 @@ A card differs from the `--muted` ground by only ~1.1:1, so a card always carrie
 | Role | Light | Dark | CSS variable | Usage |
 |---|---|---|---|---|
 | **Error mark** | `#C45C5C` | `#D46B6B` | `--color-error` | Border of an errored field or an error notice; a red icon that needs only 3:1. Never words, never a fill (white on it is 4.17:1 light, 3.43:1 dark) |
-| **Error ink** | `hsl(0 43% 48%)` `#AF4646` | `hsl(0 43% 68%)` | `--error-text` | Error words: a field message or a status chip's label (5.54:1 on white, 4.62:1 on the light tint, 5.82:1 on the dark card, 5.46:1 on the dark tint). Flips *lighter* in dark, so it is never a fill |
+| **Error ink** | `hsl(0 43% 48%)` `#AF4646` | `hsl(0 43% 68%)` | `--error-text` | Error words: a field message (5.54:1 on white, 4.62:1 on the light tint, 5.82:1 on the dark card, 5.46:1 on the dark tint). Flips *lighter* in dark, so it is never a fill |
 | **Error tint** | `#F6E7E7` | `#3A2020` | `--error-bg` | Ground of an error notice or error chip |
 | **Error fill** | `hsl(0 43% 52%)` (pressed `hsl(0 43% 44%)`) | same (pinned) | `--error-fill`, `--error-fill-hover`, `--error-foreground` | The hover and pressed fills of a standalone destructive outline button. Pinned in both themes like `--primary-fill`; carries `--error-foreground` at 4.85:1 (6.34:1 when pressed) |
 | **Success mark / ink** | `#3D8B6E` / `hsl(158 39% 35%)` | `#4A9F7F` | `--color-success`, `--success-text`, `--success-foreground` | `--color-success` fills a shape whose mark needs 3:1 (a progress bar, a completed step's disc); `--success-text` is success words and a check beside words (4.98:1 on white); `--success-foreground` (white) is a mark on a `--success` fill |
@@ -128,7 +128,7 @@ A card differs from the `--muted` ground by only ~1.1:1, so a card always carrie
 | **Info mark** | `#4A7FB5` | `#6B9BD1` | `--color-info` | A wordless informational mark: an icon or a notice's border. Marks only — 4.20:1 on white and 3.63:1 on its tint, too close to the floor for words |
 | **Info tint** | `#E8EFF7` | `#1B2836` | `--info-bg` | Ground of an informational notice |
 
-Every tint is opaque, so a pair measures the same on a card and on the canvas: red words (`--error-text`) on `--error-bg` are 4.62:1 light and 5.46:1 dark wherever the notice sits. `--color-error` stays a mark; the error ink was darkened from 50% to 48% lightness so an error chip clears 4.5:1 on the opaque tint.
+Every tint is opaque, so a pair measures the same on a card and on the canvas: red words (`--error-text`) on `--error-bg` are 4.62:1 light and 5.46:1 dark wherever the notice sits. `--color-error` stays a mark; the error ink was darkened from 50% to 48% lightness.
 
 ### Colour Rules
 
@@ -136,7 +136,7 @@ Every tint is opaque, so a pair measures the same on a card and on the canvas: r
 - **Never use Pocket red**, Readwise yellow, or neon/high-saturation accents. The one saturated hue is the identity `--color-avatar`.
 - **A fill that carries a label is pinned; ink on the page follows the page.** A filled control carries its own label, so its fill must not move when the page darkens: `--primary`, `--primary-hover`, `--primary-fill`, `--error-fill`, `--error-fill-hover`, `--announcement-bg` and the navy `--color-secondary` hold one value in both themes, and so do the inks on them (`--primary-foreground`, `--error-foreground`, `--secondary-foreground`, `--color-on-brand`, `--announcement-link`). A word or mark painted straight onto a surface needs the opposite — lighter as the page darkens — so every hue has a page-following ink token: `--primary-text`, `--primary-text-on-tint`, `--error-text`, `--success-text`, `--color-secondary-text`. Never paint words or icons with a pinned fill token, and never fill a labelled control with an ink token (it would invert in dark). Tints (`--secondary` and its hover and pressed steps, `--error-bg`, `--warning-bg`, `--success-bg`, `--info-bg`) and surfaces follow the page.
 - **Dark mode is not an inversion.** Colours adapt to slightly warmer, lighter variants — it doesn't simply flip to white-on-black. Test every pairing against both backgrounds and against the surface actually behind the ink (a translucent tint composited onto its ground).
-- **Amber ink on the amber tint is `--primary-text-on-tint`.** Any amber-tinted ground carrying amber words or an amber icon (a secondary button, a selected navigation row, a badge) fills with `--secondary` and paints its amber with `--primary-text-on-tint` (6.06:1 light, 6.33:1 dark at rest). `--primary-text` on the tint is 4.13:1 — under the floor — so it never sits there. A tint whose content is neutral ink (the offline bar, a warning notice) takes `--foreground`.
+- **Amber ink on the amber tint is `--primary-text-on-tint`.** Any amber-tinted ground carrying amber words or an amber icon (a secondary button, a selected navigation row, a badge) fills with `--secondary` and paints its amber with `--primary-text-on-tint` (6.06:1 light, 6.33:1 dark at rest). `--primary-text` on the tint is 4.13:1 — under the floor — so it never sits there. A tint whose content is neutral ink (the offline bar, a warning notice) takes `--foreground`. An accent tag keeps `--foreground` ink; an accent badge's amber label uses `--primary-text-on-tint`, never `--color-brand` (2.95:1) or `--primary-text` (4.13:1).
 - **Navy words or icons on a surface use `--color-secondary-text`** (`#2B3A55` / `#8FA3C8`). `--color-secondary` is a pinned navy *fill*; on the dark card it measures 1.39:1.
 - **Announcement bars are near-black `--announcement-bg` (`#1A202C`), not navy.** Navy stays the hero and the logo tile; a bar above the header is the announcement fill with white words and an `--announcement-link` link (see [Web App](#web-app)).
 - **State colour is one vocabulary.** Unread and to-do are amber (an 8px CSS dot in `--primary-text`). Done is green (a check in `--success-text` beside words, or a white check on a `--success` fill where the state is a shape). Work in flight is amber ink (a spinning loader or pulsing dot) — but a progress *bar* is always the one green pair (see [Progress and Steppers](#progress-and-steppers)), whether its work is running or done. The current step of a sequence is neutral `--foreground`. A done item's title dims to `--muted-foreground`. Red and green keep their error/success meaning everywhere except a [metadata row's](#lists) fixed per-fact tint.
@@ -198,7 +198,9 @@ Panels, cards, lists and dialogs have **no display type**. Product text takes on
 | Field label | `--text-sm` | 500 | `--foreground` |
 | Field error | `--text-xs` | 500 | `--error-text` |
 | Pagination | `--text-md` | 500 info and numbers · 400 Previous/Next · 600 current | `--ink-pagination`; the current page `--foreground` |
-| Chip | `--text-xs` | 500 | per chip |
+| Chip · badge | `--text-xs` | 500 | per [tone](#chips-tags-and-badges) |
+| Large tag | `--text-sm` | 500 | per [tone](#chips-tags-and-badges) |
+| Status chip | `--text-xs` | 600 | `--foreground` |
 | Figure (stat tile) | `--text-lg` | 700, tabular | `--foreground` |
 
 **13px, 15px and 17px are off the scale.** The designed components (list rows, empty states, tabs, dialogs, menus, alerts, the rail) move onto these roles one component at a time; where a section below still quotes 13, 15 or 17px, or an ink or weight the tables here replace, that is the component's value today, and the next change to that component moves it to its role here. Stylesheets for pages with no design already name the tokens, with no 13/15/17px literal.
@@ -219,7 +221,7 @@ Buttons and inputs take their sizes from their own tokens (see [Buttons](#button
 ### Typography Rules
 
 - **Product headings are sans; the serif is the display voice.** Every heading in the product's working area — panel and card titles, rail headings, list headers, empty states, alerts, dialog titles — uses `var(--font-sans)` at weight 600 in `--foreground`. This covers **every page a reader operates**, signed-in pages and logged-out tools (import, login) alike. `var(--font-serif)` is the display voice: the wordmark, the reader view's article title, and display headings on editorial and marketing pages (home, landing pages, blog). A saved article's title or an email subject shown in a list is sans, like the rest of the list. Declare the font on the heading's own selector so the choice is explicit, not inherited — a heading that inherits the body sans is a drift, not a choice, and the serif stack must never be inlined (one source of truth, like colours).
-- **Weight carries hierarchy.** Inter is loaded at 400–700, and each weight has one job. **400** is prose, excerpts, metadata, neutral labels, and an inactive line tab. **500** is navigation a reader moves through (header, rail and menu rows), field labels and chips. **600** is headings, titles, counts, button labels, announcement bars, and the open tab or current page number. **700** is stand-alone figures, the wordmark and avatar initials. Never set **800** — Inter is not loaded at that weight. Where a weight step does the job, do not reach for a bigger size.
+- **Weight carries hierarchy.** Inter is loaded at 400–700, and each weight has one job. **400** is prose, excerpts, metadata, neutral labels, and an inactive line tab. **500** is navigation a reader moves through (header, rail and menu rows), field labels, tags and badges. **600** is headings, titles, counts, button labels, announcement bars, status chips, and the open tab or current page number. **700** is stand-alone figures, the wordmark and avatar initials. Never set **800** — Inter is not loaded at that weight. Where a weight step does the job, do not reach for a bigger size.
 - **Sizes are fixed per role at every width.** A phone gets the same sizes as a desktop and the layout reflows; there is no phone step-down (the design explorations' 18→14, 16→14 and 14→12 steps are not built).
 - **A heading brings its own lede.** A panel title (16px/600, `--foreground`) is followed 2–8px below by a lede one or two steps smaller (13–14px/400, `--muted-foreground`). Empty states use 17px over 14px. An alert's title and message are 14px/600 over 14px/400, both `--foreground`; a dialog body uses 14px/400 `--muted-foreground`.
 - **A page with persistent navigation names its place through that navigation, not a display title.** Where a rail or tab selection already shows where the reader is, the page renders no visible `h1`: the document `<title>` names the place (`All — Readplace`), and each panel's own `h2` starts the outline.
@@ -348,7 +350,7 @@ Sizes come by role, not by importance:
 
 The kit's XL (56px) is not built: no screen draws it, and unused CSS fails the purge check. `.btn--field`, `.btn--compact` and `.btn--toggle` are retired.
 
-**Tap-target floor is tiered.** Every `.btn` has a ≥44px hit area: L is 48px tall, and M and S stretch a transparent `::before` above and below the box, so the button stays visually small while its target does not. A tab's 40px box reaches 44px through its `::before` hit area, as the M button does; a navigation row and menu item are ≥44px tall. A compact control *inside a list* (an overflow toggle, a page number, Previous/Next) is ≥36px square — the one relaxation of the 44px floor, and it still clears WCAG 2.5.8's 24px. A dialog or banner close is the `x` icon in a ≥44px hit box. Nothing interactive is smaller on any viewport.
+**Tap-target floor is tiered.** Every `.btn` has a ≥44px hit area: L is 48px tall, and M and S stretch a transparent `::before` above and below the box, so the button stays visually small while its target does not. A tab's 40px box reaches 44px through its `::before` hit area, as the M button does; a navigation row and menu item are ≥44px tall. A compact control *inside a list* (an overflow toggle, a page number, Previous/Next) or a removable tag's × is ≥36px square — the one relaxation of the 44px floor, and it still clears WCAG 2.5.8's 24px. A dialog or banner close is the `x` icon in a ≥44px hit box. Nothing interactive is smaller on any viewport.
 
 #### Hover and active
 
@@ -398,7 +400,7 @@ Amber at rest is kept for calls to action, links in prose, and the active sideba
 
 Every card follows `--radius-lg` to 16px. Menus and rail rows move onto the values above in their own passes, and until then their sections below quote the token they read today.
 
-**Pills are for chips and progress bars only.** A chip (a status badge, a filter chip) and a progress bar are pills (`--radius-pill`). Anything else you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards — stays on the radius tokens. This isn't a social app. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots, step markers and radio rings. A checkbox's 5px corner is glyph geometry, not a radius token.
+**Pills are for chips and progress bars only.** A chip (status chips, tags and badges, all non-interactive labels) and a progress bar are pills (`--radius-pill`). A tag that can be removed stays a non-interactive pill; its remove × is a separate icon-only button inside it (`--radius-sm` hover square, ≥36px square target, sr-only "Remove from {name}"), and the pill itself is never the click target. Anything else you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards — stays on the radius tokens. This isn't a social app. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots, step markers and radio rings. A checkbox's 5px corner is glyph geometry, not a radius token.
 
 A card laid out in a grid is a fully-enclosed box — `1px solid var(--border)` plus a `--radius*` corner. A vertical divided list lives *inside* one enclosed card (see [Lists](#lists)); its hairlines never run bare on the page ground. Reserve a bottom-border-only separator for a divided list, never a grid tile, which reads as half-drawn beside its neighbours.
 
@@ -510,7 +512,28 @@ An alert stays in its page column until the reader resolves or leaves the state.
 
 An alert may have a title and message, a title alone, or a message alone. Page headings can be `h1` or `h2` inside the alert while keeping the 14px title role. A rich message may contain a link, list, countdown or facts built from escaped server-rendered markup. Links inherit `--foreground`, carry a 1px underline with 3px offset, thicken on hover and use the shared focus ring. Amber link ink falls below 4.5:1 on the light tints. A hidden readlist alert slot has no live-region role. A field error reddens the input's border and sets the message beneath it in `--error-text` (values in [Form Inputs](#form-inputs)).
 
-A **status chip** carries its state's triad (e.g. `--error-bg` fill, `--error-text` label, 1px `--color-error` border) at 12px/600, as a [pill](#border-radius). `--error-text` is the red for wording, `--color-error` the red for strokes; neither is a fill.
+A **status chip** carries its state's tint fill, a 1px mark border (`--color-error`) and a `--foreground` label at 12px/600, as a [pill](#border-radius): red belongs to the frame, the words stay neutral. `--color-error` is the red for strokes, never a fill.
+
+### Chips, tags and badges
+
+> **Source of truth:** `CHIP_STYLES` in `@packages/web-shell`, injected into every `<head>`. A page stylesheet adds layout only (a margin, its place in a row), never fill, ink, border, type or radius.
+
+One pill family: a 1px border, `--radius-pill`, a declared 1.25 line box, and 8px between a label and an icon. Height is a `min-height`, so a one-line chip lands exactly on its size and a long name wraps readably.
+
+| Class | Height | Type | Wraps? | Used for |
+|---|---|---|---|---|
+| `.chip` | 26px | 12px/500 | yes | a tag in a list row or card, the setup guide's progress chip |
+| `.chip--badge` | 22px | 12px/500 | no | a short bounded label ("Current", "Me", "Beta") |
+| `.chip--large` | 34px | 14px/500 | yes | the reader's tags, including the removable readlist tag |
+| `.chip--status` | 34px | 12px/600 | no | a [status chip](#alerts-and-status) |
+
+| Tone | Class | Fill / border / ink |
+|---|---|---|
+| Neutral | (default) | `--muted` / `--border` / `--foreground` |
+| Accent | `.chip--accent` | `--color-brand-light` / `--color-brand` / `--foreground`; an accent **badge** paints its label `--primary-text-on-tint` |
+| Error | `.chip--error` | `--error-bg` / `--color-error` / `--foreground` |
+
+Labels are sentence case ("Current", "Me"). A name the reader typed wraps inside its pill; a bounded label never wraps. A **removable tag** is a non-interactive `.chip--large` pill holding a POST form whose icon-only `.chip__remove` button draws the 16px × 8px after the label and 12px before the pill edge. The × rests transparent, hovers to a `--card` square, and its focus ring is drawn inset on that `--card` square, because the outset ring on the amber tint falls under 3:1. Its hit area covers the pill's trailing edge and full height (36×36) and stops at the label.
 
 ### Toasts
 

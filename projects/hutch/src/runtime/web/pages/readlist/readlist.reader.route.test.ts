@@ -187,7 +187,7 @@ describe("Readlist routes", () => {
 			assert(tab, "the canonical bookmark tab must render once contentFetchedAt exists");
 			expect(tab.classList.contains("crawl-bookmark__tab--current")).toBe(true);
 			expect(tab.getAttribute("aria-disabled")).toBe("false");
-			expect(tab.querySelector(".crawl-bookmark__badge")?.textContent).toBe("current");
+			expect(tab.querySelector('[data-test-crawl-bookmark-badge="state"]')?.textContent).toBe("Current");
 			const time = tab.querySelector("time");
 			assert(time, "the bookmark tab must carry a <time> for the crawl instant");
 			expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
@@ -209,12 +209,16 @@ describe("Readlist routes", () => {
 				versionedDoc.querySelectorAll("[data-test-crawl-bookmark-tab]"),
 			).map((el) => el.getAttribute("data-test-crawl-bookmark-tab"));
 			expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
-			expect(versionedDoc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
+			expect(
+				Array.from(versionedDoc.querySelectorAll("[data-test-crawl-bookmark-badge]")).map(
+					(badge) => badge.textContent,
+				),
+			).toEqual(["Best"]);
 			expect(
 				versionedDoc
-					.querySelector('[data-test-crawl-bookmark-tab="canonical"] .crawl-bookmark__badge')
+					.querySelector('[data-test-crawl-bookmark-tab="canonical"] [data-test-crawl-bookmark-badge="state"]')
 					?.textContent,
-			).toBe("best");
+			).toBe("Best");
 			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
 				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
 				assert(disabled, `version tab ${key} must render`);
@@ -1646,11 +1650,11 @@ describe("Readlist routes", () => {
 
 			const authoredTab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
 			assert(authoredTab, "the canonical tab must render");
-			const badges = Array.from(authoredTab.querySelectorAll(".crawl-bookmark__badge")).map(
+			const badges = Array.from(authoredTab.querySelectorAll("[data-test-crawl-bookmark-badge]")).map(
 				(badge) => badge.textContent,
 			);
-			// Two seeded versions → the newest tab's state badge reads "best".
-			expect(badges).toEqual(["best", "me"]);
+			// Two seeded versions → the newest tab's state badge reads "Best".
+			expect(badges).toEqual(["Best", "Me"]);
 
 			expect(doc.querySelectorAll("form.crawl-bookmark__remove").length).toBe(1);
 			const removeVersionForm = authoredTab.querySelector("form.crawl-bookmark__remove");
@@ -1665,7 +1669,11 @@ describe("Readlist routes", () => {
 
 			const otherTab = doc.querySelector('[data-test-crawl-bookmark-tab="2026-06-28T22:01Z"]');
 			assert(otherTab, "the older version tab must render");
-			expect(otherTab.querySelector(".crawl-bookmark__badge--me")).toBeNull();
+			expect(
+				Array.from(otherTab.querySelectorAll("[data-test-crawl-bookmark-badge]")).map((badge) =>
+					badge.getAttribute("data-test-crawl-bookmark-badge"),
+				),
+			).toEqual([]);
 			expect(otherTab.querySelector("form.crawl-bookmark__remove")).toBeNull();
 		});
 
@@ -1678,7 +1686,7 @@ describe("Readlist routes", () => {
 				doc.body.classList.contains("page-reader--chromeless"),
 				"the iOS chromeless reader must render",
 			);
-			expect(doc.querySelectorAll(".crawl-bookmark__badge--me").length).toBe(0);
+			expect(doc.querySelectorAll('[data-test-crawl-bookmark-badge="me"]').length).toBe(0);
 			expect(doc.querySelectorAll("form.crawl-bookmark__remove").length).toBe(0);
 		});
 	});

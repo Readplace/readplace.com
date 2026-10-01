@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
 	BASE_CSS_VARIABLES,
 	BUTTON_STYLES,
+	CHIP_STYLES,
 	DARK_ONLY_BODY_CLASS,
 	EMAIL_FRAME_CANVAS,
 	FORM_CONTROL_STYLES,
@@ -311,5 +312,62 @@ describe("BUTTON_STYLES", () => {
 			declaredValue(ruleBody(BUTTON_STYLES, selector), "background"),
 		);
 		expect(new Set(fills).size).toBe(3);
+	});
+});
+
+describe("CHIP_STYLES", () => {
+	const SELECTORS = [
+		".chip",
+		".chip--badge",
+		".chip--large",
+		".chip--status",
+		".chip--accent",
+		".chip--badge.chip--accent",
+		".chip--error",
+		".chip__remove-form",
+		".chip__remove",
+		".chip__remove::before",
+		".chip__remove:hover",
+		".chip__remove:focus-visible",
+		".chip__remove svg",
+	];
+
+	it("styles the whole chip family: sizes, tones and the removable tag's control", () => {
+		for (const selector of SELECTORS) {
+			ruleBody(CHIP_STYLES, selector);
+		}
+	});
+
+	it("reads tokens only, so dark mode and the pill radius follow the theme", () => {
+		expect(CHIP_STYLES).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+		expect(CHIP_STYLES).not.toContain("999px");
+		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip"), "border-radius")).toBe("var(--radius-pill)");
+	});
+
+	it("declares its own line box, so a chip keeps its height whatever line-height its container sets", () => {
+		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip"), "line-height")).toBe("1.25");
+	});
+
+	it.each([
+		[".chip", "2px 8px", "26px"],
+		[".chip--badge", "1px 6px", "22px"],
+		[".chip--large", "4px 12px", "34px"],
+		[".chip--status", "4px 12px", "34px"],
+	])("sizes %s with %s padding to a %s minimum height", (selector, padding, minHeight) => {
+		const rule = ruleBody(CHIP_STYLES, selector);
+		expect(declaredValue(rule, "padding")).toBe(padding);
+		expect(declaredValue(rule, "min-height")).toBe(minHeight);
+	});
+
+	it("sets an accent badge's amber label in the ink that clears contrast on the tint", () => {
+		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip--badge.chip--accent"), "color")).toBe(
+			"var(--primary-text-on-tint)",
+		);
+	});
+
+	it("insets the remove control's focus ring, so it stays legible on the accent tint", () => {
+		const rule = ruleBody(CHIP_STYLES, ".chip__remove:focus-visible");
+		expect(declaredValue(rule, "outline")).toBe("2px solid var(--ring)");
+		expect(declaredValue(rule, "outline-offset")).toBe("-2px");
 	});
 });

@@ -382,59 +382,6 @@
   margin-right: 5px;
 }
 
-.article-body__readlist-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  padding: 2px 4px 2px 8px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--foreground);
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow-wrap: anywhere;
-}
-
-.article-body__readlist-tag-remove-form {
-  display: inline-flex;
-  margin: 0;
-}
-
-.article-body__readlist-tag-remove {
-  position: relative;
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  min-height: 24px;
-  padding: 4px;
-  color: var(--muted-foreground);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.article-body__readlist-tag-remove::before {
-  content: "";
-  position: absolute;
-  inset: -6px;
-}
-
-.article-body__readlist-tag-remove:hover {
-  background: var(--card);
-  color: var(--foreground);
-}
-
-.article-body__readlist-tag-remove svg {
-  width: 1rem;
-  height: 1rem;
-}
-
 .article-body__original-link {
   display: inline-block;
   margin-top: 0.5rem;

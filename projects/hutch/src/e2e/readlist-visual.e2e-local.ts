@@ -88,6 +88,7 @@ const TOAST = "[data-test-toast]";
 const SETUP_GUIDE_AVATAR = ".setup-guide__avatar";
 const ONBOARDING_PROGRESS = "[data-test-onboarding-progress]";
 const ONBOARDING_CHIP = "[data-test-onboarding-chip]";
+const SUBSCRIPTION_CHIP = "[data-test-subscription-chip]";
 const PAGE_READLIST = "body.page-readlist";
 
 const VOLATILE_CHROME = [
@@ -438,6 +439,19 @@ async function renameDialogPhoneGeometry(page: Page): Promise<void> {
 
 async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
 	await stackedDialogButtons(page, OPEN_DELETE_ARTICLE_POPOVER, DELETE_ARTICLE_NEVER, DELETE_ARTICLE_CONFIRM);
+}
+
+async function chipIsHigh(page: Page, selector: string, height: number): Promise<void> {
+	const chip = await measuredBox(page, selector);
+	assert.ok(near(chip.height, height), `${selector} must be ${height}px high, measured ${chip.height}px`);
+}
+
+async function subscriptionChipIsStatusSize(page: Page): Promise<void> {
+	await chipIsHigh(page, SUBSCRIPTION_CHIP, 34);
+}
+
+async function setupGuideChipIsTagSize(page: Page): Promise<void> {
+	await chipIsHigh(page, ONBOARDING_CHIP, 26);
 }
 
 async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
@@ -799,7 +813,10 @@ const SUBSCRIPTION_TRIAL: VisualCheckpoint = {
 const SUBSCRIPTION_CANCELLATION: VisualCheckpoint = {
 	name: "readlist-subscription-cancellation",
 	settled: subscriptionCancellationSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: async (page) => {
+		await railBesideMainBesideSide(page);
+		await subscriptionChipIsStatusSize(page);
+	},
 	target: SUBSCRIPTION_BANNER,
 	capture: "element",
 	pinnedText: [],
@@ -808,7 +825,10 @@ const SUBSCRIPTION_CANCELLATION: VisualCheckpoint = {
 const SUBSCRIPTION_INACTIVE: VisualCheckpoint = {
 	name: "readlist-subscription-inactive",
 	settled: subscriptionInactiveSettled,
-	geometry: pageFromTopGeometry,
+	geometry: async (page) => {
+		await pageFromTopGeometry(page);
+		await subscriptionChipIsStatusSize(page);
+	},
 	target: MAIN,
 	capture: "page-from-top",
 	pinnedText: [],
@@ -826,7 +846,10 @@ const SETUP_GUIDE_EMAIL_STEP: VisualCheckpoint = {
 const SETUP_GUIDE_NEXT_READ: VisualCheckpoint = {
 	name: "readlist-setup-guide-next-read",
 	settled: setupGuideNextReadSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: async (page) => {
+		await railBesideMainBesideSide(page);
+		await setupGuideChipIsTagSize(page);
+	},
 	target: SETUP_GUIDE,
 	capture: "element",
 	pinnedText: [],
@@ -1409,4 +1432,28 @@ test.describe("Readlist rail at the name cap", () => {
 			await neverScrollsSideways(page);
 		}
 	});
+});
+
+test.describe("Readlist subscription chip at the reflow minimum", () => {
+	test.use({ timezoneId: "UTC", viewport: WCAG_REFLOW_MINIMUM });
+
+	for (const state of ["cancellation-scheduled", "inactive"] as const) {
+		test(`keeps the ${state} chip on one line inside its card at 320px`, async ({ page }, testInfo) => {
+			const email = `readlist-subscription-chip-${state}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedSubscriptionState(page, { userId, state, at: "2027-03-15T00:00:00.000Z" });
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+			await waitForBrandFonts(page, ["Inter"]);
+
+			await chipIsHigh(page, `[data-test-subscription-chip="${state}"]`, 34);
+			const chip = await measuredBox(page, SUBSCRIPTION_CHIP);
+			const banner = await measuredBox(page, SUBSCRIPTION_BANNER);
+			assert.ok(
+				chip.x >= banner.x && chip.x + chip.width <= banner.x + banner.width,
+				`the status chip must stay inside its card, measured chip=${JSON.stringify(chip)} card=${JSON.stringify(banner)}`,
+			);
+			await neverScrollsSideways(page);
+		});
+	}
 });

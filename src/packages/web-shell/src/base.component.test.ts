@@ -210,6 +210,18 @@ describe("Base component", () => {
 		expect(css).toContain(".form-choice {");
 	});
 
+	it("ships the shared chip system in the head, so a partial's .chip markup is a chip without page CSS", () => {
+		const html = Base(createTestPageBody(), GUEST_STATE).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+		const css = Array.from(doc.head.querySelectorAll("style"))
+			.map((style) => style.textContent ?? "")
+			.join("");
+
+		expect(css).toContain(".chip {");
+		expect(css).toContain(".chip--accent {");
+		expect(css).toContain(".chip__remove {");
+	});
+
 	it("should apply bodyClass when provided", () => {
 		const page = createTestPageBody({ bodyClass: "page-home" });
 		const result = Base(page, GUEST_STATE).to("text/html");

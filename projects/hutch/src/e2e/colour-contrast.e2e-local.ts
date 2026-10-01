@@ -4,6 +4,12 @@ import { expect, test } from "@packages/e2e-harness";
 import { z } from "zod";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
+import {
+	ALIVE_COOKIE_NAME,
+	ALIVE_COOKIE_VALUE,
+	SAVE_COOKIE_NAME,
+	SAVE_COOKIE_VALUE,
+} from "@packages/onboarding-extension-signal";
 import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 import { markReadWithConfirmation } from "./page-interactions";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
@@ -395,6 +401,103 @@ test.describe("Alert variants hold their WCAG contrast in both themes", () => {
 			const measurements = await stableMeasurements(page, '[data-test-alert="import-truncated"]');
 			assert.ok(measurements.length > 0);
 			assertContrast(measurements, { theme, view: "warning" });
+		}
+	});
+});
+
+async function createChipReader(page: Page, email: string): Promise<string> {
+	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+		data: { email, password: PASSWORD, verified: true },
+	});
+	assert.equal(created.status(), 201);
+	return CreatedReader.parse(await created.json()).userId;
+}
+
+async function loginChipReader(page: Page, email: string): Promise<void> {
+	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.locator("#email").fill(email);
+	await page.locator("#password").fill(PASSWORD);
+	await page.locator('[data-test-form="login"] button[type="submit"]').click();
+	await page.waitForSelector("body.page-readlist");
+}
+
+test.describe("Chip tones hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	for (const state of ["cancellation-scheduled", "inactive"] as const) {
+		test(`the ${state} status chip clears its contrast minimum`, async ({ page }, testInfo) => {
+			const email = `colour-contrast-chip-${state}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createChipReader(page, email);
+			const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+				data: { userId, state, at: "2027-03-01T00:00:00.000Z" },
+			});
+			assert.equal(seeded.status(), 201);
+			await loginChipReader(page, email);
+
+			for (const theme of ["light", "dark"] as const) {
+				await page.emulateMedia({ colorScheme: theme });
+				await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+				await expect(page.locator(`[data-test-subscription-chip="${state}"]`)).toBeVisible({ timeout: SETTLE_MS });
+				await auditRoot(page, { root: "[data-test-subscription-banner]", theme, view: `chip/${state}` });
+			}
+		});
+	}
+
+	test("the setup guide's neutral tag clears its contrast minimum", async ({ page }, testInfo) => {
+		const email = `colour-contrast-chip-tag-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createChipReader(page, email);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-inbox-article-queued`, { data: { userId } });
+		assert.equal(seeded.status(), 201);
+		await page.context().addCookies(
+			[
+				{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
+				{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },
+			].map((cookie) => ({ ...cookie, url: BASE_URL })),
+		);
+		await loginChipReader(page, email);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-onboarding-chip]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "[data-test-setup-guide]", theme, view: "chip/setup-guide" });
+		}
+	});
+
+	test("the reader's accent tag and accent badges clear their contrast minimum", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-chip-reader-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-chip-${run}`,
+				title: "Chip tones in the reader",
+				content: "<p>Seeded body for the chip contrast sweep.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				crawlVersions: [
+					{ crawledAtMinute: "2026-07-10T09:14Z", authorUserId: userId },
+					{ crawledAtMinute: "2026-06-28T22:01Z" },
+				],
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		await loginChipReader(page, email);
+		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+		await page.locator("[data-test-readlists-trigger]").click({ timeout: SETTLE_MS });
+		await page.locator("[data-test-readlist-create-name]").fill("Weekend");
+		await page.locator('[data-test-action="readlist-create-assign"]').click();
+		await expect(page.locator("[data-test-readlist-tag]")).toBeVisible({ timeout: SETTLE_MS });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-readlist-tag]")).toBeVisible({ timeout: SETTLE_MS });
+			await expect(page.locator("[data-test-crawl-bookmark-badge]")).toHaveText(["Best", "Me"]);
+			await auditRoot(page, { root: "#article-header", theme, view: "chip/readlist-tag" });
+			await auditRoot(page, { root: ".crawl-bookmark", theme, view: "chip/crawl-badges" });
 		}
 	});
 });

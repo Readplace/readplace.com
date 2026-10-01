@@ -192,7 +192,7 @@ describe("View routes", () => {
 			assert(tab, "the canonical bookmark tab must render once contentFetchedAt exists");
 			expect(tab.classList.contains("crawl-bookmark__tab--current")).toBe(true);
 			expect(tab.getAttribute("aria-disabled")).toBe("false");
-			expect(tab.querySelector(".crawl-bookmark__badge")?.textContent).toBe("current");
+			expect(tab.querySelector('[data-test-crawl-bookmark-badge="state"]')?.textContent).toBe("Current");
 			const time = tab.querySelector("time");
 			assert(time, "the bookmark tab must carry a <time> for the crawl instant");
 			expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
@@ -216,12 +216,16 @@ describe("View routes", () => {
 				versionedDoc.querySelectorAll("[data-test-crawl-bookmark-tab]"),
 			).map((el) => el.getAttribute("data-test-crawl-bookmark-tab"));
 			expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
-			expect(versionedDoc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
+			expect(
+				Array.from(versionedDoc.querySelectorAll("[data-test-crawl-bookmark-badge]")).map(
+					(badge) => badge.textContent,
+				),
+			).toEqual(["Best"]);
 			expect(
 				versionedDoc
-					.querySelector('[data-test-crawl-bookmark-tab="canonical"] .crawl-bookmark__badge')
+					.querySelector('[data-test-crawl-bookmark-tab="canonical"] [data-test-crawl-bookmark-badge="state"]')
 					?.textContent,
-			).toBe("best");
+			).toBe("Best");
 			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
 				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
 				assert(disabled, `version tab ${key} must render`);

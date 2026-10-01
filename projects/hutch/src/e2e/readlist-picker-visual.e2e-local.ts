@@ -21,6 +21,11 @@ const PHONE = { width: 320, height: 720 };
 const COLUMN = ".reader";
 const DEEP_WORK = "Deep Work";
 const WEEKEND = "Weekend";
+const LONG_READLIST_NAME = "Weekend reads on flights";
+const READER_PHONE = { width: 375, height: 800 };
+const ARTICLE_HEADER = "#article-header";
+const READLIST_TAG = "[data-test-readlist-tag]";
+const UNASSIGN = "[data-test-unassign-readlist]";
 
 const SLOT = "[data-test-readlists-slot]";
 const TOOLBAR = ".article-body__actions--sticky";
@@ -71,7 +76,11 @@ async function nameReadlist(page: Page, index: number, label: string): Promise<v
 	);
 }
 
-async function openReadlistPicker(page: Page, stamp: string): Promise<void> {
+async function openReaderWithReadlists(
+	page: Page,
+	stamp: string,
+	secondReadlist: string,
+): Promise<string> {
 	const email = `readlist-picker-visual-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -104,11 +113,22 @@ async function openReadlistPicker(page: Page, stamp: string): Promise<void> {
 	await page.click(NEW_READLIST);
 	await expect(page.locator(READLIST_TAB)).toHaveCount(3);
 	await nameReadlist(page, 1, DEEP_WORK);
-	await nameReadlist(page, 2, WEEKEND);
+	await nameReadlist(page, 2, secondReadlist);
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-reader");
+	return articleId;
+}
+
+async function openReadlistPicker(page: Page, stamp: string): Promise<void> {
+	await openReaderWithReadlists(page, stamp, WEEKEND);
 	await page.click(TRIGGER);
+}
+
+async function assignReadlist(page: Page, label: string): Promise<void> {
+	await page.click(TRIGGER);
+	await page.locator(OPTION_BUTTONS, { hasText: label }).click();
+	await expect(page.locator(READLIST_TAG)).toContainText(label);
 }
 
 async function pickerOpen(page: Page): Promise<void> {
@@ -258,5 +278,130 @@ test.describe("Add-to-readlist picker on the narrowest phone", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openReadlistPicker(page, `phone-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, READLIST_PICKER_OPEN_PHONE);
+	});
+});
+
+async function readlistTagSettled(page: Page): Promise<void> {
+	await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
+	await page.mouse.move(0, 0);
+	await expect(page.locator(READLIST_TAG)).toHaveCount(1);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function tagIsLargeWithASeparateRemoveTarget(page: Page): Promise<void> {
+	const tag = await measuredBox(page, READLIST_TAG);
+	assert.ok(Math.abs(tag.height - 34) <= 0.5, `the readlist tag must be 34px high, measured ${tag.height}px`);
+
+	const target = await page.locator(UNASSIGN).evaluate((button) => {
+		const box = button.getBoundingClientRect();
+		const hitSlop = window.getComputedStyle(button, "::before");
+		const hit = {
+			left: box.left + Number.parseFloat(hitSlop.left),
+			top: box.top + Number.parseFloat(hitSlop.top),
+			right: box.right - Number.parseFloat(hitSlop.right),
+			bottom: box.bottom - Number.parseFloat(hitSlop.bottom),
+		};
+		const corners = [
+			[hit.left + 0.5, hit.top + 0.5],
+			[hit.right - 0.5, hit.top + 0.5],
+			[hit.left + 0.5, hit.bottom - 0.5],
+			[hit.right - 0.5, hit.bottom - 0.5],
+		];
+		const label = document.createRange();
+		const labelText = button.closest("[data-test-readlist-tag]")?.firstChild;
+		if (!labelText) throw new Error("the readlist tag must open with its label text");
+		label.selectNode(labelText);
+		return {
+			width: hit.right - hit.left,
+			height: hit.bottom - hit.top,
+			left: hit.left,
+			cornersReachTheButton: corners.every(([x, y]) => button.contains(document.elementFromPoint(x, y))),
+			labelRight: label.getBoundingClientRect().right,
+		};
+	});
+	assert.ok(target.width >= 36 && target.height >= 36, `the remove target must be at least 36x36, measured ${target.width}x${target.height}`);
+	assert.ok(target.cornersReachTheButton, "every corner of the remove target must land on the remove button");
+	assert.ok(
+		target.labelRight <= target.left + 0.5,
+		`the remove target must stop at the label, measured label right ${target.labelRight} against target left ${target.left}`,
+	);
+}
+
+async function tagWrapsInsideThePhone(page: Page): Promise<void> {
+	const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+	assert.ok(fits, "a long readlist tag must never widen the page");
+	const tag = await measuredBox(page, READLIST_TAG);
+	const header = await measuredBox(page, ARTICLE_HEADER);
+	assert.ok(tag.x + tag.width <= header.x + header.width + 0.5, "the readlist tag must stay inside the article header");
+}
+
+function readlistTagCheckpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
+	return {
+		name,
+		settled: readlistTagSettled,
+		geometry,
+		target: ARTICLE_HEADER,
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
+test.describe("Reader readlist tag", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("shows an assigned readlist as a removable accent tag, and the x takes it off (light)", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openReaderWithReadlists(page, `tag-light-${testInfo.workerIndex}-${Date.now()}`, WEEKEND);
+		await assignReadlist(page, WEEKEND);
+		await captureCheckpoint(
+			page,
+			readlistTagCheckpoint("reader-readlist-tag-assigned-light", tagIsLargeWithASeparateRemoveTarget),
+		);
+
+		await page.click(UNASSIGN);
+		await expect(page.locator(READLIST_TAG)).toHaveCount(0);
+	});
+
+	test("shows an assigned readlist as a removable accent tag (dark)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openReaderWithReadlists(page, `tag-dark-${testInfo.workerIndex}-${Date.now()}`, WEEKEND);
+		await assignReadlist(page, WEEKEND);
+		await captureCheckpoint(
+			page,
+			readlistTagCheckpoint("reader-readlist-tag-assigned-dark", tagIsLargeWithASeparateRemoveTarget),
+		);
+	});
+});
+
+test.describe("Reader readlist tag on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: READER_PHONE });
+
+	test("keeps a cap-length readlist tag inside the page", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openReaderWithReadlists(page, `tag-phone-${testInfo.workerIndex}-${Date.now()}`, LONG_READLIST_NAME);
+		await assignReadlist(page, LONG_READLIST_NAME);
+		await captureCheckpoint(
+			page,
+			readlistTagCheckpoint("reader-readlist-tag-assigned-phone", async (current) => {
+				await tagIsLargeWithASeparateRemoveTarget(current);
+				await tagWrapsInsideThePhone(current);
+			}),
+		);
+	});
+
+	test("styles the tag in the chromeless reader the iOS and Android apps load", async ({ page }, testInfo) => {
+		const articleId = await openReaderWithReadlists(
+			page,
+			`tag-chromeless-${testInfo.workerIndex}-${Date.now()}`,
+			WEEKEND,
+		);
+		await assignReadlist(page, WEEKEND);
+
+		await page.goto(`${BASE_URL}/queue/${articleId}/view?platform=ios`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-reader--chromeless");
+		const tag = await measuredBox(page, READLIST_TAG);
+		assert.ok(Math.abs(tag.height - 34) <= 0.5, `the chromeless readlist tag must be 34px high, measured ${tag.height}px`);
 	});
 });

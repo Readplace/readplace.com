@@ -7,8 +7,18 @@ function parse(html: string): Document {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
 }
 
+function badgeLabels(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[data-test-crawl-bookmark-badge]")).map((badge) => badge.textContent);
+}
+
+function badgeKeys(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[data-test-crawl-bookmark-badge]")).map((badge) =>
+		badge.getAttribute("data-test-crawl-bookmark-badge"),
+	);
+}
+
 describe("renderCrawlBookmark", () => {
-	it("badges the newest version 'best' when more than one crawl exists, older ones disabled, newest first", () => {
+	it("badges the newest version 'Best' when more than one crawl exists, older ones disabled, newest first", () => {
 		const versions = [
 			toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" }),
 			toAbsoluteShortDateTime({ iso: "2026-06-28T22:01Z" }),
@@ -23,15 +33,13 @@ describe("renderCrawlBookmark", () => {
 		expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
 
 		// Exactly one badge across the whole list, and it sits on the newest tab.
-		expect(doc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
+		expect(badgeLabels(doc)).toEqual(["Best"]);
 
 		const current = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
 		assert(current, "the current tab must render");
 		expect(current.classList.contains("crawl-bookmark__tab--current")).toBe(true);
 		expect(current.getAttribute("aria-disabled")).toBe("false");
-		const badge = current.querySelector(".crawl-bookmark__badge");
-		assert(badge, "the current tab must carry the badge");
-		expect(badge.textContent).toBe("best");
+		expect(badgeKeys(current)).toEqual(["state"]);
 		const currentTime = current.querySelector("time");
 		assert(currentTime, "the current tab must carry a <time>");
 		expect(currentTime.getAttribute("datetime")).toBe("2026-07-10T09:14Z");
@@ -55,7 +63,7 @@ describe("renderCrawlBookmark", () => {
 		const tab = tabs[0];
 		expect(tab.getAttribute("data-test-crawl-bookmark-tab")).toBe("canonical");
 		expect(tab.classList.contains("crawl-bookmark__tab--current")).toBe(true);
-		expect(tab.querySelector(".crawl-bookmark__badge")?.textContent).toBe("current");
+		expect(badgeLabels(tab)).toEqual(["Current"]);
 		expect(tab.querySelector("time")?.textContent).toBe("26 Mar '26, 14:32");
 		expect(doc.querySelectorAll(".crawl-bookmark__tab--disabled").length).toBe(0);
 	});
@@ -92,11 +100,11 @@ describe("renderCrawlBookmark", () => {
 
 		const tab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
 		assert(tab, "the canonical tab must render");
-		expect(doc.querySelectorAll(".crawl-bookmark__badge--me").length).toBe(0);
+		expect(badgeKeys(doc)).toEqual(["state"]);
 		expect(doc.querySelectorAll(".crawl-bookmark__remove").length).toBe(0);
 	});
 
-	it("marks the viewer's authored snapshots with a 'me' badge and a per-version delete form", () => {
+	it("marks the viewer's authored snapshots with a 'Me' badge and a per-version delete form", () => {
 		const doc = parse(
 			renderCrawlBookmark({
 				versions: [
@@ -111,14 +119,14 @@ describe("renderCrawlBookmark", () => {
 			}),
 		);
 
-		// The authored (older) tab carries a 'me' badge; the current tab, authored
+		// The authored (older) tab carries a 'Me' badge; the current tab, authored
 		// by nobody the viewer is, does not.
 		const authoredTab = doc.querySelector('[data-test-crawl-bookmark-tab="2026-06-28T22:01Z"]');
 		assert(authoredTab, "the authored version tab must render");
-		expect(authoredTab.querySelector(".crawl-bookmark__badge--me")?.textContent).toBe("me");
+		expect(badgeLabels(authoredTab)).toEqual(["Me"]);
 		const currentTab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
 		assert(currentTab, "the current tab must render");
-		expect(currentTab.querySelector(".crawl-bookmark__badge--me")).toBeNull();
+		expect(badgeLabels(currentTab)).toEqual(["Best"]);
 
 		expect(doc.querySelectorAll("form.crawl-bookmark__remove").length).toBe(1);
 		const removeForm = authoredTab.querySelector("form.crawl-bookmark__remove");
@@ -133,7 +141,7 @@ describe("renderCrawlBookmark", () => {
 		);
 	});
 
-	it("marks the newest (index-0) tab with both its state badge and 'me' when the viewer authored the canonical", () => {
+	it("marks the newest (index-0) tab with both its state badge and 'Me' when the viewer authored the canonical", () => {
 		const doc = parse(
 			renderCrawlBookmark({
 				versions: [
@@ -149,11 +157,8 @@ describe("renderCrawlBookmark", () => {
 
 		const currentTab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
 		assert(currentTab, "the current tab must render");
-		const badges = Array.from(currentTab.querySelectorAll(".crawl-bookmark__badge")).map(
-			(badge) => badge.textContent,
-		);
-		// Two versions → the newest tab's state badge reads "best" (not "current").
-		expect(badges).toEqual(["best", "me"]);
+		// Two versions → the newest tab's state badge reads "Best" (not "Current").
+		expect(badgeLabels(currentTab)).toEqual(["Best", "Me"]);
 		expect(currentTab.querySelector("form.crawl-bookmark__remove")?.getAttribute("action")).toBe(
 			"/queue/abc/remove-my-version",
 		);
@@ -173,6 +178,6 @@ describe("renderCrawlBookmark", () => {
 		const tab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
 		assert(tab, "the canonical tab must render");
 		expect(doc.querySelectorAll(".crawl-bookmark__remove").length).toBe(0);
-		expect(doc.querySelectorAll(".crawl-bookmark__badge--me").length).toBe(0);
+		expect(badgeKeys(doc)).toEqual(["state"]);
 	});
 });

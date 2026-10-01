@@ -100,10 +100,25 @@ async function capsuleEdgesAligned(page: Page): Promise<void> {
 	);
 }
 
+async function badgesAreBadgeSize(page: Page): Promise<void> {
+	const heights = await page
+		.locator("[data-test-crawl-bookmark-badge]")
+		.evaluateAll((badges) => badges.map((badge) => badge.getBoundingClientRect().height));
+	assert.ok(heights.length > 0, "the bookmark must carry at least one badge");
+	for (const height of heights) {
+		assert.ok(Math.abs(height - 22) <= 0.5, `a bookmark badge must be 22px high, measured ${height}px`);
+	}
+}
+
+async function capsuleWithBadges(page: Page): Promise<void> {
+	await capsuleEdgesAligned(page);
+	await badgesAreBadgeSize(page);
+}
+
 const CRAWL_BOOKMARK_LIGHT: VisualCheckpoint = {
 	name: "crawl-bookmark-light",
 	settled: bookmarkSettled,
-	geometry: capsuleEdgesAligned,
+	geometry: capsuleWithBadges,
 	target: ".crawl-bookmark",
 	capture: "element",
 	pinnedText: [],
@@ -112,7 +127,7 @@ const CRAWL_BOOKMARK_LIGHT: VisualCheckpoint = {
 const CRAWL_BOOKMARK_DARK: VisualCheckpoint = {
 	name: "crawl-bookmark-dark",
 	settled: bookmarkSettled,
-	geometry: capsuleEdgesAligned,
+	geometry: capsuleWithBadges,
 	target: ".crawl-bookmark",
 	capture: "element",
 	pinnedText: [],
@@ -194,7 +209,7 @@ async function deleteControlSettled(page: Page): Promise<void> {
 }
 
 async function deleteButtonSeatedInsideCard(page: Page): Promise<void> {
-	await capsuleEdgesAligned(page);
+	await capsuleWithBadges(page);
 	const tabs = await measuredBox(page, ".crawl-bookmark__tabs");
 	const button = await measuredBox(page, ".crawl-bookmark__remove-btn");
 	assert.ok(

@@ -107,23 +107,6 @@
 }
 /* purgecss-ignore-end */
 
-.crawl-bookmark__badge {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: var(--color-brand-light);
-  color: var(--foreground);
-  border: 1px solid var(--color-brand);
-}
-
-.crawl-bookmark__badge--me {
-  background: var(--muted);
-  color: var(--muted-foreground);
-  border-color: var(--border);
-  font-weight: 500;
-}
-
 .crawl-bookmark__remove {
   margin: 0;
 }

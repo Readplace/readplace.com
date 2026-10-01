@@ -75,7 +75,7 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 		const doc = display(CANCELLATION_BANNER);
 
 		expect(banner(doc).classList.contains("readlist-subscription--cancellation-scheduled")).toBe(true);
-		const chip = doc.querySelector(".readlist-subscription__chip--warning time");
+		const chip = doc.querySelector('[data-test-subscription-chip="cancellation-scheduled"] time');
 		assert(chip, "the cancellation chip must carry the effective date");
 		expect(chip.textContent).toBe(CANCELLATION_EFFECTIVE_AT.label);
 		const message = doc.querySelector("[data-test-banner-message] time");
@@ -87,7 +87,7 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 		const doc = display(INACTIVE_BANNER);
 
 		expect(banner(doc).classList.contains("readlist-subscription--inactive")).toBe(true);
-		const chip = doc.querySelector(".readlist-subscription__chip--error");
+		const chip = doc.querySelector('[data-test-subscription-chip="inactive"]');
 		assert(chip, "the inactive chip must render");
 		expect(chip.textContent).toBe("Subscription inactive");
 		const trigger = doc.querySelector('[data-test-action="subscribe-plans-open"]');

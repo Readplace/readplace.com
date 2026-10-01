@@ -483,6 +483,64 @@ test.describe("Menu interaction states hold their WCAG contrast in both themes",
 	});
 });
 
+test.describe("Removable tag interaction states hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("the readlist tag's remove control keeps a legible x and a 3:1 focus ring on hover and focus", async ({
+		page,
+	}, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `tag-contrast-${stampId}@example.com`);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/tag-contrast-${stampId}`,
+				title: "An article in a readlist",
+				content: "<p>Seeded body for the removable tag contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A fixed summary.", excerpt: "A fixed excerpt." },
+			},
+		});
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+		await page.locator("[data-test-readlists-trigger]").click({ timeout: SETTLE_MS });
+		await page.locator("[data-test-readlist-create-name]").fill("Weekend");
+		await page.locator('[data-test-action="readlist-create-assign"]').click();
+		await expect(page.locator("[data-test-readlist-tag]")).toBeVisible({ timeout: SETTLE_MS });
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-unassign-readlist]")).toBeVisible({ timeout: SETTLE_MS });
+			const client = await auditContext(page);
+			await stamp(page, { selector: "[data-test-unassign-readlist]", auditId: "tag-remove" });
+
+			const rest = await measure(page, client, "tag-remove", []);
+			const hover = await measure(page, client, "tag-remove", ["hover"]);
+			const focused = await measure(page, client, "tag-remove", FOCUSED);
+			assert.equal(focused.outline.width, 2, `${theme}/reader/tag-remove: the focus ring must be 2px wide`);
+			assert.equal(focused.outline.offset, -2, `${theme}/reader/tag-remove: the focus ring must sit inside the control`);
+			assert.notEqual(focused.outline.style, "none", `${theme}/reader/tag-remove: the focus ring must be visible`);
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				const view = `${theme}/reader/tag-remove/${lensName}`;
+				for (const [state, ink] of [["rest", rest], ["hover", hover], ["focus", focused]] as const) {
+					const glyph = labelContrast(ink, lens);
+					assert.ok(
+						glyph >= NON_TEXT_MINIMUM,
+						`${view}: the x reads ${glyph.toFixed(2)}:1 on its ${state} fill < ${NON_TEXT_MINIMUM}:1`,
+					);
+				}
+				const ringContrast = contrastRatio({ ink: lens(focused.outline.colour), surface: lens(focused.fill) });
+				assert.ok(
+					ringContrast >= NON_TEXT_MINIMUM,
+					`${view}: the inset ring clears ${ringContrast.toFixed(2)}:1 < ${NON_TEXT_MINIMUM}:1`,
+				);
+			}
+		}
+	});
+});
+
 test.describe("Destructive account actions hold their WCAG contrast in both themes", () => {
 	test.use({ viewport: VIEWPORT });
 

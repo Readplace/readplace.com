@@ -315,6 +315,49 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				CONTRAST_SENSITIVE,
 			);
 		});
+
+		test(`the subscription status chip keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const email = `eink-subscription-chip-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+				data: { email, password: PASSWORD, verified: true },
+			});
+			assert.equal(created.status(), 201, "the e2e user fixture must create the owner");
+			const { userId } = CreatedUser.parse(await created.json());
+			const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+				data: { userId, state: "cancellation-scheduled", at: "2027-03-01T00:00:00.000Z" },
+			});
+			assert.equal(seeded.status(), 201, "the subscription-state seed endpoint must answer 201");
+			await loginAs(page, email);
+			await expect(page.locator("[data-test-subscription-chip]")).toBeVisible();
+			await settle(page, "[data-test-subscription-banner]");
+
+			await expect(page.locator("[data-test-subscription-banner]")).toHaveScreenshot(
+				`eink-subscription-chip-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the reader's readlist tag keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, readerUrl } = await seedReaderAndReadlist(
+				page,
+				`readlist-tag-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+			await page.click("[data-test-readlists-slot] [data-test-readlists-trigger]");
+			await page.locator("[data-test-readlists-menu] [data-test-readlist-create-name]").fill("Weekend");
+			await page.click('[data-test-readlists-menu] [data-test-action="readlist-create-assign"]');
+			await expect(page.locator("[data-test-readlist-tag]")).toContainText("Weekend");
+			await settle(page, "#article-header");
+
+			await expect(page.locator("#article-header")).toHaveScreenshot(
+				`eink-reader-readlist-tag-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
 	}
 
 	test("a summary still says it is working when the panel refuses motion", async ({

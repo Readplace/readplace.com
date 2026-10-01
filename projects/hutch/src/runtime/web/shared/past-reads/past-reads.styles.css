@@ -38,19 +38,6 @@
   min-width: 0;
 }
 
-.past-reads__beta {
-  padding: 2px 8px;
-  border: 1px solid var(--color-brand);
-  border-radius: var(--radius-pill);
-  background: var(--color-brand-light);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
 .past-reads__eyebrow {
   font-family: var(--font-sans);
   font-size: 1rem;

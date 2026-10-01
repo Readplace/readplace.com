@@ -277,6 +277,14 @@ describe("ChromelessPage", () => {
 		expect(css).toContain(".form-choice {");
 	});
 
+	it("ships the shared chip system, so a partial's .chip markup is a chip here as it is under the full shell", () => {
+		const css = shellCss(NO_BANNER);
+
+		expect(css).toContain(".chip {");
+		expect(css).toContain(".chip--accent {");
+		expect(css).toContain(".chip__remove {");
+	});
+
 	it("paints its own ground under its ink, so the page stays legible over a host surface that resolved a different scheme", () => {
 		const bodyRule = shellCss(NO_BANNER).match(/\bbody\s*\{([^}]*)\}/);
 		assert(bodyRule, "the shared reset must style the body");
