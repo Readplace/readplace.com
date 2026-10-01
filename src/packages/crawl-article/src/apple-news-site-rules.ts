@@ -2,33 +2,7 @@ import { noExtract, noTransform } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 import type { CrawlFetch } from "./crawl-fetch";
 import { initFetchAnfArticle } from "./apple-news-anf";
-
-const FETCH_TIMEOUT_MS = 10000;
-const APPLE_NEWS_HOSTNAMES = new Set(["apple.news", "www.apple.news"]);
-/** The shell's inline script navigates via `redirectToUrl("<story url>")` /
- * `redirectToUrlAfterTimeout("<story url>", 0)`. Requiring the opening quote
- * matches only those literal call sites, never the function definitions
- * (`redirectToUrl(url)`) that appear in the same script. */
-const STORY_URL_CALL = /redirectToUrl(?:AfterTimeout)?\("([^"]+)"/;
-
-function storyUrlFromShell(html: string): string | undefined {
-	const literal = STORY_URL_CALL.exec(html)?.[1];
-	if (literal === undefined) return undefined;
-	let target: URL;
-	try {
-		target = new URL(literal);
-	} catch {
-		return undefined;
-	}
-	if (target.protocol !== "http:" && target.protocol !== "https:") return undefined;
-	if (APPLE_NEWS_HOSTNAMES.has(target.hostname)) return undefined;
-	/* A bare origin root is never a story: shells for stories without a public
-	 * web URL (News-native / News+-only) fill the redirect slot with the
-	 * placeholder "http://www.apple.com", and redirecting there would save the
-	 * homepage as the story and permanently claim its alias. */
-	if (target.pathname === "/" && target.search === "") return undefined;
-	return target.href;
-}
+import { APPLE_NEWS_HOSTNAMES, initFetchAppleNewsShell } from "./apple-news-shell";
 
 /** An apple.news share link answers 200 with a static shell ("Opening
  * story…") that client-side-redirects to the publisher's canonical URL, so a
@@ -44,16 +18,16 @@ export function initAppleNewsSiteRules(deps: {
 }): SiteRules {
 	const { crawlFetch, logError } = deps;
 	const fetchAnfArticle = initFetchAnfArticle({ crawlFetch, logError });
+	const fetchShell = initFetchAppleNewsShell({ crawlFetch });
 
 	const onCrawl: SiteRules["onCrawl"] = async (params) => {
 		try {
-			const response = await crawlFetch(params.url, { budgetMs: FETCH_TIMEOUT_MS });
-			if (!response.ok) {
-				logError(`[CrawlArticle] apple.news shell HTTP ${response.status} for ${params.url}`);
+			const shell = await fetchShell(params.url);
+			if (shell.kind === "unavailable") {
+				logError(`[CrawlArticle] apple.news shell HTTP ${shell.status} for ${params.url}`);
 				return { kind: "failed" };
 			}
-			const storyUrl = storyUrlFromShell(await response.text());
-			if (storyUrl !== undefined) return { kind: "redirect", url: storyUrl };
+			if (shell.kind === "story") return { kind: "redirect", url: shell.url };
 			const html = await fetchAnfArticle({ url: params.url });
 			if (html !== undefined) return { kind: "content", html };
 			logError(`[CrawlArticle] apple.news shell carries no story URL for ${params.url}`);

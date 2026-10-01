@@ -43,4 +43,8 @@ export { deriveTitleFromUrl, escapeHtmlText } from "./pdf-html-helpers";
 export { decodeHtmlEntities } from "./decode-html-entities";
 export { initXTwitterSiteRules } from "./x-twitter-site-rules";
 export { initAppleNewsSiteRules } from "./apple-news-site-rules";
+export { initResolveAppleNewsStoryUrl } from "./apple-news-shell";
+export type { ResolveAppleNewsStoryUrl } from "./apple-news-shell";
+export { initFetchRedirectHop } from "./fetch-redirect-hop";
+export type { FetchRedirectHop } from "./fetch-redirect-hop";
 export { initStackOverflowSiteRules } from "./stack-overflow-site-rules";

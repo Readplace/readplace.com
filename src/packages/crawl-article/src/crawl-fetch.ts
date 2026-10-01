@@ -1,16 +1,11 @@
 import assert from "node:assert";
-import { Agent, buildConnector, type Dispatcher, ProxyAgent } from "undici";
+import { type Dispatcher, ProxyAgent } from "undici";
 import { initDefaultFetchAia, type PrimaryFetch, withAiaChasing } from "./aia-fetch";
-import {
-	createBlockedAddressLookup,
-	createLiteralHostGuard,
-	defaultResolveAll,
-	type IsBlockedAddress,
-	type ResolveAll,
-} from "./blocked-address-lookup";
+import { defaultResolveAll, type IsBlockedAddress, type ResolveAll } from "./blocked-address-lookup";
 import { createCrawlBudget, deadlineReason } from "./crawl-budget";
 import { type CurlFetch, initGuardedCurlFetch } from "./curl-fetch";
 import { type OnRedirect, redirectable } from "./follow-redirects";
+import { createGuardedDispatcher } from "./guarded-dispatcher";
 import { type FetchH2, initFetchH2 } from "./h2-fetch";
 import { type Persona, withPersonaFallback } from "./persona-fallback";
 import { withProxiedLadderFallback } from "./proxied-ladder-fallback";
@@ -66,21 +61,7 @@ export function initCrawlFetch(deps: {
 }): CrawlFetch {
 	const resolve = deps.resolve ?? defaultResolveAll;
 	const { isBlocked, logInfo } = deps;
-	const lookup = createBlockedAddressLookup({ resolve, isBlocked });
-	const assertHostAllowed = createLiteralHostGuard({ isBlocked });
-	const baseConnector = buildConnector({ lookup });
-	const dispatcher = new Agent({
-		connect(options, callback) {
-			try {
-				assertHostAllowed(options.hostname);
-			} catch (error) {
-				assert(error instanceof Error, "createLiteralHostGuard only throws Error");
-				callback(error, null);
-				return;
-			}
-			baseConnector(options, callback);
-		},
-	});
+	const { dispatcher, lookup, assertHostAllowed } = createGuardedDispatcher({ resolve, isBlocked });
 	function buildPrimaryFetch(primaryDispatcher: Dispatcher, opts: { chaseAia: boolean }): PrimaryFetch {
 		const followRedirects = redirectable(
 			(url, hopInit) =>
