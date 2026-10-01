@@ -2,13 +2,12 @@ import type { NextFunction, Request, Response, Router } from "express";
 import { requireCspNonce } from "@packages/web-shell";
 import express from "express";
 import { z } from "zod";
-import { toCanonicalHostUrl } from "@packages/article-resource-unique-id";
 import type {
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
-import type { FindArticleByUrl, FindArticleCrawlVersions, FindArticleFreshness, GlobalArticleData } from "@packages/provider-contracts/article-store";
+import type { FindArticleByUrl, FindArticleCrawlVersions, FindArticleFreshness } from "@packages/provider-contracts/article-store";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
@@ -21,6 +20,7 @@ import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
 import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-view-failed-oob";
+import { initResolveStoredArticle, type ResolveStoredArticle } from "../../shared/resolve-stored-article";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
 import { AdminRecrawlPage, formatRecrawlDocumentTitle, recrawlPathFor } from "./recrawl.component";
@@ -32,6 +32,7 @@ const RecrawlUrlSchema = z.url();
 export interface AdminRecrawlDependencies {
 	appOrigin: string;
 	findArticleByUrl: FindArticleByUrl;
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
@@ -79,6 +80,7 @@ async function renderNotFound(
 function handleLanding(
 	deps: AdminRecrawlDependencies,
 	reader: ReturnType<typeof initArticleReader>,
+	resolveStoredArticle: ResolveStoredArticle,
 ) {
 	return async (req: Request, res: Response): Promise<void> => {
 		if (req.query.url === undefined) {
@@ -86,7 +88,7 @@ function handleLanding(
 			res.status(html.statusCode).type("html").send(html.body);
 			return;
 		}
-		await renderRecrawlPage(deps, reader, req, res);
+		await renderRecrawlPage(deps, reader, resolveStoredArticle, req, res);
 	};
 }
 
@@ -134,31 +136,23 @@ async function resolveArticleUrl(
 	return new URL(parsed.data).toString();
 }
 
-async function findRecrawlArticle(
-	deps: Pick<AdminRecrawlDependencies, "findArticleByUrl">,
-	requestedUrl: string,
-): Promise<{ articleUrl: string; existing: GlobalArticleData | null }> {
-	const existing = await deps.findArticleByUrl(requestedUrl);
-	const canonicalUrl = toCanonicalHostUrl(requestedUrl);
-	if (existing || canonicalUrl === requestedUrl) return { articleUrl: requestedUrl, existing };
-	return { articleUrl: canonicalUrl, existing: await deps.findArticleByUrl(canonicalUrl) };
-}
-
 function handleShowRecrawlPage(
 	deps: AdminRecrawlDependencies,
 	reader: ReturnType<typeof initArticleReader>,
+	resolveStoredArticle: ResolveStoredArticle,
 ) {
 	return async (
 		req: Request<{ splat?: string[] }>,
 		res: Response,
 	): Promise<void> => {
-		await renderRecrawlPage(deps, reader, req, res);
+		await renderRecrawlPage(deps, reader, resolveStoredArticle, req, res);
 	};
 }
 
 async function renderRecrawlPage(
 	deps: AdminRecrawlDependencies,
 	reader: ReturnType<typeof initArticleReader>,
+	resolveStoredArticle: ResolveStoredArticle,
 	req: Request<{ splat?: string[] }>,
 	res: Response,
 ): Promise<void> {
@@ -167,7 +161,7 @@ async function renderRecrawlPage(
 		return;
 	}
 
-	const { articleUrl, existing } = await findRecrawlArticle(deps, requestedUrl);
+	const { articleUrl, existing } = await resolveStoredArticle(requestedUrl);
 	if (!existing) {
 		// The endpoint is explicitly for human intervention on an existing
 		// saved URL. Do not create a stub; surface 404.
@@ -212,7 +206,7 @@ async function renderRecrawlPage(
 	res.status(html.statusCode).type("html").send(html.body);
 }
 
-function handleTriggerRecrawl(deps: AdminRecrawlDependencies) {
+function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArticle: ResolveStoredArticle) {
 	return async (
 		req: Request<{ splat?: string[] }>,
 		res: Response,
@@ -222,7 +216,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies) {
 			return;
 		}
 
-		const { articleUrl, existing } = await findRecrawlArticle(deps, requestedUrl);
+		const { articleUrl, existing } = await resolveStoredArticle(requestedUrl);
 		if (!existing) {
 			// The endpoint is explicitly for human intervention on an existing
 			// saved URL. Do not create a stub; surface 404.
@@ -242,14 +236,17 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies) {
 	};
 }
 
-function handleSummaryPoll(deps: AdminRecrawlDependencies, reader: ReturnType<typeof initArticleReader>) {
+function handleSummaryPoll(
+	reader: ReturnType<typeof initArticleReader>,
+	resolveStoredArticle: ResolveStoredArticle,
+) {
 	return async (req: Request, res: Response): Promise<void> => {
 		const parsed = RecrawlUrlSchema.safeParse(req.query.url);
 		if (!parsed.success) {
 			res.status(400).type("html").send("");
 			return;
 		}
-		const { articleUrl } = await findRecrawlArticle(deps, new URL(parsed.data).toString());
+		const { articleUrl } = await resolveStoredArticle(new URL(parsed.data).toString());
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
@@ -268,14 +265,17 @@ function handleSummaryPoll(deps: AdminRecrawlDependencies, reader: ReturnType<ty
 	};
 }
 
-function handleReaderPoll(deps: AdminRecrawlDependencies, reader: ReturnType<typeof initArticleReader>) {
+function handleReaderPoll(
+	reader: ReturnType<typeof initArticleReader>,
+	resolveStoredArticle: ResolveStoredArticle,
+) {
 	return async (req: Request, res: Response): Promise<void> => {
 		const parsed = RecrawlUrlSchema.safeParse(req.query.url);
 		if (!parsed.success) {
 			res.status(400).type("html").send("");
 			return;
 		}
-		const { articleUrl } = await findRecrawlArticle(deps, new URL(parsed.data).toString());
+		const { articleUrl } = await resolveStoredArticle(new URL(parsed.data).toString());
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
 			articleUrl,
@@ -316,22 +316,27 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		now: deps.now,
 	});
 
+	const resolveStoredArticle = initResolveStoredArticle({
+		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
+		findArticleByUrl: deps.findArticleByUrl,
+	});
+
 	router.use(noStore);
 	router.use(requireAdmin);
 
-	router.get("/", handleLanding(deps, reader));
-	router.get("/summary", handleSummaryPoll(deps, reader));
-	router.get("/reader", handleReaderPoll(deps, reader));
+	router.get("/", handleLanding(deps, reader, resolveStoredArticle));
+	router.get("/summary", handleSummaryPoll(reader, resolveStoredArticle));
+	router.get("/reader", handleReaderPoll(reader, resolveStoredArticle));
 	// The `?url=` trigger is registered first so the lossless carrier is matched
 	// before the path wildcard ever sees the request.
-	router.post("/", handleTriggerRecrawl(deps));
+	router.post("/", handleTriggerRecrawl(deps, resolveStoredArticle));
 	router.post<string, { splat?: string[] }>(
 		"/*splat",
-		handleTriggerRecrawl(deps),
+		handleTriggerRecrawl(deps, resolveStoredArticle),
 	);
 	router.get<string, { splat?: string[] }>(
 		"/*splat",
-		handleShowRecrawlPage(deps, reader),
+		handleShowRecrawlPage(deps, reader, resolveStoredArticle),
 	);
 
 	return router;

@@ -44,8 +44,15 @@ interface RecrawlHarness {
 }
 
 const useApp = useTestServer();
+const ADOPTED_TERMINAL_URL = "https://destination.example/article";
+const useAppWithAliasFold = useTestServer({
+	resolveCanonicalIdentity: async (url) => (url === ADOPTED_TERMINAL_URL ? ARTICLE_URL : url),
+});
 
-function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarness {
+function buildHarness(
+	options: { adminEmails: readonly string[] },
+	mountApp: typeof useApp = useApp,
+): RecrawlHarness {
 	const parseArticle: ParseArticle = async () => buildParseResult();
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	// Locally-constructed summary so the harness carries the test-only
@@ -62,7 +69,7 @@ function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarne
 		recrawlPublishedCalls.push(params);
 	};
 
-	const harness = useApp({
+	const harness = mountApp({
 		...fixture,
 		parser:{
 	parseArticle: parseArticle,
@@ -502,6 +509,65 @@ describe("Admin recrawl routes", () => {
 				summary: "Existing summary",
 				excerpt: "Existing summary blurb",
 			});
+		});
+	});
+
+	describe("crawl-adopted terminal URLs (alias rows pointing back at the saved URL)", () => {
+		const TERMINAL_ENCODED = encodeURIComponent(ADOPTED_TERMINAL_URL);
+
+		async function seedAdoptedArticle() {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] }, useAppWithAliasFold);
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleStore.setDisplayUrl({ url: ARTICLE_URL, displayUrl: ADOPTED_TERMINAL_URL });
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+			return harness;
+		}
+
+		it("renders the aliased article when ?url= names its adopted destination instead of 404ing on the alias row", async () => {
+			const harness = await seedAdoptedArticle();
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.get(`/admin/recrawl?url=${TERMINAL_ENCODED}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			assert(doc.querySelector("[data-test-admin-recrawl]"));
+			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				ADOPTED_TERMINAL_URL,
+			);
+		});
+
+		it("recrawls the aliased article when the trigger names its adopted destination", async () => {
+			const harness = await seedAdoptedArticle();
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${TERMINAL_ENCODED}`);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(`/admin/recrawl?url=${ENCODED}&started=1`);
+			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE_URL }]);
+		});
+
+		it("polls the aliased article's reader state through its adopted destination", async () => {
+			const harness = await seedAdoptedArticle();
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.get(`/admin/recrawl/reader?url=${TERMINAL_ENCODED}&poll=0`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				ADOPTED_TERMINAL_URL,
+			);
+			expect(doc.querySelector("[data-test-reader-slot]")?.getAttribute("hx-get")).toBe(
+				`/admin/recrawl/reader?url=${ENCODED}&poll=1`,
+			);
 		});
 	});
 

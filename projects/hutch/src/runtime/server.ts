@@ -1447,6 +1447,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const adminRecrawlRouter = initAdminRecrawlRoutes({
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
+		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
