@@ -21,6 +21,7 @@ const USER_PASSWORD = "password456";
 const EARLY = "2026-09-01T09:00:00.000Z";
 const LATER = "2026-09-02T09:00:00.000Z";
 const LATEST = "2026-09-03T09:00:00.000Z";
+const UNSUPPORTED_WILDCARD = "A * only works as the whole name before the @, like *@example.com.";
 
 const useApp = useTestServer();
 
@@ -172,10 +173,9 @@ function fieldValue(html: string, name: string) {
 }
 
 function fieldErrors(html: string) {
-	return Array.from(parse(html).querySelectorAll("[data-test-error]")).map((error) => [
-		error.getAttribute("data-test-error"),
-		error.textContent?.trim(),
-	]);
+	return Array.from(parse(html).querySelectorAll("[data-test-error]"))
+		.map((error) => [error.getAttribute("data-test-error"), error.textContent?.trim()])
+		.filter(([, text]) => text !== "");
 }
 
 function stored(catalog: ReturnType<typeof buildHarness>["catalog"], from: string) {
@@ -392,6 +392,62 @@ describe("GET /admin/newsletters", () => {
 		);
 	});
 
+	it("lists the supported FROM formats and checks the field as the admin types", async () => {
+		const { harness } = buildHarness({ records: [TLDR] });
+		const agent = await adminAgent(harness);
+
+		const creating = await agent.get("/admin/newsletters?new=1");
+		const correcting = await agent.get("/admin/newsletters?correct=dan%40tldrnewsletter.com");
+
+		for (const [html, field] of [
+			[creating.text, "from"],
+			[correcting.text, "new_from"],
+		]) {
+			const document = parse(html);
+			const input = document.querySelector(`#admin-newsletter-${field}`);
+			assert(input, `the ${field} control must be rendered`);
+			assert.deepEqual(
+				["hx-get", "hx-trigger", "hx-target", "hx-swap", "hx-sync", "aria-describedby"].map((name) => input.getAttribute(name)),
+				[
+					`/admin/newsletters/from-check/${field}`,
+					"input changed delay:300ms",
+					`#admin-newsletter-${field}-error`,
+					"textContent",
+					"this:replace",
+					`admin-newsletter-${field}-hint admin-newsletter-${field}-error`,
+				],
+			);
+			const hint = document.querySelector(`#admin-newsletter-${field}-hint`);
+			assert(hint, `the ${field} hint must be rendered`);
+			assert.deepEqual(
+				Array.from(hint.querySelectorAll("li")).map((format) => format.textContent?.replace(/\s+/g, " ").trim()),
+				[
+					"newsletter@example.com: one sender. Keep dots and plus tags.",
+					"*@example.com: every sender at example.com, but not mail.example.com. An approved exact address still wins.",
+				],
+			);
+			assert.equal(hint.querySelector("p")?.textContent, "A * anywhere else, like news*@example.com or *@*.example.com, isn't supported.");
+			const error = document.querySelector(`#admin-newsletter-${field}-error`);
+			assert(error, `the ${field} error line must be rendered`);
+			assert.deepEqual([error.getAttribute("role"), error.textContent], ["alert", ""]);
+		}
+	});
+
+	it("leaves the other fields without a live check", async () => {
+		const { harness } = buildHarness({ records: [] });
+		const agent = await adminAgent(harness);
+
+		const response = await agent.get("/admin/newsletters?new=1");
+
+		const document = parse(response.text);
+		const name = document.querySelector("#admin-newsletter-name");
+		assert(name, "the name control must be rendered");
+		assert.equal(name.hasAttribute("hx-get"), false);
+		const hint = document.querySelector("#admin-newsletter-name-hint");
+		assert(hint, "the name hint must be rendered");
+		assert.equal(hint.textContent?.trim(), "Shown to readers once approved. Leave empty when unknown.");
+	});
+
 	it("opens the edit form prefilled from the current record", async () => {
 		const { harness } = buildHarness({ records: [TLDR, SUBMITTED] });
 		const agent = await adminAgent(harness);
@@ -531,6 +587,47 @@ describe("admin newsletters authorization", () => {
 	});
 });
 
+describe("GET /admin/newsletters/from-check/{from,new_from}", () => {
+	it.each([
+		["from", "news*@example.com", UNSUPPORTED_WILDCARD],
+		["from", "*@example", ""],
+		["from", "*@example.com", ""],
+		["from", "newsletter@example.com", ""],
+		["new_from", "*@*.example.com", UNSUPPORTED_WILDCARD],
+		["new_from", "crew@morningbrew", ""],
+	])("answers the %s check for %j with %j", async (field, value, line) => {
+		const { harness } = buildHarness({ records: [] });
+		const agent = await adminAgent(harness);
+
+		const response = await agent.get(`/admin/newsletters/from-check/${field}`).query({ [field]: value });
+
+		assert.equal(response.status, 200);
+		assert.equal(response.headers["content-type"], "text/plain; charset=utf-8");
+		assert.equal(response.headers["cache-control"], "no-store");
+		assert.equal(response.text, line);
+	});
+
+	it("checks no other field", async () => {
+		const { harness } = buildHarness({ records: [] });
+		const agent = await adminAgent(harness);
+
+		const response = await agent.get("/admin/newsletters/from-check/name").query({ name: "news*@example.com" });
+
+		assert.equal(response.status, 404);
+	});
+
+	it("is for admins only", async () => {
+		const { harness } = buildHarness({ records: [] });
+		await harness.auth.createUser({ email: USER_EMAIL, password: USER_PASSWORD });
+		const reader = await loginAs({ server: harness.server, email: USER_EMAIL, password: USER_PASSWORD });
+
+		const signedOut = await request(harness.server).get("/admin/newsletters/from-check/from").query({ from: "news*@example.com" });
+		const refused = await reader.get("/admin/newsletters/from-check/from").query({ from: "news*@example.com" });
+
+		assert.deepEqual([signedOut.status, signedOut.headers.location, refused.status], [303, "/login", 403]);
+	});
+});
+
 describe("POST /admin/newsletters/records/create", () => {
 	it("adds the newsletter as pending and returns to the list without tracking params", async () => {
 		const { harness, catalog } = buildHarness({ records: [TLDR] });
@@ -602,6 +699,41 @@ describe("POST /admin/newsletters/records/create", () => {
 			["not an address", "Weekly", "javascript:alert(1)"],
 		);
 		assert.equal(catalog.current()?.records.length, 0);
+	});
+
+	it("names an unsupported wildcard instead of asking for a FROM address again", async () => {
+		const { harness, catalog } = buildHarness({ records: [] });
+		const agent = await adminAgent(harness);
+
+		const response = await agent.post("/admin/newsletters/records/create").type("form").send({
+			from: "news*@letters.example",
+			name: "Weekly",
+			evidence_url: "",
+			evidence_note: "note",
+		});
+
+		assert.equal(response.status, 422);
+		assert.deepEqual(fieldErrors(response.text), [["from", UNSUPPORTED_WILDCARD]]);
+		assert.equal(fieldValue(response.text, "from"), "news*@letters.example");
+		assert.equal(parse(response.text).querySelector("#admin-newsletter-from")?.getAttribute("aria-invalid"), "true");
+		assert.equal(catalog.current()?.records.length, 0);
+	});
+
+	it("asks for the FROM address again when a wildcard is not finished", async () => {
+		const { harness } = buildHarness({ records: [] });
+		const agent = await adminAgent(harness);
+
+		const response = await agent.post("/admin/newsletters/records/create").type("form").send({
+			from: "*@letters",
+			name: "Weekly",
+			evidence_url: "",
+			evidence_note: "note",
+		});
+
+		assert.equal(response.status, 422);
+		assert.deepEqual(fieldErrors(response.text), [
+			["from", "Enter the exact FROM address, such as newsletter@example.com, or *@example.com for every sender at that domain."],
+		]);
 	});
 
 	it("asks for evidence before adding a record", async () => {
@@ -1032,6 +1164,22 @@ describe("POST /admin/newsletters/records/correct", () => {
 
 		assert.equal(response.status, 422);
 		assert.deepEqual(fieldErrors(response.text), [["new_from", "Enter the exact corrected FROM address, such as newsletter@example.com, or *@example.com for every sender at that domain."]]);
+	});
+
+	it("names an unsupported wildcard in a corrected FROM and leaves the record as it was", async () => {
+		const { harness, catalog } = buildHarness({ records: [MORNING_BREW] });
+		const agent = await adminAgent(harness);
+
+		const response = await agent.post("/admin/newsletters/records/correct").type("form").send({
+			from: MORNING_BREW.from,
+			updated_at: MORNING_BREW.updatedAt,
+			new_from: "*@*.morningbrew.com",
+		});
+
+		assert.equal(response.status, 422);
+		assert.deepEqual(fieldErrors(response.text), [["new_from", UNSUPPORTED_WILDCARD]]);
+		assert.equal(fieldValue(response.text, "new_from"), "*@*.morningbrew.com");
+		assert.equal(stored(catalog, MORNING_BREW.from).status, "approved");
 	});
 
 	it("answers 409 with the attempt kept beside the record another admin changed", async () => {

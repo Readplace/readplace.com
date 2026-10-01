@@ -31,7 +31,7 @@
             name="{{name}}"
             maxlength="{{maxLength}}"
             rows="3"
-            aria-describedby="{{id}}-hint{{#if error}} {{id}}-error{{/if}}"
+            aria-describedby="{{id}}-hint {{id}}-error"
             {{#if error}}aria-invalid="true"{{/if}}>{{value}}</textarea>
           {{else}}
           <input
@@ -42,14 +42,22 @@
             value="{{value}}"
             maxlength="{{maxLength}}"
             autocomplete="off"
-            aria-describedby="{{id}}-hint{{#if error}} {{id}}-error{{/if}}"
+            aria-describedby="{{id}}-hint {{id}}-error"
+            {{#if liveCheckPath}}hx-get="{{liveCheckPath}}" hx-trigger="input changed delay:300ms" hx-target="#{{id}}-error" hx-swap="textContent" hx-sync="this:replace"{{/if}}
             {{#if required}}required{{/if}}
             {{#if error}}aria-invalid="true"{{/if}}>
           {{/if}}
-          <p class="admin-newsletters__hint" id="{{id}}-hint">{{hint}}</p>
-          {{#if error}}
-          <p class="form-field__error" id="{{id}}-error" data-test-error="{{name}}">{{error}}</p>
-          {{/if}}
+          <div class="admin-newsletters__hint" id="{{id}}-hint">
+            {{#if formats}}
+            <ul class="admin-newsletters__formats">
+              {{#each formats}}
+              <li class="admin-newsletters__format"><span class="admin-newsletters__format-marker">{{icon "check"}}</span><span><code class="admin-newsletters__format-example">{{example}}</code>: {{meaning}}</span></li>
+              {{/each}}
+            </ul>
+            {{/if}}
+            <p>{{hint}}</p>
+          </div>
+          <p class="form-field__error" id="{{id}}-error" role="alert" data-test-error="{{name}}">{{error}}</p>
         </div>
         {{/each}}
         <button type="submit" class="btn btn--primary admin-newsletters__submit" data-test-admin-newsletter-submit>{{submitLabel}}</button>

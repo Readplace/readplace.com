@@ -3,6 +3,9 @@ import { type NewsletterListStatus, NewsletterListStatusSchema } from "@packages
 
 export const ADMIN_NEWSLETTERS_PATH = "/admin/newsletters";
 
+export const FROM_CHECKED_FIELDS = ["from", "new_from"] as const;
+export type FromCheckedField = (typeof FROM_CHECKED_FIELDS)[number];
+
 export const AdminNewslettersNoticeSchema = z.enum([
 	"created",
 	"updated",

@@ -37,6 +37,34 @@
   text-wrap: pretty;
 }
 
+.admin-newsletters__hint,
+.admin-newsletters__formats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-newsletters__formats {
+  list-style: none;
+}
+
+.admin-newsletters__format {
+  display: flex;
+  gap: 6px;
+}
+
+.admin-newsletters__format-marker {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 1.6em;
+  color: var(--success-text);
+}
+
+.admin-newsletters__format-example {
+  font-family: var(--font-mono);
+}
+
 .admin-newsletters__tabs {
   display: flex;
   flex-wrap: wrap;

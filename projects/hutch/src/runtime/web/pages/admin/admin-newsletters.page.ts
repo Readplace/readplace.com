@@ -5,8 +5,10 @@ import {
 	type NewsletterCatalogDocument,
 	type NewsletterCatalogRecord,
 	type NewsletterCatalogSeed,
+	type NewsletterFromRefusal,
 	type NewsletterModerationResult,
 	approveRecord,
+	checkNewsletterFrom,
 	correctRecordFrom,
 	createRecord,
 	editRecord,
@@ -31,6 +33,7 @@ import {
 	CreateNewsletterBodySchema,
 	CreateNewsletterValuesSchema,
 	EditNewsletterValuesSchema,
+	FromCheckCandidateSchema,
 	ReviewNewsletterBodySchema,
 	UpdateNewsletterBodySchema,
 } from "./admin-newsletters.schema";
@@ -38,6 +41,7 @@ import {
 	type AdminNewslettersListState,
 	type AdminNewslettersNotice,
 	AdminNewslettersNoticeSchema,
+	FROM_CHECKED_FIELDS,
 	buildAdminNewslettersUrl,
 	parseAdminNewslettersListState,
 } from "./admin-newsletters.url";
@@ -94,6 +98,11 @@ const FAILURE_RESPONSES: Record<CatalogFailure, FailureResponse> = {
 };
 
 const EMPTY_DOCUMENT: NewsletterCatalogDocument = { version: 1, records: [] };
+
+const FROM_CHECK_LINES: Record<NewsletterFromRefusal, string> = {
+	"unsupported-wildcard": ADMIN_NEWSLETTER_FIELD_MESSAGES.unsupportedWildcard,
+	invalid: "",
+};
 
 function noStore(_req: Request, res: Response, next: NextFunction): void {
 	res.setHeader("Cache-Control", "no-store");
@@ -290,6 +299,13 @@ export function initAdminNewslettersRoutes(deps: AdminNewslettersDependencies): 
 			},
 		});
 	});
+
+	for (const field of FROM_CHECKED_FIELDS) {
+		router.get(`/from-check/${field}`, (req: Request, res: Response) => {
+			const check = checkNewsletterFrom(FromCheckCandidateSchema.parse(req.query[field]));
+			res.type("text/plain").send(check.ok ? "" : FROM_CHECK_LINES[check.reason]);
+		});
+	}
 
 	router.post("/records/create", async (req: Request, res: Response) => {
 		const state = parseAdminNewslettersListState(req.body);

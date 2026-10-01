@@ -556,7 +556,7 @@ test.describe("Admin newsletter colour roles hold their WCAG contrast in both th
 			const form = page.locator('[data-test-admin-newsletter-form="create"]');
 			await form.locator('input[name="from"]').fill("no-evidence@publisher.example");
 			await form.locator("[data-test-admin-newsletter-submit]").click();
-			await expect(page.locator('[data-test-admin-newsletter-form="create"] [data-test-error]').first()).toBeVisible({
+			await expect(page.locator('[data-test-admin-newsletter-form="create"] [data-test-error="evidence_note"]')).toBeVisible({
 				timeout: SETTLE_MS,
 			});
 			await auditRoot(page, { root: ADMIN_NEWSLETTERS_ROOT, theme, view: "admin/create-validation" });

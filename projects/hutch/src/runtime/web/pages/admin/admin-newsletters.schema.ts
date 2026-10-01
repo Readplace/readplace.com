@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { NewsletterFromSchema, NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
+import { type NewsletterFromRefusal, NewsletterNameSchema, checkNewsletterFrom } from "@packages/domain/newsletter-catalog";
 import { formFields } from "./admin-newsletters.url";
 
 export const ADMIN_NEWSLETTER_FIELD_MESSAGES = {
 	from: "Enter the exact FROM address, such as newsletter@example.com, or *@example.com for every sender at that domain.",
 	newFrom: "Enter the exact corrected FROM address, such as newsletter@example.com, or *@example.com for every sender at that domain.",
+	unsupportedWildcard: "A * only works as the whole name before the @, like *@example.com.",
 	name: "Keep the newsletter name to 80 characters.",
 	evidenceUrl: "Enter a full https:// link to the publisher page.",
 	evidenceNote: "Keep the evidence note to 500 characters.",
@@ -12,14 +13,19 @@ export const ADMIN_NEWSLETTER_FIELD_MESSAGES = {
 	duplicateFrom: "The catalog already has a record for this FROM address.",
 } as const;
 
-function senderField(message: string) {
-	return z
-		.string()
-		.refine((value) => NewsletterFromSchema.safeParse(value).success, {
-			error: message,
-		})
-		.transform((value) => NewsletterFromSchema.parse(value));
+function senderField(invalidMessage: string) {
+	const messages: Record<NewsletterFromRefusal, string> = {
+		"unsupported-wildcard": ADMIN_NEWSLETTER_FIELD_MESSAGES.unsupportedWildcard,
+		invalid: invalidMessage,
+	};
+	return z.string().transform((value, ctx) => {
+		const check = checkNewsletterFrom(value);
+		if (!check.ok) ctx.addIssue(messages[check.reason]);
+		return check.ok ? check.from : z.NEVER;
+	});
 }
+
+export const FromCheckCandidateSchema = z.string().catch("");
 
 const NameField = z
 	.string()

@@ -10,6 +10,7 @@ import { pageOverflowsSideways } from "./page-measurements.browser";
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const GMAIL_PAGE = `${BASE_URL}/integrations/gmail`;
 const ADMIN_NEWSLETTERS = `${BASE_URL}/admin/newsletters`;
+const UNSUPPORTED_WILDCARD = "A * only works as the whole name before the @, like *@example.com.";
 const PASSWORD = "password123";
 const CATALOG_COOKIE = "e2e_catalog_ns";
 const CATALOG_TIMESTAMP = "2026-09-01T00:00:00.000Z";
@@ -325,6 +326,28 @@ test.describe("GMail Newsletters without JavaScript", () => {
 	});
 });
 
+test.describe("Admin newsletter FROM field while typing", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("flags an unsupported wildcard, keeps the typed value and focus, and clears once the FROM is supported", async ({ page }, testInfo) => {
+		await adminCatalogPage(page, { stamp: uniqueStamp("from-check", testInfo.workerIndex), records: [], query: "?new=1" });
+		const from = page.locator("#admin-newsletter-from");
+		const line = page.locator("#admin-newsletter-from-error");
+
+		await from.pressSequentially("news*@");
+		await expect(line).toHaveText(UNSUPPORTED_WILDCARD);
+		await expect(line).toBeVisible();
+
+		await from.pressSequentially("example.com");
+		await expect(from).toHaveValue("news*@example.com");
+		await expect(from).toBeFocused();
+
+		await from.fill("*@example.com");
+		await expect(line).toHaveText("");
+		await expect(line).toBeHidden();
+	});
+});
+
 test.describe("GMail Newsletters polling keeps the reader's choices", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -630,7 +653,7 @@ const ADMIN_OVERFLOW_SCENARIOS: readonly OverflowScenario[] = [
 	adminScenario({ name: "admin-correct-from", shows: '[data-test-admin-newsletter-form="correct"]', query: `?list_status=approved&correct=${encodeURIComponent(LONG_SENDER)}` }),
 	adminScenario({
 		name: "admin-validation",
-		shows: '[data-test-admin-newsletter-form="create"] [data-test-error]',
+		shows: '[data-test-admin-newsletter-form="create"] [data-test-error="evidence_note"]',
 		query: "?new=1",
 		prepare: async (page) => {
 			const form = page.locator('[data-test-admin-newsletter-form="create"]');

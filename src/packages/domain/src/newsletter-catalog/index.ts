@@ -31,6 +31,7 @@ export {
 	correctRecordFrom,
 	listRecords,
 } from "./newsletter-catalog-moderation";
+export { type NewsletterFromRefusal, checkNewsletterFrom } from "./newsletter-from-check";
 export {
 	type NewsletterRecognition,
 	type NewsletterDetection,

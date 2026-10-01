@@ -13,6 +13,7 @@ import {
 	ADMIN_NEWSLETTERS_PATH,
 	type AdminNewslettersListState,
 	type AdminNewslettersNotice,
+	type FromCheckedField,
 	adminNewslettersListFields,
 } from "./admin-newsletters.url";
 
@@ -76,6 +77,11 @@ export interface AdminNewsletterRowView extends AdminNewsletterRecordView {
 	actions: AdminNewsletterRowAction[];
 }
 
+export interface AdminNewsletterFormatView {
+	example: string;
+	meaning: string;
+}
+
 export interface AdminNewsletterFieldView {
 	name: string;
 	id: string;
@@ -86,6 +92,8 @@ export interface AdminNewsletterFieldView {
 	multiline: boolean;
 	maxLength: number;
 	hint: string;
+	formats: readonly AdminNewsletterFormatView[];
+	liveCheckPath: string | undefined;
 	error: string | undefined;
 }
 
@@ -354,7 +362,39 @@ function field(input: {
 		multiline: input.multiline,
 		maxLength: input.maxLength,
 		hint: input.hint,
+		formats: [],
+		liveCheckPath: undefined,
 		error: input.errors.find((error) => error.fieldName === input.name)?.message,
+	};
+}
+
+const FROM_FORMATS: readonly AdminNewsletterFormatView[] = [
+	{ example: "newsletter@example.com", meaning: "one sender. Keep dots and plus tags." },
+	{ example: "*@example.com", meaning: "every sender at example.com, but not mail.example.com. An approved exact address still wins." },
+];
+
+const FROM_HINT = "A * anywhere else, like news*@example.com or *@*.example.com, isn't supported.";
+
+function fromField(input: {
+	name: FromCheckedField;
+	label: string;
+	value: string;
+	errors: readonly ComponentError[];
+}): AdminNewsletterFieldView {
+	return {
+		...field({
+			name: input.name,
+			label: input.label,
+			type: "text",
+			value: input.value,
+			required: true,
+			multiline: false,
+			maxLength: 254,
+			hint: FROM_HINT,
+			errors: input.errors,
+		}),
+		formats: FROM_FORMATS,
+		liveCheckPath: `${ADMIN_NEWSLETTERS_PATH}/from-check/${input.name}`,
 	};
 }
 
@@ -425,15 +465,10 @@ function formView(input: {
 					fields: listFields,
 				}),
 				fields: [
-					field({
+					fromField({
 						name: "from",
 						label: "FROM address",
-						type: "text",
 						value: input.form.values.from,
-						required: true,
-						multiline: false,
-						maxLength: 254,
-						hint: "The exact address in the From header, keeping dots and plus tags. Use *@example.com to treat every sender at that domain as this newsletter.",
 						errors: input.errors,
 					}),
 					...nameAndEvidenceFields(input.form.values, input.errors),
@@ -472,15 +507,10 @@ function formView(input: {
 					fields: [{ name: "from", value: input.form.from }, { name: "updated_at", value: input.form.updatedAt }, ...listFields],
 				}),
 				fields: [
-					field({
+					fromField({
 						name: "new_from",
 						label: "Corrected FROM address",
-						type: "text",
 						value: input.form.values.new_from,
-						required: true,
-						multiline: false,
-						maxLength: 254,
-						hint: "The exact address in the From header, keeping dots and plus tags. Use *@example.com to treat every sender at that domain as this newsletter.",
 						errors: input.errors,
 					}),
 				],
