@@ -81,6 +81,10 @@ async function everyLabelOnOneLine(page: Page): Promise<void> {
 			Math.abs(button.top - buttons[0].top) <= 1,
 			`"${button.label}" must share the row, not wrap below it`,
 		);
+		assert.ok(
+			Math.abs(button.height - buttons[0].height) <= 1,
+			`"${button.label}" must match the row's ${buttons[0].height}px button height, measured ${button.height}px`,
+		);
 	}
 
 	assert.ok(

@@ -1,5 +1,5 @@
 <div id="view-cta-downloads-slot" class="view__cta-item view__downloads-slot {{#if downloadHref}}view__downloads-slot--visible{{else}}view__downloads-slot--hidden{{/if}}" data-test-view-downloads-slot{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
   {{#if downloadHref}}
-  <a id="view-download-epub" class="btn btn--secondary btn--s view__download" href="{{downloadHref}}" data-test-view-download="epub">{{icon "download"}}<span class="view__download-label">Download EPUB</span></a>
+  <a id="view-download-epub" class="btn btn--secondary view__download" href="{{downloadHref}}" data-test-view-download="epub">{{icon "download"}}<span class="view__download-label">Download EPUB</span></a>
   {{/if}}
 </div>
