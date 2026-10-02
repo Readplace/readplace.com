@@ -1,13 +1,25 @@
+import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { type ForwardableSender, ForwardableSenderSchema } from "@packages/domain/gmail";
 import { mergeSubmittedSender } from "@packages/domain/newsletter-catalog";
-import { NewsletterSenderSubmittedEvent, SubmitNewsletterSenderCommand } from "@packages/hutch-infra-components";
+import {
+	type NewsletterSenderSubmittedDetail,
+	NewsletterSenderSubmittedEvent,
+	SubmitNewsletterSenderCommand,
+} from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { UpdateNewsletterCatalog, UpdateNewsletterCatalogResult } from "./update-newsletter-catalog";
 
-function submissionOutcome(result: UpdateNewsletterCatalogResult): "created-pending" | "already-present" | undefined {
-	if (result.ok) return "created-pending";
+function submissionOutcome(
+	result: UpdateNewsletterCatalogResult,
+	senderEmail: ForwardableSender,
+): NewsletterSenderSubmittedDetail["outcome"] | undefined {
+	if (result.ok) {
+		const created = result.document.records.find((record) => record.from === senderEmail);
+		assert(created, "a merged submission holds a record for the submitted sender");
+		return created.status === "approved" ? "created-approved" : "created-pending";
+	}
 	if (result.reason === "unchanged") return "already-present";
 	return undefined;
 }
@@ -30,7 +42,7 @@ export function initSubmitNewsletterSenderHandler(deps: {
 						now: deps.now(),
 					}),
 				);
-				const outcome = submissionOutcome(result);
+				const outcome = submissionOutcome(result, senderEmail);
 				if (outcome === undefined) {
 					deps.logger.error("[newsletter-catalog-suggestions] catalog update failed", { messageId: record.messageId, result });
 					batchItemFailures.push({ itemIdentifier: record.messageId });

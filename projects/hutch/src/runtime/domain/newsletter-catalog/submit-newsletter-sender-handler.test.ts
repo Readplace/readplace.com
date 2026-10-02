@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
-import { type NewsletterCatalogDocument, NewsletterNameSchema, mergeSubmittedSender } from "@packages/domain/newsletter-catalog";
+import {
+	type NewsletterCatalogDocument,
+	NewsletterFromSchema,
+	NewsletterNameSchema,
+	mergeSubmittedSender,
+} from "@packages/domain/newsletter-catalog";
 import { NewsletterSenderSubmittedEvent, SubmitNewsletterSenderCommand } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
@@ -71,6 +76,42 @@ describe("initSubmitNewsletterSenderHandler", () => {
 			{
 				event: NewsletterSenderSubmittedEvent,
 				detail: { senderEmail: TLDR, outcome: "already-present" },
+			},
+		]);
+	});
+
+	it("adds a sender at a domain with an approved wildcard as approved and reports it created approved", async () => {
+		const mamund = ForwardableSenderSchema.parse("mamund@substack.com");
+		const h = harness({
+			version: 1,
+			records: [
+				{
+					from: NewsletterFromSchema.parse("*@substack.com"),
+					name: undefined,
+					status: "approved",
+					evidence: [{ kind: "admin", url: undefined, note: "Substack publications send from substack.com", addedAt: REVIEWED_AT }],
+					replacedBy: undefined,
+					createdAt: REVIEWED_AT,
+					updatedAt: REVIEWED_AT,
+					reviewedAt: REVIEWED_AT,
+				},
+			],
+		});
+
+		const response = await run(h.handler, [{ messageId: "wildcard", body: submission(mamund) }]);
+
+		assert.deepEqual(response, { batchItemFailures: [] });
+		assert.deepEqual(
+			h.catalog.current()?.records.map((record) => [record.from, record.status]),
+			[
+				["*@substack.com", "approved"],
+				[mamund, "approved"],
+			],
+		);
+		assert.deepEqual(h.published, [
+			{
+				event: NewsletterSenderSubmittedEvent,
+				detail: { senderEmail: mamund, outcome: "created-approved" },
 			},
 		]);
 	});

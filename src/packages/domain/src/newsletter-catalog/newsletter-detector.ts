@@ -1,7 +1,18 @@
 import type { ForwardableSender } from "../gmail/build-forwarding-filter-query";
-import type { NewsletterCatalogDocument, NewsletterCatalogRecord, NewsletterName } from "./newsletter-catalog.schema";
+import {
+	domainWildcardOf,
+	type NewsletterCatalogDocument,
+	type NewsletterCatalogRecord,
+	type NewsletterFrom,
+	type NewsletterName,
+} from "./newsletter-catalog.schema";
 
-export type NewsletterRecognition = { from: ForwardableSender; name: NewsletterName | undefined; source: "catalog" };
+export type NewsletterRecognition = {
+	from: ForwardableSender;
+	name: NewsletterName | undefined;
+	source: "catalog";
+	match: "exact" | "domain-wildcard";
+};
 
 export type NewsletterDetection =
 	| { status: "available"; recognized: ReadonlyMap<ForwardableSender, NewsletterRecognition> }
@@ -21,22 +32,32 @@ export function initNewsletterDetectorChain(deps: { detectors: readonly DetectNe
 	};
 }
 
+function decidingRecord(
+	verdicts: ReadonlyMap<NewsletterFrom, NewsletterCatalogRecord>,
+	sender: ForwardableSender,
+): { record: NewsletterCatalogRecord; match: NewsletterRecognition["match"] } | undefined {
+	const exact = verdicts.get(sender);
+	if (exact !== undefined) return { record: exact, match: "exact" };
+	const wildcard = verdicts.get(domainWildcardOf(sender));
+	if (wildcard !== undefined) return { record: wildcard, match: "domain-wildcard" };
+	return undefined;
+}
+
 export function initCatalogNewsletterDetector(deps: {
 	readCatalog: () => Promise<{ ok: true; document: NewsletterCatalogDocument } | { ok: false; reason: "unavailable" }>;
 }): DetectNewsletters {
 	return async (senders) => {
 		const catalog = await deps.readCatalog();
 		if (!catalog.ok) return { status: "unavailable" };
-		const approved = new Map<string, NewsletterCatalogRecord>();
+		const verdicts = new Map<NewsletterFrom, NewsletterCatalogRecord>();
 		for (const record of catalog.document.records) {
-			if (record.status === "approved") approved.set(record.from, record);
+			if (record.replacedBy === undefined) verdicts.set(record.from, record);
 		}
 		const recognized = new Map<ForwardableSender, NewsletterRecognition>();
 		for (const sender of senders) {
-			const domainWildcard = `*${sender.slice(sender.indexOf("@"))}`;
-			const record = approved.get(sender) ?? approved.get(domainWildcard);
-			if (record === undefined) continue;
-			recognized.set(sender, { from: sender, name: record.name, source: "catalog" });
+			const decided = decidingRecord(verdicts, sender);
+			if (decided?.record.status !== "approved") continue;
+			recognized.set(sender, { from: sender, name: decided.record.name, source: "catalog", match: decided.match });
 		}
 		return { status: "available", recognized };
 	};

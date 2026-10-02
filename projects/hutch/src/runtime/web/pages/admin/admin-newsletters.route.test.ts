@@ -423,7 +423,7 @@ describe("GET /admin/newsletters", () => {
 				Array.from(hint.querySelectorAll("li")).map((format) => format.textContent?.replace(/\s+/g, " ").trim()),
 				[
 					"newsletter@example.com: one sender. Keep dots and plus tags.",
-					"*@example.com: every sender at example.com, but not mail.example.com. An approved exact address still wins.",
+					"*@example.com: every sender at example.com, but not mail.example.com. A sender's own record still decides it, whatever its status, unless a corrected FROM replaced that record.",
 				],
 			);
 			assert.equal(hint.querySelector("p")?.textContent, "A * anywhere else, like news*@example.com or *@*.example.com, isn't supported.");

@@ -3,7 +3,7 @@
 The newsletter catalog is the shared list of FROM addresses that GMail Newsletters recognises as newsletters. It decides two things only:
 
 - which senders the Gmail page's newsletter picker offers by default, and under which name;
-- which saved mappings are *not* sent for review, because the sender is already approved.
+- which saved mappings are *not* submitted to the catalog, because the sender already has an approved record of its own.
 
 A reader's own mapping never depends on the catalog. A reader can map any discovered sender, and that mapping keeps forwarding into the chosen readlist whether the catalog later approves, rejects or withdraws the sender.
 
@@ -19,7 +19,7 @@ Both are in `ap-southeast-2`. The bucket is private. The web Lambda (`hutch`) an
 
 The object is one JSON document, `{ "version": 1, "records": [...] }`, validated by `NewsletterCatalogDocumentSchema` in `@packages/domain/newsletter-catalog`. Each record has:
 
-- `from`: the exact FROM address, lower-cased. Each address appears in one record only.
+- `from`: the exact FROM address, lower-cased, or a domain wildcard `*@example.com`, which matches every address at exactly `example.com` (not `mail.example.com`, not a parent domain). Each `from` appears in one record only.
 - `name` (optional): the newsletter name readers see once the record is approved.
 - `status`: `pending`, `approved` or `rejected`. **Only `approved` records identify newsletters.**
 - `evidence`: every piece of evidence ever recorded, each with a `kind` (`seed`, `user-submission` or `admin`), an optional `url`, an optional `note` and `addedAt`.
@@ -27,6 +27,14 @@ The object is one JSON document, `{ "version": 1, "records": [...] }`, validated
 - `createdAt`, `updatedAt` and `reviewedAt`.
 
 A missing object reads as an empty catalog. The first write creates it.
+
+## Which record decides a sender
+
+The most specific record wins:
+
+1. **The sender's own record decides, whatever its status.** The sender is recognised only when that record is `approved`. A `rejected` or `pending` record of its own keeps it unrecognised even when an approved wildcard covers its domain, so one address can be carved out of a wildcard.
+2. **Only a sender with no record of its own falls through to the wildcard.** An `approved` `*@<the sender's domain>` record then recognises it, under the wildcard's name.
+3. **A record with `replacedBy` set does not decide.** It records a correction, not a verdict on the address, so the sender falls through to the wildcard. When an admin corrects `mamund@substack.com` to `*@substack.com`, `mamund@substack.com` stays recognised through the approved wildcard.
 
 ## Seed provenance
 
@@ -68,15 +76,18 @@ Every seed entry imports as `pending`. Adding an entry to the seed file only mak
 
 ## Verifying an address
 
-Approve a record only when you know the exact address in the `From` header of the newsletter's mail. Acceptable evidence:
+Approve an exact-address record only when you know the exact address in the `From` header of the newsletter's mail. Acceptable evidence:
 
 - a page on the publisher's own site that names the full address (a whitelist, "add us to your contacts" or delivery-help page); or
 - the `From` header of a real issue (in Gmail: *Show original*).
+
+A domain wildcard names no single address, so the evidence for it is about the whole domain: the domain owner's own documentation of which of its addresses send what. Every address that documentation names as sending sign-in links, password resets, receipts or support mail must already have a `rejected` record of its own before the wildcard is approved (see the wildcard rule below).
 
 Rules:
 
 - Use the address exactly. Keep dots and plus tags (`news+weekly@example.com` is not `news@example.com`). Addresses are compared after lower-casing only.
 - Never approve an address that also sends sign-in links, password resets or receipts. A reader's mapping forwards everything that address sends into a readlist.
+- Approve a domain wildcard only for a domain that sends nothing but newsletters. A wildcard recognises every address at its domain that has no record of its own: `*@substack.com` also matches `no-reply@substack.com`, which Substack's [sign-in help article](https://support.substack.com/hc/en-us/articles/360059542452-How-do-I-log-into-my-Substack-account) names as the sender of sign-in emails (fetched through the Zendesk article API, 2026-10-02). Give such an address a `rejected` record of its own first; that record then keeps it unrecognised under the wildcard.
 - Never infer an address from a website's domain, a sign-up form or a "reply-to" address. A publication on `example.com` may send from `example.substack.com`, from a mailing-list provider, or from several addresses.
 - One FROM address has one record, even when several editions share it. Name the record after the publication a reader would recognise.
 - Record where the address came from: an evidence link, a note, or both. The admin create form requires one of them.
@@ -94,12 +105,21 @@ The list has four tabs: **Pending** (the default, oldest first), **Approved**, *
 | Approve | pending | `approved`: readers see the sender as a known newsletter, under its name. |
 | Reject | pending | `rejected`: the sender is not recognised, and repeat reader submissions leave it rejected. |
 | Withdraw | approved | `rejected`: readers stop seeing the sender as a known newsletter. Their mappings keep working. |
-| Reconsider | rejected, unless replaced by a corrected FROM | Back to `pending`. A replaced record stays rejected, so the old address is never recognised beside its correction. |
+| Reconsider | rejected, unless replaced by a corrected FROM | Back to `pending`. A replaced record stays rejected, and neither Reconsider nor a reader submission ever reopens it. It does not decide its old address, which an approved wildcard for that address's domain still recognises (see [Which record decides a sender](#which-record-decides-a-sender)). |
 | Correct FROM | pending, approved | Creates the corrected address as a new `pending` record with the old name and evidence, plus a note naming the old address. The old record becomes `rejected` with `replacedBy` set, so reader submissions of the old address never reopen it. Approve the corrected record explicitly. A rejected record is never corrected, even from a form opened before it was rejected. |
 
 ### Reader submissions
 
-When a reader saves a mapping for a sender the catalog does not recognise as approved (including when the catalog is unavailable), Readplace submits the FROM address only, as a `SubmitNewsletterSender` command. The `newsletter-catalog-suggestions` Lambda adds it as a `pending` record with `user-submission` evidence when the address is absent. It never renames an existing record and never reopens a rejected one; a repeated submission reports `already-present`. Nothing else about the reader, their mailbox or their readlist is sent.
+When a reader saves a mapping for a sender without an approved record of its own (including one recognised only through a domain wildcard, and including when the catalog is unavailable), Readplace submits the FROM address only, as a `SubmitNewsletterSender` command. Nothing else about the reader, their mailbox or their readlist is sent.
+
+The `newsletter-catalog-suggestions` Lambda adds a record only when the address has none of its own:
+
+- **Under an approved wildcard for the sender's domain**, the address is added as `approved`, named after the wildcard, with `user-submission` evidence whose note names the wildcard it matched (`Approved automatically: matches the approved *@substack.com.`). The wildcard already vouches for every address at its domain, so the submission is not queued for review; the address's own record lets an admin rename or withdraw it individually. The submission reports `created-approved`.
+- **Otherwise** the address is added as `pending` with `user-submission` evidence, for an admin to review. The submission reports `created-pending`.
+
+An address that already has a record, in any status, is left exactly as it is and the submission reports `already-present`: a submission never renames a record, never approves over a pending review or a rejection, and never reopens a replaced record.
+
+Withdrawing a wildcard does not cascade. The records it approved automatically stay `approved`; withdraw each of them as well if they should stop being recognised.
 
 ### Importing the seed
 
@@ -121,6 +141,7 @@ Each web Lambda container keeps its last parsed document and revalidates it with
 **A wrong record** (wrong address, wrong name, approved by mistake):
 
 - Approved by mistake: **Withdraw** it. The sender stops being recognised at once; readers' mappings keep forwarding.
+- A domain wildcard approved by mistake: **Withdraw** it, then withdraw each record it approved automatically. Withdrawing the wildcard stops recognising only the senders at its domain with no record of their own; the records reader submissions created under it stay `approved` (see [Reader submissions](#reader-submissions)). Find them on the Approved tab by searching for the domain: they carry the wildcard's name and `user-submission` evidence noting `Approved automatically: matches the approved *@<domain>.`
 - Wrong FROM address: **Correct FROM**, then approve the corrected record once verified.
 - Wrong name: **Edit** it.
 

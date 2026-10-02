@@ -370,7 +370,7 @@ function field(input: {
 
 const FROM_FORMATS: readonly AdminNewsletterFormatView[] = [
 	{ example: "newsletter@example.com", meaning: "one sender. Keep dots and plus tags." },
-	{ example: "*@example.com", meaning: "every sender at example.com, but not mail.example.com. An approved exact address still wins." },
+	{ example: "*@example.com", meaning: "every sender at example.com, but not mail.example.com. A sender's own record still decides it, whatever its status, unless a corrected FROM replaced that record." },
 ];
 
 const FROM_HINT = "A * anywhere else, like news*@example.com or *@*.example.com, isn't supported.";

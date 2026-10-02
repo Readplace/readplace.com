@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ForwardableSenderSchema } from "../gmail/build-forwarding-filter-query";
+import { type ForwardableSender, ForwardableSenderSchema } from "../gmail/build-forwarding-filter-query";
 
 const DOMAIN_WILDCARD_PATTERN = /^\*@[a-z0-9.-]+\.[a-z]{2,}$/;
 
@@ -12,6 +12,10 @@ const NewsletterDomainWildcardSchema = z
 
 export const NewsletterFromSchema = z.union([ForwardableSenderSchema, NewsletterDomainWildcardSchema]);
 export type NewsletterFrom = z.infer<typeof NewsletterFromSchema>;
+
+export function domainWildcardOf(sender: ForwardableSender): NewsletterFrom {
+	return NewsletterDomainWildcardSchema.parse(`*${sender.slice(sender.indexOf("@"))}`);
+}
 
 export const NewsletterNameSchema = z.string().trim().min(1).max(80).brand<"NewsletterName">();
 export type NewsletterName = z.infer<typeof NewsletterNameSchema>;

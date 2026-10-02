@@ -43,7 +43,7 @@ const ALL_ENTRY: InboxAddressEntry = {
 function recognised(entries: [typeof TLDR, string][]): GmailPageInput["detection"] {
 	return {
 		status: "available",
-		recognized: new Map(entries.map(([from, name]) => [from, { from, name: NewsletterNameSchema.parse(name), source: "catalog" as const }])),
+		recognized: new Map(entries.map(([from, name]) => [from, { from, name: NewsletterNameSchema.parse(name), source: "catalog" as const, match: "exact" as const }])),
 	};
 }
 

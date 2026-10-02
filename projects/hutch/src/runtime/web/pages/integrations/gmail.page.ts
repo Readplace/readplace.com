@@ -235,7 +235,7 @@ export function registerGmailPageRoutes(
 		const { destination } = await mapSenderToReadlist({ userId, sender: senderEmail, readlist: readlist.slug });
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
 		const detection = await gmail.detectNewsletters([senderEmail]);
-		if (detection.status === "unavailable" || !detection.recognized.has(senderEmail)) {
+		if (detection.status === "unavailable" || detection.recognized.get(senderEmail)?.match !== "exact") {
 			await gmail.publishSubmitNewsletterSender({ senderEmail });
 		}
 		const kept = { search: state.search, advanced: state.advanced, discovery: "started" as const };

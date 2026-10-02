@@ -890,6 +890,21 @@ describe("Save a newsletter to a readlist", () => {
 		expect(gmail.newsletterSenderSubmissions).toEqual([{ senderEmail: TLDR }, { senderEmail: MORNING }]);
 	});
 
+	it("submits a sender recognised only through the approved wildcard for its domain, but not one approved by its own record", async () => {
+		const { agent, gmail } = await connectedAgent({
+			catalog: NewsletterCatalogDocumentSchema.parse({
+				version: 1,
+				records: [
+					{ from: "*@tldr.tech", name: "TLDR", status: "approved", evidence: [{ kind: "admin", addedAt: AT }], createdAt: AT, updatedAt: AT },
+					{ from: MORNING, name: "Morning Brew", status: "approved", evidence: [{ kind: "seed", addedAt: AT }], createdAt: AT, updatedAt: AT },
+				],
+			}),
+		});
+		await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" });
+		await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default" });
+		expect(gmail.newsletterSenderSubmissions).toEqual([{ senderEmail: TLDR }]);
+	});
+
 	it("offers the import unchecked, and only for a newsletter not yet mapped", async () => {
 		const { agent, mapSender } = await connectedAgent();
 		const fresh = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default`)).text);

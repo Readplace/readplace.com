@@ -29,7 +29,7 @@ describe("initCatalogNewsletterDetector", () => {
 
 		assert.deepEqual(detection, {
 			status: "available",
-			recognized: new Map([[TLDR, { from: TLDR, name: "TLDR", source: "catalog" }]]),
+			recognized: new Map([[TLDR, { from: TLDR, name: "TLDR", source: "catalog", match: "exact" }]]),
 		});
 	});
 
@@ -39,7 +39,7 @@ describe("initCatalogNewsletterDetector", () => {
 		assert.deepEqual(await detect([BREW]), { status: "available", recognized: new Map() });
 	});
 
-	it("recognises every sender at a domain with an approved wildcard, preferring an approved exact record", async () => {
+	it("recognises a sender with no record of its own through the approved wildcard for its exact domain, and a sender with an approved record of its own by that record's name", async () => {
 		const mamund = ForwardableSenderSchema.parse("mamund@substack.com");
 		const pragmatic = ForwardableSenderSchema.parse("pragmatic@substack.com");
 		const subdomain = ForwardableSenderSchema.parse("news@mail.substack.com");
@@ -62,9 +62,59 @@ describe("initCatalogNewsletterDetector", () => {
 		assert.deepEqual(detection, {
 			status: "available",
 			recognized: new Map([
-				[mamund, { from: mamund, name: "Substack", source: "catalog" }],
-				[pragmatic, { from: pragmatic, name: "The Pragmatic Engineer", source: "catalog" }],
+				[mamund, { from: mamund, name: "Substack", source: "catalog", match: "domain-wildcard" }],
+				[pragmatic, { from: pragmatic, name: "The Pragmatic Engineer", source: "catalog", match: "exact" }],
 			]),
+		});
+	});
+
+	it("lets a sender's own rejected or pending record decide over an approved wildcard for its domain", async () => {
+		const noReply = ForwardableSenderSchema.parse("no-reply@substack.com");
+		const underReview = ForwardableSenderSchema.parse("fresh@substack.com");
+		const mamund = ForwardableSenderSchema.parse("mamund@substack.com");
+		const detect = initCatalogNewsletterDetector({
+			readCatalog: async () => ({
+				ok: true,
+				document: {
+					version: 1,
+					records: [
+						{ from: noReply, status: "rejected", evidence: [], createdAt: AT, updatedAt: AT },
+						{ from: NewsletterFromSchema.parse("*@substack.com"), status: "approved", evidence: [], createdAt: AT, updatedAt: AT },
+						{ from: underReview, status: "pending", evidence: [], createdAt: AT, updatedAt: AT },
+					],
+				},
+			}),
+		});
+
+		const detection = await detect([noReply, underReview, mamund]);
+
+		assert.deepEqual(detection, {
+			status: "available",
+			recognized: new Map([[mamund, { from: mamund, name: undefined, source: "catalog", match: "domain-wildcard" }]]),
+		});
+	});
+
+	it("recognises a sender whose own record was replaced by a corrected FROM through the approved wildcard it was corrected to", async () => {
+		const mamund = ForwardableSenderSchema.parse("mamund@substack.com");
+		const substack = NewsletterFromSchema.parse("*@substack.com");
+		const detect = initCatalogNewsletterDetector({
+			readCatalog: async () => ({
+				ok: true,
+				document: {
+					version: 1,
+					records: [
+						{ from: mamund, status: "rejected", replacedBy: substack, evidence: [], createdAt: AT, updatedAt: AT, reviewedAt: AT },
+						{ from: substack, status: "approved", evidence: [], createdAt: AT, updatedAt: AT, reviewedAt: AT },
+					],
+				},
+			}),
+		});
+
+		const detection = await detect([mamund]);
+
+		assert.deepEqual(detection, {
+			status: "available",
+			recognized: new Map([[mamund, { from: mamund, name: undefined, source: "catalog", match: "domain-wildcard" }]]),
 		});
 	});
 
@@ -84,7 +134,7 @@ describe("initNewsletterDetectorChain", () => {
 				asked.push([...senders]);
 				return {
 					status: "available",
-					recognized: new Map([[sender, { from: sender, name: undefined, source: "catalog" }]]),
+					recognized: new Map([[sender, { from: sender, name: undefined, source: "catalog", match: "exact" }]]),
 				};
 			};
 		const detect = initNewsletterDetectorChain({ detectors: [recognising(TLDR), recognising(BREW)] });
@@ -95,8 +145,8 @@ describe("initNewsletterDetectorChain", () => {
 		assert.deepEqual(detection, {
 			status: "available",
 			recognized: new Map([
-				[TLDR, { from: TLDR, name: undefined, source: "catalog" }],
-				[BREW, { from: BREW, name: undefined, source: "catalog" }],
+				[TLDR, { from: TLDR, name: undefined, source: "catalog", match: "exact" }],
+				[BREW, { from: BREW, name: undefined, source: "catalog", match: "exact" }],
 			]),
 		});
 	});

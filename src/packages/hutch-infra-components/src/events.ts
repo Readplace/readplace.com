@@ -1137,7 +1137,7 @@ export const NewsletterSenderSubmittedEvent = defineEvent({
 	detailType: "NewsletterSenderSubmitted",
 	detailSchema: z.object({
 		senderEmail: z.string(),
-		outcome: z.enum(["created-pending", "already-present"]),
+		outcome: z.enum(["created-pending", "created-approved", "already-present"]),
 	}),
 });
 export type NewsletterSenderSubmittedDetail = z.infer<typeof NewsletterSenderSubmittedEvent.detailSchema>;

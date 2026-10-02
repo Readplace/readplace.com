@@ -17,6 +17,7 @@ import {
 	NewsletterCatalogDocumentSchema,
 	type NewsletterCatalogDocument,
 	type NewsletterCatalogRecord,
+	NewsletterFromSchema,
 	NewsletterNameSchema,
 	type NewsletterStatus,
 } from "./newsletter-catalog.schema";
@@ -84,6 +85,61 @@ describe("mergeSubmittedSender", () => {
 		const rejected = record({ from: TLDR, status: "rejected" });
 
 		assert.deepEqual(mergeSubmittedSender(catalog(rejected), { from: TLDR, now: NOW }), { ok: false, reason: "unchanged" });
+	});
+
+	describe("under an approved wildcard for the sender's domain", () => {
+		const SUBSTACK = NewsletterFromSchema.parse("*@substack.com");
+		const MAMUND = ForwardableSenderSchema.parse("mamund@substack.com");
+		const substack = record({ from: SUBSTACK, status: "approved", name: NewsletterNameSchema.parse("Substack"), reviewedAt: EARLIER });
+
+		it("adds the sender as approved, named after the wildcard, with a note naming the wildcard it matched", () => {
+			const result = mergeSubmittedSender(catalog(substack), { from: MAMUND, now: NOW });
+
+			assert.deepEqual(recordOf(result, MAMUND), {
+				from: MAMUND,
+				name: "Substack",
+				status: "approved",
+				evidence: [
+					{
+						kind: "user-submission",
+						url: undefined,
+						note: "Approved automatically: matches the approved *@substack.com.",
+						addedAt: AT,
+					},
+				],
+				replacedBy: undefined,
+				createdAt: AT,
+				updatedAt: AT,
+				reviewedAt: AT,
+			});
+			assert.deepEqual(recordOf(result, SUBSTACK), substack);
+		});
+
+		it.each([
+			["approved", record({ from: MAMUND, status: "approved" })],
+			["rejected", record({ from: MAMUND, status: "rejected" })],
+			["pending", record({ from: MAMUND, status: "pending" })],
+			["replaced by the wildcard", record({ from: MAMUND, status: "rejected", replacedBy: SUBSTACK })],
+		])("leaves the sender's own %s record as it is", (_status, own) => {
+			assert.deepEqual(mergeSubmittedSender(catalog(own, substack), { from: MAMUND, now: NOW }), { ok: false, reason: "unchanged" });
+		});
+	});
+
+	it("adds the sender as pending when the wildcard for its domain is not approved", () => {
+		const pendingWildcard = record({ from: NewsletterFromSchema.parse("*@tldr.tech"), status: "pending" });
+
+		const result = mergeSubmittedSender(catalog(pendingWildcard), { from: TLDR, now: NOW });
+
+		assert.deepEqual(recordOf(result, TLDR), {
+			from: TLDR,
+			name: undefined,
+			status: "pending",
+			evidence: [{ kind: "user-submission", url: undefined, note: undefined, addedAt: AT }],
+			replacedBy: undefined,
+			createdAt: AT,
+			updatedAt: AT,
+			reviewedAt: undefined,
+		});
 	});
 });
 

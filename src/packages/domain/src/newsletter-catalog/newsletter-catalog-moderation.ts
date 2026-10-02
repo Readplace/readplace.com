@@ -1,5 +1,6 @@
 import type { ForwardableSender } from "../gmail/build-forwarding-filter-query";
 import {
+	domainWildcardOf,
 	NEWSLETTER_ADMIN_PAGE_SIZE,
 	type NewsletterCatalogDocument,
 	type NewsletterCatalogRecord,
@@ -70,11 +71,30 @@ function reviewable(
 	return { ok: true, record };
 }
 
+function approvedUnderWildcard(input: {
+	from: ForwardableSender;
+	wildcard: NewsletterCatalogRecord;
+	now: Date;
+}): NewsletterCatalogRecord {
+	const evidence: NewsletterEvidence = {
+		kind: "user-submission",
+		url: undefined,
+		note: `Approved automatically: matches the approved ${input.wildcard.from}.`,
+		addedAt: input.now.toISOString(),
+	};
+	const submitted = pendingRecord({ from: input.from, name: input.wildcard.name, evidence: [evidence], now: input.now });
+	return { ...submitted, status: "approved", reviewedAt: submitted.updatedAt };
+}
+
 export function mergeSubmittedSender(
 	document: NewsletterCatalogDocument,
 	input: { from: ForwardableSender; now: Date },
 ): NewsletterModerationResult<"unchanged"> {
 	if (findRecord(document, input.from) !== undefined) return { ok: false, reason: "unchanged" };
+	const wildcard = findRecord(document, domainWildcardOf(input.from));
+	if (wildcard?.status === "approved") {
+		return { ok: true, document: withRecord(document, approvedUnderWildcard({ from: input.from, wildcard, now: input.now })) };
+	}
 	const evidence: NewsletterEvidence = { kind: "user-submission", url: undefined, note: undefined, addedAt: input.now.toISOString() };
 	return {
 		ok: true,
