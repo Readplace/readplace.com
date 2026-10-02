@@ -364,6 +364,14 @@ describe("GMail Newsletters page", () => {
 		});
 	});
 
+	it("leaves a mapped sender out of the chooser and lists it among the mappings", async () => {
+		const { agent, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		const doc = load((await agent.get(`${GMAIL}?advanced=1`)).text);
+		expect(optionEmails(doc)).toEqual([MORNING]);
+		expect(Array.from(doc.querySelectorAll("[data-test-gmail-mapping-row]"), (el) => el.getAttribute("data-test-gmail-mapping-row"))).toEqual([TLDR]);
+	});
+
 	it("tells apart no discovered senders, no known newsletters and no matches", async () => {
 		const empty = await connectedAgent({ discovered: false });
 		const none = load((await empty.agent.get(`${GMAIL}?discovery=started`)).text);

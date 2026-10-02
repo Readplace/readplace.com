@@ -16,6 +16,7 @@ export interface GmailSenderCandidate {
 	displayName: string | undefined;
 	newsletterName: string | undefined;
 	recognized: boolean;
+	mapped: boolean;
 }
 
 export interface GmailSenderOption {
@@ -44,6 +45,7 @@ export function gmailSenderCandidates(input: {
 }): Map<ForwardableSender, GmailSenderCandidate> {
 	const recognized: ReadonlyMap<ForwardableSender, NewsletterRecognition> =
 		input.detection.status === "available" ? input.detection.recognized : new Map();
+	const mapped = new Set(input.senders.filter((sender) => sender.addedToFilterAt !== undefined).map((sender) => sender.senderEmail));
 	const candidates = new Map<ForwardableSender, GmailSenderCandidate>();
 	const add = (email: ForwardableSender, displayName: string | undefined) => {
 		const recognition = recognized.get(email);
@@ -52,11 +54,12 @@ export function gmailSenderCandidates(input: {
 			displayName,
 			newsletterName: recognition?.name,
 			recognized: recognition !== undefined,
+			mapped: mapped.has(email),
 		});
 	};
 	for (const sender of input.discoveredSenders) add(sender.email, sender.name);
-	for (const sender of input.senders) {
-		if (sender.addedToFilterAt !== undefined && !candidates.has(sender.senderEmail)) add(sender.senderEmail, undefined);
+	for (const email of mapped) {
+		if (!candidates.has(email)) add(email, undefined);
 	}
 	return candidates;
 }
@@ -132,9 +135,10 @@ export function toGmailSenderResults(input: {
 	const needle = search.trim().toLowerCase();
 	const browsingKnown = needle === "" && input.state.advanced !== "1";
 	const all = [...input.candidates.values()];
+	const unmapped = all.filter((candidate) => !candidate.mapped);
 	const matches = (browsingKnown
-		? all.filter((candidate) => candidate.recognized)
-		: all.filter((candidate) => searchableText(candidate).includes(needle))
+		? unmapped.filter((candidate) => candidate.recognized)
+		: unmapped.filter((candidate) => searchableText(candidate).includes(needle))
 	).sort(byRecognitionThenName);
 	const { edit: _edit, ...chooserState } = input.state;
 	const resultsState = chooseResultsState({

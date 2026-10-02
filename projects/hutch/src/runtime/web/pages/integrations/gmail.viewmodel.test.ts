@@ -153,6 +153,18 @@ describe("GMail Newsletters ordering", () => {
 		assert.deepEqual(reversed.chooser.options.map((option) => option.email), [BREW, TLDR]);
 	});
 
+	it("leaves a mapped sender out of the chooser while it stays selectable for editing", () => {
+		const page = input({
+			senders: [mapped(TLDR)],
+			destinations: new Map([[ALL_ADDRESS, ALL_ENTRY]]),
+			detection: recognised([[TLDR, "TLDR"], [BREW, "Morning Brew"]]),
+		});
+		assert.deepEqual(toGmailPageViewModel(page).chooser.options.map((option) => option.email), [BREW]);
+		const editing = toGmailPageViewModel({ ...page, state: { sender: TLDR, readlist: "default", edit: "1" } });
+		assert.equal(editing.senderChoiceLabel, TLDR);
+		assert.notEqual(editing.save, undefined);
+	});
+
 	it("orders mapped newsletters by name then address and counts a single forwarded sender", () => {
 		const vm = toGmailPageViewModel(input({
 			senders: [mapped(BREW_DAILY), mapped(BREW)],

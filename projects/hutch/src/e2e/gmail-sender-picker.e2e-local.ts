@@ -153,7 +153,8 @@ test.describe("Gmail sender picker", () => {
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await expect(page.locator("#gmail-sender-search")).toBeFocused();
 		await expect(page.locator(RESULTS)).toHaveAttribute("data-results-state", "listed");
-		await expect(page.locator(SENDER_OPTION)).toHaveCount(2);
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+		await expect(page.locator(`[data-test-gmail-sender-option="${BREW}"]`)).toHaveCount(0);
 		await page.locator("#gmail-sender-search").fill("kale@");
 		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
 		await page.locator(`[data-test-gmail-sender-option="${KALE}"]`).click();
