@@ -13,11 +13,6 @@ import type { ResolveWrapperTarget } from "./resolve-wrapper-target";
 
 export type SaveIdentity = { url: string; contentSourceUrl?: string };
 
-/** The identity a save must be keyed on. Unlike the read-side resolver this may
- * reach the network (through `resolveWrapperTarget`) for a wrapper nothing is
- * stored for yet, and claims `id(wrapper) → identity` so every later lookup of
- * the wrapper lands on the same article. `contentSourceUrl` is the snapshot an
- * archive save keeps reading its content from. */
 export type ResolveSaveIdentity = (url: string) => Promise<SaveIdentity>;
 
 export function cleanWrapperTarget(params: { wrapperUrl: string; targetUrl: string }): SaveableUrlResult {

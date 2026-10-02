@@ -22,8 +22,10 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { type ReaderStatus, ReaderStatusSchema } from "@packages/article-state-types";
 import { requireEnv } from "@packages/require-env";
+import { parseHTML } from "linkedom";
 import { type HealthSource, HEALTH_SOURCES } from "./health-sources";
 
 const ORIGIN = requireEnv("READPLACE_ORIGIN");
@@ -53,7 +55,7 @@ async function forceRecrawl(url: string): Promise<void> {
 	assert.equal(
 		res.status,
 		200,
-		`force-recrawl ${url}: expected 200, got ${res.status} — URL may not be in the articles DB, or the service token was rejected.`,
+		`force-recrawl ${url}: expected 200, got ${res.status} — URL may not be in the articles DB, or the service token was rejected; 502 means the wrapper no longer resolves to an article, 409 that it now resolves to a different article than it was saved as.`,
 	);
 	await res.text();
 }
@@ -135,6 +137,15 @@ async function checkSource(source: HealthSource): Promise<void> {
 		assert(
 			!html.includes(forbidden),
 			`${source.label}: forbidden chrome "${forbidden}" found in parsed output for ${source.url} — site rule regression`,
+		);
+	}
+	if (source.expectedDestinationUrl !== undefined) {
+		const savedLink = parseHTML(html).document.querySelector("[data-test-original-link]")?.getAttribute("href");
+		assert(savedLink, `${source.label}: no "View original" link in the parsed output for ${source.url}`);
+		assert.equal(
+			ArticleResourceUniqueId.parse(savedLink).value,
+			ArticleResourceUniqueId.parse(source.expectedDestinationUrl).value,
+			`${source.label}: the saved link is "${savedLink}", not the article the wrapper points at — the wrapper was saved as itself (save-time resolution regression or missing alias) for ${source.url}`,
 		);
 	}
 }

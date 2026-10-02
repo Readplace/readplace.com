@@ -24,9 +24,9 @@ export interface SaveArticleFromUrlDependencies {
 	publishLinkQueued: PublishLinkQueued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 	refreshArticleIfStale: RefreshArticleIfStale;
-	/** Collapse a wrapper or an adopted terminal URL onto the article it
-	 * identifies, so the save attaches to that article instead of minting a
-	 * duplicate (and never lands on an inert alias row). */
+	/** Collapse an adopted terminal URL onto the article it aliases, so the save
+	 * attaches to that article instead of minting a duplicate (and never lands on
+	 * an inert alias row). */
 	resolveSaveIdentity: ResolveSaveIdentity;
 }
 

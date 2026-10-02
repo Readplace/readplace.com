@@ -345,8 +345,7 @@ export const BROWSER_REQUEST_HEADERS: Record<string, string> = {
 /** `overrides` lets a test swap a single dependency without rebuilding the whole
  * fixture — `getSessionUserId` (so a test can make the session
  * lookup throw and assert the request still degrades to guest),
- * and `resolveCanonicalIdentity` (which defaults to the fixture store's own
- * alias fold, so a test that needs a scripted fold has to say so). */
+ * and `resolveCanonicalIdentity`. */
 export function createTestApp(
 	fixture: TestAppFixture,
 	overrides?: TestAppOverrides,

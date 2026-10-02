@@ -25,6 +25,11 @@ export interface HealthSource {
 	expectedContent: string | readonly string[];
 	/** Substrings that MUST NOT appear in the parsed HTML — surfaces parser regressions where site chrome leaks into the article body (e.g. Medium byline, read-time, publish-date, "Press enter…" tooltip). */
 	forbiddenContent?: readonly string[];
+	/** The article a wrapper URL (newsletter tracker, Apple News shell, archive
+	 * snapshot) must have been saved as: the "View original" href in the final
+	 * reader output is compared to it by `ArticleResourceUniqueId`, so scheme,
+	 * fragment and tracking-param differences do not matter. */
+	expectedDestinationUrl?: string;
 	expectsThumbnail: boolean;
 }
 
@@ -182,6 +187,41 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA?articleList=Aa2vGyZWlSfaFMqEGY0e4xQ,A5IRjSM4dSFWFCMYo_9X-AQ,AdzvYAQxLTW2PQZc7eRiPAw,AdLHfGuaTSHGNWIFrj0gdGg,AdJemOOpvQB2I38VCFFJ22Q,AIh7F4i7GSXe3TL-DNB6V4A,AbxPgQQdpQSy-ERx2g-kQZA,AqKXgh3yzQey0QotC7FE4QA&campaign_id=E101&campaign_type=b7194f35-8001-4ae2-ca08-b0d1b2757efb/default&creative_id=comp-id-more_story-5-14:moreStory",
 		expectedContent:
 			"I tell him that I did not realise that the wedding had happened already.",
+		expectsThumbnail: true,
+	},
+	{
+		// Newsletter click-trackers were the largest wrapper family in the 2026-09-23
+		// prod sample (110 of 1,051 real-user saves). Cooperpress link ids are
+		// permanent and the `/rss` form carries no subscriber token, so the hop can be
+		// committed; Bonobo and Mailchimp links all carry a subscriber id and share
+		// this entry's hop code. `expectedDestinationUrl` proves the save was keyed
+		// on the publisher, not the tracker.
+		label: "Newsletter click-tracker (Cooperpress 30x)",
+		url: "https://javascriptweekly.com/link/100000/rss",
+		expectedContent: "expressions are useful for factoring out subqueries and making the overall",
+		expectedDestinationUrl: "https://sqlite.org/lang_with.html#rcex3",
+		expectsThumbnail: false,
+	},
+	{
+		// open.substack.com share links 302 to the publication's own domain with
+		// per-subscriber params appended (`triedRedirect`, `r=`); the destination
+		// assertion proves those are stripped before the identity is minted.
+		label: "Newsletter share redirector (open.substack.com)",
+		url: "https://open.substack.com/pub/jobstobedone/p/4-strategy-traps-that-look-smart",
+		expectedContent: "You can build the strategy yourself. Or you can hire a consulting firm the way you always have.",
+		expectedDestinationUrl: "https://www.jtbd.one/p/4-strategy-traps-that-look-smart",
+		expectsThumbnail: true,
+	},
+	{
+		// Unlike the two shell/ANF entries above, this row was seeded through the
+		// save-time resolver, so its identity is the ABC article and the alias
+		// apple.news/<id> → ABC must hold on every run. ABC is openly crawlable; the
+		// `http://` target folds onto the `https://` terminal.
+		label: "Apple News (shell resolved at save time)",
+		url: "https://apple.news/AjYm3jdR0S4uhs9hRKpJ1Sg",
+		expectedContent: "The four standards cover diversity representation among actors and subject matter",
+		expectedDestinationUrl:
+			"http://www.abc.net.au/news/2020-09-09/oscars-academy-sets-out-diversity-standards-for-best-picture/12644874",
 		expectsThumbnail: true,
 	},
 	{

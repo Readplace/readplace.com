@@ -10,7 +10,7 @@ You have been triggered because the `Tier 1+ crawl pipeline health` workflow fai
 
 - Follow ALL CLAUDE.md guidelines.
 - **Never delete an entry from `src/packages/crawl-article/scripts/health-sources.ts` to make the canary green.** Each entry exists because a real user tried to save that fingerprint class and the crawler broke on it. Removing one silently accepts that readers will get "Sorry, we couldn't save this link" for any URL matching that edge sniffer.
-- **Never lower `POLL_TIMEOUT_MS` (180s) or shorten `expectedContent`** to make a flaky source pass. Both exist to surface real prod regressions.
+- **Never lower `POLL_TIMEOUT_MS` (2,400,000 ms — 40 minutes, sized to the SQS retry → DLQ → terminal-failure path), shorten `expectedContent`, or drop an `expectedDestinationUrl`** to make a flaky source pass. All three exist to surface real prod regressions; a destination mismatch means a wrapper URL (newsletter tracker, Apple News shell, archive snapshot) was saved as itself instead of the article it points at.
 - **Never `--no-verify` the commit.** If pre-commit fails, fix the underlying issue.
 
 ## Applicable Skills

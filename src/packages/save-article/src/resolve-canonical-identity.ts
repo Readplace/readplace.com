@@ -7,10 +7,6 @@ export type StoredIdentity = {
 	contentSourceUrl?: string;
 };
 
-/** Where a submitted URL's identity already lives, without touching the
- * network: an article row at the URL itself wins; an alias folds onto its
- * target; otherwise a wrapper that embeds its original (an archive capture, a
- * tweet intent) is unwrapped and the original looked up the same way. */
 export async function locateStoredIdentity(findIdentityRow: FindIdentityRow, url: string): Promise<StoredIdentity> {
 	const direct = await findIdentityRow(url);
 	if (direct.kind === "article") return { url, row: "article" };
