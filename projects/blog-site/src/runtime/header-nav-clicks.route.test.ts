@@ -51,6 +51,7 @@ function makeApp(events: AnalyticsEvent[]) {
 			secureCookies: false,
 			ownHost: new URL(OWN_ORIGIN).hostname,
 			edgeSecret: "",
+			appOrigin: OWN_ORIGIN,
 		},
 	);
 }
