@@ -49,6 +49,16 @@ async function createReadlistAndOpen(agent: TestAgent): Promise<string> {
 	return openedSlug(response.headers.location);
 }
 
+function createMutableClock(startMs: number) {
+	let nowMs = startMs;
+	return {
+		now: () => new Date(nowMs),
+		advanceSeconds: (seconds: number) => {
+			nowMs += seconds * 1000;
+		},
+	};
+}
+
 function queueLabels(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-readlist]"), (el) => el.textContent);
 }
@@ -135,10 +145,13 @@ describe("POST /queue/queues", () => {
 	});
 
 	it("numbers each new readlist past the default names already in use", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const clock = createMutableClock(1_700_000_000_000);
+		const harness = useApp({ ...fixture, shared: { ...fixture.shared, now: clock.now } });
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const first = await createReadlistAndOpen(agent);
+		clock.advanceSeconds(1);
 		const second = await createReadlistAndOpen(agent);
 
 		expect(second).not.toBe(first);
