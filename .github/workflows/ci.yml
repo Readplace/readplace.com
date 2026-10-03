@@ -387,6 +387,9 @@ jobs:
   deploy-platform:
     if: needs.detect-projects.outputs.platform-affected == 'true'
     needs: [web-tests, perf-tests, detect-projects]
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/project-deployment.yaml
     secrets: inherit
     with:
@@ -427,6 +430,9 @@ jobs:
       && needs.resolve-deploy-matrix.result == 'success'
       && needs.detect-projects.outputs.has-non-platform == 'true'
     needs: [web-tests, perf-tests, detect-projects, deploy-platform, resolve-deploy-matrix]
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
