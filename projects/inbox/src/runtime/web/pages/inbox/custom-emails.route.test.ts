@@ -100,6 +100,44 @@ describe("Custom emails routes", () => {
 			expect(back.textContent?.trim()).toBe("Inbox");
 		});
 
+		it("sends the back link to Newsletters when the reader came from Newsletters", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/newsletters/custom-emails?from=newsletters");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const back = doc.querySelector("[data-test-inbox-back]");
+			assert(back, "the header back link must render");
+			expect(back.getAttribute("href")).toBe(
+				"/newsletters?utm_source=inbox-addresses&utm_medium=internal&utm_content=back-to-newsletters",
+			);
+			expect(back.textContent?.trim()).toBe("Newsletters");
+			const create = doc.querySelector("[data-test-inbox-create]")?.closest("form");
+			assert(create, "the create form must render");
+			expect(create.getAttribute("action")).toBe(
+				"/newsletters/custom-emails/create?from=newsletters&utm_source=inbox-addresses&utm_medium=internal&utm_content=create-address",
+			);
+		});
+
+		it("keeps the Newsletters back link after creating an inbox email", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const created = await agent
+				.post("/newsletters/custom-emails/create?from=newsletters")
+				.type("form")
+				.send({ name: "my-newsletter" });
+
+			expect(created.status).toBe(303);
+			expect(created.headers.location).toBe("/newsletters/custom-emails?created=my-newsletter&from=newsletters");
+			const doc = new JSDOM((await agent.get(created.headers.location)).text).window.document;
+			const back = doc.querySelector("[data-test-inbox-back]");
+			assert(back, "the header back link must render");
+			expect(back.textContent?.trim()).toBe("Newsletters");
+		});
+
 		it("shows the limit banner proactively at the cap without the &error=limit param", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);

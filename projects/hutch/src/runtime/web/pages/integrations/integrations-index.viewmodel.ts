@@ -2,7 +2,8 @@ import { withInternalTracking } from "@packages/web-shell";
 import type { IconName } from "@packages/ui-icons";
 import type { GmailConnection, GmailConnectionState } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
-import { CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
+import { CUSTOM_EMAILS_ORIGIN_PARAM, CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
+import type { CustomEmailsOrigin } from "@packages/domain/inbox";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
 import { GMAIL_PATH } from "./gmail.url";
 
@@ -12,6 +13,7 @@ export interface IntegrationActionViewModel {
 	href: string;
 	label: string;
 	variant: "primary" | "neutral";
+	fields: { name: string; value: string }[];
 	trackSource: string;
 	trackContent: string;
 }
@@ -82,6 +84,7 @@ const GMAIL_ACTIONS: Record<
 		href: GMAIL_CONNECT_PATH,
 		label: "Connect Gmail",
 		variant: "primary",
+		fields: [],
 	}],
 	disconnecting: [],
 	"awaiting-confirmation": [{
@@ -90,6 +93,7 @@ const GMAIL_ACTIONS: Record<
 		href: GMAIL_PATH,
 		label: "Finish setup",
 		variant: "primary",
+		fields: [],
 	}],
 	"confirm-failed": [{
 		key: "finish-setup",
@@ -97,6 +101,7 @@ const GMAIL_ACTIONS: Record<
 		href: GMAIL_PATH,
 		label: "Finish setup",
 		variant: "primary",
+		fields: [],
 	}],
 	"ready-to-filter": [{
 		key: "manage",
@@ -104,6 +109,7 @@ const GMAIL_ACTIONS: Record<
 		href: GMAIL_PATH,
 		label: "Manage",
 		variant: "neutral",
+		fields: [],
 	}],
 	filtering: [{
 		key: "manage",
@@ -111,6 +117,7 @@ const GMAIL_ACTIONS: Record<
 		href: GMAIL_PATH,
 		label: "Manage",
 		variant: "neutral",
+		fields: [],
 	}],
 	"filter-failed": [{
 		key: "manage",
@@ -118,6 +125,7 @@ const GMAIL_ACTIONS: Record<
 		href: GMAIL_PATH,
 		label: "Manage",
 		variant: "primary",
+		fields: [],
 	}],
 	revoked: [{
 		key: "reconnect",
@@ -125,6 +133,7 @@ const GMAIL_ACTIONS: Record<
 		href: GMAIL_CONNECT_PATH,
 		label: "Reconnect Gmail",
 		variant: "primary",
+		fields: [],
 	}],
 };
 
@@ -193,6 +202,7 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 			href: CUSTOM_EMAILS_PATH,
 			label: "Manage",
 			variant: "neutral",
+			fields: [{ name: CUSTOM_EMAILS_ORIGIN_PARAM, value: "newsletters" satisfies CustomEmailsOrigin }],
 		})],
 	};
 }

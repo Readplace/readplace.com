@@ -1,9 +1,9 @@
-import { CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
+import { buildCustomEmailsUrl, CUSTOM_EMAILS_PATH, INBOX_PATH, NEWSLETTERS_PATH } from "@packages/domain/inbox";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, renderAlert, renderIllustration, renderToast, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import type { InboxAddressEntry } from "@packages/domain/inbox";
+import type { CustomEmailsOrigin, InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
 import { INBOX_COPYABLE_ADDRESS_STYLES } from "./inbox-copyable-address.styles";
 import { renderCopyableAddress } from "./inbox-copyable-address.component";
@@ -17,6 +17,11 @@ const INBOX_ADDRESSES_SOURCE = "inbox-addresses";
 
 const STATUS_TOAST_DISMISS_MS = 6000;
 
+const BACK_LINKS: Record<CustomEmailsOrigin, { href: string; label: string; content: string }> = {
+	inbox: { href: INBOX_PATH, label: "Inbox", content: "back-to-inbox" },
+	newsletters: { href: NEWSLETTERS_PATH, label: "Newsletters", content: "back-to-newsletters" },
+};
+
 function trackAddresses(href: string, content: string): string {
 	return withInternalTracking(href, { source: INBOX_ADDRESSES_SOURCE, content });
 }
@@ -29,7 +34,10 @@ export function InboxPage(params: {
 	limitReached: boolean;
 	createdName?: string;
 	submittedName: string;
+	origin: CustomEmailsOrigin;
 }): PageBody {
+	const back = BACK_LINKS[params.origin];
+	const actionUrl = (subpath: string) => buildCustomEmailsUrl({ origin: params.origin, subpath, params: {} });
 	const addresses = toInboxAddressesViewModel(params.addresses);
 	const alerts = toInboxAlerts({
 		createFailed: params.createFailed === true,
@@ -70,9 +78,11 @@ export function InboxPage(params: {
 		statusToastHtml,
 		emptyIllustrationHtml: renderIllustration("book-lightbulb"),
 		submittedName: params.submittedName,
-		createAction: trackAddresses(`${CUSTOM_EMAILS_PATH}/create`, "create-address"),
-		disableAction: trackAddresses(`${CUSTOM_EMAILS_PATH}/disable`, "disable-address"),
-		enableAction: trackAddresses(`${CUSTOM_EMAILS_PATH}/enable`, "enable-address"),
+		backHref: trackAddresses(back.href, back.content),
+		backLabel: back.label,
+		createAction: trackAddresses(actionUrl("/create"), "create-address"),
+		disableAction: trackAddresses(actionUrl("/disable"), "disable-address"),
+		enableAction: trackAddresses(actionUrl("/enable"), "enable-address"),
 	});
 
 	return {

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
 	INBOX_PATH,
+	buildCustomEmailsUrl,
 	buildInboxHighlightUrl,
+	parseCustomEmailsOrigin,
 	parseInboxHighlight,
 } from "./inbox-routes";
 
@@ -29,5 +31,30 @@ describe("inbox routes", () => {
 		assert.equal(parseInboxHighlight({}), undefined);
 		assert.equal(parseInboxHighlight({ highlight: "" }), undefined);
 		assert.equal(parseInboxHighlight({ highlight: ["a", "b"] }), undefined);
+	});
+
+	it("reads the custom emails origin as Newsletters only when the query names it", () => {
+		assert.equal(parseCustomEmailsOrigin({ from: "newsletters" }), "newsletters");
+		assert.equal(parseCustomEmailsOrigin({}), "inbox");
+		assert.equal(parseCustomEmailsOrigin({ from: "elsewhere" }), "inbox");
+	});
+
+	it("carries a Newsletters origin on every custom emails URL so the back link survives a redirect", () => {
+		assert.equal(
+			buildCustomEmailsUrl({ origin: "newsletters", subpath: "", params: { created: "news" } }),
+			"/newsletters/custom-emails?created=news&from=newsletters",
+		);
+		assert.equal(
+			buildCustomEmailsUrl({ origin: "newsletters", subpath: "/create", params: {} }),
+			"/newsletters/custom-emails/create?from=newsletters",
+		);
+	});
+
+	it("leaves the custom emails URL bare for an Inbox origin with no params", () => {
+		assert.equal(buildCustomEmailsUrl({ origin: "inbox", subpath: "", params: {} }), "/newsletters/custom-emails");
+		assert.equal(
+			buildCustomEmailsUrl({ origin: "inbox", subpath: "", params: { error: "limit", name: "news" } }),
+			"/newsletters/custom-emails?error=limit&name=news",
+		);
 	});
 });

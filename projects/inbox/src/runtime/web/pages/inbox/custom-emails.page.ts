@@ -5,8 +5,8 @@ import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import {
 	AliasNameSchema,
+	buildCustomEmailsUrl,
 	countLiveCappedAddresses,
-	CUSTOM_EMAILS_PATH,
 	DEFAULT_INBOX_ADDRESS_PURPOSE,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
@@ -15,6 +15,7 @@ import {
 	isCappedAddress,
 	normalizeAliasName,
 	addressCapReached,
+	parseCustomEmailsOrigin,
 } from "@packages/domain/inbox";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import { Base } from "../../base.component";
@@ -35,8 +36,8 @@ const CreateAddressSchema = z.object({ name: z.string() });
 
 export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 	const router = express.Router();
-	const addressesPath = CUSTOM_EMAILS_PATH;
-	const addressesCreateFailedPath = `${addressesPath}?error=create`;
+	const addressesUrl = (req: Request, params: Record<string, string>) =>
+		buildCustomEmailsUrl({ origin: parseCustomEmailsOrigin(req.query), subpath: "", params });
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -64,6 +65,7 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 					limitReached,
 					createdName: createdName.success ? createdName.data : undefined,
 					submittedName,
+					origin: parseCustomEmailsOrigin(req.query),
 				}),
 				await deps.buildBannerState(req),
 			),
@@ -76,7 +78,7 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 		const parsed = CreateAddressSchema.safeParse(req.body);
 		const name = parsed.success ? normalizeAliasName(parsed.data.name) : undefined;
 		if (name === undefined) {
-			res.redirect(303, `${addressesPath}?error=name`);
+			res.redirect(303, addressesUrl(req, { error: "name" }));
 			return;
 		}
 		// Best-effort like the per-user cap — the eventually-consistent list read can
@@ -84,7 +86,7 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 		// the random token still keeps the two addresses distinct.
 		const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
 		if (owned.some((entry) => isCappedAddress(entry) && isLiveAddress(entry) && entry.name === name)) {
-			res.redirect(303, `${addressesPath}?error=name-taken&name=${encodeURIComponent(name)}`);
+			res.redirect(303, addressesUrl(req, { error: "name-taken", name }));
 			return;
 		}
 		try {
@@ -98,17 +100,17 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 			// Hitting the per-user cap is expected user behaviour, not a fault — echo
 			// it back as a friendly message instead of logging an alerting-worthy error.
 			if (error instanceof InboxAddressLimitReachedError) {
-				res.redirect(303, `${addressesPath}?error=limit&name=${encodeURIComponent(name)}`);
+				res.redirect(303, addressesUrl(req, { error: "limit", name }));
 				return;
 			}
 			deps.logError(
 				"[Inbox] Failed to create a forwarding address",
 				error instanceof Error ? error : new Error(String(error)),
 			);
-			res.redirect(303, `${addressesCreateFailedPath}&name=${encodeURIComponent(name)}`);
+			res.redirect(303, addressesUrl(req, { error: "create", name }));
 			return;
 		}
-		res.redirect(303, `${addressesPath}?created=${encodeURIComponent(name)}`);
+		res.redirect(303, addressesUrl(req, { created: name }));
 	});
 
 	router.post("/disable", async (req: Request, res: Response) => {
@@ -124,7 +126,7 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 				await deps.inboxAddressStore.disableAddress({ userId, address: parsed.data.address });
 			}
 		}
-		res.redirect(303, addressesPath);
+		res.redirect(303, addressesUrl(req, {}));
 	});
 
 	router.post(
@@ -140,13 +142,13 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 				const target = owned.find((entry) => entry.address === parsed.data.address);
 				if (target !== undefined && isCappedAddress(target) && !isLiveAddress(target)) {
 					if (addressCapReached({ purpose: target.purpose, owned })) {
-						res.redirect(303, `${addressesPath}?error=limit`);
+						res.redirect(303, addressesUrl(req, { error: "limit" }));
 						return;
 					}
 					await deps.inboxAddressStore.enableAddress({ userId, address: parsed.data.address });
 				}
 			}
-			res.redirect(303, addressesPath);
+			res.redirect(303, addressesUrl(req, {}));
 		},
 	);
 

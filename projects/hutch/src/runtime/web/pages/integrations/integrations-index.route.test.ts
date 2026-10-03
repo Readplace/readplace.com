@@ -98,6 +98,7 @@ describe("GET /newsletters", () => {
 		const form = customEmails.querySelector("[data-test-integration-action='custom-emails']")?.closest("form");
 		assert(form, "the Custom Emails row navigates via a form");
 		expect(form.getAttribute("action")).toBe("/newsletters/custom-emails?utm_source=integrations&utm_medium=internal&utm_content=custom-emails");
+		expect(form.querySelector<HTMLInputElement>("input[name='from']")?.value).toBe("newsletters");
 	});
 
 	it("offers only Connect to a reader with no connection", async () => {

@@ -1,9 +1,14 @@
 export {
 	INBOX_PATH,
 	CUSTOM_EMAILS_PATH,
+	CUSTOM_EMAILS_ORIGIN_PARAM,
+	NEWSLETTERS_PATH,
 	INBOX_HIGHLIGHT_PARAM,
+	buildCustomEmailsUrl,
 	buildInboxHighlightUrl,
+	parseCustomEmailsOrigin,
 	parseInboxHighlight,
+	type CustomEmailsOrigin,
 } from "./inbox-routes";
 export type {
 	InboxAddressEntry,

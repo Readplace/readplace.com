@@ -20,6 +20,9 @@
               <input type="hidden" name="utm_source" value="{{trackSource}}">
               <input type="hidden" name="utm_medium" value="internal">
               <input type="hidden" name="utm_content" value="{{trackContent}}">
+              {{#each fields}}
+              <input type="hidden" name="{{name}}" value="{{value}}">
+              {{/each}}
               <button type="submit" class="btn btn--{{variant}} btn--s" data-test-integration-action="{{key}}">{{label}}</button>
             </form>
             {{/each}}
