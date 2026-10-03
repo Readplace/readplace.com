@@ -42,6 +42,7 @@
 }
 
 .integrations__item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -120,6 +121,24 @@
 
 .integrations__action {
   flex: none;
+}
+
+.integrations__item:has(.integrations__action):hover {
+  background: var(--muted);
+}
+
+.integrations__action .btn {
+  position: static;
+}
+
+.integrations__action .btn::before {
+  display: none;
+}
+
+.integrations__action .btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 
 .integrations__container > .alert {

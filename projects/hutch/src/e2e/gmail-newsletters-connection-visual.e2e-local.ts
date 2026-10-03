@@ -307,3 +307,12 @@ test.describe("GMail Newsletters connection states", () => {
 		});
 	}
 });
+
+test("opens the Gmail page from anywhere on its Newsletters row", async ({ page }, testInfo) => {
+	await signInWithGmail(page, { stamp: `row-click-${testInfo.workerIndex}-${Date.now()}`, seed: CONNECTED_SEED });
+	await openIntegrations(page);
+
+	await clickAndWaitForPageReload(page, page.locator('[data-test-integration="gmail"]'));
+
+	await expect(page.locator(GMAIL_MAIN)).toHaveCount(1);
+});
