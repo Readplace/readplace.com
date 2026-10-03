@@ -1,6 +1,6 @@
 export {
 	INBOX_PATH,
-	INBOX_ADDRESSES_PATH,
+	CUSTOM_EMAILS_PATH,
 	INBOX_HIGHLIGHT_PARAM,
 	buildInboxHighlightUrl,
 	parseInboxHighlight,

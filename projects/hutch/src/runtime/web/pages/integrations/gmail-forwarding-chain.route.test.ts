@@ -33,9 +33,9 @@ import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 const NOW = new Date("2026-08-27T00:00:00.000Z");
-const CONNECT = "/integrations/gmail/connect";
+const CONNECT = "/newsletters/gmail/connect";
 const CALLBACK = "/integrations/gmail/callback";
-const GMAIL_PAGE = "/integrations/gmail";
+const GMAIL_PAGE = "/newsletters/gmail";
 
 type Published = { event: HutchEvent<z.ZodTypeAny>; detail: unknown };
 
@@ -111,7 +111,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const state = new URL(started.headers.location).searchParams.get("state") ?? "";
 		const callback = await agent.get(CALLBACK).query({ code: "auth-code", state });
 		assert.equal(callback.status, 303);
-		assert.equal(callback.headers.location, "/integrations/gmail?notice=connected");
+		assert.equal(callback.headers.location, "/newsletters/gmail?notice=connected");
 		const connection = await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId);
 		assert(connection?.gatewayAddress, "the callback must mint a gateway on first connect");
 		const gateway = connection.gatewayAddress;
@@ -175,11 +175,11 @@ describe("gmail forwarding chain (hutch half)", () => {
 		});
 
 		const added = await agent
-			.post("/integrations/gmail/senders/add")
+			.post("/newsletters/gmail/senders/add")
 			.type("form")
 			.send({ sender: senderEmail, readlist: "default" });
 		assert.equal(added.status, 303);
-		assert.equal(added.headers.location, "/integrations/gmail?notice=sender_mapped&discovery=started");
+		assert.equal(added.headers.location, "/newsletters/gmail?notice=sender_mapped&discovery=started");
 		assert.deepEqual(gmail.rewriteRequests, [{ userId, reason: "sender-added" }]);
 		const senderRow = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail });
 		assert(senderRow?.mappedAddress, "the sender must be mapped to its readlist address");

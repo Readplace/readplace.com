@@ -14,7 +14,7 @@ import { loginAgent, useTestServer } from "./test-app";
 
 const useApp = useTestServer();
 
-const MEMBER_PATHS = ["/inbox", "/inbox/addresses"];
+const MEMBER_PATHS = ["/inbox", "/newsletters/custom-emails"];
 
 const EMAIL_COUNT = 11;
 const KEPT_LINK_COUNT = 21;
@@ -86,13 +86,13 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const user = await fixture.auth.findUserByEmail("test@example.com");
 		assert(user, "logged-in user must exist before seeding");
 
-		await agent.post("/inbox/create").type("form").send({ name: "kept" });
-		await agent.post("/inbox/create").type("form").send({ name: "retired" });
+		await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "kept" });
+		await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "retired" });
 		const retired = (
 			await fixture.inboxAddress.inboxAddressStore.listAddressesByUserId(user.userId)
 		).find((entry) => entry.name === "retired");
 		assert(retired, "the second created address must exist");
-		await agent.post("/inbox/disable").type("form").send({ address: retired.address });
+		await agent.post("/newsletters/custom-emails/disable").type("form").send({ address: retired.address });
 
 		const emails = Array.from({ length: EMAIL_COUNT }, (_unused, index) =>
 			emailEntry(user.userId, index),
@@ -140,7 +140,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const walked = [{ path: "/inbox", html: firstPage }];
 		for (const path of [
 			olderHref,
-			"/inbox/addresses",
+			"/newsletters/custom-emails",
 			detailPath,
 			`${detailPath}?tab=articles`,
 			`${detailPath}?tab=excluded`,

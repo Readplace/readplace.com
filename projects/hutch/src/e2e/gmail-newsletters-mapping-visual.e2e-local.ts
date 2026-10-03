@@ -88,14 +88,14 @@ async function openGmail(page: Page, input: { stamp: string; seed: MappingSeed }
 }
 
 async function gotoGmail(page: Page): Promise<void> {
-	await page.goto(`${BASE_URL}/integrations/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-integrations-gmail");
 	await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 }
 
 async function createReadlistsInOrder(page: Page, names: readonly string[]): Promise<void> {
 	for (const name of names) {
-		const created = await page.request.post(`${BASE_URL}/integrations/gmail/readlists/create`, {
+		const created = await page.request.post(`${BASE_URL}/newsletters/gmail/readlists/create`, {
 			form: { readlist_name: name },
 		});
 		assert.equal(created.status(), 200, `creating readlist "${name}" must land back on the Gmail page`);
@@ -273,7 +273,7 @@ test.describe("GMail Newsletters mapping", () => {
 		const saveHeld = new Promise<void>((resolve) => {
 			releaseSave = resolve;
 		});
-		await page.route("**/integrations/gmail/senders/add**", async (route) => {
+		await page.route("**/newsletters/gmail/senders/add**", async (route) => {
 			await saveHeld;
 			await route.continue();
 		});

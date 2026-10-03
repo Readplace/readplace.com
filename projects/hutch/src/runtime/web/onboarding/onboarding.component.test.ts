@@ -382,7 +382,7 @@ describe("OnboardingChecklist", () => {
 		);
 		assert.equal(
 			actionForm(emailStep, "see-inbox-address").getAttribute("action"),
-			"/inbox/addresses",
+			"/newsletters/custom-emails",
 		);
 
 		const success = parse(checklist(contextWith(COMPLETE), { returnQuery: "?tab=done" }));

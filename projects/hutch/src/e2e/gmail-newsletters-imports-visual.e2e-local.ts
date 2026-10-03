@@ -100,7 +100,7 @@ async function openImports(
 	await page.locator('input[name="password"]').fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	await page.goto(`${BASE_URL}/integrations/gmail?discovery=started${input.query ?? ""}`, {
+	await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started${input.query ?? ""}`, {
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector(GMAIL_PAGE);
@@ -378,7 +378,7 @@ test.describe("GMail Newsletters import states", () => {
 		});
 		const staleStart = page.locator(rowAction("start-import"));
 		await expect(staleStart).toBeVisible();
-		const otherTab = await page.request.post(`${BASE_URL}/integrations/gmail/imports/start`, {
+		const otherTab = await page.request.post(`${BASE_URL}/newsletters/gmail/imports/start`, {
 			form: { sender: TLDR },
 			maxRedirects: 0,
 		});

@@ -1,4 +1,4 @@
-import { INBOX_ADDRESSES_PATH, INBOX_PATH } from "@packages/domain/inbox";
+import { CUSTOM_EMAILS_PATH, INBOX_PATH } from "@packages/domain/inbox";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import type { AnalyticsClick, AnalyticsEvent } from "@packages/web-analytics";
 import { buildGuestNavGroups, buildNavGroups, withInternalTracking } from "@packages/web-shell";
@@ -27,7 +27,7 @@ const INBOX_ITEMS = [
 const LINKS_FROM_OTHER_SURFACES = [
 	{ key: "onboarding see-inbox-address", source: "onboarding", content: "see-inbox-address" },
 	{ key: "queue-preferences create-inbox", source: "queue-preferences", content: "create-inbox" },
-].map((link) => ({ ...link, href: withInternalTracking(INBOX_ADDRESSES_PATH, link) }));
+].map((link) => ({ ...link, href: withInternalTracking(CUSTOM_EMAILS_PATH, link) }));
 
 function clicksFor(events: AnalyticsEvent[], tag: { source: string; content: string }): AnalyticsClick[] {
 	return events.filter(

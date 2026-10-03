@@ -4,18 +4,9 @@ import express from "express";
 import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import {
-	AliasNameSchema,
-	countLiveCappedAddresses,
-	DEFAULT_INBOX_ADDRESS_PURPOSE,
 	EmailLinkOrdinalSchema,
-	INBOX_ADDRESS_MAX_PER_USER,
-	InboxAddressLimitReachedError,
-	InboxAddressSchema,
 	isLiveAddress,
 	isCappedAddress,
-	normalizeAliasName,
-	addressCapReached,
-	INBOX_ADDRESSES_PATH,
 	isExcludedLink,
 	parseInboxHighlight,
 } from "@packages/domain/inbox";
@@ -78,7 +69,6 @@ import {
 	toInboxLinkCardViewModel,
 } from "./inbox-link-card.viewmodel";
 import { parsePollParam } from "@packages/web-shell";
-import { InboxPage } from "./inbox.component";
 
 interface InboxDependencies {
 	inboxAddressStore: InboxAddressStore;
@@ -86,7 +76,6 @@ interface InboxDependencies {
 	inboxEmailLinkStore: InboxEmailLinkStore;
 	inboxSavedLinkStore: InboxSavedLinkStore;
 	readEmailContent: ContentProvider;
-	inboxAddressDomain: string;
 	imagesCdnBaseUrl: string;
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
@@ -96,12 +85,10 @@ interface InboxDependencies {
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
 	}) => Promise<void>;
-	/** Save gates applied to the write actions — /create and /enable (each opens
-	 * a mail-receiving save-flow input) and the per-link save (it lands an article
+	/** Save gates applied to the write actions — the per-link save (it lands an article
 	 * in the reader's queue). Both gates run: `requireNotLocked` blocks a
 	 * locked (unverified-past-window) account, `requireWriteAccess` blocks a
-	 * read-only (trial-expired / cancelled) account. Viewing and disabling existing
-	 * addresses stay open — disabling reduces footprint and is harmless. */
+	 * read-only (trial-expired / cancelled) account. */
 	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
 	now: () => Date;
@@ -154,8 +141,6 @@ function sendInboxExcludedRow(
 		.send(`${renderInboxExcludedLink(input.vm)}${liveStatusHtml}`);
 }
 
-const AddressActionSchema = z.object({ address: InboxAddressSchema });
-const CreateAddressSchema = z.object({ name: z.string() });
 const LinkFeedbackSchema = z.object({
 	verdict: z.enum(["should-be-included", "should-be-excluded"]),
 });
@@ -188,8 +173,6 @@ function logLinkClassificationFeedback(input: {
 
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
-	const addressesPath = INBOX_ADDRESSES_PATH;
-	const addressesCreateFailedPath = `${addressesPath}?error=create`;
 
 	const findLinkSaveStates = async (input: {
 		userId: UserId;
@@ -227,40 +210,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
 	});
 
-	router.get("/addresses", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const addresses = await deps.inboxAddressStore.listAddressesByUserId(req.userId);
-		const createFailed = req.query.error === "create";
-		const nameInvalid = req.query.error === "name";
-		const nameTaken = req.query.error === "name-taken";
-		const createdName = AliasNameSchema.safeParse(req.query.created);
-		// Banner shows whenever the cap is genuinely reached, not only after a
-		// rejected create. error=limit stays OR'd in so a just-rejected create
-		// still shows it even when the eventually-consistent live read
-		// (listAddressesByUserId) briefly undercounts and would otherwise drop it.
-		const limitReached =
-			req.query.error === "limit" || countLiveCappedAddresses(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
-		const submittedName = typeof req.query.name === "string" ? req.query.name : "";
-		sendComponent(
-			req,
-			res,
-			Base(
-				InboxPage({
-					addresses,
-					createFailed,
-					nameInvalid,
-					nameTaken,
-					limitReached,
-					createdName: createdName.success ? createdName.data : undefined,
-					submittedName,
-				}),
-				await deps.buildBannerState(req),
-			),
-		);
-	});
-
-	// Registered after the literal `/addresses` route so that path is never
-	// captured as an email id. `id` is the URL-encoded `receivedAtMessageId`.
+	// `id` is the URL-encoded `receivedAtMessageId`.
 	router.get("/:id", async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const receivedAtMessageId = req.params.id;
@@ -636,86 +586,6 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					shown: parseArticlesShown(req.body),
 				})}&saved=1`,
 			);
-		},
-	);
-
-	router.post("/create", deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const userId = req.userId;
-		const parsed = CreateAddressSchema.safeParse(req.body);
-		const name = parsed.success ? normalizeAliasName(parsed.data.name) : undefined;
-		if (name === undefined) {
-			res.redirect(303, `${addressesPath}?error=name`);
-			return;
-		}
-		// Best-effort like the per-user cap — the eventually-consistent list read can
-		// miss a just-minted row — so a rare racing pair may both land; harmless, since
-		// the random token still keeps the two addresses distinct.
-		const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
-		if (owned.some((entry) => isCappedAddress(entry) && isLiveAddress(entry) && entry.name === name)) {
-			res.redirect(303, `${addressesPath}?error=name-taken&name=${encodeURIComponent(name)}`);
-			return;
-		}
-		try {
-			await deps.inboxAddressStore.createAddress({
-				userId,
-				domain: deps.inboxAddressDomain,
-				name,
-				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
-			});
-		} catch (error) {
-			// Hitting the per-user cap is expected user behaviour, not a fault — echo
-			// it back as a friendly message instead of logging an alerting-worthy error.
-			if (error instanceof InboxAddressLimitReachedError) {
-				res.redirect(303, `${addressesPath}?error=limit&name=${encodeURIComponent(name)}`);
-				return;
-			}
-			deps.logError(
-				"[Inbox] Failed to create a forwarding address",
-				error instanceof Error ? error : new Error(String(error)),
-			);
-			res.redirect(303, `${addressesCreateFailedPath}&name=${encodeURIComponent(name)}`);
-			return;
-		}
-		res.redirect(303, `${addressesPath}?created=${encodeURIComponent(name)}`);
-	});
-
-	router.post("/disable", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const userId = req.userId;
-		const parsed = AddressActionSchema.safeParse(req.body);
-		if (parsed.success) {
-			// Confirm ownership before disabling so a forged address for someone
-			// else's row never reaches the (also ownership-guarded) store write.
-			const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
-			const target = owned.find((entry) => entry.address === parsed.data.address);
-			if (target !== undefined && isCappedAddress(target)) {
-				await deps.inboxAddressStore.disableAddress({ userId, address: parsed.data.address });
-			}
-		}
-		res.redirect(303, addressesPath);
-	});
-
-	router.post(
-		"/enable",
-		deps.requireNotLocked,
-		deps.requireWriteAccess,
-		async (req: Request, res: Response) => {
-			assert(req.userId, "userId required - route must be protected by requireAuth");
-			const userId = req.userId;
-			const parsed = AddressActionSchema.safeParse(req.body);
-			if (parsed.success) {
-				const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
-				const target = owned.find((entry) => entry.address === parsed.data.address);
-				if (target !== undefined && isCappedAddress(target) && !isLiveAddress(target)) {
-					if (addressCapReached({ purpose: target.purpose, owned })) {
-						res.redirect(303, `${addressesPath}?error=limit`);
-						return;
-					}
-					await deps.inboxAddressStore.enableAddress({ userId, address: parsed.data.address });
-				}
-			}
-			res.redirect(303, addressesPath);
 		},
 	);
 

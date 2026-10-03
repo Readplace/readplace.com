@@ -81,7 +81,7 @@ async function signInWithGmail(page: Page, input: { stamp: string; seed: object 
 }
 
 async function holdDiscoveryPolls(page: Page): Promise<void> {
-	await page.route("**/integrations/gmail/senders?**", (route) => {
+	await page.route("**/newsletters/gmail/senders?**", (route) => {
 		const polling = new URL(route.request().url()).searchParams.has("poll");
 		return polling ? route.fulfill({ status: 204 }) : route.continue();
 	});
@@ -127,9 +127,9 @@ const SCENARIOS: readonly Scenario[] = [
 		pickerOpen: true,
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { discoveryState: "idle" } });
-			const autoStart = page.waitForResponse("**/integrations/gmail/discovery/start**");
-			await page.route("**/integrations/gmail/discovery/start**", (route) => route.fulfill({ status: 204 }));
-			await openGmailPage(page, "/integrations/gmail");
+			const autoStart = page.waitForResponse("**/newsletters/gmail/discovery/start**");
+			await page.route("**/newsletters/gmail/discovery/start**", (route) => route.fulfill({ status: 204 }));
+			await openGmailPage(page, "/newsletters/gmail");
 			await autoStart;
 			await openPicker(page);
 		},
@@ -146,7 +146,7 @@ const SCENARIOS: readonly Scenario[] = [
 		pickerOpen: true,
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { discoveryState: "idle" } });
-			await openGmailPage(page, "/integrations/gmail");
+			await openGmailPage(page, "/newsletters/gmail");
 			await expect(page.locator(LOAD_BUTTON)).toHaveText("Checking…");
 			await openPicker(page);
 		},
@@ -165,7 +165,7 @@ const SCENARIOS: readonly Scenario[] = [
 			openWithPicker(page, {
 				stamp,
 				seed: { discoveryState: "running", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 1_234 },
-				path: "/integrations/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started",
 			}),
 		settled: (page) =>
 			discoveryShown(page, {
@@ -187,7 +187,7 @@ const SCENARIOS: readonly Scenario[] = [
 					discoveredSenders: DISCOVERED_SENDERS,
 					discoveryCheckedMessages: 5_678,
 				},
-				path: "/integrations/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started",
 			}),
 		settled: (page) =>
 			discoveryShown(page, {
@@ -204,7 +204,7 @@ const SCENARIOS: readonly Scenario[] = [
 			openWithPicker(page, {
 				stamp,
 				seed: { discoveryState: "complete", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 12_345 },
-				path: "/integrations/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started",
 			}),
 		settled: (page) =>
 			discoveryShown(page, {
@@ -221,7 +221,7 @@ const SCENARIOS: readonly Scenario[] = [
 			openWithPicker(page, {
 				stamp,
 				seed: { discoveryState: "complete", discoveredSenders: [], discoveryCheckedMessages: 250 },
-				path: "/integrations/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started",
 			}),
 		settled: async (page) => {
 			await expect(page.locator("[data-test-gmail-results-message]")).toHaveText("No senders discovered yet.");
@@ -240,7 +240,7 @@ const SCENARIOS: readonly Scenario[] = [
 			openWithPicker(page, {
 				stamp,
 				seed: { discoveryState: "failed", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 900 },
-				path: "/integrations/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started",
 			}),
 		settled: (page) =>
 			discoveryShown(page, {
@@ -258,7 +258,7 @@ const SCENARIOS: readonly Scenario[] = [
 				stamp,
 				seed: { discoveryState: "failed", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 900 },
 			});
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 			await expect(page.locator(DISCOVERY_STATUS)).toHaveAttribute("data-discovery-state", "failed");
 			await page.locator(LOAD_BUTTON).click();
 			await expect(page.locator(LOAD_BUTTON)).toHaveText("Checking…");
@@ -285,7 +285,7 @@ const SCENARIOS: readonly Scenario[] = [
 					discoveryCheckedMessages: 900,
 				},
 			});
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 		},
 		settled: async (page) => {
 			await expect(page.locator("[data-test-gmail-metadata-reconnect-button]")).toBeVisible();
@@ -303,7 +303,7 @@ const SCENARIOS: readonly Scenario[] = [
 			openWithPicker(page, {
 				stamp,
 				seed: { discoveryState: "running", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 4_321 },
-				path: `/integrations/gmail?discovery=started&poll=${DISCOVERY_EXHAUSTED_POLL}`,
+				path: `/newsletters/gmail?discovery=started&poll=${DISCOVERY_EXHAUSTED_POLL}`,
 			}),
 		settled: async (page) => {
 			await expect(page.locator(`${RESULTS}:not([hx-get])`)).toBeAttached();

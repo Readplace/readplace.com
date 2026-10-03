@@ -84,7 +84,7 @@ async function openGmail(page: Page, input: { stamp: string; seed: PickerSeed })
 	await page.locator('input[name="password"]').fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	await page.goto(`${BASE_URL}/integrations/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-integrations-gmail");
 	await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 	await expect(page.locator(RESULTS)).not.toHaveAttribute("hx-get");

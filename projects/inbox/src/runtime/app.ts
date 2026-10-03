@@ -1,4 +1,4 @@
-import { INBOX_PATH } from "@packages/domain/inbox";
+import { CUSTOM_EMAILS_PATH, INBOX_PATH } from "@packages/domain/inbox";
 import { resolve } from "node:path";
 import { createCspNonceMiddleware, generateCspNonce } from "@packages/web-shell";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
@@ -34,6 +34,7 @@ import { requireAuth } from "./web/middleware/require-auth";
 import { initRequireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
+import { initCustomEmailsRoutes } from "./web/pages/inbox/custom-emails.page";
 import { initInboxRoutes } from "./web/pages/inbox/inbox.page";
 import "./web/session.types";
 
@@ -152,7 +153,6 @@ export function createInboxApp(
 		inboxSavedLinkStore: deps.inboxSavedLinkStore,
 		readEmailContent: deps.readEmailContent,
 		publishSubmitLink: deps.publishSubmitLink,
-		inboxAddressDomain: config.inboxAddressDomain,
 		imagesCdnBaseUrl: config.imagesCdnBaseUrl,
 		logError: deps.logError,
 		buildBannerState,
@@ -161,6 +161,15 @@ export function createInboxApp(
 		now: deps.now,
 	});
 	app.use(INBOX_PATH, requireAuth, inboxRouter);
+	const customEmailsRouter = initCustomEmailsRoutes({
+		inboxAddressStore: deps.inboxAddressStore,
+		inboxAddressDomain: config.inboxAddressDomain,
+		logError: deps.logError,
+		buildBannerState,
+		requireNotLocked,
+		requireWriteAccess,
+	});
+	app.use(CUSTOM_EMAILS_PATH, requireAuth, customEmailsRouter);
 
 	return app;
 }

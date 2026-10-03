@@ -1,16 +1,11 @@
 import assert from "node:assert/strict";
 import {
-	INBOX_ADDRESSES_PATH,
 	INBOX_PATH,
 	buildInboxHighlightUrl,
 	parseInboxHighlight,
 } from "./inbox-routes";
 
 describe("inbox routes", () => {
-	it("derives the addresses path from the inbox path so one rename moves both", () => {
-		assert.equal(INBOX_ADDRESSES_PATH, `${INBOX_PATH}/addresses`);
-	});
-
 	it("builds a highlight link that survives an id carrying URL-significant characters", () => {
 		const url = buildInboxHighlightUrl({
 			receivedAtMessageId: "2026-06-24T09:00:00.000Z#<m@x>",

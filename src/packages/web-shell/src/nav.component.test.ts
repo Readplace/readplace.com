@@ -266,8 +266,9 @@ describe("GlobalNav component", () => {
 			["/import/imp-1/review?page=2", "import"],
 			["/inbox", "inbox"],
 			["/inbox/emails/msg-1", "inbox"],
-			["/integrations", "integrations"],
-			["/integrations/gmail?feature=gmail", "integrations"],
+			["/newsletters", "integrations"],
+			["/newsletters/gmail?feature=gmail", "integrations"],
+			["/newsletters/custom-emails", "integrations"],
 		])("marks %s as the %s item for a signed-in reader", (currentPath, key) => {
 			expect(currentItemKeys(GlobalNav({ ...SIGNED_IN, currentPath }))).toEqual([key]);
 		});
@@ -341,7 +342,7 @@ describe("GlobalNav component", () => {
 		});
 
 		it("keeps the stroke glyph on a current item that has no solid drawing, so the ink step alone marks it", () => {
-			const integrations = parse(GlobalNav({ ...SIGNED_IN, currentPath: "/integrations" }));
+			const integrations = parse(GlobalNav({ ...SIGNED_IN, currentPath: "/newsletters" }));
 			const install = parse(GlobalNav({ ...GUEST, currentPath: "/install" }));
 
 			expect(shapesOf(integrations.querySelector('[data-test-nav-item="integrations"] .nav__icon svg'))).toEqual(

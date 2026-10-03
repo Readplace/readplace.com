@@ -70,7 +70,7 @@ describe("GMail Newsletters forwarding confirmation step", () => {
 
 	it("renders the poll line under step 2 for an unconfirmed connection", () => {
 		const doc = pageDocument(input({ connection: connection({ forwardingConfirmedAt: undefined }) }));
-		assert.equal(doc.querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get"), "/integrations/gmail/status?poll=1&state=awaiting-confirmation");
+		assert.equal(doc.querySelector("[data-test-gmail-poll]")?.getAttribute("hx-get"), "/newsletters/gmail/status?poll=1&state=awaiting-confirmation");
 	});
 });
 

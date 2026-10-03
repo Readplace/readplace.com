@@ -91,7 +91,7 @@ async function openForwarding(page: Page, input: { stamp: string; seed: Forwardi
 	await page.locator('input[name="password"]').fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	await page.goto(`${BASE_URL}/integrations/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector(GMAIL_PAGE);
 	await expect(page.locator(MAPPINGS)).toBeVisible();
 }

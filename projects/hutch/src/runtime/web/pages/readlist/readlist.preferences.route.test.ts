@@ -526,7 +526,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 
 		expect(inboxesSection(doc).getAttribute("data-test-inboxes-state")).toBe("empty");
 		expect(doc.querySelector('[data-test-action="create-inbox"]')?.getAttribute("href")).toBe(
-			"/inbox/addresses?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
+			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
 		);
 	});
 

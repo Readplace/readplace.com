@@ -8,7 +8,7 @@ import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-
 import { pageOverflowsSideways } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
-const GMAIL_PAGE = `${BASE_URL}/integrations/gmail`;
+const GMAIL_PAGE = `${BASE_URL}/newsletters/gmail`;
 const ADMIN_NEWSLETTERS = `${BASE_URL}/admin/newsletters`;
 const UNSUPPORTED_WILDCARD = "A * only works as the whole name before the @, like *@example.com.";
 const PASSWORD = "password123";
@@ -246,7 +246,7 @@ test.describe("GMail Newsletters without JavaScript", () => {
 	test("searches, chooses, saves a mapping with its import and asks Google only for read access", async ({ browser }, testInfo) => {
 		await withoutJavaScript(browser, async (page) => {
 			const consentLocations: string[] = [];
-			await page.route("**/integrations/gmail/connect?**", async (route) => {
+			await page.route("**/newsletters/gmail/connect?**", async (route) => {
 				const connect = await route.fetch({ maxRedirects: 0 });
 				consentLocations.push(connect.headers().location);
 				await route.fulfill({ status: 200, contentType: "text/html", body: GOOGLE_CONSENT_STAND_IN });
@@ -382,8 +382,8 @@ test.describe("GMail Newsletters polling keeps the reader's choices", () => {
 		const importPolls: string[] = [];
 		page.on("request", (request) => {
 			const url = new URL(request.url());
-			if (url.pathname === "/integrations/gmail/senders" && url.searchParams.has("poll")) discoveryPolls.push(request.url());
-			if (url.pathname === "/integrations/gmail" && url.searchParams.has("imports_poll")) importPolls.push(request.url());
+			if (url.pathname === "/newsletters/gmail/senders" && url.searchParams.has("poll")) discoveryPolls.push(request.url());
+			if (url.pathname === "/newsletters/gmail" && url.searchParams.has("imports_poll")) importPolls.push(request.url());
 		});
 		await expect.poll(() => discoveryPolls.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(2);
 		await expect.poll(() => importPolls.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(2);
@@ -514,7 +514,7 @@ const GMAIL_OVERFLOW_SCENARIOS: readonly OverflowScenario[] = [
 		shows: '[data-test-integration="gmail"]',
 		open: async (page, stamp) => {
 			await signInGmailReader(page, { stamp, catalog: [], seed: { connection: "disconnecting" } });
-			await page.goto(`${BASE_URL}/integrations`, { waitUntil: "domcontentloaded" });
+			await page.goto(`${BASE_URL}/newsletters`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("body.page-integrations")).toHaveCount(1);
 		},
 	},

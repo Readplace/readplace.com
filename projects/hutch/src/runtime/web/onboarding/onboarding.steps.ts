@@ -3,7 +3,7 @@ import {
 	NEXT_READ_MINIMUM_SAVES,
 	hasEnoughSavesForNextRead,
 } from "@packages/domain/article";
-import { INBOX_ADDRESSES_PATH } from "@packages/domain/inbox";
+import { CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
 import { buildExtensionInstallUrl, type PitchablePlatform } from "./extension-install";
 import type {
 	InstallableClientOnboarding,
@@ -109,7 +109,7 @@ const EMAIL_STEP_ACTIONS: OnboardingAction[] = [
 	{
 		key: "see-inbox-address",
 		method: "GET",
-		href: INBOX_ADDRESSES_PATH,
+		href: CUSTOM_EMAILS_PATH,
 		label: "See your inbox address",
 		variant: "primary",
 	},

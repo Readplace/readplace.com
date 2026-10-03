@@ -109,7 +109,7 @@ describe("GMail Newsletters discovery status", () => {
 		const vm = toGmailPageViewModel(input({ discoveredSenders: [], discovery: { state: "idle", mode: "profile", checkedMessageCount: 0 } }));
 		assert.equal(vm.chooser.statusLead, "Load senders from your Gmail account to choose one.");
 		assert.equal(vm.chooser.checkedLabel, undefined);
-		assert.equal(vm.autoDiscoverAction, "/integrations/gmail/discovery/start");
+		assert.equal(vm.autoDiscoverAction, "/newsletters/gmail/discovery/start");
 	});
 
 	it("reports progress from zero while a requested discovery has not started yet", () => {
@@ -207,7 +207,7 @@ describe("GMail Newsletters readlist choice", () => {
 
 describe("Gmail forwarding confirmation polling", () => {
 	it("keeps polling until its budget is exhausted", () => {
-		assert.equal(toGmailPollViewModel({ pollCount: 0, state: "awaiting-confirmation" }).pollUrl, "/integrations/gmail/status?poll=1&state=awaiting-confirmation");
+		assert.equal(toGmailPollViewModel({ pollCount: 0, state: "awaiting-confirmation" }).pollUrl, "/newsletters/gmail/status?poll=1&state=awaiting-confirmation");
 		assert.equal(toGmailPollViewModel({ pollCount: GMAIL_CONFIRM_MAX_POLLS, state: "awaiting-confirmation" }).pollUrl, undefined);
 	});
 

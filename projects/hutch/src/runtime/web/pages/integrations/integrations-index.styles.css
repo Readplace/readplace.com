@@ -94,6 +94,7 @@
 
 /* purgecss-ignore-start: the state modifier is composed at runtime from the view model's state union, so purgecss cannot see the complete class name */
 .integrations__status--disconnected,
+.integrations__status--not-set-up,
 .integrations__status--disconnecting,
 .integrations__status--awaiting-confirmation {
   background: var(--muted);
@@ -102,7 +103,8 @@
 }
 
 .integrations__status--ready-to-filter,
-.integrations__status--filtering {
+.integrations__status--filtering,
+.integrations__status--active {
   color: var(--success-text);
   border: 1px solid var(--color-success);
 }

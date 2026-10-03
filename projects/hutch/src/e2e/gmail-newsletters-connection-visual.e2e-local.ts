@@ -78,11 +78,11 @@ async function signInWithGmail(page: Page, input: { stamp: string; seed: object 
 }
 
 async function holdConfirmationPolls(page: Page): Promise<void> {
-	await page.route("**/integrations/gmail/status?**", (route) => route.fulfill({ status: 204 }));
+	await page.route("**/newsletters/gmail/status?**", (route) => route.fulfill({ status: 204 }));
 }
 
 async function exhaustConfirmationPolls(page: Page): Promise<void> {
-	await page.route("**/integrations/gmail/status?**", (route) => {
+	await page.route("**/newsletters/gmail/status?**", (route) => {
 		const url = new URL(route.request().url());
 		url.searchParams.set("poll", CONFIRMATION_EXHAUSTED_POLL);
 		return route.continue({ url: url.href });
@@ -96,7 +96,7 @@ async function openGmailPage(page: Page, path: string): Promise<void> {
 }
 
 async function openIntegrations(page: Page): Promise<void> {
-	await page.goto(`${BASE_URL}/integrations`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/newsletters`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-integrations");
 }
 
@@ -152,7 +152,7 @@ const SCENARIOS: readonly Scenario[] = [
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { connection: "setup" } });
 			await holdConfirmationPolls(page);
-			await openGmailPage(page, "/integrations/gmail?notice=connected");
+			await openGmailPage(page, "/newsletters/gmail?notice=connected");
 		},
 		settled: async (page) => {
 			await expect(page.locator('[data-test-alert="connected"]')).toBeVisible();
@@ -169,7 +169,7 @@ const SCENARIOS: readonly Scenario[] = [
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { connection: "awaiting-confirmation" } });
 			await holdConfirmationPolls(page);
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 		},
 		settled: (page) =>
 			forwardingStepShown(page, {
@@ -184,7 +184,7 @@ const SCENARIOS: readonly Scenario[] = [
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { connection: "confirm-failed" } });
 			await holdConfirmationPolls(page);
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 		},
 		settled: async (page) => {
 			await expect(page.locator('[data-test-alert="confirm_failed"]')).toBeVisible();
@@ -201,7 +201,7 @@ const SCENARIOS: readonly Scenario[] = [
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { connection: "confirm-exhausted" } });
 			await exhaustConfirmationPolls(page);
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 		},
 		settled: async (page) => {
 			await expect(page.locator("[data-test-gmail-poll]:not([hx-get])")).toBeAttached();
@@ -217,7 +217,7 @@ const SCENARIOS: readonly Scenario[] = [
 		target: GMAIL_MAIN,
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: CONNECTED_SEED });
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 		},
 		settled: async (page) => {
 			await gmailStateShown(page, "filtering");
@@ -231,7 +231,7 @@ const SCENARIOS: readonly Scenario[] = [
 		target: GMAIL_MAIN,
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { ...CONNECTED_SEED, connection: "revoked" } });
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 		},
 		settled: async (page) => {
 			await gmailStateShown(page, "revoked");
@@ -245,7 +245,7 @@ const SCENARIOS: readonly Scenario[] = [
 		target: GMAIL_MAIN,
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { ...CONNECTED_SEED, grantedScopes: ["settings"] } });
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 		},
 		settled: async (page) => {
 			await gmailStateShown(page, "filtering");
@@ -259,7 +259,7 @@ const SCENARIOS: readonly Scenario[] = [
 		target: INTEGRATIONS_MAIN,
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: CONNECTED_SEED });
-			await openGmailPage(page, "/integrations/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 			await clickAndWaitForPageReload(page, page.locator("[data-test-gmail-disconnect]"));
 		},
 		settled: async (page) => {

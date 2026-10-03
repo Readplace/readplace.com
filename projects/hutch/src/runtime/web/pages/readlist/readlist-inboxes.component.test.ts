@@ -247,7 +247,7 @@ describe("buildReadlistInboxes", () => {
 		expect(section(doc).classList.contains("readlist-inboxes--empty")).toBe(true);
 		expect(create.textContent).toBe("Create an inbox");
 		expect(create.getAttribute("href")).toBe(
-			"/inbox/addresses?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
+			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
 		);
 	});
 

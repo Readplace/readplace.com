@@ -383,9 +383,9 @@ test.describe("Alert variants hold their WCAG contrast in both themes", () => {
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			for (const view of [
-				{ key: "oauth_state", url: `${BASE_URL}/integrations?error=oauth_state`, variant: "error" },
-				{ key: "gmail_disconnected", url: `${BASE_URL}/integrations?notice=gmail_disconnected`, variant: "info" },
-				{ key: "connected", url: `${BASE_URL}/integrations/gmail?notice=connected`, variant: "success" },
+				{ key: "oauth_state", url: `${BASE_URL}/newsletters?error=oauth_state`, variant: "error" },
+				{ key: "gmail_disconnected", url: `${BASE_URL}/newsletters?notice=gmail_disconnected`, variant: "info" },
+				{ key: "connected", url: `${BASE_URL}/newsletters/gmail?notice=connected`, variant: "success" },
 			] as const) {
 				await page.goto(view.url, { waitUntil: "domcontentloaded" });
 				const alert = page.locator(`[data-test-alert="${view.key}"]`);
@@ -596,7 +596,7 @@ test.describe("GMail Newsletters colour roles hold their WCAG contrast in both t
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			await page.goto(`${BASE_URL}/integrations/gmail?discovery=started&notice=sender_mapped&sender=dan%40tldr.tech`, {
+			await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started&notice=sender_mapped&sender=dan%40tldr.tech`, {
 				waitUntil: "domcontentloaded",
 			});
 			await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");

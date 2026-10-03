@@ -1,5 +1,5 @@
-export const INTEGRATIONS_PATH = "/integrations";
-export const GMAIL_CONNECT_PATH = "/integrations/gmail/connect";
+export const INTEGRATIONS_PATH = "/newsletters";
+export const GMAIL_CONNECT_PATH = "/newsletters/gmail/connect";
 export const GMAIL_CALLBACK_PATH = "/integrations/gmail/callback";
 
 export type GmailConnectError =

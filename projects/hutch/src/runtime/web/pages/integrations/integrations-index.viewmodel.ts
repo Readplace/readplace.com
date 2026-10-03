@@ -2,6 +2,7 @@ import { withInternalTracking } from "@packages/web-shell";
 import type { IconName } from "@packages/ui-icons";
 import type { GmailConnection, GmailConnectionState } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
+import { CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
 import { GMAIL_PATH } from "./gmail.url";
 
@@ -31,12 +32,14 @@ function trackedAction(
 	};
 }
 
+type CustomEmailsState = "active" | "not-set-up";
+
 export interface IntegrationRowViewModel {
 	key: string;
 	name: string;
 	description: string;
 	iconName: IconName;
-	statusKey: GmailConnectionState;
+	statusKey: GmailConnectionState | CustomEmailsState;
 	statusLabel: string;
 	statusModifier: string;
 	actions: IntegrationActionViewModel[];
@@ -160,27 +163,50 @@ function noticesFor(notice: string | undefined): IntegrationsNoticeViewModel[] {
 	return [{ key: notice, message }];
 }
 
+function gmailRow(connection: GmailConnection | undefined): IntegrationRowViewModel {
+	const state = gmailConnectionState(connection);
+	return {
+		key: "gmail",
+		name: "From Gmail",
+		description: "Send newsletters from Gmail to your readlists.",
+		iconName: "mail",
+		statusKey: state,
+		statusLabel: STATUS_LABELS[state],
+		statusModifier: `integrations__status--${state}`,
+		actions: GMAIL_ACTIONS[state].map(trackedAction),
+	};
+}
+
+function customEmailsRow(activeCount: number): IntegrationRowViewModel {
+	const state: CustomEmailsState = activeCount > 0 ? "active" : "not-set-up";
+	return {
+		key: "custom-emails",
+		name: "From Custom Emails",
+		description: "Sign up for newsletters with your own Readplace emails.",
+		iconName: "inbox",
+		statusKey: state,
+		statusLabel: state === "active" ? `${activeCount} active` : "Not set up",
+		statusModifier: `integrations__status--${state}`,
+		actions: [trackedAction({
+			key: "custom-emails",
+			method: "GET",
+			href: CUSTOM_EMAILS_PATH,
+			label: "Manage",
+			variant: "neutral",
+		})],
+	};
+}
+
 export function toIntegrationsIndexViewModel(input: {
 	connection: GmailConnection | undefined;
+	activeCustomEmailCount: number;
 	error?: string;
 	notice?: string;
 }): IntegrationsIndexViewModel {
-	const state = gmailConnectionState(input.connection);
 	const alerts = alertsFor(input.error);
 	const notices = noticesFor(input.notice);
 	return {
-		services: [
-			{
-				key: "gmail",
-				name: "GMail Newsletters",
-				description: "Send newsletters from Gmail to your readlists.",
-				iconName: "mail",
-				statusKey: state,
-				statusLabel: STATUS_LABELS[state],
-				statusModifier: `integrations__status--${state}`,
-				actions: GMAIL_ACTIONS[state].map(trackedAction),
-			},
-		],
+		services: [gmailRow(input.connection), customEmailsRow(input.activeCustomEmailCount)],
 		notices,
 		alerts,
 	};

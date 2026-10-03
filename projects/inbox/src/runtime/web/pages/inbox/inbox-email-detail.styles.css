@@ -68,7 +68,8 @@
   color: var(--muted-foreground);
 }
 
-.inbox-email-detail__sender {
+.inbox-email-detail__sender,
+.inbox-email-detail__recipient {
   flex: 1 1 12ch;
   min-width: 0;
   max-width: max-content;

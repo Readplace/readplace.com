@@ -20,7 +20,7 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import { resolveWriteAccess } from "@packages/subscription-access";
 import {
-	INBOX_ADDRESSES_PATH,
+	CUSTOM_EMAILS_PATH,
 	buildInboxHighlightUrl,
 } from "@packages/domain/inbox";
 import {
@@ -240,7 +240,7 @@ async function processAutomationSavesHeld(
 		}),
 		manageAddressesUrl: trackedUrl({
 			appOrigin: deps.appOrigin,
-			path: INBOX_ADDRESSES_PATH,
+			path: CUSTOM_EMAILS_PATH,
 			content: "manage-addresses",
 		}),
 	});

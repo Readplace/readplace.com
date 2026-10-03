@@ -1,6 +1,6 @@
 export const INBOX_PATH = "/inbox";
 
-export const INBOX_ADDRESSES_PATH = `${INBOX_PATH}/addresses`;
+export const CUSTOM_EMAILS_PATH = "/newsletters/custom-emails";
 
 export const INBOX_HIGHLIGHT_PARAM = "highlight";
 

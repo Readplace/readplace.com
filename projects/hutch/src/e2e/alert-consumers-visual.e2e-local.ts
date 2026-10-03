@@ -91,7 +91,7 @@ async function openGmailSuccess(page: Page, stamp: string): Promise<void> {
 	});
 	assert.equal(seeded.status(), 201, "the Gmail visual needs a connected account");
 	await loginAs(page, email);
-	await page.goto(`${BASE_URL}/integrations/gmail?notice=connected`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/newsletters/gmail?notice=connected`, { waitUntil: "domcontentloaded" });
 }
 
 async function openLoginError(page: Page, stamp: string): Promise<void> {
@@ -147,14 +147,14 @@ const SCENARIOS: readonly Scenario[] = [
 		name: "integrations-error",
 		key: "oauth_state",
 		variant: "error",
-		open: (page, stamp) => openIntegrations(page, stamp, "/integrations?error=oauth_state"),
+		open: (page, stamp) => openIntegrations(page, stamp, "/newsletters?error=oauth_state"),
 		pinnedText: [],
 	},
 	{
 		name: "integrations-notice",
 		key: "gmail_disconnected",
 		variant: "info",
-		open: (page, stamp) => openIntegrations(page, stamp, "/integrations?notice=gmail_disconnected"),
+		open: (page, stamp) => openIntegrations(page, stamp, "/newsletters?notice=gmail_disconnected"),
 		pinnedText: [],
 	},
 	{

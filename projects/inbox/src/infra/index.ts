@@ -231,7 +231,12 @@ const inboxRoutes = new HutchAPIGatewayLambdaRoute("inbox-web", {
 	apiGatewayId,
 	apiGatewayExecutionArn,
 	lambda: webLambda,
-	routeKeys: ["GET /inbox", "ANY /inbox/{proxy+}"],
+	routeKeys: [
+		"GET /inbox",
+		"ANY /inbox/{proxy+}",
+		"GET /newsletters/custom-emails",
+		"ANY /newsletters/custom-emails/{proxy+}",
+	],
 });
 
 // --- Inbound email receive worker Lambda ---

@@ -75,7 +75,7 @@ describe("toInboxEmailsViewModel", () => {
 		expect(empty?.addresses).toEqual([ADDRESS, second]);
 	});
 
-	it("sends an empty inbox with no address to My Emails to create one", () => {
+	it("sends an empty inbox with no address to Custom Emails to create one", () => {
 		const { empty } = build([], []);
 
 		expect(empty?.key).toBe("no-address");
@@ -84,7 +84,7 @@ describe("toInboxEmailsViewModel", () => {
 		expect(empty?.actions).toEqual([
 			{
 				key: "create-first-address",
-				href: "/inbox/addresses?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
+				href: "/newsletters/custom-emails?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
 				label: "Create my first inbox address",
 			},
 		]);

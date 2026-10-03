@@ -39,10 +39,11 @@ export interface GmailConnectContext {
 }
 
 export function registerGmailConnectRoutes(
-	router: Router,
+	routers: { router: Router; callbackRouter: Router },
 	gmail: GmailIntegrationDependencies,
 	context: GmailConnectContext,
 ): void {
+	const { router, callbackRouter } = routers;
 	const redirectUri = `${context.appOrigin}${GMAIL_CALLBACK_PATH}`;
 	const write = [context.requireAuth, context.requireNotLocked, context.requireWriteAccess];
 	const imports = initGmailImportActions({ gmail, now: context.now });
@@ -128,7 +129,7 @@ export function registerGmailConnectRoutes(
 		res.redirect(303, authorizeUrl);
 	});
 
-	router.get("/gmail/callback", [returnSignedOutReaderToIntegrations, ...write], async (req: Request, res: Response) => {
+	callbackRouter.get(GMAIL_CALLBACK_PATH, [returnSignedOutReaderToIntegrations, ...write], async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
 		const stateCookie = req.cookies?.[STATE_COOKIE];

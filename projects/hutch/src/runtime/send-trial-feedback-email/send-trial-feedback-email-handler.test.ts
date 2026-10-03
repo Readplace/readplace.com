@@ -162,7 +162,7 @@ describe("automation-saves-held notice", () => {
 			new URL(highlighted).searchParams.get("highlight"),
 			HELD_EMAIL_ID,
 		);
-		assert.ok(sent.text.includes("https://readplace.com/inbox/addresses?utm_source="));
+		assert.ok(sent.text.includes("https://readplace.com/newsletters/custom-emails?utm_source="));
 		assert.ok(sent.text.includes("https://readplace.com/account?utm_source="));
 		assert.equal(
 			(await subject.providers.findByUserId(USER_ID))?.automationSavesHeldEmailSentAt,

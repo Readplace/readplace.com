@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, renderAlert } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
+import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import { INTEGRATIONS_INDEX_STYLES } from "./integrations-index.styles";
 import type { IntegrationsIndexViewModel } from "./integrations-index.viewmodel";
 
@@ -15,9 +16,9 @@ const INTEGRATIONS_COPY_SCRIPT = `<script src="/client-dist/integrations.client.
 export function IntegrationsIndexPage(vm: IntegrationsIndexViewModel): PageBody {
 	return {
 		seo: {
-			title: "Integrations — Readplace",
-			description: "Connect a service so its email lands in Readplace.",
-			canonicalUrl: "/integrations",
+			title: "Newsletters — Readplace",
+			description: "Choose where your newsletters come from.",
+			canonicalUrl: INTEGRATIONS_PATH,
 			robots: "noindex, nofollow",
 		},
 		styles: INTEGRATIONS_INDEX_STYLES,

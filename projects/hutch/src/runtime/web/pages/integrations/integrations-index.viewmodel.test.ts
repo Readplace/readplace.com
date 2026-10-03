@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { GmailConnection } from "@packages/domain/gmail";
-import { InboxAddressSchema } from "@packages/domain/inbox";
+import { CUSTOM_EMAILS_PATH, InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
 import { GMAIL_PATH } from "./gmail.url";
@@ -28,20 +28,54 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 	};
 }
 
-function gmailRow(input: Parameters<typeof toIntegrationsIndexViewModel>[0]) {
-	const gmail = toIntegrationsIndexViewModel(input).services.find((s) => s.key === "gmail");
+type IndexInput = Parameters<typeof toIntegrationsIndexViewModel>[0];
+
+function indexViewModel(input: Omit<IndexInput, "activeCustomEmailCount">) {
+	return toIntegrationsIndexViewModel({ ...input, activeCustomEmailCount: 0 });
+}
+
+function gmailRow(input: Omit<IndexInput, "activeCustomEmailCount">) {
+	const gmail = indexViewModel(input).services.find((s) => s.key === "gmail");
 	assert(gmail, "the Gmail row is always present");
 	return gmail;
 }
 
 describe("toIntegrationsIndexViewModel", () => {
-	it("lists Gmail as the only service", () => {
-		const vm = toIntegrationsIndexViewModel({ connection: undefined });
+	it("lists From Gmail then From Custom Emails", () => {
+		const vm = indexViewModel({ connection: undefined });
 
 		assert.deepEqual(
-			vm.services.map((s) => s.key),
-			["gmail"],
+			vm.services.map((s) => [s.key, s.name]),
+			[["gmail", "From Gmail"], ["custom-emails", "From Custom Emails"]],
 		);
+	});
+
+	it("counts the active custom emails and links to manage them", () => {
+		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 2 })
+			.services.find((s) => s.key === "custom-emails");
+		assert(customEmails, "the Custom Emails row is always present");
+
+		assert.equal(customEmails.statusKey, "active");
+		assert.equal(customEmails.statusLabel, "2 active");
+		assert.equal(customEmails.statusModifier, "integrations__status--active");
+		assert.deepEqual(
+			customEmails.actions.map((a) => [a.key, a.method, a.href, a.label]),
+			[[
+				"custom-emails",
+				"GET",
+				`${CUSTOM_EMAILS_PATH}?utm_source=integrations&utm_medium=internal&utm_content=custom-emails`,
+				"Manage",
+			]],
+		);
+	});
+
+	it("shows custom emails as not set up while none is active", () => {
+		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0 })
+			.services.find((s) => s.key === "custom-emails");
+		assert(customEmails, "the Custom Emails row is always present");
+
+		assert.equal(customEmails.statusKey, "not-set-up");
+		assert.equal(customEmails.statusLabel, "Not set up");
 	});
 
 	it("offers Connect while Gmail is not set up", () => {
@@ -198,7 +232,7 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it("renders no alert on a plain visit", () => {
-		const vm = toIntegrationsIndexViewModel({ connection: undefined });
+		const vm = indexViewModel({ connection: undefined });
 
 		assert.deepEqual(vm.alerts, []);
 	});
@@ -215,7 +249,7 @@ describe("toIntegrationsIndexViewModel", () => {
 			"oauth_exchange",
 			"oauth_signed_out",
 		]) {
-			const vm = toIntegrationsIndexViewModel({ connection: undefined, error });
+			const vm = indexViewModel({ connection: undefined, error });
 			assert.deepEqual(
 				vm.alerts.map((a) => a.key),
 				[error],
@@ -233,18 +267,18 @@ describe("toIntegrationsIndexViewModel", () => {
 			"Reconnect Gmail and allow Readplace to read message headers so you can choose senders from your mailbox. Existing mappings stay in place.",
 		],
 	])("says the right thing for %s", (error, message) => {
-		const vm = toIntegrationsIndexViewModel({ connection: undefined, error });
+		const vm = indexViewModel({ connection: undefined, error });
 		assert.deepEqual(vm.alerts, [{ key: error, message }]);
 	});
 
 	it("ignores an error code it does not recognise rather than rendering an empty alert", () => {
-		const vm = toIntegrationsIndexViewModel({ connection: undefined, error: "made-up" });
+		const vm = indexViewModel({ connection: undefined, error: "made-up" });
 
 		assert.deepEqual(vm.alerts, []);
 	});
 
 	it("explains what the reader must remove in Gmail after a disconnect", () => {
-		const vm = toIntegrationsIndexViewModel({
+		const vm = indexViewModel({
 			connection: connection({
 				forwardingConfirmedAt: "2026-08-27T00:05:00.000Z",
 				filterCount: 1,
@@ -270,7 +304,7 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it("ignores a notice key it does not recognise rather than rendering an empty notice", () => {
-		const vm = toIntegrationsIndexViewModel({ connection: undefined, notice: "made-up" });
+		const vm = indexViewModel({ connection: undefined, notice: "made-up" });
 
 		assert.deepEqual(vm.notices, []);
 	});

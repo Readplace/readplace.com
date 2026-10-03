@@ -1,18 +1,18 @@
 import { z } from "zod";
 import type { GmailAccountEmail } from "@packages/domain/gmail";
 
-export const GMAIL_PATH = "/integrations/gmail";
-export const GMAIL_STATUS_PATH = "/integrations/gmail/status";
-export const GMAIL_SENDER_ADD_PATH = "/integrations/gmail/senders/add";
-export const GMAIL_SENDER_REMOVE_PATH = "/integrations/gmail/senders/remove";
-export const GMAIL_FILTER_RETRY_PATH = "/integrations/gmail/filter/retry";
-export const GMAIL_DISCOVERY_START_PATH = "/integrations/gmail/discovery/start";
-export const GMAIL_SENDERS_PATH = "/integrations/gmail/senders";
-export const GMAIL_DISCONNECT_PATH = "/integrations/gmail/disconnect";
-export const GMAIL_READLIST_CREATE_PATH = "/integrations/gmail/readlists/create";
-export const GMAIL_IMPORT_START_PATH = "/integrations/gmail/imports/start";
-export const GMAIL_IMPORT_RETRY_PATH = "/integrations/gmail/imports/retry";
-export const GMAIL_IMPORT_CANCEL_PATH = "/integrations/gmail/imports/cancel";
+export const GMAIL_PATH = "/newsletters/gmail";
+export const GMAIL_STATUS_PATH = "/newsletters/gmail/status";
+export const GMAIL_SENDER_ADD_PATH = "/newsletters/gmail/senders/add";
+export const GMAIL_SENDER_REMOVE_PATH = "/newsletters/gmail/senders/remove";
+export const GMAIL_FILTER_RETRY_PATH = "/newsletters/gmail/filter/retry";
+export const GMAIL_DISCOVERY_START_PATH = "/newsletters/gmail/discovery/start";
+export const GMAIL_SENDERS_PATH = "/newsletters/gmail/senders";
+export const GMAIL_DISCONNECT_PATH = "/newsletters/gmail/disconnect";
+export const GMAIL_READLIST_CREATE_PATH = "/newsletters/gmail/readlists/create";
+export const GMAIL_IMPORT_START_PATH = "/newsletters/gmail/imports/start";
+export const GMAIL_IMPORT_RETRY_PATH = "/newsletters/gmail/imports/retry";
+export const GMAIL_IMPORT_CANCEL_PATH = "/newsletters/gmail/imports/cancel";
 
 const GMAIL_MAIL_URL = "https://mail.google.com/mail/u/0/";
 

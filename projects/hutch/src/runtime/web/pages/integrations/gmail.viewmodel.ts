@@ -369,7 +369,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
 	return {
 		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state], pollState,
-		integrationsPath: trackGmail(INTEGRATIONS_PATH, "back-to-integrations"),
+		integrationsPath: trackGmail(INTEGRATIONS_PATH, "back-to-newsletters"),
 		gatewayAddress: input.connection.gatewayAddress, mailboxUrl: buildGmailMailboxUrl(input.connection.accountEmail),
 		pagePath: GMAIL_PATH, pageUrl: buildGmailUrl({ ...pickerState, discovery: "started" }), searchPath: GMAIL_SENDERS_PATH,
 		discoveryAction: trackGmail(GMAIL_DISCOVERY_START_PATH, "load-senders"),

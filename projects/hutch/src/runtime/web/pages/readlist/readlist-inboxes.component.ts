@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-	INBOX_ADDRESSES_PATH,
+	CUSTOM_EMAILS_PATH,
 	type InboxAddressEntry,
 	isCappedAddress,
 	isLiveAddress,
@@ -121,7 +121,7 @@ export function buildReadlistInboxes(input: {
 			input.readlist.label,
 		),
 		rows,
-		createInboxHref: withInternalTracking(INBOX_ADDRESSES_PATH, {
+		createInboxHref: withInternalTracking(CUSTOM_EMAILS_PATH, {
 			source: INBOXES_SOURCE,
 			content: "create-inbox",
 		}),

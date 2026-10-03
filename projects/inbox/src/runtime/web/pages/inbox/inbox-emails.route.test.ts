@@ -120,7 +120,7 @@ describe("Inbox emails list route", () => {
 		);
 	});
 
-	it("sends a reader with no forwarding address to My Emails to create one", async () => {
+	it("sends a reader with no forwarding address to Custom Emails to create one", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -141,7 +141,7 @@ describe("Inbox emails list route", () => {
 			"create-first-address",
 		]);
 		expect(ctas[0].getAttribute("href")).toBe(
-			"/inbox/addresses?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
+			"/newsletters/custom-emails?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
 		);
 		expect(ctas[0].textContent).toBe("Create my first inbox address");
 	});
@@ -263,6 +263,20 @@ describe("Inbox emails list route", () => {
 		expect(doc.querySelector("[data-test-inbox-emails-empty]")).toBeNull();
 	});
 
+	it("links the Custom Emails button to the custom emails screen", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/inbox")).text).window.document;
+
+		const button = doc.querySelector("[data-test-inbox-manage-addresses]");
+		assert(button, "the Custom Emails button must render");
+		expect(button.textContent).toBe("Custom Emails");
+		expect(button.getAttribute("href")).toBe(
+			"/newsletters/custom-emails?utm_source=inbox-emails&utm_medium=internal&utm_content=manage-addresses",
+		);
+	});
+
 	it("shows the Inbox nav entry on the list page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -306,6 +320,7 @@ describe("Inbox emails list route", () => {
 				senderEmail: "c@example.com",
 				subject: "Newest digest",
 				status: "received",
+				recipientAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
 			}),
 		]);
 
@@ -326,6 +341,10 @@ describe("Inbox emails list route", () => {
 			row.querySelector("[data-test-inbox-email-sender]")?.getAttribute("title"),
 		);
 		expect(senderTitles).toEqual(["c@example.com", "b@example.com", "a@example.com"]);
+		const recipients = rows.map(
+			(row) => row.querySelector("[data-test-inbox-email-recipient]")?.textContent,
+		);
+		expect(recipients).toEqual(["gmail-a7b2c9@read.place", "in-3f9a2c@read.place", "in-3f9a2c@read.place"]);
 
 		expect(rows.map((row) => row.querySelectorAll("a").length)).toEqual([1, 1, 1]);
 		const newestHref = rows[0]

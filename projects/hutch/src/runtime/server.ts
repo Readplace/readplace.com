@@ -1591,20 +1591,20 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use("/account", requireAuth, accountRouter);
 
-	app.use(
-		"/integrations",
-		initIntegrationsRoutes({
-			buildBannerState,
-			requireAuth,
-			requireNotLocked,
-			requireWriteAccess,
-			appOrigin,
-			secureCookies,
-			logError: deps.logError,
-			now: deps.now,
-			gmail: gmailIntegration,
-		}),
-	);
+	const integrationsRoutes = initIntegrationsRoutes({
+		buildBannerState,
+		requireAuth,
+		requireNotLocked,
+		requireWriteAccess,
+		appOrigin,
+		secureCookies,
+		logError: deps.logError,
+		now: deps.now,
+		gmail: gmailIntegration,
+		listInboxAddresses: deps.listInboxAddresses,
+	});
+	app.use("/newsletters", integrationsRoutes.newsletters);
+	app.use(integrationsRoutes.gmailCallback);
 
 	const oauthRouter = initOAuthRoutes({
 		model: deps.oauthModel,

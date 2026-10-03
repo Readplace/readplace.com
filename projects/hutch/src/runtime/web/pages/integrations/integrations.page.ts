@@ -2,6 +2,8 @@ import assert from "node:assert";
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { sendComponent } from "@packages/web-shell";
+import { countLiveCappedAddresses } from "@packages/domain/inbox";
+import type { InboxAddressStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -21,10 +23,15 @@ interface IntegrationsDependencies {
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	gmail: GmailIntegrationDependencies | undefined;
+	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 }
 
-export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
+export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
+	newsletters: Router;
+	gmailCallback: Router;
+} {
 	const router = express.Router();
+	const callbackRouter = express.Router();
 	const gmail = deps.gmail;
 
 	if (gmail !== undefined) {
@@ -37,7 +44,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 			requireNotLocked: deps.requireNotLocked,
 			requireWriteAccess: deps.requireWriteAccess,
 		};
-		registerGmailConnectRoutes(router, gmail, context);
+		registerGmailConnectRoutes({ router, callbackRouter }, gmail, context);
 		registerGmailPageRoutes(router, gmail, {
 			buildBannerState: deps.buildBannerState,
 			requireAuth: deps.requireAuth,
@@ -50,14 +57,18 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): Router {
 	router.get("/", deps.requireAuth, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
-		const connection = await gmail?.gmailConnectionStore.findConnectionByUserId(userId);
+		const [connection, addresses] = await Promise.all([
+			gmail?.gmailConnectionStore.findConnectionByUserId(userId),
+			deps.listInboxAddresses(userId),
+		]);
 		const vm = toIntegrationsIndexViewModel({
 			connection,
+			activeCustomEmailCount: countLiveCappedAddresses(addresses),
 			error: typeof req.query.error === "string" ? req.query.error : undefined,
 			notice: typeof req.query.notice === "string" ? req.query.notice : undefined,
 		});
 		sendComponent(req, res, Base(IntegrationsIndexPage(vm), await deps.buildBannerState(req)));
 	});
 
-	return router;
+	return { newsletters: router, gmailCallback: callbackRouter };
 }

@@ -16,7 +16,7 @@ describe("requireNotLocked", () => {
 		assert(userId, "seeded login user must exist");
 		await harness.auth.setUserAppearance({ userId, appearance: "dark" });
 
-		const response = await agent.post("/inbox/create").set("Accept", "text/html");
+		const response = await agent.post("/newsletters/custom-emails/create").set("Accept", "text/html");
 
 		expect(response.status).toBe(403);
 		const doc = new JSDOM(response.text).window.document;

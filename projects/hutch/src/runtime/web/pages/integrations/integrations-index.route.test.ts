@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { InboxAddressSchema } from "@packages/domain/inbox";
+import { AliasNameSchema, InboxAddressSchema } from "@packages/domain/inbox";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
@@ -17,16 +17,16 @@ function load(text: string): Document {
 }
 
 function integrationActions(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-test-integration-action]")).map((el) =>
+	return Array.from(doc.querySelectorAll('[data-test-integration="gmail"] [data-test-integration-action]')).map((el) =>
 		el.getAttribute("data-test-integration-action"),
 	);
 }
 
-describe("GET /integrations", () => {
+describe("GET /newsletters", () => {
 	it("redirects an anonymous reader to the login page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(harness.server).get("/integrations");
+		const response = await request(harness.server).get("/newsletters");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
@@ -36,21 +36,21 @@ describe("GET /integrations", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get("/integrations");
+		const response = await agent.get("/newsletters");
 
 		expect(response.status).toBe(200);
 		const doc = load(response.text);
 		const services = Array.from(doc.querySelectorAll("[data-test-integration]")).map((el) =>
 			el.getAttribute("data-test-integration"),
 		);
-		expect(services).toEqual(["gmail"]);
+		expect(services).toEqual(["gmail", "custom-emails"]);
 	});
 
 	it("shows Gmail as not set up", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const doc = load((await agent.get("/integrations")).text);
+		const doc = load((await agent.get("/newsletters")).text);
 
 		const gmail = doc.querySelector('[data-test-integration="gmail"]');
 		assert(gmail, "the Gmail row must render");
@@ -60,22 +60,51 @@ describe("GET /integrations", () => {
 		expect(status.textContent).toBe("Not set up");
 	});
 
-	it("names the Gmail card GMail Newsletters and says it sends newsletters to readlists", async () => {
+	it("names the Gmail card From Gmail and says it sends newsletters to readlists", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const gmail = load((await agent.get("/integrations")).text).querySelector('[data-test-integration="gmail"]');
+		const gmail = load((await agent.get("/newsletters")).text).querySelector('[data-test-integration="gmail"]');
 		assert(gmail, "the Gmail row must render");
 
-		expect(gmail.querySelector(".integrations__name")?.textContent).toBe("GMail Newsletters");
+		expect(gmail.querySelector(".integrations__name")?.textContent).toBe("From Gmail");
 		expect(gmail.querySelector(".integrations__description")?.textContent).toBe("Send newsletters from Gmail to your readlists.");
+	});
+
+	it("counts the reader's active custom emails and links to manage them", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const { inboxAddressStore, inboxAddressDomain } = fixture.inboxAddress;
+		for (const name of ["news", "tech"]) {
+			await inboxAddressStore.createAddress({
+				userId,
+				domain: inboxAddressDomain,
+				name: AliasNameSchema.parse(name),
+				purpose: "user-alias",
+			});
+		}
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const customEmails = doc.querySelector('[data-test-integration="custom-emails"]');
+		assert(customEmails, "the Custom Emails row must render");
+		expect(customEmails.querySelector(".integrations__name")?.textContent).toBe("From Custom Emails");
+		const status = customEmails.querySelector("[data-test-integration-status]");
+		assert(status, "the Custom Emails row must carry a status");
+		expect(status.textContent).toBe("2 active");
+		const form = customEmails.querySelector("[data-test-integration-action='custom-emails']")?.closest("form");
+		assert(form, "the Custom Emails row navigates via a form");
+		expect(form.getAttribute("action")).toBe("/newsletters/custom-emails?utm_source=integrations&utm_medium=internal&utm_content=custom-emails");
 	});
 
 	it("offers only Connect to a reader with no connection", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const doc = load((await agent.get("/integrations")).text);
+		const doc = load((await agent.get("/newsletters")).text);
 
 		expect(integrationActions(doc)).toEqual(["connect"]);
 	});
@@ -101,7 +130,7 @@ describe("GET /integrations", () => {
 		assert(userId, "seeded login user must exist");
 		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress: GATEWAY });
 
-		const doc = load((await agent.get("/integrations")).text);
+		const doc = load((await agent.get("/newsletters")).text);
 
 		expect(integrationActions(doc)).toEqual(["finish-setup"]);
 		const action = doc.querySelector("[data-test-integration-action='finish-setup']");
@@ -109,14 +138,14 @@ describe("GET /integrations", () => {
 		const form = action.closest("form");
 		assert(form, "the finish-setup action navigates via a form");
 		expect(form.getAttribute("method")?.toLowerCase()).toBe("get");
-		expect(form.getAttribute("action")).toBe("/integrations/gmail?utm_source=integrations&utm_medium=internal&utm_content=finish-setup");
+		expect(form.getAttribute("action")).toBe("/newsletters/gmail?utm_source=integrations&utm_medium=internal&utm_content=finish-setup");
 	});
 
 	it("boosts the action form and loads the clipboard bundle so a boosted hop keeps copy working", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get("/integrations");
+		const response = await agent.get("/newsletters");
 		const doc = load(response.text);
 
 		const action = doc.querySelector("[data-test-integration-action='connect']");
@@ -134,7 +163,7 @@ describe("GET /integrations", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const doc = load((await agent.get("/integrations?error=oauth_state")).text);
+		const doc = load((await agent.get("/newsletters?error=oauth_state")).text);
 
 		const alert = doc.querySelector('[data-test-alert-variant="error"]');
 		assert(alert, "the index must render an alert for a redirect that carried an error");
@@ -147,7 +176,7 @@ describe("GET /integrations", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const doc = load((await agent.get("/integrations?error=oauth_metadata_scope_first_connect")).text);
+		const doc = load((await agent.get("/newsletters?error=oauth_metadata_scope_first_connect")).text);
 
 		const alert = doc.querySelector('[data-test-alert-variant="error"]');
 		assert(alert, "the index must render the first-connect metadata alert");
@@ -169,7 +198,7 @@ describe("GET /integrations", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const doc = load((await agent.get("/integrations?notice=gmail_disconnected")).text);
+		const doc = load((await agent.get("/newsletters?notice=gmail_disconnected")).text);
 
 		const notice = doc.querySelector('[data-test-alert-variant="info"]');
 		assert(notice, "the index must render a notice for a redirect that carried one");
@@ -182,7 +211,7 @@ describe("GET /integrations", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const doc = load((await agent.get("/integrations")).text);
+		const doc = load((await agent.get("/newsletters")).text);
 
 		const robots = doc.querySelector('meta[name="robots"]');
 		assert(robots, "the page must declare a robots policy");
@@ -190,7 +219,7 @@ describe("GET /integrations", () => {
 	});
 });
 
-describe("Integrations nav entry", () => {
+describe("Newsletters nav entry", () => {
 	it("is absent from the header for a reader who did not opt in", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -214,7 +243,7 @@ describe("Integrations nav entry", () => {
 		const form = entry.closest("form");
 		assert(form, "every nav entry renders inside a form");
 		expect(form.getAttribute("action")).toBe(
-			"/integrations?utm_source=header-nav&utm_medium=internal&utm_content=integrations",
+			"/newsletters?utm_source=header-nav&utm_medium=internal&utm_content=integrations",
 		);
 	});
 });

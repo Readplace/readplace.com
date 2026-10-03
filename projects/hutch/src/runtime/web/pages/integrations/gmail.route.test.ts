@@ -26,7 +26,7 @@ import { initDisconnectGmail } from "../../../domain/gmail/disconnect-gmail";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
-const GMAIL = "/integrations/gmail";
+const GMAIL = "/newsletters/gmail";
 const ADD = `${GMAIL}/senders/add`;
 const REMOVE = `${GMAIL}/senders/remove`;
 const RETRY = `${GMAIL}/filter/retry`;
@@ -284,27 +284,27 @@ describe("GMail Newsletters page", () => {
 	it("requires a current connection before reading or changing mappings", async () => {
 		const { harness } = harnessWithGmail();
 		const agent = await loginAgent(harness.server, harness.auth);
-		expect((await agent.get(GMAIL)).headers.location).toBe("/integrations");
+		expect((await agent.get(GMAIL)).headers.location).toBe("/newsletters");
 		for (const path of [ADD, CREATE_READLIST, IMPORT_START, IMPORT_RETRY, IMPORT_CANCEL, REMOVE, `${GMAIL}/disconnect`]) {
-			expect((await agent.post(path).type("form").send({ sender: TLDR, readlist: "default" })).headers.location).toBe("/integrations");
+			expect((await agent.post(path).type("form").send({ sender: TLDR, readlist: "default" })).headers.location).toBe("/newsletters");
 		}
-		expect((await agent.get(`${GMAIL}/senders`).set("HX-Request", "true")).headers["hx-redirect"]).toBe("/integrations");
+		expect((await agent.get(`${GMAIL}/senders`).set("HX-Request", "true")).headers["hx-redirect"]).toBe("/newsletters");
 	});
 
 	it("redirects while disconnect is running", async () => {
 		const { agent, gmail, userId } = await connectedAgent();
 		await gmail.bundle.gmailConnectionStore.markDisconnectRequested({ userId });
-		expect((await agent.get(GMAIL)).headers.location).toBe("/integrations");
+		expect((await agent.get(GMAIL)).headers.location).toBe("/newsletters");
 	});
 
-	it("names the page GMail Newsletters and lists only approved newsletters for an empty search, without querying Gmail", async () => {
+	it("names the page From Gmail and lists only approved newsletters for an empty search, without querying Gmail", async () => {
 		const { agent, gmail } = await connectedAgent();
 		const response = await agent.get(GMAIL);
 		expect(response.status).toBe(200);
 		expect(response.headers["cache-control"]).toBe("private, no-store");
 		const doc = load(response.text);
-		expect(doc.title).toBe("GMail Newsletters — Readplace");
-		expect(doc.querySelector("h1")?.textContent).toBe("GMail Newsletters");
+		expect(doc.title).toBe("From Gmail — Readplace");
+		expect(doc.querySelector("h1")?.textContent).toBe("From Gmail");
 		expect(results(doc).getAttribute("data-results-state")).toBe("listed");
 		expect(optionEmails(doc)).toEqual([MORNING]);
 		const option = doc.querySelector(`[data-test-gmail-sender-option="${MORNING}"]`);
@@ -553,13 +553,13 @@ describe("GMail Newsletters page", () => {
 		const page = load((await agent.get(GMAIL)).text);
 		const autoLoad = page.querySelector("[data-test-gmail-auto-load-senders]");
 		assert(autoLoad);
-		expect(autoLoad.getAttribute("hx-post")).toBe("/integrations/gmail/discovery/start");
+		expect(autoLoad.getAttribute("hx-post")).toBe("/newsletters/gmail/discovery/start");
 		expect(autoLoad.getAttribute("hx-trigger")).toBe("load");
 		const form = page.querySelector("[data-test-gmail-load-senders]");
 		assert(form);
 		expect(form.getAttribute("hx-trigger")).toBe("submit");
 		expect(form.getAttribute("hx-post")).toBe(
-			"/integrations/gmail/discovery/start?utm_source=integrations-gmail&utm_medium=internal&utm_content=load-senders",
+			"/newsletters/gmail/discovery/start?utm_source=integrations-gmail&utm_medium=internal&utm_content=load-senders",
 		);
 		const started = load((await agent.get(`${GMAIL}?discovery=started`)).text);
 		expect(started.querySelector("[data-test-gmail-auto-load-senders]")).toBeNull();
@@ -597,7 +597,7 @@ describe("GMail Newsletters page", () => {
 		expect(sections(doc)).toEqual([]);
 		const reconnect = doc.querySelector("[data-test-gmail-metadata-reconnect] form");
 		expect(reconnect?.getAttribute("action")).toBe(
-			"/integrations/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=grant-sender-access",
+			"/newsletters/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=grant-sender-access",
 		);
 	});
 
@@ -619,7 +619,7 @@ describe("GMail Newsletters page", () => {
 		expect(doc.querySelector("[data-test-gmail-state]")?.getAttribute("data-test-gmail-state")).toBe("revoked");
 		const reconnect = doc.querySelector("[data-test-gmail-reconnect] form");
 		expect(reconnect?.getAttribute("method")).toBe("POST");
-		expect(reconnect?.getAttribute("action")).toBe("/integrations/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=reconnect");
+		expect(reconnect?.getAttribute("action")).toBe("/newsletters/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=reconnect");
 		expect(doc.querySelector("[data-test-gmail-filter-state]")?.getAttribute("data-test-gmail-filter-state")).toBe("reconnect");
 	});
 
@@ -754,7 +754,7 @@ describe("GMail Newsletters page", () => {
 		expect((await agent.get(`${GMAIL}/status`)).headers.location).toBe(`${GMAIL}?notice=confirmed`);
 		expect((await agent.get(`${GMAIL}/status`).set("HX-Request", "true")).headers["hx-redirect"]).toBe(`${GMAIL}?notice=confirmed`);
 		await gmail.bundle.gmailConnectionStore.deleteConnection(userId);
-		expect((await agent.get(`${GMAIL}/status`)).headers.location).toBe("/integrations");
+		expect((await agent.get(`${GMAIL}/status`)).headers.location).toBe("/newsletters");
 	});
 });
 
@@ -1044,7 +1044,7 @@ describe("Save a newsletter to a readlist", () => {
 		const consent = mapped.querySelector("[data-test-gmail-import-consent] form");
 		assert(consent);
 		expect(consent.getAttribute("method")).toBe("POST");
-		expect(consent.getAttribute("action")).toBe("/integrations/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=grant-import-permission");
+		expect(consent.getAttribute("action")).toBe("/newsletters/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=grant-import-permission");
 		expect(hiddenFields(consent)).toEqual({ intent: "import", sender: TLDR });
 		expect(rowActionKeys(mapped)).toEqual(["edit", "cancel-import", "remove"]);
 		const picking = load((await agent.get(`${GMAIL}?search=dan&advanced=1&sender=${encodeURIComponent(MORNING)}&readlist=default&edit=1`)).text);
@@ -1492,7 +1492,7 @@ describe("Remove a newsletter", () => {
 		const { agent, gmail, userId, mapSender, seedJob, findJob } = await connectedAgent();
 		const destination = await mapSender(TLDR, "default");
 		const jobId = await seedJob({ sender: TLDR, destination, state: "queued" });
-		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations?notice=gmail_disconnected");
+		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/newsletters?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 		expect((await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId))?.disconnectRequestedAt).toBeDefined();
 		expect({ state: (await findJob(jobId))?.state, reason: (await findJob(jobId))?.cancelReason }).toEqual({ state: "cancelled", reason: "disconnected" });
@@ -1509,7 +1509,7 @@ describe("Remove a newsletter", () => {
 		};
 		expect((await agent.post(`${GMAIL}/disconnect`)).status).toBe(500);
 		expect(gmail.disconnectRequests).toEqual([]);
-		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/integrations?notice=gmail_disconnected");
+		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/newsletters?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 		expect(attempts).toBe(2);
 	});
@@ -1525,14 +1525,14 @@ describe("Read-only and locked readers", () => {
 		expect((await findJob(jobId))?.state).toBe("cancelled");
 		expect((await agent.post(REMOVE).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=sender_removed&discovery=started`);
 		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
-		expect((await agent.post(`${GMAIL}/disconnect`).send()).headers.location).toBe("/integrations?notice=gmail_disconnected");
+		expect((await agent.post(`${GMAIL}/disconnect`).send()).headers.location).toBe("/newsletters?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 	});
 
 	it("lets a locked reader disconnect Gmail", async () => {
 		const { agent, gmail, userId } = await connectedAgent({ appNow: () => new Date(Date.now() + 8 * ONE_DAY_MS) });
 		const response = await agent.post(`${GMAIL}/disconnect`).set("Accept", "text/html").send();
-		expect(response.headers.location).toBe("/integrations?notice=gmail_disconnected");
+		expect(response.headers.location).toBe("/newsletters?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 	});
 

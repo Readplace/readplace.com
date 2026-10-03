@@ -16,7 +16,7 @@ import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 
-const CONNECT = "/integrations/gmail/connect";
+const CONNECT = "/newsletters/gmail/connect";
 const CALLBACK = "/integrations/gmail/callback";
 const ONE_DAY_MS = 86_400_000;
 
@@ -61,7 +61,7 @@ async function connectAndCallback(
 	return agent.get(CALLBACK).query({ code: overrides.code ?? "auth-code", state });
 }
 
-describe("POST /integrations/gmail/connect", () => {
+describe("POST /newsletters/gmail/connect", () => {
 	it("requests settings and message metadata access, offline and with forced consent", async () => {
 		const { fixture } = fixtureWithGmail();
 		const harness = useApp(fixture);
@@ -213,7 +213,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations/gmail?notice=connected");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=connected");
 		expect(codes).toEqual(["auth-code"]);
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("refresh-value");
 		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.accountEmail).toBe("reader@gmail.com");
@@ -303,7 +303,7 @@ describe("GET /integrations/gmail/callback", () => {
 			requiresReconnect: true,
 		});
 
-		const blocked = await agent.get("/integrations/gmail");
+		const blocked = await agent.get("/newsletters/gmail");
 		assert(
 			new JSDOM(blocked.text).window.document.querySelector("[data-test-gmail-metadata-reconnect]"),
 			"a discovery permission failure must show the metadata reconnect prompt",
@@ -312,20 +312,20 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations/gmail?notice=connected");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=connected");
 		expect(await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId)).toMatchObject({
 			state: "failed",
 			page: 1,
 			pageToken: "resume",
 			requiresReconnect: false,
 		});
-		const page = await agent.get("/integrations/gmail");
+		const page = await agent.get("/newsletters/gmail");
 		const document = new JSDOM(page.text).window.document;
 		assert(document.querySelector("[data-test-gmail-senders]"), "the sender picker must be rendered after reconnecting");
 		const autoLoad = document.querySelector("[data-test-gmail-auto-load-senders]");
 		assert(autoLoad, "the sender picker must load senders on its own once reconnected");
 		expect(autoLoad.getAttribute("hx-trigger")).toBe("load");
-		expect(autoLoad.getAttribute("hx-post")).toBe("/integrations/gmail/discovery/start");
+		expect(autoLoad.getAttribute("hx-post")).toBe("/newsletters/gmail/discovery/start");
 		expect(document.querySelector("[data-test-gmail-load-senders]")?.getAttribute("hx-trigger")).toBe("submit");
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
@@ -354,7 +354,7 @@ describe("GET /integrations/gmail/callback", () => {
 
 		const response = await connectAndCallback(agent);
 
-		expect(response.headers.location).toBe("/integrations/gmail?notice=connected");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=connected");
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
 		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
 		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
@@ -395,7 +395,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const recovered = await connectAndCallback(agent);
 
 		expect(recovered.status).toBe(303);
-		expect(recovered.headers.location).toBe("/integrations/gmail?notice=connected");
+		expect(recovered.headers.location).toBe("/newsletters/gmail?notice=connected");
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
 		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
 		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
@@ -465,7 +465,7 @@ describe("GET /integrations/gmail/callback", () => {
 
 		const response = await connectAndCallback(agent);
 
-		expect(response.headers.location).toBe("/integrations?error=oauth_account_changed");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_account_changed");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("prior-grant");
 		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toEqual(original);
 		expect((await fixture.gmailIntegration.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
@@ -480,7 +480,7 @@ describe("GET /integrations/gmail/callback", () => {
 
 		const response = await connectAndCallback(agent);
 
-		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_exchange");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
 	});
@@ -495,7 +495,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent, { state: "forged-state" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?error=oauth_state");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_state");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 	});
 
@@ -512,7 +512,7 @@ describe("GET /integrations/gmail/callback", () => {
 
 		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: new URL(started.headers.location).searchParams.get("state") });
 
-		expect(response.headers.location).toBe("/integrations?error=oauth_state");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_state");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 	});
 
@@ -535,7 +535,7 @@ describe("GET /integrations/gmail/callback", () => {
 			.set("User-Agent", BROWSER_USER_AGENT)
 			.set("Cookie", [...session.map((cookie) => cookie.split(";")[0]), `hutch_gmail_state=${encodeURIComponent(state)}`].join("; "));
 
-		expect(response.headers.location).toBe("/integrations?error=oauth_state");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_state");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 	});
 
@@ -547,7 +547,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: "whatever" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?error=oauth_state");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_state");
 	});
 
 	it("reports a cancelled consent without treating it as a fault", async () => {
@@ -558,7 +558,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await agent.get(CALLBACK).query({ error: "access_denied" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?error=oauth_denied");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_denied");
 	});
 
 	it("tells the reader to re-consent when they unticked the settings permission", async () => {
@@ -569,7 +569,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?error=oauth_scope");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_scope");
 	});
 
 	it("reports a grant that returned no refresh token as an exchange failure", async () => {
@@ -580,7 +580,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_exchange");
 	});
 
 	it("tells a first-time reader to connect again with header access ticked, writing nothing", async () => {
@@ -592,7 +592,7 @@ describe("GET /integrations/gmail/callback", () => {
 
 		const response = await connectAndCallback(agent);
 
-		expect(response.headers.location).toBe("/integrations?error=oauth_metadata_scope_first_connect");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_metadata_scope_first_connect");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
 	});
@@ -610,7 +610,7 @@ describe("GET /integrations/gmail/callback", () => {
 
 		const response = await connectAndCallback(agent);
 
-		expect(response.headers.location).toBe("/integrations?error=oauth_metadata_scope");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_metadata_scope");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("existing-grant");
 		expect(await gmailCredentialsStore.findGrantedScopeByUserId(userId)).toBe(GMAIL_SETTINGS_SCOPE);
 		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toEqual(original);
@@ -654,7 +654,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/integrations?error=oauth_exchange");
+		expect(response.headers.location).toBe("/newsletters?error=oauth_exchange");
 		expect(errorMessages).toContain(
 			'[gmail-connect] grant unusable: {"reason":"exchange-failed","status":400,"error":"invalid_grant","errorDescription":"Malformed auth code."}',
 		);
@@ -685,7 +685,7 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
 	});
 
-	it("sends a signed-out callback to sign in and back to the integrations page", async () => {
+	it("sends a signed-out callback to sign in and back to the newsletters page", async () => {
 		const { fixture, codes } = fixtureWithGmail();
 		const harness = useApp(fixture);
 
@@ -695,7 +695,7 @@ describe("GET /integrations/gmail/callback", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			"/login?return=%2Fintegrations%3Ferror%3Doauth_signed_out",
+			"/login?return=%2Fnewsletters%3Ferror%3Doauth_signed_out",
 		);
 		expect(codes).toEqual([]);
 	});
@@ -714,7 +714,7 @@ describe("GET /integrations/gmail/callback", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			"/login?return=%2Fintegrations%3Ferror%3Doauth_signed_out",
+			"/login?return=%2Fnewsletters%3Ferror%3Doauth_signed_out",
 		);
 		expect(codes).toEqual([]);
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
@@ -737,7 +737,7 @@ describe("GET /integrations/gmail/callback", () => {
 			.send({ email: "test@example.com", password: "password123" });
 
 		expect(signedIn.status).toBe(303);
-		expect(signedIn.headers.location).toBe("/integrations?error=oauth_signed_out");
+		expect(signedIn.headers.location).toBe("/newsletters?error=oauth_signed_out");
 
 		const index = await agent.get(signedIn.headers.location);
 		const alert = new JSDOM(index.text).window.document.querySelector(
@@ -750,14 +750,14 @@ describe("GET /integrations/gmail/callback", () => {
 	});
 });
 
-describe("GET /integrations after the Gmail callback", () => {
+describe("GET /newsletters after the Gmail callback", () => {
 	it("shows Gmail waiting for step 2, not a bare connected pill", async () => {
 		const { fixture } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await connectAndCallback(agent);
 
-		const response = await agent.get("/integrations");
+		const response = await agent.get("/newsletters");
 
 		expect(response.status).toBe(200);
 		expect(response.text).toContain('data-test-integration-status="awaiting-confirmation"');
@@ -832,7 +832,7 @@ describe("Gmail read permission for an import", () => {
 		const before = await gmailConnectionStore.findConnectionByUserId(userId);
 		const url = await askForPermission();
 		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
-		expect(response.headers.location).toBe("/integrations/gmail?notice=import_started");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=import_started");
 		const job = await findJob();
 		expect(job?.state).toBe("queued");
 		expect(gmail.importStartRequests).toEqual([{ userId, jobId, generation: job?.generation }]);
@@ -849,7 +849,7 @@ describe("Gmail read permission for an import", () => {
 		const { agent, gmail, userId, jobId, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`, job);
 		const url = await askForPermission();
 		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
-		expect(response.headers.location).toBe("/integrations/gmail?notice=import_started");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=import_started");
 		const restarted = await findJob();
 		expect(restarted?.state).toBe("queued");
 		expect(gmail.importStartRequests).toEqual([{ userId, jobId, generation: restarted?.generation }]);
@@ -863,7 +863,7 @@ describe("Gmail read permission for an import", () => {
 		});
 		const url = await askForPermission();
 		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
-		expect(response.headers.location).toBe("/integrations/gmail?notice=import_permission_granted");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=import_permission_granted");
 		expect((await findJob())?.state).toBe("failed");
 		expect(gmail.importStartRequests).toEqual([]);
 		const page = new JSDOM((await agent.get(response.headers.location)).text).window.document;
@@ -878,21 +878,21 @@ describe("Gmail read permission for an import", () => {
 		const granted = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
 		const grantedUrl = await granted.askForPermission(pickerState);
 		expect((await granted.agent.get(CALLBACK).query({ code: "auth-code", state: grantedUrl.searchParams.get("state") })).headers.location)
-			.toBe(`/integrations/gmail?notice=import_started&${back}`);
+			.toBe(`/newsletters/gmail?notice=import_started&${back}`);
 		const withheld = await awaitingImport(GMAIL_SCOPES);
 		const withheldUrl = await withheld.askForPermission(pickerState);
 		expect((await withheld.agent.get(CALLBACK).query({ code: "auth-code", state: withheldUrl.searchParams.get("state") })).headers.location)
-			.toBe(`/integrations/gmail?notice=import_permission_refused&${back}`);
+			.toBe(`/newsletters/gmail?notice=import_permission_refused&${back}`);
 		await withheld.askForPermission(pickerState);
 		expect((await withheld.agent.get(CALLBACK).query({ error: "access_denied" })).headers.location)
-			.toBe(`/integrations/gmail?notice=import_permission_refused&${back}`);
+			.toBe(`/newsletters/gmail?notice=import_permission_refused&${back}`);
 	});
 
 	it("keeps the import waiting when Google grants everything but read access", async () => {
 		const { agent, gmail, askForPermission, findJob } = await awaitingImport(GMAIL_SCOPES);
 		const url = await askForPermission();
 		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
-		expect(response.headers.location).toBe("/integrations/gmail?notice=import_permission_refused");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=import_permission_refused");
 		expect((await findJob())?.state).toBe("awaiting-permission");
 		expect(gmail.importStartRequests).toEqual([]);
 	});
@@ -901,7 +901,7 @@ describe("Gmail read permission for an import", () => {
 		const { agent, gmail, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
 		await askForPermission();
 		const response = await agent.get(CALLBACK).query({ error: "access_denied" });
-		expect(response.headers.location).toBe("/integrations/gmail?notice=import_permission_refused");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=import_permission_refused");
 		expect((await findJob())?.state).toBe("awaiting-permission");
 		expect(gmail.exchangedCodes).toEqual([]);
 	});
@@ -911,7 +911,7 @@ describe("Gmail read permission for an import", () => {
 		await gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
 		const url = await askForPermission();
 		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
-		expect(response.headers.location).toBe("/integrations/gmail?notice=import_started");
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=import_started");
 		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
 		expect((await findJob())?.state).toBe("queued");

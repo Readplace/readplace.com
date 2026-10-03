@@ -67,8 +67,8 @@ const MEMBER_PATHS = [
 	"/install?client=android&feature=android",
 	"/import",
 	"/import?mode=upload",
-	"/integrations",
-	"/integrations?feature=gmail",
+	"/newsletters",
+	"/newsletters?feature=gmail",
 	"/queue?feature=gmail",
 	"/queue?feature=pref",
 	"/account?feature=gmail",
@@ -210,9 +210,9 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			updatedAt: new Date().toISOString(),
 			completedAt: undefined,
 		});
-		const pickerOpen = `/integrations/gmail?search=tldr&sender=${encodeURIComponent(waiting)}&readlist=default&edit=1&discovery=started`;
+		const pickerOpen = `/newsletters/gmail?search=tldr&sender=${encodeURIComponent(waiting)}&readlist=default&edit=1&discovery=started`;
 		const pages: [string, string][] = [];
-		for (const path of [pickerOpen, "/integrations/gmail?advanced=1", "/integrations/gmail"]) {
+		for (const path of [pickerOpen, "/newsletters/gmail?advanced=1", "/newsletters/gmail"]) {
 			pages.push([path, (await agent.get(path).set(BROWSER_REQUEST_HEADERS)).text]);
 		}
 		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: `${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}` });

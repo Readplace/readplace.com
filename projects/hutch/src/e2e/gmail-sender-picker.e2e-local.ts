@@ -97,7 +97,7 @@ async function openGmail(page: Page, stamp: string, seed: GmailSeed = {}): Promi
 	await page.locator('input[name="password"]').fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	await page.goto(`${BASE_URL}/integrations`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/newsletters`, { waitUntil: "domcontentloaded" });
 	await page.locator('[data-test-integration="gmail"] [data-test-integration-action="manage"]').click();
 	await expect(page.locator(SENDER_PICKER)).toBeVisible();
 	if (seed.enhanced !== false) {
@@ -191,14 +191,14 @@ test.describe("Gmail sender picker", () => {
 		const discoveryHeld = new Promise<void>((resolve) => {
 			releaseDiscovery = resolve;
 		});
-		await page.route("**/integrations/gmail/discovery/start**", async (route) => {
+		await page.route("**/newsletters/gmail/discovery/start**", async (route) => {
 			await discoveryHeld;
 			await route.continue();
 		});
 		const discoveryResponse = page.waitForResponse(
 			(response) =>
 				response.request().method() === "POST" &&
-				response.url().includes("/integrations/gmail/discovery/start"),
+				response.url().includes("/newsletters/gmail/discovery/start"),
 		);
 		await openGmail(page, `completed-${testInfo.workerIndex}-${Date.now()}`, {
 			discoveryState: "running",
@@ -228,12 +228,12 @@ test.describe("Gmail sender picker", () => {
 		const sendersHeld = new Promise<void>((resolve) => {
 			releaseSenders = resolve;
 		});
-		await page.route("**/integrations/gmail/discovery/start**", async (route) => {
+		await page.route("**/newsletters/gmail/discovery/start**", async (route) => {
 			await discoveryHeld;
 			await route.continue();
 		});
 		await page.route(
-			(url) => url.pathname === "/integrations/gmail/senders",
+			(url) => url.pathname === "/newsletters/gmail/senders",
 			async (route) => {
 				await sendersHeld;
 				await route.continue();
@@ -264,14 +264,14 @@ test.describe("Gmail sender picker", () => {
 		const discoveryHeld = new Promise<void>((resolve) => {
 			releaseDiscovery = resolve;
 		});
-		await page.route("**/integrations/gmail/discovery/start**", async (route) => {
+		await page.route("**/newsletters/gmail/discovery/start**", async (route) => {
 			await discoveryHeld;
 			await route.continue();
 		});
 		const discoveryResponse = page.waitForResponse(
 			(response) =>
 				response.request().method() === "POST" &&
-				response.url().includes("/integrations/gmail/discovery/start"),
+				response.url().includes("/newsletters/gmail/discovery/start"),
 		);
 		await openGmail(page, `polling-choice-${testInfo.workerIndex}-${Date.now()}`, {
 			discoveryState: "running",

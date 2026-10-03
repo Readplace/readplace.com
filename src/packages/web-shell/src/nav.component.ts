@@ -58,7 +58,7 @@ const CURRENT_NAV_KEY_BY_SECTION: ReadonlyMap<string, NavItemKey> = new Map<stri
 	["view", "queue"],
 	["import", "import"],
 	["inbox", "inbox"],
-	["integrations", "integrations"],
+	["newsletters", "integrations"],
 	["install", "install"],
 ]);
 

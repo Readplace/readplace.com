@@ -201,6 +201,7 @@
 }
 
 .inbox-emails__sender,
+.inbox-emails__recipient,
 .inbox-emails__received,
 .inbox-emails__link-count {
   display: inline-flex;
@@ -208,13 +209,15 @@
   gap: 5px;
 }
 
-.inbox-emails__sender {
+.inbox-emails__sender,
+.inbox-emails__recipient {
   flex: 1 1 12ch;
   min-width: 0;
   max-width: max-content;
 }
 
-.inbox-emails__sender-name {
+.inbox-emails__sender-name,
+.inbox-emails__recipient-name {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -227,6 +230,7 @@
 }
 
 .inbox-emails__sender svg,
+.inbox-emails__recipient svg,
 .inbox-emails__received svg,
 .inbox-emails__link-count svg {
   flex: 0 0 auto;
@@ -234,7 +238,8 @@
   height: 1rem;
 }
 
-.inbox-emails__sender svg {
+.inbox-emails__sender svg,
+.inbox-emails__recipient svg {
   color: var(--color-secondary-text);
 }
 

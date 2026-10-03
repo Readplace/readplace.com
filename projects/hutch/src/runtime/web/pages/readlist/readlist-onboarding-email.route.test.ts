@@ -88,7 +88,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		assert.deepEqual(keys, ["see-inbox-address", "email-mark-done"]);
 		assert.equal(
 			step.querySelector('[data-test-onboarding-action="see-inbox-address"]')?.closest("form")?.getAttribute("action"),
-			"/inbox/addresses",
+			"/newsletters/custom-emails",
 		);
 		assert.equal(
 			step.querySelector('[data-test-onboarding-action="email-mark-done"]')?.closest("form")?.getAttribute("action"),

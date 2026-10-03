@@ -86,6 +86,10 @@ async function copyButtonSeatedInField(page: Page): Promise<void> {
 	}
 }
 
+const PINNED_DETAIL_RECIPIENT = [
+	{ selector: "[data-test-inbox-detail-recipient]", text: "to e2e-pinned@read.place" },
+];
+
 async function copyableAddressReady(page: Page): Promise<void> {
 	await expect(page.locator(".inbox-copyable__copy").first()).toBeVisible();
 }
@@ -237,7 +241,7 @@ const articlesTab: VisualCheckpoint = {
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
-	pinnedText: [],
+	pinnedText: PINNED_DETAIL_RECIPIENT,
 };
 
 const articlesDeciding: VisualCheckpoint = {
@@ -249,7 +253,7 @@ const articlesDeciding: VisualCheckpoint = {
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
-	pinnedText: [],
+	pinnedText: PINNED_DETAIL_RECIPIENT,
 };
 
 const articlesDecisionStale: VisualCheckpoint = {
@@ -261,7 +265,7 @@ const articlesDecisionStale: VisualCheckpoint = {
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
-	pinnedText: [],
+	pinnedText: PINNED_DETAIL_RECIPIENT,
 };
 
 const articlesDecided: VisualCheckpoint = {
@@ -273,7 +277,7 @@ const articlesDecided: VisualCheckpoint = {
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
-	pinnedText: [],
+	pinnedText: PINNED_DETAIL_RECIPIENT,
 };
 
 const articlesDecisionFailed: VisualCheckpoint = {
@@ -285,7 +289,7 @@ const articlesDecisionFailed: VisualCheckpoint = {
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
-	pinnedText: [],
+	pinnedText: PINNED_DETAIL_RECIPIENT,
 };
 
 const skippedWithDropped: VisualCheckpoint = {
@@ -301,7 +305,7 @@ const skippedWithDropped: VisualCheckpoint = {
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
-	pinnedText: [],
+	pinnedText: PINNED_DETAIL_RECIPIENT,
 };
 
 async function articleMenuInsideCard(page: Page): Promise<void> {
@@ -388,7 +392,7 @@ test.describe("Inbox visual checkpoints", () => {
 	test("captures the addresses page", async ({ page }) => {
 		await page.request.post("/e2e/session");
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
-		await page.goto("/inbox/addresses");
+		await page.goto("/newsletters/custom-emails");
 		await captureCheckpoint(page, addressesPage);
 	});
 
@@ -396,13 +400,13 @@ test.describe("Inbox visual checkpoints", () => {
 		await page.request.post("/e2e/session");
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
 		await page.route("**/client-dist/toast.client.js", (route) => route.abort());
-		await page.goto("/inbox/addresses?created=e2e");
+		await page.goto("/newsletters/custom-emails?created=e2e");
 		await captureCheckpoint(page, createdToast);
 	});
 
 	test("captures an inbox address limit alert", async ({ page }) => {
 		await page.request.post("/e2e/session");
-		await page.goto("/inbox/addresses?error=limit");
+		await page.goto("/newsletters/custom-emails?error=limit");
 		await captureCheckpoint(page, addressAlert);
 	});
 

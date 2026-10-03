@@ -69,11 +69,11 @@ async function seedAddressesToCap(fixture: TestAppFixture, userId: UserId): Prom
 	}
 }
 
-describe("Inbox address routes", () => {
-	describe("GET /inbox/addresses (gating)", () => {
+describe("Custom emails routes", () => {
+	describe("GET /newsletters/custom-emails (gating)", () => {
 		it("redirects an unauthenticated visitor to /login", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/inbox/addresses");
+			const response = await request(harness.server).get("/newsletters/custom-emails");
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/login");
@@ -83,7 +83,7 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses");
+			const response = await agent.get("/newsletters/custom-emails");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -108,7 +108,7 @@ describe("Inbox address routes", () => {
 			assert(userId, "seeded login user must exist");
 			await seedAddressesToCap(fixture, userId);
 
-			const response = await agent.get("/inbox/addresses");
+			const response = await agent.get("/newsletters/custom-emails");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -119,7 +119,7 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses?error=limit");
+			const response = await agent.get("/newsletters/custom-emails?error=limit");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -130,7 +130,7 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses?error=limit&name=my-newsletter");
+			const response = await agent.get("/newsletters/custom-emails?error=limit&name=my-newsletter");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -145,17 +145,17 @@ describe("Inbox address routes", () => {
 		});
 	});
 
-	describe("POST /inbox/create", () => {
+	describe("POST /newsletters/custom-emails/create", () => {
 		it("creates a named address and surfaces it on the next visit to the addresses page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const created = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "My-Newsletter" });
 			expect(created.status).toBe(303);
-			expect(created.headers.location).toBe("/inbox/addresses?created=my-newsletter");
+			expect(created.headers.location).toBe("/newsletters/custom-emails?created=my-newsletter");
 
 			const listed = await agent.get(created.headers.location);
 			expect(addressFieldValue(listed.text)).toMatch(/^my-newsletter-[0-9a-z]{6}@read\.place$/);
@@ -169,13 +169,13 @@ describe("Inbox address routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "🎉🎉" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=name");
-			const listed = await agent.get("/inbox/addresses");
+			expect(response.headers.location).toBe("/newsletters/custom-emails?error=name");
+			const listed = await agent.get("/newsletters/custom-emails");
 			expect(addressFieldValue(listed.text)).toBeUndefined();
 		});
 
@@ -183,17 +183,17 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.post("/inbox/create");
+			const response = await agent.post("/newsletters/custom-emails/create");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=name");
+			expect(response.headers.location).toBe("/newsletters/custom-emails?error=name");
 		});
 
 		it("surfaces the invalid-name alert on the redirect target, wired to the focused input", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const landing = await agent.get("/inbox/addresses?error=name");
+			const landing = await agent.get("/newsletters/custom-emails?error=name");
 
 			const doc = new JSDOM(landing.text).window.document;
 			expect(alertKeys(doc)).toEqual([]);
@@ -211,15 +211,15 @@ describe("Inbox address routes", () => {
 		it("rejects a name the user already holds on a live address with error=name-taken", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
 
 			const dup = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "My-Newsletter" });
 
 			expect(dup.status).toBe(303);
-			expect(dup.headers.location).toBe("/inbox/addresses?error=name-taken&name=my-newsletter");
+			expect(dup.headers.location).toBe("/newsletters/custom-emails?error=name-taken&name=my-newsletter");
 			const doc = new JSDOM((await agent.get(dup.headers.location)).text).window.document;
 			expect(alertKeys(doc)).toEqual([]);
 			expect(fieldErrorKeys(doc)).toEqual(["name-taken"]);
@@ -238,18 +238,18 @@ describe("Inbox address routes", () => {
 		it("allows a second live address under a different name", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
 
 			const second = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "gmail" });
 
 			expect(second.status).toBe(303);
-			expect(second.headers.location).toBe("/inbox/addresses?created=gmail");
+			expect(second.headers.location).toBe("/newsletters/custom-emails?created=gmail");
 			const names = Array.from(
 				new JSDOM(
-					(await agent.get("/inbox/addresses")).text,
+					(await agent.get("/newsletters/custom-emails")).text,
 				).window.document.querySelectorAll("[data-test-inbox-name]"),
 			).map((el) => el.textContent);
 			expect(names).toEqual(["my-newsletter", "gmail"]);
@@ -258,20 +258,20 @@ describe("Inbox address routes", () => {
 		it("allows reusing the name of a disabled address, since the guard only blocks live ones", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
-			const first = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
+			const first = addressFieldValue((await agent.get("/newsletters/custom-emails")).text);
 			await agent
-				.post("/inbox/disable")
+				.post("/newsletters/custom-emails/disable")
 				.type("form")
 				.send({ address: first ?? "" });
 
 			const recreated = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "my-newsletter" });
 
 			expect(recreated.status).toBe(303);
-			expect(recreated.headers.location).toBe("/inbox/addresses?created=my-newsletter");
+			expect(recreated.headers.location).toBe("/newsletters/custom-emails?created=my-newsletter");
 		});
 
 		it("lets the reader name an inbox gmail even though the hidden Gmail gateway carries that alias", async () => {
@@ -287,13 +287,13 @@ describe("Inbox address routes", () => {
 				purpose: "gmail-forwarding",
 			});
 
-			const created = await agent.post("/inbox/create").type("form").send({ name: "gmail" });
+			const created = await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "gmail" });
 
 			expect(created.status).toBe(303);
-			expect(created.headers.location).toBe("/inbox/addresses?created=gmail");
+			expect(created.headers.location).toBe("/newsletters/custom-emails?created=gmail");
 			const names = Array.from(
 				new JSDOM(
-					(await agent.get("/inbox/addresses")).text,
+					(await agent.get("/newsletters/custom-emails")).text,
 				).window.document.querySelectorAll("[data-test-inbox-name]"),
 			).map((el) => el.textContent);
 			expect(names).toEqual(["gmail"]);
@@ -309,11 +309,11 @@ describe("Inbox address routes", () => {
 				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
 			});
 
-			const response = await agent.post("/inbox/create").set("Accept", "text/html");
+			const response = await agent.post("/newsletters/custom-emails/create").set("Accept", "text/html");
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue?inactive=1");
-			const listed = await agent.get("/inbox/addresses");
+			const listed = await agent.get("/newsletters/custom-emails");
 			expect(addressFieldValue(listed.text)).toBeUndefined();
 		});
 
@@ -321,13 +321,13 @@ describe("Inbox address routes", () => {
 			const harness = useApp(fixtureClockedDaysAhead(8));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.post("/inbox/create").set("Accept", "text/html");
+			const response = await agent.post("/newsletters/custom-emails/create").set("Accept", "text/html");
 
 			expect(response.status).toBe(403);
 			expect(
 				new JSDOM(response.text).window.document.querySelector("h1")?.textContent,
 			).toBe("Your account is locked");
-			const listed = await agent.get("/inbox/addresses");
+			const listed = await agent.get("/newsletters/custom-emails");
 			expect(addressFieldValue(listed.text)).toBeUndefined();
 		});
 
@@ -346,12 +346,12 @@ describe("Inbox address routes", () => {
 			// A fresh name (the seeded rows are all "inbox") so the cap — not the
 			// duplicate-name guard — is what rejects this create.
 			const response = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "overflow" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=limit&name=overflow");
+			expect(response.headers.location).toBe("/newsletters/custom-emails?error=limit&name=overflow");
 			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(false);
 
 			const listed = await agent.get(response.headers.location);
@@ -370,9 +370,9 @@ describe("Inbox address routes", () => {
 			assert(userId, "seeded login user must exist");
 			await seedAddressesToCap(fixture, userId);
 
-			const dup = await agent.post("/inbox/create").type("form").send({ name: SEED_NAME });
+			const dup = await agent.post("/newsletters/custom-emails/create").type("form").send({ name: SEED_NAME });
 
-			expect(dup.headers.location).toBe(`/inbox/addresses?error=name-taken&name=${SEED_NAME}`);
+			expect(dup.headers.location).toBe(`/newsletters/custom-emails?error=name-taken&name=${SEED_NAME}`);
 			const doc = new JSDOM((await agent.get(dup.headers.location)).text).window.document;
 			expect(alertKeys(doc)).toEqual(["limit"]);
 			expect(fieldErrorKeys(doc)).toEqual(["name-taken"]);
@@ -395,12 +395,12 @@ describe("Inbox address routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "my-newsletter" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=create&name=my-newsletter");
+			expect(response.headers.location).toBe("/newsletters/custom-emails?error=create&name=my-newsletter");
 			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(true);
 		});
 
@@ -417,12 +417,12 @@ describe("Inbox address routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "my-newsletter" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=create&name=my-newsletter");
+			expect(response.headers.location).toBe("/newsletters/custom-emails?error=create&name=my-newsletter");
 			expect(loggedErrors[0]).toBeInstanceOf(Error);
 			expect(loggedErrors[0]?.message).toBe("dynamo down");
 		});
@@ -437,7 +437,7 @@ describe("Inbox address routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const created = await agent
-				.post("/inbox/create")
+				.post("/newsletters/custom-emails/create")
 				.type("form")
 				.send({ name: "my-newsletter" });
 			const landing = await agent.get(created.headers.location);
@@ -455,7 +455,7 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses");
+			const response = await agent.get("/newsletters/custom-emails");
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(alertKeys(doc)).toEqual([]);
@@ -470,7 +470,7 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses?created=my-newsletter");
+			const response = await agent.get("/newsletters/custom-emails?created=my-newsletter");
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(toastMessages(doc)).toEqual([CREATED_MY_NEWSLETTER]);
@@ -481,7 +481,7 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses");
+			const response = await agent.get("/newsletters/custom-emails");
 
 			expect(toastMessages(new JSDOM(response.text).window.document)).toEqual([]);
 		});
@@ -490,13 +490,13 @@ describe("Inbox address routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox/addresses?created=NOT%20a%20name!");
+			const response = await agent.get("/newsletters/custom-emails?created=NOT%20a%20name!");
 
 			expect(toastMessages(new JSDOM(response.text).window.document)).toEqual([]);
 		});
 	});
 
-	describe("POST /inbox/disable", () => {
+	describe("POST /newsletters/custom-emails/disable", () => {
 		it("leaves the Gmail gateway address live — disabling it would break the integration", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
@@ -511,7 +511,7 @@ describe("Inbox address routes", () => {
 			});
 
 			const response = await agent
-				.post("/inbox/disable")
+				.post("/newsletters/custom-emails/disable")
 				.type("form")
 				.send({ address: gateway.address });
 
@@ -540,13 +540,13 @@ describe("Inbox address routes", () => {
 				name: AliasNameSchema.parse("tech"),
 				purpose: "gmail-mapped",
 			});
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
 			const newsletter = (await store.listAddressesByUserId(userId)).find(
 				(entry) => entry.purpose === "user-alias",
 			);
 			assert(newsletter, "the created newsletter alias must exist");
 
-			const page = new JSDOM((await agent.get("/inbox/addresses")).text).window.document;
+			const page = new JSDOM((await agent.get("/newsletters/custom-emails")).text).window.document;
 
 			const listed = Array.from(
 				page.querySelectorAll('form.inbox__disable input[name="address"]'),
@@ -572,32 +572,32 @@ describe("Inbox address routes", () => {
 			const [mapped] = await store.listAddressesByUserId(userId);
 
 			const disabled = await agent
-				.post("/inbox/disable")
+				.post("/newsletters/custom-emails/disable")
 				.type("form")
 				.send({ address: mapped.address });
 			expect(disabled.status).toBe(303);
-			const created = await agent.post("/inbox/create").type("form").send({ name: "replacement" });
-			expect(created.headers.location).toBe("/inbox/addresses?created=replacement");
+			const created = await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "replacement" });
+			expect(created.headers.location).toBe("/newsletters/custom-emails?created=replacement");
 			const blocked = await agent
-				.post("/inbox/enable")
+				.post("/newsletters/custom-emails/enable")
 				.type("form")
 				.send({ address: mapped.address });
-			expect(blocked.headers.location).toBe("/inbox/addresses?error=limit");
+			expect(blocked.headers.location).toBe("/newsletters/custom-emails?error=limit");
 
 			const replacement = (await store.listAddressesByUserId(userId)).find(
 				(entry) => entry.name === "replacement",
 			);
 			assert(replacement, "the freed slot must hold the newly created address");
-			await agent.post("/inbox/disable").type("form").send({ address: replacement.address });
+			await agent.post("/newsletters/custom-emails/disable").type("form").send({ address: replacement.address });
 			const enabled = await agent
-				.post("/inbox/enable")
+				.post("/newsletters/custom-emails/enable")
 				.type("form")
 				.send({ address: mapped.address });
-			expect(enabled.headers.location).toBe("/inbox/addresses");
+			expect(enabled.headers.location).toBe("/newsletters/custom-emails");
 			const restored = await store.findByAddress(mapped.address);
 			assert(restored, "the named Gmail inbox must still resolve");
 			expect(restored.disabledAt).toBeUndefined();
-			const page = new JSDOM((await agent.get("/inbox/addresses")).text).window.document;
+			const page = new JSDOM((await agent.get("/newsletters/custom-emails")).text).window.document;
 			const listed = Array.from(
 				page.querySelectorAll('form.inbox__disable input[name="address"]'),
 			).map((element) => element.getAttribute("value"));
@@ -607,20 +607,20 @@ describe("Inbox address routes", () => {
 		it("disables an address the user owns", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
 			const address = addressFieldValue(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			);
 			expect(address).not.toBeNull();
 
 			const response = await agent
-				.post("/inbox/disable")
+				.post("/newsletters/custom-emails/disable")
 				.type("form")
 				.send({ address: address ?? "" });
 
 			expect(response.status).toBe(303);
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			const statuses = Array.from(after.querySelectorAll("[data-test-inbox-status]")).map(
 				(el) => el.getAttribute("data-test-inbox-status"),
@@ -634,21 +634,21 @@ describe("Inbox address routes", () => {
 		it("moves a disabled address into the collapsed group behind the remaining active ones", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
-			await agent.post("/inbox/create").type("form").send({ name: "gmail" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "gmail" });
 			const newsletterAddress = addressFieldValue(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			);
 			assert(newsletterAddress, "the created my-newsletter address must render");
 			expect(newsletterAddress).toMatch(/^my-newsletter-/);
 
 			await agent
-				.post("/inbox/disable")
+				.post("/newsletters/custom-emails/disable")
 				.type("form")
 				.send({ address: newsletterAddress });
 
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			const names = Array.from(after.querySelectorAll("[data-test-inbox-name]")).map(
 				(el) => el.textContent,
@@ -663,16 +663,16 @@ describe("Inbox address routes", () => {
 		it("ignores a request whose body is not a valid address", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
 
 			const response = await agent
-				.post("/inbox/disable")
+				.post("/newsletters/custom-emails/disable")
 				.type("form")
 				.send({ address: "not-an-address" });
 
 			expect(response.status).toBe(303);
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			expect(after.querySelector('[data-test-inbox-status="enabled"]')).not.toBeNull();
 		});
@@ -680,36 +680,36 @@ describe("Inbox address routes", () => {
 		it("does not disable an address the user does not own", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
 
 			const response = await agent
-				.post("/inbox/disable")
+				.post("/newsletters/custom-emails/disable")
 				.type("form")
 				.send({ address: "in-zzzzzz@read.place" });
 
 			expect(response.status).toBe(303);
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			expect(after.querySelector('[data-test-inbox-status="enabled"]')).not.toBeNull();
 		});
 	});
 
-	describe("POST /inbox/enable", () => {
+	describe("POST /newsletters/custom-emails/enable", () => {
 		it("re-enables a disabled address and returns it to the active list", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
-			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
+			const address = addressFieldValue((await agent.get("/newsletters/custom-emails")).text);
 			assert(address, "the created address must render");
-			await agent.post("/inbox/disable").type("form").send({ address });
+			await agent.post("/newsletters/custom-emails/disable").type("form").send({ address });
 
-			const response = await agent.post("/inbox/enable").type("form").send({ address });
+			const response = await agent.post("/newsletters/custom-emails/enable").type("form").send({ address });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses");
+			expect(response.headers.location).toBe("/newsletters/custom-emails");
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			const statuses = Array.from(after.querySelectorAll("[data-test-inbox-status]")).map(
 				(el) => el.getAttribute("data-test-inbox-status"),
@@ -728,36 +728,36 @@ describe("Inbox address routes", () => {
 		it("renders an enable control on each disabled row pointing at the enable route", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
-			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
+			const address = addressFieldValue((await agent.get("/newsletters/custom-emails")).text);
 			assert(address, "the created address must render");
-			await agent.post("/inbox/disable").type("form").send({ address });
+			await agent.post("/newsletters/custom-emails/disable").type("form").send({ address });
 
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			const enable = after.querySelector(
 				"[data-test-inbox-disabled-group] [data-test-inbox-enable]",
 			);
 			assert(enable, "the disabled row must render an enable control");
 			expect(enable.closest("form")?.getAttribute("action")).toBe(
-				"/inbox/enable?utm_source=inbox-addresses&utm_medium=internal&utm_content=enable-address",
+				"/newsletters/custom-emails/enable?utm_source=inbox-addresses&utm_medium=internal&utm_content=enable-address",
 			);
 		});
 
 		it("leaves an already-live address unchanged and issues no error param", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
-			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
+			const address = addressFieldValue((await agent.get("/newsletters/custom-emails")).text);
 			assert(address, "the created address must render");
 
-			const response = await agent.post("/inbox/enable").type("form").send({ address });
+			const response = await agent.post("/newsletters/custom-emails/enable").type("form").send({ address });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses");
+			expect(response.headers.location).toBe("/newsletters/custom-emails");
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			const statuses = Array.from(after.querySelectorAll("[data-test-inbox-status]")).map(
 				(el) => el.getAttribute("data-test-inbox-status"),
@@ -768,17 +768,17 @@ describe("Inbox address routes", () => {
 		it("ignores a request whose body is not a valid address", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
 
 			const response = await agent
-				.post("/inbox/enable")
+				.post("/newsletters/custom-emails/enable")
 				.type("form")
 				.send({ address: "not-an-address" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses");
+			expect(response.headers.location).toBe("/newsletters/custom-emails");
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			expect(after.querySelector('[data-test-inbox-status="enabled"]')).not.toBeNull();
 		});
@@ -786,17 +786,17 @@ describe("Inbox address routes", () => {
 		it("does not enable an address the user does not own", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
 
 			const response = await agent
-				.post("/inbox/enable")
+				.post("/newsletters/custom-emails/enable")
 				.type("form")
 				.send({ address: "in-zzzzzz@read.place" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses");
+			expect(response.headers.location).toBe("/newsletters/custom-emails");
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			const statuses = Array.from(after.querySelectorAll("[data-test-inbox-status]")).map(
 				(el) => el.getAttribute("data-test-inbox-status"),
@@ -822,12 +822,12 @@ describe("Inbox address routes", () => {
 			assert(disabled?.disabledAt, "the gateway address must start out disabled");
 
 			const response = await agent
-				.post("/inbox/enable")
+				.post("/newsletters/custom-emails/enable")
 				.type("form")
 				.send({ address: gateway.address });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses");
+			expect(response.headers.location).toBe("/newsletters/custom-emails");
 			const after = await store.findByAddress(gateway.address);
 			assert(after, "the gateway address must still resolve");
 			expect(after.disabledAt).toBe(disabled.disabledAt);
@@ -853,14 +853,14 @@ describe("Inbox address routes", () => {
 			await store.createAddress({ userId, domain: "read.place", name: SEED_NAME, purpose: "user-alias" });
 
 			const response = await agent
-				.post("/inbox/enable")
+				.post("/newsletters/custom-emails/enable")
 				.type("form")
 				.send({ address: target.address });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=limit");
+			expect(response.headers.location).toBe("/newsletters/custom-emails?error=limit");
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			const disabledField = after.querySelector(
 				"[data-test-inbox-disabled-group] .inbox__address-field",
@@ -873,17 +873,17 @@ describe("Inbox address routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "seeded login user must exist");
-			await agent.post("/inbox/create").type("form").send({ name: "my-newsletter" });
-			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			await agent.post("/newsletters/custom-emails/create").type("form").send({ name: "my-newsletter" });
+			const address = addressFieldValue((await agent.get("/newsletters/custom-emails")).text);
 			assert(address, "the created address must render");
-			await agent.post("/inbox/disable").type("form").send({ address });
+			await agent.post("/newsletters/custom-emails/disable").type("form").send({ address });
 			await harness.subscriptionProviders.upsertTrialing({
 				userId,
 				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
 			});
 
 			const response = await agent
-				.post("/inbox/enable")
+				.post("/newsletters/custom-emails/enable")
 				.type("form")
 				.send({ address })
 				.set("Accept", "text/html");
@@ -891,7 +891,7 @@ describe("Inbox address routes", () => {
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue?inactive=1");
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			expect(after.querySelector('[data-test-inbox-status="disabled"]')).not.toBeNull();
 			expect(after.querySelector('[data-test-inbox-status="enabled"]')).toBeNull();
@@ -913,7 +913,7 @@ describe("Inbox address routes", () => {
 			await store.disableAddress({ userId, address: entry.address });
 
 			const response = await agent
-				.post("/inbox/enable")
+				.post("/newsletters/custom-emails/enable")
 				.type("form")
 				.send({ address: entry.address })
 				.set("Accept", "text/html");
@@ -923,7 +923,7 @@ describe("Inbox address routes", () => {
 				new JSDOM(response.text).window.document.querySelector("h1")?.textContent,
 			).toBe("Your account is locked");
 			const after = new JSDOM(
-				(await agent.get("/inbox/addresses")).text,
+				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;
 			expect(after.querySelector('[data-test-inbox-status="disabled"]')).not.toBeNull();
 		});

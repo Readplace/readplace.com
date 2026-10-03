@@ -277,6 +277,9 @@ describe("Inbox email detail View tab", () => {
 		expect(doc.querySelector("[data-test-inbox-detail-sender]")?.getAttribute("title")).toBe(
 			"news@example.com",
 		);
+		expect(doc.querySelector("[data-test-inbox-detail-recipient]")?.textContent).toBe(
+			"to in-3f9a2c@read.place",
+		);
 
 		// The iframe sandbox is EXACTLY the safe set — no allow-scripts, no
 		// allow-same-origin — so the email document is inert and opaque.

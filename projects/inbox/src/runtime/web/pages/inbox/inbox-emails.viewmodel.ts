@@ -1,6 +1,6 @@
 import { type LocalTime, toRelativeOrDate, withInternalTracking } from "@packages/web-shell";
 import {
-	INBOX_ADDRESSES_PATH,
+	CUSTOM_EMAILS_PATH,
 	type InboxEmailEntry,
 	type InboxEmailStatus,
 	type InboxEmailsCursor,
@@ -17,6 +17,7 @@ const INBOX_PAGINATION_SOURCE = "inbox-pagination";
 export interface InboxEmailRowViewModel {
 	href: string;
 	sender: string;
+	recipient: string;
 	subject: string;
 	received: LocalTime;
 	status: InboxEmailStatus;
@@ -77,7 +78,7 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 		actions: [
 			{
 				key: "create-first-address",
-				href: withInternalTracking(INBOX_ADDRESSES_PATH, {
+				href: withInternalTracking(CUSTOM_EMAILS_PATH, {
 					source: INBOX_EMPTY_SOURCE,
 					content: "create-first-address",
 				}),
@@ -184,6 +185,7 @@ export function toInboxEmailsViewModel(
 				{ source: INBOX_EMAILS_SOURCE, content: "open-email" },
 			),
 			sender: entry.senderEmail === "" ? "(unknown sender)" : entry.senderEmail,
+			recipient: entry.recipientAddress,
 			subject: entry.subject === "" ? "(no subject)" : entry.subject,
 			received: toRelativeOrDate({ iso: entry.receivedAt, now: options.now }),
 			status: entry.status,

@@ -4,6 +4,7 @@ import { render, renderAlert, renderInFlightDots } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { GMAIL_PAGE_STYLES } from "./gmail.styles";
+import { GMAIL_PATH } from "./gmail.url";
 import type { GmailForwardingState, GmailMappingDestination, GmailMappingRow, GmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import type { GmailPageViewModel, GmailPollViewModel } from "./gmail.viewmodel";
 import { toGmailPollViewModel } from "./gmail.viewmodel";
@@ -107,9 +108,9 @@ function renderMappings(mappings: GmailMappingsViewModel, outOfBand: boolean): s
 export function GmailPage(vm: GmailPageViewModel): PageBody {
 	return {
 		seo: {
-			title: "GMail Newsletters — Readplace",
+			title: "From Gmail — Readplace",
 			description: "Send newsletters from Gmail to your Readplace readlists.",
-			canonicalUrl: "/integrations/gmail",
+			canonicalUrl: GMAIL_PATH,
 			robots: "noindex, nofollow",
 		},
 		styles: GMAIL_PAGE_STYLES,

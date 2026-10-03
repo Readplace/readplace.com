@@ -210,6 +210,7 @@ export interface ExcludedPanelViewModel extends ExtractionPanelViewModel {
 export interface InboxEmailDetailViewModel {
 	subject: string;
 	sender: string;
+	recipient: string;
 	received: LocalTime;
 	backHref: string;
 	activeTab: MailTabKey;
@@ -440,6 +441,7 @@ export function toInboxEmailDetailViewModel(input: {
 	return {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
 		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
+		recipient: input.entry.recipientAddress,
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
 		backHref: withInternalTracking(INBOX_PATH, {
 			source: "inbox-email-detail",

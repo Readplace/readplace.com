@@ -1,4 +1,4 @@
-import { INBOX_ADDRESSES_PATH, INBOX_PATH } from "@packages/domain/inbox";
+import { CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, renderAlert, renderIllustration, renderToast, withInternalTracking } from "@packages/web-shell";
@@ -70,16 +70,16 @@ export function InboxPage(params: {
 		statusToastHtml,
 		emptyIllustrationHtml: renderIllustration("book-lightbulb"),
 		submittedName: params.submittedName,
-		createAction: trackAddresses(`${INBOX_PATH}/create`, "create-address"),
-		disableAction: trackAddresses(`${INBOX_PATH}/disable`, "disable-address"),
-		enableAction: trackAddresses(`${INBOX_PATH}/enable`, "enable-address"),
+		createAction: trackAddresses(`${CUSTOM_EMAILS_PATH}/create`, "create-address"),
+		disableAction: trackAddresses(`${CUSTOM_EMAILS_PATH}/disable`, "disable-address"),
+		enableAction: trackAddresses(`${CUSTOM_EMAILS_PATH}/enable`, "enable-address"),
 	});
 
 	return {
 		seo: {
-			title: "Your inbox emails — Readplace",
+			title: "From Custom Emails — Readplace",
 			description: "Your personal inbox emails for forwarding newsletters to Readplace.",
-			canonicalUrl: INBOX_ADDRESSES_PATH,
+			canonicalUrl: CUSTOM_EMAILS_PATH,
 			robots: "noindex, nofollow",
 		},
 		styles: `${INBOX_STYLES}\n${INBOX_COPYABLE_ADDRESS_STYLES}`,
