@@ -1760,7 +1760,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						readlist.slug !== DEFAULT_READLIST_SLUG && readlist.slug !== addressedFiling,
 				),
 			];
-			const filings: { createdUserArticle: boolean; wroteUserArticle: boolean }[] = [result];
+			const filings: { createdUserArticle: boolean; wroteUserArticle: boolean; resurfacedFromRead: boolean }[] = [result];
 			for (const destination of destinations) {
 				filings.push(await deps.fileArticleIntoReadlist({
 					userId,
@@ -1776,6 +1776,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					article: result.saved,
 					createdUserArticle: filings.some((filing) => filing.createdUserArticle),
 					wroteUserArticle: filings.some((filing) => filing.wroteUserArticle),
+					resurfacedFromRead: filings.some((filing) => filing.resurfacedFromRead),
 					destination: {
 						filedInto: destinations.length > 0 ? destinations : [context.activeReadlist],
 						readlists: context.readlists,
@@ -2096,6 +2097,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						article: result.saved,
 						createdUserArticle: result.createdUserArticle,
 						wroteUserArticle: result.wroteUserArticle,
+						resurfacedFromRead: result.resurfacedFromRead,
 						destination: { filedInto: [DEFAULT_READLIST], readlists: context.readlists },
 					}),
 				);

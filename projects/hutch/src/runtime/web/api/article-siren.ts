@@ -99,12 +99,14 @@ export function toSavedArticleEntity(params: {
 	article: SavedArticle;
 	createdUserArticle: boolean;
 	wroteUserArticle: boolean;
+	resurfacedFromRead: boolean;
 	destination: SaveDestination;
 }): SirenEntity {
 	const [collectionReadlist] = params.destination.filedInto;
 	assert(collectionReadlist, "a save always lands in at least one readlist");
 	const entity = toArticleEntity(params.article);
-	const messages: SirenMessage[] = params.createdUserArticle
+	const savedAfresh = params.createdUserArticle || params.resurfacedFromRead;
+	const messages: SirenMessage[] = savedAfresh
 		? [
 				{ type: "success", content: { type: "text/html", body: "Article saved" } },
 				{
@@ -112,11 +114,11 @@ export function toSavedArticleEntity(params: {
 					content: { type: "text/html", body: savedIntoBody(params.destination) },
 				},
 			]
-		: [{ type: "success", content: { type: "text/html", body: "Already in your readlist" } }];
-	if (!params.createdUserArticle && params.wroteUserArticle) {
+		: [{ type: "success", content: { type: "text/html", body: "Already saved" } }];
+	if (!savedAfresh && params.wroteUserArticle) {
 		messages.push({
 			type: "success",
-			content: { type: "text/html", body: "Moved back to the top of your reading list" },
+			content: { type: "text/html", body: "Bumped to the top of the list" },
 		});
 	}
 	return {

@@ -292,6 +292,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: { filedInto: [ALL], readlists: [ALL] },
 		});
 
@@ -306,6 +307,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
 		});
 
@@ -320,6 +322,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: { filedInto: [WORK, RECIPES], readlists: [ALL, WORK, RECIPES] },
 		});
 
@@ -334,6 +337,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: {
 				filedInto: [WORK, RECIPES, WEEKEND],
 				readlists: [ALL, WORK, RECIPES, WEEKEND],
@@ -354,6 +358,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: { filedInto: [ALL], readlists: [ALL, WORK] },
 		});
 
@@ -368,6 +373,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: {
 				filedInto: [{ slug: ReadlistSlugSchema.parse("risky"), label: "<b>&'x" }],
 				readlists: [ALL, WORK],
@@ -388,6 +394,7 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: {
 				filedInto: [
 					{ slug: ReadlistSlugSchema.parse("risky"), label: "<b>" },
@@ -411,15 +418,42 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: false,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
 		});
 
 		expect(messageBodies(entity)).toEqual([
-			{ type: "success", content: { type: "text/html", body: "Already in your readlist" } },
-			{
-				type: "success",
-				content: { type: "text/html", body: "Moved back to the top of your reading list" },
-			},
+			{ type: "success", content: { type: "text/html", body: "Already saved" } },
+			{ type: "success", content: { type: "text/html", body: "Bumped to the top of the list" } },
+		]);
+	});
+
+	it("says only 'Already saved' when a newer save kept the row where it was", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: false,
+			wroteUserArticle: false,
+			resurfacedFromRead: false,
+			destination: { filedInto: [ALL], readlists: [ALL] },
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Already saved" } },
+		]);
+	});
+
+	it("confirms a re-save of a read article as a fresh save, because it is back in the unread list", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: false,
+			wroteUserArticle: true,
+			resurfacedFromRead: true,
+			destination: { filedInto: [ALL], readlists: [ALL] },
+		});
+
+		expect(messageBodies(entity)).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to your reading list" } },
 		]);
 	});
 
@@ -428,12 +462,14 @@ describe("toSavedArticleEntity", () => {
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: { filedInto: [WORK, RECIPES], readlists: [ALL, WORK, RECIPES] },
 		});
 		const intoAll = toSavedArticleEntity({
 			article: makeArticle(),
 			createdUserArticle: true,
 			wroteUserArticle: true,
+			resurfacedFromRead: false,
 			destination: { filedInto: [ALL], readlists: [ALL, WORK] },
 		});
 		const collectionHref = (entity: ReturnType<typeof toSavedArticleEntity>) =>

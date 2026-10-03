@@ -19,6 +19,7 @@ export type SaveArticleAtReadlistTop = (params: {
 	canonicalUrl: string;
 	createdUserArticle: boolean;
 	wroteUserArticle: boolean;
+	resurfacedFromRead: boolean;
 }>;
 
 export function initSaveArticleAtReadlistTop(

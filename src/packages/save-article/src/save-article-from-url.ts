@@ -38,15 +38,26 @@ const RESURFACES_EARLIER_SAVES = {
 	import: false,
 } satisfies Record<SaveProvenance["kind"], boolean>;
 
+type SaveOutcome = {
+	saved: SavedArticle;
+	createdUserArticle: boolean;
+	wroteUserArticle: boolean;
+	resurfacedFromRead: boolean;
+};
+
 async function markUnreadIfRead(
 	updateArticleStatus: UpdateArticleStatus,
-	result: { saved: SavedArticle; wroteUserArticle: boolean },
-): Promise<SavedArticle> {
+	result: { saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean },
+): Promise<SaveOutcome> {
 	if (result.wroteUserArticle && result.saved.status === "read") {
 		await updateArticleStatus(result.saved.id, result.saved.userId, "unread");
-		return { ...result.saved, status: "unread", readAt: undefined };
+		return {
+			...result,
+			saved: { ...result.saved, status: "unread", readAt: undefined },
+			resurfacedFromRead: true,
+		};
 	}
-	return result.saved;
+	return { ...result, resurfacedFromRead: false };
 }
 
 export type SaveArticleFromUrl = (params: {
@@ -60,6 +71,7 @@ export type SaveArticleFromUrl = (params: {
 	canonicalUrl: string;
 	createdUserArticle: boolean;
 	wroteUserArticle: boolean;
+	resurfacedFromRead: boolean;
 }>;
 
 async function saveByFreshness(
@@ -72,12 +84,12 @@ async function saveByFreshness(
 		provenance: SaveProvenance;
 		savedAt: Date;
 	},
-): Promise<{ saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean }> {
+): Promise<SaveOutcome> {
 	const { userId, url, contentSourceUrl, freshness, provenance, savedAt } = params;
 
 	if (freshness.action === "new") {
 		const hostname = new URL(url).hostname;
-		const { saved, createdUserArticle, wroteUserArticle } = await deps.saveArticle({
+		const written = await deps.saveArticle({
 			userId,
 			url,
 			metadata: {
@@ -92,26 +104,22 @@ async function saveByFreshness(
 			await deps.pinContentSource({ articleUrl: url, contentSourceUrl });
 		}
 		if (isNonArticleHost(url)) {
-			return {
-				saved: await markUnreadIfRead(deps.updateArticleStatus, { saved, wroteUserArticle }),
-				createdUserArticle,
-				wroteUserArticle,
-			};
+			return markUnreadIfRead(deps.updateArticleStatus, written);
 		}
 		await deps.markCrawlPending({ url });
 		await deps.markSummaryPending({ url });
-		const [unread] = await Promise.all([
-			markUnreadIfRead(deps.updateArticleStatus, { saved, wroteUserArticle }),
+		const [outcome] = await Promise.all([
+			markUnreadIfRead(deps.updateArticleStatus, written),
 			deps.publishUpdateFetchTimestamp({
 				url,
 				contentFetchedAt: new Date().toISOString(),
 			}),
 			deps.publishLinkSaved({ url, userId }),
 		]);
-		return { saved: unread, createdUserArticle, wroteUserArticle };
+		return outcome;
 	}
 
-	const { saved, createdUserArticle, wroteUserArticle } = await deps.saveArticle({
+	const written = await deps.saveArticle({
 		userId,
 		url,
 		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
@@ -125,11 +133,7 @@ async function saveByFreshness(
 		await deps.publishLinkSaved({ url, userId });
 	}
 
-	return {
-		saved: await markUnreadIfRead(deps.updateArticleStatus, { saved, wroteUserArticle }),
-		createdUserArticle,
-		wroteUserArticle,
-	};
+	return markUnreadIfRead(deps.updateArticleStatus, written);
 }
 
 export function initSaveArticleFromUrl(

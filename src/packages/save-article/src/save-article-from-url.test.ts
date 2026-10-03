@@ -395,6 +395,25 @@ describe("saveArticleFromUrl", () => {
 		expect(tracker.calls.updateArticleStatusUnread).toBe(1);
 		expect(result.saved.status).toBe("unread");
 		expect(result.saved.readAt).toBeUndefined();
+		expect(result.resurfacedFromRead).toBe(true);
+	});
+
+	it("reports no resurfacing when the re-saved row was still unread", async () => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
+		};
+
+		const result = await initSaveArticleFromUrl(deps)({
+			userId,
+			url: exampleUrl,
+			provenance,
+			savedAt: operationSavedAt,
+			freshness: { action: "skip" },
+		});
+
+		expect(result.resurfacedFromRead).toBe(false);
 	});
 
 	it.each([
@@ -418,6 +437,7 @@ describe("saveArticleFromUrl", () => {
 
 		expect(tracker.calls.updateArticleStatusUnread).toBe(0);
 		expect(result.saved.status).toBe("read");
+		expect(result.resurfacedFromRead).toBe(false);
 	});
 
 	describe("an identity that carries a content source (an archive capture keyed on its original)", () => {

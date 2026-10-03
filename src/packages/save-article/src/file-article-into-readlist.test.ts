@@ -53,7 +53,7 @@ describe("initFileArticleIntoReadlist", () => {
 		expect(saved).toEqual([
 			{ readlist: "work", url: URL, savedAt: new Date("2026-09-01T00:00:00.000Z") },
 		]);
-		expect(result).toEqual({ createdUserArticle: true, wroteUserArticle: true });
+		expect(result).toEqual({ createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false });
 	});
 
 	it("resets a filing that landed already-read back to unread in the addressed readlist", async () => {
@@ -71,9 +71,10 @@ describe("initFileArticleIntoReadlist", () => {
 			},
 		});
 
-		await file({ userId: USER, readlist: WORK, article: articleWith("read"), provenance: PROVENANCE });
+		const result = await file({ userId: USER, readlist: WORK, article: articleWith("read"), provenance: PROVENANCE });
 
 		expect(resets).toEqual([{ addressed: "work", status: "unread" }]);
+		expect(result.resurfacedFromRead).toBe(true);
 	});
 
 	it("leaves an existing row alone when the filing wrote nothing", async () => {
@@ -96,6 +97,6 @@ describe("initFileArticleIntoReadlist", () => {
 			provenance: PROVENANCE,
 		});
 
-		expect(result).toEqual({ createdUserArticle: false, wroteUserArticle: false });
+		expect(result).toEqual({ createdUserArticle: false, wroteUserArticle: false, resurfacedFromRead: false });
 	});
 });

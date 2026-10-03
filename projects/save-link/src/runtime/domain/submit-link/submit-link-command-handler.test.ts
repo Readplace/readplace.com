@@ -111,7 +111,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		validateSaveableUrl,
 		saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
 		allocateSavedAt: jest.fn().mockResolvedValue(allocatedSavedAt),
-		fileArticleIntoReadlist: jest.fn().mockResolvedValue({ createdUserArticle: true, wroteUserArticle: true }),
+		fileArticleIntoReadlist: jest.fn().mockResolvedValue({ createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false }),
 		recordInboxArticleQueued: jest.fn().mockResolvedValue(undefined),
 		updateArticleStatus: jest.fn().mockResolvedValue(true),
 		markCrawlPending: jest.fn().mockResolvedValue(undefined),
@@ -334,7 +334,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 		const fileArticleIntoReadlist = jest.fn(async () => {
 			calls.push("filed");
-			return { createdUserArticle: true, wroteUserArticle: true };
+			return { createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false };
 		});
 		const handler = createHandler({
 			publishEvent,

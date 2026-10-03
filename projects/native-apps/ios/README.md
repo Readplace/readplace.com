@@ -267,7 +267,7 @@ SIM_UDID=<udid> READPLACE_EMAIL=… READPLACE_PASSWORD=… \
 
 The `ReadplaceUITests` target it uses is deliberately outside the `Readplace` scheme, so
 `make test` and CI never build it. Pick an article the account has not saved: a second save
-reports "Already in your readlist" instead of the first-time copy.
+reports "Already saved" instead of the first-time copy.
 
 ## Tests
 

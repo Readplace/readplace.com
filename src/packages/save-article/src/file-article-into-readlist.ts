@@ -18,7 +18,7 @@ export type FileArticleIntoReadlist = (params: {
 	readlist: ReadlistSlug;
 	article: SavedArticle;
 	provenance: SaveProvenance;
-}) => Promise<{ createdUserArticle: boolean; wroteUserArticle: boolean }>;
+}) => Promise<{ createdUserArticle: boolean; wroteUserArticle: boolean; resurfacedFromRead: boolean }>;
 
 export function initFileArticleIntoReadlist(
 	deps: FileArticleIntoReadlistDependencies,
@@ -33,7 +33,8 @@ export function initFileArticleIntoReadlist(
 			provenance,
 			savedAt: await deps.allocateSavedAt({ userId }),
 		});
-		if (filed.wroteUserArticle && filed.saved.status === "read") {
+		const resurfacedFromRead = filed.wroteUserArticle && filed.saved.status === "read";
+		if (resurfacedFromRead) {
 			await deps.updateArticleStatusAcrossReadlists({
 				id: article.id,
 				userId,
@@ -44,6 +45,7 @@ export function initFileArticleIntoReadlist(
 		return {
 			createdUserArticle: filed.createdUserArticle,
 			wroteUserArticle: filed.wroteUserArticle,
+			resurfacedFromRead,
 		};
 	};
 }

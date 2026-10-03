@@ -42,7 +42,7 @@ extension is already pinned.
 Opening the popup with `?url=` pointing at the app itself shows the list view
 rather than saving anything, so signing in costs the account no stray article.
 Before each re-record, delete the demo article from the readlist — a second save
-of the same link reports "Already in your readlist" instead of "Article saved".
+of the same link reports "Already saved" instead of "Article saved".
 
 ## Before capturing
 

@@ -34,7 +34,7 @@ describe("initSaveArticleAtReadlistTop", () => {
 			saveArticleFromUrl: async (params) => {
 				calls.push("save");
 				receivedSaves.push(params);
-				return { saved, canonicalUrl: exampleUrl, createdUserArticle: true, wroteUserArticle: true };
+				return { saved, canonicalUrl: exampleUrl, createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false };
 			},
 		});
 
@@ -55,7 +55,7 @@ describe("initSaveArticleAtReadlistTop", () => {
 				savedAt: allocatedInstant,
 			},
 		]);
-		expect(result).toEqual({ saved, canonicalUrl: exampleUrl, createdUserArticle: true, wroteUserArticle: true });
+		expect(result).toEqual({ saved, canonicalUrl: exampleUrl, createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false });
 	});
 
 	it("never reaches the save when the position allocation fails", async () => {
@@ -66,7 +66,7 @@ describe("initSaveArticleAtReadlistTop", () => {
 			},
 			saveArticleFromUrl: async (params) => {
 				receivedSaves.push(params);
-				return { saved, canonicalUrl: exampleUrl, createdUserArticle: true, wroteUserArticle: true };
+				return { saved, canonicalUrl: exampleUrl, createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false };
 			},
 		});
 

@@ -331,7 +331,7 @@ describe("POST /queue (Siren save article)", () => {
 		]);
 	});
 
-	it("tells a re-saver the article was already in their queue and moved back to the top", async () => {
+	it("tells a re-saver of an unread article it was already saved and bumped to the top", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await createAccessToken(harness);
 		const saveAgain = () =>
@@ -347,8 +347,35 @@ describe("POST /queue (Siren save article)", () => {
 
 		expect(response.status).toBe(201);
 		expect(response.body.properties.messages).toEqual([
-			{ type: "success", content: { type: "text/html", body: "Already in your readlist" } },
-			{ type: "success", content: { type: "text/html", body: "Moved back to the top of your reading list" } },
+			{ type: "success", content: { type: "text/html", body: "Already saved" } },
+			{ type: "success", content: { type: "text/html", body: "Bumped to the top of the list" } },
+		]);
+	});
+
+	it("confirms a re-save of a read article as saved, since it is back in the unread list", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		const saveAgain = () =>
+			request(harness.server)
+				.post("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`)
+				.set("Content-Type", "application/json")
+				.send({ url: "https://example.com/read-then-saved" });
+		const first = await saveAgain();
+		await request(harness.server)
+			.post(`/queue/${first.body.properties.id}/status`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.type("form")
+			.send({ status: "read" });
+
+		const response = await saveAgain();
+
+		expect(response.status).toBe(201);
+		expect(response.body.properties.messages).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to your reading list" } },
 		]);
 	});
 
@@ -376,7 +403,7 @@ describe("POST /queue (Siren save article)", () => {
 
 		expect(response.status).toBe(201);
 		expect(response.body.properties.messages).toEqual([
-			{ type: "success", content: { type: "text/html", body: "Already in your readlist" } },
+			{ type: "success", content: { type: "text/html", body: "Already saved" } },
 		]);
 	});
 
@@ -1528,7 +1555,7 @@ describe("Siren readlists", () => {
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
 	});
 
-	it("answers a re-save inside a readlist with the moved-back copy and puts the row first in that readlist", async () => {
+	it("answers a re-save inside a readlist with the bumped-to-top copy and puts the row first in that readlist", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { readlist, accessToken } = await readerWithReadlist(harness, {
 			email: "readlists-resave@example.com",
@@ -1541,8 +1568,8 @@ describe("Siren readlists", () => {
 		const resaved = await saveThrough(harness, { ...intoWork, url: "https://example.com/first" });
 
 		expect(messageBodies(resaved.body)).toEqual([
-			"Already in your readlist",
-			"Moved back to the top of your reading list",
+			"Already saved",
+			"Bumped to the top of the list",
 		]);
 		const inWork = await readCollection(harness, {
 			accessToken,
@@ -1739,8 +1766,8 @@ describe("Siren readlists", () => {
 		const resaved = await saveThrough(harness, intoBoth);
 
 		expect(messageBodies(resaved.body)).toEqual([
-			"Already in your readlist",
-			"Moved back to the top of your reading list",
+			"Already saved",
+			"Bumped to the top of the list",
 		]);
 	});
 });
