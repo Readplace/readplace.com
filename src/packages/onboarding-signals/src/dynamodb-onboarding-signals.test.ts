@@ -140,6 +140,22 @@ describe("initOnboardingSignals", () => {
 		});
 	});
 
+	describe("recordGmailStepDismissed", () => {
+		it("sets the permanent dismissal only once in the user's existing onboarding row", async () => {
+			const { client, commands } = createFakeClient({});
+			await initSignal(client).recordGmailStepDismissed({ userId: USER });
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toBe("SET gmailStepDismissedAt = if_not_exists(gmailStepDismissedAt, :now)");
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
+		});
+
+		it("propagates persistence failures", async () => {
+			const { client } = createFakeClient({ updateError: new Error("dynamo down") });
+			await expect(initSignal(client).recordGmailStepDismissed({ userId: USER })).rejects.toThrow("dynamo down");
+		});
+	});
+
 	describe("recordOnboardingOutstandingVersion", () => {
 		it("overwrites the outstanding version with a plain SET keyed by userId", async () => {
 			const { client, commands } = createFakeClient({});
@@ -201,6 +217,7 @@ describe("initOnboardingSignals", () => {
 				nextReadMinimumReachedAt: undefined,
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
+				gmailStepDismissedAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 				deleteArticleAckedAt: undefined,
@@ -222,6 +239,7 @@ describe("initOnboardingSignals", () => {
 				nextReadMinimumReachedAt: undefined,
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
+				gmailStepDismissedAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 				deleteArticleAckedAt: undefined,
@@ -247,6 +265,7 @@ describe("initOnboardingSignals", () => {
 				nextReadMinimumReachedAt: undefined,
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
+				gmailStepDismissedAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 				deleteArticleAckedAt: undefined,
@@ -290,6 +309,11 @@ describe("initOnboardingSignals", () => {
 			expect(signals.emailStepMarkedDoneAt).toEqual(new Date("2026-09-05T08:15:00.000Z"));
 		});
 
+		it("reads the Gmail dismissal timestamp from an existing row", async () => {
+			const { client } = createFakeClient({ row: { userId: USER, gmailStepDismissedAt: NOW.toISOString() } });
+			expect((await initSignal(client).getOnboardingSignals({ userId: USER })).gmailStepDismissedAt).toEqual(NOW);
+		});
+
 		it("surfaces the outstanding version as the stored string, not a Date", async () => {
 			const { client } = createFakeClient({
 				row: { userId: "user-1", onboardingOutstandingVersion: "0badf00d" },
@@ -315,6 +339,7 @@ describe("initOnboardingSignals", () => {
 				nextReadMinimumReachedAt: undefined,
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
+				gmailStepDismissedAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 				deleteArticleAckedAt: undefined,

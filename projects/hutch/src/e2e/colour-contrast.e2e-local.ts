@@ -476,6 +476,10 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 		);
 		await loginChipReader(page, email);
 
+		// Resolve Gmail too so the Next Read task exposes the chip being audited.
+		const dismissed = await page.request.post(`${BASE_URL}/queue/onboarding/gmail/dismiss`);
+		assert.equal(dismissed.status(), 200);
+
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });

@@ -547,6 +547,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
+		recordGmailStepDismissed: onboardingSignals.recordGmailStepDismissed,
 		recordOnboardingOutstandingVersion: onboardingSignals.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged:
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,

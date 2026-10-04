@@ -915,7 +915,7 @@ async function setupGuideEmailStepSettled(page: Page): Promise<void> {
 		"data-test-onboarding-current",
 		"true",
 	);
-	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "50");
+	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "40");
 	await settledSetupGuide(page);
 }
 
@@ -927,7 +927,7 @@ async function setupGuideNextReadSettled(page: Page): Promise<void> {
 		"data-test-onboarding-current",
 		"true",
 	);
-	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "75");
+	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "80");
 	await expect(page.locator(ONBOARDING_CHIP)).toHaveText(`Saved 0 of ${NEXT_READ_MINIMUM_SAVES}`);
 	await settledSetupGuide(page);
 }
@@ -1889,7 +1889,7 @@ test.describe("Readlist setup guide", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
 	for (const theme of THEMES) {
-		test(`shows the email step as current at 50% complete (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the email step as current at 40% complete (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-setup-email-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			await createVerifiedUser(page, email);
@@ -1904,12 +1904,14 @@ test.describe("Readlist setup guide", () => {
 	}
 
 	for (const theme of THEMES) {
-		test(`shows the next-read step as current at 75% complete with its saves chip (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the next-read step as current at 80% complete after dismissing Gmail (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-setup-next-read-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);
 			await seedInboxArticleQueued(page, userId);
 			await loginAs(page, email);
+			const dismissed = await page.request.post(`${BASE_URL}/queue/onboarding/gmail/dismiss`);
+			assert.equal(dismissed.status(), 200);
 			await gotoReadlistQueueWithCookies(page, [
 				{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE },
 				{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE },

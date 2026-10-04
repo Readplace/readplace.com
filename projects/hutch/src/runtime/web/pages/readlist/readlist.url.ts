@@ -81,6 +81,8 @@ export const READLIST_DISMISS_ONBOARDING_PATH = `${READLIST_PATH}/dismiss-onboar
 
 export const READLIST_EMAIL_STEP_DONE_PATH = `${READLIST_PATH}/onboarding/email/done`;
 
+export const READLIST_GMAIL_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/gmail/dismiss`;
+
 export function readlistRenamePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/rename`;
 }

@@ -89,19 +89,35 @@
   width: 0%;
 }
 
-.setup-guide__progress-bar--1 {
+.setup-guide__progress-bar--20 {
+  width: 20%;
+}
+
+.setup-guide__progress-bar--25 {
   width: 25%;
 }
 
-.setup-guide__progress-bar--2 {
+.setup-guide__progress-bar--40 {
+  width: 40%;
+}
+
+.setup-guide__progress-bar--50 {
   width: 50%;
 }
 
-.setup-guide__progress-bar--3 {
+.setup-guide__progress-bar--60 {
+  width: 60%;
+}
+
+.setup-guide__progress-bar--75 {
   width: 75%;
 }
 
-.setup-guide__progress-bar--4 {
+.setup-guide__progress-bar--80 {
+  width: 80%;
+}
+
+.setup-guide__progress-bar--100 {
   width: 100%;
 }
 /* purgecss-ignore-end */

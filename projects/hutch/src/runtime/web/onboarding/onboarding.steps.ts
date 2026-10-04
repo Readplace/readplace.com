@@ -6,11 +6,12 @@ import {
 import { CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
 import { buildExtensionInstallUrl, type PitchablePlatform } from "./extension-install";
 import type {
-	InstallableClientOnboarding,
+	OnboardingContext,
 	OnboardingAction,
 	OnboardingStep,
 } from "./onboarding.types";
-import { READLIST_EMAIL_STEP_DONE_PATH } from "../pages/readlist/readlist.url";
+import { READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH } from "../pages/readlist/readlist.url";
+import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 
 interface StepCopy {
 	title: string;
@@ -136,47 +137,81 @@ function nextReadDescription(savedCount: number): string {
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 	{
 		id: "install-extension",
-		title: (ctx) => INSTALL_COPY[ctx.platform].title,
-		description: (ctx) => INSTALL_COPY[ctx.platform].description,
-		isComplete: (ctx) => ctx.installed,
-		actions: (ctx) => INSTALL_COPY[ctx.platform].actions,
+		isApplicable: (ctx) => ctx.hasInstallableClient,
+		title: (ctx) => ctx.hasInstallableClient ? INSTALL_COPY[ctx.platform].title : "",
+		description: (ctx) => ctx.hasInstallableClient ? INSTALL_COPY[ctx.platform].description : "",
+		isComplete: (ctx) => ctx.hasInstallableClient && ctx.installed,
+		actions: (ctx) => ctx.hasInstallableClient ? INSTALL_COPY[ctx.platform].actions : [],
 	},
 	{
 		id: "save-first-article-via-extension",
-		title: (ctx) => SAVE_COPY[ctx.platform].title,
-		description: (ctx) => SAVE_COPY[ctx.platform].description,
-		isComplete: (ctx) => ctx.savedArticle,
-		actions: (ctx) => SAVE_COPY[ctx.platform].actions,
+		isApplicable: (ctx) => ctx.hasInstallableClient,
+		title: (ctx) => ctx.hasInstallableClient ? SAVE_COPY[ctx.platform].title : "",
+		description: (ctx) => ctx.hasInstallableClient ? SAVE_COPY[ctx.platform].description : "",
+		isComplete: (ctx) => ctx.hasInstallableClient && ctx.savedArticle,
+		actions: (ctx) => ctx.hasInstallableClient ? SAVE_COPY[ctx.platform].actions : [],
 	},
 	{
 		id: "receive-articles-by-email",
+		isApplicable: (ctx) => ctx.hasInstallableClient,
 		title: () => EMAIL_STEP_TITLE,
 		description: () => EMAIL_STEP_DESCRIPTION,
-		isComplete: (ctx) => ctx.inboxArticleQueued || ctx.emailStepMarkedDone,
+		isComplete: (ctx) => ctx.hasInstallableClient && (ctx.inboxArticleQueued || ctx.emailStepMarkedDone),
 		actions: () => EMAIL_STEP_ACTIONS,
 	},
 	{
+		id: "connect-gmail",
+		isApplicable: (ctx) => ctx.gmail !== undefined,
+		isHidden: (ctx) => ctx.gmail?.dismissed === true,
+		title: () => "Connect your Gmail",
+		description: () => "Connect Gmail to choose which newsletters arrive in Readplace.",
+		isComplete: (ctx) => ctx.gmail?.connected === true || ctx.gmail?.dismissed === true,
+		actions: () => [
+			{ key: "connect-gmail", method: "GET", href: INTEGRATIONS_PATH, label: "Connect your Gmail", variant: "primary" },
+			{ key: "gmail-dismiss", method: "POST", href: READLIST_GMAIL_STEP_DISMISS_PATH, label: "I don't want to do this", variant: "text" },
+		],
+	},
+	{
 		id: "save-enough-for-next-read",
+		isApplicable: (ctx) => ctx.hasInstallableClient,
 		title: () => NEXT_READ_TITLE,
-		description: (ctx) => nextReadDescription(ctx.savedCount),
-		isComplete: (ctx) => hasEnoughSavesForNextRead(ctx.savedCount),
+		description: (ctx) => ctx.hasInstallableClient ? nextReadDescription(ctx.savedCount) : "",
+		isComplete: (ctx) => ctx.hasInstallableClient && hasEnoughSavesForNextRead(ctx.savedCount),
 		actions: () => [],
-		chip: (ctx) => `Saved ${Math.min(ctx.savedCount, NEXT_READ_MINIMUM_SAVES)} of ${NEXT_READ_MINIMUM_SAVES}`,
+		chip: (ctx) => ctx.hasInstallableClient ? `Saved ${Math.min(ctx.savedCount, NEXT_READ_MINIMUM_SAVES)} of ${NEXT_READ_MINIMUM_SAVES}` : "",
 	},
 ];
 
-export const ONBOARDING_VERSION = createHash("sha256")
-	.update(ONBOARDING_STEPS.map((step) => step.id).sort().join("|"))
-	.digest("hex")
-	.slice(0, 8);
-
-export function firstOutstandingStep(
-	ctx: InstallableClientOnboarding,
-): OnboardingStep | undefined {
-	return ONBOARDING_STEPS.find((step) => !step.isComplete(ctx));
+function versionFor(steps: readonly OnboardingStep[]): string {
+	return createHash("sha256")
+		.update(steps.map((step) => step.id).sort().join("|"))
+		.digest("hex")
+		.slice(0, 8);
 }
 
-export function hasOutstandingStep(ctx: InstallableClientOnboarding): boolean {
+/** Preserve existing dismissal cookies for accounts that cannot connect Gmail. */
+export const ONBOARDING_VERSION = versionFor(ONBOARDING_STEPS.filter((step) => step.id !== "connect-gmail"));
+export const GMAIL_ONBOARDING_VERSION = versionFor(ONBOARDING_STEPS);
+
+export function applicableOnboardingSteps(ctx: OnboardingContext): readonly OnboardingStep[] {
+	return ONBOARDING_STEPS.filter((step) => step.isApplicable(ctx));
+}
+
+export function onboardingVersion(ctx: OnboardingContext): string {
+	return versionFor(applicableOnboardingSteps(ctx));
+}
+
+export function hasOutstandingGmailStep(ctx: OnboardingContext): boolean {
+	return ctx.gmail !== undefined && !ctx.gmail.connected && !ctx.gmail.dismissed;
+}
+
+export function firstOutstandingStep(
+	ctx: OnboardingContext,
+): OnboardingStep | undefined {
+	return applicableOnboardingSteps(ctx).find((step) => !step.isComplete(ctx));
+}
+
+export function hasOutstandingStep(ctx: OnboardingContext): boolean {
 	return firstOutstandingStep(ctx) !== undefined;
 }
 

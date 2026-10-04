@@ -6,6 +6,7 @@ import type {
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
 	RecordEmailStepMarkedDone,
+	RecordGmailStepDismissed,
 	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
@@ -20,6 +21,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordGmailStepDismissed: RecordGmailStepDismissed;
 	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
@@ -38,6 +40,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	const nextReadMinimumReached = new Map<UserId, Date>();
 	const firstInboxArticleQueued = new Map<UserId, Date>();
 	const emailStepMarkedDone = new Map<UserId, Date>();
+	const gmailStepDismissed = new Map<UserId, Date>();
 	const onboardingOutstandingVersion = new Map<UserId, string>();
 	const markReadAcrossQueuesAcked = new Map<UserId, Date>();
 	const deleteArticleAcked = new Map<UserId, Date>();
@@ -67,6 +70,11 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	const recordEmailStepMarkedDone: RecordEmailStepMarkedDone = async ({ userId }) => {
 		if (emailStepMarkedDone.has(userId)) return;
 		emailStepMarkedDone.set(userId, deps.now());
+	};
+
+	const recordGmailStepDismissed: RecordGmailStepDismissed = async ({ userId }) => {
+		if (gmailStepDismissed.has(userId)) return;
+		gmailStepDismissed.set(userId, deps.now());
 	};
 
 	const recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion = async ({
@@ -108,6 +116,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		nextReadMinimumReachedAt: nextReadMinimumReached.get(userId),
 		firstInboxArticleQueuedAt: firstInboxArticleQueued.get(userId),
 		emailStepMarkedDoneAt: emailStepMarkedDone.get(userId),
+		gmailStepDismissedAt: gmailStepDismissed.get(userId),
 		onboardingOutstandingVersion: onboardingOutstandingVersion.get(userId),
 		markReadAcrossQueuesAckedAt: markReadAcrossQueuesAcked.get(userId),
 		deleteArticleAckedAt: deleteArticleAcked.get(userId),
@@ -121,6 +130,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		nextReadMinimumReached.delete(userId);
 		firstInboxArticleQueued.delete(userId);
 		emailStepMarkedDone.delete(userId);
+		gmailStepDismissed.delete(userId);
 		onboardingOutstandingVersion.delete(userId);
 		markReadAcrossQueuesAcked.delete(userId);
 		deleteArticleAcked.delete(userId);
@@ -133,6 +143,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		recordNextReadMinimumReached,
 		recordInboxArticleQueued,
 		recordEmailStepMarkedDone,
+		recordGmailStepDismissed,
 		recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged,

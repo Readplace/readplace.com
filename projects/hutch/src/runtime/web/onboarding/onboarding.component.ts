@@ -1,13 +1,11 @@
-import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { BROWSER_EXTENSIONS_OR, NATIVE_APP_DEVICES_OR } from "../shared/client-enumerations";
 import { READLIST_DISMISS_ONBOARDING_PATH } from "../pages/readlist/readlist.url";
-import { ONBOARDING_STEPS, firstOutstandingStep } from "./onboarding.steps";
+import { applicableOnboardingSteps, firstOutstandingStep, hasOutstandingGmailStep } from "./onboarding.steps";
 import type {
-	InstallableClientOnboarding,
 	OnboardingAction,
 	OnboardingActionKey,
 	OnboardingActionMethod,
@@ -104,7 +102,7 @@ interface OnboardingStepDisplayModel {
 
 interface OnboardingStepRow {
 	step: OnboardingStep;
-	ctx: InstallableClientOnboarding;
+	ctx: OnboardingContext;
 	returnQuery: string;
 	status: OnboardingStepStatus;
 }
@@ -151,28 +149,19 @@ const SEE_INSTALL_OPTIONS_ACTION: OnboardingAction = {
 	variant: "primary-full-width",
 };
 
-const TOTAL_STEPS = ONBOARDING_STEPS.length;
-
-const PROGRESS_BAR_CLASSES: readonly string[] = Array.from(
-	{ length: TOTAL_STEPS + 1 },
-	(_, completedCount) => `setup-guide__progress-bar setup-guide__progress-bar--${completedCount}`,
-);
-
-function progressBarClass(completedCount: number): string {
-	const progressClass = PROGRESS_BAR_CLASSES[completedCount];
-	assert(progressClass, `no progress-bar class for completedCount=${completedCount}`);
-	return progressClass;
-}
-
-function percentComplete(completedCount: number): number {
-	return Math.round((completedCount / TOTAL_STEPS) * 100);
-}
-
-function renderNoClientCard(options: OnboardingChecklistOptions): string {
-	const stateClass = options.dismissed ? "setup-guide--hidden" : "setup-guide--visible";
+function renderNoClientCard(
+	options: OnboardingChecklistOptions,
+	steps: OnboardingStepDisplayModel[],
+): string {
+	const stateClass = options.dismissed && steps.length === 0 ? "setup-guide--hidden" : "setup-guide--visible";
 	return render(ONBOARDING_TEMPLATE, {
 		noClient: true,
 		stateClass,
+		noClientStateClass: options.dismissed ? "setup-guide--hidden" : "setup-guide--visible",
+		steps,
+		showSteps: steps.length > 0,
+		percent: 0,
+		progressBarClass: "setup-guide__progress-bar setup-guide__progress-bar--0",
 		dismiss: dismissDisplayModel("dismiss-no-client", options),
 		installOptions: toActionDisplayModel(SEE_INSTALL_OPTIONS_ACTION, ""),
 		noClientLede: `Readplace doesn't have an app for this device yet. If you use ${BROWSER_EXTENSIONS_OR} on a computer, or ${NATIVE_APP_DEVICES_OR}, you can install Readplace there.`,
@@ -183,10 +172,13 @@ export function OnboardingChecklist(
 	ctx: OnboardingContext,
 	options: OnboardingChecklistOptions,
 ): string {
-	if (!ctx.hasInstallableClient) return renderNoClientCard(options);
+	const applicable = applicableOnboardingSteps(ctx);
 	const outstanding = firstOutstandingStep(ctx);
-	const completedCount = ONBOARDING_STEPS.filter((step) => step.isComplete(ctx)).length;
-	const steps = ONBOARDING_STEPS.map((step) =>
+	const completedCount = applicable.filter((step) => step.isComplete(ctx)).length;
+	const percent = applicable.length > 0 ? Math.round((completedCount / applicable.length) * 100) : 0;
+	const steps = applicable
+		.filter((step) => !step.isHidden?.(ctx) && (ctx.hasInstallableClient || !step.isComplete(ctx)))
+		.map((step) =>
 		toStepDisplayModel({
 			step,
 			ctx,
@@ -194,19 +186,21 @@ export function OnboardingChecklist(
 			status: step.isComplete(ctx) ? "complete" : step === outstanding ? "current" : "upcoming",
 		}),
 	);
+	if (!ctx.hasInstallableClient) return renderNoClientCard(options, steps);
 	const allComplete = outstanding === undefined;
 	const unearnedCompletion = allComplete && options.completionUnearned;
 	const activeStateClass = allComplete ? "setup-guide--complete" : "setup-guide--visible";
 	const stateClass =
-		options.dismissed || unearnedCompletion ? "setup-guide--hidden" : activeStateClass;
+		(options.dismissed && !hasOutstandingGmailStep(ctx)) || unearnedCompletion ? "setup-guide--hidden" : activeStateClass;
 	return render(ONBOARDING_TEMPLATE, {
 		steps,
+		showSteps: !allComplete,
 		stateClass,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		founderLede: FOUNDER_LEDE,
 		allComplete,
-		percent: percentComplete(completedCount),
-		progressBarClass: progressBarClass(completedCount),
+		percent,
+		progressBarClass: `setup-guide__progress-bar setup-guide__progress-bar--${percent}`,
 		successMessageClass: options.completedBefore
 			? "setup-guide__success-message setup-guide__success-message--hidden"
 			: "setup-guide__success-message",

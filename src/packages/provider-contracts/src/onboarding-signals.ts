@@ -40,6 +40,12 @@ export type RecordEmailStepMarkedDone = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+/** Permanently dismisses the Gmail onboarding task across the account. Set once,
+ * so reconnecting, changing devices or changing access never resets dismissal. */
+export type RecordGmailStepDismissed = (params: {
+	userId: UserId;
+}) => Promise<void>;
+
 export type RecordOnboardingOutstandingVersion = (params: {
 	userId: UserId;
 	version: string;
@@ -73,6 +79,7 @@ export type GetOnboardingSignals = (params: {
 	nextReadMinimumReachedAt: Date | undefined;
 	firstInboxArticleQueuedAt: Date | undefined;
 	emailStepMarkedDoneAt: Date | undefined;
+	gmailStepDismissedAt: Date | undefined;
 	onboardingOutstandingVersion: string | undefined;
 	markReadAcrossQueuesAckedAt: Date | undefined;
 	deleteArticleAckedAt: Date | undefined;

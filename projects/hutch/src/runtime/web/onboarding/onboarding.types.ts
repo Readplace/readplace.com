@@ -8,7 +8,12 @@ export type Platform = ClientNameInCategory<"contentCapture"> | "other";
 /** Onboarding for a device that has an installable first-party client (a
  * browser extension, or one of the phone apps): the completion-gated step
  * checklist, with the per-step signals it reads. */
-export interface InstallableClientOnboarding {
+interface GmailOnboardingContext {
+	/** Present only when Gmail is configured and this unlocked account can connect. */
+	gmail?: { connected: boolean; dismissed: boolean };
+}
+
+export interface InstallableClientOnboarding extends GmailOnboardingContext {
 	hasInstallableClient: true;
 	installed: boolean;
 	savedArticle: boolean;
@@ -27,11 +32,9 @@ export interface InstallableClientOnboarding {
 }
 
 /** Onboarding for a device with no installable first-party client (desktop
- * Safari, iPad, unrecognised UAs): the no-client escape card. It carries no
- * `platform`/`installed`/`savedArticle` — the step checklist never renders
- * here, so there is deliberately no per-step signal that could disagree with the
- * no-client state. */
-interface NoInstallableClientOnboarding {
+ * Safari, iPad, unrecognised UAs): the no-client notice and, when eligible, Gmail.
+ * There are no device install/save signals because those tasks do not apply. */
+interface NoInstallableClientOnboarding extends GmailOnboardingContext {
 	hasInstallableClient: false;
 }
 
@@ -48,6 +51,8 @@ export type OnboardingActionKey =
 	| "see-install-options"
 	| "see-inbox-address"
 	| "email-mark-done"
+	| "connect-gmail"
+	| "gmail-dismiss"
 	| "dismiss-no-client"
 	| "dismiss-success";
 
@@ -61,9 +66,11 @@ export interface OnboardingAction {
 
 export interface OnboardingStep {
 	id: string;
-	title: (ctx: InstallableClientOnboarding) => string;
-	description: (ctx: InstallableClientOnboarding) => string;
-	isComplete: (ctx: InstallableClientOnboarding) => boolean;
-	actions: (ctx: InstallableClientOnboarding) => OnboardingAction[];
-	chip?: (ctx: InstallableClientOnboarding) => string;
+	isApplicable: (ctx: OnboardingContext) => boolean;
+	isHidden?: (ctx: OnboardingContext) => boolean;
+	title: (ctx: OnboardingContext) => string;
+	description: (ctx: OnboardingContext) => string;
+	isComplete: (ctx: OnboardingContext) => boolean;
+	actions: (ctx: OnboardingContext) => OnboardingAction[];
+	chip?: (ctx: OnboardingContext) => string;
 }

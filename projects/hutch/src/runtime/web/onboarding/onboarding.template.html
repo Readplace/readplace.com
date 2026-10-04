@@ -1,6 +1,6 @@
 <section class="setup-guide {{stateClass}}" data-test-onboarding data-test-setup-guide>
   {{#if noClient}}
-  <div class="setup-guide__no-client" data-test-onboarding-no-client>
+  <div class="setup-guide__no-client {{noClientStateClass}}" data-test-onboarding-no-client>
     <header class="setup-guide__header">
       <h2 class="setup-guide__title">Readplace doesn't have an app for this device yet</h2>
       <p class="setup-guide__lede">{{noClientLede}}</p>
@@ -38,6 +38,9 @@
     <h2 class="setup-guide__title">Your quick setup guide</h2>
     <p class="setup-guide__lede">A few quick steps to get the most out of Readplace.</p>
   </header>
+  {{/if}}
+  {{/if}}
+  {{#if showSteps}}
   <div class="setup-guide__progress">
     <p class="setup-guide__progress-label" data-test-onboarding-progress="{{percent}}">{{percent}}% complete</p>
     <div class="setup-guide__progress-track">
@@ -81,6 +84,5 @@
     </li>
     {{/each}}
   </ol>
-  {{/if}}
   {{/if}}
 </section>

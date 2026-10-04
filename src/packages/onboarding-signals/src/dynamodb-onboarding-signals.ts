@@ -13,6 +13,7 @@ import type {
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
 	RecordEmailStepMarkedDone,
+	RecordGmailStepDismissed,
 	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
@@ -36,6 +37,7 @@ const OnboardingRow = z.object({
 	nextReadMinimumReachedAt: dynamoField(z.string()),
 	firstInboxArticleQueuedAt: dynamoField(z.string()),
 	emailStepMarkedDoneAt: dynamoField(z.string()),
+	gmailStepDismissedAt: dynamoField(z.string()),
 	onboardingOutstandingVersion: dynamoField(z.string()),
 	markReadAcrossQueuesAckedAt: dynamoField(z.string()),
 	deleteArticleAckedAt: dynamoField(z.string()),
@@ -66,6 +68,7 @@ export function initOnboardingSignals(deps: {
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordGmailStepDismissed: RecordGmailStepDismissed;
 	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
@@ -130,6 +133,15 @@ export function initOnboardingSignals(deps: {
 		});
 	};
 
+	const recordGmailStepDismissed: RecordGmailStepDismissed = async ({ userId }) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET gmailStepDismissedAt = if_not_exists(gmailStepDismissedAt, :now)",
+			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
 	const recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion = async ({
 		userId,
 		version,
@@ -183,6 +195,7 @@ export function initOnboardingSignals(deps: {
 		const reachedAt = row?.nextReadMinimumReachedAt;
 		const queuedAt = row?.firstInboxArticleQueuedAt;
 		const markedDoneAt = row?.emailStepMarkedDoneAt;
+		const gmailDismissedAt = row?.gmailStepDismissedAt;
 		const ackedAt = row?.markReadAcrossQueuesAckedAt;
 		const deleteAckedAt = row?.deleteArticleAckedAt;
 		return {
@@ -196,6 +209,7 @@ export function initOnboardingSignals(deps: {
 			nextReadMinimumReachedAt: reachedAt ? new Date(reachedAt) : undefined,
 			firstInboxArticleQueuedAt: queuedAt ? new Date(queuedAt) : undefined,
 			emailStepMarkedDoneAt: markedDoneAt ? new Date(markedDoneAt) : undefined,
+			gmailStepDismissedAt: gmailDismissedAt ? new Date(gmailDismissedAt) : undefined,
 			onboardingOutstandingVersion: row?.onboardingOutstandingVersion,
 			markReadAcrossQueuesAckedAt: ackedAt ? new Date(ackedAt) : undefined,
 			deleteArticleAckedAt: deleteAckedAt ? new Date(deleteAckedAt) : undefined,
@@ -212,6 +226,7 @@ export function initOnboardingSignals(deps: {
 		recordNextReadMinimumReached,
 		recordInboxArticleQueued,
 		recordEmailStepMarkedDone,
+		recordGmailStepDismissed,
 		recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged,

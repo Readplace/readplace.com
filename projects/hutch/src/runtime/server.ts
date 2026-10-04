@@ -81,6 +81,7 @@ import type {
 	GetOnboardingSignals,
 	RecordDeleteArticleAcknowledged,
 	RecordEmailStepMarkedDone,
+	RecordGmailStepDismissed,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
@@ -447,6 +448,7 @@ interface AppDependencies {
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordGmailStepDismissed: RecordGmailStepDismissed;
 	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
@@ -1367,6 +1369,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordNativeAppSavedArticle: deps.recordNativeAppSavedArticle,
 		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
+		recordGmailStepDismissed: deps.recordGmailStepDismissed,
+		findGmailConnectionByUserId: gmailIntegration?.gmailConnectionStore.findConnectionByUserId,
 		recordOnboardingOutstandingVersion: deps.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged: deps.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: deps.recordDeleteArticleAcknowledged,

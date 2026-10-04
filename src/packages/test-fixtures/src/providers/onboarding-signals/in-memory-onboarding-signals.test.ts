@@ -13,6 +13,7 @@ const NOTHING_RECORDED = {
 	nextReadMinimumReachedAt: undefined,
 	firstInboxArticleQueuedAt: undefined,
 	emailStepMarkedDoneAt: undefined,
+	gmailStepDismissedAt: undefined,
 	onboardingOutstandingVersion: undefined,
 	markReadAcrossQueuesAckedAt: undefined,
 	deleteArticleAckedAt: undefined,
@@ -25,6 +26,19 @@ function storeAt(...instants: Date[]) {
 }
 
 describe("initInMemoryOnboardingSignals", () => {
+	it("keeps a Gmail dismissal set once, scoped to the account, until account deletion", async () => {
+		const first = new Date("2026-09-05T08:15:00.000Z");
+		let now = first;
+		const store = initInMemoryOnboardingSignals({ now: () => now });
+		await store.recordGmailStepDismissed({ userId: USER });
+		now = new Date("2026-09-06T08:15:00.000Z");
+		await store.recordGmailStepDismissed({ userId: USER });
+		expect((await store.getOnboardingSignals({ userId: USER })).gmailStepDismissedAt).toEqual(first);
+		expect((await store.getOnboardingSignals({ userId: "user-2" as UserId })).gmailStepDismissedAt).toBeUndefined();
+		await store.deleteOnboarding({ userId: USER });
+		expect((await store.getOnboardingSignals({ userId: USER })).gmailStepDismissedAt).toBeUndefined();
+	});
+
 	it("reports nothing installed or saved before any activity", async () => {
 		const store = storeAt(FIRST);
 

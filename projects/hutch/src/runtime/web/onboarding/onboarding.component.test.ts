@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { NEXT_READ_MINIMUM_SAVES } from "@packages/domain/article";
 import { JSDOM } from "jsdom";
 import { OnboardingChecklist } from "./onboarding.component";
+import { GMAIL_ONBOARDING_VERSION, ONBOARDING_VERSION, firstOutstandingStep, hasOutstandingStep, onboardingVersion } from "./onboarding.steps";
 import type { InstallableClientOnboarding, OnboardingContext } from "./onboarding.types";
 
 const DEFAULT_OPTIONS = {
@@ -104,6 +105,81 @@ function assertUtmTagged(form: Element): void {
 }
 
 describe("OnboardingChecklist", () => {
+	describe("Gmail", () => {
+		it("orders Gmail after email and before Next Read, with progress across five applicable tasks", () => {
+			const ctx = contextWith({ installed: true, savedArticle: true, emailStepMarkedDone: true, gmail: { connected: false, dismissed: false } });
+			const doc = parse(checklist(ctx));
+			expect(stepIds(doc)).toEqual(["install-extension", "save-first-article-via-extension", "receive-articles-by-email", "connect-gmail", "save-enough-for-next-read"]);
+			expect(doc.querySelector("[data-test-onboarding-progress]")?.getAttribute("data-test-onboarding-progress")).toBe("60");
+			expect(doc.querySelector(".setup-guide__progress-bar--60")).not.toBeNull();
+			expect(detailsOf(doc, "connect-gmail").hasAttribute("open")).toBe(true);
+			expect(firstOutstandingStep(ctx)?.id).toBe("connect-gmail");
+		});
+
+		it("hides a permanently dismissed Gmail row and counts it as resolved", () => {
+			const ctx = contextWith({ installed: true, savedArticle: true, emailStepMarkedDone: true, gmail: { connected: false, dismissed: true } });
+			const doc = parse(checklist(ctx));
+			expect(stepIds(doc)).not.toContain("connect-gmail");
+			expect(doc.querySelector("[data-test-onboarding-progress]")?.getAttribute("data-test-onboarding-progress")).toBe("80");
+			expect(doc.querySelector(".setup-guide__progress-bar--80")).not.toBeNull();
+			expect(firstOutstandingStep(ctx)?.id).toBe("save-enough-for-next-read");
+		});
+
+		it("presents a linked Gmail task as a collapsed completed row", () => {
+			const doc = parse(checklist(contextWith({ gmail: { connected: true, dismissed: false } })));
+			expect(stepOf(doc, "connect-gmail").getAttribute("data-test-onboarding-complete")).toBe("true");
+			expect(detailsOf(doc, "connect-gmail").hasAttribute("open")).toBe(false);
+		});
+
+		it("shows outstanding Gmail even when whole onboarding was dismissed", () => {
+			const doc = parse(checklist(contextWith({ ...COMPLETE, gmail: { connected: false, dismissed: false } }), { dismissed: true, completionUnearned: true }));
+			expect(container(doc).classList.contains("setup-guide--visible")).toBe(true);
+			expect(stepOf(doc, "connect-gmail").getAttribute("data-test-onboarding-current")).toBe("true");
+		});
+
+		it("tracks the Gmail GET CTA and dismissal form and preserves return state only on dismissal", () => {
+			const doc = parse(checklist(contextWith({ gmail: { connected: false, dismissed: false } }), { returnQuery: "?queue=tech&tab=done&order=asc&page=2" }));
+			const step = stepOf(doc, "connect-gmail");
+			const connect = actionForm(step, "connect-gmail");
+			expect(connect.getAttribute("action")).toBe("/newsletters");
+			expect(Array.from(connect.querySelectorAll("input"), (input) => [input.getAttribute("name"), input.getAttribute("value")])).toEqual([
+				["utm_source", "onboarding"], ["utm_medium", "internal"], ["utm_content", "connect-gmail"],
+			]);
+			const dismiss = actionForm(step, "gmail-dismiss");
+			expect(dismiss.getAttribute("method")).toBe("POST");
+			expect(dismiss.getAttribute("action")).toBe("/queue/onboarding/gmail/dismiss?queue=tech&tab=done&order=asc&page=2&utm_source=onboarding&utm_medium=internal&utm_content=gmail-dismiss");
+			assertUtmTagged(connect);
+			assertUtmTagged(dismiss);
+		});
+
+		it("keeps the unsupported-device notice independently dismissed while Gmail is outstanding", () => {
+			const ctx: OnboardingContext = { hasInstallableClient: false, gmail: { connected: false, dismissed: false } };
+			const doc = parse(checklist(ctx, { dismissed: true }));
+			expect(container(doc).classList.contains("setup-guide--visible")).toBe(true);
+			expect(doc.querySelector("[data-test-onboarding-no-client]")?.classList.contains("setup-guide--hidden")).toBe(true);
+			expect(stepIds(doc)).toEqual(["connect-gmail"]);
+			expect(stepOf(doc, "connect-gmail").getAttribute("data-test-onboarding-current")).toBe("true");
+			expect(hasOutstandingStep(ctx)).toBe(true);
+		});
+
+		it.each([{ connected: true, dismissed: false }, { connected: false, dismissed: true }])("hides the unsupported-device Gmail checklist once resolved: %s", (gmail) => {
+			const ctx: OnboardingContext = { hasInstallableClient: false, gmail };
+			const doc = parse(checklist(ctx));
+			expect(stepIds(doc)).toEqual([]);
+			expect(doc.querySelector("[data-test-onboarding-progress]")).toBeNull();
+			expect(doc.querySelector("[data-test-onboarding-no-client]")?.classList.contains("setup-guide--visible")).toBe(true);
+			expect(hasOutstandingStep(ctx)).toBe(false);
+		});
+
+		it("retains the existing version when ineligible and keeps eligible versions stable across completion and dismissal", () => {
+			expect(onboardingVersion(contextWith())).toBe(ONBOARDING_VERSION);
+			for (const gmail of [{ connected: false, dismissed: false }, { connected: true, dismissed: false }, { connected: false, dismissed: true }]) {
+				expect(onboardingVersion(contextWith({ gmail }))).toBe(GMAIL_ONBOARDING_VERSION);
+			}
+			expect(GMAIL_ONBOARDING_VERSION).not.toBe(ONBOARDING_VERSION);
+		});
+	});
+
 	it("carries both the legacy and the design test attributes on the root", () => {
 		const doc = parse(checklist(contextWith()));
 		const root = container(doc);

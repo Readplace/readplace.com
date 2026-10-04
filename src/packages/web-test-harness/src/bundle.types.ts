@@ -174,6 +174,7 @@ import type {
 	ReadArticleImage,
 	RecordDeleteArticleAcknowledged,
 	RecordEmailStepMarkedDone,
+	RecordGmailStepDismissed,
 	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
@@ -536,6 +537,7 @@ export interface OnboardingSignalsBundle {
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordGmailStepDismissed: RecordGmailStepDismissed;
 	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;

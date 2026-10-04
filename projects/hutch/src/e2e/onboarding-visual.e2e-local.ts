@@ -57,7 +57,13 @@ async function createVerifiedUser(page: Page, email: string): Promise<string> {
 		data: { email, password: PASSWORD, verified: true },
 	});
 	assert.equal(created.status(), 201, "the e2e user fixture must answer the create request");
-	return CreatedUser.parse(await created.json()).userId;
+	const userId = CreatedUser.parse(await created.json()).userId;
+	// These baselines cover the original checklist for accounts without Gmail access.
+	const subscription = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+		data: { userId, state: "trialing" },
+	});
+	assert.equal(subscription.status(), 201);
+	return userId;
 }
 
 /* Seeded rather than saved through the UI: the milestone reads a bounded count

@@ -209,7 +209,10 @@ import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.componen
 import { renderNextRead } from "../../shared/next-read/next-read.component";
 import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
 import { safeReturnPath } from "../../shared/safe-return-path";
-import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingStep } from "../../onboarding/onboarding.steps";
+import { GMAIL_ONBOARDING_VERSION, NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingGmailStep, hasOutstandingStep, onboardingVersion } from "../../onboarding/onboarding.steps";
+import { gmailConnectionState, type GmailConnectionStore } from "@packages/domain/gmail";
+import { canConnectGmail } from "../integrations/gmail-connection-access";
+import { initRequireGmailConnectionAccess } from "../integrations/require-gmail-connection-access";
 import {
 	extensionInstallUrlIfMissing,
 	canOfferExtensionInstall,
@@ -236,6 +239,7 @@ import type {
 	NativeAppPlatform,
 	RecordDeleteArticleAcknowledged,
 	RecordEmailStepMarkedDone,
+	RecordGmailStepDismissed,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordNextReadMinimumReached,
@@ -243,20 +247,15 @@ import type {
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
 import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
-import type { GetEffectiveAccess } from "@packages/subscription-access";
+import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 
-/** The dismiss-cookie value a device of this class writes on dismissal and the
- * GET read expects back: the step-hash {@link ONBOARDING_VERSION} when the device
- * has an installable client (so shipping a new onboarding step re-onboards it),
- * the stable {@link NO_CLIENT_ONBOARDING_VERSION} otherwise (so the no-client
- * escape card — which such users can never complete away — stays dismissed no
- * matter how the steps change). The dismiss POST and the GET read derive it from
- * the same predicate here, so they can't drift; the one runtime coupling left is
- * that both requests report the same device class, which a same-browser HTML form
- * submit guarantees by carrying the GET's User-Agent. Preserve that parity if
- * dismissal ever becomes a background request that could drop or alter the UA. */
-function dismissTokenFor(hasClient: boolean): string {
-	return hasClient ? ONBOARDING_VERSION : NO_CLIENT_ONBOARDING_VERSION;
+/** Client devices dismiss the version of their applicable checklist. Accounts
+ * eligible for Gmail include it in that version; other accounts retain their
+ * existing token. The no-client notice keeps its stable, independent token.
+ * GET and POST use the same device and access predicates. */
+function dismissTokenFor(hasClient: boolean, gmailEligible = false): string {
+	if (!hasClient) return NO_CLIENT_ONBOARDING_VERSION;
+	return gmailEligible ? GMAIL_ONBOARDING_VERSION : ONBOARDING_VERSION;
 }
 
 function readImportSkippedFlash(
@@ -433,6 +432,8 @@ interface ReadlistDependencies {
 	 * so later renders skip the count query entirely. */
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
+	recordGmailStepDismissed: RecordGmailStepDismissed;
+	findGmailConnectionByUserId: GmailConnectionStore["findConnectionByUserId"] | undefined;
 	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
@@ -1269,6 +1270,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		return savedCount;
 	};
 
+	const gmailEligibleFor = (req: Request, access: EffectiveAccess): boolean =>
+		deps.findGmailConnectionByUserId !== undefined &&
+		req.verificationStatus?.state !== "locked" && canConnectGmail(access);
+
 	/** Resolves the onboarding-checklist signals for an authenticated `/queue`
 	 * HTML render. Shared by the top-of-page GET and the save-bar 422 error
 	 * re-render so both surface the same card for the device — resolving it in one
@@ -1286,20 +1291,33 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * whose app isn't signed in) — re-show so the user can finish here. When a client
 	 * later ships for a currently-clientless device, hasClient flips true and the read
 	 * falls through to this `installed && …` arm, where the no-client token no longer
-	 * matches and the new client isn't installed, so onboarding re-appears. */
-	const resolveOnboardingSignals = async (req: Request, userId: UserId) => {
+	 * matches and the new client isn't installed, so onboarding re-appears.
+	 * Outstanding Gmail always overrides a whole-checklist dismissal; its own
+	 * permanent dismissal is account-scoped and independent of this cookie. */
+	const resolveOnboardingSignals = async (req: Request, userId: UserId, access: EffectiveAccess) => {
 		const advertisedPlatform = advertisedPlatformOf(req);
 		const platform: PitchablePlatform = advertisedPlatform ?? "other";
 		const hasClient = advertisedPlatform !== undefined;
 		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
-		const dismissTokenMatches = dismissCookie === dismissTokenFor(hasClient);
+		const gmailEligible = gmailEligibleFor(req, access);
+		const dismissTokenMatches = dismissCookie === dismissTokenFor(hasClient, gmailEligible);
 		const onboardingCompletedBefore =
 			dismissCookie !== undefined && dismissCookie !== NO_CLIENT_ONBOARDING_VERSION;
-		const signals = await deps.getOnboardingSignals({ userId });
+		const [signals, connection] = await Promise.all([
+			deps.getOnboardingSignals({ userId }),
+			gmailEligible && deps.findGmailConnectionByUserId
+				? deps.findGmailConnectionByUserId(userId)
+				: undefined,
+		]);
+		const gmailState = gmailConnectionState(connection);
+		const gmail = gmailEligible ? {
+			connected: !["disconnected", "disconnecting", "revoked"].includes(gmailState),
+			dismissed: signals.gmailStepDismissedAt !== undefined,
+		} : undefined;
 		const markReadAcrossQueuesAckedAt = signals.markReadAcrossQueuesAckedAt;
 		const deleteArticleAckedAt = signals.deleteArticleAckedAt;
 		if (!hasClient) {
-			const noClientContext: OnboardingContext = { hasInstallableClient: false };
+			const noClientContext: OnboardingContext = { hasInstallableClient: false, gmail };
 			return {
 				markReadAcrossQueuesAckedAt,
 				deleteArticleAckedAt,
@@ -1318,6 +1336,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const savedCount = await resolveSavedCount(userId, signals.nextReadMinimumReachedAt);
 		const context: InstallableClientOnboarding = {
 			hasInstallableClient: true,
+			gmail,
 			platform,
 			installed,
 			savedArticle,
@@ -1325,10 +1344,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			inboxArticleQueued: signals.firstInboxArticleQueuedAt !== undefined,
 			emailStepMarkedDone: signals.emailStepMarkedDoneAt !== undefined,
 		};
-		const seenUnderThisVersion = signals.onboardingOutstandingVersion === ONBOARDING_VERSION;
+		const version = onboardingVersion(context);
+		const seenUnderThisVersion = signals.onboardingOutstandingVersion === version;
 		if (!seenUnderThisVersion && hasOutstandingStep(context)) {
 			await recordOnboardingSignalBestEffort(() =>
-				deps.recordOnboardingOutstandingVersion({ userId, version: ONBOARDING_VERSION }),
+				deps.recordOnboardingOutstandingVersion({ userId, version }),
 			);
 		}
 		return {
@@ -1336,7 +1356,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			deleteArticleAckedAt,
 			onboarding: {
 				context,
-				dismissed: installed && dismissTokenMatches,
+				dismissed: installed && dismissTokenMatches && !hasOutstandingGmailStep(context),
 				completedBefore: onboardingCompletedBefore,
 				completionUnearned: !seenUnderThisVersion,
 			},
@@ -1398,17 +1418,18 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			saveUrl?: string;
 		},
 	): Promise<void> => {
+		const effectiveAccessPromise = deps.getEffectiveAccess(input.userId);
 		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, signals] =
 			await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
-				deps.getEffectiveAccess(input.userId),
+				effectiveAccessPromise,
 				readlistHoldsAnyArticle({
 					userId: input.userId,
 					readlist: input.context.state.readlist,
 					result: input.result,
 				}),
-				resolveOnboardingSignals(req, input.userId),
+				effectiveAccessPromise.then((access) => resolveOnboardingSignals(req, input.userId, access)),
 			]);
 		const confirmReadlistsByUrl = await markStatusConfirmReadlistsFor({
 			userId: input.userId,
@@ -1653,8 +1674,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		res.type("html").send(renderReadlistCounts(toReadlistCountsDisplayModel(counts)));
 	});
 
-	router.post("/dismiss-onboarding", (req: Request, res: Response) => {
-		const version = dismissTokenFor(hasInstallableClient(req));
+	router.post("/dismiss-onboarding", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const hasClient = hasInstallableClient(req);
+		const gmailEligible = hasClient && deps.findGmailConnectionByUserId !== undefined &&
+			gmailEligibleFor(req, await deps.getEffectiveAccess(req.userId));
+		const version = dismissTokenFor(hasClient, gmailEligible);
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		const context = requestReadlistContext(req);
 		res.redirect(303, buildReadlistUrl(context.state));
@@ -1665,6 +1690,20 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		await deps.recordEmailStepMarkedDone({ userId: req.userId });
 		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
 	});
+
+	if (deps.findGmailConnectionByUserId !== undefined) {
+		router.post(
+			"/onboarding/gmail/dismiss",
+			requireNotLocked,
+			initRequireGmailConnectionAccess({ getEffectiveAccess: deps.getEffectiveAccess }),
+			deps.requireWriteAccess,
+			async (req: Request, res: Response) => {
+				assert(req.userId, "userId required - route must be protected by requireAuth");
+				await deps.recordGmailStepDismissed({ userId: req.userId });
+				res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
+			},
+		);
+	}
 
 	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {

@@ -3,6 +3,7 @@ export type {
 	MarkFirstInboxEmailNoticeSent,
 	NativeAppPlatform,
 	RecordEmailStepMarkedDone,
+	RecordGmailStepDismissed,
 	RecordInboxArticleQueued,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
