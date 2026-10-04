@@ -22,17 +22,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NEWEST=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=${GITHUB_REF_NAME}&event=push&status=completed&per_page=1" \
-            --jq '.workflow_runs[0] | select(. != null) | "\(.id) \(.head_sha)"') || NEWEST=""
-          if [ -z "$NEWEST" ]; then
-            echo "::error::Could not read the newest completed CI run on ${GITHUB_REF_NAME}. This is not a refusal: re-run this job."
-            exit 1
-          fi
-          read -r NEWEST_ID NEWEST_SHA <<< "$NEWEST"
-          if [ "$NEWEST_ID" -gt "$GITHUB_RUN_ID" ]; then
-            echo "::error::CI run $NEWEST_ID for $NEWEST_SHA completed after this run was created, so deploying $GITHUB_SHA now could roll prod back. Refused. If that run deployed, prod already has it. If it failed or was cancelled, re-run it, or push. To roll back on purpose, revert and push. Do not re-run this run."
-            exit 1
-          fi
+          set -euo pipefail
+          trap 'echo "::error::A GitHub API call failed, so the commits after ${GITHUB_SHA} on ${GITHUB_REF_NAME} could not be checked. This is not a refusal: re-run this job."' ERR
+          TIP=$(gh api "repos/${GITHUB_REPOSITORY}/branches/${GITHUB_REF_NAME}" --jq .commit.sha)
+          NEWER=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...${TIP}" --jq '.commits[].sha')
+          for sha in $NEWER; do
+            RUN=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&per_page=100" \
+              --jq "[.workflow_runs[] | select(.event == \"push\" and .head_branch == \"${GITHUB_REF_NAME}\" and .status == \"completed\")][0] | select(. != null) | \"\(.id) \(.conclusion)\"")
+            if [ -n "$RUN" ]; then
+              echo "::error::CI run ${RUN%% *} for $sha (${RUN#* }) completed after this run was created, so deploying $GITHUB_SHA now could roll prod back. Refused. If that run deployed, prod already has it. If it failed or was cancelled, re-run it, or push. To roll back on purpose, revert and push. Do not re-run this run."
+              exit 1
+            fi
+          done
 
       - name: Export all repository and environment secrets as env vars
         env:
