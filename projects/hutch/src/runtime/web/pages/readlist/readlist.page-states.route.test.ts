@@ -378,7 +378,7 @@ describe("the subscription card", () => {
 		);
 		const reactivate = banner.querySelector('[data-test-action="reactivate"]');
 		assert(reactivate, "the Reactivate link must be rendered");
-		expect(reactivate.textContent).toBe("Reactivate Subscription");
+		expect(reactivate.textContent).toBe("Reactivate subscription");
 	});
 
 	it("shows the inactive state and disables the save input for a cancelled user", async () => {

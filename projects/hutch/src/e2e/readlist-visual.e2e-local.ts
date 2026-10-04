@@ -476,14 +476,145 @@ async function setupGuideChipIsTagSize(page: Page): Promise<void> {
 	await chipIsHigh(page, ONBOARDING_CHIP, 26);
 }
 
+function assertSubscriptionMeasurement(input: {
+	description: string;
+	actual: number;
+	expected: number;
+}): void {
+	assert.ok(
+		Math.abs(input.actual - input.expected) <= 0.5,
+		`${input.description} must be ${input.expected}px, measured ${input.actual}px`,
+	);
+}
+
+function subscriptionCtaIsMediumAndFullWidth(input: {
+	card: { x: number; width: number };
+	cta: { x: number; width: number; height: number };
+}): void {
+	assertSubscriptionMeasurement({ description: "the subscription CTA height", actual: input.cta.height, expected: 40 });
+	assertSubscriptionMeasurement({
+		description: "the subscription CTA left inset",
+		actual: input.cta.x - input.card.x,
+		expected: 21,
+	});
+	assertSubscriptionMeasurement({
+		description: "the subscription CTA width",
+		actual: input.cta.width,
+		expected: input.card.width - 42,
+	});
+}
+
+async function subscriptionTrialGeometry(page: Page): Promise<void> {
+	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
+	const title = await measuredBox(page, `${SUBSCRIPTION_BANNER} .readlist-subscription__title`);
+	const body = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-banner-message]`);
+	const tiles = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles]`);
+	const firstTile = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles] > div:nth-child(1)`);
+	const secondTile = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles] > div:nth-child(2)`);
+	const thirdTile = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles] > div:nth-child(3)`);
+	const cta = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`);
+	const note = await measuredBox(page, `${SUBSCRIPTION_BANNER} .readlist-subscription__note`);
+	assertSubscriptionMeasurement({ description: "the trial card height", actual: card.height, expected: 269 });
+	assertSubscriptionMeasurement({ description: "the trial title top inset", actual: title.y - card.y, expected: 21 });
+	assertSubscriptionMeasurement({ description: "the trial title line height", actual: title.height, expected: 20 });
+	assertSubscriptionMeasurement({
+		description: "the trial title-to-body gap",
+		actual: body.y - (title.y + title.height),
+		expected: 4,
+	});
+	assertSubscriptionMeasurement({
+		description: "the trial body-to-tiles gap",
+		actual: tiles.y - (body.y + body.height),
+		expected: 16,
+	});
+	for (const tile of [firstTile, secondTile, thirdTile]) {
+		assertSubscriptionMeasurement({ description: "the trial tile height", actual: tile.height, expected: 60 });
+	}
+	for (const tile of [secondTile, thirdTile]) {
+		assertSubscriptionMeasurement({ description: "the equal trial tile width", actual: tile.width, expected: firstTile.width });
+	}
+	assertSubscriptionMeasurement({
+		description: "the first-to-second trial tile gap",
+		actual: secondTile.x - (firstTile.x + firstTile.width),
+		expected: 8,
+	});
+	assertSubscriptionMeasurement({
+		description: "the second-to-third trial tile gap",
+		actual: thirdTile.x - (secondTile.x + secondTile.width),
+		expected: 8,
+	});
+	assertSubscriptionMeasurement({ description: "the trial tiles' left edge", actual: firstTile.x, expected: cta.x });
+	assertSubscriptionMeasurement({
+		description: "the trial tiles' right edge",
+		actual: thirdTile.x + thirdTile.width,
+		expected: cta.x + cta.width,
+	});
+	assertSubscriptionMeasurement({
+		description: "the trial tiles-to-CTA gap",
+		actual: cta.y - (tiles.y + tiles.height),
+		expected: 16,
+	});
+	subscriptionCtaIsMediumAndFullWidth({ card, cta });
+	assertSubscriptionMeasurement({
+		description: "the trial CTA-to-note gap",
+		actual: note.y - (cta.y + cta.height),
+		expected: 8,
+	});
+	assertSubscriptionMeasurement({
+		description: "the trial note bottom inset",
+		actual: card.y + card.height - (note.y + note.height),
+		expected: 21,
+	});
+}
+
+async function subscriptionCancellationGeometry(page: Page): Promise<void> {
+	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
+	const chip = await measuredBox(page, `${SUBSCRIPTION_BANNER} ${SUBSCRIPTION_CHIP}`);
+	const title = await measuredBox(page, `${SUBSCRIPTION_BANNER} .readlist-subscription__title`);
+	const body = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-banner-message]`);
+	const cta = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-action="reactivate"]`);
+	assertSubscriptionMeasurement({ description: "the cancellation card height", actual: card.height, expected: 214 });
+	assertSubscriptionMeasurement({ description: "the cancellation chip top inset", actual: chip.y - card.y, expected: 21 });
+	assertSubscriptionMeasurement({
+		description: "the cancellation chip-to-title gap",
+		actual: title.y - (chip.y + chip.height),
+		expected: 16,
+	});
+	assertSubscriptionMeasurement({ description: "the cancellation title line height", actual: title.height, expected: 20 });
+	assertSubscriptionMeasurement({
+		description: "the cancellation title-to-body gap",
+		actual: body.y - (title.y + title.height),
+		expected: 4,
+	});
+	assertSubscriptionMeasurement({
+		description: "the cancellation body-to-CTA gap",
+		actual: cta.y - (body.y + body.height),
+		expected: 16,
+	});
+	subscriptionCtaIsMediumAndFullWidth({ card, cta });
+}
+
+async function subscriptionInactiveGeometry(page: Page): Promise<void> {
+	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
+	const guide = await measuredBox(page, SETUP_GUIDE);
+	assertSubscriptionMeasurement({ description: "the inactive card height", actual: card.height, expected: 214 });
+	assertSubscriptionMeasurement({
+		description: "the subscription-to-setup-guide gap",
+		actual: guide.y - (card.y + card.height),
+		expected: 24,
+	});
+}
+
 async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
 	await phonePageGeometry(page);
 	const banner = await measuredBox(page, SUBSCRIPTION_BANNER);
 	const listing = await measuredBox(page, LISTING);
+	const cta = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`);
 	assert.ok(
 		banner.y + banner.height <= listing.y,
 		`a trial notice must stay above the article list on a phone, measured banner=${JSON.stringify(banner)} listing=${JSON.stringify(listing)}`,
 	);
+	subscriptionCtaIsMediumAndFullWidth({ card: banner, cta });
 }
 
 async function listingHeaderHidden(page: Page): Promise<void> {
@@ -909,7 +1040,10 @@ const SAVE_FIELD_FOCUS: VisualCheckpoint = {
 const SUBSCRIPTION_TRIAL: VisualCheckpoint = {
 	name: "readlist-subscription-trial",
 	settled: subscriptionTrialSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: async (page) => {
+		await railBesideMainBesideSide(page);
+		await subscriptionTrialGeometry(page);
+	},
 	target: SUBSCRIPTION_BANNER,
 	capture: "element",
 	pinnedText: [
@@ -925,6 +1059,7 @@ const SUBSCRIPTION_CANCELLATION: VisualCheckpoint = {
 	geometry: async (page) => {
 		await railBesideMainBesideSide(page);
 		await subscriptionChipIsStatusSize(page);
+		await subscriptionCancellationGeometry(page);
 	},
 	target: SUBSCRIPTION_BANNER,
 	capture: "element",
@@ -937,6 +1072,7 @@ const SUBSCRIPTION_INACTIVE: VisualCheckpoint = {
 	geometry: async (page) => {
 		await pageFromTopGeometry(page);
 		await subscriptionChipIsStatusSize(page);
+		await subscriptionInactiveGeometry(page);
 	},
 	target: MAIN,
 	capture: "page-from-top",
@@ -994,7 +1130,7 @@ const SUBSCRIPTION_TRIAL_PHONE: VisualCheckpoint = {
 	geometry: subscriptionNoticeLeadsTheListing,
 	target: MAIN,
 	capture: "page-from-top",
-	pinnedText: [],
+	pinnedText: SUBSCRIPTION_TRIAL.pinnedText,
 };
 
 const RAIL_PHONE: VisualCheckpoint = {
@@ -1493,6 +1629,59 @@ test.describe("Readlist subscription banner", () => {
 			await captureCheckpoint(page, withTheme(SUBSCRIPTION_CANCELLATION, theme));
 		});
 	}
+});
+
+test.describe("Readlist subscription banner on the 300px track", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 1100, height: 900 } });
+
+	test("keeps the trial card at 269px tall", async ({ page }, testInfo) => {
+		const email = `readlist-subscription-trial-narrow-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedSubscriptionState(page, { userId, state: "trialing" });
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await subscriptionTrialSettled(page);
+
+		const card = await measuredBox(page, SUBSCRIPTION_BANNER);
+		assertSubscriptionMeasurement({ description: "the narrow trial card width", actual: card.width, expected: 300 });
+		assertSubscriptionMeasurement({ description: "the narrow trial card height", actual: card.height, expected: 269 });
+	});
+
+	test("fits the cancellation body on two lines and its title on one line", async ({ page }, testInfo) => {
+		const email = `readlist-subscription-cancellation-narrow-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedSubscriptionState(page, {
+			userId,
+			state: "cancellation-scheduled",
+			at: "2027-03-01T00:00:00.000Z",
+		});
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await subscriptionCancellationSettled(page);
+
+		const card = await measuredBox(page, SUBSCRIPTION_BANNER);
+		const title = await measuredBox(page, `${SUBSCRIPTION_BANNER} .readlist-subscription__title`);
+		const body = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-banner-message]`);
+		assertSubscriptionMeasurement({ description: "the narrow cancellation card width", actual: card.width, expected: 300 });
+		assertSubscriptionMeasurement({ description: "the narrow cancellation card height", actual: card.height, expected: 214 });
+		assertSubscriptionMeasurement({ description: "the narrow cancellation title line height", actual: title.height, expected: 20 });
+		assertSubscriptionMeasurement({ description: "the narrow cancellation body height", actual: body.height, expected: 42 });
+	});
+
+	test("wraps the inactive body on three lines", async ({ page }, testInfo) => {
+		const email = `readlist-subscription-inactive-narrow-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedSubscriptionState(page, { userId, state: "inactive" });
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await subscriptionInactiveSettled(page);
+
+		const card = await measuredBox(page, SUBSCRIPTION_BANNER);
+		const body = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-banner-message]`);
+		assertSubscriptionMeasurement({ description: "the narrow inactive card width", actual: card.width, expected: 300 });
+		assertSubscriptionMeasurement({ description: "the narrow inactive card height", actual: card.height, expected: 235 });
+		assertSubscriptionMeasurement({ description: "the narrow inactive body height", actual: body.height, expected: 63 });
+	});
 });
 
 test.describe("Readlist setup guide", () => {

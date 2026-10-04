@@ -23,7 +23,7 @@
 .readlist__side {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   min-width: 0;
 }
 
@@ -655,8 +655,8 @@
 .readlist-subscription {
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 20px 24px;
+  gap: 4px;
+  padding: 20px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -676,15 +676,20 @@
 
 .readlist-subscription__title {
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: var(--text-md);
+  line-height: 1.25;
   font-weight: 600;
   color: var(--foreground);
   margin: 0;
   text-wrap: balance;
 }
 
+.readlist-subscription__title:not(:first-child) {
+  margin-top: 12px;
+}
+
 .readlist-subscription__body {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--muted-foreground);
   margin: 0;
@@ -696,41 +701,45 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
-  margin: 4px 0;
+  margin: 12px 0 0;
 }
 
 .readlist-subscription__tile {
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
-  padding: 10px 8px;
+  gap: 8px;
+  padding: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--muted);
 }
 
 .readlist-subscription__tile-value {
-  font-size: 1.125rem;
-  font-weight: 700;
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1;
   color: var(--foreground);
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
 
 .readlist-subscription__tile-label {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
+  line-height: 1.125rem;
   color: var(--muted-foreground);
 }
 
 .readlist-subscription__cta {
   width: 100%;
-  margin-top: 4px;
+  margin-top: 12px;
 }
 
 .readlist-subscription__note {
   width: 100%;
-  margin: 0;
-  font-size: 0.8125rem;
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
   color: var(--muted-foreground);
   text-align: center;
 }

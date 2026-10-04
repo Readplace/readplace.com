@@ -11,21 +11,21 @@
     {{/each}}
   </dl>
   <span class="sr-only" data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</span>
-  <button class="btn btn--primary readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
-  <a class="btn btn--primary readlist-subscription__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
+  <button class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
+  <a class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
   <p class="readlist-subscription__note">Cancel anytime.</p>
   {{/if}}
   {{#if isCancellationScheduled}}
   <span class="chip chip--status chip--error" data-test-subscription-chip="cancellation-scheduled"><span>Ends <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time></span></span>
   <h2 class="readlist-subscription__title">Your subscription is ending soon</h2>
   <p class="readlist-subscription__body" data-test-banner-message>Your subscription will end on <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time>. You'll keep full access until then.</p>
-  <a class="btn btn--primary readlist-subscription__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate Subscription</a>
+  <a class="btn btn--primary btn--m readlist-subscription__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate subscription</a>
   {{/if}}
   {{#if isInactive}}
   <span class="chip chip--status chip--error" data-test-subscription-chip="inactive">Subscription inactive</span>
   <h2 class="readlist-subscription__title">Your subscription has ended</h2>
   <p class="readlist-subscription__body" data-test-banner-message>Your saved articles are still here. Subscribe again to regain full access to Readplace.</p>
-  <button class="btn btn--primary readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
-  <a class="btn btn--primary readlist-subscription__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
+  <button class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
+  <a class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
   {{/if}}
 </aside>

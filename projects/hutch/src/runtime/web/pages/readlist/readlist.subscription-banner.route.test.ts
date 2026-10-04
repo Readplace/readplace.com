@@ -157,7 +157,7 @@ describe("Readlist page banner state", () => {
 		expect(saveInput.disabled).toBe(false);
 		const reactivate = banner.querySelector('[data-test-action="reactivate"]');
 		assert(reactivate, "cancellation-scheduled banner must offer Reactivate");
-		expect(reactivate.textContent).toBe("Reactivate Subscription");
+		expect(reactivate.textContent).toBe("Reactivate subscription");
 		expect(confirmPopoverKeys(doc)).toEqual(["save-tip"]);
 	});
 
