@@ -43,12 +43,12 @@ function gmailRow(input: GmailIndexInput) {
 }
 
 describe("toIntegrationsIndexViewModel", () => {
-	it("lists From Gmail then From Custom Emails", () => {
+	it("lists Newsletters from Gmail then Custom Emails", () => {
 		const vm = indexViewModel({ connection: undefined });
 
 		assert.deepEqual(
 			vm.services.map((s) => [s.key, s.name]),
-			[["gmail", "From Gmail"], ["custom-emails", "From Custom Emails"]],
+			[["gmail", "Newsletters from Gmail"], ["custom-emails", "Custom Emails"]],
 		);
 	});
 

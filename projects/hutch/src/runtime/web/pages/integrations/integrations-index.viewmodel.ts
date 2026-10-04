@@ -178,7 +178,7 @@ function gmailRow(connection: GmailConnection | undefined): IntegrationRowViewMo
 	const state = gmailConnectionState(connection);
 	return {
 		key: "gmail",
-		name: "From Gmail",
+		name: "Newsletters from Gmail",
 		description: "Send newsletters from Gmail to your readlists.",
 		iconName: "mail",
 		statusKey: state,
@@ -214,7 +214,7 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 	const state: CustomEmailsState = activeCount > 0 ? "active" : "not-set-up";
 	return {
 		key: "custom-emails",
-		name: "From Custom Emails",
+		name: "Custom Emails",
 		description: "Sign up for newsletters with your own Readplace emails.",
 		iconName: "inbox",
 		statusKey: state,

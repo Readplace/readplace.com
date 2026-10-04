@@ -157,19 +157,19 @@ describe("buildNavGroups", () => {
 		expect(inbox.href).toBe("/inbox?utm_source=header-nav&utm_medium=internal&utm_content=inbox");
 	});
 
-	it("adds the Newsletters entry to Library only for a request that opted into the feature", () => {
+	it("adds the Integrations entry to Library only for a request that opted into the feature", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true });
 		const [library] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox", "integrations"]);
 	});
 
-	it("shows the Newsletters entry to a read-only user with the feature on so they can stop forwarding", () => {
+	it("shows the Integrations entry to a read-only user with the feature on so they can stop forwarding", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: true, gmailFeatureEnabled: true });
 		const [library] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "integrations"]);
 	});
 
-	it("tags the Newsletters href for internal-click tracking", () => {
+	it("tags the Integrations href for internal-click tracking", () => {
 		const integrations = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "integrations");
@@ -177,7 +177,7 @@ describe("buildNavGroups", () => {
 		expect(integrations.href).toBe(
 			"/newsletters?utm_source=header-nav&utm_medium=internal&utm_content=integrations",
 		);
-		expect(integrations.label).toBe("Newsletters");
+		expect(integrations.label).toBe("Integrations");
 	});
 });
 

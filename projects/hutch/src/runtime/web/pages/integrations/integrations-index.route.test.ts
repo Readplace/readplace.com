@@ -60,14 +60,14 @@ describe("GET /newsletters", () => {
 		expect(status.textContent).toBe("Not set up");
 	});
 
-	it("names the Gmail card From Gmail and says it sends newsletters to readlists", async () => {
+	it("names the Gmail card Newsletters from Gmail and says it sends newsletters to readlists", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const gmail = load((await agent.get("/newsletters")).text).querySelector('[data-test-integration="gmail"]');
 		assert(gmail, "the Gmail row must render");
 
-		expect(gmail.querySelector(".integrations__name")?.textContent).toBe("From Gmail");
+		expect(gmail.querySelector(".integrations__name")?.textContent).toBe("Newsletters from Gmail");
 		expect(gmail.querySelector(".integrations__description")?.textContent).toBe("Send newsletters from Gmail to your readlists.");
 	});
 
@@ -91,7 +91,7 @@ describe("GET /newsletters", () => {
 
 		const customEmails = doc.querySelector('[data-test-integration="custom-emails"]');
 		assert(customEmails, "the Custom Emails row must render");
-		expect(customEmails.querySelector(".integrations__name")?.textContent).toBe("From Custom Emails");
+		expect(customEmails.querySelector(".integrations__name")?.textContent).toBe("Custom Emails");
 		const status = customEmails.querySelector("[data-test-integration-status]");
 		assert(status, "the Custom Emails row must carry a status");
 		expect(status.textContent).toBe("2 active");
@@ -264,7 +264,7 @@ describe("GET /newsletters", () => {
 	});
 });
 
-describe("Newsletters nav entry", () => {
+describe("Integrations nav entry", () => {
 	it("is absent from the header for a reader who did not opt in", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

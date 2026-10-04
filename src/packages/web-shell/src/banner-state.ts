@@ -181,7 +181,7 @@ const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/impor
 const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", iconName: "inbox" });
 const NAV_INTEGRATIONS = navItem({
 	key: "integrations",
-	label: "Newsletters",
+	label: "Integrations",
 	path: "/newsletters",
 	method: "GET",
 	iconName: "plug",
