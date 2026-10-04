@@ -304,7 +304,6 @@ export function initBase(config: BaseConfig): RenderBase {
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
-				gmailFeatureEnabled: state.gmailFeatureEnabled ?? false,
 				currentPath: state.currentPath,
 				clickSurface: body.clickSurface,
 				userEmail: state.userEmail,

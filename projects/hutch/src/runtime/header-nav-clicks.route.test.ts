@@ -21,9 +21,7 @@ function uniqueByKey(items: NavItem[]): NavItem[] {
 const GUEST_ITEMS = uniqueByKey(buildGuestNavGroups().flatMap((group) => group.items));
 const MEMBER_ITEMS = uniqueByKey(
 	[false, true].flatMap((accessIsReadOnly) =>
-		[false, true].flatMap((gmailFeatureEnabled) =>
-			buildNavGroups({ accessIsReadOnly, gmailFeatureEnabled }).flatMap((group) => group.items),
-		),
+		buildNavGroups({ accessIsReadOnly }).flatMap((group) => group.items),
 	),
 );
 

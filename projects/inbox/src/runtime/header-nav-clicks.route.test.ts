@@ -17,9 +17,7 @@ const BROWSER_HEADERS: Record<string, string> = {
 
 const INBOX_ITEMS = [
 	...buildGuestNavGroups(),
-	...[false, true].flatMap((accessIsReadOnly) =>
-		[false, true].flatMap((gmailFeatureEnabled) => buildNavGroups({ accessIsReadOnly, gmailFeatureEnabled })),
-	),
+	...[false, true].flatMap((accessIsReadOnly) => buildNavGroups({ accessIsReadOnly })),
 ]
 	.flatMap((group) => group.items)
 	.filter((item) => new URL(item.href, TEST_APP_ORIGIN).pathname.startsWith(INBOX_PATH));

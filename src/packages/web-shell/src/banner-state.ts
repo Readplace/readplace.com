@@ -2,7 +2,6 @@ import type { IconName } from "@packages/ui-icons";
 import type { AppearanceSetting } from "./base.styles";
 import type { ChangelogBanner, FETCH_CHANGELOG_BANNER_IN_BROWSER } from "./changelog-banner";
 import { type CspNonce, requireCspNonce } from "./csp-nonce.middleware";
-import { QuerystringFeatureToggle } from "./feature-toggle";
 import { type ClickSurface, withInternalTracking } from "./internal-link-tracking";
 
 /** Presentational standing of an *unverified* account: the consuming site
@@ -33,11 +32,6 @@ export interface BannerStateSource {
 	 * post the page the reader is on (the dismiss route cannot rely on `Referer`,
 	 * which helmet's default `no-referrer` policy strips). */
 	originalUrl?: string;
-	/** The request's parsed query string. Express populates it on every request,
-	 * so a consuming site that passes the request as the source supplies it
-	 * structurally. Read only through {@link QuerystringFeatureToggle} to decide
-	 * whether an unreleased destination is discoverable on this request. */
-	query?: Record<string, unknown>;
 	/** Markup the consuming site computed for *this request alone*, appended to
 	 * the page's scripts. `BaseConfig.siteScripts` cannot express it: that string
 	 * is bound once at `initBase` and is therefore the same on every render. A
@@ -104,10 +98,6 @@ const NAV_SOURCE = "header-nav";
 
 const NAV_LINK_CLASS = "nav__link";
 
-const GMAIL_FEATURE = "gmail";
-
-const featureToggle = new QuerystringFeatureToggle();
-
 /** Builds a nav item with its href pre-tagged for internal-click tracking and
  * the matching UTM dimensions exposed for the template's hidden inputs. The
  * item `key` doubles as `utm_content` so each destination is distinct. */
@@ -171,7 +161,6 @@ export interface BannerState {
 	currentPath?: string;
 	/** Per-request script markup carried through from `BannerStateSource`. */
 	requestScripts?: string;
-	gmailFeatureEnabled?: boolean;
 	appearance?: AppearanceSetting;
 	cspNonce: CspNonce;
 }
@@ -214,10 +203,7 @@ export function buildGuestNavGroups(): NavGroup[] {
  * Adding a destination means pushing a NavItem into the right group here, not
  * editing the template.
  * Export is deliberately absent: it lives on the account page instead. */
-export function buildNavGroups(input: {
-	accessIsReadOnly: boolean;
-	gmailFeatureEnabled: boolean;
-}): NavGroup[] {
+export function buildNavGroups(input: { accessIsReadOnly: boolean }): NavGroup[] {
 	const library: NavItem[] = [NAV_READLIST];
 	// Saving and minting an address are write actions gated by requireWriteAccess,
 	// so a read-only user gets neither entry. They keep access to existing
@@ -225,7 +211,7 @@ export function buildNavGroups(input: {
 	if (!input.accessIsReadOnly) {
 		library.push(NAV_IMPORT, NAV_INBOX);
 	}
-	if (input.gmailFeatureEnabled) library.push(NAV_INTEGRATIONS);
+	library.push(NAV_INTEGRATIONS);
 	return [
 		{ key: "library", label: "Library", items: library },
 		{ key: "account", label: "Account", items: [NAV_ACCOUNT, NAV_BLOG, NAV_PRIVACY, NAV_TERMS, NAV_LOGOUT] },
@@ -239,7 +225,6 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 		verification: source.verificationStatus,
 		currentPath: source.originalUrl,
 		requestScripts: source.requestScripts,
-		gmailFeatureEnabled: featureToggle.isEnabled({ query: source.query ?? {} }, GMAIL_FEATURE),
 		cspNonce: requireCspNonce(source),
 	};
 }

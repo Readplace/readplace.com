@@ -80,19 +80,32 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(customEmails.statusLabel, "Not set up");
 	});
 
-	it("offers Connect while Gmail is not set up", () => {
+	it("offers Connect behind the experimental disclaimer while Gmail is not set up", () => {
 		const gmail = gmailRow({ connection: undefined });
 
 		assert.equal(gmail.statusKey, "disconnected");
 		assert.equal(gmail.statusLabel, "Not set up");
 		assert.deepEqual(
-			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
+			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant, a.confirmPopoverId]),
 			[[
 				"connect",
 				"POST",
 				`${GMAIL_CONNECT_PATH}?utm_source=integrations&utm_medium=internal&utm_content=connect`,
 				"primary",
+				"gmail-connect-disclaimer",
 			]],
+		);
+	});
+
+	it.each([
+		["a reader who may connect", true],
+		["a reader who must upgrade first", false],
+	])("tags Gmail as beta and Custom Emails as not for %s", (_reader, canConnectGmail) => {
+		const vm = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0, canConnectGmail });
+
+		assert.deepEqual(
+			vm.services.map((s) => [s.key, s.beta]),
+			[["gmail", true], ["custom-emails", false]],
 		);
 	});
 
@@ -246,12 +259,13 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(gmail.statusKey, "revoked");
 		assert.equal(gmail.statusLabel, "Reconnect needed");
 		assert.deepEqual(
-			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
+			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant, a.confirmPopoverId]),
 			[[
 				"reconnect",
 				"POST",
 				`${GMAIL_CONNECT_PATH}?utm_source=integrations&utm_medium=internal&utm_content=reconnect`,
 				"primary",
+				undefined,
 			]],
 		);
 	});

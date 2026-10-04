@@ -15,7 +15,6 @@ export interface NavProps {
 	variant: "default" | "transparent";
 	isAuthenticated: boolean;
 	accessIsReadOnly: boolean;
-	gmailFeatureEnabled: boolean;
 	currentPath?: string;
 	clickSurface?: ClickSurface;
 	userEmail?: string;
@@ -95,10 +94,7 @@ function displayItem(
 
 export function GlobalNav(props: NavProps): string {
 	const groups = props.isAuthenticated
-		? buildNavGroups({
-				accessIsReadOnly: props.accessIsReadOnly,
-				gmailFeatureEnabled: props.gmailFeatureEnabled,
-			})
+		? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly })
 		: buildGuestNavGroups();
 	const context = { surface: props.clickSurface, currentKey: currentNavKey(props.currentPath) };
 	return render(NAV_TEMPLATE, {

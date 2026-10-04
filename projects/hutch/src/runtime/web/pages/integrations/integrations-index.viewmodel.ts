@@ -18,7 +18,10 @@ export interface IntegrationActionViewModel {
 	fields: { name: string; value: string }[];
 	trackSource: string;
 	trackContent: string;
+	confirmPopoverId?: typeof GMAIL_CONNECT_DISCLAIMER_ID;
 }
+
+export const GMAIL_CONNECT_DISCLAIMER_ID = "gmail-connect-disclaimer";
 
 const INTEGRATIONS_SOURCE = "integrations";
 
@@ -43,6 +46,7 @@ export interface IntegrationRowViewModel {
 	name: string;
 	description: string;
 	iconName: IconName;
+	beta: boolean;
 	statusKey: GmailConnectionState | CustomEmailsState;
 	statusLabel: string;
 	statusModifier: string;
@@ -87,6 +91,7 @@ const GMAIL_ACTIONS: Record<
 		label: "Connect Gmail",
 		variant: "primary",
 		fields: [],
+		confirmPopoverId: GMAIL_CONNECT_DISCLAIMER_ID,
 	}],
 	disconnecting: [],
 	"awaiting-confirmation": [{
@@ -181,6 +186,7 @@ function gmailRow(connection: GmailConnection | undefined): IntegrationRowViewMo
 		name: "Newsletters from Gmail",
 		description: "Send newsletters from Gmail to your readlists.",
 		iconName: "mail",
+		beta: true,
 		statusKey: state,
 		statusLabel: STATUS_LABELS[state],
 		statusModifier: `integrations__status--${state}`,
@@ -217,6 +223,7 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 		name: "Custom Emails",
 		description: "Sign up for newsletters with your own Readplace emails.",
 		iconName: "inbox",
+		beta: false,
 		statusKey: state,
 		statusLabel: state === "active" ? `${activeCount} active` : "Not set up",
 		statusModifier: `integrations__status--${state}`,

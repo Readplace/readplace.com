@@ -22,24 +22,21 @@ const SIGNED_IN: NavProps = {
 	variant: "default",
 	isAuthenticated: true,
 	accessIsReadOnly: false,
-	gmailFeatureEnabled: true,
 };
 
 const GUEST: NavProps = {
 	variant: "default",
 	isAuthenticated: false,
 	accessIsReadOnly: false,
-	gmailFeatureEnabled: false,
 };
 
 describe("GlobalNav component", () => {
-	it("renders authenticated nav items (queue, import, inbox, account, blog, sign out) for an authenticated full-access user", () => {
+	it("renders authenticated nav items (queue, import, inbox, integrations, account, blog, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -58,13 +55,12 @@ describe("GlobalNav component", () => {
 		expect(form.getAttribute("action")).toBe("/account?utm_source=header-nav&utm_medium=internal&utm_content=account");
 	});
 
-	it("splits the authenticated nav into a Library section (queue, import, inbox) and an Account section (account, blog, privacy, terms, sign out)", () => {
+	it("splits the authenticated nav into a Library section (queue, import, inbox, integrations) and an Account section (account, blog, privacy, terms, sign out)", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -79,7 +75,7 @@ describe("GlobalNav component", () => {
 		const libraryItems = Array.from(
 			library.querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(libraryItems).toEqual(["queue", "import", "inbox"]);
+		expect(libraryItems).toEqual(["queue", "import", "inbox", "integrations"]);
 
 		const account = doc.querySelector('[data-test-nav-group="account"]');
 		assert(account, "account group must render");
@@ -95,7 +91,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
 				userEmail: "james.davis@example.com",
 			}),
 		);
@@ -127,7 +122,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -150,7 +144,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
 				currentPath: "/queue",
 			}),
 		);
@@ -172,7 +165,6 @@ describe("GlobalNav component", () => {
 			variant: "default",
 			isAuthenticated: true,
 			accessIsReadOnly: false,
-			gmailFeatureEnabled: false,
 		}));
 
 		const libraryItems = Array.from(
@@ -180,7 +172,7 @@ describe("GlobalNav component", () => {
 				.querySelector('[data-test-nav-group="library"]')
 				?.querySelectorAll("[data-test-nav-item]") ?? [],
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(libraryItems).toEqual(["queue", "import", "inbox"]);
+		expect(libraryItems).toEqual(["queue", "import", "inbox", "integrations"]);
 	});
 
 	it("submits the Inbox entry as a plain GET form", () => {
@@ -188,7 +180,6 @@ describe("GlobalNav component", () => {
 			variant: "default",
 			isAuthenticated: true,
 			accessIsReadOnly: false,
-			gmailFeatureEnabled: false,
 		}));
 
 		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
@@ -206,7 +197,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -267,7 +257,7 @@ describe("GlobalNav component", () => {
 			["/inbox", "inbox"],
 			["/inbox/emails/msg-1", "inbox"],
 			["/newsletters", "integrations"],
-			["/newsletters/gmail?feature=gmail", "integrations"],
+			["/newsletters/gmail", "integrations"],
 			["/newsletters/custom-emails", "integrations"],
 		])("marks %s as the %s item for a signed-in reader", (currentPath, key) => {
 			expect(currentItemKeys(GlobalNav({ ...SIGNED_IN, currentPath }))).toEqual([key]);
@@ -360,7 +350,6 @@ describe("GlobalNav component", () => {
 				variant: "transparent",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
 			}),
 		);
 
@@ -374,7 +363,6 @@ describe("GlobalNav component", () => {
 			variant: "default",
 			isAuthenticated: true,
 			accessIsReadOnly: false,
-			gmailFeatureEnabled: false,
 		});
 
 		const toggle = parse(html).querySelector(".nav__toggle");
@@ -389,7 +377,6 @@ describe("GlobalNav component", () => {
 			variant: "default",
 			isAuthenticated: true,
 			accessIsReadOnly: false,
-			gmailFeatureEnabled: false,
 		});
 
 		const disclosure = parse(html).querySelector(".nav__disclosure");
@@ -405,7 +392,6 @@ describe("GlobalNav component", () => {
 					variant: "default",
 					isAuthenticated: false,
 					accessIsReadOnly: false,
-					gmailFeatureEnabled: false,
 					clickSurface: "reader-public",
 				}),
 			);
@@ -423,7 +409,6 @@ describe("GlobalNav component", () => {
 					variant: "default",
 					isAuthenticated: false,
 					accessIsReadOnly: false,
-					gmailFeatureEnabled: false,
 					clickSurface: "reader-public",
 				}),
 			);
@@ -443,7 +428,6 @@ describe("GlobalNav component", () => {
 					variant: "default",
 					isAuthenticated: true,
 					accessIsReadOnly: false,
-					gmailFeatureEnabled: false,
 					clickSurface: "reader-public",
 				}),
 			);
@@ -459,7 +443,6 @@ describe("GlobalNav component", () => {
 					variant: "default",
 					isAuthenticated: true,
 					accessIsReadOnly: false,
-					gmailFeatureEnabled: false,
 					clickSurface: "reader-public",
 				}),
 			);

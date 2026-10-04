@@ -11,11 +11,14 @@
           <li class="integrations__item" data-test-integration="{{key}}">
             <span class="integrations__icon">{{icon iconName}}</span>
             <span class="integrations__body">
-              <span class="integrations__name">{{name}}</span>
+              <span class="integrations__name">{{name}}{{#if beta}} <span class="chip chip--badge chip--accent" data-test-integration-beta>Beta</span>{{/if}}</span>
               <span class="integrations__description">{{description}}</span>
             </span>
             <span class="integrations__status {{statusModifier}}" data-test-integration-status="{{statusKey}}">{{statusLabel}}</span>
             {{#each actions}}
+            {{#if confirmPopoverId}}
+            <button type="button" class="btn btn--{{variant}} btn--s" popovertarget="{{confirmPopoverId}}" aria-haspopup="dialog" data-test-integration-action="{{key}}">{{label}}</button>
+            {{else}}
             <form class="integrations__action" method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
               <input type="hidden" name="utm_source" value="{{trackSource}}">
               <input type="hidden" name="utm_medium" value="internal">
@@ -25,9 +28,11 @@
               {{/each}}
               <button type="submit" class="btn btn--{{variant}} btn--s" data-test-integration-action="{{key}}">{{label}}</button>
             </form>
+            {{/if}}
             {{/each}}
           </li>
           {{/each}}
         </ul>
       </div>
+      {{{disclaimersHtml}}}
     </main>

@@ -403,7 +403,7 @@ describe("Base component", () => {
 		expect(navItems).toEqual(["install", "import", "features", "login"]);
 	});
 
-	it("renders the full nav (queue + import + inbox + account + blog + privacy + terms + logout) for an authenticated full-access user", () => {
+	it("renders the full nav (queue + import + inbox + integrations + account + blog + privacy + terms + logout) for an authenticated full-access user", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
@@ -416,7 +416,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "import", "inbox", "account", "blog", "privacy", "terms", "logout"]);
+		expect(navItems).toEqual(["queue", "import", "inbox", "integrations", "account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("hands the signed-in email to the header so the account section renders as the user menu", () => {
@@ -435,7 +435,7 @@ describe("Base component", () => {
 		expect(menu.querySelector("[data-test-nav-user-email]")?.textContent).toBe("ana_lu@example.com");
 	});
 
-	it("hides import and inbox from the nav for a read-only user (trial-expired / subscription-cancelled) but keeps Account so they can still reach /account", () => {
+	it("hides import and inbox from the nav for a read-only user (trial-expired / subscription-cancelled) but keeps Integrations and Account so they can still stop forwarding and reach /account", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
@@ -448,7 +448,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "account", "blog", "privacy", "terms", "logout"]);
+		expect(navItems).toEqual(["queue", "integrations", "account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("should include the footer with copyright", () => {
@@ -1165,7 +1165,6 @@ describe("initBase config", () => {
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
-				gmailFeatureEnabled: false,
 			}),
 		).toBe("");
 	});

@@ -99,25 +99,25 @@ describe("buildGuestNavGroups", () => {
 });
 
 describe("buildNavGroups", () => {
-	it("groups full-access items into Library (queue, import, inbox) and Account (account, blog, privacy, terms, sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false });
+	it("groups full-access items into Library (queue, import, inbox, integrations) and Account (account, blog, privacy, terms, sign out)", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox", "integrations"]);
 		expect(account?.label).toBe("Account");
 		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("omits import and inbox for a read-only user but keeps Account, the only path to /account now the header has no trial chip", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true, gmailFeatureEnabled: false });
+		const groups = buildNavGroups({ accessIsReadOnly: true });
 		const [library, account] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "integrations"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("links the signed-in Blog item to the blog from the account menu", () => {
-		const blog = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false })
+		const blog = buildNavGroups({ accessIsReadOnly: false })
 			.flatMap((group) => group.items)
 			.find((item) => item.key === "blog");
 		assert(blog, "the account menu must include Blog");
@@ -126,7 +126,7 @@ describe("buildNavGroups", () => {
 	});
 
 	it("tags the Privacy and Terms entries as header-nav clicks, since signed-in pages render no footer to reach them", () => {
-		const hrefs = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false })
+		const hrefs = buildNavGroups({ accessIsReadOnly: false })
 			.flatMap((g) => g.items)
 			.filter((i) => i.key === "privacy" || i.key === "terms")
 			.map((i) => [i.key, i.method, i.href]);
@@ -137,43 +137,37 @@ describe("buildNavGroups", () => {
 	});
 
 	it("styles every signed-in item as a plain nav link", () => {
-		const classes = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true })
+		const classes = buildNavGroups({ accessIsReadOnly: false })
 			.flatMap((g) => g.items)
 			.map((i) => i.linkClass);
 		expect(new Set(classes)).toEqual(new Set(["nav__link"]));
 	});
 
 	it("keeps the Inbox entry in Library for every full-access user", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false });
+		const groups = buildNavGroups({ accessIsReadOnly: false });
 		const [library] = groups;
 		expect(library?.items.map((i) => i.key)).toContain("inbox");
 	});
 
 	it("points the Inbox entry at the inbox page", () => {
-		const inbox = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: false })
+		const inbox = buildNavGroups({ accessIsReadOnly: false })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "inbox");
 		assert(inbox, "library nav must include an inbox item");
 		expect(inbox.href).toBe("/inbox?utm_source=header-nav&utm_medium=internal&utm_content=inbox");
 	});
 
-	it("adds the Integrations entry to Library only for a request that opted into the feature", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true });
+	it("shows the Integrations entry to a read-only user so they can stop forwarding", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: true });
 		const [library] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox", "integrations"]);
-	});
-
-	it("shows the Integrations entry to a read-only user with the feature on so they can stop forwarding", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true, gmailFeatureEnabled: true });
-		const [library] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "integrations"]);
+		expect(library?.items.map((i) => i.key)).toContain("integrations");
 	});
 
 	it("tags the Integrations href for internal-click tracking", () => {
-		const integrations = buildNavGroups({ accessIsReadOnly: false, gmailFeatureEnabled: true })
+		const integrations = buildNavGroups({ accessIsReadOnly: false })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "integrations");
-		assert(integrations, "library nav must include an integrations item when the feature is on");
+		assert(integrations, "library nav must include an integrations item");
 		expect(integrations.href).toBe(
 			"/newsletters?utm_source=header-nav&utm_medium=internal&utm_content=integrations",
 		);
@@ -181,27 +175,8 @@ describe("buildNavGroups", () => {
 	});
 });
 
-describe("bannerStateFromRequest feature toggle", () => {
-	it("enables the Gmail feature when the request opted in with ?feature=gmail", () => {
-		const state = bannerStateFromRequest({ query: { feature: "gmail" }, cspNonce: CSP_NONCE });
-		expect(state.gmailFeatureEnabled).toBe(true);
-	});
-
-	it("leaves the Gmail feature off for another feature value", () => {
-		const state = bannerStateFromRequest({ query: { feature: "something-else" }, cspNonce: CSP_NONCE });
-		expect(state.gmailFeatureEnabled).toBe(false);
-	});
-
-	it("leaves the Gmail feature off for a source that carries no query at all", () => {
-		const state = bannerStateFromRequest({ cspNonce: CSP_NONCE });
-		expect(state.gmailFeatureEnabled).toBe(false);
-	});
-});
-
-describe("header nav internal-click tagging across every feature-flag combination", () => {
-	const flagMatrix = [false, true].flatMap((accessIsReadOnly) =>
-		[false, true].map((gmailFeatureEnabled) => ({ accessIsReadOnly, gmailFeatureEnabled })),
-	);
+describe("header nav internal-click tagging across every access level", () => {
+	const flagMatrix = [false, true].map((accessIsReadOnly) => ({ accessIsReadOnly }));
 	const navs = flagMatrix.flatMap((flags) => [
 		{ name: `guest ${JSON.stringify(flags)}`, groups: buildGuestNavGroups() },
 		{ name: `authenticated ${JSON.stringify(flags)}`, groups: buildNavGroups(flags) },

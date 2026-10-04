@@ -25,7 +25,6 @@ describe("initBuildBannerState", () => {
 			isAuthenticated: false,
 			emailVerified: undefined,
 			changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
-			gmailFeatureEnabled: false,
 			cspNonce: CSP_NONCE,
 		});
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
@@ -49,7 +48,6 @@ describe("initBuildBannerState", () => {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
-			gmailFeatureEnabled: false,
 			cspNonce: CSP_NONCE,
 			accessIsReadOnly: false,
 		});

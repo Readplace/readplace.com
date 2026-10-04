@@ -67,8 +67,92 @@ describe("GET /newsletters", () => {
 		const gmail = load((await agent.get("/newsletters")).text).querySelector('[data-test-integration="gmail"]');
 		assert(gmail, "the Gmail row must render");
 
-		expect(gmail.querySelector(".integrations__name")?.textContent).toBe("Newsletters from Gmail");
+		expect(gmail.querySelector(".integrations__name")?.firstChild?.textContent?.trim()).toBe("Newsletters from Gmail");
 		expect(gmail.querySelector(".integrations__description")?.textContent).toBe("Send newsletters from Gmail to your readlists.");
+	});
+
+	it("tags only the Gmail card as Beta", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const tagged = Array.from(doc.querySelectorAll("[data-test-integration-beta]")).map((el) => [
+			el.closest("[data-test-integration]")?.getAttribute("data-test-integration"),
+			el.textContent,
+		]);
+		expect(tagged).toEqual([["gmail", "Beta"]]);
+	});
+
+	it("opens the experimental disclaimer instead of submitting when a reader first connects Gmail", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const connect = doc.querySelector("[data-test-integration-action='connect']");
+		assert(connect, "the connect action renders");
+		expect(connect.closest("form")).toBeNull();
+		expect(connect.getAttribute("type")).toBe("button");
+		expect(connect.getAttribute("popovertarget")).toBe("gmail-connect-disclaimer");
+		expect(connect.getAttribute("aria-haspopup")).toBe("dialog");
+
+		const popover = doc.querySelector('[data-test-confirm-popover="gmail-connect-disclaimer"]');
+		assert(popover, "the disclaimer popover renders");
+		expect(popover.id).toBe("gmail-connect-disclaimer");
+		expect(popover.closest("main")).not.toBeNull();
+		expect(popover.querySelector(".confirm-popover__title")?.textContent).toBe("Gmail integration is experimental");
+		expect(popover.querySelector(".confirm-popover__body")?.textContent).toBe(
+			"Readplace only reads your newsletters: it never sends, changes or deletes your email. It adds one filter to forward the senders you choose.",
+		);
+		const ok = popover.querySelector("[data-test-action='gmail-connect-ok']");
+		assert(ok, "the disclaimer offers OK");
+		expect(ok.getAttribute("type")).toBe("submit");
+		expect(ok.textContent).toBe("OK");
+		const form = ok.closest("form");
+		assert(form, "OK submits a form");
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe(
+			"/newsletters/gmail/connect?utm_source=integrations&utm_medium=internal&utm_content=connect",
+		);
+		expect(form.hasAttribute("hx-boost")).toBe(false);
+	});
+
+	it("lets a revoked reader reconnect directly, without the first-connect disclaimer", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+			grant: {
+				ok: true,
+				grant: {
+					refreshToken: "refresh-value",
+					accessToken: "access-value",
+					grantedScope: GMAIL_SETTINGS_SCOPE,
+				},
+			},
+		});
+		const harness = useApp({
+			...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+			gmailIntegration: gmail.bundle,
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress: GATEWAY });
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const reconnect = doc.querySelector("[data-test-integration-action='reconnect']");
+		assert(reconnect, "the reconnect action renders");
+		expect(reconnect.textContent).toBe("Reconnect Gmail");
+		expect(reconnect.getAttribute("type")).toBe("submit");
+		const form = reconnect.closest("form");
+		assert(form, "reconnect submits a form");
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe(
+			"/newsletters/gmail/connect?utm_source=integrations&utm_medium=internal&utm_content=reconnect",
+		);
+		expect(doc.querySelector("[data-test-confirm-popover]")).toBeNull();
 	});
 
 	it("counts the reader's active custom emails and links to manage them", async () => {
@@ -193,8 +277,8 @@ describe("GET /newsletters", () => {
 		const response = await agent.get("/newsletters");
 		const doc = load(response.text);
 
-		const action = doc.querySelector("[data-test-integration-action='connect']");
-		assert(action, "the connect action renders");
+		const action = doc.querySelector("[data-test-integration-action='custom-emails']");
+		assert(action, "the custom emails action renders");
 		const form = action.closest("form");
 		assert(form, "the action navigates via a form");
 		expect(form.getAttribute("hx-boost")).toBe("true");
@@ -265,26 +349,14 @@ describe("GET /newsletters", () => {
 });
 
 describe("Integrations nav entry", () => {
-	it("is absent from the header for a reader who did not opt in", async () => {
+	it("appears in the header for every signed-in reader", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const doc = load((await agent.get("/queue")).text);
 
-		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) =>
-			el.getAttribute("data-test-nav-item"),
-		);
-		expect(navItems).not.toContain("integrations");
-	});
-
-	it("appears in the header for a reader who opted in", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const doc = load((await agent.get("/queue?feature=gmail")).text);
-
 		const entry = doc.querySelector('[data-test-nav-item="integrations"]');
-		assert(entry, "the integrations nav entry must render for an opted-in reader");
+		assert(entry, "the integrations nav entry must render for a signed-in reader");
 		const form = entry.closest("form");
 		assert(form, "every nav entry renders inside a form");
 		expect(form.getAttribute("action")).toBe(

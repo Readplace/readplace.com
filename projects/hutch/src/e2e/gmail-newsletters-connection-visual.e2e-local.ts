@@ -30,6 +30,10 @@ const CONFIRMATION_EXHAUSTED_POLL = "100";
 const UPGRADE_COPY = "Gmail integration is only available with an active paid subscription.";
 const INTEGRATION_UPGRADE = '[data-test-integration="gmail"] [data-test-integration-action="upgrade-gmail"]';
 const GMAIL_UPGRADE = '[data-test-gmail-connection-action="upgrade-gmail"]';
+const CONNECT_GMAIL = '[data-test-integration="gmail"] [data-test-integration-action="connect"]';
+const CONNECT_DISCLAIMER = '[data-test-confirm-popover="gmail-connect-disclaimer"]';
+const CONNECT_DISCLAIMER_OK = `${CONNECT_DISCLAIMER} [data-test-action="gmail-connect-ok"]`;
+const GOOGLE_CONSENT_STAND_IN = '<!doctype html><title>Google consent</title><body class="google-consent"></body>';
 
 interface Scenario {
 	state: string;
@@ -215,6 +219,20 @@ const SCENARIOS: readonly Scenario[] = [
 		pinnedText: [],
 	},
 	{
+		state: "connect-disclaimer",
+		target: CONNECT_DISCLAIMER,
+		open: async (page, stamp) => {
+			await signInWithGmail(page, { stamp, seed: undefined });
+			await openIntegrations(page);
+			await page.locator(CONNECT_GMAIL).click();
+		},
+		settled: async (page) => {
+			await expect(page.locator(`${CONNECT_DISCLAIMER}:popover-open`)).toBeVisible();
+			await removeVolatileChrome(page);
+		},
+		pinnedText: [],
+	},
+	{
 		state: "setup",
 		target: GMAIL_MAIN,
 		open: async (page, stamp) => {
@@ -383,6 +401,39 @@ test("opens the Gmail page from anywhere on its Newsletters row", async ({ page 
 	await clickAndWaitForPageReload(page, page.locator('[data-test-integration="gmail"]'));
 
 	await expect(page.locator(GMAIL_MAIN)).toHaveCount(1);
+});
+
+test("warns that Gmail is experimental before a first connect hands the reader to Google", async ({ page }, testInfo) => {
+	const consentLocations: string[] = [];
+	await page.route("**/newsletters/gmail/connect?**", async (route) => {
+		const connect = await route.fetch({ maxRedirects: 0 });
+		consentLocations.push(connect.headers().location);
+		await route.fulfill({ status: 200, contentType: "text/html", body: GOOGLE_CONSENT_STAND_IN });
+	});
+	await signInWithGmail(page, { stamp: `connect-disclaimer-${testInfo.workerIndex}-${Date.now()}`, seed: undefined });
+	await openIntegrations(page);
+	const disclaimer = page.locator(CONNECT_DISCLAIMER);
+
+	await page.locator(CONNECT_GMAIL).click();
+	await expect(disclaimer).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(disclaimer).toBeHidden();
+	expect(consentLocations).toEqual([]);
+
+	await page.locator(CONNECT_GMAIL).click();
+	const viewport = page.viewportSize();
+	assert(viewport, "the test runs with a fixed viewport");
+	await page.mouse.click(5, viewport.height - 5);
+	await expect(disclaimer).toBeHidden();
+	expect(consentLocations).toEqual([]);
+
+	await page.locator(CONNECT_GMAIL).click();
+	await clickAndWaitForPageReload(page, page.locator(CONNECT_DISCLAIMER_OK));
+
+	await expect(page.locator("body.google-consent")).toHaveCount(1);
+	assert.equal(consentLocations.length, 1, "OK must submit the connect form exactly once");
+	const consent = new URL(consentLocations[0]);
+	assert.equal(`${consent.origin}${consent.pathname}`, "https://accounts.google.com/o/oauth2/v2/auth");
 });
 
 test.describe("Gmail upgrades without JavaScript", () => {
