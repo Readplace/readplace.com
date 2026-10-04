@@ -40,6 +40,7 @@ export type ReadabilityAdditions = {
 		document: Document;
 		renderFacade: (ctx: { document: Document; embed: YouTubeEmbed }) => Element;
 	}) => void;
+	demoteBodyHeadings: (document: Document) => void;
 	promoteBrParagraphHosts: (document: Document) => void;
 	restoreRetaggedTables: (html: string) => string;
 	resolveRelativeUrls: (params: { html: string; baseUrl: string }) => string;

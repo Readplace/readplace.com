@@ -123,7 +123,7 @@ function promoteHostAndInlineAncestors(params: {
  * Attributes are preserved so `dir="rtl"`/`dir="auto"` (and any classes)
  * survive the promotion; children are moved (not cloned) so inline formatting
  * and text escaping are preserved by the DOM itself. */
-function retagToDiv(params: { element: Element; document: Document }): void {
+export function retagToDiv(params: { element: Element; document: Document }): void {
 	const { element, document } = params;
 	const replacement = document.createElement("div");
 	for (const attribute of Array.from(element.attributes)) {

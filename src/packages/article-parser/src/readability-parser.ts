@@ -58,6 +58,7 @@ export function initReadabilityParser(deps: {
 				url: params.url,
 				logError: deps.logError,
 			});
+			deps.readabilityAdditions.demoteBodyHeadings(document);
 			/* Promote inline `<br><br>` paragraph hosts to `<div>` before
 			 * Readability runs, so its `_replaceBrs` + DIV phrasing-recovery
 			 * rebuild the paragraphs instead of orphaning the leading line and

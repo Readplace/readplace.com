@@ -400,6 +400,25 @@ describe("initReadabilityParser", () => {
 			}
 		});
 
+		it("hands Readability the document the injected demoteBodyHeadings rewrote", () => {
+			const sentence = "The injected heading demoter appended this sentence before Readability scored the page.";
+			const { parseHtml } = initParser({
+				readabilityAdditions: { demoteBodyHeadings: (document) => appendSentence({ document, sentence }) },
+			});
+
+			const result = parseHtml({
+				url: "https://wrapper.example/links/1",
+				documentUrl: "https://dest.example/post",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).toContain(sentence);
+			}
+		});
+
 		it("hands Readability the document the injected promoteBrParagraphHosts rewrote", () => {
 			const sentence = "The injected paragraph promoter appended this sentence before Readability scored the page.";
 			const { parseHtml } = initParser({

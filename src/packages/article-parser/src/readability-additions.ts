@@ -1,4 +1,5 @@
 import type { ReadabilityAdditions } from "./article-parser.types";
+import { demoteBodyHeadings } from "./demote-body-headings";
 import { normalizeImplicitBody } from "./normalize-implicit-body";
 import { promoteBrParagraphHosts } from "./promote-br-paragraph-hosts";
 import { replaceEmbedsWithFacade } from "./replace-embeds-with-facade";
@@ -10,6 +11,7 @@ export const readabilityAdditions: ReadabilityAdditions = {
 	normalizeImplicitBody,
 	replaceVideosWithPlaceholder,
 	replaceEmbedsWithFacade,
+	demoteBodyHeadings,
 	promoteBrParagraphHosts,
 	restoreRetaggedTables,
 	resolveRelativeUrls,
