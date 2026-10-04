@@ -40,6 +40,33 @@ export async function snapToWholePixels(page: Page, selector: string): Promise<v
 	}, selector);
 }
 
+const BUTTON_SELECTOR = ".btn";
+
+async function mixedHeightButtonRow(page: Page, target: string): Promise<string | null> {
+	return page.evaluate(
+		(scan) => {
+			for (const root of document.querySelectorAll(scan.target)) {
+				for (const row of [root, ...root.querySelectorAll("*")]) {
+					const buttons = Array.from(
+						row.querySelectorAll<HTMLElement>(`:scope > ${scan.button}, :scope > * > ${scan.button}`),
+						(button) => ({ label: button.innerText.trim(), box: button.getBoundingClientRect() }),
+					).filter((button) => button.box.height > 0);
+					for (const [index, button] of buttons.entries()) {
+						for (const beside of buttons.slice(index + 1)) {
+							const sameBand = button.box.top < beside.box.bottom && beside.box.top < button.box.bottom;
+							if (sameBand && Math.abs(button.box.height - beside.box.height) > 1) {
+								return `"${button.label}" is ${button.box.height}px beside "${beside.label}" at ${beside.box.height}px`;
+							}
+						}
+					}
+				}
+			}
+			return null;
+		},
+		{ target, button: BUTTON_SELECTOR },
+	);
+}
+
 const SCREENSHOT_OPTIONS = { animations: "disabled", caret: "hide", scale: "css" } as const;
 
 export function initCaptureCheckpoint(deps: {
@@ -89,6 +116,12 @@ export function initCaptureCheckpoint(deps: {
 			})
 			.toBe(true);
 		await checkpoint.geometry(page);
+		const mixedRow = await mixedHeightButtonRow(page, checkpoint.target);
+		assert.equal(
+			mixedRow,
+			null,
+			`visual checkpoint "${checkpoint.name}": ${mixedRow} — buttons sharing a row share one size`,
+		);
 		await snapToWholePixels(page, checkpoint.target);
 		const budgetArgs: [budget?: { maxDiffPixelRatio: number }] =
 			checkpoint.maxDiffPixelRatio === undefined

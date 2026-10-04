@@ -55,6 +55,32 @@ test.describe("Visual checkpoint failure detection", () => {
 		);
 	});
 
+	test("a captured row whose buttons differ in height rejects instead of capturing", async ({ page }) => {
+		await page.goto("/login", { waitUntil: "domcontentloaded" });
+		await loginPageSettled(page);
+		await page.evaluate(() => {
+			const row = document.createElement("div");
+			row.setAttribute("data-test-mixed-tier-row", "");
+			row.style.display = "flex";
+			row.innerHTML =
+				'<a class="btn btn--secondary" href="/login">Large</a>' +
+				'<div><a class="btn btn--secondary btn--s" href="/login">Small</a></div>';
+			document.body.prepend(row);
+		});
+		const mixedTierRowCheckpoint: VisualCheckpoint = {
+			name: "mixed-tier-row-never-captured",
+			settled: loginPageSettled,
+			geometry: alignedAuthFieldsGeometry,
+			target: "[data-test-mixed-tier-row]",
+			capture: "element",
+			pinnedText: [],
+		};
+		await assert.rejects(
+			captureCheckpoint(page, mixedTierRowCheckpoint),
+			/"Large" is 48px beside "Small" at 32px — buttons sharing a row share one size/,
+		);
+	});
+
 	test.describe("without a fixed viewport", () => {
 		test("a page-from-top checkpoint rejects instead of capturing", async ({
 			browser,

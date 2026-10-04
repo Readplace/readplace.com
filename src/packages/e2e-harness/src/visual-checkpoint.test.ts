@@ -24,7 +24,24 @@ type PagePlan = {
 	pinned: Map<string, { textContent: string | null }>;
 	pinnedAll?: Map<string, { textContent: string | null }[]>;
 	elements?: Map<string, FakeElement>;
+	buttonRoots?: Map<string, FakeButtonRoot[]>;
 };
+
+type FakeButton = { innerText: string; getBoundingClientRect: () => Box & { top: number; bottom: number } };
+
+type FakeButtonRoot = { querySelectorAll: (selector: string) => { querySelectorAll: () => FakeButton[] }[] };
+
+function fakeButton(input: { label: string; rect: Box }): FakeButton {
+	return {
+		innerText: ` ${input.label}\n`,
+		getBoundingClientRect: () => ({ ...input.rect, top: input.rect.y, bottom: input.rect.y + input.rect.height }),
+	};
+}
+
+function fakeButtonRoot(rows: FakeButton[][]): FakeButtonRoot {
+	const containers = rows.map((buttons) => ({ querySelectorAll: () => buttons }));
+	return { querySelectorAll: (selector) => (selector === "*" ? containers : []) };
+}
 
 function fakeElement(input: { rect: Box; computedTransform?: string }): FakeElement {
 	return {
@@ -67,7 +84,8 @@ function createCheckpointPage(plan: PagePlan): {
 		},
 		querySelector: (selector: string) =>
 			plan.pinned.get(selector) ?? plan.elements?.get(selector) ?? null,
-		querySelectorAll: (selector: string) => plan.pinnedAll?.get(selector) ?? [],
+		querySelectorAll: (selector: string) =>
+			plan.pinnedAll?.get(selector) ?? plan.buttonRoots?.get(selector) ?? [],
 	};
 	const inPage = <T>(run: () => T): T => {
 		Reflect.set(globalThis, "window", windowStub);
@@ -264,6 +282,7 @@ describe("captureCheckpoint", () => {
 			"locator:[data-test-card]",
 			"boundingBox:[data-test-card]",
 			"geometry",
+			"evaluate",
 			"evaluate",
 			"screenshot:queue-card.png",
 			"capture:[data-test-card]",
@@ -615,5 +634,129 @@ describe("captureCheckpoint", () => {
 		await expect(initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, checkpoint)).rejects.toThrow(
 			'pinned text selector "[data-test-clock]" matched nothing',
 		);
+	});
+
+	function buttonRowPlan(rows: FakeButton[][]): PagePlan {
+		return {
+			locators: { "[data-test-cta]": { count: 1, boxes: [{ x: 0, y: 0, width: 1280, height: 72 }] } },
+			viewport: { width: 1280, height: 720 },
+			scroll: { x: 0, y: 0 },
+			pinned: new Map(),
+			elements: new Map([["[data-test-cta]", fakeElement({ rect: { x: 0, y: 0, width: 1280, height: 72 } })]]),
+			buttonRoots: new Map([["[data-test-cta]", [fakeButtonRoot(rows)]]]),
+		};
+	}
+
+	const ctaCheckpoint: VisualCheckpoint = {
+		name: "view-cta",
+		settled: async () => {},
+		geometry: async () => {},
+		target: "[data-test-cta]",
+		capture: "element",
+		pinnedText: [],
+	};
+
+	it("rejects a row whose buttons differ in height instead of capturing it", async () => {
+		const { page, calls } = createCheckpointPage(
+			buttonRowPlan([
+				[
+					fakeButton({ label: "Save to My Readlist", rect: { x: 300, y: 12, width: 220, height: 48 } }),
+					fakeButton({ label: "Download EPUB", rect: { x: 760, y: 12, width: 220, height: 32 } }),
+				],
+			]),
+		);
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+
+		await expect(
+			initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, ctaCheckpoint),
+		).rejects.toThrow(
+			'visual checkpoint "view-cta": "Save to My Readlist" is 48px beside "Download EPUB" at 32px — buttons sharing a row share one size',
+		);
+		expect(screenshots).toEqual([]);
+	});
+
+	it("rejects a row whose shorter button comes first", async () => {
+		const { page, calls } = createCheckpointPage(
+			buttonRowPlan([
+				[
+					fakeButton({ label: "Paste another link", rect: { x: 300, y: 12, width: 220, height: 46 } }),
+					fakeButton({ label: "Save to My Readlist", rect: { x: 760, y: 12, width: 220, height: 48 } }),
+				],
+			]),
+		);
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+
+		await expect(
+			initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, ctaCheckpoint),
+		).rejects.toThrow(
+			'visual checkpoint "view-cta": "Paste another link" is 46px beside "Save to My Readlist" at 48px — buttons sharing a row share one size',
+		);
+		expect(screenshots).toEqual([]);
+	});
+
+	it("captures a row whose buttons share one height to within a pixel", async () => {
+		const { page, calls } = createCheckpointPage(
+			buttonRowPlan([
+				[
+					fakeButton({ label: "Save to My Readlist", rect: { x: 300, y: 12, width: 220, height: 48 } }),
+					fakeButton({ label: "Download EPUB", rect: { x: 760, y: 12, width: 220, height: 47 } }),
+				],
+			]),
+		);
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, ctaCheckpoint);
+
+		expect(screenshots.map((shot) => shot.name)).toEqual(["view-cta.png"]);
+	});
+
+	it("captures buttons of different heights stacked flush, in either document order", async () => {
+		const { page, calls } = createCheckpointPage(
+			buttonRowPlan([
+				[
+					fakeButton({ label: "Open Gmail", rect: { x: 16, y: 12, width: 160, height: 40 } }),
+					fakeButton({ label: "Copy", rect: { x: 16, y: 52, width: 80, height: 32 } }),
+				],
+				[
+					fakeButton({ label: "Copy", rect: { x: 400, y: 52, width: 80, height: 32 } }),
+					fakeButton({ label: "Open Gmail", rect: { x: 400, y: 12, width: 160, height: 40 } }),
+				],
+			]),
+		);
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, ctaCheckpoint);
+
+		expect(screenshots.map((shot) => shot.name)).toEqual(["view-cta.png"]);
+	});
+
+	it("captures buttons of different heights that sit in separate rows of the target", async () => {
+		const { page, calls } = createCheckpointPage(
+			buttonRowPlan([
+				[fakeButton({ label: "Save to My Readlist", rect: { x: 300, y: 12, width: 220, height: 48 } })],
+				[fakeButton({ label: "Copy", rect: { x: 760, y: 12, width: 80, height: 32 } })],
+			]),
+		);
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, ctaCheckpoint);
+
+		expect(screenshots.map((shot) => shot.name)).toEqual(["view-cta.png"]);
+	});
+
+	it("captures a row beside a button that is not laid out", async () => {
+		const { page, calls } = createCheckpointPage(
+			buttonRowPlan([
+				[
+					fakeButton({ label: "Save to My Readlist", rect: { x: 300, y: -12, width: 220, height: 48 } }),
+					fakeButton({ label: "Download EPUB", rect: { x: 0, y: 0, width: 0, height: 0 } }),
+				],
+			]),
+		);
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, ctaCheckpoint);
+
+		expect(screenshots.map((shot) => shot.name)).toEqual(["view-cta.png"]);
 	});
 });

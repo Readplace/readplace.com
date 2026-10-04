@@ -328,7 +328,7 @@ There is **one** button in the product. Every call to action is `.btn` plus exac
 
 #### Pairing
 
-Outside dialogs, when two buttons sit side by side, the **first is the primary action and the second is the secondary action** — always in that order, never two of the same weight, and never a button beside a bare text link. A repeated action keeps **one** variant everywhere it appears on a page.
+Outside dialogs, when two buttons sit side by side, the **first is the primary action and the second is the secondary action** — always in that order, never two of the same weight, and never a button beside a bare text link. A repeated action keeps **one** variant everywhere it appears on a page. Buttons that share a row share one [size](#size-and-padding): a row never mixes L, M and S.
 
 **Escape hatch.** The one text control allowed beside a button: a control that marks a step done or skips it ("I've done this already") sits under that step's `primary` as a quiet text action — underlined, `--muted-foreground` → `--foreground` on hover, 13px/500. An *alternative path* is still a `secondary` button; a link in prose is still `--primary-text`.
 
