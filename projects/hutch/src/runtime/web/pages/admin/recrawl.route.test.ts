@@ -911,4 +911,30 @@ describe("Admin recrawl routes", () => {
 			expect(harness.recrawlPublishedCalls).toEqual([{ url: TRACKER }]);
 		});
 	});
+
+	describe("archive URLs whose path names the article", () => {
+		const ARTICLE = "https://mamund.substack.com/p/the-hypermedia-commons-we-missed";
+
+		it.each([
+			`https://web.archive.org/web/20260000000000*/${ARTICLE}`,
+			`https://archive.li/20261002094222/${ARTICLE}`,
+		])("recrawls the article %s points at without touching the network", async (archiveUrl) => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE,
+				metadata: { title: "T", siteName: "mamund.substack.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE });
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${encodeURIComponent(archiveUrl)}`);
+
+			expect(response.status).toBe(303);
+			expect(harness.wrapperTarget.calls).toEqual([]);
+			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE }]);
+		});
+	});
 });

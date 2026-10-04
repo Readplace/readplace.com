@@ -30,6 +30,7 @@ export {
 	neverResolveWrapperTarget,
 	type ResolveWrapperTarget,
 } from "./resolve-wrapper-target";
+export { withSyntacticUnwrap } from "./with-syntactic-unwrap";
 export { rankNewLinksAbove } from "./rank-new-links-above";
 export {
 	bindArticleStoreToReadlist,

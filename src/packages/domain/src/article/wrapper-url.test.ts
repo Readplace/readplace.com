@@ -1,4 +1,10 @@
-import { isArchiveHost, stripRedirectAddedParams, unwrapWrapperUrl, wrapperFamilyOf } from "./wrapper-url";
+import {
+	isArchiveHost,
+	stripRedirectAddedParams,
+	unwrapWrapperUrl,
+	wrapperFamilyOf,
+	wrapperResolutionOf,
+} from "./wrapper-url";
 
 const TRACKERS = [
 	"https://leadershipintech.com/links/5134/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11/email",
@@ -32,6 +38,17 @@ const NEAR_MISSES = [
 	"https://apple.news/AjYm3jdR0S4uhs9hRKpJ1Sg/related",
 	"https://web.archive.org/web/*/https://publisher.example/*",
 	"https://archive.ph/",
+	"https://web.archive.org/web/20260707152150im_/https://www.tampabay.com/a.jpg?auth=abc",
+	"https://web.archive.org/web/20260707152150cs_/https://publisher.example/style.css",
+	"https://web.archive.org/web/timemap/link/https://publisher.example/article",
+	"https://web.archive.org/web/",
+	"https://web.archive.org/web/2018/ftp://files.example/a",
+	"https://web.archive.org/web/20260000000000*/https%3A%2F%E0%A4%A",
+	"https://archive.org/details/bstj57-6-1899",
+	"https://blog.archive.org/2026/01/01/a-post/",
+	"https://archive.ph/newest",
+	"https://archive.ph/wip",
+	"https://archive.ph/timegate/https://publisher.example/article",
 	"https://publisher.example/article",
 ];
 
@@ -54,7 +71,6 @@ describe("wrapperFamilyOf", () => {
 	it.each([
 		WAYBACK,
 		"https://web.archive.org/web/2018/https://publisher.example/article",
-		"https://web.archive.org/web/20260707152150im_/https://www.tampabay.com/a.jpg?auth=abc",
 		"https://archive.ph/Ab1cD",
 		"https://archive.is/Ab1cD",
 		"https://archive.today/Ab1cD",
@@ -109,11 +125,6 @@ describe("unwrapWrapperUrl", () => {
 			original: "https://publisher.example/article",
 		},
 		{
-			label: "an im_ (image) capture",
-			snapshot: "https://web.archive.org/web/20260707152150im_/https://www.tampabay.com/a.jpg?auth=abc",
-			original: "https://www.tampabay.com/a.jpg?auth=abc",
-		},
-		{
 			label: "a capture whose embedded scheme was collapsed to a single slash",
 			snapshot: "https://web.archive.org/web/20260707152150/https:/publisher.example/article",
 			original: "https://publisher.example/article",
@@ -156,6 +167,7 @@ describe("unwrapWrapperUrl", () => {
 		{ label: "a Wayback capture of a non-HTTP original", url: "https://web.archive.org/web/2018/ftp://files.example/a" },
 		{ label: "an archive.today short id", url: "https://archive.ph/Ab1cD" },
 		{ label: "a Wayback calendar wildcard", url: "https://web.archive.org/web/*/https://publisher.example/*" },
+		{ label: "an im_ (image) capture", url: "https://web.archive.org/web/20260707152150im_/https://www.tampabay.com/a.jpg?auth=abc" },
 		{ label: "a newsletter tracker (needs the network)", url: "https://javascriptweekly.com/link/100000/rss" },
 		{ label: "a plain article", url: "https://publisher.example/article" },
 		{ label: "a non-HTTP URL", url: "mailto:someone@example.com" },
@@ -201,5 +213,86 @@ describe("stripRedirectAddedParams", () => {
 		expect(
 			stripRedirectAddedParams({ wrapperUrl: "https://open.substack.com/pub/lcamtuf/p/post", targetUrl: "not a url" }),
 		).toBe("not a url");
+	});
+});
+
+describe("archive URL shapes", () => {
+	const ARTICLE = "https://mamund.substack.com/p/the-hypermedia-commons-we-missed";
+	const LATEST_WAYBACK_CAPTURE = `https://web.archive.org/web/${ARTICLE}`;
+
+	it.each([
+		{ label: "the calendar the Wayback UI leaves in the address bar", url: `https://web.archive.org/web/20260000000000*/${ARTICLE}` },
+		{ label: "a bare calendar", url: `https://web.archive.org/web/*/${ARTICLE}` },
+		{ label: "a year calendar", url: `https://web.archive.org/web/2026*/${ARTICLE}` },
+		{ label: "a percent-encoded calendar star", url: `https://web.archive.org/web/20260000000000%2A/${ARTICLE}` },
+		{ label: "a lowercase percent-encoded bare star", url: `https://web.archive.org/web/%2a/${ARTICLE}` },
+		{ label: "a calendar behind an http outer URL", url: `http://web.archive.org/web/*/${ARTICLE}` },
+		{ label: "the timestamp-less timegate", url: `https://web.archive.org/web/${ARTICLE}` },
+		{ label: "a Save Page Now URL", url: `https://web.archive.org/save/${ARTICLE}` },
+	])("keys $label on the article and reads the latest capture", ({ url }) => {
+		expect(wrapperFamilyOf(url)).toBe("archive-snapshot");
+		expect(unwrapWrapperUrl(url)).toEqual({ url: ARTICLE, contentSourceUrl: LATEST_WAYBACK_CAPTURE });
+		expect(wrapperResolutionOf(url)).toBe("syntactic");
+	});
+
+	it.each([
+		{ label: "a scheme-less inner URL", inner: "mamund.substack.com/p/the-hypermedia-commons-we-missed" },
+		{ label: "a percent-encoded inner URL", inner: "https%3A%2F%2Fmamund.substack.com%2Fp%2Fthe-hypermedia-commons-we-missed" },
+	])("recovers the article from a Wayback capture with $label", ({ inner }) => {
+		const snapshot = `https://web.archive.org/web/20250925144454/${inner}`;
+		expect(unwrapWrapperUrl(snapshot)).toEqual({ url: ARTICLE, contentSourceUrl: snapshot });
+	});
+
+	it.each(["https://wayback.archive.org", "https://www.web.archive.org", "http://web.archive.org"])(
+		"reads a capture on %s from web.archive.org over https",
+		(origin) => {
+			expect(unwrapWrapperUrl(`${origin}/web/20250925144454/${ARTICLE}`)).toEqual({
+				url: ARTICLE,
+				contentSourceUrl: `https://web.archive.org/web/20250925144454/${ARTICLE}`,
+			});
+		},
+	);
+
+	it.each(["archive.ph", "archive.is", "archive.today", "archive.md", "archive.li", "archive.fo", "archive.vn"])(
+		"treats every archive.today mirror (%s) as an archive host with captures and short ids",
+		(host) => {
+			const capture = `https://${host}/20261002094222/${ARTICLE}`;
+			expect(isArchiveHost(`https://${host}/Ab1cD`)).toBe(true);
+			expect(wrapperFamilyOf(`https://${host}/Ab1cD`)).toBe("archive-snapshot");
+			expect(wrapperResolutionOf(`https://${host}/Ab1cD`)).toBe("network");
+			expect(unwrapWrapperUrl(capture)).toEqual({ url: ARTICLE, contentSourceUrl: capture });
+		},
+	);
+
+	it.each(["https://wayback.archive.org/web/2018/https://x.example/", "https://www.web.archive.org/"])(
+		"recognises the alternate Wayback host %s as an archive host",
+		(url) => {
+			expect(isArchiveHost(url)).toBe(true);
+		},
+	);
+
+	it.each([
+		{ label: "newest capture", url: `https://archive.ph/newest/${ARTICLE}`, contentSourceUrl: `https://archive.ph/newest/${ARTICLE}` },
+		{ label: "oldest capture", url: `https://archive.ph/oldest/${ARTICLE}`, contentSourceUrl: `https://archive.ph/oldest/${ARTICLE}` },
+		{ label: "partial-timestamp capture", url: `https://archive.ph/2026/${ARTICLE}`, contentSourceUrl: `https://archive.ph/newest/${ARTICLE}` },
+		{ label: "listing of every capture", url: `https://archive.li/${ARTICLE}`, contentSourceUrl: `https://archive.li/newest/${ARTICLE}` },
+		{ label: "outbound link from a capture", url: `https://archive.ph/o/Ab1cD/${ARTICLE}`, contentSourceUrl: "https://archive.ph/Ab1cD" },
+	])("keys an archive.today $label on the article", ({ url, contentSourceUrl }) => {
+		expect(wrapperFamilyOf(url)).toBe("archive-snapshot");
+		expect(unwrapWrapperUrl(url)).toEqual({ url: ARTICLE, contentSourceUrl });
+	});
+
+	it("collapses an archive.today work-in-progress URL onto its short id, which still needs the network", () => {
+		expect(unwrapWrapperUrl("https://archive.ph/wip/Ab1cD")).toEqual({ url: "https://archive.ph/Ab1cD" });
+		expect(wrapperResolutionOf("https://archive.ph/wip/Ab1cD")).toBe("network");
+	});
+
+	it.each([
+		{ label: "a plain article", url: ARTICLE, resolution: "none" },
+		{ label: "a tweet intent", url: `https://x.com/intent/post?url=${encodeURIComponent(ARTICLE)}`, resolution: "none" },
+		{ label: "a newsletter tracker", url: "https://javascriptweekly.com/link/100000/rss", resolution: "network" },
+		{ label: "a Wayback capture of a tracker", url: "https://web.archive.org/web/2026/https://javascriptweekly.com/link/100000/rss", resolution: "network" },
+	])("resolves $label by $resolution", ({ url, resolution }) => {
+		expect(wrapperResolutionOf(url)).toBe(resolution);
 	});
 });

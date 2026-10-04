@@ -57,8 +57,10 @@ export {
 	stripRedirectAddedParams,
 	unwrapWrapperUrl,
 	wrapperFamilyOf,
+	wrapperResolutionOf,
 	type UnwrappedUrl,
 	type WrapperFamily,
+	type WrapperResolution,
 } from "./wrapper-url";
 export { calculateReadTime } from "./estimated-read-time";
 export {

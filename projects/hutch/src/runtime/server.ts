@@ -242,7 +242,7 @@ import { buildMcpServerCard } from "./web/mcp/server-card";
 import { MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./web/mcp/protocol";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
-import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
+import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, withSyntacticUnwrap, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
@@ -1459,7 +1459,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
-		resolveWrapperTarget: deps.resolveWrapperTarget,
+		resolveWrapperTarget: withSyntacticUnwrap(deps.resolveWrapperTarget),
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,

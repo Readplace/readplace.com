@@ -1,10 +1,22 @@
 export type WrapperFamily = "newsletter-tracker" | "apple-news" | "archive-snapshot";
 
+export type WrapperResolution = "none" | "syntactic" | "network";
+
 export type UnwrappedUrl = { url: string; contentSourceUrl?: string };
 
-const ARCHIVE_TODAY_HOSTS: ReadonlySet<string> = new Set(["archive.ph", "archive.is", "archive.today"]);
-const WAYBACK_HOST = "web.archive.org";
-const ARCHIVE_HOSTS: ReadonlySet<string> = new Set([WAYBACK_HOST, ...ARCHIVE_TODAY_HOSTS]);
+const WAYBACK_ORIGIN = "https://web.archive.org";
+const WAYBACK_HOSTS: ReadonlySet<string> = new Set(["web.archive.org", "wayback.archive.org", "www.web.archive.org"]);
+const ARCHIVE_TODAY_HOSTS: ReadonlySet<string> = new Set([
+	"archive.ph",
+	"archive.is",
+	"archive.today",
+	"archive.md",
+	"archive.li",
+	"archive.fo",
+	"archive.vn",
+]);
+const ARCHIVE_HOSTS: ReadonlySet<string> = new Set([...WAYBACK_HOSTS, ...ARCHIVE_TODAY_HOSTS]);
+const ARCHIVE_TODAY_RESERVED_SEGMENTS: ReadonlySet<string> = new Set(["newest", "oldest", "wip", "o", "timemap", "timegate"]);
 const APPLE_NEWS_HOSTS: ReadonlySet<string> = new Set(["apple.news", "www.apple.news"]);
 const TWEET_INTENT_HOSTS: ReadonlySet<string> = new Set(["twitter.com", "www.twitter.com", "x.com", "www.x.com"]);
 const SUBSTACK_HOSTS: ReadonlySet<string> = new Set(["substack.com", "open.substack.com"]);
@@ -21,10 +33,24 @@ const OPAQUE_TOKEN_PATH = /^\/[A-Za-z0-9_-]+$/;
 const GOOGLE_SHARE_HOP_PATH = /^\/share\.google$/;
 const TWEET_INTENT_PATH = /^\/intent\/(?:tweet|post)$/;
 
-const WAYBACK_SNAPSHOT = /^\/web\/\d{1,14}(?:[a-z]{2}_)?\/(.+)$/;
-const ARCHIVE_TODAY_SNAPSHOT = /^\/(?:\d{14}|\d{4}\.\d{2}\.\d{2}-\d{6})\/(.+)$/;
+const WAYBACK_STAMPED_PATH = /^\/web\/([^/]+)\/(.+)$/;
+const WAYBACK_UNSTAMPED_PATH = /^\/(?:web|save)\/(.+)$/;
+const WAYBACK_CAPTURE_TIMESTAMP = /^\d{1,14}(?:id_)?$/;
+const WAYBACK_ASSET_TIMESTAMP = /^\d{1,14}[a-z]{2}_$/;
+const WAYBACK_CALENDAR_TIMESTAMP = /^\d*(?:\*|%2a)$/i;
+
 const ARCHIVE_TODAY_SCREENSHOT = /^\/([A-Za-z0-9]+)\/[0-9a-f]+\/scr\.png$/;
+const ARCHIVE_TODAY_WIP = /^\/wip\/([A-Za-z0-9]+)$/;
+const ARCHIVE_TODAY_OUTBOUND = /^\/o\/([A-Za-z0-9]+)\/(.+)$/;
+const ARCHIVE_TODAY_SELECTOR = /^\/(?:newest|oldest)\/(.+)$/;
+const ARCHIVE_TODAY_SNAPSHOT = /^\/(?:\d{14}|\d{4}\.\d{2}\.\d{2}-\d{6})\/(.+)$/;
+const ARCHIVE_TODAY_PARTIAL_TIMESTAMP = /^\/\d{1,13}\/(.+)$/;
+const ARCHIVE_TODAY_LISTING = /^\/(.+)$/;
+
 const COLLAPSED_SCHEME = /^(https?:)\/(?!\/)/i;
+const ENCODED_SCHEME = /^https?%3a/i;
+const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+const PREFIX_WILDCARD = /(?:\*|%2a)$/i;
 
 const SUBSTACK_REDIRECT_PARAMS: readonly string[] = ["r", "publication_id", "post_id", "isFreemail", "triedRedirect"];
 
@@ -68,13 +94,83 @@ function matchesTracker(rule: TrackerRule, host: string, parsed: URL): boolean {
 	return rule.requiresParam === undefined || parsed.searchParams.has(rule.requiresParam);
 }
 
-function isArchiveSnapshot(host: string, parsed: URL): boolean {
-	if (host === WAYBACK_HOST) return WAYBACK_SNAPSHOT.test(pathWithQuery(parsed));
-	if (!ARCHIVE_TODAY_HOSTS.has(host)) return false;
+function decodeEncodedScheme(raw: string): string | undefined {
+	if (!ENCODED_SCHEME.test(raw)) return raw;
+	try {
+		return decodeURIComponent(raw);
+	} catch {
+		return undefined;
+	}
+}
+
+function withAssumedScheme(raw: string): string {
+	if (HAS_SCHEME.test(raw)) return raw;
+	const [firstSegment] = raw.split(/[/?#]/);
+	return firstSegment.includes(".") ? `https://${raw}` : raw;
+}
+
+function normaliseInnerUrl(raw: string): string | undefined {
+	if (PREFIX_WILDCARD.test(raw)) return undefined;
+	const decoded = decodeEncodedScheme(raw);
+	if (decoded === undefined) return undefined;
+	return parseHttpUrl(withAssumedScheme(decoded.replace(COLLAPSED_SCHEME, "$1//")))?.href;
+}
+
+function captureOf(params: { rawInner: string; contentSourceUrl: string }): UnwrappedUrl | undefined {
+	const inner = normaliseInnerUrl(params.rawInner);
+	return inner === undefined ? undefined : { url: inner, contentSourceUrl: params.contentSourceUrl };
+}
+
+function waybackLatestCaptureOf(rawInner: string): UnwrappedUrl | undefined {
+	const inner = normaliseInnerUrl(rawInner);
+	return inner === undefined ? undefined : { url: inner, contentSourceUrl: `${WAYBACK_ORIGIN}/web/${inner}` };
+}
+
+function unwrapWayback(parsed: URL): UnwrappedUrl | undefined {
+	const path = pathWithQuery(parsed);
+	const stamped = WAYBACK_STAMPED_PATH.exec(path);
+	if (stamped !== null) {
+		const [, timestamp, rawInner] = stamped;
+		if (WAYBACK_CAPTURE_TIMESTAMP.test(timestamp)) {
+			return captureOf({ rawInner, contentSourceUrl: `${WAYBACK_ORIGIN}${path}` });
+		}
+		if (WAYBACK_ASSET_TIMESTAMP.test(timestamp)) return undefined;
+		if (WAYBACK_CALENDAR_TIMESTAMP.test(timestamp)) return waybackLatestCaptureOf(rawInner);
+	}
+	const unstamped = WAYBACK_UNSTAMPED_PATH.exec(path);
+	return unstamped === null ? undefined : waybackLatestCaptureOf(unstamped[1]);
+}
+
+function archiveTodayNewestOf(params: { origin: string; rawInner: string }): UnwrappedUrl | undefined {
+	const inner = normaliseInnerUrl(params.rawInner);
+	return inner === undefined ? undefined : { url: inner, contentSourceUrl: `${params.origin}/newest/${inner}` };
+}
+
+function unwrapArchiveToday(parsed: URL): UnwrappedUrl | undefined {
+	const { origin, pathname } = parsed;
+	const path = pathWithQuery(parsed);
+	const collapsed = ARCHIVE_TODAY_SCREENSHOT.exec(pathname) ?? ARCHIVE_TODAY_WIP.exec(pathname);
+	if (collapsed !== null) return { url: `${origin}/${collapsed[1]}` };
+	const outbound = ARCHIVE_TODAY_OUTBOUND.exec(path);
+	if (outbound !== null) return captureOf({ rawInner: outbound[2], contentSourceUrl: `${origin}/${outbound[1]}` });
+	const exact = ARCHIVE_TODAY_SELECTOR.exec(path) ?? ARCHIVE_TODAY_SNAPSHOT.exec(path);
+	if (exact !== null) return captureOf({ rawInner: exact[1], contentSourceUrl: parsed.href });
+	const listing = ARCHIVE_TODAY_PARTIAL_TIMESTAMP.exec(path) ?? ARCHIVE_TODAY_LISTING.exec(path);
+	return listing === null ? undefined : archiveTodayNewestOf({ origin, rawInner: listing[1] });
+}
+
+function unwrapArchive(parsed: URL): UnwrappedUrl | undefined {
+	const host = hostnameOf(parsed);
+	if (WAYBACK_HOSTS.has(host)) return unwrapWayback(parsed);
+	if (ARCHIVE_TODAY_HOSTS.has(host)) return unwrapArchiveToday(parsed);
+	return undefined;
+}
+
+function isArchiveTodayShortId(parsed: URL): boolean {
 	return (
-		OPAQUE_TOKEN_PATH.test(parsed.pathname) ||
-		ARCHIVE_TODAY_SNAPSHOT.test(pathWithQuery(parsed)) ||
-		ARCHIVE_TODAY_SCREENSHOT.test(parsed.pathname)
+		ARCHIVE_TODAY_HOSTS.has(hostnameOf(parsed)) &&
+		OPAQUE_TOKEN_PATH.test(parsed.pathname) &&
+		!ARCHIVE_TODAY_RESERVED_SEGMENTS.has(parsed.pathname.slice(1))
 	);
 }
 
@@ -84,20 +180,13 @@ export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
 	const host = hostnameOf(parsed);
 	if (NEWSLETTER_TRACKERS.some((rule) => matchesTracker(rule, host, parsed))) return "newsletter-tracker";
 	if (APPLE_NEWS_HOSTS.has(host) && OPAQUE_TOKEN_PATH.test(parsed.pathname)) return "apple-news";
-	if (isArchiveSnapshot(host, parsed)) return "archive-snapshot";
+	if (unwrapArchive(parsed) !== undefined || isArchiveTodayShortId(parsed)) return "archive-snapshot";
 	return undefined;
 }
 
 export function isArchiveHost(url: string): boolean {
 	const parsed = parseHttpUrl(url);
 	return parsed !== undefined && ARCHIVE_HOSTS.has(hostnameOf(parsed));
-}
-
-function unwrapSnapshot(snapshotUrl: string, match: RegExpExecArray | null): UnwrappedUrl {
-	if (match === null) return { url: snapshotUrl };
-	const original = parseHttpUrl(match[1].replace(COLLAPSED_SCHEME, "$1//"));
-	if (original === undefined) return { url: snapshotUrl };
-	return { url: original.href, contentSourceUrl: snapshotUrl };
 }
 
 function unwrapTweetIntent(url: string, parsed: URL): UnwrappedUrl {
@@ -111,17 +200,18 @@ function unwrapTweetIntent(url: string, parsed: URL): UnwrappedUrl {
 export function unwrapWrapperUrl(url: string): UnwrappedUrl {
 	const parsed = parseHttpUrl(url);
 	if (parsed === undefined) return { url };
-	const host = hostnameOf(parsed);
-	if (host === WAYBACK_HOST) return unwrapSnapshot(url, WAYBACK_SNAPSHOT.exec(pathWithQuery(parsed)));
-	if (ARCHIVE_TODAY_HOSTS.has(host)) {
-		const screenshot = ARCHIVE_TODAY_SCREENSHOT.exec(parsed.pathname);
-		if (screenshot !== null) return { url: `${parsed.origin}/${screenshot[1]}` };
-		return unwrapSnapshot(url, ARCHIVE_TODAY_SNAPSHOT.exec(pathWithQuery(parsed)));
-	}
-	if (TWEET_INTENT_HOSTS.has(host) && TWEET_INTENT_PATH.test(parsed.pathname)) {
+	const archived = unwrapArchive(parsed);
+	if (archived !== undefined) return archived;
+	if (TWEET_INTENT_HOSTS.has(hostnameOf(parsed)) && TWEET_INTENT_PATH.test(parsed.pathname)) {
 		return unwrapTweetIntent(url, parsed);
 	}
 	return { url };
+}
+
+export function wrapperResolutionOf(url: string): WrapperResolution {
+	if (wrapperFamilyOf(url) === undefined) return "none";
+	const unwrapped = unwrapWrapperUrl(url).url;
+	return unwrapped !== url && wrapperFamilyOf(unwrapped) === undefined ? "syntactic" : "network";
 }
 
 export function stripRedirectAddedParams(params: { wrapperUrl: string; targetUrl: string }): string {

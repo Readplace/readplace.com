@@ -52,6 +52,12 @@ describe("adoptableTerminal", () => {
 		["a Wayback timestamp redirect", "https://web.archive.org/web/20180630081250/https://site.com/page"],
 		["an archive.today short id", "https://archive.ph/Ab1cD"],
 		["a tweet intent wrapping another URL", "https://twitter.com/intent/tweet?url=https%3A%2F%2Fsite.com%2Fpage"],
+		["an archive.today mirror capture", "https://archive.li/J7ewH"],
+		["an archive.md capture", "https://archive.md/20261002094222/https://site.com/page"],
+		["an archive.fo short id", "https://archive.fo/Ab1cD"],
+		["an archive.vn short id", "https://archive.vn/Ab1cD"],
+		["an alternate Wayback host", "https://wayback.archive.org/web/20180630081250/https://site.com/page"],
+		["the Wayback timegate", "https://web.archive.org/web/https://site.com/page"],
 	])("rejects %s as a terminal — the article is keyed on the original, never the wrapper", (_label, finalUrl) => {
 		expect(adoptableTerminal({ ...base, finalUrl })).toBeUndefined();
 		expect(adoptableTerminal({ ...crawlFailed, finalUrl })).toBeUndefined();
