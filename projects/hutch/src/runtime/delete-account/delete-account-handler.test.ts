@@ -35,6 +35,7 @@ import { resolveWriteAccess } from "@packages/subscription-access";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initDeleteAccountHandler } from "./delete-account-handler";
+import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import { initRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
 import { initDisconnectGmail } from "../domain/gmail/disconnect-gmail";
 import { initRevokeGmailGrant } from "../providers/gmail-api/gmail-revoke";
@@ -203,6 +204,7 @@ function buildSubject() {
 			teardownOrder.push("imports");
 			await gmail.bundle.gmailHistoryImportStore.deleteAllByUserId(userId);
 		},
+		deleteAllGmailMonitoring: gmail.bundle.gmailMonitoringStore.deleteAllByUserId,
 		deleteAllEmailIdentities: async (userId: UserId) => {
 			teardownOrder.push("identities");
 			await identities.deleteAllByUserId(userId);
@@ -1001,6 +1003,46 @@ describe("delete-account handler", () => {
 		assert.equal((await s.gmail.bundle.gmailHistoryImportStore.listJobsByUserId(bystander.userId)).length, 1);
 		assert.equal((await s.identities.find(bystanderImport.identityKey))?.userId, bystander.userId);
 		assert.equal((await s.gmail.bundle.findReadlistAddress({ userId: bystander.userId, readlist: DEFAULT_READLIST_SLUG }))?.userId, bystander.userId);
+	});
+
+	it("erases monitoring checkpoints, mailbox observations and permanent receipts only for the deleted account", async () => {
+		const s = buildSubject();
+		const victim = await seedAccount(s, { label: "monitor-1", email: "monitor-1@example.com", subscription: "none" });
+		const bystander = await seedAccount(s, { label: "monitor-2", email: "monitor-2@example.com", subscription: "none" });
+		const monitoring = s.gmail.bundle.gmailMonitoringStore;
+		const senderEmail = ForwardableSenderSchema.parse("newsletter@example.com");
+		for (const account of [victim, bystander]) {
+			const connection = await s.gmail.bundle.gmailConnectionStore.findConnectionByUserId(account.userId);
+			assert(connection);
+			const checkpoint = {
+				userId: account.userId,
+				generation: account.userId,
+				page: 0,
+				mailboxId: account.userId,
+				accountEmail: GmailAccountEmailSchema.parse(account.email),
+				gatewayAddress: connection.gatewayAddress,
+				mode: "complete",
+				initializing: false,
+				historyId: "100",
+				pageToken: undefined,
+				scannedCount: 1,
+				lastCheckedAt: SEED_NOW.getTime(),
+			} satisfies GmailMonitoringCheckpoint;
+			assert(await monitoring.startRun({ checkpoint, previous: undefined }));
+			assert(await monitoring.observeSender({ checkpoint, observation: { email: senderEmail, name: undefined, approved: true }, notify: true }));
+			const notice = await monitoring.findNotice({ userId: account.userId, senderEmail });
+			assert(notice);
+			assert(await monitoring.claimNotice({ notice, message: { from: "Readplace <hello@readplace.com>", to: account.email, subject: "Choose a readlist", html: "<p>Choose a readlist</p>" } }));
+			await monitoring.markNoticeSent({ userId: account.userId, senderEmail });
+		}
+
+		assert.deepEqual((await run(s, [{ messageId: "msg", body: bodyFor(victim.userId) }])).batchItemFailures, []);
+		assert.equal(await monitoring.findCheckpoint(victim.userId), undefined);
+		assert.deepEqual((await monitoring.listObservations({ userId: victim.userId, mailboxId: victim.userId })).observations, []);
+		assert.equal(await monitoring.findNotice({ userId: victim.userId, senderEmail }), undefined);
+		assert.equal((await monitoring.findCheckpoint(bystander.userId))?.historyId, "100");
+		assert.equal((await monitoring.listObservations({ userId: bystander.userId, mailboxId: bystander.userId })).observations.length, 1);
+		assert.equal((await monitoring.findNotice({ userId: bystander.userId, senderEmail }))?.status, "sent");
 	});
 
 	it("runs the Gmail teardown before the addresses are tombstoned", async () => {

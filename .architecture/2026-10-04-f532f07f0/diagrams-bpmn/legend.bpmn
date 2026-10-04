@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_legend" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_legend" name="legend" isExecutable="false">
+    <bpmn:sendTask id="n_C" name="Command">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_S" name="Worker">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_E" name="Event">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="n_P" name="Reaction">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_D" name="Store"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_Q" name="Queue">
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="n_F" name="DLQ and alarm">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:task id="n_N" name="New or changed"></bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_C" targetRef="n_S" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_S" targetRef="n_E" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_E" targetRef="n_P" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_Q" targetRef="n_S" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_Q" targetRef="n_F" />
+    <bpmn:association id="f_3" sourceRef="n_D" targetRef="n_S" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_legend">
+    <bpmndi:BPMNPlane id="Plane_legend" bpmnElement="Process_legend">
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="38.25" y="28" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_S_di" bpmnElement="n_S">
+        <dc:Bounds x="210.5" y="120.75" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_E_di" bpmnElement="n_E">
+        <dc:Bounds x="372.5" y="162.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="474.59" y="162.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="53.25" y="112" width="74" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="70.25" y="213.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_F_di" bpmnElement="n_F">
+        <dc:Bounds x="242.5" y="204.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_N_di" bpmnElement="n_N">
+        <dc:Bounds x="28" y="308" width="124.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="142.25" y="52" />
+        <di:waypoint x="176.38" y="52" />
+        <di:waypoint x="176.38" y="144.75" />
+        <di:waypoint x="210.5" y="144.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="314.5" y="144.75" />
+        <di:waypoint x="343.5" y="144.75" />
+        <di:waypoint x="343.5" y="182.75" />
+        <di:waypoint x="372.5" y="182.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="412.5" y="182.75" />
+        <di:waypoint x="474.59" y="182.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="110.25" y="233.5" />
+        <di:waypoint x="160.38" y="233.5" />
+        <di:waypoint x="160.38" y="144.75" />
+        <di:waypoint x="210.5" y="144.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="110.25" y="233.5" />
+        <di:waypoint x="176.38" y="233.5" />
+        <di:waypoint x="176.38" y="224.75" />
+        <di:waypoint x="242.5" y="224.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="127.25" y="136" />
+        <di:waypoint x="168.88" y="136" />
+        <di:waypoint x="168.88" y="144.75" />
+        <di:waypoint x="210.5" y="144.75" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

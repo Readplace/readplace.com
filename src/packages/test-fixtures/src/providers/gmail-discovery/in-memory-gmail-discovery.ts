@@ -1,4 +1,5 @@
-import type { DiscoveredGmailSender, GmailDiscovery, GmailDiscoveryStore } from "@packages/domain/gmail";
+import assert from "node:assert";
+import { ForwardableSenderSchema, type DiscoveredGmailSender, type GmailDiscovery, type GmailDiscoveryStore } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 
 export function initInMemoryGmailDiscovery(deps: { now: () => Date }): GmailDiscoveryStore {
@@ -8,6 +9,25 @@ export function initInMemoryGmailDiscovery(deps: { now: () => Date }): GmailDisc
 	return {
 		findDiscoveryByUserId: async (userId) => discoveries.get(userId),
 		listSendersByUserId: async (userId) => [...(senders.get(userId) ?? new Map()).values()],
+		listSendersPage: async ({ userId, pageToken }) => {
+			let after = "";
+			if (pageToken !== undefined) {
+				const prefix = `${userId}/`;
+				assert(pageToken.startsWith(prefix), "Gmail discovery cursor must belong to the requested user");
+				after = `SENDER#${ForwardableSenderSchema.parse(pageToken.slice(prefix.length))}`;
+			}
+			const ordered = [...(senders.get(userId) ?? new Map<string, DiscoveredGmailSender>()).values()]
+				.sort((left, right) => Buffer.compare(Buffer.from(left.email), Buffer.from(right.email)))
+				.filter((sender) => `SENDER#${sender.email}` > after);
+			const page = ordered.slice(0, 25);
+			let nextPageToken: string | undefined;
+			if (ordered.length > 25) {
+				const last = page[24];
+				assert(last, "A complete sender page has a last sender");
+				nextPageToken = `${userId}/${last.email}`;
+			}
+			return { senders: page, nextPageToken };
+		},
 		startDiscovery: async ({ resume, ...input }) => {
 			if (discoveries.get(input.userId)?.state === "running") return false;
 			discoveries.set(input.userId, {

@@ -15,6 +15,7 @@ import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
+import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 import type { UpsertReadlist } from "@packages/save-article";
 
@@ -27,6 +28,7 @@ export interface GmailIntegrationProviders {
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
 	gmailDiscoveryStore: GmailDiscoveryStore;
+	gmailMonitoringStore: GmailMonitoringStore;
 	publishStartGmailSenderDiscovery: (input: { userId: UserId }) => Promise<void>;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
 	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;

@@ -12,6 +12,20 @@ export function initGmailPicker({ document }: GmailPickerDeps): void {
 	if (document.documentElement.hasAttribute("data-gmail-picker-attached")) return;
 	document.documentElement.setAttribute("data-gmail-picker-attached", "");
 	const pickers = () => document.querySelectorAll<HTMLDetailsElement>("[data-gmail-picker]");
+	const dismissHighlights = () => {
+		for (const choice of document.querySelectorAll<HTMLElement>("[data-gmail-notification-highlight]")) {
+			document.documentElement.setAttribute("data-gmail-notification-dismissed", choice.getAttribute("data-gmail-notification") ?? "");
+			choice.removeAttribute("data-gmail-notification-highlight");
+		}
+	};
+	document.addEventListener("pointerdown", dismissHighlights, true);
+	document.addEventListener("click", dismissHighlights, true);
+	document.addEventListener("htmx:afterSwap", () => {
+		const dismissed = document.documentElement.getAttribute("data-gmail-notification-dismissed");
+		for (const choice of document.querySelectorAll<HTMLElement>("[data-gmail-notification-highlight]")) {
+			if (choice.getAttribute("data-gmail-notification") === dismissed) choice.removeAttribute("data-gmail-notification-highlight");
+		}
+	});
 	document.addEventListener("click", (event) => {
 		const path = event.composedPath();
 		for (const picker of pickers()) {

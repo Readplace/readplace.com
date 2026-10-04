@@ -69,6 +69,13 @@ export function registerGmailPageRoutes(
 	context: GmailPageContext,
 ): void {
 	const { requireAuth, requireNotLocked, requireWriteAccess } = context;
+	const requireGmailAuth: RequestHandler = (req, res, next) => {
+		if (!req.userId) {
+			res.redirect(303, `/login?return=${encodeURIComponent(req.originalUrl)}`);
+			return;
+		}
+		requireAuth(req, res, next);
+	};
 	const write = [requireAuth, requireNotLocked, requireWriteAccess];
 	const teardown = [requireAuth];
 	const imports = initGmailImportActions({ gmail, now: context.now });
@@ -100,7 +107,7 @@ export function registerGmailPageRoutes(
 		const userId = ownerOf(req);
 		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		assert(connection, "the connected middleware requires a Gmail connection");
-		const [senders, gateway, discoveredSenders, discovery, grantedScope, definitions, jobs] = await Promise.all([
+		const [senders, gateway, discoveredSenders, discovery, grantedScope, definitions, jobs, observedSenders] = await Promise.all([
 			gmail.gmailSenderStore.listSendersByUserId(userId),
 			gmail.findInboxAddress(connection.gatewayAddress),
 			gmail.gmailDiscoveryStore.listSendersByUserId(userId),
@@ -108,9 +115,10 @@ export function registerGmailPageRoutes(
 			gmail.gmailCredentialsStore.findGrantedScopeByUserId(userId),
 			gmail.listReadlistDefinitions(userId),
 			gmail.gmailHistoryImportStore.listJobsByUserId(userId),
+			connection.accountEmail === undefined ? [] : gmail.gmailMonitoringStore.listObservedSenders({ userId, accountEmail: connection.accountEmail }),
 		]);
 		const sameMailbox = discoveryMatchesConnection(discovery, connection);
-		const discovered = sameMailbox ? discoveredSenders : [];
+		const discovered = [...new Map([...observedSenders, ...(sameMailbox ? discoveredSenders : [])].map((sender) => [sender.email, sender])).values()];
 		const candidates: ForwardableSender[] = [
 			...discovered.map((sender) => sender.email),
 			...senders.filter((sender) => sender.addedToFilterAt !== undefined).map((sender) => sender.senderEmail),
@@ -142,10 +150,11 @@ export function registerGmailPageRoutes(
 			importsPollCount: parsePollParam(req.query.imports_poll, GMAIL_HISTORY_IMPORT_MAX_POLLS),
 			error: queryValue(req, "error"),
 			notice: queryValue(req, "notice"),
+			notification: queryValue(req, "notification") === "1",
 		});
 	};
 
-	router.get("/gmail", requireAuth, connected, async (req: Request, res: Response) => {
+	router.get("/gmail", requireGmailAuth, connected, async (req: Request, res: Response) => {
 		const vm = await readPage(req);
 		res.set("Cache-Control", "private, no-store");
 		sendComponent(req, res, Base(GmailPage(vm), await context.buildBannerState(req)));
@@ -223,7 +232,9 @@ export function registerGmailPageRoutes(
 			gmail.listReadlistDefinitions(userId),
 		]);
 		assert(connection, "the connected middleware requires a Gmail connection");
-		if (existing?.addedToFilterAt === undefined && (!discoveryMatchesConnection(discovery, connection) || !discovered.some((entry) => entry.email === senderEmail))) {
+		const observed = connection.accountEmail === undefined ? [] : await gmail.gmailMonitoringStore.listObservedSenders({ userId, accountEmail: connection.accountEmail });
+		const senderDiscovered = discoveryMatchesConnection(discovery, connection) && discovered.some((entry) => entry.email === senderEmail);
+		if (existing?.addedToFilterAt === undefined && !senderDiscovered && !observed.some((entry) => entry.email === senderEmail)) {
 			invalid("sender_unknown");
 			return;
 		}

@@ -15,7 +15,7 @@ export function initResendEmail(apiKey: string): { sendEmail: SendEmail } {
 			...(message.bcc && { bcc: message.bcc }),
 			...(message.replyTo && { replyTo: message.replyTo }),
 			...(message.headers && { headers: message.headers }),
-		});
+		}, message.idempotencyKey === undefined ? undefined : { idempotencyKey: message.idempotencyKey });
 		if (result.error) {
 			const message = `Resend ${result.error.name}: ${result.error.message}`;
 			const statusCode = result.error.statusCode;

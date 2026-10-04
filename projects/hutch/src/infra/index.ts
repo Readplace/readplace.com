@@ -22,6 +22,11 @@ import {
 	RewriteGmailFilterCommand,
 	StartGmailSenderDiscoveryCommand,
 	GmailSenderDiscoveryProgressedEvent,
+	CheckGmailNewslettersCommand,
+	GmailNewsletterAccountsCheckedEvent,
+	MonitorGmailNewslettersCommand,
+	GmailNewsletterMonitoringProgressedEvent,
+	SendGmailNewsletterNoticeCommand,
 	SendTrialFeedbackEmailCommand,
 	SendFirstInboxEmailNoticeCommand,
 	StartGmailHistoryImportCommand,
@@ -108,6 +113,7 @@ const tableNames = {
 	gmailCredentials: config.require("dynamodbGmailCredentialsTable"),
 	gmailConnections: config.require("dynamodbGmailConnectionsTable"),
 	gmailDiscovery: config.require("dynamodbGmailDiscoveryTable"),
+	gmailMonitoring: config.require("dynamodbGmailMonitoringTable"),
 	gmailSenders: config.require("dynamodbGmailSendersTable"),
 	gmailHistoryImports: config.require("dynamodbGmailHistoryImportsTable"),
 	emailIdentities: config.require("dynamodbInboxEmailIdentitiesTable"),
@@ -251,6 +257,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
+		{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
 		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
@@ -408,6 +415,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 		GMAIL_INTEGRATION_STATE_SECRET: requireEnv("GMAIL_INTEGRATION_STATE_SECRET"),
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
+		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
@@ -587,6 +595,7 @@ if (googleWorkspaceMail) {
 const userDataJobsDynamodb = new HutchDynamoDBAccess("user-data-jobs-dynamodb", {
 	tables: [
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
+		{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
@@ -678,6 +687,7 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 	timeout: 900,
 	environment: {
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
+		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
@@ -1341,6 +1351,133 @@ new aws.cloudwatch.MetricAlarm("gmail-filter-rewrite-failed-alarm", {
 	treatMissingData: "notBreaching",
 	alarmDescription: "Readplace could not write a reader's Gmail forwarding filter",
 	alarmActions: [gmailFilterRewriteFailedTopic.arn],
+});
+
+const gmailNewsletterMonitoringAccess = new HutchDynamoDBAccess("hutch-gmail-newsletter-monitoring-tables", {
+	tables: [{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem", "dynamodb:TransactWriteItems"],
+});
+const gmailNewsletterAccountRead = new HutchDynamoDBAccess("hutch-gmail-newsletter-account-read", {
+	tables: [
+		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
+		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
+});
+const gmailNewsletterConnectionUpdate = new HutchDynamoDBAccess("hutch-gmail-newsletter-connection-update", {
+	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+const gmailNewsletterNoticeAccountRead = new HutchDynamoDBAccess("hutch-gmail-newsletter-notice-account-read", {
+	tables: [
+		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: storage.usersTable.arn, includeIndexes: true },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
+});
+const gmailNewsletterNoticeQueue = new HutchSQS("gmail-newsletter-notice", { visibilityTimeoutSeconds: 180, dlqMaxReceiveCount: 12 });
+const gmailNewsletterNoticeLambda = new HutchLambda("gmail-newsletter-notice", {
+	entryPoint: "./src/runtime/gmail-newsletter-notice.main.ts",
+	outputDir: ".lib/gmail-newsletter-notice",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
+		DYNAMODB_USERS_TABLE: storage.usersTable.name,
+		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
+		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
+		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+		STATIC_BASE_URL: staticAssets.baseUrl,
+		APP_ORIGIN: appOrigin,
+	},
+	policies: [
+		...gmailNewsletterMonitoringAccess.policies,
+		...gmailNewsletterNoticeAccountRead.policies,
+		...newsletterCatalogBucket.readPolicies("gmail-newsletter-notice-catalog-read"),
+	],
+});
+eventBus.grantPublish(gmailNewsletterNoticeLambda);
+const gmailNewsletterNoticeWithSqs = new HutchSQSBackedLambda("gmail-newsletter-notice", {
+	lambda: gmailNewsletterNoticeLambda,
+	queue: gmailNewsletterNoticeQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+eventBus.subscribe(SendGmailNewsletterNoticeCommand, gmailNewsletterNoticeWithSqs, { name: "hutch-gmail-newsletter-notice" });
+
+const gmailNewsletterMonitorQueue = new HutchSQS("gmail-newsletter-monitor", { visibilityTimeoutSeconds: 180, dlqMaxReceiveCount: 12 });
+const gmailNewsletterMonitorLambda = new HutchLambda("gmail-newsletter-monitor", {
+	entryPoint: "./src/runtime/gmail-newsletter-monitor.main.ts",
+	outputDir: ".lib/gmail-newsletter-monitor",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		GMAIL_NEWSLETTER_MONITOR_QUEUE_URL: gmailNewsletterMonitorQueue.queueUrl,
+		GMAIL_NEWSLETTER_NOTICE_QUEUE_URL: gmailNewsletterNoticeQueue.queueUrl,
+		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
+		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
+		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+	},
+	policies: [
+		...gmailNewsletterMonitoringAccess.policies,
+		...gmailNewsletterAccountRead.policies,
+		...gmailNewsletterConnectionUpdate.policies,
+		...gmailNewsletterMonitorQueue.policies,
+		...gmailNewsletterNoticeQueue.policies,
+		...newsletterCatalogBucket.readPolicies("gmail-newsletter-monitor-catalog-read"),
+	],
+	recursiveLoop: "Allow",
+});
+eventBus.grantPublish(gmailNewsletterMonitorLambda);
+const gmailNewsletterMonitorWithSqs = new HutchSQSBackedLambda("gmail-newsletter-monitor", {
+	lambda: gmailNewsletterMonitorLambda,
+	queue: gmailNewsletterMonitorQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+eventBus.subscribeAll([
+	CheckGmailNewslettersCommand,
+	GmailNewsletterAccountsCheckedEvent,
+	MonitorGmailNewslettersCommand,
+	GmailNewsletterMonitoringProgressedEvent,
+], gmailNewsletterMonitorWithSqs, { name: "hutch-gmail-newsletter-monitor" });
+
+const gmailNewsletterSchedulerRole = new aws.iam.Role("hutch-gmail-newsletter-scheduler-role", {
+	assumeRolePolicy: JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }],
+	}),
+});
+new aws.iam.RolePolicy("hutch-gmail-newsletter-scheduler-role-policy", {
+	role: gmailNewsletterSchedulerRole.id,
+	policy: gmailNewsletterMonitorQueue.queueArn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["sqs:SendMessage"], Resource: arn }],
+	})),
+});
+new aws.scheduler.Schedule("hutch-gmail-newsletter-monitor", {
+	scheduleExpression: "rate(6 hours)",
+	flexibleTimeWindow: { mode: "OFF" },
+	state: "ENABLED",
+	target: {
+		arn: gmailNewsletterMonitorQueue.queueArn,
+		roleArn: gmailNewsletterSchedulerRole.arn,
+		input: JSON.stringify({ "detail-type": CheckGmailNewslettersCommand.detailType, detail: {} }),
+	},
 });
 
 const gmailDiscoveryAccess = new HutchDynamoDBAccess("hutch-gmail-discovery-tables", {

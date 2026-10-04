@@ -415,7 +415,7 @@ test.describe("GMail Newsletters mapping", () => {
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
 				await expect(settling.locator(`${READLIST_OPTION}[aria-current="true"]`)).toHaveCount(0);
-				await expect(settling.locator(SAVE_FORM)).toHaveCount(0);
+				await expect(settling.locator(`${SAVE_FORM} button[type="submit"]`)).toBeDisabled();
 			},
 			geometry: readlistMenuFitsInsidePage,
 		});

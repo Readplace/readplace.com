@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import {
 	ConditionalCheckFailedException,
 	TransactionCanceledException,
@@ -37,6 +38,8 @@ const SenderRow = z.object({
 	email: ForwardableSenderSchema,
 	name: dynamoField(z.string()),
 });
+
+const SenderCursor = z.object({ userId: UserIdSchema, recordKey: z.string().startsWith("SENDER#") });
 
 async function conditionalWrite(write: () => Promise<unknown>): Promise<boolean> {
 	try {
@@ -78,6 +81,15 @@ export function initDynamoDbGmailDiscovery(deps: {
 	};
 	return {
 		findDiscoveryByUserId: async (userId) => states.get({ userId, recordKey: "STATE" }, { consistentRead: true }),
+		listSendersPage: async ({ userId, pageToken }) => {
+			const cursor = pageToken === undefined ? undefined : SenderCursor.parse(JSON.parse(Buffer.from(pageToken, "base64url").toString()));
+			assert(cursor === undefined || cursor.userId === userId, "Gmail discovery cursor must belong to the requested user");
+			const page = await senders.query({ ...senderQuery(userId), Limit: 25, ExclusiveStartKey: cursor });
+			return {
+				senders: page.items.map(({ email, name }) => ({ email, name })),
+				nextPageToken: page.lastEvaluatedKey === undefined ? undefined : Buffer.from(JSON.stringify(page.lastEvaluatedKey)).toString("base64url"),
+			};
+		},
 		listSendersByUserId: async (userId) => {
 			const found: { email: z.infer<typeof ForwardableSenderSchema>; name: string | undefined }[] = [];
 			await forEachQueryPage(senders, senderQuery(userId), async (rows) => {

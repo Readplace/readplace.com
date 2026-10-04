@@ -20,6 +20,8 @@ interface CapturedCommand {
 		ConsistentRead?: boolean;
 		IndexName?: string;
 		Select?: string;
+		Limit?: number;
+		ExclusiveStartKey?: Record<string, unknown>;
 		UpdateExpression?: string;
 		ConditionExpression?: string;
 		KeyConditionExpression?: string;
@@ -280,5 +282,26 @@ describe("initDynamoDbGmailConnection", () => {
 		assert.equal(commands[0].input.IndexName, "connected-index");
 		assert.equal(commands[0].input.Select, "COUNT");
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":c": "yes" });
+	});
+
+	it("paginates connected-account keys from the sparse index without requiring mailbox metadata", async () => {
+		const other = UserIdSchema.parse("user-2");
+		const cursor = { userId: USER, connected: "yes" };
+		let page = 0;
+		const { store, commands } = harness(() => {
+			page += 1;
+			return page === 1 ? { Items: [{ userId: USER, connected: "yes" }], LastEvaluatedKey: cursor } : { Items: [{ userId: other, connected: "yes" }] };
+		});
+		const first = await store.listConnectedPage({});
+		assert.deepEqual(first.userIds, [USER]);
+		assert.equal(first.nextPageToken, Buffer.from(JSON.stringify(cursor)).toString("base64url"));
+		assert.equal(commands[0].input.IndexName, "connected-index");
+		assert.equal(commands[0].input.Limit, 25);
+		assert.equal(commands[0].input.ExclusiveStartKey, undefined);
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":c": "yes" });
+		assert.deepEqual(await store.listConnectedPage({ pageToken: first.nextPageToken }), { userIds: [other], nextPageToken: undefined });
+		assert.deepEqual(commands[1].input.ExclusiveStartKey, cursor);
+		assert.deepEqual(await harness().store.listConnectedPage({}), { userIds: [], nextPageToken: undefined });
+		await assert.rejects(store.listConnectedPage({ pageToken: Buffer.from(JSON.stringify({ userId: 123 })).toString("base64url") }));
 	});
 });

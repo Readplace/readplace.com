@@ -5,6 +5,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import type { ListConnectedGmailAccounts } from "@packages/provider-contracts/gmail-account";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import type { GmailConnection, GmailConnectionStore } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
@@ -68,14 +69,25 @@ export function initDynamoDbGmailConnection(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 	now: () => Date;
-}): GmailConnectionStore {
+}): GmailConnectionStore & { listConnectedPage: ListConnectedGmailAccounts } {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: GmailConnectionRow,
 	});
 
+	const connectedKeys = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: z.object({ userId: UserIdSchema, connected: z.string() }) });
 	return {
+		listConnectedPage: async ({ pageToken }) => {
+			const page = await connectedKeys.query({
+				IndexName: CONNECTED_INDEX,
+				KeyConditionExpression: "connected = :c",
+				ExpressionAttributeValues: { ":c": CONNECTED_MARKER },
+				Limit: 25,
+				ExclusiveStartKey: pageToken === undefined ? undefined : z.object({ userId: z.string(), connected: z.string() }).parse(JSON.parse(Buffer.from(pageToken, "base64url").toString())),
+			});
+			return { userIds: page.items.map((row) => row.userId), nextPageToken: page.lastEvaluatedKey === undefined ? undefined : Buffer.from(JSON.stringify(page.lastEvaluatedKey)).toString("base64url") };
+		},
 		createConnection: async ({ userId, gatewayAddress }) => {
 			const connectedAt = deps.now().toISOString();
 			await table.put({

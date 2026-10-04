@@ -12,6 +12,7 @@ import { gmailConnectionState } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { NewsletterDetection } from "@packages/domain/newsletter-catalog";
 import {
+	DEFAULT_READLIST_SLUG,
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
 	type ReadlistRef,
@@ -19,7 +20,7 @@ import {
 import type { UserId } from "@packages/domain/user";
 import { GMAIL_CONNECT_PATH, INTEGRATIONS_PATH } from "./gmail-connect.url";
 import { type FormField, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
-import { type GmailMappingsViewModel, toGmailMappingsViewModel } from "./gmail-mappings.viewmodel";
+import { gmailMappingDestination, type GmailMappingsViewModel, toGmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import {
 	type GmailResultsAction,
 	type GmailSenderOption,
@@ -75,6 +76,7 @@ export interface GmailPageInput {
 	importsPollCount: number;
 	error: string | undefined;
 	notice: string | undefined;
+	notification?: boolean;
 }
 
 interface GmailChooserViewModel {
@@ -117,6 +119,7 @@ interface GmailSaveViewModel {
 	offerImport: boolean;
 	importChecked: boolean;
 	variant: "primary" | "neutral";
+	disabled: boolean;
 }
 
 export interface GmailPageViewModel {
@@ -143,6 +146,7 @@ export interface GmailPageViewModel {
 	search: string;
 	searchFields: FormField[];
 	selectedSender: string | undefined;
+	notificationSender: string | undefined;
 	senderChoiceName: string | undefined;
 	senderChoiceLabel: string;
 	chooser: GmailChooserViewModel;
@@ -333,7 +337,17 @@ function saveFor(input: {
 		offerImport,
 		importChecked: importFlag === "1",
 		variant: input.variant,
+		disabled: input.state.readlist === undefined,
 	};
+}
+
+function readlistChoice(input: GmailPageInput, sender: GmailSenderEntry | undefined): ReadlistRef | undefined {
+	if (input.state.readlist !== undefined) return input.readlists.find((readlist) => readlist.slug === input.state.readlist);
+	if (sender?.addedToFilterAt !== undefined) {
+		const destination = gmailMappingDestination({ ...input, sender });
+		return destination.kind === "readlist" ? destination.readlist : undefined;
+	}
+	return input.readlists.length === 1 && input.readlists[0].slug === DEFAULT_READLIST_SLUG ? input.readlists[0] : undefined;
 }
 
 export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel {
@@ -342,7 +356,8 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const revoked = state === "revoked";
 	const candidates = gmailSenderCandidates(input);
 	const selectedCandidate = [...candidates.values()].find((candidate) => candidate.email === input.state.sender);
-	const selectedReadlist = input.readlists.find((readlist) => readlist.slug === input.state.readlist);
+	const selectedSenderEntry = input.senders.find((sender) => sender.senderEmail === selectedCandidate?.email);
+	const selectedReadlist = selectedCandidate === undefined ? undefined : readlistChoice(input, selectedSenderEntry);
 	const pickerState: GmailPickerState = {
 		...input.state,
 		sender: selectedCandidate?.email,
@@ -362,8 +377,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const status = discoveryStatus(input, discovering);
 	const showStep = pollState !== undefined && input.gatewayLive;
 	const commitVariant = showStep ? "neutral" : "primary";
-	const selectedSenderEntry = input.senders.find((sender) => sender.senderEmail === selectedCandidate?.email);
-	const save = selectedCandidate !== undefined && selectedReadlist !== undefined
+	const save = selectedCandidate !== undefined
 		? saveFor({ state: pickerState, sender: selectedSenderEntry, variant: commitVariant })
 		: undefined;
 	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
@@ -385,6 +399,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		search: pickerState.search ?? "",
 		searchFields: gmailGetFields(pickerState, "search-senders").filter((field) => field.name !== "search" && field.name !== "discovery_after"),
 		selectedSender: selectedCandidate?.email,
+		notificationSender: input.notification ? selectedCandidate?.email : undefined,
 		senderChoiceName: selectedCandidate?.newsletterName,
 		senderChoiceLabel: selectedCandidate?.email ?? "Choose a newsletter",
 		chooser: {

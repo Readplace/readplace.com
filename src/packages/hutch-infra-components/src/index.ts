@@ -188,3 +188,4 @@ export {
 	type GmailForwardingConfirmFailedLine,
 } from "./gmail-terminal-failures";
 export type { StripeEventType } from "./stripe-events";
+export { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, MonitorGmailNewslettersCommand, GmailNewsletterMonitoringProgressedEvent, SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "./events";

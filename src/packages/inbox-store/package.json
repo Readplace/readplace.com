@@ -17,6 +17,7 @@
     "@aws-sdk/client-s3": "3.1057.0",
     "@packages/domain": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
+    "@packages/provider-contracts": "workspace:*",
     "zod": "4.4.3"
   },
   "devDependencies": {

@@ -7,6 +7,7 @@ export interface EmailMessage {
 	html: string;
 	text?: string;
 	headers?: Record<string, string>;
+	idempotencyKey?: string;
 }
 
 export type SendEmail = (message: EmailMessage) => Promise<void>;

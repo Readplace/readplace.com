@@ -150,7 +150,7 @@ function resolveEntry(entry: InboxAddressEntry, readlists: readonly ReadlistRef[
 	return readlists.find((readlist) => readlist.slug === slug) ?? DEFAULT_READLIST;
 }
 
-function resolveDestination(input: {
+export function gmailMappingDestination(input: {
 	sender: GmailSenderEntry;
 	userId: UserId;
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
@@ -259,7 +259,7 @@ function consentFor(input: {
 }
 
 function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: GmailHistoryImportJob | undefined }): GmailMappingRow {
-	const destination = resolveDestination({ ...input, sender: input.sender });
+	const destination = gmailMappingDestination({ ...input, sender: input.sender });
 	const currentJob = input.job !== undefined && importFollowsMapping({ job: input.job, mapping: input.sender }) ? input.job : undefined;
 	const summary = currentJob === undefined ? undefined : summarizeGmailHistoryImport(currentJob);
 	const importState: GmailImportState = summary?.status ?? "none";

@@ -65,6 +65,10 @@
       "types": "./dist/gmail-oauth.d.ts",
       "default": "./dist/gmail-oauth.js"
     },
+    "./gmail-monitoring": {
+      "types": "./dist/gmail-monitoring.d.ts",
+      "default": "./dist/gmail-monitoring.js"
+    },
     "./gmail-mailbox": {
       "types": "./dist/gmail-mailbox.d.ts",
       "default": "./dist/gmail-mailbox.js"
@@ -158,6 +162,7 @@
       "gmail-account": ["./dist/gmail-account.d.ts"],
       "gmail-filters": ["./dist/gmail-filters.d.ts"],
       "gmail-oauth": ["./dist/gmail-oauth.d.ts"],
+      "gmail-monitoring": ["./dist/gmail-monitoring.d.ts"],
       "gmail-mailbox": ["./dist/gmail-mailbox.d.ts"],
       "gmail-history": ["./dist/gmail-history.d.ts"],
       "hosted-checkout": ["./dist/hosted-checkout.d.ts"],

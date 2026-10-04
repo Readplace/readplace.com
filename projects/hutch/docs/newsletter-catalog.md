@@ -1,9 +1,10 @@
 # Newsletter catalog
 
-The newsletter catalog is the shared list of FROM addresses that GMail Newsletters recognises as newsletters. It decides two things only:
+The newsletter catalog is the shared list of FROM addresses that GMail Newsletters recognises as newsletters. It decides:
 
 - which senders the Gmail page's newsletter picker offers by default, and under which name;
-- which saved mappings are *not* submitted to the catalog, because the sender already has an approved record of its own.
+- which saved mappings are *not* submitted to the catalog, because the sender already has an approved record of its own;
+- which unmapped senders can produce a one-time email inviting the reader to choose a readlist.
 
 A reader's own mapping never depends on the catalog. A reader can map any discovered sender, and that mapping keeps forwarding into the chosen readlist whether the catalog later approves, rejects or withdraws the sender.
 
@@ -15,7 +16,7 @@ A reader's own mapping never depends on the catalog. A reader can map any discov
 | Object | `newsletter-catalog.json` | `newsletter-catalog.json` |
 | AWS account | default credentials | `--profile hutch-production` |
 
-Both are in `ap-southeast-2`. The bucket is private. The web Lambda (`hutch`) and the `newsletter-catalog-suggestions` Lambda are the only readers and writers.
+Both are in `ap-southeast-2`. The bucket is private. The web Lambda (`hutch`) and the `newsletter-catalog-suggestions` Lambda read and write it. Gmail monitoring and notification workers read it to check approval.
 
 The object is one JSON document, `{ "version": 1, "records": [...] }`, validated by `NewsletterCatalogDocumentSchema` in `@packages/domain/newsletter-catalog`. Each record has:
 
@@ -35,6 +36,36 @@ The most specific record wins:
 1. **The sender's own record decides, whatever its status.** The sender is recognised only when that record is `approved`. A `rejected` or `pending` record of its own keeps it unrecognised even when an approved wildcard covers its domain, so one address can be carved out of a wildcard.
 2. **Only a sender with no record of its own falls through to the wildcard.** An `approved` `*@<the sender's domain>` record then recognises it, under the wildcard's name.
 3. **A record with `replacedBy` set does not decide.** It records a correction, not a verdict on the address, so the sender falls through to the wildcard. When an admin corrects `mamund@substack.com` to `*@substack.com`, `mamund@substack.com` stays recognised through the approved wildcard.
+
+## Approved newsletter notifications
+
+Every six hours, Readplace checks connected Gmail accounts using the existing metadata permission. A reader receives one email at their **Readplace account address** for an approved newsletter sender they have not mapped when new mail arrives, or when a sender already observed in their current mailbox becomes approved. Each actual FROM address gets its own notice, including addresses recognised through a domain wildcard. There are no reminders.
+
+The first check establishes a silent baseline from the existing discovered senders for that mailbox and the recent discovery window of approximately 5,000 messages. Already-approved newsletters in that baseline produce no initial batch of emails. Readplace captures the Gmail history cursor before scanning and processes arrivals during initialization, so mail arriving while the baseline is being built remains eligible. Spam, trash, drafts and outbound-only messages are excluded. Label changes do not count as arrivals.
+
+Observed senders are kept even when the catalog does not recognise them. Every check also pages through the current mailbox's interactive discovery cache, retaining senders discovered after initialization even when they fall outside the recent-message window. Each subsequent check compares their effective recognition using [the same exact-address and wildcard rules](#which-record-decides-a-sender). An admin's approval can therefore produce a notice without another issue arriving. Renaming a newsletter, or adding an automatically approved exact record under an already-approved wildcard, leaves recognition unchanged and produces no approval notice. A pending or rejected exact record still overrides an approved wildcard.
+
+Before sending, Readplace checks the live catalog, current connection and current mapping again. A mapped sender, revoked or disconnected account, changed mailbox, or unavailable catalog does not receive a notice. Removing a mapping by itself does not trigger one. A later qualifying arrival or approval can still notify an address that has never received a notice.
+
+Notification receipts belong to the Readplace user and lower-cased sender address. They survive mapping removal, disconnect and reconnect, including reconnecting to another Gmail mailbox. Reconnecting the same mailbox preserves its observations and cursor. Changing mailboxes initializes a fresh observation set and cursor; earlier observations remain outside the active mailbox until account deletion erases observations, checkpoints, pending notices and receipts.
+
+The monitor's history cursor is separate from interactive sender discovery. Interrupted pages resume from durable checkpoints, including a saved notice-dispatch list when publication must be retried after the page advanced. When Gmail rejects an expired history cursor, Readplace performs a paginated metadata resynchronization while retaining observations and notification history. Gmail requires a full synchronization after an expired cursor returns HTTP 404. See the [Gmail history API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list).
+
+### Following the email
+
+The email names the newsletter when the catalog supplies a name, includes its FROM address, and explains that the reader can save future issues to a readlist. Its tracked **Choose a readlist** link opens `/newsletters/gmail` with that sender selected; signing in returns the reader to the same selection. The page accepts monitored senders only from the signed-in reader's current mailbox.
+
+When the reader has multiple readlists, the destination remains unselected and **Save** stays disabled until they choose one. When **All** is the only readlist, it is selected and Save is available. A sender mapped after the email was sent opens its existing mapping, preserving that destination.
+
+On arrival from the email, the readlist selector and Save have a distinct brand-colour border. The first click anywhere, including on disabled Save, clears both borders. The dismissal survives htmx refreshes. Keyboard focus remains visible; the border adds no layout shift. The arrival marker is a presentation hint and is excluded from later form and polling URLs. The underlying forms still work without JavaScript.
+
+Saving uses the existing mapping and Gmail filter update. Importing the sender's earlier unread messages from the last 30 days remains a separate, explicit option; following the email does not start an import.
+
+### Delivery retries
+
+The monitoring table stores pending notices and permanent sent receipts. An atomic claim reserves each user/sender notice, and its rendered email payload and provider idempotency key remain stable across retries. Resend retains idempotency keys for 24 hours; changing a payload under the same key is refused. See [Resend's idempotency announcement](https://resend.com/changelog/idempotency-keys).
+
+If delivery is ambiguous, retries use the same payload and key only inside that window, stopping after 23 hours and 55 minutes to leave a five-minute margin. An unresolved attempt beyond that cutoff fails to the notification queue's DLQ for operator review, preserving the claim rather than risking a second email automatically. Review the provider's delivery evidence before any manual recovery; re-driving an expired ambiguous attempt does not authorize a new send.
 
 ## Seed provenance
 

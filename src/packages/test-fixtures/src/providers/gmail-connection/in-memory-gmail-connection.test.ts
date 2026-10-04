@@ -248,4 +248,20 @@ describe("initInMemoryGmailConnection", () => {
 
 		assert.equal(await store.countConnected(), 1);
 	});
+
+	it("enumerates live connected accounts in bounded pages and excludes revoked grants", async () => {
+		const { store } = connectedStore();
+		assert.deepEqual(await store.listConnectedPage({}), { userIds: [], nextPageToken: undefined });
+		const users = Array.from({ length: 27 }, (_, index) => UserIdSchema.parse(`reader-${index}`));
+		for (const userId of users) await store.createConnection({ userId, gatewayAddress: gateway });
+		const revoked = users[26];
+		assert(revoked);
+		await store.markRevoked({ userId: revoked, reason: "invalid-grant" });
+		const first = await store.listConnectedPage({});
+		assert.deepEqual(first.userIds, users.slice(0, 25));
+		assert.equal(first.nextPageToken, "25");
+		assert.deepEqual(await store.listConnectedPage({ pageToken: first.nextPageToken }), { userIds: users.slice(25, 26), nextPageToken: undefined });
+		await store.clearRevoked({ userId: revoked });
+		assert.deepEqual((await store.listConnectedPage({ pageToken: "25" })).userIds, users.slice(25));
+	});
 });

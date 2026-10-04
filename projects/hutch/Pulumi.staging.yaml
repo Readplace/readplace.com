@@ -38,6 +38,7 @@ config:
   hutch:dynamodbGmailCredentialsTable: hutch-gmail-credentials-staging
   hutch:dynamodbGmailConnectionsTable: hutch-gmail-connections-staging
   hutch:dynamodbGmailDiscoveryTable: hutch-gmail-discovery-staging
+  hutch:dynamodbGmailMonitoringTable: hutch-gmail-monitoring-staging
   hutch:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-staging
   hutch:dynamodbGmailHistoryImportsTable: hutch-gmail-history-imports-staging
   hutch:dynamodbInboxEmailIdentitiesTable: hutch-inbox-email-identities-staging

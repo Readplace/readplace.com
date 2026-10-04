@@ -18,6 +18,7 @@ import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, ReadlistSlugSchema } from
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -273,12 +274,76 @@ async function connectedAgent(options: {
 describe("GMail Newsletters page", () => {
 	it("requires authentication on page, discovery, readlist, mapping and import endpoints", async () => {
 		const { harness } = harnessWithGmail();
-		for (const path of [GMAIL, `${GMAIL}/senders`, `${GMAIL}/status`]) {
+		expect((await request(harness.server).get(GMAIL)).headers.location).toBe(`/login?return=${encodeURIComponent(GMAIL)}`);
+		for (const path of [`${GMAIL}/senders`, `${GMAIL}/status`]) {
 			expect((await request(harness.server).get(path)).headers.location).toBe("/login");
 		}
 		for (const path of [ADD, REMOVE, RETRY, DISCOVER, CREATE_READLIST, IMPORT_START, IMPORT_RETRY, IMPORT_CANCEL, `${GMAIL}/disconnect`]) {
 			expect((await request(harness.server).post(path)).headers.location).toBe("/login");
 		}
+	});
+
+	it("preserves the selected FROM and notification presentation through login", async () => {
+		const { harness } = harnessWithGmail();
+		const agent = request.agent(harness.server);
+		const created = await harness.auth.createUser({ email: "notification-reader@example.com", password: "password123" });
+		assert(created.ok);
+		const destination = `${GMAIL}?sender=${encodeURIComponent(MORNING)}&notification=1`;
+		const anonymous = await agent.get(destination);
+		const login = new URL(anonymous.headers.location, TEST_APP_ORIGIN);
+		expect(login.pathname).toBe("/login");
+		expect(login.searchParams.get("return")).toBe(destination);
+		const signedIn = await agent.post(`${login.pathname}${login.search}`).type("form").send({ email: "notification-reader@example.com", password: "password123" });
+		expect(signedIn.headers.location).toBe(destination);
+	});
+
+	it("offers and saves monitored senders only for the authenticated reader's current mailbox", async () => {
+		const { agent, gmail, userId, gatewayAddress, harness } = await connectedAgent({ discovered: false });
+		const checkpoint: GmailMonitoringCheckpoint = {
+			userId, accountEmail: EMAIL, gatewayAddress, mailboxId: "current-mailbox", generation: "monitor", page: 0,
+			mode: "complete", initializing: false, historyId: "100", pageToken: undefined, scannedCount: 1, lastCheckedAt: Date.parse(AT),
+		};
+		const monitoring = gmail.bundle.gmailMonitoringStore;
+		await monitoring.startRun({ checkpoint, previous: undefined });
+		await monitoring.observeSender({ checkpoint, observation: { email: MORNING, name: "Brew Crew", approved: true }, notify: false });
+		const other = await harness.auth.createUser({ email: "other-notification-reader@example.com", password: "password123" });
+		assert(other.ok);
+		const foreignCheckpoint = { ...checkpoint, userId: other.userId };
+		await monitoring.startRun({ checkpoint: foreignCheckpoint, previous: undefined });
+		await monitoring.observeSender({ checkpoint: foreignCheckpoint, observation: { email: TLDR, name: "TLDR", approved: true }, notify: false });
+		const foreign = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&notification=1`)).text);
+		expect(foreign.querySelector("#gmail-sender-choice")?.textContent).toBe("Choose a newsletter");
+		expect(locationParams((await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" })).headers.location).error).toBe("sender_unknown");
+		const destination = `${GMAIL}?sender=${encodeURIComponent(MORNING)}&notification=1&discovery=started`;
+		const document = load((await agent.get(destination)).text);
+		expect(document.querySelector("#gmail-sender-choice")?.textContent).toContain(MORNING);
+		expect(document.querySelector("#gmail-readlist-choice")?.textContent).toBe("All");
+		expect(document.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+		expect(Array.from(document.querySelectorAll("[data-gmail-notification-highlight]"), (element) => element.getAttribute("data-gmail-notification"))).toEqual([MORNING]);
+		expect(Array.from(document.querySelectorAll('input[name="notification"]'))).toEqual([]);
+		const saved = await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default" });
+		expect(locationParams(saved.headers.location).notice).toBe("sender_mapped");
+		expect((await monitoring.findCheckpoint(userId))?.mailboxId).toBe("current-mailbox");
+		await gmail.bundle.gmailSenderStore.removeSender({ userId, senderEmail: MORNING });
+		await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse("different@gmail.com") });
+		const changed = load((await agent.get(destination)).text);
+		expect(changed.querySelector("#gmail-sender-choice")?.textContent).toBe("Choose a newsletter");
+		const refused = await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default" });
+		expect(locationParams(refused.headers.location).error).toBe("sender_unknown");
+	});
+
+	it("keeps multiple readlists unselected on a notification and opens an existing mapping with its destination", async () => {
+		const { agent, createReadlist, mapSender } = await connectedAgent();
+		await createReadlist({ slug: "tech", label: "Tech" });
+		const destination = `${GMAIL}?sender=${encodeURIComponent(MORNING)}&notification=1`;
+		const document = load((await agent.get(destination)).text);
+		expect(document.querySelector("#gmail-readlist-choice")?.textContent).toBe("Choose a readlist");
+		expect(document.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(true);
+		await mapSender(MORNING, "tech");
+		const mapped = load((await agent.get(destination)).text);
+		expect(mapped.querySelector("#gmail-readlist-choice")?.textContent).toBe("Tech");
+		expect(mapped.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+		expect(Array.from(mapped.querySelectorAll('[data-test-gmail-save-mapping] input[name="import"]'))).toEqual([]);
 	});
 
 	it("requires a current connection before reading or changing mappings", async () => {
@@ -405,6 +470,7 @@ describe("GMail Newsletters page", () => {
 		expect(retry.getAttribute("action")).toBe(GMAIL);
 		expect(hiddenFields(retry)).toEqual({
 			sender: TLDR,
+			readlist: "default",
 			discovery: "started",
 			utm_source: "integrations-gmail",
 			utm_medium: "internal",
@@ -789,7 +855,7 @@ describe("Choose a readlist", () => {
 		expect(create.querySelector('input[name="readlist_name"]')?.getAttribute("maxlength")).toBe("24");
 	});
 
-	it("closes the readlist picker once a readlist is chosen and hides the save form until both are chosen", async () => {
+	it("closes the readlist picker once a readlist is chosen and disables Save until a destination is chosen", async () => {
 		const { agent } = await connectedAgent();
 		const chosen = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default`)).text);
 		expect(chosen.querySelector("[data-test-gmail-readlist-picker]")?.hasAttribute("open")).toBe(false);
@@ -797,7 +863,7 @@ describe("Choose a readlist", () => {
 		expect(Array.from(chosen.querySelectorAll("[data-test-gmail-save]"), (el) => el.textContent)).toEqual(["Save"]);
 		const senderOnly = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=unknown`)).text);
 		expect(senderOnly.querySelector("#gmail-readlist-choice")?.textContent).toBe("Choose a readlist");
-		expect(Array.from(senderOnly.querySelectorAll("[data-test-gmail-save]"))).toEqual([]);
+		expect(Array.from(senderOnly.querySelectorAll("[data-test-gmail-save]"), (button) => button.hasAttribute("disabled"))).toEqual([true]);
 	});
 
 	it("replaces the create form with the limit once the reader keeps the maximum number of readlists", async () => {
@@ -1225,7 +1291,7 @@ describe("Your newsletters", () => {
 		const section = first.querySelector("#gmail-mappings");
 		assert(section);
 		expect(section.getAttribute("data-imports-polling")).toBe("true");
-		expect(section.getAttribute("hx-get")).toBe(`${GMAIL}?search=dan&sender=crew%40morningbrew.com&discovery=started&imports_poll=1`);
+		expect(section.getAttribute("hx-get")).toBe(`${GMAIL}?search=dan&sender=crew%40morningbrew.com&readlist=default&discovery=started&imports_poll=1`);
 		expect(section.getAttribute("hx-select")).toBe("#gmail-mappings");
 		const next = load((await agent.get(`${GMAIL}?discovery=started&imports_poll=99`)).text).querySelector("#gmail-mappings");
 		expect(next?.getAttribute("hx-get")).toBe(`${GMAIL}?discovery=started&imports_poll=100`);

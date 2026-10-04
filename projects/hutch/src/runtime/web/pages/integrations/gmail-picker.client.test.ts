@@ -29,6 +29,31 @@ function pressFromFocus(dom: JSDOM, value: string): boolean {
 }
 
 describe("Gmail details pickers", () => {
+	it("dismisses notification borders on any click and keeps them dismissed after an htmx replacement", () => {
+		const dom = fixture();
+		const document = dom.window.document;
+		document.body.insertAdjacentHTML("beforeend", '<div id="notice" data-gmail-notification="dan@tldr.tech" data-gmail-notification-highlight><button disabled>Save</button></div>');
+		element(dom, "#outside").click();
+		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), false);
+		element(dom, "#notice").setAttribute("data-gmail-notification-highlight", "");
+		document.dispatchEvent(new dom.window.Event("htmx:afterSwap"));
+		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), false);
+		element(dom, "#notice").setAttribute("data-gmail-notification", "crew@morningbrew.com");
+		element(dom, "#notice").setAttribute("data-gmail-notification-highlight", "");
+		document.dispatchEvent(new dom.window.Event("htmx:afterSwap"));
+		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), true);
+		element(dom, "#notice button").dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true }));
+		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), false);
+	});
+
+	it("clears a notification presentation marker even if it has no sender", () => {
+		const dom = fixture();
+		dom.window.document.body.insertAdjacentHTML("beforeend", '<div id="notice" data-gmail-notification-highlight></div>');
+		element(dom, "#outside").click();
+		assert.equal(dom.window.document.documentElement.getAttribute("data-gmail-notification-dismissed"), "");
+		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), false);
+	});
+
 	it("keeps inside clicks open and dismisses the other picker", () => {
 		const dom = fixture();
 		element(dom, "#search").click();

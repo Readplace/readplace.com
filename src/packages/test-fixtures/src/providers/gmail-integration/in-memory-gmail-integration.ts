@@ -10,6 +10,7 @@ import { initInMemoryGmailConnection } from "../gmail-connection";
 import { initInMemoryGmailCredentials } from "../gmail-credentials";
 import { initInMemoryGmailSender } from "../gmail-sender";
 import { initInMemoryGmailDiscovery } from "../gmail-discovery";
+import { initInMemoryGmailMonitoring } from "../gmail-monitoring";
 import { initInMemoryGmailHistoryImport } from "../gmail-history-import";
 
 export interface InMemoryGmailIntegration {
@@ -67,6 +68,7 @@ export function initInMemoryGmailIntegration(input: {
 			gmailConnectionStore: initInMemoryGmailConnection({ now }),
 			gmailSenderStore: initInMemoryGmailSender({ now }),
 			gmailDiscoveryStore: initInMemoryGmailDiscovery({ now }),
+			gmailMonitoringStore: initInMemoryGmailMonitoring({ now }),
 			publishStartGmailSenderDiscovery: async (detail) => {
 				discoveryRequests.push(detail);
 			},

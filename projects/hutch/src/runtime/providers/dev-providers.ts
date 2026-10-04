@@ -24,6 +24,7 @@ import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers
 import { GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { mergeSubmittedSender } from "@packages/domain/newsletter-catalog";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
+import { initInMemoryGmailMonitoring } from "@packages/test-fixtures/providers/gmail-monitoring";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
 import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
@@ -194,6 +195,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const gmailCredentialsStore = initInMemoryGmailCredentials({ now: () => new Date() });
 	const gmailConnectionStore = initInMemoryGmailConnection({ now: () => new Date() });
 	const gmailDiscoveryStore = initInMemoryGmailDiscovery({ now: () => new Date() });
+	const gmailMonitoringStore = initInMemoryGmailMonitoring({ now: () => new Date() });
 	const gmailHistoryImportStore = initInMemoryGmailHistoryImport();
 	const cancelGmailHistoryImports = initCancelGmailHistoryImports({ imports: gmailHistoryImportStore, now: () => new Date() });
 	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
@@ -255,6 +257,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 			gmailCredentialsStore,
 			gmailConnectionStore: initConfirmOnConnectGmailConnection({ connections: gmailConnectionStore }),
 			gmailDiscoveryStore,
+			gmailMonitoringStore,
 			publishStartGmailSenderDiscovery: async ({ userId }: { userId: UserId }) => {
 				void runGmailDiscoveryLocally({ userId });
 			},

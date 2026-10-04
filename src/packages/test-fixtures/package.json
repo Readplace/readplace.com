@@ -184,6 +184,10 @@
     "./sqs": {
       "types": "./dist/sqs/index.d.ts",
       "default": "./dist/sqs/index.js"
+    },
+    "./providers/gmail-monitoring": {
+      "types": "./dist/providers/gmail-monitoring/index.d.ts",
+      "default": "./dist/providers/gmail-monitoring/index.js"
     }
   },
   "typesVersions": {
@@ -319,6 +323,9 @@
       ],
       "sqs": [
         "./dist/sqs/index.d.ts"
+      ],
+      "providers/gmail-monitoring": [
+        "./dist/providers/gmail-monitoring/index.d.ts"
       ]
     }
   },

@@ -3,7 +3,7 @@ import { GmailAccountEmailSchema, parseGmailFrom } from "@packages/domain/gmail"
 import type { DiscoveredGmailSender } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { GetGmailAccessToken } from "@packages/provider-contracts/gmail-filters";
-import type { GmailMailbox, GmailMailboxResult, GmailSenderPage } from "@packages/provider-contracts/gmail-mailbox";
+import type { GmailIncomingMailbox, GmailMailboxResult, GmailSenderPage } from "@packages/provider-contracts/gmail-mailbox";
 
 const ENDPOINT = "https://gmail.googleapis.com/gmail/v1/users/me";
 const PAGE_SIZE = 25;
@@ -24,6 +24,7 @@ const MetadataResponse = z.object({
 const HistoryResponse = z.object({
 	history: z.array(z.object({
 		messages: z.array(MessageReference).optional(),
+		messagesAdded: z.array(z.object({ message: MessageReference })).optional(),
 	})).optional(),
 	nextPageToken: z.string().optional(),
 	historyId: z.string(),
@@ -50,7 +51,7 @@ type ScannedMessages = Pick<GmailSenderPage, "senders" | "newestMessageAt" | "ol
 export function initGmailMailbox(deps: {
 	accessToken: GetGmailAccessToken;
 	fetch: typeof globalThis.fetch;
-}): GmailMailbox {
+}): GmailIncomingMailbox {
 	async function read<TSchema extends z.ZodType>(
 		userId: UserId,
 		url: string,
@@ -103,8 +104,8 @@ export function initGmailMailbox(deps: {
 		return attempt(false);
 	}
 
-	async function findSenders(userId: UserId, messageIds: string[]): Promise<GmailMailboxResult<ScannedMessages>> {
-		const senders = new Map<string, DiscoveredGmailSender>();
+	async function findSenders(userId: UserId, messageIds: string[], withDates: boolean): Promise<GmailMailboxResult<ScannedMessages>> {
+		const senders = new Map<string, DiscoveredGmailSender & { lastMessageAt?: number }>();
 		const dates: number[] = [];
 		for (let offset = 0; offset < messageIds.length; offset += CONCURRENCY) {
 			const responses = await Promise.all(messageIds.slice(offset, offset + CONCURRENCY).map((id) => {
@@ -128,7 +129,11 @@ export function initGmailMailbox(deps: {
 					if (header.name.toLowerCase() !== "from") continue;
 					for (const sender of parseGmailFrom(header.value)) {
 						const existing = senders.get(sender.email);
-						if (existing?.name === undefined) senders.set(sender.email, sender);
+						senders.set(sender.email, {
+							...sender,
+							name: existing?.name ?? sender.name,
+							...(withDates && result.value.internalDate !== undefined ? { lastMessageAt: Math.max(existing?.lastMessageAt ?? 0, result.value.internalDate) } : {}),
+						});
 					}
 				}
 			}
@@ -140,63 +145,67 @@ export function initGmailMailbox(deps: {
 		} };
 	}
 
+	const listMessageSenders = (withDates: boolean): GmailIncomingMailbox["listCurrentIncomingMessageSenders"] => async ({ userId, pageToken }) => {
+		const query = new URLSearchParams({
+			maxResults: String(PAGE_SIZE),
+			includeSpamTrash: "false",
+			fields: "messages(id),nextPageToken,resultSizeEstimate",
+		});
+		if (pageToken !== undefined) query.set("pageToken", pageToken);
+		const result = await read(userId, `${ENDPOINT}/messages?${query}`, MessagesResponse);
+		if (!result.ok) return result;
+		const messageIds = [...new Set((result.value.messages ?? []).map((message) => message.id))];
+		const found = await findSenders(userId, messageIds, withDates);
+		if (!found.ok) return found;
+		return { ok: true, value: {
+			...found.value,
+			nextPageToken: result.value.nextPageToken,
+			scannedMessages: messageIds.length,
+			estimatedTotalMessages: result.value.resultSizeEstimate,
+		} };
+	};
+	const listChangedMessageSenders = (arrivalsOnly: boolean): GmailIncomingMailbox["listIncomingMessageSenders"] => async ({ userId, startHistoryId, pageToken }) => {
+		const cursor = pageToken === undefined
+			? { pageToken: undefined, offset: 0 }
+			: HistoryCursor.parse(JSON.parse(Buffer.from(pageToken, "base64url").toString()));
+		const query = new URLSearchParams({
+			maxResults: String(PAGE_SIZE),
+			startHistoryId,
+			fields: arrivalsOnly ? "history(messagesAdded(message(id))),nextPageToken,historyId" : "history(messages(id)),nextPageToken,historyId",
+		});
+		for (const type of (arrivalsOnly ? ["messageAdded"] : ["messageAdded", "labelAdded", "labelRemoved"])) query.append("historyTypes", type);
+		if (cursor.pageToken !== undefined) query.set("pageToken", cursor.pageToken);
+		const result = await read(userId, `${ENDPOINT}/history?${query}`, HistoryResponse);
+		if (!result.ok) {
+			if (result.reason === "rejected" && result.status === 404) return { ok: false, reason: "history-expired" };
+			return result;
+		}
+		const messageIds = [...new Set((result.value.history ?? []).flatMap((history) =>
+			(arrivalsOnly ? (history.messagesAdded ?? []).map((added) => added.message.id) : (history.messages ?? []).map((message) => message.id))))];
+		const batch = messageIds.slice(cursor.offset, cursor.offset + PAGE_SIZE);
+		const found = await findSenders(userId, batch, arrivalsOnly);
+		if (!found.ok) return found;
+		const offset = cursor.offset + batch.length;
+		let nextPageToken: string | undefined;
+		if (offset < messageIds.length) nextPageToken = encodeHistoryCursor({ pageToken: cursor.pageToken, offset });
+		else if (result.value.nextPageToken !== undefined) nextPageToken = encodeHistoryCursor({ pageToken: result.value.nextPageToken, offset: 0 });
+		return { ok: true, value: {
+			...found.value,
+			nextPageToken,
+			scannedMessages: batch.length,
+			estimatedTotalMessages: undefined,
+			historyId: result.value.historyId,
+		} };
+	};
 	return {
 		findProfile: async ({ userId }) => {
 			const result = await read(userId, `${ENDPOINT}/profile?fields=emailAddress,historyId`, ProfileResponse);
 			if (!result.ok) return result;
 			return { ok: true, value: { accountEmail: result.value.emailAddress, historyId: result.value.historyId } };
 		},
-		listMessageSenders: async ({ userId, pageToken }) => {
-			const query = new URLSearchParams({
-				maxResults: String(PAGE_SIZE),
-				includeSpamTrash: "false",
-				fields: "messages(id),nextPageToken,resultSizeEstimate",
-			});
-			if (pageToken !== undefined) query.set("pageToken", pageToken);
-			const result = await read(userId, `${ENDPOINT}/messages?${query}`, MessagesResponse);
-			if (!result.ok) return result;
-			const messageIds = [...new Set((result.value.messages ?? []).map((message) => message.id))];
-			const found = await findSenders(userId, messageIds);
-			if (!found.ok) return found;
-			return { ok: true, value: {
-				...found.value,
-				nextPageToken: result.value.nextPageToken,
-				scannedMessages: messageIds.length,
-				estimatedTotalMessages: result.value.resultSizeEstimate,
-			} };
-		},
-		listChangedMessageSenders: async ({ userId, startHistoryId, pageToken }) => {
-			const cursor = pageToken === undefined
-				? { pageToken: undefined, offset: 0 }
-				: HistoryCursor.parse(JSON.parse(Buffer.from(pageToken, "base64url").toString()));
-			const query = new URLSearchParams({
-				maxResults: String(PAGE_SIZE),
-				startHistoryId,
-				fields: "history(messages(id)),nextPageToken,historyId",
-			});
-			for (const type of ["messageAdded", "labelAdded", "labelRemoved"]) query.append("historyTypes", type);
-			if (cursor.pageToken !== undefined) query.set("pageToken", cursor.pageToken);
-			const result = await read(userId, `${ENDPOINT}/history?${query}`, HistoryResponse);
-			if (!result.ok) {
-				if (result.reason === "rejected" && result.status === 404) return { ok: false, reason: "history-expired" };
-				return result;
-			}
-			const messageIds = [...new Set((result.value.history ?? []).flatMap((history) =>
-				(history.messages ?? []).map((message) => message.id)))];
-			const batch = messageIds.slice(cursor.offset, cursor.offset + PAGE_SIZE);
-			const found = await findSenders(userId, batch);
-			if (!found.ok) return found;
-			const offset = cursor.offset + batch.length;
-			let nextPageToken: string | undefined;
-			if (offset < messageIds.length) nextPageToken = encodeHistoryCursor({ pageToken: cursor.pageToken, offset });
-			else if (result.value.nextPageToken !== undefined) nextPageToken = encodeHistoryCursor({ pageToken: result.value.nextPageToken, offset: 0 });
-			return { ok: true, value: {
-				...found.value,
-				nextPageToken,
-				scannedMessages: batch.length,
-				estimatedTotalMessages: undefined,
-				historyId: result.value.historyId,
-			} };
-		},
+		listMessageSenders: listMessageSenders(false),
+		listChangedMessageSenders: listChangedMessageSenders(false),
+		listCurrentIncomingMessageSenders: listMessageSenders(true),
+		listIncomingMessageSenders: listChangedMessageSenders(true),
 	};
 }

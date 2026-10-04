@@ -12,6 +12,42 @@ const NOW = new Date("2026-09-12T00:00:00.000Z");
 const START = { userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "run-1", mode: "profile", historyId: undefined, checkedMessageCount: 0 } as const;
 
 describe("initInMemoryGmailDiscovery", () => {
+	it("pages sender keys in stable order and keeps a continuation correct when earlier senders are added", async () => {
+		const store = initInMemoryGmailDiscovery({ now: () => NOW });
+		const senders = Array.from({ length: 26 }, (_, index) => ({ email: ForwardableSenderSchema.parse(`sender-${String(index).padStart(2, "0")}@example.com`), name: `Sender ${index}` }));
+		await store.startDiscovery(START);
+		const initial = await store.findDiscoveryByUserId(USER);
+		assert(initial);
+		await store.savePage({ previous: initial, senders: [...senders].reverse(), mode: "full", pageToken: "more", historyId: "100", state: "running", scannedMessages: 26, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
+		const first = await store.listSendersPage({ userId: USER });
+		assert.deepEqual(first.senders, senders.slice(0, 25));
+		assert(first.nextPageToken);
+		assert.equal(first.nextPageToken, `${USER}/${senders[24].email}`);
+		assert.deepEqual(await store.listSendersPage({ userId: USER }), first);
+		const current = await store.findDiscoveryByUserId(USER);
+		assert(current);
+		await store.savePage({ previous: current, senders: [{ email: ForwardableSenderSchema.parse("aaa@example.com"), name: "Added before the cursor" }], mode: "full", pageToken: undefined, historyId: "101", state: "complete", scannedMessages: 1, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
+		assert.deepEqual(await store.listSendersPage({ userId: USER, pageToken: first.nextPageToken }), { senders: senders.slice(25), nextPageToken: undefined });
+		assert.deepEqual(await store.listSendersByUserId(USER), [...senders].reverse().concat([{ email: ForwardableSenderSchema.parse("aaa@example.com"), name: "Added before the cursor" }]));
+	});
+
+	it("isolates sender pages by user and rejects cross-user and malformed continuations", async () => {
+		const store = initInMemoryGmailDiscovery({ now: () => NOW });
+		const otherUser = UserIdSchema.parse("other-user");
+		assert.deepEqual(await store.listSendersPage({ userId: otherUser }), { senders: [], nextPageToken: undefined });
+		await store.startDiscovery(START);
+		const initial = await store.findDiscoveryByUserId(USER);
+		assert(initial);
+		await store.savePage({ previous: initial, senders: [{ email: EMAIL, name: "Sender" }], mode: "full", pageToken: undefined, historyId: "100", state: "complete", scannedMessages: 1, estimatedTotalMessages: undefined, oldestScannedAt: undefined });
+		assert.deepEqual(await store.listSendersPage({ userId: USER }), { senders: [{ email: EMAIL, name: "Sender" }], nextPageToken: undefined });
+		assert.deepEqual(await store.listSendersPage({ userId: otherUser }), { senders: [], nextPageToken: undefined });
+		const cursor = `${USER}/${EMAIL}`;
+		await assert.rejects(store.listSendersPage({ userId: otherUser, pageToken: cursor }), /cursor must belong/);
+		await assert.rejects(store.listSendersPage({ userId: USER, pageToken: `${USER}/invalid-email` }));
+		await store.deleteDiscoveryByUserId(USER);
+		assert.deepEqual(await store.listSendersPage({ userId: USER, pageToken: cursor }), { senders: [], nextPageToken: undefined });
+	});
+
 	it("deduplicates pages, preserves names and resumes without clearing cached senders", async () => {
 		const store = initInMemoryGmailDiscovery({ now: () => NOW });
 		assert.equal(await store.findDiscoveryByUserId(USER), undefined);

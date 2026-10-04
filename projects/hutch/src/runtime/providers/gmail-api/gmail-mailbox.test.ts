@@ -235,3 +235,28 @@ describe("initGmailMailbox", () => {
 		assert.deepEqual(requests, []);
 	});
 });
+
+describe("incoming Gmail metadata pages", () => {
+	it("limits monitoring history to additions and never turns label-only changes into arrivals", async () => {
+		const { mailbox, requests } = harness((url) => {
+			if (url.pathname.endsWith("/history")) return { status: 200, body: { history: [{ messages: [{ id: "label-only" }], labelsAdded: [{ message: { id: "label-only" }, labelIds: ["INBOX"] }] }, { messages: [{ id: "label-only" }, { id: "received" }], messagesAdded: [{ message: { id: "received" } }, { message: { id: "received" } }] }], historyId: "200" } };
+			assert.equal(url.pathname.endsWith("/received"), true);
+			return { status: 200, body: metadata("Letter <letter@example.com>") };
+		});
+		const result = await mailbox.listIncomingMessageSenders({ userId: USER, startHistoryId: "100" });
+		assert(result.ok);
+		assert.deepEqual(result.value.senders, [{ email: "letter@example.com", name: "Letter", lastMessageAt: SENT_AT }]);
+		assert.equal(result.value.scannedMessages, 1);
+		assert.equal(requests[0].url.searchParams.getAll("historyTypes").join(","), "messageAdded");
+		assert.equal(requests[0].url.searchParams.get("fields"), "history(messagesAdded(message(id))),nextPageToken,historyId");
+	});
+	it("retains each sender's newest message timestamp during full metadata resynchronization", async () => {
+		const { mailbox } = harness((url) => {
+			if (url.pathname.endsWith("/messages")) return { status: 200, body: { messages: [{ id: "older" }, { id: "newer" }, { id: "missing-date" }] } };
+			if (url.pathname.endsWith("/missing-date")) return { status: 200, body: { payload: { headers: [{ name: "From", value: "missing@example.com" }] } } };
+			return { status: 200, body: metadata("letter@example.com", [], url.pathname.endsWith("/older") ? SENT_AT - 1_000 : SENT_AT) };
+		});
+		const result = await mailbox.listCurrentIncomingMessageSenders({ userId: USER }); assert(result.ok);
+		assert.deepEqual(result.value.senders, [{ email: "letter@example.com", name: undefined, lastMessageAt: SENT_AT }, { email: "missing@example.com", name: undefined }]);
+	});
+});

@@ -1,6 +1,7 @@
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
+import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type {
 	ForwardableSender,
 	GmailConnectionStore,
@@ -556,6 +557,7 @@ export interface GmailIntegrationBundle {
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
 	gmailDiscoveryStore: GmailDiscoveryStore;
+	gmailMonitoringStore: GmailMonitoringStore;
 	publishStartGmailSenderDiscovery: (input: { userId: UserId }) => Promise<void>;
 	mintGatewayAddress: (input: { userId: UserId }) => Promise<InboxAddress>;
 	findInboxAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;

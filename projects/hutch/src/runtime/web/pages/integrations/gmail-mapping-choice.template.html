@@ -1,4 +1,4 @@
-<div id="gmail-mapping-choice" class="gmail__mapping-choice"{{#if outOfBand}} hx-swap-oob="outerHTML"{{/if}}>
+<div id="gmail-mapping-choice" class="gmail__mapping-choice"{{#if notificationSender}} data-gmail-notification="{{notificationSender}}" data-gmail-notification-highlight{{/if}}{{#if outOfBand}} hx-swap-oob="outerHTML"{{/if}}>
               {{{readlistPickerHtml}}}
               {{#if save}}
               <form class="gmail__save" method="POST" action="{{save.action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button" data-test-gmail-save-mapping>
@@ -11,7 +11,7 @@
                   <span>Import unread messages from the last 30 days</span>
                 </label>
                 {{/if}}
-                <button class="btn btn--{{save.variant}} gmail__submit" type="submit" data-test-gmail-save><span class="gmail__submit-label">Save</span>{{{submitLoader}}}</button>
+                <button class="btn btn--{{save.variant}} gmail__submit" type="submit"{{#if save.disabled}} disabled{{/if}} data-test-gmail-save><span class="gmail__submit-label">Save</span>{{{submitLoader}}}</button>
               </form>
               {{/if}}
             </div>

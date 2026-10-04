@@ -19,6 +19,8 @@ interface Command {
 		Item?: Record<string, unknown>;
 		Key?: Record<string, unknown>;
 		ConsistentRead?: boolean;
+		Limit?: number;
+		ExclusiveStartKey?: Record<string, unknown>;
 		UpdateExpression?: string;
 		ConditionExpression?: string;
 		KeyConditionExpression?: string;
@@ -39,6 +41,44 @@ function harness(reply: (command: Command) => unknown = () => ({})) {
 }
 
 describe("initDynamoDbGmailDiscovery", () => {
+	it("returns one bounded sender page and resumes strongly by its user-scoped key cursor", async () => {
+		const senders = Array.from({ length: 25 }, (_, index) => ({ email: ForwardableSenderSchema.parse(`sender-${String(index).padStart(2, "0")}@example.com`), name: `Sender ${index}` }));
+		const nextSender = { email: ForwardableSenderSchema.parse("sender-25@example.com"), name: undefined };
+		const lastKey = { userId: USER, recordKey: `SENDER#${senders[24].email}` };
+		let reads = 0;
+		const h = harness(() => {
+			reads += 1;
+			return reads === 1
+				? { Items: senders.map((sender) => ({ userId: USER, recordKey: `SENDER#${sender.email}`, ...sender })), LastEvaluatedKey: lastKey }
+				: { Items: [{ userId: USER, recordKey: `SENDER#${nextSender.email}`, ...nextSender }] };
+		});
+		const first = await h.store.listSendersPage({ userId: USER });
+		assert.deepEqual(first.senders, senders);
+		assert.equal(reads, 1);
+		assert(first.nextPageToken);
+		assert.deepEqual(JSON.parse(Buffer.from(first.nextPageToken, "base64url").toString()), lastKey);
+		assert.deepEqual(await h.store.listSendersPage({ userId: USER, pageToken: first.nextPageToken }), { senders: [nextSender], nextPageToken: undefined });
+		for (const command of h.commands) {
+			assert.equal(command.input.Limit, 25);
+			assert.equal(command.input.ConsistentRead, true);
+			assert.equal(command.input.KeyConditionExpression, "userId = :uid AND begins_with(recordKey, :prefix)");
+			assert.deepEqual(command.input.ExpressionAttributeValues, { ":uid": USER, ":prefix": "SENDER#" });
+		}
+		assert.equal(h.commands[0].input.ExclusiveStartKey, undefined);
+		assert.deepEqual(h.commands[1].input.ExclusiveStartKey, lastKey);
+	});
+
+	it("keeps empty sender pages scoped to the requested user and rejects another user's or malformed cursor", async () => {
+		const otherUser = UserIdSchema.parse("other-user");
+		const h = harness();
+		assert.deepEqual(await h.store.listSendersPage({ userId: otherUser }), { senders: [], nextPageToken: undefined });
+		assert.deepEqual(h.commands[0].input.ExpressionAttributeValues, { ":uid": otherUser, ":prefix": "SENDER#" });
+		const otherCursor = Buffer.from(JSON.stringify({ userId: otherUser, recordKey: `SENDER#${SENDER.email}` })).toString("base64url");
+		await assert.rejects(h.store.listSendersPage({ userId: USER, pageToken: otherCursor }), /cursor must belong/);
+		await assert.rejects(h.store.listSendersPage({ userId: USER, pageToken: Buffer.from("invalid JSON").toString("base64url") }));
+		assert.equal(h.commands.length, 1);
+	});
+
 	it("reads strongly consistent checkpoints and every cached sender page", async () => {
 		let page = 0;
 		const { estimatedTotalMessages: _estimatedTotalMessages, ...legacyState } = STATE;

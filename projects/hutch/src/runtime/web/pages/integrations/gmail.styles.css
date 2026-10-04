@@ -263,6 +263,12 @@ form.htmx-request .gmail__submit-loader {
   outline-offset: 2px;
 }
 
+[data-gmail-notification-highlight] .gmail__readlist-picker > .gmail__picker-trigger,
+[data-gmail-notification-highlight] .gmail__save > button {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 1px var(--color-brand);
+}
+
 .gmail__picker-option:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;

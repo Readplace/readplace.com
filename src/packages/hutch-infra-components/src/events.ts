@@ -1289,3 +1289,28 @@ export const OAuthRefreshEvaluatedEvent = defineEvent({
 		}),
 	}),
 });
+
+export const CheckGmailNewslettersCommand = defineEvent({
+	name: "check-gmail-newsletters", source: "hutch.app", detailType: "CheckGmailNewsletters",
+	detailSchema: z.object({ accountsPageToken: z.string().optional() }),
+});
+export const GmailNewsletterAccountsCheckedEvent = defineEvent({
+	name: "gmail-newsletter-accounts-checked", source: "hutch.app", detailType: "GmailNewsletterAccountsChecked",
+	detailSchema: z.object({ userIds: z.array(z.string()), nextAccountsPageToken: z.string().optional() }),
+});
+export const MonitorGmailNewslettersCommand = defineEvent({
+	name: "monitor-gmail-newsletters", source: "hutch.app", detailType: "MonitorGmailNewsletters",
+	detailSchema: z.object({ userId: z.string(), continuation: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional() }),
+});
+export const GmailNewsletterMonitoringProgressedEvent = defineEvent({
+	name: "gmail-newsletter-monitoring-progressed", source: "hutch.app", detailType: "GmailNewsletterMonitoringProgressed",
+	detailSchema: z.object({ userId: z.string(), nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(), notices: z.array(z.string()) }),
+});
+export const SendGmailNewsletterNoticeCommand = defineEvent({
+	name: "send-gmail-newsletter-notice", source: "hutch.app", detailType: "SendGmailNewsletterNotice",
+	detailSchema: z.object({ userId: z.string(), senderEmail: z.string() }),
+});
+export const GmailNewsletterNoticeProcessedEvent = defineEvent({
+	name: "gmail-newsletter-notice-processed", source: "hutch.app", detailType: "GmailNewsletterNoticeProcessed",
+	detailSchema: z.object({ userId: z.string(), senderEmail: z.string(), outcome: z.enum(["sent", "suppressed"]) }),
+});

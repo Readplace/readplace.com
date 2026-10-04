@@ -67,6 +67,7 @@ function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string
 	if (vm.selectedSender === undefined) return "";
 	return render(GMAIL_MAPPING_CHOICE_TEMPLATE, {
 		save: vm.save,
+		notificationSender: vm.notificationSender,
 		outOfBand,
 		readlistPickerHtml: render(GMAIL_READLIST_PICKER_TEMPLATE, { ...vm.readlistPicker, submitLoader: SUBMIT_LOADER_HTML }),
 		submitLoader: SUBMIT_LOADER_HTML,

@@ -31,3 +31,12 @@ export interface GmailMailbox {
 		reason: "history-expired";
 	}>;
 }
+
+export interface GmailIncomingSenderPage extends Omit<GmailSenderPage, "senders"> {
+	senders: (DiscoveredGmailSender & { lastMessageAt?: number })[];
+}
+
+export interface GmailIncomingMailbox extends GmailMailbox {
+	listCurrentIncomingMessageSenders: (input: { userId: UserId; pageToken?: string }) => Promise<GmailMailboxResult<GmailIncomingSenderPage>>;
+	listIncomingMessageSenders: (input: { userId: UserId; startHistoryId: string; pageToken?: string }) => Promise<GmailMailboxResult<GmailIncomingSenderPage & { historyId: string }> | { ok: false; reason: "history-expired" }>;
+}

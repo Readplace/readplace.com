@@ -30,6 +30,7 @@ export interface GmailDiscovery {
 export interface GmailDiscoveryStore {
 	findDiscoveryByUserId: (userId: UserId) => Promise<GmailDiscovery | undefined>;
 	listSendersByUserId: (userId: UserId) => Promise<DiscoveredGmailSender[]>;
+	listSendersPage: (input: { userId: UserId; pageToken?: string }) => Promise<{ senders: DiscoveredGmailSender[]; nextPageToken: string | undefined }>;
 	startDiscovery: (input: {
 		userId: UserId;
 		accountEmail: GmailAccountEmail;

@@ -1,7 +1,8 @@
 import type { GmailConnection, GmailConnectionStore } from "@packages/domain/gmail";
+import type { ListConnectedGmailAccounts } from "@packages/provider-contracts/gmail-account";
 import type { UserId } from "@packages/domain/user";
 
-export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailConnectionStore {
+export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailConnectionStore & { listConnectedPage: ListConnectedGmailAccounts } {
 	const rows = new Map<UserId, GmailConnection>();
 
 	const update = (userId: UserId, patch: Partial<GmailConnection>) => {
@@ -11,6 +12,11 @@ export function initInMemoryGmailConnection(deps: { now: () => Date }): GmailCon
 	};
 
 	return {
+		listConnectedPage: async ({ pageToken }) => {
+			const offset = pageToken === undefined ? 0 : Number(pageToken);
+			const connected = [...rows.values()].filter((row) => row.revokedAt === undefined);
+			return { userIds: connected.slice(offset, offset + 25).map((row) => row.userId), nextPageToken: offset + 25 < connected.length ? String(offset + 25) : undefined };
+		},
 		createConnection: async ({ userId, gatewayAddress }) => {
 			const connection: GmailConnection = {
 				userId,

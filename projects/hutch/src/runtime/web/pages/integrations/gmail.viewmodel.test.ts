@@ -185,7 +185,33 @@ describe("GMail Newsletters readlist choice", () => {
 		assert.deepEqual(chosen.readlistPicker.options.map((option) => [option.slug, option.selected]), [["default", false], ["tech", true]]);
 		const unknown = toGmailPageViewModel(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR, readlist: "gone" } }));
 		assert.equal(unknown.readlistPicker.choiceLabel, "Choose a readlist");
-		assert.equal(unknown.save, undefined);
+		assert.equal(unknown.save?.disabled, true);
+	});
+
+	it("selects All when it is the only destination and otherwise requires a choice", () => {
+		const onlyAll = toGmailPageViewModel(input({ state: { sender: TLDR }, notification: true }));
+		assert.equal(onlyAll.readlistPicker.choiceLabel, "All");
+		assert.equal(onlyAll.save?.disabled, false);
+		assert.equal(onlyAll.notificationSender, TLDR);
+		const choice = toGmailPageViewModel(input({ state: { sender: TLDR }, readlists: [DEFAULT_READLIST, { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" }] }));
+		assert.equal(choice.readlistPicker.choiceLabel, "Choose a readlist");
+		assert.equal(choice.save?.disabled, true);
+		assert.equal(choice.notificationSender, undefined);
+		const missing = toGmailPageViewModel(input({ state: { sender: "other@example.com" }, notification: true }));
+		assert.equal(missing.notificationSender, undefined);
+		assert.equal(missing.save, undefined);
+	});
+
+	it("opens an already mapped newsletter with its current destination", () => {
+		const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
+		const page = input({ senders: [mapped(TLDR)], destinations: new Map([[ALL_ADDRESS, { ...ALL_ENTRY, readlist: TECH.slug }]]), readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR }, notification: true });
+		const current = toGmailPageViewModel(page);
+		assert.equal(current.readlistPicker.choiceLabel, "Tech");
+		assert.equal(current.save?.disabled, false);
+		assert.equal(current.save?.offerImport, false);
+		const missing = toGmailPageViewModel({ ...page, destinations: new Map() });
+		assert.equal(missing.readlistPicker.choiceLabel, "Choose a readlist");
+		assert.equal(missing.save?.disabled, true);
 	});
 
 	it.each(["readlist_invalid", "readlist_name_invalid", "readlist_limit"])("opens the readlist picker for %s", (error) => {

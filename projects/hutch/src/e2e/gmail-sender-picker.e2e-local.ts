@@ -3,7 +3,7 @@ import { measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { expect, type Page } from "@playwright/test";
 import { z } from "zod";
-import { markSenderSearchTriggers } from "./gmail-sender-picker.browser";
+import { markSenderSearchTriggers, notificationControlStyles } from "./gmail-sender-picker.browser";
 import { measureBoxes } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -137,6 +137,53 @@ function mappingRow(page: Page, sender: string) {
 
 test.describe("Gmail sender picker", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
+
+	for (const presentation of [
+		{ label: "desktop-light", width: 1280, height: 900, scheme: "light" as const },
+		{ label: "desktop-dark", width: 1280, height: 900, scheme: "dark" as const },
+		{ label: "mobile-light", width: 375, height: 812, scheme: "light" as const },
+		{ label: "mobile-dark", width: 375, height: 812, scheme: "dark" as const },
+	]) {
+		test(`dismisses notification borders at disabled Save and saves by keyboard in ${presentation.label}`, async ({ page }, testInfo) => {
+			await page.setViewportSize({ width: presentation.width, height: presentation.height });
+			await page.emulateMedia({ colorScheme: presentation.scheme });
+			await openGmail(page, `notification-${presentation.label}-${testInfo.workerIndex}-${Date.now()}`, { readlists: ["Tech"] });
+			await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(TLDR)}&notification=1&discovery=started`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
+			await waitForBrandFonts(page, ["Inter"]);
+			await expect(page.locator("#gmail-readlist-choice")).toHaveText("Choose a readlist");
+			const save = page.locator("[data-test-gmail-save]");
+			await expect(save).toBeDisabled();
+			await expect(page.locator("[data-gmail-notification-highlight]")).toHaveCount(1);
+			await save.scrollIntoViewIfNeeded();
+			const before = await page.evaluate(notificationControlStyles);
+			assert.equal(before.controls.length, 2);
+			for (const control of before.controls) {
+				assert.equal(control.border, before.brand);
+				assert.ok(control.shadow.includes(before.brand));
+				assert.ok(control.x >= 0 && control.x + control.width <= presentation.width);
+			}
+			const saveBox = await measuredBox(page, "[data-test-gmail-save]");
+			await page.mouse.click(saveBox.x + saveBox.width / 2, saveBox.y + saveBox.height / 2);
+			await expect(page.locator("[data-gmail-notification-highlight]")).toHaveCount(0);
+			const after = await page.evaluate(notificationControlStyles);
+			assert.deepEqual(after.controls.map(({ x, y, width, height }) => ({ x, y, width, height })), before.controls.map(({ x, y, width, height }) => ({ x, y, width, height })));
+			await page.locator(`${READLIST_PICKER} summary`).focus();
+			await page.keyboard.press("Enter");
+			await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
+			await expect(page.locator("#gmail-readlist-name")).toBeFocused();
+			await page.keyboard.press("ArrowUp");
+			await page.keyboard.press("ArrowUp");
+			await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeFocused();
+			await page.keyboard.press("Enter");
+			await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
+			await expect(page.locator("[data-gmail-notification-highlight]")).toHaveCount(0);
+			await expect(save).toBeEnabled();
+			await save.focus();
+			await page.keyboard.press("Enter");
+			await expect(mappingRow(page, TLDR)).toBeVisible();
+		});
+	}
 
 	test("maps a searched sender, moves a legacy inbox mapping to All, then removes every mapping", async ({
 		page,
@@ -406,10 +453,18 @@ test.describe("Gmail sender picker", () => {
 test.describe("Gmail sender picker without JavaScript", () => {
 	test.use({ javaScriptEnabled: false });
 
-	test("loads, searches, creates a readlist and saves its sender through ordinary forms", async ({
+	test("opens a notification, chooses among readlists, searches and saves through ordinary forms", async ({
 		page,
 	}, testInfo) => {
-		await openGmail(page, `nojs-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false });
+		await openGmail(page, `nojs-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false, readlists: ["Tech"] });
+		await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(KALE)}&notification=1&discovery=started`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator("#gmail-sender-choice")).toContainText(KALE);
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Choose a readlist");
+		await expect(page.locator("[data-test-gmail-save]")).toBeDisabled();
+		await page.locator(`${READLIST_PICKER} summary`).click();
+		await page.locator('[data-test-gmail-readlist-option="default"]').click();
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
+		await expect(page.locator("[data-test-gmail-save]")).toBeEnabled();
 		await page.locator("#gmail-load-senders-button").click();
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await page.locator("#gmail-sender-search").fill("Hacker");

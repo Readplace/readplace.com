@@ -1539,6 +1539,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../hutch-storage-client
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
       zod:
         specifier: 4.4.3
         version: 4.4.3

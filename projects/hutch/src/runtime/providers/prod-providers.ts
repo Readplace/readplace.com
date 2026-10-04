@@ -78,6 +78,7 @@ import {
 	initDynamoDbGmailCredentials,
 	initDynamoDbGmailSender,
 	initDynamoDbGmailDiscovery,
+	initDynamoDbGmailMonitoring,
 	initDynamoDbGmailHistoryImport,
 } from "@packages/inbox-store";
 import {
@@ -386,6 +387,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		gmailDiscoveryStore: initDynamoDbGmailDiscovery({
 			client,
 			tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"),
+			now: () => new Date(),
+		}),
+		gmailMonitoringStore: initDynamoDbGmailMonitoring({
+			client,
+			tableName: requireEnv("DYNAMODB_GMAIL_MONITORING_TABLE"),
 			now: () => new Date(),
 		}),
 		publishStartGmailSenderDiscovery: async (detail: { userId: UserId }) => {

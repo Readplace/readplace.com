@@ -43,6 +43,7 @@ import type {
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type { GmailHistoryImportStore } from "@packages/domain/gmail";
+import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type {
 	EmailIdentityStore,
 	InboxAddressStore,
@@ -71,6 +72,7 @@ export interface DeleteAccountHandlerDependencies {
 	tombstoneInboxAddresses: InboxAddressStore["tombstoneUserAddresses"];
 	deleteReadlistAddressClaims: InboxAddressStore["deleteReadlistAddressClaims"];
 	deleteAllGmailHistoryImports: GmailHistoryImportStore["deleteAllByUserId"];
+	deleteAllGmailMonitoring: GmailMonitoringStore["deleteAllByUserId"];
 	deleteAllEmailIdentities: EmailIdentityStore["deleteAllByUserId"];
 	disconnectGmail: DisconnectGmail;
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
@@ -151,6 +153,7 @@ async function processCommand(
 	await deps.deleteAllInboxEmails(userId);
 	await deps.deleteRawEmailObjectsByPrefix([`gmail-import/${userId}`]);
 	await deps.deleteAllGmailHistoryImports(userId);
+	await deps.deleteAllGmailMonitoring(userId);
 	await deps.deleteAllEmailIdentities(userId);
 	const gmailTeardown = await deps.disconnectGmail({ userId });
 	assert(
