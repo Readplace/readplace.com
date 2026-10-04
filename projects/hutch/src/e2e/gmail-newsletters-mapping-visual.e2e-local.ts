@@ -171,17 +171,20 @@ async function captureMatrix(
 	input: { state: string; settled: (page: Page) => Promise<void>; geometry: (page: Page) => Promise<void> },
 ): Promise<void> {
 	for (const width of WIDTHS) {
-		await fitViewportToPage(page, width.viewport);
 		for (const theme of THEMES) {
+			await page.setViewportSize(width.viewport);
 			await page.emulateMedia({ colorScheme: theme });
 			await captureCheckpoint(page, {
 				name: `gmail-mapping-${input.state}-${width.name}-${theme}`,
 				settled: async (settling) => {
+					await input.settled(settling);
 					await settling.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
 					await settling.mouse.move(0, 0);
-					await input.settled(settling);
 				},
-				geometry: input.geometry,
+				geometry: async (settling) => {
+					await fitViewportToPage(settling, width.viewport);
+					await input.geometry(settling);
+				},
 				target: MAIN,
 				capture: "element",
 				pinnedText: [],
@@ -193,6 +196,82 @@ async function captureMatrix(
 
 test.describe("GMail Newsletters mapping", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("sizes the selected destination independently of when confirmation arrives", async ({
+		page,
+	}, testInfo) => {
+		await openGmail(page, {
+			stamp: `confirmation-race-${testInfo.workerIndex}-${Date.now()}`,
+			seed: { readlists: ["Tech"], mappings: [] },
+		});
+		await chooseSender(page, TLDR.email);
+		await openReadlistPicker(page);
+		await createReadlist(page, { name: "Tech", alert: "readlist_reused" });
+		await openReadlistPicker(page);
+		await createReadlist(page, { name: "Science", alert: "readlist_created" });
+		await openReadlistPicker(page);
+
+		let releaseResponse: (() => void) | undefined;
+		const responseHeld = new Promise<void>((resolve) => {
+			releaseResponse = resolve;
+		});
+		let markResponseReady: (() => void) | undefined;
+		const responseReady = new Promise<void>((resolve) => {
+			markResponseReady = resolve;
+		});
+		await page.route(
+			(url) => url.pathname === "/newsletters/gmail" && url.searchParams.has("confirm_readlists"),
+			async (route) => {
+				assert.equal(route.request().method(), "GET");
+				assert.equal(route.request().headers()["hx-request"], "true");
+				const response = await route.fetch();
+				assert.equal(response.status(), 200, "confirmation must produce the final Gmail page");
+				assert(markResponseReady, "the fetched response must signal readiness");
+				markResponseReady();
+				await responseHeld;
+				await route.fulfill({ response });
+			},
+		);
+
+		try {
+			await page.locator("[data-gmail-confirm-readlists]").click();
+			await responseReady;
+			await expect(page.locator('[data-test-alert="readlist_created"]')).toBeVisible();
+			const firstCapture: {
+				viewport: NonNullable<ReturnType<Page["viewportSize"]>>;
+				main: Awaited<ReturnType<typeof measuredBox>>;
+			}[] = [];
+			for (const phase of ["pending", "settled"] as const) {
+				let checkpoint = 0;
+				await captureMatrix(page, {
+					state: "destination-selected",
+					settled: async (settling) => {
+						assert(releaseResponse, "the held confirmation must be releasable");
+						releaseResponse();
+						await readlistChosen(settling);
+						await expect(settling.locator('[data-test-alert="readlist_created"]')).toHaveCount(0);
+						await expect(settling.locator(IMPORT_CHECKBOX)).not.toBeChecked();
+					},
+					geometry: async (settling) => {
+						await noSidewaysScroll(settling);
+						const viewport = settling.viewportSize();
+						assert(viewport, "the capture must use a fixed viewport");
+						const geometry = { viewport, main: await measuredBox(settling, MAIN) };
+						if (phase === "pending") firstCapture.push(geometry);
+						else assert.deepEqual(
+							geometry,
+							firstCapture[checkpoint],
+							"equivalent destination states must have identical capture bounds regardless of response timing",
+						);
+						checkpoint += 1;
+					},
+				});
+			}
+		} finally {
+			assert(releaseResponse, "the held confirmation must be releasable");
+			releaseResponse();
+		}
+	});
 
 	test("chooses a readlist, validates, reuses and creates readlists inline, then saves the mapping", async ({
 		page,
