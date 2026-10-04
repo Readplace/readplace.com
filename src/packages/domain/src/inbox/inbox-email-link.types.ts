@@ -6,6 +6,7 @@ import type {
 	EmailLinkStatus,
 	InboxEmailLinkDrop,
 	InboxReadlistDecision,
+	InboxReadlistOutcome,
 	SettledInboxReadlistDecision,
 } from "./inbox-email-link.schema";
 
@@ -44,6 +45,10 @@ export interface InboxEmailLinksMeta {
 	 * instead of being told the email contained no links. */
 	extractionFailed: boolean;
 	readlistDecision: InboxReadlistDecision | undefined;
+	selectedReadlists?: { readlist: ReadlistSlug; label: string }[];
+	eligibleArticleCount?: number;
+	savesHeld?: boolean;
+	readlistOutcomes?: InboxReadlistOutcome[];
 }
 
 /** A crawl outcome to stamp onto a `pending` link. The discriminated union makes
@@ -88,6 +93,9 @@ export interface InboxEmailLinkStore {
 			truncated: boolean;
 			extractionFailed: boolean;
 			readlistDecision: { readlist: ReadlistSlug } | undefined;
+			selectedReadlists?: { readlist: ReadlistSlug; label: string }[];
+			eligibleArticleCount?: number;
+			savesHeld?: boolean;
 		};
 	}) => Promise<void>;
 	/** Record that extraction gave up, as the barrier itself. Conditional on the
@@ -110,12 +118,20 @@ export interface InboxEmailLinkStore {
 		receivedAtMessageId: string;
 		decision: SettledInboxReadlistDecision;
 	}) => Promise<"settled" | "already-settled">;
+	putReadlistOutcome: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		outcome: InboxReadlistOutcome;
+	}) => Promise<"stored" | "duplicate">;
 	/** Every link for one email, in ordinal order, plus the meta item if present.
 	 * Single Query (partition = the email), no GSI, no scan. */
 	listLinksByEmail: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
-	}) => Promise<{ links: InboxEmailLinkEntry[]; meta: InboxEmailLinksMeta | undefined }>;
+	}) => Promise<{
+		links: InboxEmailLinkEntry[];
+		meta: InboxEmailLinksMeta | undefined;
+	}>;
 	/** Read one link by ordinal (the per-card poll route). */
 	getLink: (input: {
 		userId: UserId;
@@ -132,5 +148,8 @@ export interface InboxEmailLinkStore {
 	/** Convenience over {@link deleteLinksByEmail} for the delete worker: loops it
 	 * across every one of the user's emails, whose sort keys the worker gathers
 	 * before deleting the email rows themselves. */
-	deleteAllLinksByUserId: (userId: UserId, receivedAtMessageIds: string[]) => Promise<void>;
+	deleteAllLinksByUserId: (
+		userId: UserId,
+		receivedAtMessageIds: string[],
+	) => Promise<void>;
 }

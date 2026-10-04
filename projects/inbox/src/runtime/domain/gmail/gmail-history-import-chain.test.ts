@@ -1,5 +1,5 @@
+import { initResumeAcceptedGmailEmail } from "../inbox/resume-accepted-gmail-email";
 import assert from "node:assert/strict";
-import type { z } from "zod";
 import {
 	ForwardableSenderSchema,
 	GmailAccountEmailSchema,
@@ -9,11 +9,15 @@ import {
 import {
 	deriveSanitizedBody,
 	GMAIL_FORWARDING_ALIAS,
-	InboxAddressSchema,
 	type InboxAddress,
+	InboxAddressSchema,
 	parseEmail,
 } from "@packages/domain/inbox";
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	type ReadlistSlug,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConfirmGmailForwardingCommand,
@@ -35,19 +39,26 @@ import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gma
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { initInMemoryInboxEmail, initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
+import {
+	initInMemoryInboxEmail,
+	initInMemoryInboxEmailLink,
+} from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import type { z } from "zod";
 import { initExtractEmailLinksHandler } from "../inbox/extract-email-links-handler";
 import { initIngestGmailImportHandler } from "../inbox/ingest-gmail-import-handler";
 import { initIngestParsedEmail } from "../inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "../inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "../inbox/receive-email-handler";
+import { initRecordEmailLinksFilteredHandler } from "../inbox/record-email-links-filtered-handler";
 import { initResolveEmailIdentity } from "../inbox/resolve-email-identity";
 import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
 
 const READER = UserIdSchema.parse("00000000000000000000000000000001");
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
-const JOB = GmailHistoryImportJobIdSchema.parse("0123456789abcdef0123456789abcdef");
+const JOB = GmailHistoryImportJobIdSchema.parse(
+	"0123456789abcdef0123456789abcdef",
+);
 const GENERATION = "generation-1";
 const GMAIL_MESSAGE_ID = "18c2f0a1b2c3d4e5";
 const INTERNAL_DATE = "2026-09-20T07:30:00.000Z";
@@ -100,13 +111,16 @@ function makePipeline() {
 		now,
 	});
 	const ingest = initIngestParsedEmail({
-		storeBody: async ({ receivedAtMessageId }) => `content/${receivedAtMessageId}/content.html`,
+		storeBody: async ({ receivedAtMessageId }) =>
+			`content/${receivedAtMessageId}/content.html`,
 		putEmail: emails.putEmail,
+		getEmail: emails.getEmail,
 		publishEvent,
 		logger,
 	});
 
 	const ingestImport = initIngestGmailImportHandler({
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, publishEvent }),
 		readRawEmail,
 		parseEmail,
 		findByAddress: addresses.findByAddress,
@@ -120,6 +134,7 @@ function makePipeline() {
 	});
 
 	const receive = initReceiveEmailHandler({
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, publishEvent }),
 		readRawEmail,
 		findByAddress: addresses.findByAddress,
 		putEmail: emails.putEmail,
@@ -128,10 +143,15 @@ function makePipeline() {
 		resolveIdentity,
 		ingest,
 		interceptGmailConfirmation: initInterceptGmailConfirmation({
-			publishConfirmGmailForwarding: (detail) => publishEvent(ConfirmGmailForwardingCommand, detail),
+			publishConfirmGmailForwarding: (detail) =>
+				publishEvent(ConfirmGmailForwardingCommand, detail),
 			logger,
 		}),
-		routeGmailForwardedEmail: initRouteGmailForwardedEmail({ senders, heldMail: initInMemoryGmailHeldMail(), logger }),
+		routeGmailForwardedEmail: initRouteGmailForwardedEmail({
+			senders,
+			heldMail: initInMemoryGmailHeldMail(),
+			logger,
+		}),
 		logger,
 		maxEmailBytes: 20 * 1024 * 1024,
 	});
@@ -147,37 +167,75 @@ function makePipeline() {
 		setEmailLinkCounts: emails.setEmailLinkCounts,
 		publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 		publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
-		publishEmailLinksTriaged: (input) => publishEvent(EmailLinksTriagedEvent, input),
+		publishEmailLinksTriaged: (input) =>
+			publishEvent(EmailLinksTriagedEvent, input),
 		alertTruncated: async () => {},
 		publishSaveHeldNotice: ({ userId, receivedAtMessageId, inboxAddress }) =>
-			publishEvent(SendTrialFeedbackEmailCommand, { userId, kind: "automation_saves_held", receivedAtMessageId, inboxAddress }),
-		publishFirstInboxEmailNotice: (input) => publishEvent(SendFirstInboxEmailNoticeCommand, input),
+			publishEvent(SendTrialFeedbackEmailCommand, {
+				userId,
+				kind: "automation_saves_held",
+				receivedAtMessageId,
+				inboxAddress,
+			}),
+		publishFirstInboxEmailNotice: (input) =>
+			publishEvent(SendFirstInboxEmailNoticeCommand, input),
 		findSubscriptionByUserId: async () => undefined,
 		findInboxAddress: addresses.findByAddress,
+		listReadlistDefinitions: async () => [
+			{ slug: WORK, label: "Work", createdAt: NOW },
+			{ slug: LATER, label: "Later", createdAt: NOW },
+			{
+				slug: ReadlistSlugSchema.parse("science"),
+				label: "Science",
+				createdAt: NOW,
+			},
+		],
 		now,
 		triageEmailLinks: async (input) => ({
 			status: "triaged",
-			categories: new Map(input.links.map((link) => [link.ordinal, "article" as const])),
+			categories: new Map(
+				input.links.map((link) => [link.ordinal, "article" as const]),
+			),
 		}),
 		logger,
 		maxLinks: 200,
 	});
 
-	const run = async (handler: typeof receive, records: { messageId: string; body: string }[]) => {
-		const response = await handler(buildSqsEvent(records), buildLambdaContext(), () => {});
+	const run = async (
+		handler: typeof receive,
+		records: { messageId: string; body: string }[],
+	) => {
+		const response = await handler(
+			buildSqsEvent(records),
+			buildLambdaContext(),
+			() => {},
+		);
 		assert(response, "every handler returns a batch response");
 		assert.deepEqual(response.batchItemFailures, []);
 	};
 
 	const readlistAddress = async (readlist: ReadlistSlug) =>
-		(await addresses.getOrCreateReadlistAddress({ userId: READER, domain: "read.place", readlist })).address;
+		(
+			await addresses.getOrCreateReadlistAddress({
+				userId: READER,
+				domain: "read.place",
+				readlist,
+			})
+		).address;
 
-	const startImport = async (input: { jobId: GmailHistoryImportJobId; destinationAddress: InboxAddress }) => {
+	const startImport = async (input: {
+		jobId: GmailHistoryImportJobId;
+		destinationAddress: InboxAddress;
+		additionalAddresses?: InboxAddress[];
+	}) => {
 		await imports.createJob({
 			userId: READER,
 			jobId: input.jobId,
 			senderEmail: TLDR,
-			destinationAddress: input.destinationAddress,
+			destinationAddresses: [
+				input.destinationAddress,
+				...(input.additionalAddresses ?? []),
+			],
 			connection: {
 				gatewayAddress: InboxAddressSchema.parse("gmail-def456@read.place"),
 				accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
@@ -188,18 +246,41 @@ function makePipeline() {
 			pageToken: undefined,
 			listingCompletedAt: undefined,
 			state: "awaiting-permission",
-			counts: { listed: 0, imported: 0, alreadyImported: 0, skippedNoMessageId: 0, skippedSenderMismatch: 0, failed: 0, cancelled: 0 },
+			counts: {
+				listed: 0,
+				imported: 0,
+				alreadyImported: 0,
+				skippedNoMessageId: 0,
+				skippedSenderMismatch: 0,
+				failed: 0,
+				cancelled: 0,
+			},
 			failureReason: undefined,
 			cancelReason: undefined,
 			createdAt: NOW.toISOString(),
 			updatedAt: NOW.toISOString(),
 			completedAt: undefined,
 		});
-		await imports.startJob({ userId: READER, jobId: input.jobId, generation: GENERATION, now: NOW });
-		await imports.claimPage({ userId: READER, jobId: input.jobId, generation: GENERATION, page: 0, now: NOW });
+		await imports.startJob({
+			userId: READER,
+			jobId: input.jobId,
+			generation: GENERATION,
+			now: NOW,
+		});
+		await imports.claimPage({
+			userId: READER,
+			jobId: input.jobId,
+			generation: GENERATION,
+			page: 0,
+			now: NOW,
+		});
 	};
 
-	const deliverFetched = async (input: { destinationAddress: InboxAddress; messageId: string }) => {
+	const deliverFetched = async (input: {
+		destinationAddress: InboxAddress;
+		additionalAddresses?: InboxAddress[];
+		messageId: string;
+	}) => {
 		const rawEmailS3Key = `gmail-import/${READER}/${JOB}/${GMAIL_MESSAGE_ID}.eml`;
 		rawObjects.set(rawEmailS3Key, tldrIssueEml(input.messageId));
 		const detail = GmailHistoryImportMessageFetchedEvent.detailSchema.parse({
@@ -209,14 +290,23 @@ function makePipeline() {
 			gmailMessageId: GMAIL_MESSAGE_ID,
 			accountEmail: "reader@gmail.com",
 			senderEmail: TLDR,
-			destinationAddress: input.destinationAddress,
+			destinationAddresses: [
+				input.destinationAddress,
+				...(input.additionalAddresses ?? []),
+			],
 			rawEmailS3Key,
 			internalDate: INTERNAL_DATE,
 		});
-		await run(ingestImport, [{ messageId: "fetched-1", body: JSON.stringify({ detail }) }]);
+		await run(ingestImport, [
+			{ messageId: "fetched-1", body: JSON.stringify({ detail }) },
+		]);
 	};
 
-	const forward = async (input: { gateway: InboxAddress; messageId: string; sesMessageId: string }) => {
+	const forward = async (input: {
+		gateway: InboxAddress;
+		messageId: string;
+		sesMessageId: string;
+	}) => {
 		const objectKey = `inbound/${input.sesMessageId}`;
 		rawObjects.set(objectKey, tldrIssueEml(input.messageId));
 		await run(receive, [
@@ -224,7 +314,11 @@ function makePipeline() {
 				messageId: input.sesMessageId,
 				body: JSON.stringify({
 					mail: { messageId: input.sesMessageId },
-					receipt: { timestamp: FORWARDED_AT, recipients: [input.gateway], action: { objectKey } },
+					receipt: {
+						timestamp: FORWARDED_AT,
+						recipients: [input.gateway],
+						action: { objectKey },
+					},
 				}),
 			},
 		]);
@@ -233,25 +327,65 @@ function makePipeline() {
 	const extractEach = async (entries: Published[]) => {
 		for (const [index, entry] of entries.entries()) {
 			await run(extract, [
-				{ messageId: `received-${index}`, body: JSON.stringify({ "detail-type": entry.event.detailType, detail: entry.detail }) },
+				{
+					messageId: `received-${index}`,
+					body: JSON.stringify({
+						"detail-type": entry.event.detailType,
+						detail: entry.detail,
+					}),
+				},
 			]);
 		}
 	};
 
-	const mapGatewaySender = async (mappedAddress: InboxAddress) => {
-		await senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddress });
+	const mapGatewaySender = async (
+		mappedAddress: InboxAddress,
+		additionalAddresses: InboxAddress[] = [],
+	) => {
+		await senders.mapSenderToAddress({
+			userId: READER,
+			senderEmail: TLDR,
+			mappedAddresses: [mappedAddress, ...additionalAddresses],
+		});
 		await senders.addSenderToFilter({ userId: READER, senderEmail: TLDR });
 	};
 
 	const gatewayAddress = async () =>
-		(await addresses.createAddress({ userId: READER, domain: "read.place", name: GMAIL_FORWARDING_ALIAS, purpose: "gmail-forwarding" }))
-			.address;
+		(
+			await addresses.createAddress({
+				userId: READER,
+				domain: "read.place",
+				name: GMAIL_FORWARDING_ALIAS,
+				purpose: "gmail-forwarding",
+			})
+		).address;
 
-	const rows = async () => (await emails.listEmailsByUserId({ userId: READER, cursor: undefined, pageSize: 10 })).emails;
+	const rows = async () =>
+		(
+			await emails.listEmailsByUserId({
+				userId: READER,
+				cursor: undefined,
+				pageSize: 10,
+			})
+		).emails;
 
-	const publishedOf = (event: HutchEvent<z.ZodTypeAny>) => published.filter((entry) => entry.event === event);
+	const publishedOf = (event: HutchEvent<z.ZodTypeAny>) =>
+		published.filter((entry) => entry.event === event);
 
-	return { published, publishedOf, readlistAddress, startImport, deliverFetched, forward, extractEach, mapGatewaySender, gatewayAddress, rows };
+	return {
+		links,
+		emails,
+		published,
+		publishedOf,
+		readlistAddress,
+		startImport,
+		deliverFetched,
+		forward,
+		extractEach,
+		mapGatewaySender,
+		gatewayAddress,
+		rows,
+	};
 }
 
 describe("gmail history import chain (inbox half)", () => {
@@ -260,43 +394,96 @@ describe("gmail history import chain (inbox half)", () => {
 		const destinationAddress = await pipeline.readlistAddress(WORK);
 		await pipeline.startImport({ jobId: JOB, destinationAddress });
 
-		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>" });
+		await pipeline.deliverFetched({
+			destinationAddress,
+			messageId: "<issue-42@tldr.tech>",
+		});
 
 		const receivedAtMessageId = `${INTERNAL_DATE}#<issue-42@tldr.tech>`;
-		assert.deepEqual(pipeline.publishedOf(GmailHistoryImportMessageIngestedEvent).map((entry) => entry.detail), [
-			{ userId: READER, jobId: JOB, generation: GENERATION, gmailMessageId: GMAIL_MESSAGE_ID, outcome: "imported", receivedAtMessageId },
-		]);
+		assert.deepEqual(
+			pipeline
+				.publishedOf(GmailHistoryImportMessageIngestedEvent)
+				.map((entry) => entry.detail),
+			[
+				{
+					userId: READER,
+					jobId: JOB,
+					generation: GENERATION,
+					gmailMessageId: GMAIL_MESSAGE_ID,
+					outcome: "imported",
+					receivedAtMessageId,
+				},
+			],
+		);
 		const received = pipeline.publishedOf(EmailReceivedEvent);
-		assert.deepEqual(received.map((entry) => entry.detail), [
-			{ userId: READER, receivedAtMessageId, recipientAddress: destinationAddress, origin: "gmail-import" },
-		]);
+		assert.deepEqual(
+			received.map((entry) => entry.detail),
+			[
+				{
+					userId: READER,
+					receivedAtMessageId,
+					recipientAddress: destinationAddress,
+					origin: "gmail-import",
+					routing: {
+						kind: "gmail",
+						destinationAddresses: [destinationAddress],
+					},
+				},
+			],
+		);
 
 		await pipeline.extractEach(received);
 
-		assert.deepEqual(pipeline.publishedOf(EmailLinksTriagedEvent).map((entry) => entry.detail), [
-			{
-				userId: READER,
-				receivedAtMessageId,
-				readlist: WORK,
-				senderEmail: "dan@tldr.tech",
-				subject: "TLDR 2026-09-20",
-				links: [{ ordinal: "0000", url: STORY_URL, anchorText: "Story" }],
-			},
-		]);
-		assert.deepEqual(pipeline.publishedOf(SubmitLinkCommand), []);
+		assert.deepEqual(
+			pipeline.publishedOf(EmailLinksTriagedEvent).map((entry) => entry.detail),
+			[
+				{
+					userId: READER,
+					receivedAtMessageId,
+					readlist: WORK,
+					senderEmail: "dan@tldr.tech",
+					subject: "TLDR 2026-09-20",
+					links: [{ ordinal: "0000", url: STORY_URL, anchorText: "Story" }],
+				},
+			],
+		);
+		assert.deepEqual(
+			pipeline.publishedOf(SubmitLinkCommand).map(({ detail }) => detail),
+			[
+				{
+					userId: READER,
+					url: STORY_URL,
+					readlist: DEFAULT_READLIST_SLUG,
+					provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+				},
+			],
+		);
 	});
 
 	it("delivers an imported issue into All with the email as its provenance", async () => {
 		const pipeline = makePipeline();
-		const destinationAddress = await pipeline.readlistAddress(DEFAULT_READLIST_SLUG);
+		const destinationAddress = await pipeline.readlistAddress(
+			DEFAULT_READLIST_SLUG,
+		);
 		await pipeline.startImport({ jobId: JOB, destinationAddress });
 
-		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>" });
+		await pipeline.deliverFetched({
+			destinationAddress,
+			messageId: "<issue-42@tldr.tech>",
+		});
 		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
 
-		assert.deepEqual(pipeline.publishedOf(SubmitLinkCommand).map((entry) => entry.detail), [
-			{ userId: READER, url: STORY_URL, provenance: { kind: "email", senderEmail: "dan@tldr.tech" }, readlist: DEFAULT_READLIST_SLUG },
-		]);
+		assert.deepEqual(
+			pipeline.publishedOf(SubmitLinkCommand).map((entry) => entry.detail),
+			[
+				{
+					userId: READER,
+					url: STORY_URL,
+					provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+					readlist: DEFAULT_READLIST_SLUG,
+				},
+			],
+		);
 		assert.deepEqual(pipeline.publishedOf(EmailLinksTriagedEvent), []);
 	});
 
@@ -307,14 +494,35 @@ describe("gmail history import chain (inbox half)", () => {
 		const remapped = await pipeline.readlistAddress(LATER);
 		await pipeline.mapGatewaySender(remapped);
 
-		await pipeline.forward({ gateway, messageId: "<issue-43@tldr.tech>", sesMessageId: "ses-43" });
+		await pipeline.forward({
+			gateway,
+			messageId: "<issue-43@tldr.tech>",
+			sesMessageId: "ses-43",
+		});
 		const received = pipeline.publishedOf(EmailReceivedEvent);
 		await pipeline.extractEach(received);
 
-		assert.deepEqual(received.map((entry) => entry.detail), [
-			{ userId: READER, receivedAtMessageId: `${FORWARDED_AT}#<issue-43@tldr.tech>`, recipientAddress: remapped, origin: "receive" },
-		]);
-		assert.deepEqual(pipeline.publishedOf(EmailLinksTriagedEvent).map((entry) => EmailLinksTriagedEvent.detailSchema.parse(entry.detail).readlist), [LATER]);
+		assert.deepEqual(
+			received.map((entry) => entry.detail),
+			[
+				{
+					userId: READER,
+					receivedAtMessageId: `${FORWARDED_AT}#<issue-43@tldr.tech>`,
+					recipientAddress: remapped,
+					origin: "receive",
+					routing: { kind: "gmail", destinationAddresses: [remapped] },
+				},
+			],
+		);
+		assert.deepEqual(
+			pipeline
+				.publishedOf(EmailLinksTriagedEvent)
+				.map(
+					(entry) =>
+						EmailLinksTriagedEvent.detailSchema.parse(entry.detail).readlist,
+				),
+			[LATER],
+		);
 	});
 
 	it("reports an issue already forwarded as already imported, keeping the single forwarded copy", async () => {
@@ -322,16 +530,38 @@ describe("gmail history import chain (inbox half)", () => {
 		const destinationAddress = await pipeline.readlistAddress(WORK);
 		const gateway = await pipeline.gatewayAddress();
 		await pipeline.mapGatewaySender(destinationAddress);
-		await pipeline.forward({ gateway, messageId: "<issue-42@tldr.tech>", sesMessageId: "ses-42" });
+		await pipeline.forward({
+			gateway,
+			messageId: "<issue-42@tldr.tech>",
+			sesMessageId: "ses-42",
+		});
 		await pipeline.startImport({ jobId: JOB, destinationAddress });
 
-		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>" });
+		await pipeline.deliverFetched({
+			destinationAddress,
+			messageId: "<issue-42@tldr.tech>",
+		});
 
-		assert.deepEqual((await pipeline.rows()).map((row) => row.receivedAtMessageId), [`${FORWARDED_AT}#<issue-42@tldr.tech>`]);
+		assert.deepEqual(
+			(await pipeline.rows()).map((row) => row.receivedAtMessageId),
+			[`${FORWARDED_AT}#<issue-42@tldr.tech>`],
+		);
 		assert.equal(pipeline.publishedOf(EmailReceivedEvent).length, 1);
-		assert.deepEqual(pipeline.publishedOf(GmailHistoryImportMessageIngestedEvent).map((entry) => entry.detail), [
-			{ userId: READER, jobId: JOB, generation: GENERATION, gmailMessageId: GMAIL_MESSAGE_ID, outcome: "already-imported", receivedAtMessageId: undefined },
-		]);
+		assert.deepEqual(
+			pipeline
+				.publishedOf(GmailHistoryImportMessageIngestedEvent)
+				.map((entry) => entry.detail),
+			[
+				{
+					userId: READER,
+					jobId: JOB,
+					generation: GENERATION,
+					gmailMessageId: GMAIL_MESSAGE_ID,
+					outcome: "already-imported",
+					receivedAtMessageId: undefined,
+				},
+			],
+		);
 	});
 
 	it("drops a forwarded copy of an issue already imported: no second row and no second announcement", async () => {
@@ -340,11 +570,142 @@ describe("gmail history import chain (inbox half)", () => {
 		const gateway = await pipeline.gatewayAddress();
 		await pipeline.mapGatewaySender(destinationAddress);
 		await pipeline.startImport({ jobId: JOB, destinationAddress });
-		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>" });
+		await pipeline.deliverFetched({
+			destinationAddress,
+			messageId: "<issue-42@tldr.tech>",
+		});
 
-		await pipeline.forward({ gateway, messageId: "<issue-42@tldr.tech>", sesMessageId: "ses-42" });
+		await pipeline.forward({
+			gateway,
+			messageId: "<issue-42@tldr.tech>",
+			sesMessageId: "ses-42",
+		});
 
-		assert.deepEqual((await pipeline.rows()).map((row) => row.receivedAtMessageId), [`${INTERNAL_DATE}#<issue-42@tldr.tech>`]);
+		assert.deepEqual(
+			(await pipeline.rows()).map((row) => row.receivedAtMessageId),
+			[`${INTERNAL_DATE}#<issue-42@tldr.tech>`],
+		);
 		assert.equal(pipeline.publishedOf(EmailReceivedEvent).length, 1);
 	});
 });
+
+for (const delivery of ["forward", "import"] as const) {
+	it(`keeps a ${delivery} article in All while custom lists accept, reject, and fail independently`, async () => {
+		const pipeline = makePipeline();
+		const failed = ReadlistSlugSchema.parse("science");
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		const additionalAddresses = [
+			await pipeline.readlistAddress(LATER),
+			await pipeline.readlistAddress(failed),
+		];
+		if (delivery === "forward") {
+			await pipeline.mapGatewaySender(destinationAddress, additionalAddresses);
+			await pipeline.forward({
+				gateway: await pipeline.gatewayAddress(),
+				messageId: "<issue-42@tldr.tech>",
+				sesMessageId: "ses-42",
+			});
+		} else {
+			await pipeline.startImport({
+				jobId: JOB,
+				destinationAddress,
+				additionalAddresses,
+			});
+			await pipeline.deliverFetched({
+				destinationAddress,
+				additionalAddresses,
+				messageId: "<issue-42@tldr.tech>",
+			});
+		}
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+		assert.deepEqual(
+			pipeline.publishedOf(SubmitLinkCommand).map(({ detail }) => detail),
+			[
+				{
+					userId: READER,
+					url: STORY_URL,
+					provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+					readlist: DEFAULT_READLIST_SLUG,
+				},
+			],
+		);
+		assert.deepEqual(
+			pipeline
+				.publishedOf(EmailLinksTriagedEvent)
+				.map(
+					({ detail }) =>
+						EmailLinksTriagedEvent.detailSchema.parse(detail).readlist,
+				),
+			[WORK, LATER, failed],
+		);
+		const row = (await pipeline.rows())[0];
+		const recordOutcome = initRecordEmailLinksFilteredHandler({
+			markLinkDropped: pipeline.links.markLinkDropped,
+			settleReadlistDecision: pipeline.links.settleReadlistDecision,
+			putReadlistOutcome: pipeline.links.putReadlistOutcome,
+			listLinksByEmail: pipeline.links.listLinksByEmail,
+			setEmailLinkCounts: pipeline.emails.setEmailLinkCounts,
+			logger: HutchLogger.from(noopLogger),
+		});
+		const details = [
+			{
+				"detail-type": "EmailLinksFiltered",
+				detail: {
+					userId: READER,
+					receivedAtMessageId: row.receivedAtMessageId,
+					readlist: WORK,
+					savedTo: WORK,
+					readlistLabel: "Work",
+					dropped: [],
+				},
+			},
+			{
+				"detail-type": "EmailLinksFiltered",
+				detail: {
+					userId: READER,
+					receivedAtMessageId: row.receivedAtMessageId,
+					readlist: LATER,
+					savedTo: LATER,
+					readlistLabel: "Later",
+					dropped: [{ ordinal: "0000", reason: "Outside this list" }],
+				},
+			},
+			{
+				"detail-type": "EmailLinksFilterFailed",
+				detail: {
+					userId: READER,
+					receivedAtMessageId: row.receivedAtMessageId,
+					readlist: failed,
+				},
+			},
+		];
+		const result = await recordOutcome(
+			buildSqsEvent(
+				details.map((detail, index) => ({
+					messageId: `outcome-${index}`,
+					body: JSON.stringify(detail),
+				})),
+			),
+			buildLambdaContext(),
+			() => {},
+		);
+		assert.deepEqual(result, { batchItemFailures: [] });
+		const { links, meta } = await pipeline.links.listLinksByEmail({
+			userId: READER,
+			receivedAtMessageId: row.receivedAtMessageId,
+		});
+		assert.equal(links[0].droppedFor, undefined);
+		assert.deepEqual(
+			meta?.readlistOutcomes?.map(({ readlist, decision, dropped }) => ({
+				readlist,
+				state: decision.state,
+				dropped: dropped.length,
+			})),
+			[
+				{ readlist: WORK, state: "decided", dropped: 0 },
+				{ readlist: LATER, state: "decided", dropped: 1 },
+				{ readlist: failed, state: "failed", dropped: 0 },
+			],
+		);
+	});
+}

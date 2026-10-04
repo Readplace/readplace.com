@@ -13,7 +13,7 @@ const FETCHED = {
 	gmailMessageId: "18c2f0a1b2c3d4e5",
 	accountEmail: "reader@gmail.com",
 	senderEmail: "dan@tldr.tech",
-	destinationAddress: "gmail-abc123@read.place",
+	destinationAddresses: ["gmail-abc123@read.place"],
 	rawEmailS3Key: "gmail-import/reader/job/18c2f0a1b2c3d4e5.eml",
 	internalDate: "2026-09-20T07:30:00.000Z",
 };
@@ -32,7 +32,11 @@ function makeHarness(publishEvent: PublishEvent) {
 		}),
 	});
 	const run = async (body: string) => {
-		const response = await handler(buildSqsEvent([{ messageId: "dead-1", body }]), buildLambdaContext(), () => {});
+		const response = await handler(
+			buildSqsEvent([{ messageId: "dead-1", body }]),
+			buildLambdaContext(),
+			() => {},
+		);
 		assert(response, "the handler always returns a batch response");
 		return response;
 	};
@@ -61,7 +65,9 @@ describe("initIngestGmailImportDlqHandler", () => {
 				},
 			},
 		]);
-		assert.deepEqual(errors, ["[ingest-gmail-import-dlq] import message gave up"]);
+		assert.deepEqual(errors, [
+			"[ingest-gmail-import-dlq] import message gave up",
+		]);
 	});
 
 	it("keeps the dead letter for another attempt when the failed outcome cannot be published", async () => {
@@ -71,7 +77,9 @@ describe("initIngestGmailImportDlqHandler", () => {
 
 		const response = await run(JSON.stringify({ detail: FETCHED }));
 
-		assert.deepEqual(response, { batchItemFailures: [{ itemIdentifier: "dead-1" }] });
+		assert.deepEqual(response, {
+			batchItemFailures: [{ itemIdentifier: "dead-1" }],
+		});
 		assert.deepEqual(errors, ["[ingest-gmail-import-dlq] record failed"]);
 	});
 
@@ -85,6 +93,8 @@ describe("initIngestGmailImportDlqHandler", () => {
 
 		assert.deepEqual(response, { batchItemFailures: [] });
 		assert.deepEqual(published, []);
-		assert.deepEqual(errors, ["[ingest-gmail-import-dlq] unidentifiable fetched message"]);
+		assert.deepEqual(errors, [
+			"[ingest-gmail-import-dlq] unidentifiable fetched message",
+		]);
 	});
 });

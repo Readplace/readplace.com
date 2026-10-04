@@ -11,9 +11,15 @@ const owner = UserIdSchema.parse("00000000000000000000000000000001");
 const otherUser = UserIdSchema.parse("00000000000000000000000000000002");
 const RAM = "2026-06-23T00:00:00.000Z#<m-1@example.com>";
 const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
-const DROPPED_FOR = { readlist: WORK, readlistLabel: "Work", reason: "A product launch, not practice." };
+const DROPPED_FOR = {
+	readlist: WORK,
+	readlistLabel: "Work",
+	reason: "A product launch, not practice.",
+};
 
-function makeLink(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry {
+function makeLink(
+	overrides: Partial<InboxEmailLinkEntry> = {},
+): InboxEmailLinkEntry {
 	return {
 		userId: owner,
 		receivedAtMessageId: RAM,
@@ -52,7 +58,9 @@ describe("initInMemoryInboxEmailLink", () => {
 		const store = initInMemoryInboxEmailLink();
 		await store.putLink(makeLink());
 
-		expect(await store.putLink(makeLink({ url: "https://tampered.test" }))).toBe("duplicate");
+		expect(
+			await store.putLink(makeLink({ url: "https://tampered.test" })),
+		).toBe("duplicate");
 
 		const found = await store.getLink({
 			userId: owner,
@@ -65,14 +73,26 @@ describe("initInMemoryInboxEmailLink", () => {
 
 	it("lists a single email's links in ordinal order with no meta by default", async () => {
 		const store = initInMemoryInboxEmailLink();
-		await store.putLink(makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0002") }));
-		await store.putLink(makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0000") }));
-		await store.putLink(makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0001") }));
 		await store.putLink(
-			makeLink({ userId: otherUser, ordinal: EmailLinkOrdinalSchema.parse("0000") }),
+			makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0002") }),
+		);
+		await store.putLink(
+			makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0000") }),
+		);
+		await store.putLink(
+			makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0001") }),
+		);
+		await store.putLink(
+			makeLink({
+				userId: otherUser,
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			}),
 		);
 
-		const { links, meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
+		const { links, meta } = await store.listLinksByEmail({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
 
 		expect(links.map((l) => l.ordinal)).toEqual(["0000", "0001", "0002"]);
 		expect(meta).toBeUndefined();
@@ -83,21 +103,42 @@ describe("initInMemoryInboxEmailLink", () => {
 		await store.putLinksMeta({
 			userId: owner,
 			receivedAtMessageId: RAM,
-			meta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
+			meta: {
+				truncated: true,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
-		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
-		expect(meta).toEqual({ truncated: true, extractionFailed: false, readlistDecision: undefined });
+		const { meta } = await store.listLinksByEmail({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
+		expect(meta).toEqual({
+			truncated: true,
+			extractionFailed: false,
+			readlistDecision: undefined,
+		});
 	});
 
 	it("writes a give-up barrier when extraction has not already reported", async () => {
 		const store = initInMemoryInboxEmailLink();
 
-		const result = await store.markLinksExtractionFailed({ userId: owner, receivedAtMessageId: RAM });
+		const result = await store.markLinksExtractionFailed({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
 
 		expect(result).toBe("stored");
-		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
-		expect(meta).toEqual({ truncated: false, extractionFailed: true, readlistDecision: undefined });
+		const { meta } = await store.listLinksByEmail({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
+		expect(meta).toEqual({
+			truncated: false,
+			extractionFailed: true,
+			readlistDecision: undefined,
+		});
 	});
 
 	it("leaves a completed extraction's barrier untouched when a duplicate delivery gives up", async () => {
@@ -105,14 +146,28 @@ describe("initInMemoryInboxEmailLink", () => {
 		await store.putLinksMeta({
 			userId: owner,
 			receivedAtMessageId: RAM,
-			meta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
+			meta: {
+				truncated: true,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
-		const result = await store.markLinksExtractionFailed({ userId: owner, receivedAtMessageId: RAM });
+		const result = await store.markLinksExtractionFailed({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
 
 		expect(result).toBe("superseded");
-		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
-		expect(meta).toEqual({ truncated: true, extractionFailed: false, readlistDecision: undefined });
+		const { meta } = await store.listLinksByEmail({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
+		expect(meta).toEqual({
+			truncated: true,
+			extractionFailed: false,
+			readlistDecision: undefined,
+		});
 	});
 
 	it("opens a deciding readlist decision on a routed email's barrier", async () => {
@@ -120,16 +175,30 @@ describe("initInMemoryInboxEmailLink", () => {
 		await store.putLinksMeta({
 			userId: owner,
 			receivedAtMessageId: RAM,
-			meta: { truncated: false, extractionFailed: false, readlistDecision: { readlist: WORK } },
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: { readlist: WORK },
+			},
 		});
 
-		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
-		expect(meta?.readlistDecision).toEqual({ state: "deciding", readlist: WORK });
+		const { meta } = await store.listLinksByEmail({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
+		expect(meta?.readlistDecision).toEqual({
+			state: "deciding",
+			readlist: WORK,
+		});
 	});
 
 	it("keeps a settled decision when a redelivered extraction rewrites the barrier", async () => {
 		const store = initInMemoryInboxEmailLink();
-		const meta = { truncated: false, extractionFailed: false, readlistDecision: { readlist: WORK } };
+		const meta = {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: { readlist: WORK },
+		};
 		await store.putLinksMeta({ userId: owner, receivedAtMessageId: RAM, meta });
 		await store.settleReadlistDecision({
 			userId: owner,
@@ -139,8 +208,15 @@ describe("initInMemoryInboxEmailLink", () => {
 
 		await store.putLinksMeta({ userId: owner, receivedAtMessageId: RAM, meta });
 
-		const listed = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
-		expect(listed.meta?.readlistDecision).toEqual({ state: "decided", readlist: WORK, readlistLabel: "Work" });
+		const listed = await store.listLinksByEmail({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
+		expect(listed.meta?.readlistDecision).toEqual({
+			state: "decided",
+			readlist: WORK,
+			readlistLabel: "Work",
+		});
 	});
 
 	it("keeps an open decision when the barrier is rewritten without one", async () => {
@@ -148,16 +224,27 @@ describe("initInMemoryInboxEmailLink", () => {
 		await store.putLinksMeta({
 			userId: owner,
 			receivedAtMessageId: RAM,
-			meta: { truncated: false, extractionFailed: false, readlistDecision: { readlist: WORK } },
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: { readlist: WORK },
+			},
 		});
 
 		await store.putLinksMeta({
 			userId: owner,
 			receivedAtMessageId: RAM,
-			meta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
+			meta: {
+				truncated: true,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
-		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
+		const { meta } = await store.listLinksByEmail({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
 		expect(meta).toEqual({
 			truncated: true,
 			extractionFailed: false,
@@ -170,7 +257,11 @@ describe("initInMemoryInboxEmailLink", () => {
 		await store.putLinksMeta({
 			userId: owner,
 			receivedAtMessageId: RAM,
-			meta: { truncated: false, extractionFailed: false, readlistDecision: { readlist: WORK } },
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: { readlist: WORK },
+			},
 		});
 
 		const first = await store.settleReadlistDecision({
@@ -185,13 +276,19 @@ describe("initInMemoryInboxEmailLink", () => {
 		});
 
 		expect([first, second]).toEqual(["settled", "already-settled"]);
-		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
+		const { meta } = await store.listLinksByEmail({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
 		expect(meta?.readlistDecision).toEqual({ state: "failed", readlist: WORK });
 	});
 
 	it("reports an unrouted barrier as already settled", async () => {
 		const store = initInMemoryInboxEmailLink();
-		await store.markLinksExtractionFailed({ userId: owner, receivedAtMessageId: RAM });
+		await store.markLinksExtractionFailed({
+			userId: owner,
+			receivedAtMessageId: RAM,
+		});
 
 		const result = await store.settleReadlistDecision({
 			userId: owner,
@@ -211,7 +308,9 @@ describe("initInMemoryInboxEmailLink", () => {
 				receivedAtMessageId: RAM,
 				decision: { state: "failed", readlist: WORK },
 			}),
-		).rejects.toThrow("readlist decision arrived before the extraction barrier");
+		).rejects.toThrow(
+			"readlist decision arrived before the extraction barrier",
+		);
 	});
 
 	it("marks a crawled link dropped without touching its preview", async () => {
@@ -231,7 +330,9 @@ describe("initInMemoryInboxEmailLink", () => {
 			receivedAtMessageId: RAM,
 			ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		});
-		expect(found).toEqual(makeLink({ status: "crawled", title: "Launch", droppedFor: DROPPED_FOR }));
+		expect(found).toEqual(
+			makeLink({ status: "crawled", title: "Launch", droppedFor: DROPPED_FOR }),
+		);
 	});
 
 	it("refuses to drop a skipped link", async () => {
@@ -288,13 +389,17 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.status).toBe("crawled");
 		expect(found.title).toBe("A title");
 		expect(found.imageUrl).toBe("https://cdn.test/x.jpg");
-		expect(found.resolvedUrl).toBe("https://destination.test/the-actual-article");
+		expect(found.resolvedUrl).toBe(
+			"https://destination.test/the-actual-article",
+		);
 		expect(found.failureReason).toBeUndefined();
 	});
 
 	it("clears the skip reason when an outcome lands on a skipped row", async () => {
 		const store = initInMemoryInboxEmailLink();
-		await store.putLink(makeLink({ status: "skipped", skipReason: "list-unsubscribe" }));
+		await store.putLink(
+			makeLink({ status: "skipped", skipReason: "list-unsubscribe" }),
+		);
 
 		await store.setLinkOutcome({
 			userId: owner,
@@ -323,7 +428,11 @@ describe("initInMemoryInboxEmailLink", () => {
 	it("stamps a failed outcome and clears any preview fields", async () => {
 		const store = initInMemoryInboxEmailLink();
 		await store.putLink(
-			makeLink({ status: "crawled", title: "stale", resolvedUrl: "https://destination.test/stale" }),
+			makeLink({
+				status: "crawled",
+				title: "stale",
+				resolvedUrl: "https://destination.test/stale",
+			}),
 		);
 
 		await store.setLinkOutcome({
@@ -349,18 +458,32 @@ describe("initInMemoryInboxEmailLink", () => {
 		it("removes every link and the meta row for one email, leaving another email untouched", async () => {
 			const store = initInMemoryInboxEmailLink();
 			const otherRam = "2026-06-24T00:00:00.000Z#<m-2@example.com>";
-			await store.putLink(makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0000") }));
-			await store.putLink(makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0001") }));
+			await store.putLink(
+				makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0000") }),
+			);
+			await store.putLink(
+				makeLink({ ordinal: EmailLinkOrdinalSchema.parse("0001") }),
+			);
 			await store.putLinksMeta({
 				userId: owner,
 				receivedAtMessageId: RAM,
-				meta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
+				meta: {
+					truncated: true,
+					extractionFailed: false,
+					readlistDecision: undefined,
+				},
 			});
 			await store.putLink(makeLink({ receivedAtMessageId: otherRam }));
 
-			await store.deleteLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
+			await store.deleteLinksByEmail({
+				userId: owner,
+				receivedAtMessageId: RAM,
+			});
 
-			const cleared = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
+			const cleared = await store.listLinksByEmail({
+				userId: owner,
+				receivedAtMessageId: RAM,
+			});
 			expect(cleared.links).toHaveLength(0);
 			expect(cleared.meta).toBeUndefined();
 			const survivor = await store.listLinksByEmail({
@@ -378,19 +501,96 @@ describe("initInMemoryInboxEmailLink", () => {
 			const ramB = "2026-06-24T00:00:00.000Z#<b@x>";
 			await store.putLink(makeLink({ receivedAtMessageId: ramA }));
 			await store.putLink(makeLink({ receivedAtMessageId: ramB }));
-			await store.putLink(makeLink({ userId: otherUser, receivedAtMessageId: ramA }));
+			await store.putLink(
+				makeLink({ userId: otherUser, receivedAtMessageId: ramA }),
+			);
 
 			await store.deleteAllLinksByUserId(owner, [ramA, ramB]);
 
 			expect(
-				(await store.listLinksByEmail({ userId: owner, receivedAtMessageId: ramA })).links,
+				(
+					await store.listLinksByEmail({
+						userId: owner,
+						receivedAtMessageId: ramA,
+					})
+				).links,
 			).toHaveLength(0);
 			expect(
-				(await store.listLinksByEmail({ userId: owner, receivedAtMessageId: ramB })).links,
+				(
+					await store.listLinksByEmail({
+						userId: owner,
+						receivedAtMessageId: ramB,
+					})
+				).links,
 			).toHaveLength(0);
 			expect(
-				(await store.listLinksByEmail({ userId: otherUser, receivedAtMessageId: ramA })).links,
+				(
+					await store.listLinksByEmail({
+						userId: otherUser,
+						receivedAtMessageId: ramA,
+					})
+				).links,
 			).toHaveLength(1);
 		});
 	});
+});
+
+it("keeps Gmail list results independent, preserves the first selection, and removes them with their email", async () => {
+	const store = initInMemoryInboxEmailLink();
+	const second = ReadlistSlugSchema.parse("science");
+	const key = { userId: owner, receivedAtMessageId: RAM };
+	const outcome = {
+		readlist: WORK,
+		decision: { state: "failed" as const, readlist: WORK },
+		dropped: [],
+	};
+	await store.putLinksMeta({
+		...key,
+		meta: {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+		},
+	});
+	expect(await store.putReadlistOutcome({ ...key, outcome })).toBe("stored");
+	expect(await store.putReadlistOutcome({ ...key, outcome })).toBe("duplicate");
+	await store.putLinksMeta({
+		...key,
+		meta: {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			selectedReadlists: [{ readlist: second, label: "Science" }],
+		},
+	});
+	expect((await store.listLinksByEmail(key)).meta).toEqual({
+		truncated: false,
+		extractionFailed: false,
+		readlistDecision: undefined,
+		selectedReadlists: [{ readlist: WORK, label: "Work" }],
+		readlistOutcomes: [outcome],
+	});
+	await store.deleteLinksByEmail(key);
+	await store.putLinksMeta({
+		...key,
+		meta: {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+		},
+	});
+	expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual(
+		[],
+	);
+});
+
+it("preserves the accepted Gmail eligibility count and held flag when extraction retries", async () => {
+	const store = initInMemoryInboxEmailLink();
+	const key = { userId: owner, receivedAtMessageId: RAM };
+	const first = { truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: true };
+	await store.putLinksMeta({ ...key, meta: first });
+	await store.putLinksMeta({ ...key, meta: { ...first, eligibleArticleCount: 1, savesHeld: false } });
+	expect((await store.listLinksByEmail(key)).meta).toEqual({ ...first, readlistOutcomes: [] });
 });

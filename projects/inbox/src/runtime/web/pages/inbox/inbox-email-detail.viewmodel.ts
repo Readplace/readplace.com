@@ -1,5 +1,3 @@
-import { INBOX_PATH, isExcludedLink } from "@packages/domain/inbox";
-import { type LocalTime, toAbsoluteDateTime, withInternalTracking } from "@packages/web-shell";
 import type {
 	InboxEmailEntry,
 	InboxEmailLinkCounts,
@@ -9,17 +7,32 @@ import type {
 	InboxLinkSaveState,
 	InboxReadlistDecision,
 } from "@packages/domain/inbox";
-import { ARTICLES_PAGE_SIZE, buildInboxArticlesMoreUrl } from "./inbox-articles-more.url";
+import { INBOX_PATH, isExcludedLink } from "@packages/domain/inbox";
+import {
+	type LocalTime,
+	toAbsoluteDateTime,
+	withInternalTracking,
+} from "@packages/web-shell";
+import {
+	ARTICLES_PAGE_SIZE,
+	buildInboxArticlesMoreUrl,
+} from "./inbox-articles-more.url";
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
+import {
+	buildInboxEmailDetailUrl,
+	type MailTabKey,
+} from "./inbox-email-detail.url";
 import {
 	type ExcludedLinkViewModel,
 	toInboxExcludedLinkViewModel,
 } from "./inbox-excluded-link.viewmodel";
 import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
-import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
-import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
+import {
+	type InboxLinkCardViewModel,
+	toInboxLinkCardViewModel,
+} from "./inbox-link-card.viewmodel";
 import { type InboxPanelStatus, panelStatusFor } from "./inbox-panel-status";
-import { type MailTab, buildMailTabs } from "./mail-tabs";
+import { buildMailTabs, type MailTab } from "./mail-tabs";
 
 /** Initial poll count for a card on first page render: the first htmx tick then
  * requests `?poll=1` and the poll route increments from there. */
@@ -35,7 +48,13 @@ export interface PanelAlert extends AlertCopy {
 }
 
 export interface PanelNotice {
-	key: "extracting" | "deciding" | "truncated" | "decided" | "skipped-note" | "dropped-note";
+	key:
+		| "extracting"
+		| "deciding"
+		| "truncated"
+		| "decided"
+		| "skipped-note"
+		| "dropped-note";
 	text: string;
 	iconName: "loader" | undefined;
 }
@@ -104,7 +123,8 @@ function decidedNoticeText(input: {
 	anyKept: boolean;
 }): string {
 	if (!input.anyDropped) return `Saved to ${input.readlistLabel}.`;
-	if (!input.anyKept) return `Nothing in this email fit ${input.readlistLabel}, so nothing was saved.`;
+	if (!input.anyKept)
+		return `Nothing in this email fit ${input.readlistLabel}, so nothing was saved.`;
 	return `Saved to ${input.readlistLabel}. Links that didn't fit are on the Skipped tab.`;
 }
 
@@ -124,9 +144,13 @@ function decisionTerminalRegions(input: {
 }): { alerts: PanelAlert[]; notices: PanelNotice[] } {
 	const { decision } = input;
 	if (decision === undefined) return { alerts: [], notices: [] };
-	if (decision.state === "failed") return { alerts: [DECISION_FAILED_ALERT], notices: [] };
+	if (decision.state === "failed")
+		return { alerts: [DECISION_FAILED_ALERT], notices: [] };
 	if (decision.state === "deciding") {
-		return { alerts: input.withinPollBudget ? [] : [DECISION_STALE_ALERT], notices: [] };
+		return {
+			alerts: input.withinPollBudget ? [] : [DECISION_STALE_ALERT],
+			notices: [],
+		};
 	}
 	return {
 		alerts: [],
@@ -142,6 +166,52 @@ function decisionTerminalRegions(input: {
 			},
 		],
 	};
+}
+
+function gmailReadlistNotices(input: {
+	selectedReadlists: NonNullable<InboxEmailLinksMeta["selectedReadlists"]>;
+	outcomes: InboxEmailLinksMeta["readlistOutcomes"];
+	articles: number;
+	savesHeld: boolean;
+	withinPollBudget: boolean;
+}): PanelNotice[] {
+	const notices: PanelNotice[] =
+		input.articles > 0 && !input.savesHeld
+			? [{ key: "decided", text: "Saved to All.", iconName: undefined }]
+			: [];
+	for (const { readlist, label } of input.selectedReadlists) {
+		if (input.savesHeld) {
+			notices.push({ key: "decided", text: `No articles were saved to ${label} because this account is read-only.`, iconName: undefined });
+			continue;
+		}
+		const outcome = input.outcomes?.find(
+			(entry) => entry.readlist === readlist,
+		);
+		if (outcome === undefined) {
+			notices.push({
+				key: "deciding",
+				text: input.withinPollBudget
+					? `Choosing articles for ${label}…`
+					: `Still choosing articles for ${label}. Reload later to see the result.`,
+				iconName: input.withinPollBudget ? "loader" : undefined,
+			});
+		} else if (outcome.decision.state === "failed") {
+			notices.push({
+				key: "decided",
+				text: `Couldn't choose articles for ${label}. Articles remain in All.`,
+				iconName: undefined,
+			});
+		} else {
+			const dropped = outcome.dropped.length;
+			const saved = Math.max(0, input.articles - dropped);
+			notices.push({
+				key: "decided",
+				text: `${saved} ${saved === 1 ? "article" : "articles"} saved to ${outcome.decision.readlistLabel}; ${dropped} didn't fit.`,
+				iconName: undefined,
+			});
+		}
+	}
+	return notices;
 }
 
 const UNAVAILABLE_ALERT: AlertCopy = {
@@ -296,7 +366,11 @@ function buildPanelRegions(input: {
 		return { alerts: [], notices: [DECIDING_NOTICE], listing: undefined };
 	}
 	if (input.status !== "terminal") {
-		return { alerts: [{ key: input.status, ...STALE_ALERT }], notices: [], listing: undefined };
+		return {
+			alerts: [{ key: input.status, ...STALE_ALERT }],
+			notices: [],
+			listing: undefined,
+		};
 	}
 	return {
 		alerts: input.terminalAlerts,
@@ -327,7 +401,11 @@ export function toInboxArticlesMoreViewModel(input: {
  * shown that the rendered panel cannot back; the View tab fetches no rows and
  * reads the tally the extraction barrier stamped onto the email row instead. */
 export type InboxEmailLinkData =
-	| { source: "rows"; links: InboxEmailLinkEntry[]; meta: InboxEmailLinksMeta | undefined }
+	| {
+			source: "rows";
+			links: InboxEmailLinkEntry[];
+			meta: InboxEmailLinksMeta | undefined;
+		}
 	| { source: "entry" };
 
 export function toInboxEmailDetailViewModel(input: {
@@ -347,9 +425,11 @@ export function toInboxEmailDetailViewModel(input: {
 	savedConfirmed?: boolean;
 }): InboxEmailDetailViewModel {
 	const emailId = input.entry.receivedAtMessageId;
-	const canRenderBody = input.entry.status === "received" && input.bodyHtml !== undefined;
+	const canRenderBody =
+		input.entry.status === "received" && input.bodyHtml !== undefined;
 	const links = input.linkData.source === "rows" ? input.linkData.links : [];
-	const linksMeta = input.linkData.source === "rows" ? input.linkData.meta : undefined;
+	const linksMeta =
+		input.linkData.source === "rows" ? input.linkData.meta : undefined;
 	const allCards = links.filter((link) => !isExcludedLink(link));
 	const totalCards = allCards.length;
 	const cardsPage = buildArticleCardsPage({
@@ -369,12 +449,15 @@ export function toInboxEmailDetailViewModel(input: {
 			pollContext: { mode: "static" },
 		}),
 	);
-	const firstDrop = excludedEntries.find((link) => link.droppedFor !== undefined)?.droppedFor;
+	const firstDrop = excludedEntries.find(
+		(link) => link.droppedFor !== undefined,
+	)?.droppedFor;
 	const truncated = linksMeta?.truncated === true;
 	// No meta row yet means the async extractor has not finished for this received
 	// email — keep polling rather than asserting it has zero links. Non-received
 	// emails never run extraction, so they are terminal immediately.
-	const awaitingMeta = input.entry.status === "received" && linksMeta === undefined;
+	const awaitingMeta =
+		input.entry.status === "received" && linksMeta === undefined;
 	// A barrier written by the dead-letter handler reports a scan that never
 	// completed, so its zero rows are not an answer about the email's contents.
 	const isExtractionFailed = linksMeta?.extractionFailed === true;
@@ -412,7 +495,15 @@ export function toInboxEmailDetailViewModel(input: {
 		isExtractionFailed,
 		isStalePending,
 	});
-	const isPolling = isExtracting || isDeciding;
+	const gmailPending =
+		linksMeta?.selectedReadlists?.some(
+			({ readlist }) =>
+				!linksMeta.readlistOutcomes?.some(
+					(outcome) => outcome.readlist === readlist,
+				),
+		) === true;
+	const isPolling =
+		isExtracting || isDeciding || (gmailPending && linksMeta?.savesHeld !== true && withinPollBudget);
 	const truncatedNotices: PanelNotice[] = truncated
 		? [
 				{
@@ -428,10 +519,24 @@ export function toInboxEmailDetailViewModel(input: {
 		anyDropped: firstDrop !== undefined,
 		anyKept: totalCards > 0,
 	});
-	const skippedNotices = excludedEntries.some((link) => link.status === "skipped")
+	if (linksMeta?.selectedReadlists !== undefined) {
+		decisionRegions.notices.push(
+			...gmailReadlistNotices({
+				selectedReadlists: linksMeta.selectedReadlists,
+				outcomes: linksMeta.readlistOutcomes,
+				articles: linksMeta.eligibleArticleCount ?? totalCards,
+				savesHeld: linksMeta.savesHeld === true,
+				withinPollBudget,
+			}),
+		);
+	}
+	const skippedNotices = excludedEntries.some(
+		(link) => link.status === "skipped",
+	)
 		? [SKIPPED_NOTE_NOTICE]
 		: [];
-	const droppedNotices = firstDrop === undefined ? [] : [droppedNote(firstDrop)];
+	const droppedNotices =
+		firstDrop === undefined ? [] : [droppedNote(firstDrop)];
 	const shared = {
 		isExtracting,
 		isDeciding,
@@ -440,7 +545,10 @@ export function toInboxEmailDetailViewModel(input: {
 	};
 	return {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
-		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
+		sender:
+			input.entry.senderEmail === ""
+				? "(unknown sender)"
+				: input.entry.senderEmail,
 		recipient: input.entry.recipientAddress,
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
 		backHref: withInternalTracking(INBOX_PATH, {
@@ -481,7 +589,11 @@ export function toInboxEmailDetailViewModel(input: {
 				emptyStates:
 					totalCards > 0
 						? []
-						: [excludedLinks.length === 0 ? NO_LINKS_EMPTY_STATE : ALL_SKIPPED_EMPTY_STATE],
+						: [
+								excludedLinks.length === 0
+									? NO_LINKS_EMPTY_STATE
+									: ALL_SKIPPED_EMPTY_STATE,
+							],
 			}),
 			panelPollUrl: isPolling
 				? buildInboxArticlesPollUrl({ emailId, pollCount: panelPollCount })
@@ -494,12 +606,20 @@ export function toInboxEmailDetailViewModel(input: {
 			...buildPanelRegions({
 				status: panelStatus,
 				terminalAlerts: [],
-				terminalNotices: [...truncatedNotices, ...skippedNotices, ...droppedNotices],
+				terminalNotices: [
+					...truncatedNotices,
+					...skippedNotices,
+					...droppedNotices,
+				],
 				countLabel: `${excludedLinks.length} Skipped`,
 				emptyStates:
 					excludedLinks.length > 0
 						? []
-						: [totalCards === 0 ? NO_LINKS_EMPTY_STATE : NOTHING_SKIPPED_EMPTY_STATE],
+						: [
+								totalCards === 0
+									? NO_LINKS_EMPTY_STATE
+									: NOTHING_SKIPPED_EMPTY_STATE,
+							],
 			}),
 			panelPollUrl: isPolling
 				? buildInboxExcludedPollUrl({ emailId, pollCount: panelPollCount })

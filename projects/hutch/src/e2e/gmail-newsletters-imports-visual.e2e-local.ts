@@ -201,7 +201,7 @@ test.describe("GMail Newsletters import states", () => {
 		await readlistPicker.locator("summary").click();
 		await expect(readlistPicker).toHaveAttribute("open", "");
 		await page.locator('[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])').click();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Tech");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
 		await expect(page.locator(IMPORT_CHECKBOX)).not.toBeChecked();
 		await page.locator(IMPORT_CHECKBOX).check();
 		await expect(page.locator("[data-test-gmail-sender-picker]")).not.toHaveAttribute("open", "");

@@ -20,7 +20,7 @@ export function initGmailPicker({ document }: GmailPickerDeps): void {
 	};
 	document.addEventListener("pointerdown", dismissHighlights, true);
 	document.addEventListener("click", dismissHighlights, true);
-	document.addEventListener("htmx:afterSwap", () => {
+	document.addEventListener("htmx:afterSettle", () => {
 		const dismissed = document.documentElement.getAttribute("data-gmail-notification-dismissed");
 		for (const choice of document.querySelectorAll<HTMLElement>("[data-gmail-notification-highlight]")) {
 			if (choice.getAttribute("data-gmail-notification") === dismissed) choice.removeAttribute("data-gmail-notification-highlight");
@@ -46,12 +46,19 @@ export function initGmailPicker({ document }: GmailPickerDeps): void {
 		if (step === undefined) return;
 		for (const picker of pickers()) {
 			if (!picker.open || !picker.contains(document.activeElement)) continue;
-			const items = [...picker.querySelectorAll<HTMLElement>(PICKER_ITEMS)];
+			const items = [...picker.querySelectorAll<HTMLElement>(PICKER_ITEMS)].filter((item) => !item.hasAttribute("disabled"));
 			const focusedItem = picker.querySelector<HTMLElement>(FOCUSED_PICKER_ITEM);
 			const current = focusedItem === null ? -1 : items.indexOf(focusedItem);
 			event.preventDefault();
 			items[Math.min(Math.max(current + step, 0), items.length - 1)]?.focus();
 		}
+	});
+	document.addEventListener("change", (event) => {
+		const target = [...document.querySelectorAll<HTMLInputElement>("[data-gmail-readlist-checkbox]")].find((checkbox) => checkbox === event.target);
+		if (target === undefined || target.disabled) return;
+		const form = target.closest<HTMLFormElement>("[data-gmail-readlist-selection]");
+		const confirm = form?.querySelector<HTMLButtonElement>("[data-gmail-confirm-readlists]");
+		confirm?.click();
 	});
 	document.addEventListener("toggle", (event) => {
 		for (const picker of pickers()) {

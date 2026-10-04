@@ -222,7 +222,7 @@ async function connectedAgent(options: {
 	};
 	const mapSender = async (sender: ForwardableSender, readlist: string) => {
 		const entry = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse(readlist) });
-		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: sender, mappedAddress: entry.address });
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: sender, mappedAddresses: [entry.address] });
 		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: sender });
 		return entry.address;
 	};
@@ -241,7 +241,7 @@ async function connectedAgent(options: {
 			userId: input.owner ?? userId,
 			jobId,
 			senderEmail: input.sender,
-			destinationAddress: input.destination,
+			destinationAddresses: [input.destination],
 			connection: { gatewayAddress, accountEmail: EMAIL },
 			window: undefined,
 			generation: "seeded",
@@ -288,7 +288,7 @@ describe("GMail Newsletters page", () => {
 		const agent = request.agent(harness.server);
 		const created = await harness.auth.createUser({ email: "notification-reader@example.com", password: "password123" });
 		assert(created.ok);
-		const destination = `${GMAIL}?sender=${encodeURIComponent(MORNING)}&notification=1`;
+		const destination = `${GMAIL}?sender=${encodeURIComponent(MORNING)}&notification=1&readlist_choice_for=${encodeURIComponent(MORNING)}&readlist=default&readlist=tech`;
 		const anonymous = await agent.get(destination);
 		const login = new URL(anonymous.headers.location, TEST_APP_ORIGIN);
 		expect(login.pathname).toBe("/login");
@@ -319,9 +319,10 @@ describe("GMail Newsletters page", () => {
 		expect(document.querySelector("#gmail-sender-choice")?.textContent).toContain(MORNING);
 		expect(document.querySelector("#gmail-readlist-choice")?.textContent).toBe("All");
 		expect(document.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+		expect(document.querySelector('input[name="readlist_choice_for"]')?.getAttribute("value")).toBe(MORNING);
 		expect(Array.from(document.querySelectorAll("[data-gmail-notification-highlight]"), (element) => element.getAttribute("data-gmail-notification"))).toEqual([MORNING]);
 		expect(Array.from(document.querySelectorAll('input[name="notification"]'))).toEqual([]);
-		const saved = await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default" });
+		const saved = await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default", readlist_choice_for: MORNING });
 		expect(locationParams(saved.headers.location).notice).toBe("sender_mapped");
 		expect((await monitoring.findCheckpoint(userId))?.mailboxId).toBe("current-mailbox");
 		await gmail.bundle.gmailSenderStore.removeSender({ userId, senderEmail: MORNING });
@@ -332,16 +333,16 @@ describe("GMail Newsletters page", () => {
 		expect(locationParams(refused.headers.location).error).toBe("sender_unknown");
 	});
 
-	it("keeps multiple readlists unselected on a notification and opens an existing mapping with its destination", async () => {
+	it("locks All and requires explicit confirmation on a notification and opens an existing mapping with its destination", async () => {
 		const { agent, createReadlist, mapSender } = await connectedAgent();
 		await createReadlist({ slug: "tech", label: "Tech" });
 		const destination = `${GMAIL}?sender=${encodeURIComponent(MORNING)}&notification=1`;
 		const document = load((await agent.get(destination)).text);
-		expect(document.querySelector("#gmail-readlist-choice")?.textContent).toBe("Choose a readlist");
+		expect(document.querySelector("#gmail-readlist-choice")?.textContent).toBe("All");
 		expect(document.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(true);
 		await mapSender(MORNING, "tech");
 		const mapped = load((await agent.get(destination)).text);
-		expect(mapped.querySelector("#gmail-readlist-choice")?.textContent).toBe("Tech");
+		expect(mapped.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Tech");
 		expect(mapped.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
 		expect(Array.from(mapped.querySelectorAll('[data-test-gmail-save-mapping] input[name="import"]'))).toEqual([]);
 	});
@@ -508,7 +509,7 @@ describe("GMail Newsletters page", () => {
 		await createReadlist({ slug: "tech", label: "Tech" });
 		const state = `search=dan&advanced=1&sender=${encodeURIComponent(TLDR)}&readlist=tech`;
 		const fragment = await agent.get(`${GMAIL}/senders?${state}&discovery=started`).set("HX-Request", "true");
-		expect(fragment.headers["hx-push-url"]).toBe(`${GMAIL}?${state}&discovery=started`);
+		expect(fragment.headers["hx-push-url"]).toBe(`${GMAIL}?${state.replace("readlist=tech", "readlist=default&readlist=tech")}&discovery=started`);
 		const poll = await agent.get(`${GMAIL}/senders?${state}&discovery=started&poll=1`).set("HX-Request", "true");
 		expect(poll.headers["hx-push-url"]).toBeUndefined();
 		expect(Array.from(load(poll.text).querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual(["gmail-load-senders-button"]);
@@ -572,7 +573,7 @@ describe("GMail Newsletters page", () => {
 		});
 		expect(results(doc).getAttribute("hx-trigger")).toBe("every 3s");
 		expect(doc.querySelector("#gmail-sender-choice")?.textContent).toBe(TLDR);
-		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("Tech");
+		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Tech");
 		const fragment = await agent.get(pollUrl).set("HX-Request", "true");
 		expect(locationParams(results(load(fragment.text)).getAttribute("hx-get") ?? "")).toMatchObject({ sender: TLDR, readlist: "tech", poll: "2" });
 		expect(fragment.headers["hx-push-url"]).toBeUndefined();
@@ -833,26 +834,16 @@ describe("Choose a readlist", () => {
 		assert(picker);
 		expect(picker.hasAttribute("open")).toBe(true);
 		const options = Array.from(doc.querySelectorAll("[data-test-gmail-readlist-option]"));
-		expect(options.map((option) => [option.getAttribute("data-test-gmail-readlist-option"), option.textContent, option.getAttribute("aria-current")])).toEqual([
-			["default", "All", "false"],
-			["tech", "Tech", "true"],
+		expect(options.map((option) => [option.getAttribute("data-test-gmail-readlist-option"), option.hasAttribute("checked"), option.hasAttribute("disabled")])).toEqual([
+			["default", true, true],
+			["tech", true, false],
 		]);
-		const all = options[0]?.closest("form");
-		assert(all);
-		expect(hiddenFields(all)).toEqual({
-			search: "dan",
-			sender: TLDR,
-			readlist: "default",
-			discovery: "started",
-			utm_source: "integrations-gmail",
-			utm_medium: "internal",
-			utm_content: "choose-readlist",
-		});
-		const create = doc.querySelector("[data-test-gmail-readlist-create]");
-		assert(create);
-		expect(create.getAttribute("action")).toBe(`${CREATE_READLIST}?utm_source=integrations-gmail&utm_medium=internal&utm_content=create-readlist`);
-		expect(hiddenFields(create)).toEqual({ search: "dan", sender: TLDR, edit: "1" });
-		expect(create.querySelector('input[name="readlist_name"]')?.getAttribute("maxlength")).toBe("24");
+		const form = options[0]?.closest("form");
+		assert(form);
+		expect(form.getAttribute("method")).toBe("GET");
+		expect(hiddenFields(form)).toMatchObject({ search: "dan", sender: TLDR, readlist: "default", edit: "1", discovery: "started", utm_content: "choose-readlists" });
+		expect(form.querySelector('[data-test-gmail-readlist-create] button')?.getAttribute("formaction")).toBe(`${CREATE_READLIST}?utm_source=integrations-gmail&utm_medium=internal&utm_content=create-readlist`);
+		expect(form.querySelector('input[name="readlist_name"]')?.getAttribute("maxlength")).toBe("24");
 	});
 
 	it("closes the readlist picker once a readlist is chosen and disables Save until a destination is chosen", async () => {
@@ -862,7 +853,7 @@ describe("Choose a readlist", () => {
 		expect(chosen.querySelector("#gmail-readlist-choice")?.textContent).toBe("All");
 		expect(Array.from(chosen.querySelectorAll("[data-test-gmail-save]"), (el) => el.textContent)).toEqual(["Save"]);
 		const senderOnly = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=unknown`)).text);
-		expect(senderOnly.querySelector("#gmail-readlist-choice")?.textContent).toBe("Choose a readlist");
+		expect(senderOnly.querySelector("#gmail-readlist-choice")?.textContent).toBe("All");
 		expect(Array.from(senderOnly.querySelectorAll("[data-test-gmail-save]"), (button) => button.hasAttribute("disabled"))).toEqual([true]);
 	});
 
@@ -883,7 +874,7 @@ describe("Choose a readlist", () => {
 		expect(params).toEqual({ notice: "readlist_created", search: "dan", sender: TLDR, readlist: definitions[0]?.slug, discovery: "started" });
 		const doc = load((await agent.get(created.headers.location)).text);
 		expect(doc.querySelector('[data-test-alert="readlist_created"]')?.textContent).toBe("Readlist created. Save the mapping to use it.");
-		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("Science");
+		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Science");
 
 		const reused = await agent.post(CREATE_READLIST).type("form").send({ sender: TLDR, readlist_name: "science" });
 		expect(locationParams(reused.headers.location)).toEqual({ notice: "readlist_reused", sender: TLDR, readlist: definitions[0]?.slug, discovery: "started" });
@@ -930,8 +921,8 @@ describe("Save a newsletter to a readlist", () => {
 		const save = await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default", search: "morning", advanced: "1" });
 		expect(save.headers.location).toBe(`${GMAIL}?notice=sender_mapped&search=morning&advanced=1&discovery=started`);
 		const saved = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: MORNING });
-		assert(saved?.mappedAddress);
-		const entry = await gmail.bundle.findInboxAddress(saved.mappedAddress);
+		assert(saved?.mappedAddresses);
+		const entry = await gmail.bundle.findInboxAddress(saved.mappedAddresses[0]);
 		expect({ purpose: entry?.purpose, readlist: entry?.readlist }).toEqual({ purpose: "gmail-readlist", readlist: undefined });
 		expect(saved.addedToFilterAt).toBeDefined();
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }]);
@@ -948,11 +939,11 @@ describe("Save a newsletter to a readlist", () => {
 		await createReadlist({ slug: "tech", label: "Tech" });
 		for (const sender of [TLDR, MORNING]) await agent.post(ADD).type("form").send({ sender, readlist: "tech" });
 		const rows = await gmail.bundle.gmailSenderStore.listSendersByUserId(userId);
-		const addresses = new Set(rows.map((entry) => entry.mappedAddress));
+		const addresses = new Set(rows.map((entry) => entry.mappedAddresses?.[0]));
 		expect(addresses.size).toBe(1);
 		expect((await gmail.addresses.listAddressesByUserId(userId)).filter((entry) => entry.purpose === "gmail-readlist").map((entry) => entry.readlist)).toEqual([TECH]);
 		const doc = load((await agent.get(GMAIL)).text);
-		expect(Array.from(doc.querySelectorAll("[data-test-gmail-mapping-destination]"), (el) => el.textContent)).toEqual(["Saved to Tech", "Saved to Tech"]);
+		expect(Array.from(doc.querySelectorAll("[data-test-gmail-mapping-destination]"), (el) => el.textContent)).toEqual(["Saved to All, Tech", "Saved to All, Tech"]);
 	});
 
 	it("submits only the address of a sender that is not an approved newsletter, including while the catalog is unavailable", async () => {
@@ -984,14 +975,14 @@ describe("Save a newsletter to a readlist", () => {
 		const fresh = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default`)).text);
 		const form = fresh.querySelector("[data-test-gmail-save-mapping]");
 		assert(form);
-		expect(form.getAttribute("action")).toBe(`${ADD}?utm_source=integrations-gmail&utm_medium=internal&utm_content=save-mapping`);
-		expect(hiddenFields(form)).toEqual({ sender: TLDR, readlist: "default" });
+		expect(form.querySelector("[data-test-gmail-save]")?.getAttribute("formaction")).toBe(`${ADD}?utm_source=integrations-gmail&utm_medium=internal&utm_content=save-mapping`);
+		expect(hiddenFields(form)).toMatchObject({ sender: TLDR, readlist: "default" });
 		expect(form.querySelector('input[name="import"]')?.hasAttribute("checked")).toBe(false);
 		const checked = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default&import=1`)).text);
 		expect(checked.querySelector('[data-test-gmail-save-mapping] input[name="import"]')?.hasAttribute("checked")).toBe(true);
 		await mapSender(TLDR, "default");
 		const mapped = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default`)).text);
-		expect(Array.from(mapped.querySelectorAll('[data-test-gmail-save-mapping] input[type="checkbox"]'))).toEqual([]);
+		expect(Array.from(mapped.querySelectorAll('[data-test-gmail-save-mapping] input[name="import"]'))).toEqual([]);
 	});
 
 	it("moves a newsletter to another readlist, stops its import, and leaves a shared named inbox untouched", async () => {
@@ -999,10 +990,10 @@ describe("Save a newsletter to a readlist", () => {
 		await createReadlist({ slug: "tech", label: "Tech" });
 		const named = await gmail.addresses.createAddress({ userId, domain: "read.place", name: AliasNameSchema.parse("reading"), purpose: "user-alias" });
 		await gmail.addresses.setAddressReadlist({ userId, address: named.address, readlist: TECH });
-		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddress: named.address });
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddresses: [named.address] });
 		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
 		const before = await gmail.bundle.findInboxAddress(named.address);
-		expect(row(load((await agent.get(GMAIL)).text), TLDR).querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to Tech");
+		expect(row(load((await agent.get(GMAIL)).text), TLDR).querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All, Tech");
 		const jobId = await seedJob({ sender: TLDR, destination: named.address, state: "running" });
 
 		const moved = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default", import: "1" });
@@ -1010,12 +1001,12 @@ describe("Save a newsletter to a readlist", () => {
 		expect(moved.headers.location).toBe(`${GMAIL}?notice=sender_remapped&discovery=started`);
 		expect(await gmail.bundle.findInboxAddress(named.address)).toEqual(before);
 		const remapped = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-		assert(remapped?.mappedAddress);
-		expect((await gmail.bundle.findInboxAddress(remapped.mappedAddress))?.purpose).toBe("gmail-readlist");
+		assert(remapped?.mappedAddresses);
+		expect((await gmail.bundle.findInboxAddress(remapped.mappedAddresses[0]))?.purpose).toBe("gmail-readlist");
 		expect({ state: (await findJob(jobId))?.state, reason: (await findJob(jobId))?.cancelReason }).toEqual({ state: "cancelled", reason: "destination-changed" });
 		expect(gmail.importStartRequests).toEqual([]);
 		const doc = load((await agent.get(moved.headers.location)).text);
-		expect(doc.querySelector('[data-test-alert="sender_remapped"]')?.textContent).toBe("Mapping updated. New mail from this sender goes to the readlist you chose.");
+		expect(doc.querySelector('[data-test-alert="sender_remapped"]')?.textContent).toBe("Mapping updated. New mail from this sender goes to All and your selected readlists.");
 	});
 
 	it("keeps the picker state, including the import choice, when validation fails", async () => {
@@ -1069,7 +1060,7 @@ describe("Save a newsletter to a readlist", () => {
 		const { agent, gmail, userId } = await connectedAgent({ discovered: false, scope: GMAIL_SETTINGS_SCOPE });
 		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
 		expect((await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" })).headers.location).toBe(`${GMAIL}?notice=sender_remapped&discovery=started`);
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddress).toBeDefined();
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddresses).toBeDefined();
 	});
 
 	it("saves a mapping during Step 2 and says forwarding starts after confirmation", async () => {
@@ -1091,7 +1082,7 @@ describe("Save a newsletter to a readlist", () => {
 		const [job] = await gmail.bundle.gmailHistoryImportStore.listJobsByUserId(userId);
 		assert(job);
 		const saved = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
-		expect({ state: job.state, sender: job.senderEmail, destination: job.destinationAddress }).toEqual({ state: "queued", sender: TLDR, destination: saved?.mappedAddress });
+		expect({ state: job.state, sender: job.senderEmail, destination: job.destinationAddresses }).toEqual({ state: "queued", sender: TLDR, destination: saved?.mappedAddresses });
 		expect(gmail.importStartRequests).toEqual([{ userId, jobId: job.jobId, generation: job.generation }]);
 		const doc = load((await agent.get(save.headers.location)).text);
 		expect(row(doc, TLDR).querySelector("[data-test-gmail-import-state]")?.getAttribute("data-test-gmail-import-state")).toBe("queued");
@@ -1131,10 +1122,10 @@ describe("Save a newsletter to a readlist", () => {
 		const editing = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default&edit=1`)).text);
 		const form = editing.querySelector("[data-test-gmail-save-mapping]");
 		assert(form);
-		expect(Array.from(form.querySelectorAll('input[type="checkbox"]'))).toEqual([]);
+		expect(Array.from(form.querySelectorAll('input[name="import"]'))).toEqual([]);
 		const save = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default", import: "1" });
 		expect(save.headers.location).toBe(`${GMAIL}?notice=sender_remapped&discovery=started`);
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddress).toBeDefined();
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddresses).toBeDefined();
 		expect(await gmail.bundle.gmailHistoryImportStore.listJobsByUserId(userId)).toEqual([]);
 		expect(gmail.importStartRequests).toEqual([]);
 	});
@@ -1179,7 +1170,7 @@ describe("Your newsletters", () => {
 			[DELETED, deleted.address],
 		];
 		for (const [sender, address] of mappings) {
-			if (address !== undefined) await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: sender, mappedAddress: address });
+			if (address !== undefined) await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: sender, mappedAddresses: [address] });
 			await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: sender });
 		}
 		const doc = load((await agent.get(GMAIL)).text);
@@ -1193,10 +1184,10 @@ describe("Your newsletters", () => {
 				rowActionKeys(mapped),
 			];
 		};
-		expect(described(LEGACY)).toEqual(["unresolved", "Saved to Choose a readlist", "No readlist yet. Change the readlist to choose one.", "Not forwarding", ["edit", "remove"]]);
-		expect(described(DISABLED)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination was switched off. Change the readlist to choose one.", "Not forwarding", ["edit", "remove"]]);
-		expect(described(MISSING)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination no longer exists. Change the readlist to choose one.", "Not forwarding", ["edit", "remove"]]);
-		expect(described(FOREIGN)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination no longer exists. Change the readlist to choose one.", "Not forwarding", ["edit", "remove"]]);
+		expect(described(LEGACY)).toEqual(["unresolved", "Saved to Choose a readlist", "No readlist yet. Change the readlists to choose them.", "Not forwarding", ["edit", "remove"]]);
+		expect(described(DISABLED)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination was switched off. Change the readlists to choose them.", "Not forwarding", ["edit", "remove"]]);
+		expect(described(MISSING)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination no longer exists. Change the readlists to choose them.", "Not forwarding", ["edit", "remove"]]);
+		expect(described(FOREIGN)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination no longer exists. Change the readlists to choose them.", "Not forwarding", ["edit", "remove"]]);
 		expect(described(DELETED)).toEqual(["readlist", "Saved to All", undefined, "Waiting for Gmail", ["edit", "start-import", "remove"]]);
 		const edit = rowAction(row(doc, LEGACY), "edit");
 		expect(edit.getAttribute("method")).toBe("GET");
@@ -1247,7 +1238,7 @@ describe("Your newsletters", () => {
 	it("shows an empty list before any newsletter is mapped", async () => {
 		const { agent } = await connectedAgent();
 		const doc = load((await agent.get(GMAIL)).text);
-		expect(doc.querySelector("[data-test-gmail-mappings-empty]")?.textContent).toBe("No newsletters mapped yet. Choose a newsletter and a readlist above.");
+		expect(doc.querySelector("[data-test-gmail-mappings-empty]")?.textContent).toBe("No newsletters mapped yet. Choose a newsletter above.");
 		expect(doc.querySelector("[data-test-gmail-filter-message]")?.textContent).toBe("No forwarding rule in Gmail yet.");
 	});
 
@@ -1358,7 +1349,7 @@ describe("Your newsletters", () => {
 		await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "dev-newsletters" });
 
 		const mappedAgain = row(load((await agent.get(GMAIL)).text), TLDR);
-		expect(mappedAgain.querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to Dev newsletters");
+		expect(mappedAgain.querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All, Dev newsletters");
 		expect(importSummary(mappedAgain)).toEqual({ state: "none", message: [], counts: [], actions: ["edit", "start-import", "remove"] });
 
 		now = new Date("2026-09-30T20:44:11.000Z");
@@ -1528,7 +1519,7 @@ describe("Import unread messages", () => {
 		expect(cancelled.headers.location).toBe(`${GMAIL}?notice=import_cancelled&search=dan&discovery=started`);
 		expect({ state: (await findJob(running))?.state, reason: (await findJob(running))?.cancelReason }).toEqual({ state: "cancelled", reason: "user-cancelled" });
 		const doc = load((await agent.get(cancelled.headers.location)).text);
-		expect(doc.querySelector('[data-test-alert="import_cancelled"]')?.textContent).toBe("Import cancelled. Messages already imported stay in your readlist.");
+		expect(doc.querySelector('[data-test-alert="import_cancelled"]')?.textContent).toBe("Import cancelled. Messages already imported stay in your readlists.");
 	});
 });
 
@@ -1614,5 +1605,123 @@ describe("Read-only and locked readers", () => {
 		expect(await articleStore.listReadlistDefinitions(userId)).toEqual([]);
 		expect(gmail.discoveryRequests).toEqual([]);
 		expect(gmail.importStartRequests).toEqual([]);
+	});
+});
+
+describe("Gmail multiple readlists and notification confirmation", () => {
+	it("requires explicit notification choice for a legacy filtered sender without destinations", async () => {
+		const { agent, gmail, userId, createReadlist } = await connectedAgent();
+		await createReadlist({ slug: "tech", label: "Tech" });
+		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		const existing = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&notification=1`)).text);
+		expect(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(true);
+		expect(doc.querySelector('input[name="readlist_choice_for"]')?.getAttribute("value")).toBe(TLDR);
+		expect(doc.querySelector('input[name="import"]')).toBeNull();
+		const refused = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "tech", readlist_choice_for: TLDR });
+		expect(locationParams(refused.headers.location)).toMatchObject({ error: "readlist_choice_required", readlist_choice_for: TLDR, readlist: "tech" });
+		expect(await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR })).toEqual(existing);
+		expect(gmail.rewriteRequests).toEqual([]);
+		const confirmation = await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=tech&readlist_choice_for=${encodeURIComponent(TLDR)}&confirm_readlists=${encodeURIComponent(TLDR)}`);
+		expect(new URL(confirmation.headers.location, TEST_APP_ORIGIN).searchParams.get("readlist_choice_for")).toBeNull();
+		expect(load((await agent.get(confirmation.headers.location)).text).querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+	});
+
+	it("opens a destination-bearing partial mapping with its complete saved selection enabled", async () => {
+		const { agent, gmail, userId, createReadlist } = await connectedAgent();
+		await createReadlist({ slug: "tech", label: "Tech" });
+		await createReadlist({ slug: "work", label: "Work" });
+		const tech = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse("tech") });
+		const work = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse("work") });
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddresses: [tech.address, work.address] });
+		const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&notification=1&readlist_choice_for=${encodeURIComponent(TLDR)}`)).text);
+		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Tech, Work");
+		expect(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+		expect(doc.querySelector('input[name="import"]')).not.toBeNull();
+		const saved = await agent.post(ADD).type("form").send(new URLSearchParams([["sender", TLDR], ["readlist", "tech"], ["readlist", "work"], ["readlist_choice_for", TLDR]]).toString());
+		expect(locationParams(saved.headers.location).notice).toBe("sender_mapped");
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.addedToFilterAt).toBeDefined();
+		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddresses).toEqual([tech.address, work.address]);
+	});
+
+	it("deduplicates repeated selections, validates every custom list, and enforces All when omitted", async () => {
+		const { agent, gmail, userId, createReadlist } = await connectedAgent();
+		await createReadlist({ slug: "tech", label: "Tech" });
+		await createReadlist({ slug: "science", label: "Science" });
+		const bad = await agent.post(ADD).type("form").send(new URLSearchParams([["sender", TLDR], ["readlist", "tech"], ["readlist", "foreign"]]).toString());
+		expect(locationParams(bad.headers.location).error).toBe("readlist_invalid");
+		const malformed = await agent.post(ADD).send({ sender: TLDR, readlist: 12 });
+		expect(locationParams(malformed.headers.location).error).toBe("readlist_invalid");
+		expect(await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR })).toBeUndefined();
+		const saved = await agent.post(ADD).type("form").send(new URLSearchParams([["sender", TLDR], ["readlist", "tech"], ["readlist", "science"], ["readlist", "tech"]]).toString());
+		expect(locationParams(saved.headers.location).notice).toBe("sender_mapped");
+		const mapping = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		assert(mapping?.mappedAddresses);
+		expect(mapping.mappedAddresses).toHaveLength(2);
+		const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&edit=1`)).text);
+		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Science, Tech");
+		expect(row(doc, TLDR).querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All, Science, Tech");
+		expect(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+		await agent.post(ADD).type("form").send({ sender: TLDR });
+		const allOnly = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		assert(allOnly?.mappedAddresses);
+		expect(allOnly.mappedAddresses).toHaveLength(1);
+		expect((await gmail.bundle.findInboxAddress(allOnly.mappedAddresses[0]))?.readlist).toBeUndefined();
+	});
+
+	it("keeps pending notification choice through search, polls, validation and sender changes until explicit All-only confirmation", async () => {
+		const { agent, createReadlist } = await connectedAgent();
+		await createReadlist({ slug: "tech", label: "Tech" });
+		const pending = new URLSearchParams({ sender: TLDR, readlist_choice_for: TLDR, readlist: "default", discovery: "started" });
+		const initial = load((await agent.get(`${GMAIL}?${pending}`)).text);
+		expect(initial.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(true);
+		for (const extra of ["&search=dan", "&poll=2", "&error=readlist_name_invalid"]) {
+			const doc = load((await agent.get(`${GMAIL}/senders?${pending}${extra}`).set("HX-Request", "true")).text);
+			const poll = results(doc).getAttribute("hx-get");
+			if (poll !== null) expect(new URL(poll, TEST_APP_ORIGIN).searchParams.get("readlist_choice_for")).toBe(TLDR);
+			if (!extra.includes("poll=")) expect(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(true);
+		}
+		const changedState = new URLSearchParams(pending);
+		changedState.set("sender", MORNING);
+		const changed = load((await agent.get(`${GMAIL}?${changedState}`)).text);
+		expect(changed.querySelector('input[name="readlist_choice_for"]')?.getAttribute("value")).toBe(TLDR);
+		const failed = await agent.post(ADD).type("form").send(Object.fromEntries(pending));
+		expect(locationParams(failed.headers.location)).toMatchObject({ error: "readlist_choice_required", readlist_choice_for: TLDR });
+		const confirmation = await agent.get(`${GMAIL}?${pending}&confirm_readlists=${encodeURIComponent(TLDR)}`);
+		expect(new URL(confirmation.headers.location, TEST_APP_ORIGIN).searchParams.get("readlist_choice_for")).toBeNull();
+		const confirmed = load((await agent.get(confirmation.headers.location)).text);
+		expect(confirmed.querySelector("#gmail-readlist-choice")?.textContent).toBe("All");
+		expect(confirmed.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+		expect(Array.from(confirmed.querySelectorAll('input[name="readlist_choice_for"]'))).toEqual([]);
+	});
+
+	it("preserves selections and pending choice after inline creation errors and adds successful creation to the selection", async () => {
+		const { agent, createReadlist } = await connectedAgent();
+		await createReadlist({ slug: "tech", label: "Tech" });
+		const state = { sender: TLDR, readlist: "tech", readlist_choice_for: TLDR };
+		const failed = await agent.post(CREATE_READLIST).type("form").send({ ...state, readlist_name: " " });
+		expect(locationParams(failed.headers.location)).toMatchObject({ readlist: "tech", readlist_choice_for: TLDR, error: "readlist_name_invalid" });
+		const created = await agent.post(CREATE_READLIST).type("form").send({ ...state, readlist_name: "Science" });
+		const url = new URL(created.headers.location, TEST_APP_ORIGIN);
+		expect(url.searchParams.getAll("readlist")).toHaveLength(2);
+		expect(url.searchParams.get("readlist_choice_for")).toBeNull();
+		const doc = load((await agent.get(created.headers.location)).text);
+		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Tech, Science");
+		expect(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+	});
+});
+
+describe("Gmail confirmation URLs", () => {
+	it("pushes confirmed repeated choices and keeps a pending choice bound to another sender", async () => {
+		const { agent, createReadlist } = await connectedAgent();
+		await createReadlist({ slug: "tech", label: "Tech" });
+		const confirmed = await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=tech&readlist_choice_for=${encodeURIComponent(TLDR)}&confirm_readlists=${encodeURIComponent(TLDR)}`).set("HX-Request", "true");
+		const state = new URL(confirmed.headers["hx-push-url"], TEST_APP_ORIGIN).searchParams;
+		expect(state.getAll("readlist")).toEqual(["default", "tech"]);
+		expect(state.get("readlist_choice_for")).toBeNull();
+		expect(load(confirmed.text).querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
+		const other = await agent.get(`${GMAIL}?sender=${encodeURIComponent(MORNING)}&readlist_choice_for=${encodeURIComponent(TLDR)}&confirm_readlists=${encodeURIComponent(MORNING)}`).set("HX-Request", "true");
+		expect(new URL(other.headers["hx-push-url"], TEST_APP_ORIGIN).searchParams.get("readlist_choice_for")).toBe(TLDR);
+		expect(load(other.text).querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
 	});
 });

@@ -26,7 +26,7 @@ export interface GmailHistoryImportJob {
 	userId: UserId;
 	jobId: GmailHistoryImportJobId;
 	senderEmail: ForwardableSender;
-	destinationAddress: InboxAddress;
+	destinationAddresses: [InboxAddress, ...InboxAddress[]];
 	connection: GmailConnectionIdentity;
 	window: GmailHistoryImportWindow | undefined;
 	generation: string;

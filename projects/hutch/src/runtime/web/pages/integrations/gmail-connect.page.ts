@@ -89,7 +89,7 @@ export function registerGmailConnectRoutes(
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
 		const importBody = ImportIntentBodySchema.safeParse(req.body);
-		const { sender: _picked, edit: _edit, ...state } = parseGmailPickerState(req.body);
+		const { sender: _picked, edit: _edit, ...state } = GmailPickerStateSchema.parse(parseGmailPickerState(req.body));
 		const intent: ConnectIntent = importBody.success
 			? { kind: "import", sender: importBody.data.sender, state }
 			: { kind: "connect" };

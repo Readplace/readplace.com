@@ -33,6 +33,7 @@ export type GmailPageError =
 	| "sender_unknown"
 	| "metadata_required"
 	| "readlist_invalid"
+	| "readlist_choice_required"
 	| "readlist_name_invalid"
 	| "readlist_limit"
 	| "import_in_progress"
@@ -59,7 +60,8 @@ export interface GmailPickerState {
 	search?: string;
 	advanced?: "1";
 	sender?: string;
-	readlist?: string;
+	readlist?: string | readonly string[];
+	readlist_choice_for?: string;
 	readlist_name?: string;
 	import?: "1";
 	edit?: "1";
@@ -79,6 +81,7 @@ const GMAIL_URL_PARAM_ORDER = [
 	"advanced",
 	"sender",
 	"readlist",
+	"readlist_choice_for",
 	"readlist_name",
 	"import",
 	"edit",
@@ -90,7 +93,9 @@ export function buildGmailUrl(params: GmailUrlParams = {}): string {
 	const query = new URLSearchParams();
 	for (const key of GMAIL_URL_PARAM_ORDER) {
 		const value = params[key];
-		if (value !== undefined) query.set(key, value);
+		if (value === undefined) continue;
+		if (typeof value === "string") query.set(key, value);
+		else for (const readlist of new Set(value)) query.append(key, readlist);
 	}
 	const suffix = query.toString();
 	return suffix === "" ? GMAIL_PATH : `${GMAIL_PATH}?${suffix}`;
@@ -102,12 +107,18 @@ export const GmailPickerStateSchema = z.object({
 	search: optionalText,
 	advanced: z.literal("1").optional().catch(undefined),
 	sender: optionalText,
-	readlist: optionalText,
+	readlist: z.union([z.string(), z.array(z.string())]).transform((value) => [...new Set(typeof value === "string" ? [value] : value)]).optional().catch(undefined),
+	readlist_choice_for: optionalText,
 	readlist_name: optionalText,
 	import: z.literal("1").optional().catch(undefined),
 	edit: z.literal("1").optional().catch(undefined),
 	discovery_after: optionalText,
 });
+
+export function gmailSelectedReadlists(state: GmailPickerState): readonly string[] {
+	const value = state.readlist;
+	return value === undefined ? [] : typeof value === "string" ? [value] : value;
+}
 
 export function parseGmailPickerState(source: unknown): GmailPickerState {
 	return GmailPickerStateSchema.catch({}).parse(source);
@@ -117,7 +128,9 @@ export const GMAIL_POLL_STATES = ["awaiting-confirmation", "confirm-failed"] as 
 export const GmailPollStateSchema = z.enum(GMAIL_POLL_STATES);
 export type GmailPollState = z.infer<typeof GmailPollStateSchema>;
 
-export function buildGmailStatusUrl(input: { pollCount: number; state: GmailPollState }): string {
-	const params = new URLSearchParams({ poll: String(input.pollCount), state: input.state });
+export function buildGmailStatusUrl(input: { pollCount: number; state: GmailPollState; picker?: GmailPickerState }): string {
+	const params = new URL(buildGmailUrl(input.picker), "https://readplace.com").searchParams;
+	params.set("poll", String(input.pollCount));
+	params.set("state", input.state);
 	return `${GMAIL_STATUS_PATH}?${params.toString()}`;
 }

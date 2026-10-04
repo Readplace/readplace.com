@@ -89,6 +89,7 @@ const inboxNotificationTopicArn = inboxMail.notificationTopicArn;
 const awsRegion = new pulumi.Config("aws").require("region");
 const awsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
 const tableNames = {
+	userArticles: config.require("dynamodbUserArticlesTable"),
 	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
 	inboxEmails: config.require("dynamodbInboxEmailsTable"),
 	inboxEmailLinks: config.require("dynamodbInboxEmailLinksTable"),
@@ -177,10 +178,6 @@ const webSubscriptionProvidersRead = new HutchDynamoDBAccess(
 	},
 );
 
-// Renders the Articles tab's Saved button. Read-only, and only of the inbox's own
-// read model — the invariant that no inbox role touches articles/user-articles
-// still holds, which is why this state arrives as a save-side fact rather than a
-// cross-boundary read.
 const webSavedLinksRead = new HutchDynamoDBAccess("inbox-web-saved-links-read", {
 	tables: [{ arn: inboxStorage.savedLinksTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:BatchGetItem"],
@@ -356,16 +353,6 @@ new aws.sns.TopicSubscription(
 	{ dependsOn: [receiveEmailQueuePolicy] },
 );
 
-// --- Inbox link previews (extract → crawl) ---
-// EmailReceivedEvent → extract-email-links re-derives the body from the raw .eml,
-// extracts links, writes pending rows, and fans out one CrawlEmailLinkPreview per
-// link (★14 cap + truncate-degrade-with-dedicated-alert-queue) plus one
-// SubmitLinkCommand per routed saveable link, which save-link's submit-link
-// Lambda turns into a queue save. Each CrawlEmailLinkPreview →
-// crawl-email-link-preview crawls a preview WITHOUT saving to /queue (★16 SSRF
-// guard inherited from crawlAndFinalize). Neither Lambda is granted the
-// articles/user-articles tables — queue writes happen only in save-link's
-// subscriber, routed by command, never from an inbox Lambda's own role.
 const extractEmailLinksDynamodb = new HutchDynamoDBAccess("inbox-extract-email-links-dynamodb", {
 	tables: [
 		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
@@ -456,6 +443,14 @@ const extractEmailLinksAddressesRead = new HutchDynamoDBAccess(
 	},
 );
 
+const extractEmailLinksReadlistDefinitionsRead = new HutchDynamoDBAccess(
+	"inbox-extract-email-links-readlist-definitions-read",
+	{
+		tables: [{ arn: tableArn(tableNames.userArticles), includeIndexes: false }],
+		actions: ["dynamodb:Query"],
+	},
+);
+
 const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 	entryPoint: "./src/runtime/extract-email-links.main.ts",
 	outputDir: ".lib/inbox-extract-email-links",
@@ -468,6 +463,7 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+		DYNAMODB_USER_ARTICLES_TABLE: tableNames.userArticles,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
@@ -481,6 +477,7 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 		...extractEmailLinksDynamodb.policies,
 		...extractEmailLinksSubscriptionProvidersRead.policies,
 		...extractEmailLinksAddressesRead.policies,
+		...extractEmailLinksReadlistDefinitionsRead.policies,
 		// Reads the raw .eml to re-derive the body; never writes any bucket.
 		...HutchS3ReadWrite.readPoliciesForBucket(
 			"inbox-extract-email-links-raw-read",
@@ -732,13 +729,6 @@ new aws.cloudwatch.MetricAlarm("inbox-gmail-forwarding-confirm-failed-alarm", {
 	alarmActions: [gmailForwardingConfirmFailedTopic.arn],
 });
 
-// --- Saved-link read model (queue-membership facts → the tabs' save button) ---
-// LinkQueuedEvent (a save reached its terminal accept state, published by every
-// save surface through @packages/save-article), LinkQueueFailedEvent (it
-// exhausted its accept retries) and LinkDequeuedEvent (the reader deleted the
-// queue row a save produced) all land here and stamp or drop one row per
-// user+URL. This is how both tabs know whether a link is in the reader's queue
-// without any inbox role reading the articles/user-articles tables.
 const recordLinkQueuedDynamodb = new HutchDynamoDBAccess("inbox-record-link-queued-dynamodb", {
 	tables: [{ arn: inboxStorage.savedLinksTable.arn, includeIndexes: false }],
 	// Every write addresses one row by key — no read, no query. A retraction
@@ -818,7 +808,7 @@ const recordEmailLinksFilteredDynamodb = new HutchDynamoDBAccess(
 	"inbox-record-email-links-filtered-dynamodb",
 	{
 		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
-		actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+		actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"],
 	},
 );
 

@@ -11,6 +11,7 @@ config:
   inbox:inboxAddressDomain: read.place
   inbox:inboxMailParentZone: read.place
   inbox:deletionProtection: true
+  inbox:dynamodbUserArticlesTable: hutch-user-articles-8226beb
   inbox:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
   inbox:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
   inbox:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-prod

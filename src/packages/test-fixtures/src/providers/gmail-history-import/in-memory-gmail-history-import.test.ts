@@ -28,7 +28,7 @@ function awaitingJob(overrides: Partial<GmailHistoryImportJob> = {}): GmailHisto
 		userId: READER,
 		jobId: JOB_ID,
 		senderEmail: TLDR,
-		destinationAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
+		destinationAddresses: [InboxAddressSchema.parse("gmail-a7b2c9@read.place")],
 		connection: {
 			gatewayAddress: InboxAddressSchema.parse("gmail-x1y2z3@read.place"),
 			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
@@ -439,7 +439,7 @@ describe("initInMemoryGmailHistoryImport", () => {
 			const store = initInMemoryGmailHistoryImport();
 			await runningJob(store, "gen-1");
 			await fetchMessage(store, { generation: "gen-1", id: "m1" });
-			await store.createJob(awaitingJob({ userId: OTHER_READER }));
+			await store.createJob(awaitingJob({ userId: OTHER_READER, destinationAddresses: [InboxAddressSchema.parse("work-a7b2c9@read.place"), InboxAddressSchema.parse("travel-a7b2c9@read.place")] }));
 
 			await store.deleteAllByUserId(READER);
 
@@ -448,7 +448,7 @@ describe("initInMemoryGmailHistoryImport", () => {
 				await store.recordOutcome({ ...REF, generation: "gen-1", gmailMessageId: gmailMessage("m1"), outcome: "imported", now: LATER }),
 				"stale",
 			);
-			assert.equal((await store.listJobsByUserId(OTHER_READER)).length, 1);
+			assert.deepEqual((await store.listJobsByUserId(OTHER_READER)).map((job) => job.destinationAddresses), [[InboxAddressSchema.parse("work-a7b2c9@read.place"), InboxAddressSchema.parse("travel-a7b2c9@read.place")]]);
 		});
 	});
 });

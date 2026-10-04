@@ -19,8 +19,17 @@ const GmailSenderRow = z.object({
 	seenCount: dynamoField(z.number()),
 	lastSubject: dynamoField(z.string()),
 	mappedAddress: dynamoField(InboxAddressSchema),
+	additionalMappedAddresses: dynamoField(z.array(InboxAddressSchema)),
 	mappedAt: dynamoField(z.string()),
 });
+
+function toSender(row: z.infer<typeof GmailSenderRow>): GmailSenderEntry {
+	const { mappedAddress, additionalMappedAddresses, ...sender } = row;
+	return {
+		...sender,
+		mappedAddresses: mappedAddress === undefined ? undefined : [mappedAddress, ...(additionalMappedAddresses ?? [])],
+	};
+}
 
 export function initDynamoDbGmailSender(deps: {
 	client: DynamoDBDocumentClient;
@@ -55,21 +64,27 @@ export function initDynamoDbGmailSender(deps: {
 				ExpressionAttributeValues: { ":now": now, ":subject": subject, ":one": 1 },
 			});
 		},
-		mapSenderToAddress: async ({ userId, senderEmail, mappedAddress }) => {
+		mapSenderToAddress: async ({ userId, senderEmail, mappedAddresses: [mappedAddress, ...additionalMappedAddresses] }) => {
 			await table.update({
 				Key: { userId, senderEmail },
-				UpdateExpression: "SET mappedAddress = :addr, mappedAt = :now",
+				UpdateExpression: additionalMappedAddresses.length === 0
+					? "SET mappedAddress = :addr, mappedAt = :now REMOVE additionalMappedAddresses"
+					: "SET mappedAddress = :addr, mappedAt = :now, additionalMappedAddresses = :additional",
 				ExpressionAttributeValues: {
 					":addr": mappedAddress,
 					":now": deps.now().toISOString(),
+					...(additionalMappedAddresses.length === 0 ? {} : { ":additional": additionalMappedAddresses }),
 				},
 			});
 		},
-		findSender: async ({ userId, senderEmail }) => table.get({ userId, senderEmail }),
+		findSender: async ({ userId, senderEmail }) => {
+			const row = await table.get({ userId, senderEmail });
+			return row === undefined ? undefined : toSender(row);
+		},
 		listSendersByUserId: async (userId) => {
 			const senders: GmailSenderEntry[] = [];
 			await forEachQueryPage(table, byUser(userId), async (rows) => {
-				senders.push(...rows);
+				senders.push(...rows.map(toSender));
 			});
 			return senders;
 		},

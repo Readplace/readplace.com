@@ -73,6 +73,15 @@ export function initFilterEmailLinksHandler(deps: {
 				kept: everyLink,
 			};
 		}
+		if (input.links.length === 0) {
+			return {
+				...NO_MODEL_CALL,
+				savedTo: input.readlist,
+				readlistLabel: input.definition.label,
+				decision: "filtered",
+				kept: [],
+			};
+		}
 		const decided = await decideEmailLinks({
 			purpose: input.definition.purpose,
 			subject: input.subject,

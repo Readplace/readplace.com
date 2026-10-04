@@ -1,4 +1,3 @@
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import {
 	EmailLinkOrdinalSchema,
 	type EmailLinkStatus,
@@ -6,8 +5,12 @@ import {
 	type InboxEmailLinkStore,
 	MessageIdSchema,
 } from "@packages/domain/inbox";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
+import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import {
 	initInMemoryInboxEmail,
@@ -86,7 +89,11 @@ async function openDecision(
 	await store.putLinksMeta({
 		userId,
 		receivedAtMessageId: RAM,
-		meta: { truncated: barrier.truncated, extractionFailed: false, readlistDecision: { readlist: WORK } },
+		meta: {
+			truncated: barrier.truncated,
+			extractionFailed: false,
+			readlistDecision: { readlist: WORK },
+		},
 	});
 }
 
@@ -97,9 +104,13 @@ async function createHandler() {
 	const handler = initRecordEmailLinksFilteredHandler({
 		markLinkDropped: store.markLinkDropped,
 		settleReadlistDecision: store.settleReadlistDecision,
+		putReadlistOutcome: store.putReadlistOutcome,
 		listLinksByEmail: store.listLinksByEmail,
 		setEmailLinkCounts: emails.setEmailLinkCounts,
-		logger: HutchLogger.from({ ...noopLogger, warn: (...args) => warnings.push(args) }),
+		logger: HutchLogger.from({
+			...noopLogger,
+			warn: (...args) => warnings.push(args),
+		}),
 	});
 	const seedEmail = () =>
 		emails.putEmail({
@@ -120,11 +131,14 @@ async function createHandler() {
 	await seedEmail();
 	const run = (bodies: string[]) =>
 		handler(
-			buildSqsEvent(bodies.map((body, index) => ({ messageId: `m-${index}`, body }))),
+			buildSqsEvent(
+				bodies.map((body, index) => ({ messageId: `m-${index}`, body })),
+			),
 			buildLambdaContext(),
 			() => {},
 		);
-	const read = () => store.listLinksByEmail({ userId, receivedAtMessageId: RAM });
+	const read = () =>
+		store.listLinksByEmail({ userId, receivedAtMessageId: RAM });
 	return { store, warnings, run, read, readCounts };
 }
 
@@ -141,7 +155,10 @@ describe("recordEmailLinksFilteredHandler", () => {
 		const result = await run([
 			filteredBody({
 				dropped: [
-					{ ordinal: "0001", reason: "A product launch, not engineering practice" },
+					{
+						ordinal: "0001",
+						reason: "A product launch, not engineering practice",
+					},
 					{ ordinal: "0002", reason: "" },
 				],
 			}),
@@ -199,7 +216,9 @@ describe("recordEmailLinksFilteredHandler", () => {
 			{ ordinal: "0001", status: "crawled" },
 		]);
 		await openDecision(store);
-		const body = filteredBody({ dropped: [{ ordinal: "0001", reason: "Off topic" }] });
+		const body = filteredBody({
+			dropped: [{ ordinal: "0001", reason: "Off topic" }],
+		});
 
 		const first = await run([body]);
 		const second = await run([body]);
@@ -207,7 +226,10 @@ describe("recordEmailLinksFilteredHandler", () => {
 		expect(first).toEqual({ batchItemFailures: [] });
 		expect(second).toEqual({ batchItemFailures: [] });
 		const { links, meta } = await read();
-		expect(links.map((link) => link.droppedFor?.reason)).toEqual([undefined, "Off topic"]);
+		expect(links.map((link) => link.droppedFor?.reason)).toEqual([
+			undefined,
+			"Off topic",
+		]);
 		expect(meta?.readlistDecision).toEqual({
 			state: "decided",
 			readlist: WORK,
@@ -221,7 +243,9 @@ describe("recordEmailLinksFilteredHandler", () => {
 			{ ordinal: "0000", status: "crawled" },
 			{ ordinal: "0001", status: "pending" },
 		]);
-		const body = filteredBody({ dropped: [{ ordinal: "0001", reason: "Off topic" }] });
+		const body = filteredBody({
+			dropped: [{ ordinal: "0001", reason: "Off topic" }],
+		});
 
 		const early = await run([body]);
 
@@ -233,7 +257,10 @@ describe("recordEmailLinksFilteredHandler", () => {
 
 		expect(retried).toEqual({ batchItemFailures: [] });
 		const { links, meta } = await read();
-		expect(links.map((link) => link.droppedFor?.reason)).toEqual([undefined, "Off topic"]);
+		expect(links.map((link) => link.droppedFor?.reason)).toEqual([
+			undefined,
+			"Off topic",
+		]);
 		expect(meta?.readlistDecision).toEqual({
 			state: "decided",
 			readlist: WORK,
@@ -260,7 +287,9 @@ describe("recordEmailLinksFilteredHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		const { links, meta } = await read();
-		expect(links.map((link) => [link.ordinal, link.status, link.droppedFor])).toEqual([
+		expect(
+			links.map((link) => [link.ordinal, link.status, link.droppedFor]),
+		).toEqual([
 			["0000", "crawled", undefined],
 			["0001", "skipped", undefined],
 		]);
@@ -295,7 +324,10 @@ describe("recordEmailLinksFilteredHandler", () => {
 		await seedLinks(store, [{ ordinal: "0000", status: "crawled" }]);
 		await openDecision(store);
 
-		const result = await run([filteredBody({ dropped: [] }), filterFailedBody()]);
+		const result = await run([
+			filteredBody({ dropped: [] }),
+			filterFailedBody(),
+		]);
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect((await read()).meta?.readlistDecision).toEqual({
@@ -324,8 +356,14 @@ describe("recordEmailLinksFilteredHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "m-0" }] });
 		const { links, meta } = await read();
-		expect(links.map((link) => link.droppedFor)).toEqual([undefined, undefined]);
-		expect(meta?.readlistDecision).toEqual({ state: "deciding", readlist: WORK });
+		expect(links.map((link) => link.droppedFor)).toEqual([
+			undefined,
+			undefined,
+		]);
+		expect(meta?.readlistDecision).toEqual({
+			state: "deciding",
+			readlist: WORK,
+		});
 	});
 
 	it("fails a fact whose detail-type no rule delivers, leaving the decision open", async () => {
@@ -340,7 +378,10 @@ describe("recordEmailLinksFilteredHandler", () => {
 		]);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "m-0" }] });
-		expect((await read()).meta?.readlistDecision).toEqual({ state: "deciding", readlist: WORK });
+		expect((await read()).meta?.readlistDecision).toEqual({
+			state: "deciding",
+			readlist: WORK,
+		});
 	});
 
 	it("fails a body that is not JSON to the DLQ", async () => {
@@ -370,7 +411,11 @@ describe("recordEmailLinksFilteredHandler", () => {
 			}),
 		]);
 
-		expect(await readCounts()).toEqual({ kept: 1, skipped: 3, truncated: false });
+		expect(await readCounts()).toEqual({
+			kept: 1,
+			skipped: 3,
+			truncated: false,
+		});
 	});
 
 	it("carries the barrier's truncated flag into the recount", async () => {
@@ -380,7 +425,11 @@ describe("recordEmailLinksFilteredHandler", () => {
 
 		await run([filteredBody({ dropped: [] })]);
 
-		expect(await readCounts()).toEqual({ kept: 1, skipped: 0, truncated: true });
+		expect(await readCounts()).toEqual({
+			kept: 1,
+			skipped: 0,
+			truncated: true,
+		});
 	});
 
 	it("leaves the counts alone when the filter gave up, since nothing was dropped", async () => {
@@ -390,15 +439,119 @@ describe("recordEmailLinksFilteredHandler", () => {
 
 		await run([filterFailedBody()]);
 
-		expect(await readCounts()).toEqual({ kept: 3, skipped: 1, truncated: false });
+		expect(await readCounts()).toEqual({
+			kept: 3,
+			skipped: 1,
+			truncated: false,
+		});
 	});
 
 	it("does not recount before the decision could settle", async () => {
 		const { store, run, readCounts } = await createHandler();
 		await seedLinks(store, [{ ordinal: "0000", status: "crawled" }]);
 
-		await run([filteredBody({ dropped: [{ ordinal: "0000", reason: "Off topic" }] })]);
+		await run([
+			filteredBody({ dropped: [{ ordinal: "0000", reason: "Off topic" }] }),
+		]);
 
-		expect(await readCounts()).toEqual({ kept: 3, skipped: 1, truncated: false });
+		expect(await readCounts()).toEqual({
+			kept: 3,
+			skipped: 1,
+			truncated: false,
+		});
+	});
+});
+
+describe("Gmail custom-list outcomes", () => {
+	it("retains the article in All while recording the first terminal custom rejection", async () => {
+		const { store, run, read, readCounts } = await createHandler();
+		await seedLinks(store, [{ ordinal: "0000", status: "crawled" }]);
+		await store.putLinksMeta({
+			userId,
+			receivedAtMessageId: RAM,
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+				selectedReadlists: [{ readlist: WORK, label: "Work" }],
+			},
+		});
+		expect(
+			await run([
+				filteredBody({
+					dropped: [{ ordinal: "0000", reason: "Outside this list" }],
+				}),
+			]),
+		).toEqual({ batchItemFailures: [] });
+		await run([filterFailedBody()]);
+		const { links, meta } = await read();
+		expect(links[0].droppedFor).toBeUndefined();
+		expect(meta?.readlistOutcomes).toEqual([
+			{
+				readlist: WORK,
+				decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
+				dropped: [{ ordinal: "0000", reason: "Outside this list" }],
+			},
+		]);
+		expect(await readCounts()).toEqual({
+			kept: 3,
+			skipped: 1,
+			truncated: false,
+		});
+	});
+
+	it("retries an early fact until the destination snapshot is visible", async () => {
+		const { store, run, read } = await createHandler();
+		await seedLinks(store, [{ ordinal: "0000", status: "crawled" }]);
+		const body = filteredBody({
+			dropped: [{ ordinal: "0000", reason: "Outside this list" }],
+		});
+		expect(await run([body])).toEqual({
+			batchItemFailures: [{ itemIdentifier: "m-0" }],
+		});
+		expect((await read()).links[0].droppedFor).toBeUndefined();
+		await store.putLinksMeta({
+			userId,
+			receivedAtMessageId: RAM,
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+				selectedReadlists: [{ readlist: WORK, label: "Work" }],
+			},
+		});
+		expect(await run([body])).toEqual({ batchItemFailures: [] });
+		expect((await read()).meta?.readlistOutcomes?.length).toBe(1);
+	});
+});
+
+it("keeps every custom list terminal result independent, including a failed list", async () => {
+	const { store, run, read } = await createHandler();
+	await seedLinks(store, [{ ordinal: "0000", status: "crawled" }]);
+	await store.putLinksMeta({
+		userId,
+		receivedAtMessageId: RAM,
+		meta: {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+		},
+	});
+	expect(await run([filterFailedBody()])).toEqual({ batchItemFailures: [] });
+	await run([filteredBody({ dropped: [] })]);
+	expect((await read()).meta?.readlistOutcomes).toEqual([
+		{
+			readlist: WORK,
+			decision: { state: "failed", readlist: WORK },
+			dropped: [],
+		},
+	]);
+});
+
+it("retries a failure outcome until extraction has written its destination snapshot", async () => {
+	const { run } = await createHandler();
+	expect(await run([filterFailedBody()])).toEqual({
+		batchItemFailures: [{ itemIdentifier: "m-0" }],
 	});
 });

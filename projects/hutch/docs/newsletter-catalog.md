@@ -4,9 +4,9 @@ The newsletter catalog is the shared list of FROM addresses that GMail Newslette
 
 - which senders the Gmail page's newsletter picker offers by default, and under which name;
 - which saved mappings are *not* submitted to the catalog, because the sender already has an approved record of its own;
-- which unmapped senders can produce a one-time email inviting the reader to choose a readlist.
+- which unmapped senders can produce a one-time email inviting the reader to choose readlists.
 
-A reader's own mapping never depends on the catalog. A reader can map any discovered sender, and that mapping keeps forwarding into the chosen readlist whether the catalog later approves, rejects or withdraws the sender.
+A reader's own mapping never depends on the catalog. A reader can map any discovered or monitored sender, and that mapping keeps forwarding into All and the chosen custom readlists whether the catalog later approves, rejects or withdraws the sender.
 
 ## Where it lives
 
@@ -53,13 +53,13 @@ The monitor's history cursor is separate from interactive sender discovery. Inte
 
 ### Following the email
 
-The email names the newsletter when the catalog supplies a name, includes its FROM address, and explains that the reader can save future issues to a readlist. Its tracked **Choose a readlist** link opens `/newsletters/gmail` with that sender selected; signing in returns the reader to the same selection. The page accepts monitored senders only from the signed-in reader's current mailbox.
+The email names the newsletter when the catalog supplies a name, includes its FROM address, and explains that the reader can save future issues to All and optional custom readlists. Its tracked **Choose readlists** link opens `/newsletters/gmail` with that sender selected; signing in returns the reader to the same selection. The page accepts monitored senders only from the signed-in reader's current mailbox.
 
-When the reader has multiple readlists, the destination remains unselected and **Save** stays disabled until they choose one. When **All** is the only readlist, it is selected and Save is available. A sender mapped after the email was sent opens its existing mapping, preserving that destination.
+All is always checked and locked. When a notification opens an unmapped sender and custom readlists are available, **Save** stays disabled until the reader explicitly confirms their selection. **Confirm readlists** with no custom selections confirms All-only; selecting a custom checkbox confirms with JavaScript. Without JavaScript, readers select lists, confirm, then Save. Successful inline creation selects the new list and confirms the choice. Search, polling and validation preserve the sender-bound `readlist_choice_for` state. When All is the only readlist, Save is available immediately. Ordinary entries start with All and can be saved immediately. A sender mapped after the email was sent opens All plus its saved custom selections.
 
 On arrival from the email, the readlist selector and Save have a distinct brand-colour border. The first click anywhere, including on disabled Save, clears both borders. The dismissal survives htmx refreshes. Keyboard focus remains visible; the border adds no layout shift. The arrival marker is a presentation hint and is excluded from later form and polling URLs. The underlying forms still work without JavaScript.
 
-Saving uses the existing mapping and Gmail filter update. Importing the sender's earlier unread messages from the last 30 days remains a separate, explicit option; following the email does not start an import.
+Saving uses the existing mapping and Gmail filter update. Every eligible article goes to All before preview publication. Custom readlists filter independently, and rejection by a custom list does not hide an article retained in All. Future deliveries and new imports snapshot the complete selection; previously handled mail is not reprocessed. Importing the sender's earlier unread messages from the last 30 days remains a separate, explicit option; following the email does not start an import.
 
 ### Delivery retries
 

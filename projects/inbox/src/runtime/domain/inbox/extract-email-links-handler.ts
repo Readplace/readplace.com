@@ -1,15 +1,8 @@
 import assert from "node:assert";
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
 import { decodeHtmlEntities } from "@packages/crawl-article";
-import { type EmailReceivedDetail, EmailReceivedEvent } from "@packages/hutch-infra-components";
-import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import { resolveWriteAccess } from "@packages/subscription-access";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { SaveProvenance } from "@packages/domain/article";
+import { validateSaveableUrl } from "@packages/domain/article";
+import { extractUrls } from "@packages/domain/import-session";
 import {
 	capEmailLinks,
 	classifyEmailLink,
@@ -22,15 +15,29 @@ import {
 	type InboxEmailLinkEntry,
 	type InboxEmailLinkStore,
 	type InboxEmailStore,
-	type ParseEmailResult,
 	type ParsedEmailInlineImage,
+	type ParseEmailResult,
+	UNROUTED_USER_ID,
 } from "@packages/domain/inbox";
-import { UNROUTED_USER_ID } from "@packages/domain/inbox";
-import { extractUrls } from "@packages/domain/import-session";
-import { validateSaveableUrl } from "@packages/domain/article";
-import type { SaveProvenance } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
+import {
+	type EmailReceivedDetail,
+	EmailReceivedEvent,
+} from "@packages/hutch-infra-components";
+import type { HutchLogger } from "@packages/hutch-logger";
+import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
+import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
+import { resolveWriteAccess } from "@packages/subscription-access";
+import type {
+	Handler,
+	SQSBatchItemFailure,
+	SQSBatchResponse,
+	SQSEvent,
+} from "aws-lambda";
 import { collectEmailAnchors } from "./collect-email-anchors";
 import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
 
@@ -61,7 +68,10 @@ const SUBMITTING_ORIGINS: Record<EmailReceivedDetail["origin"], boolean> = {
 export function initExtractEmailLinksHandler(deps: {
 	getEmail: InboxEmailStore["getEmail"];
 	readRawEmail: (s3Key: string) => Promise<Buffer | undefined>;
-	parseEmail: (input: { raw: Buffer; receivedAt: string }) => Promise<ParseEmailResult>;
+	parseEmail: (input: {
+		raw: Buffer;
+		receivedAt: string;
+	}) => Promise<ParseEmailResult>;
 	deriveSanitizedBody: (input: {
 		html: string;
 		inlineImages: ParsedEmailInlineImage[];
@@ -108,6 +118,7 @@ export function initExtractEmailLinksHandler(deps: {
 	}) => Promise<void>;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	findInboxAddress: InboxAddressStore["findByAddress"];
+	listReadlistDefinitions: ListReadlistDefinitions;
 	now: () => Date;
 	triageEmailLinks: TriageEmailLinks;
 	logger: HutchLogger;
@@ -130,6 +141,7 @@ export function initExtractEmailLinksHandler(deps: {
 		publishFirstInboxEmailNotice,
 		findSubscriptionByUserId,
 		findInboxAddress,
+		listReadlistDefinitions,
 		now,
 		triageEmailLinks,
 		logger,
@@ -142,7 +154,11 @@ export function initExtractEmailLinksHandler(deps: {
 	}): Promise<ReadlistSlug | undefined> => {
 		const entry = await findInboxAddress(input.address);
 		assert(entry, "a received email's inbox address is never deleted");
-		if (entry.userId !== input.userId || entry.readlist === DEFAULT_READLIST_SLUG) return undefined;
+		if (
+			entry.userId !== input.userId ||
+			entry.readlist === DEFAULT_READLIST_SLUG
+		)
+			return undefined;
 		return entry.readlist;
 	};
 
@@ -152,14 +168,19 @@ export function initExtractEmailLinksHandler(deps: {
 		for (const record of event.Records) {
 			try {
 				const envelope = JSON.parse(record.body);
-				const parsed = EmailReceivedEvent.detailSchema.safeParse(envelope.detail);
+				const parsed = EmailReceivedEvent.detailSchema.safeParse(
+					envelope.detail,
+				);
 				if (!parsed.success) {
-					logger.error("[extract-email-links] malformed event", { messageId: record.messageId });
+					logger.error("[extract-email-links] malformed event", {
+						messageId: record.messageId,
+					});
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
 				const userId = UserIdSchema.parse(parsed.data.userId);
-				const { receivedAtMessageId, origin, recipientAddress } = parsed.data;
+				const { receivedAtMessageId, origin, recipientAddress, routing } =
+					parsed.data;
 
 				const email = await getEmail({ userId, receivedAtMessageId });
 				if (email === undefined || email.status !== "received") {
@@ -175,17 +196,25 @@ export function initExtractEmailLinksHandler(deps: {
 				const raw = await readRawEmail(email.rawEmailS3Key);
 				if (raw === undefined) {
 					// S3 can be eventually consistent at receipt; retry.
-					logger.warn("[extract-email-links] raw .eml not yet readable, retrying", {
-						s3Key: email.rawEmailS3Key,
-					});
+					logger.warn(
+						"[extract-email-links] raw .eml not yet readable, retrying",
+						{
+							s3Key: email.rawEmailS3Key,
+						},
+					);
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
 
-				const parsedEmail = await parseEmail({ raw, receivedAt: email.receivedAt });
+				const parsedEmail = await parseEmail({
+					raw,
+					receivedAt: email.receivedAt,
+				});
 				if (!parsedEmail.ok) {
 					// A body that does not parse has no links to extract.
-					logger.warn("[extract-email-links] raw no longer parseable", { receivedAtMessageId });
+					logger.warn("[extract-email-links] raw no longer parseable", {
+						receivedAtMessageId,
+					});
 					continue;
 				}
 
@@ -199,7 +228,9 @@ export function initExtractEmailLinksHandler(deps: {
 				});
 				// Decode before extracting so the stored, classified, and crawled URL is
 				// the href as parsed, not its serialized form (`?a=1&amp;b=2`).
-				const extracted = extractUrls(Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"));
+				const extracted = extractUrls(
+					Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"),
+				);
 				const { urls, truncated } = capEmailLinks(extracted, { maxLinks });
 
 				const links = urls.map((url, index) => ({
@@ -210,7 +241,9 @@ export function initExtractEmailLinksHandler(deps: {
 						listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls,
 					}),
 				}));
-				const crawlCandidates = links.filter((link) => link.classification.action === "crawl");
+				const crawlCandidates = links.filter(
+					(link) => link.classification.action === "crawl",
+				);
 				const anchors = collectEmailAnchors(sanitizedHtml);
 				// One batched triage call per email; `unavailable` fails open so previews
 				// never depend on the model being up.
@@ -227,26 +260,52 @@ export function initExtractEmailLinksHandler(deps: {
 					});
 				}
 
-				const storedLinkStatus = async (row: InboxEmailLinkEntry): Promise<EmailLinkStatus> => {
+				const storedLinkStatus = async (
+					row: InboxEmailLinkEntry,
+				): Promise<EmailLinkStatus> => {
 					const putResult = await putLink(row);
 					if (putResult === "stored") return row.status;
-					const existing = await getLink({ userId, receivedAtMessageId, ordinal: row.ordinal });
-					assert(existing, "conditional put reported a duplicate but the row is missing");
+					const existing = await getLink({
+						userId,
+						receivedAtMessageId,
+						ordinal: row.ordinal,
+					});
+					assert(
+						existing,
+						"conditional put reported a duplicate but the row is missing",
+					);
 					return existing.status;
 				};
 
-				const canSubmit = SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
+				const canSubmit =
+					SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
 				const writeAccess = canSubmit
 					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
 					: undefined;
 				const routedReadlist =
-					writeAccess === "full"
+					writeAccess === "full" && routing.kind === "inbox"
 						? await findRoutedReadlist({
 								userId,
 								address: InboxAddressSchema.parse(recipientAddress),
 							})
 						: undefined;
-				const triagedLinks: { ordinal: EmailLinkOrdinal; url: string; anchorText: string }[] = [];
+				const customReadlists = new Set<ReadlistSlug>();
+				if (canSubmit && routing.kind === "gmail") {
+					for (const address of new Set(routing.destinationAddresses)) {
+						const readlist = await findRoutedReadlist({
+							userId,
+							address: InboxAddressSchema.parse(address),
+						});
+						if (readlist !== undefined) customReadlists.add(readlist);
+					}
+				} else if (routedReadlist !== undefined) {
+					customReadlists.add(routedReadlist);
+				}
+				const triagedLinks: {
+					ordinal: EmailLinkOrdinal;
+					url: string;
+					anchorText: string;
+				}[] = [];
 
 				let kept = 0;
 				let skipped = 0;
@@ -275,34 +334,49 @@ export function initExtractEmailLinksHandler(deps: {
 						// Terminal at birth: a skipped link is never crawled, so no
 						// CrawlEmailLinkPreview is published for it and its card never polls.
 						countStored(
-							await storedLinkStatus({ ...link, status: "skipped", skipReason: classification.reason }),
+							await storedLinkStatus({
+								...link,
+								status: "skipped",
+								skipReason: classification.reason,
+							}),
 						);
 						continue;
 					}
 					const category =
-						triage?.status === "triaged" ? triage.categories.get(ordinal) : undefined;
+						triage?.status === "triaged"
+							? triage.categories.get(ordinal)
+							: undefined;
 					if (category !== undefined && category !== "article") {
-						countStored(
-							await storedLinkStatus({
-								...link,
-								status: "skipped",
-								skipReason: LLM_SKIP_REASONS[category],
-							}),
-						);
-						continue;
+						const status = await storedLinkStatus({
+							...link,
+							status: "skipped",
+							skipReason: LLM_SKIP_REASONS[category],
+						});
+						if (routing.kind !== "gmail" || status === "skipped") {
+							countStored(status);
+							continue;
+						}
 					}
 					// Put the pending row BEFORE publishing so the Articles tab shows N
 					// pending cards immediately; a re-delivery hits the conditional put as
 					// a no-op duplicate, then re-publishes while the row is still pending
 					// (the crawl consumer is idempotent).
-					const status = await storedLinkStatus({ ...link, status: "pending", skipReason: undefined });
+					const status = await storedLinkStatus({
+						...link,
+						status: "pending",
+						skipReason: undefined,
+					});
 					countStored(status);
-					const saveable = canSubmit && validateSaveableUrl(url).status === "SUCCESS";
-					if (routedReadlist !== undefined && saveable && status !== "skipped") {
+					const saveable =
+						canSubmit && validateSaveableUrl(url).status === "SUCCESS";
+					if ((routing.kind === "gmail" || customReadlists.size > 0) && saveable && status !== "skipped") {
 						triagedLinks.push({
 							ordinal,
 							url,
-							anchorText: (anchors.get(url) ?? "").slice(0, TRIAGED_ANCHOR_TEXT_MAX_CHARS),
+							anchorText: (anchors.get(url) ?? "").slice(
+								0,
+								TRIAGED_ANCHOR_TEXT_MAX_CHARS,
+							),
 						});
 					}
 					// Triage verdicts are not deterministic across re-deliveries: a row a
@@ -342,33 +416,56 @@ export function initExtractEmailLinksHandler(deps: {
 							}
 						}
 					}
-					await publishCrawlPreview({ userId, receivedAtMessageId, ordinal, url });
+					await publishCrawlPreview({
+						userId,
+						receivedAtMessageId,
+						ordinal,
+						url,
+					});
 				}
 
 				if (held > 0) {
-					logger.info("[extract-email-links] saves held for a read-only reader", {
-						userId,
-						receivedAtMessageId,
-						held,
-					});
+					logger.info(
+						"[extract-email-links] saves held for a read-only reader",
+						{
+							userId,
+							receivedAtMessageId,
+							held,
+						},
+					);
 				}
 
-				const decidingReadlist = triagedLinks.length > 0 ? routedReadlist : undefined;
-				if (decidingReadlist !== undefined) {
-					await publishEmailLinksTriaged({
-						userId,
-						receivedAtMessageId,
-						readlist: decidingReadlist,
-						senderEmail: email.senderEmail,
-						subject: email.subject,
-						links: triagedLinks,
-					});
-					await publishFirstInboxEmailNotice({
-						userId,
-						receivedAtMessageId,
-						inboxAddress: recipientAddress,
-					});
-				}
+				const decidingReadlists = writeAccess === "full" && (routing.kind === "gmail" || triagedLinks.length > 0) ? [...customReadlists] : [];
+				const definitions =
+					routing.kind === "gmail" && customReadlists.size > 0
+						? await listReadlistDefinitions(userId)
+						: [];
+				const selectedReadlists = [...customReadlists].map((readlist) => ({
+					readlist,
+					label:
+						definitions.find((definition) => definition.slug === readlist)
+							?.label ?? "Deleted readlist",
+				}));
+				const publishReadlistSelections = async () => {
+					for (const readlist of decidingReadlists) {
+						await publishEmailLinksTriaged({
+							userId,
+							receivedAtMessageId,
+							readlist,
+							senderEmail: email.senderEmail,
+							subject: email.subject,
+							links: triagedLinks,
+						});
+					}
+					if (triagedLinks.length > 0 && decidingReadlists.length > 0 && !firstInboxNoticePublished) {
+						await publishFirstInboxEmailNotice({
+							userId,
+							receivedAtMessageId,
+							inboxAddress: recipientAddress,
+						});
+					}
+				};
+				if (routing.kind === "inbox") await publishReadlistSelections();
 
 				await setEmailLinkCounts({
 					userId,
@@ -386,12 +483,22 @@ export function initExtractEmailLinksHandler(deps: {
 						truncated,
 						extractionFailed: false,
 						readlistDecision:
-							decidingReadlist === undefined ? undefined : { readlist: decidingReadlist },
+							routedReadlist === undefined || triagedLinks.length === 0
+								? undefined
+								: { readlist: routedReadlist },
+						...(routing.kind === "gmail" && canSubmit
+							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
+							: {}),
 					},
 				});
+				if (routing.kind === "gmail") await publishReadlistSelections();
 
 				if (truncated) {
-					await alertTruncated({ userId, receivedAtMessageId, found: extracted.totalFound });
+					await alertTruncated({
+						userId,
+						receivedAtMessageId,
+						found: extracted.totalFound,
+					});
 					logger.error("[extract-email-links] link cap hit, truncated", {
 						receivedAtMessageId,
 						found: extracted.totalFound,

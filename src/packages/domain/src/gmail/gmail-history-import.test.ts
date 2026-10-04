@@ -31,7 +31,7 @@ function importJob(overrides: Partial<GmailHistoryImportJob>): GmailHistoryImpor
 		userId: USER,
 		jobId: JOB_ID,
 		senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"),
-		destinationAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
+		destinationAddresses: [InboxAddressSchema.parse("gmail-a7b2c9@read.place")],
 		connection: {
 			gatewayAddress: InboxAddressSchema.parse("gmail-x1y2z3@read.place"),
 			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),

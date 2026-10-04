@@ -22,6 +22,7 @@ const InboxEmailRow = z.object({
 	receivedAtMessageId: z.string(),
 	messageId: MessageIdSchema,
 	recipientAddress: InboxAddressSchema,
+	gmailDestinationAddresses: dynamoField(z.tuple([InboxAddressSchema], InboxAddressSchema)),
 	senderEmail: z.string(),
 	subject: z.string(),
 	status: InboxEmailStatusSchema,

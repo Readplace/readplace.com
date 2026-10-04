@@ -30,7 +30,7 @@ function mapped(senderEmail: typeof TLDR): GmailSenderEntry {
 	return {
 		userId: USER, senderEmail, addedToFilterAt: "2026-08-27T00:06:00.000Z",
 		firstSeenAt: undefined, lastSeenAt: undefined, seenCount: undefined,
-		lastSubject: undefined, mappedAddress: ALL_ADDRESS, mappedAt: "2026-08-27T00:06:00.000Z",
+		lastSubject: undefined, mappedAddresses: [ALL_ADDRESS], mappedAt: "2026-08-27T00:06:00.000Z",
 	};
 }
 
@@ -181,21 +181,21 @@ describe("GMail Newsletters readlist choice", () => {
 	it("selects only a readlist the reader holds and shows its label", () => {
 		const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
 		const chosen = toGmailPageViewModel(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR, readlist: "tech" } }));
-		assert.equal(chosen.readlistPicker.choiceLabel, "Tech");
-		assert.deepEqual(chosen.readlistPicker.options.map((option) => [option.slug, option.selected]), [["default", false], ["tech", true]]);
+		assert.equal(chosen.readlistPicker.choiceLabel, "All, Tech");
+		assert.deepEqual(chosen.readlistPicker.options.map((option) => [option.slug, option.selected]), [["default", true], ["tech", true]]);
 		const unknown = toGmailPageViewModel(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR, readlist: "gone" } }));
-		assert.equal(unknown.readlistPicker.choiceLabel, "Choose a readlist");
+		assert.equal(unknown.readlistPicker.choiceLabel, "All");
 		assert.equal(unknown.save?.disabled, true);
 	});
 
-	it("selects All when it is the only destination and otherwise requires a choice", () => {
+	it("selects All for ordinary entries and asks notification recipients to confirm when custom lists exist", () => {
 		const onlyAll = toGmailPageViewModel(input({ state: { sender: TLDR }, notification: true }));
 		assert.equal(onlyAll.readlistPicker.choiceLabel, "All");
 		assert.equal(onlyAll.save?.disabled, false);
 		assert.equal(onlyAll.notificationSender, TLDR);
 		const choice = toGmailPageViewModel(input({ state: { sender: TLDR }, readlists: [DEFAULT_READLIST, { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" }] }));
-		assert.equal(choice.readlistPicker.choiceLabel, "Choose a readlist");
-		assert.equal(choice.save?.disabled, true);
+		assert.equal(choice.readlistPicker.choiceLabel, "All");
+		assert.equal(choice.save?.disabled, false);
 		assert.equal(choice.notificationSender, undefined);
 		const missing = toGmailPageViewModel(input({ state: { sender: "other@example.com" }, notification: true }));
 		assert.equal(missing.notificationSender, undefined);
@@ -206,12 +206,47 @@ describe("GMail Newsletters readlist choice", () => {
 		const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
 		const page = input({ senders: [mapped(TLDR)], destinations: new Map([[ALL_ADDRESS, { ...ALL_ENTRY, readlist: TECH.slug }]]), readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR }, notification: true });
 		const current = toGmailPageViewModel(page);
-		assert.equal(current.readlistPicker.choiceLabel, "Tech");
+		assert.equal(current.readlistPicker.choiceLabel, "All, Tech");
 		assert.equal(current.save?.disabled, false);
 		assert.equal(current.save?.offerImport, false);
 		const missing = toGmailPageViewModel({ ...page, destinations: new Map() });
-		assert.equal(missing.readlistPicker.choiceLabel, "Choose a readlist");
-		assert.equal(missing.save?.disabled, true);
+		assert.equal(missing.readlistPicker.choiceLabel, "All");
+		assert.equal(missing.save?.disabled, false);
+	});
+
+	it("requires notification confirmation for a legacy filtered sender without destinations", () => {
+		const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
+		const vm = toGmailPageViewModel(input({
+			senders: [{ ...mapped(TLDR), mappedAddresses: undefined, mappedAt: undefined }],
+			readlists: [DEFAULT_READLIST, TECH],
+			state: { sender: TLDR },
+			notification: true,
+		}));
+		assert.equal(vm.readlistPicker.choiceLabel, "All");
+		assert.equal(vm.readlistPicker.confirmLabel, "Confirm readlists");
+		assert.equal(vm.pickerState.readlist_choice_for, TLDR);
+		assert.equal(vm.save?.disabled, true);
+		assert.equal(vm.save?.offerImport, false);
+	});
+
+	it("preselects every saved destination before its filter timestamp is written", () => {
+		const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
+		const WORK = { slug: ReadlistSlugSchema.parse("work"), label: "Work" };
+		const workAddress = InboxAddressSchema.parse("work-c9d4e1@read.place");
+		const page = input({
+			senders: [{ ...mapped(TLDR), addedToFilterAt: undefined, mappedAddresses: [ALL_ADDRESS, workAddress] }],
+			destinations: new Map([[ALL_ADDRESS, { ...ALL_ENTRY, readlist: TECH.slug }], [workAddress, { ...ALL_ENTRY, address: workAddress, readlist: WORK.slug }]]),
+			readlists: [DEFAULT_READLIST, TECH, WORK],
+			state: { sender: TLDR },
+			notification: true,
+		});
+		const vm = toGmailPageViewModel(page);
+		assert.equal(vm.readlistPicker.choiceLabel, "All, Tech, Work");
+		assert.deepEqual(vm.readlistPicker.options.map((option) => option.selected), [true, true, true]);
+		assert.equal(vm.pickerState.readlist_choice_for, undefined);
+		assert.equal(vm.save?.disabled, false);
+		assert.equal(vm.save?.offerImport, true);
+		assert.equal(toGmailPageViewModel({ ...page, state: { sender: TLDR, readlist_choice_for: TLDR } }).save?.disabled, false);
 	});
 
 	it.each(["readlist_invalid", "readlist_name_invalid", "readlist_limit"])("opens the readlist picker for %s", (error) => {

@@ -1,4 +1,4 @@
-<span class="form-field__label gmail__add-label" id="gmail-readlist-label" data-test-gmail-readlist-label>Readlist</span>
+<span class="form-field__label gmail__add-label" id="gmail-readlist-label" data-test-gmail-readlist-label>Readlists</span>
               <details class="gmail__picker gmail__readlist-picker" data-gmail-picker data-test-gmail-readlist-picker{{#if open}} open{{/if}}>
                 <summary class="gmail__picker-trigger" aria-labelledby="gmail-readlist-label gmail-readlist-choice" data-gmail-picker-trigger>
                   <span id="gmail-readlist-choice">{{choiceLabel}}</span>{{icon "chevron-down"}}
@@ -6,28 +6,26 @@
                 <ul class="gmail__picker-menu gmail__options">
                   {{#each options}}
                   <li>
-                    <form method="GET" action="{{../pagePath}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-                      {{#each fields}}
-                      <input type="hidden" name="{{name}}" value="{{value}}">
-                      {{/each}}
-                      <button class="gmail__picker-option" type="submit" aria-current="{{#if selected}}true{{else}}false{{/if}}" data-gmail-picker-option data-test-gmail-readlist-option="{{slug}}">{{label}}</button>
-                    </form>
+                    <label class="gmail__picker-option gmail__readlist-option">
+                      <input type="checkbox" name="readlist" value="{{slug}}"{{#if selected}} checked{{/if}}{{#if locked}} disabled{{else}} data-gmail-picker-option{{/if}} data-gmail-readlist-checkbox data-test-gmail-readlist-option="{{slug}}">
+                      <span>{{label}}</span>{{#if locked}}<span class="gmail__readlist-required">Always included</span>{{/if}}
+                    </label>
                   </li>
                   {{/each}}
                   {{#if canCreate}}
                   <li class="gmail__create-item">
-                    <form class="gmail__create-readlist" method="POST" action="{{createAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button" data-test-gmail-readlist-create>
-                      {{#each createFields}}
-                      <input type="hidden" name="{{name}}" value="{{value}}">
-                      {{/each}}
+                    <div class="gmail__create-readlist" data-test-gmail-readlist-create>
                       <input class="form-input gmail__add-input" id="gmail-readlist-name" type="text" name="readlist_name" value="{{readlistName}}" required maxlength="{{nameMaxLength}}" placeholder="New readlist" aria-label="New readlist name" autocomplete="off" data-gmail-picker-focus>
-                      <button class="btn gmail__create-button gmail__submit" type="submit" aria-label="Create readlist"><span class="gmail__submit-label">{{icon "plus"}}</span><span class="sr-only">Create readlist</span>{{{submitLoader}}}</button>
-                    </form>
+                      <button class="btn gmail__create-button gmail__submit" type="submit" formmethod="post" formaction="{{createAction}}" aria-label="Create readlist"><span class="gmail__submit-label">{{icon "plus"}}</span><span class="sr-only">Create readlist</span>{{{submitLoader}}}</button>
+                    </div>
                   </li>
                   {{else}}
                   <li class="gmail__create-item">
                     <p class="gmail__discovery-status" data-test-gmail-readlist-limit>{{limitMessage}}</p>
                   </li>
                   {{/if}}
+                  <li class="gmail__readlist-confirm">
+                    <button class="btn btn--neutral" type="submit" formmethod="get" name="confirm_readlists" value="{{confirmSender}}" formnovalidate data-gmail-confirm-readlists>{{confirmLabel}}</button>
+                  </li>
                 </ul>
               </details>

@@ -38,7 +38,7 @@ async function queuedImport(imports: GmailHistoryImportStore, jobId: ReturnType<
 		userId: READER,
 		jobId,
 		senderEmail: ForwardableSenderSchema.parse("dan@tldrnewsletter.com"),
-		destinationAddress: InboxAddressSchema.parse("gmail-abc123@read.place"),
+		destinationAddresses: [InboxAddressSchema.parse("gmail-abc123@read.place")],
 		connection: {
 			gatewayAddress: InboxAddressSchema.parse("gmail-def456@read.place"),
 			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),

@@ -15,7 +15,9 @@ export const EmailLinkOrdinalSchema = z
 export type EmailLinkOrdinal = z.infer<typeof EmailLinkOrdinalSchema>;
 
 export const formatEmailLinkOrdinal = (index: number): EmailLinkOrdinal =>
-	EmailLinkOrdinalSchema.parse(String(index).padStart(EMAIL_LINK_ORDINAL_DIGITS, "0"));
+	EmailLinkOrdinalSchema.parse(
+		String(index).padStart(EMAIL_LINK_ORDINAL_DIGITS, "0"),
+	);
 
 /** Crawl-preview lifecycle. Data-state words, contrasting "pending"/"staging":
  *  - `pending`  — extracted, not yet crawled (the only non-terminal state).
@@ -23,7 +25,12 @@ export const formatEmailLinkOrdinal = (index: number): EmailLinkOrdinal =>
  *  - `failed`   — crawl returned failed/unsupported, or the URL was SSRF-blocked.
  *  - `skipped`  — classified as an action link at extraction; never crawled.
  * Terminal = everything but `pending`; a card polls only while it is `pending`. */
-export const EmailLinkStatusSchema = z.enum(["pending", "crawled", "failed", "skipped"]);
+export const EmailLinkStatusSchema = z.enum([
+	"pending",
+	"crawled",
+	"failed",
+	"skipped",
+]);
 export type EmailLinkStatus = z.infer<typeof EmailLinkStatusSchema>;
 
 export const EmailLinkSkipReasonSchema = z.enum([
@@ -53,4 +60,19 @@ export const InboxReadlistDecisionSchema = z.discriminatedUnion("state", [
 	z.object({ state: z.literal("failed"), readlist: ReadlistSlugSchema }),
 ]);
 export type InboxReadlistDecision = z.infer<typeof InboxReadlistDecisionSchema>;
-export type SettledInboxReadlistDecision = Exclude<InboxReadlistDecision, { state: "deciding" }>;
+export type SettledInboxReadlistDecision = Exclude<
+	InboxReadlistDecision,
+	{ state: "deciding" }
+>;
+
+export const InboxReadlistOutcomeSchema = z.object({
+	readlist: ReadlistSlugSchema,
+	decision: z.union([
+		InboxReadlistDecisionSchema.options[1],
+		InboxReadlistDecisionSchema.options[2],
+	]),
+	dropped: z.array(
+		z.object({ ordinal: EmailLinkOrdinalSchema, reason: z.string() }),
+	),
+});
+export type InboxReadlistOutcome = z.infer<typeof InboxReadlistOutcomeSchema>;

@@ -27,6 +27,14 @@ interface SeedLink {
 	droppedFor?: { readlist: string; readlistLabel: string; reason: string };
 }
 
+interface SeedReadlistOutcome {
+	readlist: string;
+	decision:
+		| { state: "decided"; readlist: string; readlistLabel: string }
+		| { state: "failed"; readlist: string };
+	dropped: { ordinal: string; reason: string }[];
+}
+
 const TWO_CRAWLED_LINKS: readonly SeedLink[] = [
 	{ url: "https://example.com/first", status: "crawled", title: "An example article" },
 	{ url: "https://example.com/second", status: "crawled", title: "Another article" },
@@ -100,7 +108,14 @@ async function pinMintedAddress(page: Page): Promise<void> {
 
 async function seedEmail(
 	page: Page,
-	seed: { links: readonly SeedLink[]; readlistDecision?: Record<string, string> },
+	seed: {
+		links: readonly SeedLink[];
+		readlistDecision?: Record<string, string>;
+		selectedReadlists?: { readlist: string; label: string }[];
+		readlistOutcomes?: SeedReadlistOutcome[];
+		eligibleArticleCount?: number;
+		savesHeld?: boolean;
+	},
 ): Promise<string> {
 	await page.request.post("/e2e/session");
 	await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
@@ -464,6 +479,74 @@ test.describe("Inbox visual checkpoints", () => {
 		});
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
 		await captureCheckpoint(page, articlesDecisionFailed);
+	});
+
+	test("captures independent Gmail readlist results while All keeps every article", async ({ page }) => {
+		const emailId = await seedEmail(page, {
+			links: TWO_CRAWLED_LINKS,
+			eligibleArticleCount: 2,
+			savesHeld: false,
+			selectedReadlists: [
+				{ readlist: WORK_READLIST, label: "Work" },
+				{ readlist: "science", label: "Science" },
+				{ readlist: "weekend", label: "Weekend reading" },
+			],
+			readlistOutcomes: [
+				{
+					readlist: WORK_READLIST,
+					decision: { state: "decided", readlist: WORK_READLIST, readlistLabel: "Work" },
+					dropped: [{ ordinal: "0001", reason: "Outside engineering practice" }],
+				},
+				{
+					readlist: "science",
+					decision: { state: "failed", readlist: "science" },
+					dropped: [],
+				},
+			],
+		});
+		await page.route("**/articles?poll=*", (route) => route.abort());
+		for (const width of [
+			{ name: "desktop", viewport: { width: 1280, height: 900 } },
+			{ name: "mobile", viewport: { width: 390, height: 844 } },
+		]) {
+			await page.setViewportSize(width.viewport);
+			for (const theme of ["light", "dark"] as const) {
+				await page.emulateMedia({ colorScheme: theme });
+				await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
+				await captureCheckpoint(page, {
+					name: `inbox-gmail-readlist-results-${width.name}-${theme}`,
+					settled: async (settling) => {
+						await expect(settling.locator('[data-test-tab-panel="articles"]')).toHaveAttribute(
+							"data-articles-status",
+							"terminal",
+						);
+						await expect(settling.locator('[data-test-tab-panel="articles"]')).toHaveAttribute(
+							"hx-get",
+							/\/articles\?poll=1$/,
+						);
+						await expect(settling.locator("[data-test-panel-notice]")).toHaveText([
+							"Saved to All.",
+							"1 article saved to Work; 1 didn't fit.",
+							"Couldn't choose articles for Science. Articles remain in All.",
+							"Choosing articles for Weekend reading…",
+						]);
+						await expect(settling.locator("[data-test-inbox-article-card]")).toHaveCount(2);
+					},
+					geometry: async (settling) => {
+						const main = await measuredBox(settling, "main");
+						const viewport = settling.viewportSize();
+						assert.ok(viewport, "the visual checkpoint must have a fixed viewport");
+						assert.ok(
+							main.x >= 0 && main.x + main.width <= viewport.width,
+							"the filtering results must fit inside the viewport",
+						);
+					},
+					target: "main",
+					capture: "element",
+					pinnedText: PINNED_DETAIL_RECIPIENT,
+				});
+			}
+		}
 	});
 
 	test("captures the Skipped tab listing the links its readlist dropped", async ({ page }) => {

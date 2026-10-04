@@ -1,5 +1,12 @@
+import { initResumeAcceptedGmailEmail } from "../inbox/resume-accepted-gmail-email";
 import assert from "node:assert/strict";
-import type { z } from "zod";
+import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import {
+	AliasNameSchema,
+	GMAIL_FORWARDING_ALIAS,
+	parseEmail,
+} from "@packages/domain/inbox";
+import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConfirmGmailForwardingCommand,
 	EmailReceivedEvent,
@@ -8,9 +15,6 @@ import {
 	type HutchEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
-import { AliasNameSchema, GMAIL_FORWARDING_ALIAS, parseEmail } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
@@ -19,13 +23,14 @@ import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
-import { initConfirmForwardingAddress } from "./confirm-forwarding-address";
-import { initConfirmGmailForwardingHandler } from "./confirm-gmail-forwarding-handler";
-import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
+import type { z } from "zod";
 import { initIngestParsedEmail } from "../inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "../inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "../inbox/receive-email-handler";
 import { initResolveEmailIdentity } from "../inbox/resolve-email-identity";
+import { initConfirmForwardingAddress } from "./confirm-forwarding-address";
+import { initConfirmGmailForwardingHandler } from "./confirm-gmail-forwarding-handler";
+import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
 
 // The whole confirmation leg had never completed once in production or staging
 // (commit 3bcecf5a): every hop is unit-tested against stubbed neighbours, so no
@@ -56,9 +61,17 @@ function makeInbox() {
 		published.push({ event, detail: event.detailSchema.parse(detail) });
 	}) as PublishEvent;
 
-	const fetchCalls: { url: string; method: string | undefined; body: unknown }[] = [];
+	const fetchCalls: {
+		url: string;
+		method: string | undefined;
+		body: unknown;
+	}[] = [];
 	const confirmationFetch: typeof globalThis.fetch = async (input, init) => {
-		fetchCalls.push({ url: String(input), method: init?.method, body: init?.body });
+		fetchCalls.push({
+			url: String(input),
+			method: init?.method,
+			body: init?.body,
+		});
 		return new Response(
 			"<html><head><title>Confirmation Success!</title></head><body><p>ok</p></body></html>",
 			{ status: 200, headers: { "content-type": "text/html" } },
@@ -66,6 +79,7 @@ function makeInbox() {
 	};
 
 	const receive = initReceiveEmailHandler({
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, publishEvent }),
 		readRawEmail: async (key) => rawMap.get(key),
 		findByAddress: addresses.findByAddress,
 		putEmail: emails.putEmail,
@@ -80,29 +94,52 @@ function makeInbox() {
 		ingest: initIngestParsedEmail({
 			storeBody: async () => "content/email/content.html",
 			putEmail: emails.putEmail,
+			getEmail: emails.getEmail,
 			publishEvent,
 			logger,
 		}),
 		interceptGmailConfirmation: initInterceptGmailConfirmation({
-			publishConfirmGmailForwarding: (detail) => publishEvent(ConfirmGmailForwardingCommand, detail),
+			publishConfirmGmailForwarding: (detail) =>
+				publishEvent(ConfirmGmailForwardingCommand, detail),
 			logger,
 		}),
-		routeGmailForwardedEmail: initRouteGmailForwardedEmail({ senders, heldMail, logger }),
+		routeGmailForwardedEmail: initRouteGmailForwardedEmail({
+			senders,
+			heldMail,
+			logger,
+		}),
 		logger,
 		maxEmailBytes: 20 * 1024 * 1024,
 	});
 
 	const confirm = initConfirmGmailForwardingHandler({
-		confirmForwardingAddress: initConfirmForwardingAddress({ fetch: confirmationFetch, timeoutMs: 5_000 }),
+		confirmForwardingAddress: initConfirmForwardingAddress({
+			fetch: confirmationFetch,
+			timeoutMs: 5_000,
+		}),
 		publishEvent,
 		metricLog: HutchLogger.fromJSON<GmailForwardingConfirmFailedLine>(),
 		logger,
 	});
 
-	return { addresses, emails, senders, heldMail, rawMap, published, fetchCalls, receive, confirm };
+	return {
+		addresses,
+		emails,
+		senders,
+		heldMail,
+		rawMap,
+		published,
+		fetchCalls,
+		receive,
+		confirm,
+	};
 }
 
-function sesNotification(input: { messageId: string; objectKey: string; recipient: string }): string {
+function sesNotification(input: {
+	messageId: string;
+	objectKey: string;
+	recipient: string;
+}): string {
 	return JSON.stringify({
 		mail: { messageId: input.messageId },
 		receipt: {
@@ -168,7 +205,15 @@ function newsletterEml(input: { gateway: string; messageId: string }): Buffer {
 
 describe("gmail forwarding chain (inbox half)", () => {
 	it("confirms Google's forwarding request from the gateway mailbox to the confirmed fact", async () => {
-		const { addresses, emails, published, fetchCalls, rawMap, receive, confirm } = makeInbox();
+		const {
+			addresses,
+			emails,
+			published,
+			fetchCalls,
+			rawMap,
+			receive,
+			confirm,
+		} = makeInbox();
 		const userId = UserIdSchema.parse("00000000000000000000000000000001");
 		const gateway = (
 			await addresses.createAddress({
@@ -184,7 +229,14 @@ describe("gmail forwarding chain (inbox half)", () => {
 
 		const received = await receive(
 			buildSqsEvent([
-				{ messageId: "ses-1", body: sesNotification({ messageId: "ses-msg-1", objectKey, recipient: gateway }) },
+				{
+					messageId: "ses-1",
+					body: sesNotification({
+						messageId: "ses-msg-1",
+						objectKey,
+						recipient: gateway,
+					}),
+				},
 			]),
 			buildLambdaContext(),
 			() => {},
@@ -192,7 +244,16 @@ describe("gmail forwarding chain (inbox half)", () => {
 
 		assert(received);
 		assert.deepEqual(received.batchItemFailures, []);
-		assert.deepEqual((await emails.listEmailsByUserId({ userId, cursor: undefined, pageSize: 10 })).emails, []);
+		assert.deepEqual(
+			(
+				await emails.listEmailsByUserId({
+					userId,
+					cursor: undefined,
+					pageSize: 10,
+				})
+			).emails,
+			[],
+		);
 		assert.equal(published.length, 1);
 		assert.equal(published[0].event, ConfirmGmailForwardingCommand);
 		assert.deepEqual(published[0].detail, {
@@ -210,15 +271,23 @@ describe("gmail forwarding chain (inbox half)", () => {
 		assert(confirmed);
 		assert.deepEqual(confirmed.batchItemFailures, []);
 		assert.deepEqual(fetchCalls, [
-			{ url: `https://mail.google.com${VERIFY_PATH}`, method: "POST", body: undefined },
+			{
+				url: `https://mail.google.com${VERIFY_PATH}`,
+				method: "POST",
+				body: undefined,
+			},
 		]);
 		assert.equal(published.length, 2);
 		assert.equal(published[1].event, GmailForwardingConfirmedEvent);
-		assert.deepEqual(published[1].detail, { userId, forwardingAddress: gateway });
+		assert.deepEqual(published[1].detail, {
+			userId,
+			forwardingAddress: gateway,
+		});
 	});
 
 	it("holds a forwarded newsletter until the sender is mapped, then delivers it as the mapped inbox", async () => {
-		const { addresses, emails, senders, heldMail, published, rawMap, receive } = makeInbox();
+		const { addresses, emails, senders, heldMail, published, rawMap, receive } =
+			makeInbox();
 		const userId = UserIdSchema.parse("00000000000000000000000000000001");
 		const senderEmail = ForwardableSenderSchema.parse("dan@tldr.tech");
 		const gateway = (
@@ -231,10 +300,20 @@ describe("gmail forwarding chain (inbox half)", () => {
 		).address;
 
 		const firstKey = "inbound/newsletter-1";
-		rawMap.set(firstKey, newsletterEml({ gateway, messageId: "<tldr-1@mail.tldr.tech>" }));
+		rawMap.set(
+			firstKey,
+			newsletterEml({ gateway, messageId: "<tldr-1@mail.tldr.tech>" }),
+		);
 		const firstRun = await receive(
 			buildSqsEvent([
-				{ messageId: "ses-1", body: sesNotification({ messageId: "ses-msg-1", objectKey: firstKey, recipient: gateway }) },
+				{
+					messageId: "ses-1",
+					body: sesNotification({
+						messageId: "ses-msg-1",
+						objectKey: firstKey,
+						recipient: gateway,
+					}),
+				},
 			]),
 			buildLambdaContext(),
 			() => {},
@@ -242,11 +321,27 @@ describe("gmail forwarding chain (inbox half)", () => {
 
 		assert(firstRun);
 		assert.deepEqual(firstRun.batchItemFailures, []);
-		assert.deepEqual((await emails.listEmailsByUserId({ userId, cursor: undefined, pageSize: 10 })).emails, []);
+		assert.deepEqual(
+			(
+				await emails.listEmailsByUserId({
+					userId,
+					cursor: undefined,
+					pageSize: 10,
+				})
+			).emails,
+			[],
+		);
 		assert.equal(published.length, 0);
-		const held = await heldMail.listHeldMailBySender({ userId, senderEmail, limit: 5 });
+		const held = await heldMail.listHeldMailBySender({
+			userId,
+			senderEmail,
+			limit: 5,
+		});
 		assert.equal(held.length, 1);
-		assert.equal((await senders.findSender({ userId, senderEmail }))?.seenCount, 1);
+		assert.equal(
+			(await senders.findSender({ userId, senderEmail }))?.seenCount,
+			1,
+		);
 
 		// The reader maps the sender to a new named inbox — exactly the three writes
 		// the hutch senders/add page makes.
@@ -258,14 +353,28 @@ describe("gmail forwarding chain (inbox half)", () => {
 				purpose: "gmail-mapped",
 			})
 		).address;
-		await senders.mapSenderToAddress({ userId, senderEmail, mappedAddress: mapped });
+		await senders.mapSenderToAddress({
+			userId,
+			senderEmail,
+			mappedAddresses: [mapped],
+		});
 		await senders.addSenderToFilter({ userId, senderEmail });
 
 		const secondKey = "inbound/newsletter-2";
-		rawMap.set(secondKey, newsletterEml({ gateway, messageId: "<tldr-2@mail.tldr.tech>" }));
+		rawMap.set(
+			secondKey,
+			newsletterEml({ gateway, messageId: "<tldr-2@mail.tldr.tech>" }),
+		);
 		const secondRun = await receive(
 			buildSqsEvent([
-				{ messageId: "ses-2", body: sesNotification({ messageId: "ses-msg-2", objectKey: secondKey, recipient: gateway }) },
+				{
+					messageId: "ses-2",
+					body: sesNotification({
+						messageId: "ses-msg-2",
+						objectKey: secondKey,
+						recipient: gateway,
+					}),
+				},
 			]),
 			buildLambdaContext(),
 			() => {},
@@ -273,7 +382,13 @@ describe("gmail forwarding chain (inbox half)", () => {
 
 		assert(secondRun);
 		assert.deepEqual(secondRun.batchItemFailures, []);
-		const rows = (await emails.listEmailsByUserId({ userId, cursor: undefined, pageSize: 10 })).emails;
+		const rows = (
+			await emails.listEmailsByUserId({
+				userId,
+				cursor: undefined,
+				pageSize: 10,
+			})
+		).emails;
 		assert.equal(rows.length, 1);
 		assert.equal(rows[0].recipientAddress, mapped);
 		assert.equal(rows[0].status, "received");
@@ -284,6 +399,7 @@ describe("gmail forwarding chain (inbox half)", () => {
 			receivedAtMessageId: `${RECEIVED_AT}#<tldr-2@mail.tldr.tech>`,
 			recipientAddress: mapped,
 			origin: "receive",
+			routing: { kind: "gmail", destinationAddresses: [mapped] },
 		});
 	});
 });

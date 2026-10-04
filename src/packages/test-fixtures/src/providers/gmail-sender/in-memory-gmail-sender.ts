@@ -22,7 +22,7 @@ export function initInMemoryGmailSender(deps: { now: () => Date }): GmailSenderS
 			lastSeenAt: undefined,
 			seenCount: undefined,
 			lastSubject: undefined,
-			mappedAddress: undefined,
+			mappedAddresses: undefined,
 			mappedAt: undefined,
 		};
 		rows.set(key, patch(existing));
@@ -45,10 +45,10 @@ export function initInMemoryGmailSender(deps: { now: () => Date }): GmailSenderS
 				lastSubject: subject,
 			}));
 		},
-		mapSenderToAddress: async ({ userId, senderEmail, mappedAddress }) => {
+		mapSenderToAddress: async ({ userId, senderEmail, mappedAddresses }) => {
 			upsert(userId, senderEmail, (existing) => ({
 				...existing,
-				mappedAddress,
+				mappedAddresses,
 				mappedAt: deps.now().toISOString(),
 			}));
 		},

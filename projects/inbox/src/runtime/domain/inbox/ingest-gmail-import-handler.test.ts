@@ -1,3 +1,4 @@
+import { initResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
 import assert from "node:assert/strict";
 import {
 	ForwardableSenderSchema,
@@ -8,8 +9,8 @@ import {
 } from "@packages/domain/gmail";
 import {
 	DEFAULT_INBOX_ALIAS,
-	InboxAddressSchema,
 	type InboxAddress,
+	InboxAddressSchema,
 	MessageIdSchema,
 	messageIdentityKey,
 	NormalizedMessageIdSchema,
@@ -25,12 +26,12 @@ import {
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryRawEmailBucket } from "@packages/test-fixtures/providers/gmail-history";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
-import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initIngestGmailImportHandler } from "./ingest-gmail-import-handler";
 import { initIngestParsedEmail } from "./ingest-parsed-email";
@@ -38,20 +39,29 @@ import { initResolveEmailIdentity } from "./resolve-email-identity";
 
 const READER = UserIdSchema.parse("00000000000000000000000000000001");
 const OTHER_READER = UserIdSchema.parse("00000000000000000000000000000002");
-const FIRST_JOB = GmailHistoryImportJobIdSchema.parse("0123456789abcdef0123456789abcdef");
-const SECOND_JOB = GmailHistoryImportJobIdSchema.parse("fedcba9876543210fedcba9876543210");
+const FIRST_JOB = GmailHistoryImportJobIdSchema.parse(
+	"0123456789abcdef0123456789abcdef",
+);
+const SECOND_JOB = GmailHistoryImportJobIdSchema.parse(
+	"fedcba9876543210fedcba9876543210",
+);
 const INTERNAL_DATE = "2026-09-20T07:30:00.000Z";
 const NOW = new Date("2026-09-30T00:00:00.000Z");
 const GMAIL_MESSAGE_ID = "18c2f0a1b2c3d4e5";
 const IMPORTED_ROW = `${INTERNAL_DATE}#<issue-42@tldr.tech>`;
 
-function tldrIssue(headers: { from: string; messageId: string | undefined }): Buffer {
+function tldrIssue(headers: {
+	from: string;
+	messageId: string | undefined;
+}): Buffer {
 	return Buffer.from(
 		[
 			`From: TLDR <${headers.from}>`,
 			"To: reader@gmail.com",
 			"Subject: TLDR 2026-09-20",
-			...(headers.messageId === undefined ? [] : [`Message-ID: ${headers.messageId}`]),
+			...(headers.messageId === undefined
+				? []
+				: [`Message-ID: ${headers.messageId}`]),
 			"MIME-Version: 1.0",
 			'Content-Type: text/html; charset="UTF-8"',
 			"",
@@ -62,7 +72,12 @@ function tldrIssue(headers: { from: string; messageId: string | undefined }): Bu
 	);
 }
 
-function makeHarness(opts?: { maxEmailBytes?: number; parseEmail?: () => Promise<ParseEmailResult> }) {
+function makeHarness(opts?: {
+	maxEmailBytes?: number;
+	parseEmail?: () => Promise<ParseEmailResult>;
+	publishErrorOnce?: boolean;
+}) {
+	let publishError = opts?.publishErrorOnce === true;
 	const now = () => NOW;
 	const imports = initInMemoryGmailHistoryImport();
 	const addresses = initInMemoryInboxAddress({ now });
@@ -72,10 +87,12 @@ function makeHarness(opts?: { maxEmailBytes?: number; parseEmail?: () => Promise
 	const imageDownloads: string[] = [];
 	const published: { event: unknown; detail: unknown }[] = [];
 	const publishEvent = (async (event, detail) => {
+		if (event.detailType === EmailReceivedEvent.detailType && publishError) { publishError = false; throw new Error("EventBridge unavailable"); }
 		published.push({ event, detail: event.detailSchema.parse(detail) });
 	}) as PublishEvent;
 
 	const handler = initIngestGmailImportHandler({
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, publishEvent }),
 		readRawEmail: rawBucket.read,
 		parseEmail: opts?.parseEmail ?? parseEmail,
 		findByAddress: addresses.findByAddress,
@@ -91,8 +108,10 @@ function makeHarness(opts?: { maxEmailBytes?: number; parseEmail?: () => Promise
 			now,
 		}),
 		ingest: initIngestParsedEmail({
-			storeBody: async ({ receivedAtMessageId }) => `content/${receivedAtMessageId}/content.html`,
+			storeBody: async ({ receivedAtMessageId }) =>
+				`content/${receivedAtMessageId}/content.html`,
 			putEmail: emails.putEmail,
+			getEmail: emails.getEmail,
 			publishEvent,
 			logger: HutchLogger.from(noopLogger),
 		}),
@@ -106,7 +125,10 @@ function makeHarness(opts?: { maxEmailBytes?: number; parseEmail?: () => Promise
 			buildSqsEvent(
 				details.map((detail, index) => ({
 					messageId: `fetched-${index}`,
-					body: JSON.stringify({ "detail-type": "GmailHistoryImportMessageFetched", detail }),
+					body: JSON.stringify({
+						"detail-type": "GmailHistoryImportMessageFetched",
+						detail,
+					}),
 				})),
 			),
 			buildLambdaContext(),
@@ -117,10 +139,25 @@ function makeHarness(opts?: { maxEmailBytes?: number; parseEmail?: () => Promise
 	};
 
 	const readlistAddress = async (userId: UserId) =>
-		(await addresses.getOrCreateReadlistAddress({ userId, domain: "read.place", readlist: ReadlistSlugSchema.parse("a1b2c3d4") }))
-			.address;
+		(
+			await addresses.getOrCreateReadlistAddress({
+				userId,
+				domain: "read.place",
+				readlist: ReadlistSlugSchema.parse("a1b2c3d4"),
+			})
+		).address;
 
-	return { imports, addresses, emails, identities, rawBucket, imageDownloads, published, deliver, readlistAddress };
+	return {
+		imports,
+		addresses,
+		emails,
+		identities,
+		rawBucket,
+		imageDownloads,
+		published,
+		deliver,
+		readlistAddress,
+	};
 }
 
 async function runningImport(input: {
@@ -132,7 +169,7 @@ async function runningImport(input: {
 		userId: READER,
 		jobId: input.jobId,
 		senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"),
-		destinationAddress: input.destinationAddress,
+		destinationAddresses: [input.destinationAddress],
 		connection: {
 			gatewayAddress: InboxAddressSchema.parse("gmail-def456@read.place"),
 			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
@@ -143,15 +180,34 @@ async function runningImport(input: {
 		pageToken: undefined,
 		listingCompletedAt: undefined,
 		state: "awaiting-permission",
-		counts: { listed: 0, imported: 0, alreadyImported: 0, skippedNoMessageId: 0, skippedSenderMismatch: 0, failed: 0, cancelled: 0 },
+		counts: {
+			listed: 0,
+			imported: 0,
+			alreadyImported: 0,
+			skippedNoMessageId: 0,
+			skippedSenderMismatch: 0,
+			failed: 0,
+			cancelled: 0,
+		},
 		failureReason: undefined,
 		cancelReason: undefined,
 		createdAt: NOW.toISOString(),
 		updatedAt: NOW.toISOString(),
 		completedAt: undefined,
 	});
-	await input.imports.startJob({ userId: READER, jobId: input.jobId, generation: "generation-1", now: NOW });
-	await input.imports.claimPage({ userId: READER, jobId: input.jobId, generation: "generation-1", page: 0, now: NOW });
+	await input.imports.startJob({
+		userId: READER,
+		jobId: input.jobId,
+		generation: "generation-1",
+		now: NOW,
+	});
+	await input.imports.claimPage({
+		userId: READER,
+		jobId: input.jobId,
+		generation: "generation-1",
+		page: 0,
+		now: NOW,
+	});
 }
 
 function fetchedDetail(input: {
@@ -166,13 +222,18 @@ function fetchedDetail(input: {
 		gmailMessageId: GMAIL_MESSAGE_ID,
 		accountEmail: "reader@gmail.com",
 		senderEmail: "dan@tldr.tech",
-		destinationAddress: input.destinationAddress,
+		destinationAddresses: [input.destinationAddress],
 		rawEmailS3Key: `gmail-import/${READER}/${input.jobId}/${GMAIL_MESSAGE_ID}.eml`,
 		internalDate: INTERNAL_DATE,
 	};
 }
 
-function ingested(input: { jobId: GmailHistoryImportJobId; outcome: string; receivedAtMessageId?: string; generation?: string }) {
+function ingested(input: {
+	jobId: GmailHistoryImportJobId;
+	outcome: string;
+	receivedAtMessageId?: string;
+	generation?: string;
+}) {
 	return {
 		event: GmailHistoryImportMessageIngestedEvent,
 		detail: {
@@ -189,23 +250,40 @@ function ingested(input: { jobId: GmailHistoryImportJobId; outcome: string; rece
 async function importedIssueHarness(opts?: Parameters<typeof makeHarness>[0]) {
 	const harness = makeHarness(opts);
 	const destinationAddress = await harness.readlistAddress(READER);
-	await runningImport({ imports: harness.imports, jobId: FIRST_JOB, destinationAddress });
+	await runningImport({
+		imports: harness.imports,
+		jobId: FIRST_JOB,
+		destinationAddress,
+	});
 	const detail = fetchedDetail({ jobId: FIRST_JOB, destinationAddress });
 	await harness.rawBucket.put({
 		key: detail.rawEmailS3Key,
-		raw: tldrIssue({ from: "dan@tldr.tech", messageId: "<issue-42@tldr.tech>" }),
+		raw: tldrIssue({
+			from: "dan@tldr.tech",
+			messageId: "<issue-42@tldr.tech>",
+		}),
 	});
 	return { ...harness, destinationAddress, detail };
 }
 
 describe("initIngestGmailImportHandler", () => {
 	it("stores an imported message at its readlist address and reports it imported", async () => {
-		const { emails, published, imageDownloads, deliver, destinationAddress, detail } = await importedIssueHarness();
+		const {
+			emails,
+			published,
+			imageDownloads,
+			deliver,
+			destinationAddress,
+			detail,
+		} = await importedIssueHarness();
 
 		const response = await deliver([detail]);
 
 		assert.deepEqual(response, { batchItemFailures: [] });
-		const row = await emails.getEmail({ userId: READER, receivedAtMessageId: IMPORTED_ROW });
+		const row = await emails.getEmail({
+			userId: READER,
+			receivedAtMessageId: IMPORTED_ROW,
+		});
 		assert.equal(row?.status, "received");
 		assert.equal(row?.recipientAddress, destinationAddress);
 		assert.equal(row?.receivedAt, INTERNAL_DATE);
@@ -214,9 +292,22 @@ describe("initIngestGmailImportHandler", () => {
 		assert.deepEqual(published, [
 			{
 				event: EmailReceivedEvent,
-				detail: { userId: READER, receivedAtMessageId: IMPORTED_ROW, recipientAddress: destinationAddress, origin: "gmail-import" },
+				detail: {
+					userId: READER,
+					receivedAtMessageId: IMPORTED_ROW,
+					recipientAddress: destinationAddress,
+					origin: "gmail-import",
+					routing: {
+						kind: "gmail",
+						destinationAddresses: [destinationAddress],
+					},
+				},
 			},
-			ingested({ jobId: FIRST_JOB, outcome: "imported", receivedAtMessageId: IMPORTED_ROW }),
+			ingested({
+				jobId: FIRST_JOB,
+				outcome: "imported",
+				receivedAtMessageId: IMPORTED_ROW,
+			}),
 		]);
 	});
 
@@ -226,100 +317,214 @@ describe("initIngestGmailImportHandler", () => {
 		await deliver([detail]);
 		await deliver([detail]);
 
-		assert.equal((await emails.listEmailsByUserId({ userId: READER, cursor: undefined, pageSize: 10 })).emails.length, 1);
+		assert.equal(
+			(
+				await emails.listEmailsByUserId({
+					userId: READER,
+					cursor: undefined,
+					pageSize: 10,
+				})
+			).emails.length,
+			1,
+		);
 		assert.deepEqual(published.slice(2), published.slice(0, 2));
 	});
 
 	it("reports a message a later import job finds already stored as already imported", async () => {
-		const { imports, published, deliver, destinationAddress, detail, rawBucket } = await importedIssueHarness();
+		const {
+			imports,
+			published,
+			deliver,
+			destinationAddress,
+			detail,
+			rawBucket,
+		} = await importedIssueHarness();
 		await deliver([detail]);
 		await runningImport({ imports, jobId: SECOND_JOB, destinationAddress });
-		const secondDetail = fetchedDetail({ jobId: SECOND_JOB, destinationAddress });
+		const secondDetail = fetchedDetail({
+			jobId: SECOND_JOB,
+			destinationAddress,
+		});
 		await rawBucket.put({
 			key: secondDetail.rawEmailS3Key,
-			raw: tldrIssue({ from: "dan@tldr.tech", messageId: "<issue-42@tldr.tech>" }),
+			raw: tldrIssue({
+				from: "dan@tldr.tech",
+				messageId: "<issue-42@tldr.tech>",
+			}),
 		});
 
 		await deliver([secondDetail]);
 
-		assert.deepEqual(published.slice(2), [ingested({ jobId: SECOND_JOB, outcome: "already-imported" })]);
+		assert.deepEqual(published.slice(2), [
+			ingested({ jobId: SECOND_JOB, outcome: "already-imported" }),
+		]);
 	});
 
 	it("cancels a message fetched by a superseded run of the import", async () => {
-		const { emails, published, deliver, destinationAddress } = await importedIssueHarness();
+		const { emails, published, deliver, destinationAddress } =
+			await importedIssueHarness();
 
-		await deliver([fetchedDetail({ jobId: FIRST_JOB, destinationAddress, generation: "generation-0" })]);
+		await deliver([
+			fetchedDetail({
+				jobId: FIRST_JOB,
+				destinationAddress,
+				generation: "generation-0",
+			}),
+		]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled", generation: "generation-0" })]);
-		assert.deepEqual((await emails.listEmailsByUserId({ userId: READER, cursor: undefined, pageSize: 10 })).emails, []);
+		assert.deepEqual(published, [
+			ingested({
+				jobId: FIRST_JOB,
+				outcome: "cancelled",
+				generation: "generation-0",
+			}),
+		]);
+		assert.deepEqual(
+			(
+				await emails.listEmailsByUserId({
+					userId: READER,
+					cursor: undefined,
+					pageSize: 10,
+				})
+			).emails,
+			[],
+		);
 	});
 
 	it("cancels a message whose import job no longer exists", async () => {
-		const { published, deliver, destinationAddress } = await importedIssueHarness();
+		const { published, deliver, destinationAddress } =
+			await importedIssueHarness();
 
 		await deliver([fetchedDetail({ jobId: SECOND_JOB, destinationAddress })]);
 
-		assert.deepEqual(published, [ingested({ jobId: SECOND_JOB, outcome: "cancelled" })]);
+		assert.deepEqual(published, [
+			ingested({ jobId: SECOND_JOB, outcome: "cancelled" }),
+		]);
 	});
 
 	it("cancels a message whose readlist address was retired", async () => {
-		const { addresses, published, deliver, detail } = await importedIssueHarness();
-		await addresses.retireReadlistAddress({ userId: READER, readlist: ReadlistSlugSchema.parse("a1b2c3d4") });
+		const { addresses, published, deliver, detail } =
+			await importedIssueHarness();
+		await addresses.retireReadlistAddress({
+			userId: READER,
+			readlist: ReadlistSlugSchema.parse("a1b2c3d4"),
+		});
 
 		await deliver([detail]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled" })]);
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "cancelled" }),
+		]);
 	});
 
 	it("cancels a message addressed to another reader's address", async () => {
-		const { imports, published, deliver, readlistAddress, rawBucket } = makeHarness();
+		const { imports, published, deliver, readlistAddress, rawBucket } =
+			makeHarness();
 		const othersAddress = await readlistAddress(OTHER_READER);
-		await runningImport({ imports, jobId: FIRST_JOB, destinationAddress: othersAddress });
-		const detail = fetchedDetail({ jobId: FIRST_JOB, destinationAddress: othersAddress });
-		await rawBucket.put({ key: detail.rawEmailS3Key, raw: tldrIssue({ from: "dan@tldr.tech", messageId: "<issue-42@tldr.tech>" }) });
+		await runningImport({
+			imports,
+			jobId: FIRST_JOB,
+			destinationAddress: othersAddress,
+		});
+		const detail = fetchedDetail({
+			jobId: FIRST_JOB,
+			destinationAddress: othersAddress,
+		});
+		await rawBucket.put({
+			key: detail.rawEmailS3Key,
+			raw: tldrIssue({
+				from: "dan@tldr.tech",
+				messageId: "<issue-42@tldr.tech>",
+			}),
+		});
 
 		await deliver([detail]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled" })]);
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "cancelled" }),
+		]);
 	});
 
 	it("cancels a message addressed to an address that does not exist", async () => {
 		const { imports, published, deliver, rawBucket } = makeHarness();
 		const unknown = InboxAddressSchema.parse("gmail-zzzzzz@read.place");
-		await runningImport({ imports, jobId: FIRST_JOB, destinationAddress: unknown });
-		const detail = fetchedDetail({ jobId: FIRST_JOB, destinationAddress: unknown });
-		await rawBucket.put({ key: detail.rawEmailS3Key, raw: tldrIssue({ from: "dan@tldr.tech", messageId: "<issue-42@tldr.tech>" }) });
+		await runningImport({
+			imports,
+			jobId: FIRST_JOB,
+			destinationAddress: unknown,
+		});
+		const detail = fetchedDetail({
+			jobId: FIRST_JOB,
+			destinationAddress: unknown,
+		});
+		await rawBucket.put({
+			key: detail.rawEmailS3Key,
+			raw: tldrIssue({
+				from: "dan@tldr.tech",
+				messageId: "<issue-42@tldr.tech>",
+			}),
+		});
 
 		await deliver([detail]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled" })]);
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "cancelled" }),
+		]);
 	});
 
 	it("skips a message whose From header is not the mapped sender", async () => {
-		const { published, deliver, detail, rawBucket } = await importedIssueHarness();
-		await rawBucket.put({ key: detail.rawEmailS3Key, raw: tldrIssue({ from: "promo@tldr.tech", messageId: "<issue-42@tldr.tech>" }) });
+		const { published, deliver, detail, rawBucket } =
+			await importedIssueHarness();
+		await rawBucket.put({
+			key: detail.rawEmailS3Key,
+			raw: tldrIssue({
+				from: "promo@tldr.tech",
+				messageId: "<issue-42@tldr.tech>",
+			}),
+		});
 
 		await deliver([detail]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "skipped-sender-mismatch" })]);
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "skipped-sender-mismatch" }),
+		]);
 	});
 
 	it("skips a message without a Message-ID header", async () => {
-		const { emails, published, deliver, detail, rawBucket } = await importedIssueHarness();
-		await rawBucket.put({ key: detail.rawEmailS3Key, raw: tldrIssue({ from: "dan@tldr.tech", messageId: undefined }) });
+		const { emails, published, deliver, detail, rawBucket } =
+			await importedIssueHarness();
+		await rawBucket.put({
+			key: detail.rawEmailS3Key,
+			raw: tldrIssue({ from: "dan@tldr.tech", messageId: undefined }),
+		});
 
 		await deliver([detail]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "skipped-no-message-id" })]);
-		assert.deepEqual((await emails.listEmailsByUserId({ userId: READER, cursor: undefined, pageSize: 10 })).emails, []);
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "skipped-no-message-id" }),
+		]);
+		assert.deepEqual(
+			(
+				await emails.listEmailsByUserId({
+					userId: READER,
+					cursor: undefined,
+					pageSize: 10,
+				})
+			).emails,
+			[],
+		);
 	});
 
 	it("retries a message larger than the inbox accepts so it dead-letters to the operator", async () => {
-		const { published, deliver, detail } = await importedIssueHarness({ maxEmailBytes: 16 });
+		const { published, deliver, detail } = await importedIssueHarness({
+			maxEmailBytes: 16,
+		});
 
 		const response = await deliver([detail]);
 
-		assert.deepEqual(response, { batchItemFailures: [{ itemIdentifier: "fetched-0" }] });
+		assert.deepEqual(response, {
+			batchItemFailures: [{ itemIdentifier: "fetched-0" }],
+		});
 		assert.deepEqual(published, []);
 	});
 
@@ -330,12 +535,15 @@ describe("initIngestGmailImportHandler", () => {
 
 		const response = await deliver([detail]);
 
-		assert.deepEqual(response, { batchItemFailures: [{ itemIdentifier: "fetched-0" }] });
+		assert.deepEqual(response, {
+			batchItemFailures: [{ itemIdentifier: "fetched-0" }],
+		});
 		assert.deepEqual(published, []);
 	});
 
 	it("cancels a message fetched by the current run of an import the reader cancelled", async () => {
-		const { imports, emails, published, deliver, detail } = await importedIssueHarness();
+		const { imports, emails, published, deliver, detail } =
+			await importedIssueHarness();
 		await imports.cancelJobs({
 			userId: READER,
 			senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"),
@@ -345,27 +553,62 @@ describe("initIngestGmailImportHandler", () => {
 
 		await deliver([detail]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled" })]);
-		assert.deepEqual((await emails.listEmailsByUserId({ userId: READER, cursor: undefined, pageSize: 10 })).emails, []);
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "cancelled" }),
+		]);
+		assert.deepEqual(
+			(
+				await emails.listEmailsByUserId({
+					userId: READER,
+					cursor: undefined,
+					pageSize: 10,
+				})
+			).emails,
+			[],
+		);
 	});
 
 	it("cancels a message fetched by the current run of an import that failed", async () => {
-		const { imports, emails, published, deliver, detail } = await importedIssueHarness();
-		await imports.failJob({ userId: READER, jobId: FIRST_JOB, generation: "generation-1", reason: "gmail-rejected", now: NOW });
+		const { imports, emails, published, deliver, detail } =
+			await importedIssueHarness();
+		await imports.failJob({
+			userId: READER,
+			jobId: FIRST_JOB,
+			generation: "generation-1",
+			reason: "gmail-rejected",
+			now: NOW,
+		});
 
 		await deliver([detail]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled" })]);
-		assert.deepEqual((await emails.listEmailsByUserId({ userId: READER, cursor: undefined, pageSize: 10 })).emails, []);
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "cancelled" }),
+		]);
+		assert.deepEqual(
+			(
+				await emails.listEmailsByUserId({
+					userId: READER,
+					cursor: undefined,
+					pageSize: 10,
+				})
+			).emails,
+			[],
+		);
 	});
 
 	it("retries a message whose raw copy is not readable", async () => {
-		const { published, deliver, destinationAddress } = await importedIssueHarness();
-		const unreadable = { ...fetchedDetail({ jobId: FIRST_JOB, destinationAddress }), rawEmailS3Key: "gmail-import/missing.eml" };
+		const { published, deliver, destinationAddress } =
+			await importedIssueHarness();
+		const unreadable = {
+			...fetchedDetail({ jobId: FIRST_JOB, destinationAddress }),
+			rawEmailS3Key: "gmail-import/missing.eml",
+		};
 
 		const response = await deliver([unreadable]);
 
-		assert.deepEqual(response, { batchItemFailures: [{ itemIdentifier: "fetched-0" }] });
+		assert.deepEqual(response, {
+			batchItemFailures: [{ itemIdentifier: "fetched-0" }],
+		});
 		assert.deepEqual(published, []);
 	});
 
@@ -373,12 +616,16 @@ describe("initIngestGmailImportHandler", () => {
 		const { imports } = makeHarness();
 		const published: unknown[] = [];
 		const handler = initIngestGmailImportHandler({
+			resumeAcceptedGmailEmail: async () => false,
 			readRawEmail: async () => undefined,
 			parseEmail,
 			findByAddress: async () => undefined,
 			findImportJob: imports.findJob,
 			downloadEmailImages: async () => [],
-			resolveIdentity: async () => ({ proceed: false, reason: "already-ingested" }),
+			resolveIdentity: async () => ({
+				proceed: false,
+				reason: "already-ingested",
+			}),
 			ingest: async () => "stored",
 			publishEvent: (async (_event, detail) => {
 				published.push(detail);
@@ -387,15 +634,27 @@ describe("initIngestGmailImportHandler", () => {
 			logger: HutchLogger.from(noopLogger),
 		});
 
-		const response = await handler(buildSqsEvent([{ messageId: "bad", body: "not json" }]), buildLambdaContext(), () => {});
+		const response = await handler(
+			buildSqsEvent([{ messageId: "bad", body: "not json" }]),
+			buildLambdaContext(),
+			() => {},
+		);
 
-		assert.deepEqual(response, { batchItemFailures: [{ itemIdentifier: "bad" }] });
+		assert.deepEqual(response, {
+			batchItemFailures: [{ itemIdentifier: "bad" }],
+		});
 		assert.deepEqual(published, []);
 	});
 
 	it("delivers a copy only once when forwarded mail of the same issue arrived first", async () => {
-		const { addresses, emails, identities, published, deliver, detail } = await importedIssueHarness();
-		const inbox = await addresses.createAddress({ userId: READER, domain: "read.place", name: DEFAULT_INBOX_ALIAS, purpose: "user-alias" });
+		const { addresses, emails, identities, published, deliver, detail } =
+			await importedIssueHarness();
+		const inbox = await addresses.createAddress({
+			userId: READER,
+			domain: "read.place",
+			name: DEFAULT_INBOX_ALIAS,
+			purpose: "user-alias",
+		});
 		const forwardedRow = `2026-09-20T07:31:00.000Z#<issue-42@tldr.tech>`;
 		const claimed = await identities.claim({
 			key: messageIdentityKey({
@@ -425,6 +684,64 @@ describe("initIngestGmailImportHandler", () => {
 
 		await deliver([detail]);
 
-		assert.deepEqual(published, [ingested({ jobId: FIRST_JOB, outcome: "already-imported" })]);
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "already-imported" }),
+		]);
 	});
+});
+
+it("cancels a fetched message whose destination snapshot differs from the import job", async () => {
+	const { published, deliver, detail } = await importedIssueHarness();
+	await deliver([
+		{
+			...detail,
+			destinationAddresses: [
+				detail.destinationAddresses[0],
+				"other-112233@read.place",
+			],
+		},
+	]);
+	assert.deepEqual(published, [
+		ingested({ jobId: FIRST_JOB, outcome: "cancelled" }),
+	]);
+});
+
+it("cancels a fetched message with a replacement destination despite unchanged destination count", async () => {
+	const { published, deliver, detail } = await importedIssueHarness();
+	await deliver([
+		{ ...detail, destinationAddresses: ["other-112233@read.place"] },
+	]);
+	assert.deepEqual(published, [
+		ingested({ jobId: FIRST_JOB, outcome: "cancelled" }),
+	]);
+});
+
+
+it("finishes an accepted Gmail import retry after cancellation and destination retirement", async () => {
+	const { imports, addresses, emails, published, deliver, detail } = await importedIssueHarness({ publishErrorOnce: true });
+	assert.deepEqual(await deliver([detail]), { batchItemFailures: [{ itemIdentifier: "fetched-0" }] });
+	await imports.cancelJobs({ userId: READER, senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"), reason: "destination-changed", now: NOW });
+	await addresses.retireReadlistAddress({ userId: READER, readlist: ReadlistSlugSchema.parse("a1b2c3d4") });
+	assert.deepEqual(await deliver([detail]), { batchItemFailures: [] });
+	assert.deepEqual(published, [{ event: EmailReceivedEvent, detail: { userId: READER, receivedAtMessageId: IMPORTED_ROW, recipientAddress: detail.destinationAddresses[0], origin: "gmail-import", routing: { kind: "gmail", destinationAddresses: detail.destinationAddresses } } }, ingested({ jobId: FIRST_JOB, outcome: "imported", receivedAtMessageId: IMPORTED_ROW })]);
+	assert.equal((await emails.listEmailsByUserId({ userId: READER, cursor: undefined, pageSize: 10 })).emails.length, 1);
+});
+
+for (const fault of ["unparseable", "oversized", "wrong-sender", "no-message-id"] as const) {
+	it(`cancels an unaccepted ${fault} message from an abandoned import without processing it`, async () => {
+		const harness = await importedIssueHarness(fault === "unparseable" ? { parseEmail: async () => ({ ok: false, reason: "unparseable" }) } : fault === "oversized" ? { maxEmailBytes: 1 } : undefined);
+		await harness.imports.cancelJobs({ userId: READER, senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"), reason: "destination-changed", now: NOW });
+		if (fault === "wrong-sender" || fault === "no-message-id") await harness.rawBucket.put({ key: harness.detail.rawEmailS3Key, raw: tldrIssue({ from: fault === "wrong-sender" ? "someone@example.com" : "dan@tldr.tech", messageId: fault === "no-message-id" ? undefined : "<issue-42@tldr.tech>" }) });
+		assert.deepEqual(await harness.deliver([harness.detail]), { batchItemFailures: [] });
+		assert.deepEqual(harness.published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled" })]);
+	});
+}
+
+it("cancels an abandoned import whose unaccepted raw message is absent", async () => {
+	const harness = makeHarness();
+	const destinationAddress = await harness.readlistAddress(READER);
+	await runningImport({ imports: harness.imports, jobId: FIRST_JOB, destinationAddress });
+	await harness.imports.cancelJobs({ userId: READER, senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"), reason: "destination-changed", now: NOW });
+	assert.deepEqual(await harness.deliver([fetchedDetail({ jobId: FIRST_JOB, destinationAddress })]), { batchItemFailures: [] });
+	assert.deepEqual(harness.published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled" })]);
 });

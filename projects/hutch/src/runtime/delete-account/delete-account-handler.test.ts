@@ -502,7 +502,7 @@ async function seedGmailImport(s: Subject, account: SeededAccount) {
 		userId: account.userId,
 		jobId: GmailHistoryImportJobIdSchema.parse("c".repeat(32)),
 		senderEmail: sender,
-		destinationAddress: destination.address,
+		destinationAddresses: [destination.address],
 		connection: { gatewayAddress: connection.gatewayAddress, accountEmail: GmailAccountEmailSchema.parse(account.email) },
 		window: undefined,
 		generation: "generation-1",

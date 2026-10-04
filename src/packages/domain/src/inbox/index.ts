@@ -101,6 +101,8 @@ export {
 	InboxReadlistDecisionSchema,
 	type InboxReadlistDecision,
 	type SettledInboxReadlistDecision,
+	InboxReadlistOutcomeSchema,
+	type InboxReadlistOutcome,
 } from "./inbox-email-link.schema";
 export { isExcludedLink } from "./inbox-email-link.excluded";
 export { classifyEmailLink } from "./classify-email-link";

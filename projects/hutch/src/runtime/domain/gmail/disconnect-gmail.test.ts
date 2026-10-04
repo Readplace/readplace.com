@@ -87,7 +87,7 @@ describe("initDisconnectGmail", () => {
 			userId: USER,
 			jobId,
 			senderEmail: TLDR,
-			destinationAddress: harness.gateway,
+			destinationAddresses: [harness.gateway],
 			connection: { gatewayAddress: harness.gateway, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") },
 			window: undefined,
 			generation: "generation-1",

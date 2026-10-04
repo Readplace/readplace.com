@@ -1,8 +1,8 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
-import { UserIdSchema } from "@packages/domain/user";
+import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initExtractEmailLinksDlqHandler } from "./extract-email-links-dlq-handler";
 
 const USER_ID = UserIdSchema.parse("user-1");
@@ -18,12 +18,15 @@ function validEvent(): string {
 		receivedAtMessageId: RECEIVED_AT_MESSAGE_ID,
 		recipientAddress: "dev-66objr@read.place",
 		origin: "receive",
+		routing: { kind: "inbox" },
 	});
 }
 
 function createHandler(store = initInMemoryInboxEmailLink()): {
 	store: ReturnType<typeof initInMemoryInboxEmailLink>;
-	run: (bodies: string[]) => ReturnType<ReturnType<typeof initExtractEmailLinksDlqHandler>>;
+	run: (
+		bodies: string[],
+	) => ReturnType<ReturnType<typeof initExtractEmailLinksDlqHandler>>;
 } {
 	const handler = initExtractEmailLinksDlqHandler({
 		markLinksExtractionFailed: store.markLinksExtractionFailed,
@@ -31,7 +34,9 @@ function createHandler(store = initInMemoryInboxEmailLink()): {
 	});
 	const run = (bodies: string[]) =>
 		handler(
-			buildSqsEvent(bodies.map((body, index) => ({ messageId: `m-${index}`, body }))),
+			buildSqsEvent(
+				bodies.map((body, index) => ({ messageId: `m-${index}`, body })),
+			),
 			buildLambdaContext(),
 			() => {},
 		);
@@ -57,7 +62,11 @@ describe("extractEmailLinksDlqHandler", () => {
 		await store.putLinksMeta({
 			userId: USER_ID,
 			receivedAtMessageId: RECEIVED_AT_MESSAGE_ID,
-			meta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
+			meta: {
+				truncated: true,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		const result = await run([validEvent()]);

@@ -39,7 +39,12 @@ function harness() {
 	const route = initRouteGmailForwardedEmail({
 		senders,
 		heldMail,
-		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
+		logger: HutchLogger.from({
+			info: capture,
+			warn: capture,
+			error: capture,
+			debug: capture,
+		}),
 	});
 	const run = (
 		email: ParsedEmail = forwardedEmail(),
@@ -63,9 +68,13 @@ function harness() {
 describe("initRouteGmailForwardedEmail", () => {
 	it("delivers to the alias the reader mapped the sender to", async () => {
 		const { run, senders } = harness();
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: ALIAS });
+		await senders.mapSenderToAddress({
+			userId: USER,
+			senderEmail: TLDR,
+			mappedAddresses: [ALIAS],
+		});
 
-		assert.equal(await run(), ALIAS);
+		assert.deepEqual(await run(), [ALIAS]);
 	});
 
 	it("holds mail from a sender the reader has not mapped yet", async () => {
@@ -97,7 +106,10 @@ describe("initRouteGmailForwardedEmail", () => {
 		await run();
 		await run(forwardedEmail({ subject: "TLDR 2026-08-28" }));
 
-		const sender = await senders.findSender({ userId: USER, senderEmail: TLDR });
+		const sender = await senders.findSender({
+			userId: USER,
+			senderEmail: TLDR,
+		});
 		assert.equal(sender?.seenCount, 2);
 		assert.equal(sender?.lastSubject, "TLDR 2026-08-28");
 		assert.equal(sender?.addedToFilterAt, undefined);
@@ -108,34 +120,54 @@ describe("initRouteGmailForwardedEmail", () => {
 
 		const delivered = await run(forwardedEmail({ from: "Dan <dan at tldr>" }));
 
-		assert.equal(delivered, GATEWAY);
+		assert.deepEqual(delivered, [GATEWAY]);
 		assert.deepEqual(
-			await heldMail.listHeldMailBySender({ userId: USER, senderEmail: TLDR, limit: 5 }),
+			await heldMail.listHeldMailBySender({
+				userId: USER,
+				senderEmail: TLDR,
+				limit: 5,
+			}),
 			[],
 		);
 	});
 
 	it("records a sighting for mail delivered straight to a named inbox from a known sender", async () => {
 		const { run, senders } = harness();
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddress: ALIAS });
-
-		const delivered = await run(forwardedEmail({ subject: "TLDR 2026-08-28" }), {
-			recipientAddress: ALIAS,
-			purpose: "gmail-mapped",
+		await senders.mapSenderToAddress({
+			userId: USER,
+			senderEmail: TLDR,
+			mappedAddresses: [ALIAS],
 		});
 
-		assert.equal(delivered, ALIAS);
-		const sender = await senders.findSender({ userId: USER, senderEmail: TLDR });
+		const delivered = await run(
+			forwardedEmail({ subject: "TLDR 2026-08-28" }),
+			{
+				recipientAddress: ALIAS,
+				purpose: "gmail-mapped",
+			},
+		);
+
+		assert.deepEqual(delivered, [ALIAS]);
+		const sender = await senders.findSender({
+			userId: USER,
+			senderEmail: TLDR,
+		});
 		assert.equal(sender?.lastSubject, "TLDR 2026-08-28");
 	});
 
 	it("does not mint a sender row for a hand-forwarded message to a named inbox", async () => {
 		const { run, senders } = harness();
 
-		const delivered = await run(forwardedEmail(), { recipientAddress: ALIAS, purpose: "gmail-mapped" });
+		const delivered = await run(forwardedEmail(), {
+			recipientAddress: ALIAS,
+			purpose: "gmail-mapped",
+		});
 
-		assert.equal(delivered, ALIAS);
-		assert.equal(await senders.findSender({ userId: USER, senderEmail: TLDR }), undefined);
+		assert.deepEqual(delivered, [ALIAS]);
+		assert.equal(
+			await senders.findSender({ userId: USER, senderEmail: TLDR }),
+			undefined,
+		);
 	});
 
 	it("logs the held and unreadable paths by user id and never the sender or an inbox address", async () => {

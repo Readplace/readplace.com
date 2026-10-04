@@ -36,11 +36,11 @@ describe("Gmail details pickers", () => {
 		element(dom, "#outside").click();
 		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), false);
 		element(dom, "#notice").setAttribute("data-gmail-notification-highlight", "");
-		document.dispatchEvent(new dom.window.Event("htmx:afterSwap"));
+		document.dispatchEvent(new dom.window.Event("htmx:afterSettle"));
 		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), false);
 		element(dom, "#notice").setAttribute("data-gmail-notification", "crew@morningbrew.com");
 		element(dom, "#notice").setAttribute("data-gmail-notification-highlight", "");
-		document.dispatchEvent(new dom.window.Event("htmx:afterSwap"));
+		document.dispatchEvent(new dom.window.Event("htmx:afterSettle"));
 		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), true);
 		element(dom, "#notice button").dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true }));
 		assert.equal(element(dom, "#notice").hasAttribute("data-gmail-notification-highlight"), false);
@@ -142,5 +142,33 @@ describe("Gmail details pickers", () => {
 		element(dom, "#readlist").dispatchEvent(new dom.window.Event("toggle"));
 		assert.equal(element(dom, "#newsletter").hasAttribute("open"), false);
 		assert.equal(dom.window.document.activeElement, element(dom, "#readlist-name"));
+	});
+});
+
+
+describe("Gmail custom readlist confirmation", () => {
+	it("submits the same native confirmation action when a custom checkbox changes and skips locked All", () => {
+		const dom = new JSDOM(`<form data-gmail-readlist-selection><details data-gmail-picker open><summary data-gmail-picker-trigger>Readlists</summary><input id="all" type="checkbox" disabled checked data-gmail-picker-option data-gmail-readlist-checkbox><input id="tech" type="checkbox" data-gmail-picker-option data-gmail-readlist-checkbox><button id="confirm" type="button" data-gmail-confirm-readlists>Confirm readlists</button></details></form>`);
+		initGmailPicker({ document: dom.window.document });
+		let confirmed = 0;
+		element(dom, "#confirm").addEventListener("click", () => { confirmed++; });
+		element(dom, "#tech").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+		assert.equal(confirmed, 1);
+		element(dom, "#all").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+		element(dom, "#confirm").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+		assert.equal(confirmed, 1);
+		element(dom, "summary").focus();
+		pressFromFocus(dom, "ArrowDown");
+		assert.equal(dom.window.document.activeElement, element(dom, "#tech"));
+		pressFromFocus(dom, "ArrowUp");
+		assert.equal(dom.window.document.activeElement, element(dom, "#tech"));
+	});
+
+	it("accepts replaced custom controls without an attached selection form or confirmation button", () => {
+		const dom = new JSDOM('<input id="outside" type="checkbox" data-gmail-readlist-checkbox><form data-gmail-readlist-selection><input id="inside" type="checkbox" data-gmail-readlist-checkbox></form>');
+		initGmailPicker({ document: dom.window.document });
+		element(dom, "#outside").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+		element(dom, "#inside").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+		assert.equal(dom.window.document.querySelectorAll("[data-gmail-readlist-checkbox]").length, 2);
 	});
 });

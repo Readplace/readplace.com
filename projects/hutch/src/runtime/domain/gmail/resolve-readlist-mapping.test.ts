@@ -33,12 +33,12 @@ function setup() {
 	return { senders, addresses, imports, mapSenderToReadlist };
 }
 
-function queuedJob(destinationAddress: GmailHistoryImportJob["destinationAddress"]): GmailHistoryImportJob {
+function queuedJob(destinationAddress: GmailHistoryImportJob["destinationAddresses"][0]): GmailHistoryImportJob {
 	return {
 		userId: READER,
 		jobId: GmailHistoryImportJobIdSchema.parse("00000000000000000000000000000001"),
 		senderEmail: TLDR,
-		destinationAddress,
+		destinationAddresses: [destinationAddress],
 		connection: { gatewayAddress: destinationAddress, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") },
 		window: undefined,
 		generation: "generation-1",
@@ -59,15 +59,48 @@ describe("initMapSenderToReadlist", () => {
 	it("routes two senders for one readlist through the same hidden readlist address", async () => {
 		const { senders, addresses, mapSenderToReadlist } = setup();
 
-		const first = await mapSenderToReadlist({ userId: READER, sender: TLDR, readlist: TECH });
-		const second = await mapSenderToReadlist({ userId: READER, sender: BREW, readlist: TECH });
+		const first = await mapSenderToReadlist({ userId: READER, sender: TLDR, readlists: [TECH] });
+		const second = await mapSenderToReadlist({ userId: READER, sender: BREW, readlists: [TECH] });
 
-		expect(second.destination).toBe(first.destination);
+		expect(second.destinations[0]).toBe(first.destinations[0]);
 		const tldr = await senders.findSender({ userId: READER, senderEmail: TLDR });
 		assert(tldr);
-		expect([tldr.mappedAddress, tldr.addedToFilterAt]).toEqual([first.destination, NOW.toISOString()]);
-		const address = await addresses.findByAddress(first.destination);
+		expect([tldr.mappedAddresses, tldr.addedToFilterAt]).toEqual([[first.destinations[0]], NOW.toISOString()]);
+		const address = await addresses.findByAddress(first.destinations[0]);
 		expect([address?.purpose, address?.readlist]).toEqual(["gmail-readlist", TECH]);
+	});
+
+	it("always retains All implicitly and maps only distinct selected custom readlists", async () => {
+		const { senders, addresses, mapSenderToReadlist } = setup();
+		const travel = ReadlistSlugSchema.parse("travel");
+		const allAddress = await addresses.getOrCreateReadlistAddress({ userId: READER, domain: "read.place", readlist: DEFAULT_READLIST_SLUG });
+
+		const selected = await mapSenderToReadlist({ userId: READER, sender: TLDR, readlists: [DEFAULT_READLIST_SLUG, TECH, travel, TECH] });
+		const destinations = await Promise.all(selected.destinations.map((address) => addresses.findByAddress(address)));
+
+		expect(destinations.map((address) => address?.readlist)).toEqual([TECH, travel]);
+		expect((await senders.findSender({ userId: READER, senderEmail: TLDR }))?.mappedAddresses).toEqual(selected.destinations);
+		const all = await mapSenderToReadlist({ userId: READER, sender: BREW, readlists: [] });
+		expect(all.destinations).toEqual([allAddress.address]);
+		expect(await addresses.findByAddress(all.destinations[0])).toEqual(allAddress);
+		expect([allAddress.purpose, allAddress.readlist]).toEqual(["gmail-readlist", undefined]);
+		expect((await senders.findSender({ userId: READER, senderEmail: BREW }))?.mappedAddresses).toEqual([allAddress.address]);
+	});
+
+	it("treats reordering destinations as a no-op and cancels imports when a secondary destination changes", async () => {
+		const { senders, imports, mapSenderToReadlist } = setup();
+		const travel = ReadlistSlugSchema.parse("travel");
+		const work = ReadlistSlugSchema.parse("work");
+		const first = await mapSenderToReadlist({ userId: READER, sender: TLDR, readlists: [TECH, travel] });
+		await imports.createJob({ ...queuedJob(first.destinations[0]), destinationAddresses: first.destinations });
+		const before = await senders.findSender({ userId: READER, senderEmail: TLDR });
+
+		await mapSenderToReadlist({ userId: READER, sender: TLDR, readlists: [travel, TECH] });
+
+		expect(await senders.findSender({ userId: READER, senderEmail: TLDR })).toEqual(before);
+		expect((await imports.listJobsByUserId(READER)).map((job) => job.state)).toEqual(["queued"]);
+		await mapSenderToReadlist({ userId: READER, sender: TLDR, readlists: [TECH, work] });
+		expect((await imports.listJobsByUserId(READER)).map((job) => [job.state, job.cancelReason])).toEqual([["cancelled", "destination-changed"]]);
 	});
 
 	it("cancels unfinished imports for a sender whose readlist changes and keeps a shared named inbox as it was", async () => {
@@ -80,14 +113,14 @@ describe("initMapSenderToReadlist", () => {
 		});
 		await addresses.setAddressReadlist({ userId: READER, address: shared.address, readlist: TECH });
 		for (const sender of [TLDR, BREW]) {
-			await senders.mapSenderToAddress({ userId: READER, senderEmail: sender, mappedAddress: shared.address });
+			await senders.mapSenderToAddress({ userId: READER, senderEmail: sender, mappedAddresses: [shared.address] });
 			await senders.addSenderToFilter({ userId: READER, senderEmail: sender });
 		}
 		await imports.createJob(queuedJob(shared.address));
 
-		await mapSenderToReadlist({ userId: READER, sender: TLDR, readlist: DEFAULT_READLIST_SLUG });
+		await mapSenderToReadlist({ userId: READER, sender: TLDR, readlists: [DEFAULT_READLIST_SLUG] });
 
-		expect((await senders.findSender({ userId: READER, senderEmail: BREW }))?.mappedAddress).toBe(shared.address);
+		expect((await senders.findSender({ userId: READER, senderEmail: BREW }))?.mappedAddresses).toEqual([shared.address]);
 		expect((await addresses.findByAddress(shared.address))?.readlist).toBe(TECH);
 		const [job] = await imports.listJobsByUserId(READER);
 		expect([job?.state, job?.cancelReason]).toEqual(["cancelled", "destination-changed"]);
@@ -95,12 +128,12 @@ describe("initMapSenderToReadlist", () => {
 
 	it("leaves imports running when a sender is saved to the readlist it already uses", async () => {
 		const { imports, mapSenderToReadlist } = setup();
-		const first = await mapSenderToReadlist({ userId: READER, sender: TLDR, readlist: TECH });
-		await imports.createJob(queuedJob(first.destination));
+		const first = await mapSenderToReadlist({ userId: READER, sender: TLDR, readlists: [TECH] });
+		await imports.createJob(queuedJob(first.destinations[0]));
 
-		const again = await mapSenderToReadlist({ userId: READER, sender: TLDR, readlist: TECH });
+		const again = await mapSenderToReadlist({ userId: READER, sender: TLDR, readlists: [TECH] });
 
-		expect(again).toEqual({ destination: first.destination });
+		expect(again).toEqual({ destinations: first.destinations });
 		expect((await imports.listJobsByUserId(READER)).map((job) => job.state)).toEqual(["queued"]);
 	});
 });

@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type { GmailSenderStore } from "@packages/domain/gmail";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
@@ -19,11 +20,16 @@ export function initMoveGmailMappingsOnReadlistDelete(deps: {
 		const retiring = await deps.findReadlistAddress({ userId, readlist: slug });
 		if (retiring === undefined) return deps.deleteReadlistDefinition(params);
 
-		const mapped = (await deps.senders.listSendersByUserId(userId)).filter((sender) => sender.mappedAddress === retiring.address);
+		const mapped = (await deps.senders.listSendersByUserId(userId)).filter((sender) => sender.mappedAddresses?.includes(retiring.address));
 		if (mapped.length > 0) {
-			const all = await deps.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
 			for (const sender of mapped) {
-				await deps.senders.mapSenderToAddress({ userId, senderEmail: sender.senderEmail, mappedAddress: all.address });
+				assert(sender.mappedAddresses, "a sender selected for a readlist move must have destinations");
+				const remaining = sender.mappedAddresses.filter((address) => address !== retiring.address);
+				const [first, ...additional] = remaining;
+				const primary = first === undefined
+					? (await deps.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG })).address
+					: first;
+				await deps.senders.mapSenderToAddress({ userId, senderEmail: sender.senderEmail, mappedAddresses: [primary, ...additional] });
 				await deps.cancelGmailHistoryImports({ userId, senderEmail: sender.senderEmail, reason: "destination-changed" });
 			}
 			await deps.publishRewriteGmailFilter({ userId, reason: "readlist-deleted" });

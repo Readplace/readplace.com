@@ -91,7 +91,7 @@ describe("initInMemoryGmailIntegration", () => {
 			userId: owner,
 			jobId,
 			senderEmail: SENDER,
-			destinationAddress: InboxAddressSchema.parse("gmail-abc123@read.place"),
+			destinationAddresses: [InboxAddressSchema.parse("gmail-abc123@read.place")],
 			connection: { gatewayAddress: InboxAddressSchema.parse("gmail-def456@read.place"), accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") },
 			window: undefined,
 			generation: gmail.bundle.newGmailHistoryImportGeneration(),

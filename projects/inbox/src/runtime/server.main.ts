@@ -7,6 +7,7 @@ import {
 	MessageIdSchema,
 } from "@packages/domain/inbox";
 import type { InboxEmailEntry } from "@packages/domain/inbox";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { SESSION_COOKIE_NAME, initResolveLogin } from "@packages/web-session";
@@ -101,10 +102,10 @@ async function main(): Promise<void> {
 		ordinal: EmailLinkOrdinalSchema.parse("0001"),
 		url: "https://example.com/second-post",
 		resolvedUrl: undefined,
-		status: "pending",
-		title: undefined,
-		excerpt: undefined,
-		siteName: undefined,
+		status: "crawled",
+		title: "Another crawled article",
+		excerpt: "This article remains in All even when it does not fit Work.",
+		siteName: "Example",
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
@@ -133,8 +134,44 @@ async function main(): Promise<void> {
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId,
 		receivedAtMessageId: withLinks.receivedAtMessageId,
-		meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+		meta: {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			eligibleArticleCount: 2,
+			savesHeld: false,
+			selectedReadlists: [
+				{ readlist: ReadlistSlugSchema.parse("work"), label: "Work" },
+				{ readlist: ReadlistSlugSchema.parse("science"), label: "Science" },
+				{ readlist: ReadlistSlugSchema.parse("weekend"), label: "Weekend reading" },
+			],
+		},
 	});
+	await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
+		userId,
+		receivedAtMessageId: withLinks.receivedAtMessageId,
+		outcome: {
+			readlist: ReadlistSlugSchema.parse("work"),
+			decision: {
+				state: "decided",
+				readlist: ReadlistSlugSchema.parse("work"),
+				readlistLabel: "Work",
+			},
+			dropped: [{ ordinal: EmailLinkOrdinalSchema.parse("0001"), reason: "Outside engineering practice" }],
+		},
+	});
+	await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
+		userId,
+		receivedAtMessageId: withLinks.receivedAtMessageId,
+		outcome: {
+			readlist: ReadlistSlugSchema.parse("science"),
+			decision: { state: "failed", readlist: ReadlistSlugSchema.parse("science") },
+			dropped: [],
+		},
+	});
+	for (const url of ["https://example.com/first-post", "https://example.com/second-post"]) {
+		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({ userId, url });
+	}
 
 	// The fixed dev login rides the real session boundary: a session minted at
 	// boot is resolved on every request as if its cookie were always present, so

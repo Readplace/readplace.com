@@ -431,3 +431,23 @@ form.htmx-request .gmail__submit-loader {
   margin-top: 2px;
   accent-color: var(--primary);
 }
+
+.gmail__readlist-option {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.gmail__readlist-option input {
+  flex: none;
+}
+
+.gmail__readlist-required {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+
+.gmail__readlist-confirm {
+  padding: 4px 12px;
+}

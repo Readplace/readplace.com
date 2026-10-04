@@ -36,7 +36,7 @@ export function latestGmailImportsBySender(
 
 export function importFollowsMapping(input: { job: GmailHistoryImportJob; mapping: GmailSenderEntry | undefined }): boolean {
 	const { job, mapping } = input;
-	if (mapping?.addedToFilterAt === undefined || mapping.mappedAddress !== job.destinationAddress) return false;
+	if (mapping?.addedToFilterAt === undefined || mapping.mappedAddresses === undefined || mapping.mappedAddresses.length !== job.destinationAddresses.length || mapping.mappedAddresses.some((address) => !job.destinationAddresses.includes(address))) return false;
 	assert(mapping.mappedAt, "a sender mapped to an address records when it was mapped");
 	return job.createdAt >= mapping.mappedAt;
 }
@@ -47,7 +47,7 @@ export interface GmailImportActions {
 	start: (input: {
 		userId: UserId;
 		sender: ForwardableSender;
-		destination: InboxAddress;
+		destinations: [InboxAddress, ...InboxAddress[]];
 		connection: GmailConnection;
 	}) => Promise<StartGmailImportOutcome>;
 }
@@ -77,7 +77,7 @@ export function initGmailImportActions(deps: {
 		return true;
 	};
 
-	const start: GmailImportActions["start"] = async ({ userId, sender, destination, connection }) => {
+	const start: GmailImportActions["start"] = async ({ userId, sender, destinations, connection }) => {
 		if (connection.revokedAt !== undefined) return { ok: false, error: "import_revoked" };
 		const accountEmail = connection.accountEmail;
 		if (accountEmail === undefined) return { ok: false, error: "import_reconnect_required" };
@@ -90,7 +90,7 @@ export function initGmailImportActions(deps: {
 			userId,
 			jobId: gmail.newGmailHistoryImportJobId(),
 			senderEmail: sender,
-			destinationAddress: destination,
+			destinationAddresses: destinations,
 			connection: { gatewayAddress: connection.gatewayAddress, accountEmail },
 			window: undefined,
 			generation: gmail.newGmailHistoryImportGeneration(),

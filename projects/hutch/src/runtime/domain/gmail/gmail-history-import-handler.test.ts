@@ -30,7 +30,7 @@ const COMPLETED_JOB: GmailHistoryImportJob = {
 	userId: USER,
 	jobId: JOB,
 	senderEmail: ForwardableSenderSchema.parse("dan@tldrnewsletter.com"),
-	destinationAddress: InboxAddressSchema.parse("gmail-abc123@read.place"),
+	destinationAddresses: [InboxAddressSchema.parse("gmail-abc123@read.place")],
 	connection: {
 		gatewayAddress: InboxAddressSchema.parse("gmail-def456@read.place"),
 		accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),

@@ -151,7 +151,7 @@ test.describe("Gmail sender picker", () => {
 			await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(TLDR)}&notification=1&discovery=started`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 			await waitForBrandFonts(page, ["Inter"]);
-			await expect(page.locator("#gmail-readlist-choice")).toHaveText("Choose a readlist");
+			await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
 			const save = page.locator("[data-test-gmail-save]");
 			await expect(save).toBeDisabled();
 			await expect(page.locator("[data-gmail-notification-highlight]")).toHaveCount(1);
@@ -174,9 +174,10 @@ test.describe("Gmail sender picker", () => {
 			await expect(page.locator("#gmail-readlist-name")).toBeFocused();
 			await page.keyboard.press("ArrowUp");
 			await page.keyboard.press("ArrowUp");
-			await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeFocused();
-			await page.keyboard.press("Enter");
-			await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
+			await expect(page.locator(CUSTOM_READLIST_OPTION)).toBeFocused();
+			await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeDisabled();
+			await page.keyboard.press("Space");
+			await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
 			await expect(page.locator("[data-gmail-notification-highlight]")).toHaveCount(0);
 			await expect(save).toBeEnabled();
 			await save.focus();
@@ -217,7 +218,7 @@ test.describe("Gmail sender picker", () => {
 
 		await mappingRow(page, BREW).locator('[data-test-gmail-mapping-action="edit"]').click();
 		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
-		await page.locator('[data-test-gmail-readlist-option="default"]').click();
+		await page.locator(CUSTOM_READLIST_OPTION).uncheck();
 		await page.locator("[data-test-gmail-save]").click();
 		await expect(page.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
 		await expect(mappingRow(page, BREW).locator("[data-test-gmail-mapping-destination]")).toContainText("All");
@@ -374,7 +375,7 @@ test.describe("Gmail sender picker", () => {
 		await page.locator(`${CREATE_READLIST} button[type="submit"]`).click();
 		await expect(page.locator('[data-test-alert="readlist_created"]')).toBeVisible();
 		await expect(page.locator(CUSTOM_READLIST_OPTION)).toHaveCount(2);
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Science");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech, Science");
 
 		await saveMapping(page, TLDR);
 		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-mapping-destination]")).toContainText("Science");
@@ -392,7 +393,7 @@ test.describe("Gmail sender picker", () => {
 		await expect(page.locator(CUSTOM_READLIST_OPTION)).toHaveCount(7);
 		await expect(page.locator(CREATE_READLIST)).toHaveCount(0);
 		const shelf = page.locator(CUSTOM_READLIST_OPTION).first();
-		const shelfName = await shelf.textContent();
+		const shelfName = await shelf.locator("..").locator("span").first().textContent();
 		assert.ok(shelfName, "a readlist option must name its readlist");
 		await shelf.click();
 		await saveMapping(page, KALE);
@@ -453,16 +454,32 @@ test.describe("Gmail sender picker", () => {
 test.describe("Gmail sender picker without JavaScript", () => {
 	test.use({ javaScriptEnabled: false });
 
+	test("confirms two existing custom readlists before saving a notification without JavaScript", async ({ page }, testInfo) => {
+		await openGmail(page, `nojs-multiple-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false, readlists: ["Tech", "Work"] });
+		await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(TLDR)}&notification=1&discovery=started`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-gmail-save]")).toBeDisabled();
+		await page.locator(`${READLIST_PICKER} summary`).click();
+		await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeChecked();
+		await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeDisabled();
+		for (const custom of await page.locator(CUSTOM_READLIST_OPTION).all()) await custom.check();
+		await expect(page.locator("[data-test-gmail-save]")).toBeDisabled();
+		await page.locator("[data-gmail-confirm-readlists]").click();
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText(/^All, (Tech, Work|Work, Tech)$/);
+		await expect(page.locator("[data-test-gmail-save]")).toBeEnabled();
+		await saveMapping(page, TLDR);
+		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-mapping-destination]")).toHaveText(/^Saved to All, (Tech, Work|Work, Tech)$/);
+	});
+
 	test("opens a notification, chooses among readlists, searches and saves through ordinary forms", async ({
 		page,
 	}, testInfo) => {
 		await openGmail(page, `nojs-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false, readlists: ["Tech"] });
 		await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(KALE)}&notification=1&discovery=started`, { waitUntil: "domcontentloaded" });
 		await expect(page.locator("#gmail-sender-choice")).toContainText(KALE);
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Choose a readlist");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
 		await expect(page.locator("[data-test-gmail-save]")).toBeDisabled();
 		await page.locator(`${READLIST_PICKER} summary`).click();
-		await page.locator('[data-test-gmail-readlist-option="default"]').click();
+		await page.locator("[data-gmail-confirm-readlists]").click();
 		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
 		await expect(page.locator("[data-test-gmail-save]")).toBeEnabled();
 		await page.locator("#gmail-load-senders-button").click();
@@ -475,7 +492,7 @@ test.describe("Gmail sender picker without JavaScript", () => {
 		await page.locator(`${READLIST_PICKER} summary`).click();
 		await page.locator(`${CREATE_READLIST} input[name="readlist_name"]`).fill("News");
 		await page.locator(`${CREATE_READLIST} button[type="submit"]`).click();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("News");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, News");
 		await page.locator("[data-test-gmail-save]").click();
 		await expect(mappingRow(page, KALE).locator("[data-test-gmail-mapping-destination]")).toContainText("News");
 	});

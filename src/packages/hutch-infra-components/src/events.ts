@@ -934,6 +934,10 @@ export const EmailReceivedEvent = defineEvent({
 		userId: z.string(),
 		receivedAtMessageId: z.string(),
 		recipientAddress: z.string(),
+		routing: z.discriminatedUnion("kind", [
+			z.object({ kind: z.literal("inbox") }),
+			z.object({ kind: z.literal("gmail"), destinationAddresses: z.tuple([z.string()], z.string()) }),
+		]),
 		/** "receive" saves kept links to the reader's queue; a "backfill" replay
 		 * re-derives preview rows only — historical mail must never mass-save. */
 		origin: z.enum(["receive", "backfill", "gmail-import"]),
@@ -970,9 +974,7 @@ export const EmailLinksTriagedEvent = defineEvent({
 		readlist: z.string(),
 		senderEmail: z.string(),
 		subject: z.string(),
-		links: z
-			.array(z.object({ ordinal: z.string(), url: z.string(), anchorText: z.string() }))
-			.min(1),
+		links: z.array(z.object({ ordinal: z.string(), url: z.string(), anchorText: z.string() })),
 	}),
 });
 export type EmailLinksTriagedDetail = z.infer<typeof EmailLinksTriagedEvent.detailSchema>;
@@ -1202,7 +1204,7 @@ export const GmailHistoryImportMessageFetchedEvent = defineEvent({
 		gmailMessageId: z.string(),
 		accountEmail: z.string(),
 		senderEmail: z.string(),
-		destinationAddress: z.string(),
+		destinationAddresses: z.tuple([z.string()], z.string()),
 		rawEmailS3Key: z.string(),
 		internalDate: z.iso.datetime(),
 	}),

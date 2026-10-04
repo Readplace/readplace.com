@@ -1,3 +1,4 @@
+import { initResumeAcceptedGmailEmail } from "./domain/inbox/resume-accepted-gmail-email";
 import { S3Client } from "@aws-sdk/client-s3";
 import {
 	assertCurlImpersonateAvailable,
@@ -8,10 +9,23 @@ import {
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseEmail } from "@packages/domain/inbox";
 import { ConfirmGmailForwardingCommand } from "@packages/hutch-infra-components";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+} from "@packages/hutch-infra-components/runtime";
+import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import {
+	initDynamoDbEmailIdentity,
+	initDynamoDbGmailHeldMail,
+	initDynamoDbGmailSender,
+	initDynamoDbInboxAddress,
+	initDynamoDbInboxEmail,
+	initS3ReadRawEmail,
+	initS3WriteEmailContent,
+} from "@packages/inbox-store";
 import { getEnv, requireEnv } from "@packages/require-env";
+import { initRouteGmailForwardedEmail } from "./domain/gmail/route-gmail-forwarded-email";
 import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
 import { initIngestParsedEmail } from "./domain/inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "./domain/inbox/intercept-gmail-confirmation";
@@ -19,14 +33,14 @@ import { initReceiveEmailHandler } from "./domain/inbox/receive-email-handler";
 import { initResolveEmailIdentity } from "./domain/inbox/resolve-email-identity";
 import { initStoreEmailBody } from "./domain/inbox/store-email-body";
 import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
-import { initDynamoDbEmailIdentity, initDynamoDbGmailHeldMail, initDynamoDbGmailSender, initDynamoDbInboxAddress, initDynamoDbInboxEmail, initS3ReadRawEmail, initS3WriteEmailContent } from "@packages/inbox-store";
-import { initRouteGmailForwardedEmail } from "./domain/gmail/route-gmail-forwarded-email";
 
 const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
 const gmailSendersTable = requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE");
 const gmailHeldMailTable = requireEnv("DYNAMODB_GMAIL_HELD_MAIL_TABLE");
-const emailIdentitiesTable = requireEnv("DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE");
+const emailIdentitiesTable = requireEnv(
+	"DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE",
+);
 const rawEmailBucketName = requireEnv("RAW_EMAIL_BUCKET_NAME");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
@@ -43,8 +57,14 @@ const inboxAddressStore = initDynamoDbInboxAddress({
 	tableName: inboxAddressesTable,
 	now: () => new Date(),
 });
-const inboxEmailStore = initDynamoDbInboxEmail({ client: dynamoClient, tableName: inboxEmailsTable });
-const { publishEvent } = initEventBridgePublisher({ client: eventBridgeClient, eventBusName });
+const inboxEmailStore = initDynamoDbInboxEmail({
+	client: dynamoClient,
+	tableName: inboxEmailsTable,
+});
+const { publishEvent } = initEventBridgePublisher({
+	client: eventBridgeClient,
+	eventBusName,
+});
 // The same SSRF-guarded crawlFetch the link-preview crawler uses: every connect
 // and redirect hop runs isBlockedIpAddress, so an image URL that resolves to a
 // private or metadata address is refused at connect time.
@@ -61,29 +81,49 @@ const crawlFetch = initCrawlFetch({
 if (getEnv("AWS_LAMBDA_FUNCTION_NAME")) {
 	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
 }
-const { putImageObject } = initS3PutImageObject({ client: s3Client, bucketName: contentBucketName });
+const { putImageObject } = initS3PutImageObject({
+	client: s3Client,
+	bucketName: contentBucketName,
+});
 const storeBody = initStoreEmailBody({
-	putContent: initS3WriteEmailContent({ client: s3Client, bucketName: contentBucketName }),
+	putContent: initS3WriteEmailContent({
+		client: s3Client,
+		bucketName: contentBucketName,
+	}),
 	putImageObject,
 	imagesCdnBaseUrl,
 	logger,
 });
 
 export const handler = initReceiveEmailHandler({
-	readRawEmail: initS3ReadRawEmail({ client: s3Client, bucketName: rawEmailBucketName }),
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: inboxEmailStore.getEmail, publishEvent }),
+	readRawEmail: initS3ReadRawEmail({
+		client: s3Client,
+		bucketName: rawEmailBucketName,
+	}),
 	findByAddress: inboxAddressStore.findByAddress,
 	putEmail: inboxEmailStore.putEmail,
 	parseEmail,
 	downloadEmailImages: initDownloadEmailImages({ crawlFetch, logger }),
 	resolveIdentity: initResolveEmailIdentity({
-		identities: initDynamoDbEmailIdentity({ client: dynamoClient, tableName: emailIdentitiesTable }),
+		identities: initDynamoDbEmailIdentity({
+			client: dynamoClient,
+			tableName: emailIdentitiesTable,
+		}),
 		findReceivedByMessageId: inboxEmailStore.findReceivedByMessageId,
 		getEmail: inboxEmailStore.getEmail,
 		now: () => new Date(),
 	}),
-	ingest: initIngestParsedEmail({ storeBody, putEmail: inboxEmailStore.putEmail, publishEvent, logger }),
+	ingest: initIngestParsedEmail({
+		storeBody,
+		putEmail: inboxEmailStore.putEmail,
+		getEmail: inboxEmailStore.getEmail,
+		publishEvent,
+		logger,
+	}),
 	interceptGmailConfirmation: initInterceptGmailConfirmation({
-		publishConfirmGmailForwarding: (detail) => publishEvent(ConfirmGmailForwardingCommand, detail),
+		publishConfirmGmailForwarding: (detail) =>
+			publishEvent(ConfirmGmailForwardingCommand, detail),
 		logger,
 	}),
 	routeGmailForwardedEmail: initRouteGmailForwardedEmail({
@@ -92,7 +132,10 @@ export const handler = initReceiveEmailHandler({
 			tableName: gmailSendersTable,
 			now: () => new Date(),
 		}),
-		heldMail: initDynamoDbGmailHeldMail({ client: dynamoClient, tableName: gmailHeldMailTable }),
+		heldMail: initDynamoDbGmailHeldMail({
+			client: dynamoClient,
+			tableName: gmailHeldMailTable,
+		}),
 		logger,
 	}),
 	logger,

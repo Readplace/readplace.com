@@ -1,17 +1,20 @@
 <div id="gmail-mapping-choice" class="gmail__mapping-choice"{{#if notificationSender}} data-gmail-notification="{{notificationSender}}" data-gmail-notification-highlight{{/if}}{{#if outOfBand}} hx-swap-oob="outerHTML"{{/if}}>
-              {{{readlistPickerHtml}}}
-              {{#if save}}
-              <form class="gmail__save" method="POST" action="{{save.action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button" data-test-gmail-save-mapping>
-                {{#each save.fields}}
+              <form id="gmail-readlist-selection" class="gmail__selection" method="GET" action="{{readlistPicker.pagePath}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="#gmail-readlist-selection button" data-gmail-readlist-selection data-test-gmail-save-mapping>
+                {{#each readlistPicker.fields}}
                 <input type="hidden" name="{{name}}" value="{{value}}">
                 {{/each}}
-                {{#if save.offerImport}}
-                <label class="gmail__import-option">
-                  <input class="gmail__import-checkbox" type="checkbox" name="import" value="1"{{#if save.importChecked}} checked{{/if}}>
-                  <span>Import unread messages from the last 30 days</span>
-                </label>
+                <input type="hidden" name="readlist" value="default">
+                {{{readlistPickerHtml}}}
+                {{#if save}}
+                <div class="gmail__save">
+                  {{#if save.offerImport}}
+                  <label class="gmail__import-option">
+                    <input class="gmail__import-checkbox" type="checkbox" name="import" value="1"{{#if save.importChecked}} checked{{/if}}>
+                    <span>Import unread messages from the last 30 days</span>
+                  </label>
+                  {{/if}}
+                  <button class="btn btn--{{save.variant}} gmail__submit" type="submit" formmethod="post" formaction="{{save.action}}" formnovalidate{{#if save.disabled}} disabled{{/if}} data-test-gmail-save><span class="gmail__submit-label">Save</span>{{{submitLoader}}}</button>
+                </div>
                 {{/if}}
-                <button class="btn btn--{{save.variant}} gmail__submit" type="submit"{{#if save.disabled}} disabled{{/if}} data-test-gmail-save><span class="gmail__submit-label">Save</span>{{{submitLoader}}}</button>
               </form>
-              {{/if}}
             </div>

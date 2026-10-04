@@ -1,11 +1,4 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import assert from "node:assert";
 import { parseForwardableSender } from "@packages/domain/gmail";
 import {
 	type InboxAddress,
@@ -20,10 +13,22 @@ import {
 	UNROUTED_USER_ID,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
+import type { HutchLogger } from "@packages/hutch-logger";
+import type {
+	Handler,
+	SQSBatchItemFailure,
+	SQSBatchResponse,
+	SQSEvent,
+} from "aws-lambda";
+import { z } from "zod";
 import type { RouteGmailForwardedEmail } from "../gmail/route-gmail-forwarded-email";
-import type { DownloadedEmailImage, DownloadEmailImages } from "./download-email-images";
+import type {
+	DownloadEmailImages,
+	DownloadedEmailImage,
+} from "./download-email-images";
 import type { IngestParsedEmail } from "./ingest-parsed-email";
 import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
+import type { ResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
 import type { ResolveEmailIdentity } from "./resolve-email-identity";
 
 /** The SES "Received" notification SES publishes (via the S3 action's topic) for
@@ -41,10 +46,14 @@ export function initReceiveEmailHandler(deps: {
 	readRawEmail: (s3Key: string) => Promise<Buffer | undefined>;
 	findByAddress: InboxAddressStore["findByAddress"];
 	putEmail: InboxEmailStore["putEmail"];
-	parseEmail: (input: { raw: Buffer; receivedAt: string }) => Promise<ParseEmailResult>;
+	parseEmail: (input: {
+		raw: Buffer;
+		receivedAt: string;
+	}) => Promise<ParseEmailResult>;
 	downloadEmailImages: DownloadEmailImages;
 	resolveIdentity: ResolveEmailIdentity;
 	ingest: IngestParsedEmail;
+	resumeAcceptedGmailEmail: ResumeAcceptedGmailEmail;
 	interceptGmailConfirmation: InterceptGmailConfirmation;
 	routeGmailForwardedEmail: RouteGmailForwardedEmail;
 	logger: HutchLogger;
@@ -58,6 +67,7 @@ export function initReceiveEmailHandler(deps: {
 		downloadEmailImages,
 		resolveIdentity,
 		ingest,
+		resumeAcceptedGmailEmail,
 		interceptGmailConfirmation,
 		routeGmailForwardedEmail,
 		logger,
@@ -68,7 +78,9 @@ export function initReceiveEmailHandler(deps: {
 
 		for (const record of event.Records) {
 			try {
-				const notification = SesNotificationSchema.safeParse(JSON.parse(record.body));
+				const notification = SesNotificationSchema.safeParse(
+					JSON.parse(record.body),
+				);
 				if (!notification.success) {
 					logger.error("[receive-email] malformed SES notification", {
 						messageId: record.messageId,
@@ -84,7 +96,9 @@ export function initReceiveEmailHandler(deps: {
 				const raw = await readRawEmail(s3Key);
 				if (raw === undefined) {
 					// The S3 write can be eventually consistent at receipt; retry.
-					logger.warn("[receive-email] raw .eml not yet readable, retrying", { s3Key });
+					logger.warn("[receive-email] raw .eml not yet readable, retrying", {
+						s3Key,
+					});
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
@@ -138,10 +152,14 @@ export function initReceiveEmailHandler(deps: {
 				// catch-all MX — there is no victim, so audit and ACK like the other
 				// expected conditions; the immutable raw .eml stays the audit trail.
 				const hasDeliverable = resolvedRecipients.some(
-					({ resolved }) => resolved !== undefined && resolved.disabledAt === undefined,
+					({ resolved }) =>
+						resolved !== undefined && resolved.disabledAt === undefined,
 				);
 
-				const auditRow = (recipientAddress: InboxAddress, userId: UserId): InboxEmailEntry => ({
+				const auditRow = (
+					recipientAddress: InboxAddress,
+					userId: UserId,
+				): InboxEmailEntry => ({
 					userId,
 					receivedAtMessageId: `${receivedAt}#${sesMessageId}`,
 					messageId: sesMessageId,
@@ -163,12 +181,17 @@ export function initReceiveEmailHandler(deps: {
 					}
 					if (hasDeliverable) {
 						// A real, enabled recipient just lost a (too-big) newsletter — page.
-						logger.error("[receive-email] oversize email rejected", { bytes: raw.byteLength });
-						batchItemFailures.push({ itemIdentifier: record.messageId });
-					} else {
-						logger.warn("[receive-email] oversize email, no deliverable recipient", {
+						logger.error("[receive-email] oversize email rejected", {
 							bytes: raw.byteLength,
 						});
+						batchItemFailures.push({ itemIdentifier: record.messageId });
+					} else {
+						logger.warn(
+							"[receive-email] oversize email, no deliverable recipient",
+							{
+								bytes: raw.byteLength,
+							},
+						);
 					}
 					continue;
 				}
@@ -180,21 +203,30 @@ export function initReceiveEmailHandler(deps: {
 					// user hitting a broken format); addressed only to unknown/disabled
 					// addresses it is just malformed spam — audit and ACK.
 					for (const { recipientAddress, userId } of resolvedRecipients) {
-						await putEmail({ ...auditRow(recipientAddress, userId), status: "unparsed" });
+						await putEmail({
+							...auditRow(recipientAddress, userId),
+							status: "unparsed",
+						});
 					}
 					if (hasDeliverable) {
 						logger.error("[receive-email] unparseable email", { s3Key });
 						batchItemFailures.push({ itemIdentifier: record.messageId });
 					} else {
-						logger.warn("[receive-email] unparseable email, no deliverable recipient", {
-							s3Key,
-						});
+						logger.warn(
+							"[receive-email] unparseable email, no deliverable recipient",
+							{
+								s3Key,
+							},
+						);
 					}
 					continue;
 				}
 
 				if (
-					await interceptGmailConfirmation({ email: parsed.email, resolvedRecipients })
+					await interceptGmailConfirmation({
+						email: parsed.email,
+						resolvedRecipients,
+					})
 				) {
 					continue;
 				}
@@ -208,12 +240,18 @@ export function initReceiveEmailHandler(deps: {
 				// timeout. Gated on a deliverable recipient: dictionary-guessed spam to
 				// the public catch-all must not get to trigger outbound fetches.
 				let downloadedImages: Promise<DownloadedEmailImage[]> | undefined;
-				for (const { recipientAddress, resolved, userId } of resolvedRecipients) {
+				for (const {
+					recipientAddress,
+					resolved,
+					userId,
+				} of resolvedRecipients) {
 					if (resolved === undefined) {
 						// Unknown address — a guessed/mistyped `in-xxxxxx@`, expected on a
 						// public MX. Auditable row under the unrouted partition, then ACK so
 						// it never pages the operator.
-						logger.warn("[receive-email] unknown recipient", { recipientAddress });
+						logger.warn("[receive-email] unknown recipient", {
+							recipientAddress,
+						});
 						await putEmail(auditRow(recipientAddress, userId));
 						continue;
 					}
@@ -221,12 +259,19 @@ export function initReceiveEmailHandler(deps: {
 						// The user turned this address off but senders still have it: recurring,
 						// not a fault. Audited under the unrouted partition (the owner opted
 						// out — keep it out of their list), then ACK.
-						logger.warn("[receive-email] disabled recipient", { recipientAddress });
+						logger.warn("[receive-email] disabled recipient", {
+							recipientAddress,
+						});
 						await putEmail(auditRow(recipientAddress, userId));
 						continue;
 					}
-					const deliveryAddress =
-						resolved.purpose === "gmail-forwarding" || resolved.purpose === "gmail-mapped"
+					const isGmail =
+						resolved.purpose === "gmail-forwarding" ||
+						resolved.purpose === "gmail-mapped";
+					if (isGmail && await resumeAcceptedGmailEmail({ userId, receivedAtMessageId, rawEmailS3Key: s3Key, origin: "receive" })) continue;
+					const deliveryAddresses =
+						resolved.purpose === "gmail-forwarding" ||
+						resolved.purpose === "gmail-mapped"
 							? await routeGmailForwardedEmail({
 									userId,
 									recipientAddress,
@@ -236,15 +281,24 @@ export function initReceiveEmailHandler(deps: {
 									receivedAt,
 									rawEmailS3Key: s3Key,
 								})
-							: recipientAddress;
-					if (deliveryAddress === undefined) continue;
-					if (deliveryAddress !== recipientAddress) {
-						const destination = await findByAddress(deliveryAddress);
-						if (destination === undefined || destination.disabledAt !== undefined) {
-							await putEmail(auditRow(deliveryAddress, UNROUTED_USER_ID));
-							continue;
+							: [recipientAddress];
+					if (deliveryAddresses === undefined) continue;
+					const [deliveryAddress, ...additionalAddresses] = deliveryAddresses;
+					assert(deliveryAddress, "Gmail destinations are nonempty");
+					let invalidDestination = false;
+					for (const address of new Set(deliveryAddresses)) {
+						if (address === recipientAddress) continue;
+						const destination = await findByAddress(address);
+						if (
+							destination === undefined ||
+							destination.disabledAt !== undefined ||
+							destination.userId !== userId
+						) {
+							await putEmail(auditRow(address, UNROUTED_USER_ID));
+							invalidDestination = true;
 						}
 					}
+					if (invalidDestination) continue;
 					const resolution =
 						sender === undefined || normalizedMessageId === undefined
 							? { proceed: true as const, receivedAtMessageId }
@@ -257,7 +311,10 @@ export function initReceiveEmailHandler(deps: {
 									attempt: { origin: "receive", sesMessageId },
 								});
 					if (!resolution.proceed) {
-						logger.info("[receive-email] already ingested", { userId, deliveryAddress });
+						logger.info("[receive-email] already ingested", {
+							userId,
+							deliveryAddress,
+						});
 						continue;
 					}
 					downloadedImages ??= downloadEmailImages({ html: parsed.email.html });
@@ -270,6 +327,15 @@ export function initReceiveEmailHandler(deps: {
 						receivedAtMessageId: resolution.receivedAtMessageId,
 						downloadedImages: await downloadedImages,
 						origin: "receive",
+						routing: isGmail
+							? {
+									kind: "gmail",
+									destinationAddresses: [
+										deliveryAddress,
+										...additionalAddresses,
+									],
+								}
+							: { kind: "inbox" },
 					});
 				}
 			} catch (error) {

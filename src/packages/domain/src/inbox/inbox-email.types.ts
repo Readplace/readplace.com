@@ -14,6 +14,7 @@ export interface InboxEmailEntry {
 	receivedAtMessageId: string;
 	messageId: MessageId;
 	recipientAddress: InboxAddress;
+	gmailDestinationAddresses?: [InboxAddress, ...InboxAddress[]];
 	senderEmail: string;
 	subject: string;
 	status: InboxEmailStatus;

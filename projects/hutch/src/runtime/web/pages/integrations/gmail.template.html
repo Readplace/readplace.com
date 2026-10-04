@@ -54,7 +54,7 @@
 
         {{#if showSenders}}
         <section class="gmail__senders" data-test-gmail-senders>
-          <h2 class="gmail__section-title">Send a newsletter to a readlist</h2>
+          <h2 class="gmail__section-title">Send a newsletter to your readlists</h2>
           {{#if autoDiscoverAction}}
           <div hidden data-background-request hx-post="{{autoDiscoverAction}}" hx-trigger="load" hx-target="#gmail-sender-results" hx-select="#gmail-sender-results" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML" hx-include="#gmail-sender-search-form" hx-sync="#gmail-sender-search-form:replace" hx-indicator=".gmail__load" data-test-gmail-auto-load-senders></div>
           {{/if}}

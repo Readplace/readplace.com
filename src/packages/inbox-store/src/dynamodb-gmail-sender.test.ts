@@ -83,13 +83,38 @@ describe("initDynamoDbGmailSender", () => {
 		await store.mapSenderToAddress({
 			userId: USER,
 			senderEmail: SENDER,
-			mappedAddress: ALIAS,
+			mappedAddresses: [ALIAS],
 		});
 
+		assert.equal(commands[0].input.UpdateExpression, "SET mappedAddress = :addr, mappedAt = :now REMOVE additionalMappedAddresses");
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
 			":addr": ALIAS,
 			":now": NOW.toISOString(),
 		});
+	});
+
+	it("persists additional destinations beside the primary scalar address", async () => {
+		const { store, commands } = harness();
+		const secondary = InboxAddressSchema.parse("travel-a7b2c9@read.place");
+
+		await store.mapSenderToAddress({ userId: USER, senderEmail: SENDER, mappedAddresses: [ALIAS, secondary] });
+
+		assert.equal(commands[0].input.UpdateExpression, "SET mappedAddress = :addr, mappedAt = :now, additionalMappedAddresses = :additional");
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
+			":addr": ALIAS,
+			":now": NOW.toISOString(),
+			":additional": [secondary],
+		});
+	});
+
+	it("reads legacy scalar mappings and additional mappings as destination arrays", async () => {
+		const secondary = InboxAddressSchema.parse("travel-a7b2c9@read.place");
+		const legacy = harness(() => ({ Item: row({ mappedAddress: ALIAS }) }));
+		const multiple = harness(() => ({ Items: [row({ mappedAddress: ALIAS, additionalMappedAddresses: [secondary] })] }));
+
+		assert.deepEqual((await legacy.store.findSender({ userId: USER, senderEmail: SENDER }))?.mappedAddresses, [ALIAS]);
+		assert.deepEqual((await multiple.store.listSendersByUserId(USER)).map((sender) => sender.mappedAddresses), [[ALIAS, secondary]]);
+		assert.equal((await harness(() => ({ Item: row() })).store.findSender({ userId: USER, senderEmail: SENDER }))?.mappedAddresses, undefined);
 	});
 
 	it("reads one sender as a point read", async () => {

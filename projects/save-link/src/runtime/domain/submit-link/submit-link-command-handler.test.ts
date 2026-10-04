@@ -10,10 +10,17 @@ import {
 } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
+	EmailLinksFilteredEvent,
 	QueueEntryCreatedEvent,
+	SubmitLinkCommand,
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
+import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { initFileArticleIntoReadlist } from "@packages/save-article";
+import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type {
 	CrawlAndFinalizeArticle,
 	CrawlAndFinalizeResult,
@@ -23,6 +30,7 @@ import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initSubmitLinkCommandHandler } from "./submit-link-command-handler";
+import { initFilterEmailLinksHandler } from "../filter-email-links/filter-email-links-handler";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
@@ -154,6 +162,66 @@ async function run(handler: ReturnType<typeof createHandler>, event: SQSEvent) {
 }
 
 describe("initSubmitLinkCommandHandler", () => {
+	it("converges duplicate Gmail saves on one canonical membership in All and each accepted custom list", async () => {
+		const store = initInMemoryArticleStore();
+		const accepted = ReadlistSlugSchema.parse("engineering");
+		const rejected = ReadlistSlugSchema.parse("travel");
+		const unavailable = ReadlistSlugSchema.parse("finance");
+		const canonical = "https://example.com/canonical";
+		for (const slug of [accepted, rejected, unavailable]) {
+			await store.createReadlistDefinition({ userId, slug, label: slug, createdAt: fixedNow() });
+			await store.setReadlistDefinitionPurpose({ userId, slug, purpose: slug });
+		}
+		const submit = createHandler({
+			saveArticle: store.saveArticle,
+			allocateSavedAt: store.allocateSavedAt,
+			updateArticleStatus: store.updateArticleStatus,
+			fileArticleIntoReadlist: initFileArticleIntoReadlist(store),
+			resolveSaveIdentity: async () => ({ url: canonical }),
+			refreshArticleIfStale: async () => ({ action: "skip" }),
+		});
+		const initial = createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letter@example.com" } }]);
+		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
+		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
+		const terminal: unknown[] = [];
+		const publishEvent: PublishEvent = async (event, detail) => {
+			if (event.detailType === SubmitLinkCommand.detailType) {
+				const result = await run(submit, buildSqsEvent([{ messageId: "save", body: JSON.stringify({ detail }) }]));
+				expect(result.batchItemFailures).toEqual([]);
+			}
+			if (event.detailType === EmailLinksFilteredEvent.detailType) terminal.push(detail);
+		};
+		const filter = initFilterEmailLinksHandler({
+			listReadlistDefinitions: store.listReadlistDefinitions,
+			decideEmailLinks: async ({ purpose, links }) => {
+				if (purpose === unavailable) throw new Error("Custom filtering unavailable");
+				return {
+					kept: purpose === accepted ? links.map((link) => link.ordinal) : [],
+					dropped: purpose === rejected ? links.map((link) => ({ ordinal: link.ordinal, reason: "Outside this readlist's purpose" })) : [],
+					inputTokens: 10, outputTokens: 10, reasoningTokens: 0,
+				};
+			},
+			publishEvent,
+			logger: noopLogger,
+		});
+		const deliveries = buildSqsEvent([accepted, rejected, unavailable].map((readlist) => ({
+			messageId: readlist,
+			body: JSON.stringify({ detail: {
+				userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
+				senderEmail: "letter@example.com", subject: "Weekly articles",
+				links: [{ ordinal: "0000", url: exampleUrl, anchorText: "Story" }],
+			} }),
+		})));
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const response = await filter(deliveries, buildLambdaContext(), () => {});
+			expect(response?.batchItemFailures).toEqual([{ itemIdentifier: unavailable }]);
+		}
+
+		expect((await store.listUserSavesForUrl({ userId, url: canonical })).map((save) => save.readlist ?? DEFAULT_READLIST_SLUG).sort()).toEqual([DEFAULT_READLIST_SLUG, accepted].sort());
+		expect(terminal.map((fact) => EmailLinksFilteredEvent.detailSchema.parse(fact).readlist)).toEqual([accepted, rejected, accepted, rejected]);
+		expect(await store.listUserSavesForUrl({ userId, url: exampleUrl })).toEqual([]);
+	});
+
 	it("stub-saves a new URL, crawls tier-1 in-process, and emits TierContentExtractedEvent", async () => {
 		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
 		const markCrawlPending = jest.fn().mockResolvedValue(undefined);

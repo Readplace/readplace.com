@@ -42,7 +42,7 @@ function awaitingPermissionJob(): GmailHistoryImportJob {
 		userId: READER,
 		jobId: JOB,
 		senderEmail: TLDR,
-		destinationAddress: WORK_READLIST,
+		destinationAddresses: [WORK_READLIST],
 		connection: { gatewayAddress: GATEWAY, accountEmail: ACCOUNT },
 		window: undefined,
 		generation: "generation-0",
@@ -67,6 +67,7 @@ interface HarnessContext {
 }
 
 async function harness(overrides: {
+	destinationAddresses?: GmailHistoryImportJob["destinationAddresses"];
 	history?: (history: GmailHistory, context: HarnessContext) => GmailHistory;
 	imports?: (imports: GmailHistoryImportStore) => GmailHistoryImportStore;
 	putRaw?: (putRaw: PutGmailImportRaw, context: HarnessContext) => PutGmailImportRaw;
@@ -90,8 +91,8 @@ async function harness(overrides: {
 	await connections.createConnection({ userId: READER, gatewayAddress: GATEWAY });
 	await connections.recordAccountEmail({ userId: READER, accountEmail: ACCOUNT });
 	await senders.addSenderToFilter({ userId: READER, senderEmail: TLDR });
-	await senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddress: WORK_READLIST });
-	await store.createJob(awaitingPermissionJob());
+	await senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST] });
+	await store.createJob({ ...awaitingPermissionJob(), destinationAddresses: overrides.destinationAddresses ?? [WORK_READLIST] });
 
 	const importer = initGmailHistoryImport({
 		history: wrapHistory(gmail.history, context),
@@ -147,6 +148,32 @@ function publishedIds(published: GmailHistoryImportMessageFetchedDetail[]): stri
 }
 
 describe("initGmailHistoryImport", () => {
+	it("snapshots every selected destination and accepts mapping reordering", async () => {
+		const second = InboxAddressSchema.parse("gmail-bbb222@read.place");
+		const h = await harness({ destinationAddresses: [WORK_READLIST, second] });
+		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [second, WORK_READLIST] });
+		await h.startJob("generation-1");
+		h.addUnread("multiple", "2026-08-31T00:00:00.000Z");
+
+		await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+
+		assert.deepEqual(h.published.map((detail) => detail.destinationAddresses), [[WORK_READLIST, second]]);
+		assert.equal((await h.job()).state, "running");
+	});
+
+	it("cancels before fetching when a secondary destination changes", async () => {
+		const second = InboxAddressSchema.parse("gmail-bbb222@read.place");
+		const h = await harness({ destinationAddresses: [WORK_READLIST, second] });
+		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST] });
+		await h.startJob("generation-1");
+		h.addUnread("changed", "2026-08-31T00:00:00.000Z");
+
+		await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+
+		assert.deepEqual(h.gmail.listRequests, []);
+		assert.equal((await h.job()).cancelReason, "destination-changed");
+	});
+
 	it("fixes the 30-day window when permission is granted and keeps it when a partial failure is retried", async () => {
 		const h = await harness();
 		h.advance(5 * DAY_MS);
@@ -196,7 +223,7 @@ describe("initGmailHistoryImport", () => {
 			gmailMessageId: "m00",
 			accountEmail: ACCOUNT,
 			senderEmail: TLDR,
-			destinationAddress: WORK_READLIST,
+			destinationAddresses: [WORK_READLIST],
 			rawEmailS3Key: `gmail-import/${READER}/${JOB}/m00.eml`,
 			internalDate: "2026-09-01T11:59:00.000Z",
 		});
@@ -371,7 +398,7 @@ describe("initGmailHistoryImport", () => {
 
 	it("cancels the import when the sender now goes to another readlist or is no longer mapped", async () => {
 		const remapped = await harness();
-		await remapped.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddress: ALL_READLIST });
+		await remapped.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [ALL_READLIST] });
 		await remapped.startJob("generation-1");
 		const removed = await harness();
 		await removed.senders.removeSender({ userId: READER, senderEmail: TLDR });

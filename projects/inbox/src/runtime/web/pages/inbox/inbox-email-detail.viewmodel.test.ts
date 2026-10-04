@@ -1,13 +1,13 @@
 import {
 	EmailLinkOrdinalSchema,
+	formatEmailLinkOrdinal,
+	InboxAddressSchema,
 	type InboxEmailEntry,
 	type InboxEmailLinkEntry,
 	type InboxEmailLinksMeta,
 	type InboxEmailStatus,
 	type InboxLinkSaveState,
-	InboxAddressSchema,
 	MessageIdSchema,
-	formatEmailLinkOrdinal,
 } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
@@ -34,7 +34,10 @@ const SKIPPED_NOTE = {
 	iconName: undefined,
 };
 
-const NO_LINKS_EMPTY_STATE = { title: "No links found in this email", body: undefined };
+const NO_LINKS_EMPTY_STATE = {
+	title: "No links found in this email",
+	body: undefined,
+};
 
 function entry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	return {
@@ -53,7 +56,9 @@ function entry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	};
 }
 
-function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry {
+function link(
+	overrides: Partial<InboxEmailLinkEntry> = {},
+): InboxEmailLinkEntry {
 	return {
 		userId: UserIdSchema.parse("user-1"),
 		receivedAtMessageId: SK,
@@ -87,7 +92,11 @@ function build(input: {
 		activeTab: input.activeTab ?? "view",
 		bodyHtml: input.bodyHtml,
 		imagesCdnBaseUrl: "https://cdn.test.readplace.com",
-		linkData: { source: "rows", links: input.links ?? [], meta: input.linksMeta },
+		linkData: {
+			source: "rows",
+			links: input.links ?? [],
+			meta: input.linksMeta,
+		},
 		maxPolls: 300,
 		shown: input.shown,
 		panelPollCount: input.panelPollCount,
@@ -110,7 +119,10 @@ function crawledLinks(count: number, startIndex = 0): InboxEmailLinkEntry[] {
 
 describe("toInboxEmailDetailViewModel", () => {
 	it("renders the body for a received email with content, View tab active", () => {
-		const vm = build({ entry: entry({ status: "received" }), bodyHtml: "<p>hi</p>" });
+		const vm = build({
+			entry: entry({ status: "received" }),
+			bodyHtml: "<p>hi</p>",
+		});
 
 		expect(vm.canRenderBody).toBe(true);
 		expect(vm.bodyHtml).toBe("<p>hi</p>");
@@ -119,14 +131,28 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("hands the Articles tab to the page as the active one", () => {
-		const vm = build({ activeTab: "articles", linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } });
+		const vm = build({
+			activeTab: "articles",
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+		});
 
 		expect(vm.activeTab).toBe("articles");
 		expect(vm.tabs[1].ariaCurrent).toBe("page");
 	});
 
 	it("hands the Skipped tab to the page as the active one", () => {
-		const vm = build({ activeTab: "excluded", linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } });
+		const vm = build({
+			activeTab: "excluded",
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+		});
 
 		expect(vm.activeTab).toBe("excluded");
 		expect(vm.tabs[2].ariaCurrent).toBe("page");
@@ -146,7 +172,10 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("shows the unavailable panel for a received email whose body is not readable", () => {
-		const vm = build({ entry: entry({ status: "received" }), bodyHtml: undefined });
+		const vm = build({
+			entry: entry({ status: "received" }),
+			bodyHtml: undefined,
+		});
 
 		expect(vm.canRenderBody).toBe(false);
 		expect(vm.bodyHtml).toBe("");
@@ -159,13 +188,19 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("never renders the body for a rejected or unparsed email", () => {
 		const statuses: InboxEmailStatus[] = ["rejected", "unparsed"];
 		for (const status of statuses) {
-			const vm = build({ entry: entry({ status }), bodyHtml: "<p>should be ignored</p>" });
+			const vm = build({
+				entry: entry({ status }),
+				bodyHtml: "<p>should be ignored</p>",
+			});
 			expect(vm.canRenderBody).toBe(false);
 		}
 	});
 
 	it("falls back to placeholders for an empty sender or subject", () => {
-		const vm = build({ entry: entry({ senderEmail: "", subject: "" }), bodyHtml: undefined });
+		const vm = build({
+			entry: entry({ senderEmail: "", subject: "" }),
+			bodyHtml: undefined,
+		});
 
 		expect(vm.sender).toBe("(unknown sender)");
 		expect(vm.subject).toBe("(no subject)");
@@ -201,12 +236,21 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.isStalePending).toBe(false);
 		// Its own fragment — polling /articles would swap the Articles panel in here.
 		expect(vm.excluded.panelPollUrl).toContain("/excluded?poll=1");
-		expect(vm.excluded.notices.map((notice) => notice.key)).toEqual(["extracting"]);
+		expect(vm.excluded.notices.map((notice) => notice.key)).toEqual([
+			"extracting",
+		]);
 		expect(vm.excluded.listing).toBeUndefined();
 	});
 
 	it("stops polling the instant the dead-letter handler reports extraction gave up", () => {
-		const vm = build({ links: [], linksMeta: { truncated: false, extractionFailed: true, readlistDecision: undefined } });
+		const vm = build({
+			links: [],
+			linksMeta: {
+				truncated: false,
+				extractionFailed: true,
+				readlistDecision: undefined,
+			},
+		});
 
 		// The barrier is present, so nothing is awaiting it — but its zero rows
 		// answer a scan that never ran, so the panel must not claim "no links found".
@@ -229,9 +273,20 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("withholds every count for a failed extraction, so no zero is presented as an answer", () => {
-		const vm = build({ links: [], linksMeta: { truncated: false, extractionFailed: true, readlistDecision: undefined } });
+		const vm = build({
+			links: [],
+			linksMeta: {
+				truncated: false,
+				extractionFailed: true,
+				readlistDecision: undefined,
+			},
+		});
 
-		expect(vm.tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles", "Skipped"]);
+		expect(vm.tabs.map((tab) => tab.label)).toEqual([
+			"View",
+			"Extracted Articles",
+			"Skipped",
+		]);
 		// An extraction with no counts has no strip worth shipping out of band, so
 		// the poll route never tears the tab links out from under the keyboard.
 		expect(vm.extractionReported).toBe(false);
@@ -240,7 +295,11 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("keeps a completed extraction reporting normally once the marker is false", () => {
 		const vm = build({
 			links: crawledLinks(2),
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		expect(vm.articles.isExtractionFailed).toBe(false);
@@ -282,7 +341,11 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("never polls a non-received email's panels", () => {
-		const vm = build({ entry: entry({ status: "rejected" }), links: [], linksMeta: undefined });
+		const vm = build({
+			entry: entry({ status: "rejected" }),
+			links: [],
+			linksMeta: undefined,
+		});
 
 		expect(vm.articles.isExtracting).toBe(false);
 		expect(vm.articles.isEmpty).toBe(true);
@@ -293,7 +356,14 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("reports a genuinely empty panel once extraction wrote its meta with zero links", () => {
-		const vm = build({ links: [], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } });
+		const vm = build({
+			links: [],
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+		});
 
 		expect(vm.articles.isExtracting).toBe(false);
 		expect(vm.articles.isEmpty).toBe(true);
@@ -316,7 +386,14 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("tells the Skipped panel nothing was skipped when every link was kept", () => {
-		const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } });
+		const vm = build({
+			links: [link({ status: "crawled" })],
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+		});
 
 		expect(vm.excluded.isEmpty).toBe(true);
 		expect(vm.excluded.links).toHaveLength(0);
@@ -324,14 +401,24 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.listing?.emptyStates).toEqual([
 			{ title: "Nothing was skipped in this email", body: undefined },
 		]);
-		expect(vm.articles.listing).toEqual({ countLabel: "1 Extracted Article", emptyStates: [] });
+		expect(vm.articles.listing).toEqual({
+			countLabel: "1 Extracted Article",
+			emptyStates: [],
+		});
 	});
 
 	it("maps a pending link to a polling card and a crawled link to a terminal card", () => {
 		const vm = build({
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 			links: [
-				link({ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "pending" }),
+				link({
+					ordinal: EmailLinkOrdinalSchema.parse("0000"),
+					status: "pending",
+				}),
 				link({
 					ordinal: EmailLinkOrdinalSchema.parse("0001"),
 					status: "crawled",
@@ -351,7 +438,10 @@ describe("toInboxEmailDetailViewModel", () => {
 			"Skipped (0)",
 		]);
 		expect(vm.extractionReported).toBe(true);
-		expect(vm.articles.listing).toEqual({ countLabel: "2 Extracted Articles", emptyStates: [] });
+		expect(vm.articles.listing).toEqual({
+			countLabel: "2 Extracted Articles",
+			emptyStates: [],
+		});
 		const [pending, crawled] = vm.articles.cards;
 		expect(pending.hasTitle).toBe(false);
 		expect(pending.cardPollUrl).toContain("/inbox/");
@@ -364,7 +454,11 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("maps a failed link to a terminal card and surfaces a truncated notice", () => {
 		const vm = build({
 			links: [link({ status: "failed", failureReason: "crawl-failed" })],
-			linksMeta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: true,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		expect(vm.articles.cards[0].hasTitle).toBe(false);
@@ -375,7 +469,11 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("discloses the extraction cap on both panels, including when every link was skipped", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: "llm-ad" })],
-			linksMeta: { truncated: true, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: true,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		// The cap is a fact about the email, not about one panel: an all-skipped email
@@ -387,7 +485,14 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("leaves the cap notice off both panels for an email that was not truncated", () => {
-		const vm = build({ links: [link()], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } });
+		const vm = build({
+			links: [link()],
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+		});
 
 		expect(vm.articles.notices).toEqual([]);
 		expect(vm.excluded.notices).toEqual([]);
@@ -410,12 +515,19 @@ describe("toInboxEmailDetailViewModel", () => {
 					skipReason: "llm-ad",
 				}),
 			],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
 		expect(vm.excluded.isEmpty).toBe(false);
-		expect(vm.excluded.listing).toEqual({ countLabel: "2 Skipped", emptyStates: [] });
+		expect(vm.excluded.listing).toEqual({
+			countLabel: "2 Skipped",
+			emptyStates: [],
+		});
 		expect(vm.excluded.notices).toEqual([SKIPPED_NOTE]);
 		expect(vm.excluded.links).toEqual([
 			{
@@ -465,7 +577,11 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("empties the Articles panel when every link was skipped, and points at where they went", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: "llm-menu" })],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		expect(vm.articles.isEmpty).toBe(true);
@@ -473,34 +589,58 @@ describe("toInboxEmailDetailViewModel", () => {
 		// "No links found" would be false: a link was found, then skipped. The empty
 		// Articles panel has to point at the tab that holds it.
 		expect(vm.articles.listing?.emptyStates).toEqual([
-			{ title: "Every link in this email was skipped", body: "See the Skipped tab." },
+			{
+				title: "Every link in this email was skipped",
+				body: "See the Skipped tab.",
+			},
 		]);
 		expect(vm.excluded.isEmpty).toBe(false);
-		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Site navigation"]);
+		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual([
+			"Site navigation",
+		]);
 	});
 
-	function withConfirmation(
-		confirmation: { feedbackConfirmed?: boolean; savedConfirmed?: boolean },
-	): InboxEmailDetailViewModel {
+	function withConfirmation(confirmation: {
+		feedbackConfirmed?: boolean;
+		savedConfirmed?: boolean;
+	}): InboxEmailDetailViewModel {
 		return toInboxEmailDetailViewModel({
 			entry: entry(),
 			activeTab: "articles",
 			bodyHtml: undefined,
 			imagesCdnBaseUrl: "https://cdn.test.readplace.com",
-			linkData: { source: "rows", links: [link()], meta: { truncated: false, extractionFailed: false, readlistDecision: undefined } },
+			linkData: {
+				source: "rows",
+				links: [link()],
+				meta: {
+					truncated: false,
+					extractionFailed: false,
+					readlistDecision: undefined,
+				},
+			},
 			maxPolls: 300,
-			...confirmation, linkSaveStates: new Map() });
+			...confirmation,
+			linkSaveStates: new Map(),
+		});
 	}
 
 	it("carries no status toast on a plain page view", () => {
-		expect(build({ links: [link()], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } }).statusToastMessage)
-			.toBeUndefined();
+		expect(
+			build({
+				links: [link()],
+				linksMeta: {
+					truncated: false,
+					extractionFailed: false,
+					readlistDecision: undefined,
+				},
+			}).statusToastMessage,
+		).toBeUndefined();
 	});
 
 	it("confirms a report as a status toast, so it is seen wherever the reader was scrolled to", () => {
-		expect(withConfirmation({ feedbackConfirmed: true }).statusToastMessage).toBe(
-			"Thanks — your report was logged",
-		);
+		expect(
+			withConfirmation({ feedbackConfirmed: true }).statusToastMessage,
+		).toBe("Thanks — your report was logged");
 	});
 
 	it("confirms a save in the present tense — the route publishes, a subscriber writes the queue", () => {
@@ -511,23 +651,34 @@ describe("toInboxEmailDetailViewModel", () => {
 
 	it("prefers the save confirmation when a hand-typed URL carries both flags", () => {
 		expect(
-			withConfirmation({ savedConfirmed: true, feedbackConfirmed: true }).statusToastMessage,
+			withConfirmation({ savedConfirmed: true, feedbackConfirmed: true })
+				.statusToastMessage,
 		).toBe("Adding to your queue…");
 	});
 
 	it("labels an excluded link without a recorded reason generically", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: undefined })],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
-		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Not an article"]);
+		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual([
+			"Not an article",
+		]);
 	});
 
 	it("offers a save action on a saveable skipped link, so a misclassification is one click to fix", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: "llm-ad" })],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		expect(vm.excluded.links[0].actions.map((action) => action.href)).toEqual([
@@ -538,7 +689,11 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("shows a skipped link the reader already saved as saved, and still saveable", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: "llm-ad" })],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 			linkSaveStates: new Map([["https://example.com/post", "saved"]]),
 		});
 
@@ -556,7 +711,11 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("shows a skipped link with no recorded save as unsaved", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: "llm-ad" })],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		expect(vm.excluded.links[0].actions).toEqual([
@@ -572,28 +731,50 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("shows a skipped link whose save failed as unsaved, so the reader can try again", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: "llm-ad" })],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 			linkSaveStates: new Map([["https://example.com/post", "failed"]]),
 		});
 
-		expect(vm.excluded.links[0].actions.map((action) => [action.saveState, action.label])).toEqual([
-			["unsaved", "Save to queue"],
-		]);
+		expect(
+			vm.excluded.links[0].actions.map((action) => [
+				action.saveState,
+				action.label,
+			]),
+		).toEqual([["unsaved", "Save to queue"]]);
 	});
 
 	it("withholds the save action from a skipped link whose URL is unsaveable", () => {
 		const vm = build({
 			links: [
-				link({ status: "skipped", skipReason: "list-unsubscribe", url: "https://localhost/private" }),
+				link({
+					status: "skipped",
+					skipReason: "list-unsubscribe",
+					url: "https://localhost/private",
+				}),
 			],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		expect(vm.excluded.links[0].actions).toEqual([]);
 	});
 
 	it("reveals only the first page of cards and offers the rest behind a Show more control", () => {
-		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } });
+		const vm = build({
+			links: crawledLinks(25),
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+		});
 
 		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
 		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(
@@ -607,7 +788,14 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("counts every kept link in the tab, not the page of cards on screen", () => {
-		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } });
+		const vm = build({
+			links: crawledLinks(25),
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+		});
 
 		// `articles.cards` is one page (20); the tab must report the whole set, or
 		// it would disagree with Show more's remainder.
@@ -616,14 +804,29 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("offers no control when the kept links exactly fill the first page", () => {
-		const vm = build({ links: crawledLinks(ARTICLES_PAGE_SIZE), linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined } });
+		const vm = build({
+			links: crawledLinks(ARTICLES_PAGE_SIZE),
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+		});
 
 		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
 		expect(vm.articles.showMore).toBeUndefined();
 	});
 
 	it("renders the cumulative reveal a no-JS Show more navigation asks for", () => {
-		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined }, shown: 40 });
+		const vm = build({
+			links: crawledLinks(25),
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
+			shown: 40,
+		});
 
 		expect(vm.articles.cards).toHaveLength(25);
 		expect(vm.articles.showMore).toBeUndefined();
@@ -639,7 +842,11 @@ describe("toInboxEmailDetailViewModel", () => {
 				}),
 				...crawledLinks(21, 1),
 			],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+			},
 		});
 
 		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
@@ -655,7 +862,9 @@ describe("toInboxEmailDetailViewModel", () => {
 				bodyHtml: "<p>hi</p>",
 				imagesCdnBaseUrl: "https://cdn.test.readplace.com",
 				linkData: { source: "entry" },
-				maxPolls: 300, linkSaveStates: new Map() });
+				maxPolls: 300,
+				linkSaveStates: new Map(),
+			});
 		}
 
 		it("derives the tab counts from the email row's tally", () => {
@@ -700,14 +909,18 @@ describe("toInboxArticlesMoreViewModel", () => {
 			links: input.links,
 			emailId: SK,
 			shown: input.shown,
-			maxPolls: 300, linkSaveStates: new Map() });
+			maxPolls: 300,
+			linkSaveStates: new Map(),
+		});
 	}
 
 	it("returns only the newly revealed delta, not the cards already on the page", () => {
 		const vm = buildMore({ links: crawledLinks(45), shown: 40 });
 
 		expect(vm.cards.map((card) => card.ordinal)).toEqual(
-			crawledLinks(ARTICLES_PAGE_SIZE, ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
+			crawledLinks(ARTICLES_PAGE_SIZE, ARTICLES_PAGE_SIZE).map(
+				(entry) => entry.ordinal,
+			),
 		);
 		expect(vm.showMore).toEqual({
 			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
@@ -719,13 +932,22 @@ describe("toInboxArticlesMoreViewModel", () => {
 	it("drops the control once the delta lands on the last card", () => {
 		const vm = buildMore({ links: crawledLinks(25), shown: 40 });
 
-		expect(vm.cards.map((card) => card.ordinal)).toEqual(["0020", "0021", "0022", "0023", "0024"]);
+		expect(vm.cards.map((card) => card.ordinal)).toEqual([
+			"0020",
+			"0021",
+			"0022",
+			"0023",
+			"0024",
+		]);
 		expect(vm.showMore).toBeUndefined();
 	});
 
 	it("keeps a still-pending revealed card polling for its preview", () => {
 		const vm = buildMore({
-			links: [...crawledLinks(ARTICLES_PAGE_SIZE), link({ ordinal: formatEmailLinkOrdinal(20) })],
+			links: [
+				...crawledLinks(ARTICLES_PAGE_SIZE),
+				link({ ordinal: formatEmailLinkOrdinal(20) }),
+			],
 			shown: 40,
 		});
 
@@ -737,7 +959,11 @@ describe("toInboxArticlesMoreViewModel", () => {
 		const vm = buildMore({
 			links: [
 				...crawledLinks(ARTICLES_PAGE_SIZE),
-				link({ ordinal: formatEmailLinkOrdinal(20), status: "skipped", skipReason: "llm-ad" }),
+				link({
+					ordinal: formatEmailLinkOrdinal(20),
+					status: "skipped",
+					skipReason: "llm-ad",
+				}),
 				...crawledLinks(1, 21),
 			],
 			shown: 40,
@@ -754,7 +980,11 @@ describe("toInboxArticlesMoreViewModel", () => {
 					ordinal: formatEmailLinkOrdinal(20),
 					status: "crawled",
 					title: "A product launch",
-					droppedFor: { readlist: WORK, readlistLabel: "Work", reason: "Not engineering" },
+					droppedFor: {
+						readlist: WORK,
+						readlistLabel: "Work",
+						reason: "Not engineering",
+					},
 				}),
 				...crawledLinks(1, 21),
 			],
@@ -800,7 +1030,9 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		});
 	}
 
-	function metaWith(readlistDecision: InboxEmailLinksMeta["readlistDecision"]): InboxEmailLinksMeta {
+	function metaWith(
+		readlistDecision: InboxEmailLinksMeta["readlistDecision"],
+	): InboxEmailLinksMeta {
 		return { truncated: false, extractionFailed: false, readlistDecision };
 	}
 
@@ -819,7 +1051,11 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		expect(vm.excluded.panelPollUrl).toContain("/excluded?poll=1");
 		expect(vm.excluded.notices).toEqual([DECIDING_NOTICE]);
 		expect(vm.excluded.listing).toBeUndefined();
-		expect(vm.tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles", "Skipped"]);
+		expect(vm.tabs.map((tab) => tab.label)).toEqual([
+			"View",
+			"Extracted Articles",
+			"Skipped",
+		]);
 		expect(vm.extractionReported).toBe(false);
 	});
 
@@ -852,7 +1088,10 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 			},
 		]);
 		expect(vm.articles.notices).toEqual([]);
-		expect(vm.articles.listing).toEqual({ countLabel: "1 Extracted Article", emptyStates: [] });
+		expect(vm.articles.listing).toEqual({
+			countLabel: "1 Extracted Article",
+			emptyStates: [],
+		});
 		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
 		expect(vm.excluded.alerts).toEqual([]);
 		expect(vm.excluded.notices).toEqual([SKIPPED_NOTE]);
@@ -867,7 +1106,11 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 	it("says where the links went once the readlist kept every one of them", () => {
 		const vm = build({
 			links: [kept("0000"), kept("0001")],
-			linksMeta: metaWith({ state: "decided", readlist: WORK, readlistLabel: "Work" }),
+			linksMeta: metaWith({
+				state: "decided",
+				readlist: WORK,
+				readlistLabel: "Work",
+			}),
 		});
 
 		expect(vm.articles.isDeciding).toBe(false);
@@ -876,7 +1119,10 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		expect(vm.articles.notices).toEqual([
 			{ key: "decided", text: "Saved to Work.", iconName: undefined },
 		]);
-		expect(vm.articles.listing).toEqual({ countLabel: "2 Extracted Articles", emptyStates: [] });
+		expect(vm.articles.listing).toEqual({
+			countLabel: "2 Extracted Articles",
+			emptyStates: [],
+		});
 		expect(vm.excluded.notices).toEqual([]);
 		expect(vm.tabs.map((tab) => tab.label)).toEqual([
 			"View",
@@ -888,8 +1134,16 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 
 	it("moves the links the readlist dropped to the Skipped tab, beside the skipped ones", () => {
 		const vm = build({
-			links: [kept("0000"), dropped("0001", "A product launch, not engineering"), skipped("0002")],
-			linksMeta: metaWith({ state: "decided", readlist: WORK, readlistLabel: "Work" }),
+			links: [
+				kept("0000"),
+				dropped("0001", "A product launch, not engineering"),
+				skipped("0002"),
+			],
+			linksMeta: metaWith({
+				state: "decided",
+				readlist: WORK,
+				readlistLabel: "Work",
+			}),
 		});
 
 		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
@@ -900,15 +1154,23 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 				iconName: undefined,
 			},
 		]);
-		expect(vm.articles.listing).toEqual({ countLabel: "1 Extracted Article", emptyStates: [] });
-		expect(vm.excluded.links.map((row) => [row.ordinal, row.reasonLabel])).toEqual([
+		expect(vm.articles.listing).toEqual({
+			countLabel: "1 Extracted Article",
+			emptyStates: [],
+		});
+		expect(
+			vm.excluded.links.map((row) => [row.ordinal, row.reasonLabel]),
+		).toEqual([
 			["0001", "Not for Work — A product launch, not engineering"],
 			["0002", "Unsubscribe link"],
 		]);
 		expect(vm.excluded.links[0].actions.map((action) => action.href)).toEqual([
 			`/inbox/${encodeURIComponent(SK)}/links/0001/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
 		]);
-		expect(vm.excluded.listing).toEqual({ countLabel: "2 Skipped", emptyStates: [] });
+		expect(vm.excluded.listing).toEqual({
+			countLabel: "2 Skipped",
+			emptyStates: [],
+		});
 		expect(vm.excluded.notices).toEqual([
 			SKIPPED_NOTE,
 			{
@@ -927,7 +1189,11 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 	it("says nothing was saved when the readlist dropped every link", () => {
 		const vm = build({
 			links: [dropped("0000", "Off topic"), dropped("0001", "Off topic")],
-			linksMeta: metaWith({ state: "decided", readlist: WORK, readlistLabel: "Work" }),
+			linksMeta: metaWith({
+				state: "decided",
+				readlist: WORK,
+				readlistLabel: "Work",
+			}),
 		});
 
 		expect(vm.articles.notices).toEqual([
@@ -938,17 +1204,28 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 			},
 		]);
 		expect(vm.articles.cards).toEqual([]);
-		expect(vm.excluded.links.map((row) => row.ordinal)).toEqual(["0000", "0001"]);
+		expect(vm.excluded.links.map((row) => row.ordinal)).toEqual([
+			"0000",
+			"0001",
+		]);
 	});
 
 	it("explains only the readlist's drops when nothing was skipped", () => {
 		const vm = build({
 			links: [kept("0000"), dropped("0001", "")],
-			linksMeta: metaWith({ state: "decided", readlist: WORK, readlistLabel: "Work" }),
+			linksMeta: metaWith({
+				state: "decided",
+				readlist: WORK,
+				readlistLabel: "Work",
+			}),
 		});
 
-		expect(vm.excluded.notices.map((notice) => notice.key)).toEqual(["dropped-note"]);
-		expect(vm.excluded.links.map((row) => row.reasonLabel)).toEqual(["Not for Work"]);
+		expect(vm.excluded.notices.map((notice) => notice.key)).toEqual([
+			"dropped-note",
+		]);
+		expect(vm.excluded.links.map((row) => row.reasonLabel)).toEqual([
+			"Not for Work",
+		]);
 	});
 
 	it("alerts that the decision failed while still listing every link to save by hand", () => {
@@ -966,11 +1243,146 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 			},
 		]);
 		expect(vm.articles.notices).toEqual([]);
-		expect(vm.articles.cards.map((card) => card.actions.map((action) => action.key))).toEqual([
-			["save"],
-			["save"],
-		]);
+		expect(
+			vm.articles.cards.map((card) => card.actions.map((action) => action.key)),
+		).toEqual([["save"], ["save"]]);
 		expect(vm.excluded.alerts).toEqual([]);
 		expect(vm.extractionReported).toBe(true);
 	});
+});
+
+describe("Gmail filtering results", () => {
+	it("shows All articles while independent custom lists are choosing, rejecting, and failing", () => {
+		const science = ReadlistSlugSchema.parse("science");
+		const pending = ReadlistSlugSchema.parse("pending");
+		const vm = build({
+			links: [link({ status: "crawled" })],
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+				selectedReadlists: [
+					{ readlist: WORK, label: "Work" },
+					{ readlist: science, label: "Science" },
+					{ readlist: pending, label: "Pending" },
+				],
+				readlistOutcomes: [
+					{
+						readlist: WORK,
+						decision: {
+							state: "decided",
+							readlist: WORK,
+							readlistLabel: "Work",
+						},
+						dropped: [
+							{
+								ordinal: EmailLinkOrdinalSchema.parse("0000"),
+								reason: "Outside this list",
+							},
+						],
+					},
+					{
+						readlist: science,
+						decision: { state: "failed", readlist: science },
+						dropped: [],
+					},
+				],
+			},
+		});
+		expect(vm.articles.cards.map(({ ordinal }) => ordinal)).toEqual(["0000"]);
+		expect(vm.articles.listing).toEqual({
+			countLabel: "1 Extracted Article",
+			emptyStates: [],
+		});
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual([
+			"Saved to All.",
+			"0 articles saved to Work; 1 didn't fit.",
+			"Couldn't choose articles for Science. Articles remain in All.",
+			"Choosing articles for Pending…",
+		]);
+		expect(vm.articles.panelPollUrl).toContain("poll=1");
+		expect(vm.tabs.map(({ label }) => label)).toEqual([
+			"View",
+			"Extracted Articles (1)",
+			"Skipped (0)",
+		]);
+	});
+});
+
+it("finishes Gmail All-only extraction without a custom filtering spinner", () => {
+	const vm = build({
+		links: [],
+		linksMeta: {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			selectedReadlists: [],
+		},
+	});
+	expect(vm.articles.notices).toEqual([]);
+	expect(vm.articles.panelPollUrl).toBeUndefined();
+});
+
+it("stops polling an unfinished Gmail custom list while the All articles remain visible", () => {
+	const vm = build({
+		links: [link({ status: "crawled" })],
+		panelPollCount: 301,
+		linksMeta: {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+		},
+	});
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual([
+		"Saved to All.",
+		"Still choosing articles for Work. Reload later to see the result.",
+	]);
+	expect(vm.articles.panelPollUrl).toBeUndefined();
+});
+
+it("reports one accepted Gmail article using the readlist's captured name", () => {
+	const vm = build({
+		links: [link({ status: "crawled" })],
+		linksMeta: {
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			selectedReadlists: [{ readlist: WORK, label: "Day job" }],
+			readlistOutcomes: [
+				{
+					readlist: WORK,
+					decision: {
+						state: "decided",
+						readlist: WORK,
+						readlistLabel: "Day job",
+					},
+					dropped: [],
+				},
+			],
+		},
+	});
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual([
+		"Saved to All.",
+		"1 article saved to Day job; 0 didn't fit.",
+	]);
+	expect(vm.articles.panelPollUrl).toBeUndefined();
+});
+
+it("reports zero eligible Gmail articles using the stored count rather than unsaveable previews", () => {
+	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [{ readlist: WORK, decision: { state: "decided", readlist: WORK, readlistLabel: "Work" }, dropped: [] }] } });
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["0 articles saved to Work; 0 didn't fit."]);
+	expect(vm.articles.panelPollUrl).toBeUndefined();
+});
+
+it("shows held Gmail selections without claiming saves or waiting for custom outcomes", () => {
+	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true } });
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["No articles were saved to Work because this account is read-only."]);
+	expect(vm.articles.panelPollUrl).toBeUndefined();
+});
+
+it("confirms eligible Gmail articles retained in All when no custom readlists were selected", () => {
+	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] } });
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved to All."]);
+	expect(vm.articles.panelPollUrl).toBeUndefined();
 });

@@ -1,27 +1,36 @@
 import assert from "node:assert/strict";
-import type { EmailReceivedDetail } from "@packages/hutch-infra-components";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import {
 	AliasNameSchema,
 	type EmailLinkOrdinal,
 	EmailLinkOrdinalSchema,
 	type InboxAddressEntry,
+	InboxAddressSchema,
 	type InboxAddressStore,
 	type InboxEmailEntry,
 	type InboxEmailLinkCounts,
-	InboxAddressSchema,
 	InboxTokenSchema,
 	MessageIdSchema,
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	type ReadlistSlug,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
+import { type EmailReceivedDetail, EmailLinksFilteredEvent } from "@packages/hutch-infra-components";
+import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initExtractEmailLinksHandler } from "./extract-email-links-handler";
-import type { EmailLinkTriageCategory, TriageEmailLinks } from "./triage-email-links";
+import { initExtractEmailLinksDlqHandler } from "./extract-email-links-dlq-handler";
+import { initRecordEmailLinksFilteredHandler } from "./record-email-links-filtered-handler";
+import type {
+	EmailLinkTriageCategory,
+	TriageEmailLinks,
+} from "./triage-email-links";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const RECEIVED_AT = "2026-06-24T09:00:00.000Z";
@@ -38,7 +47,9 @@ const READ_ONLY_SUBSCRIPTION = {
 	updatedAt: RECEIVED_AT,
 };
 
-function makeInboxAddress(overrides: Partial<InboxAddressEntry> = {}): InboxAddressEntry {
+function makeInboxAddress(
+	overrides: Partial<InboxAddressEntry> = {},
+): InboxAddressEntry {
 	return {
 		address: InboxAddressSchema.parse("in-3f9a2c@read.place"),
 		userId: USER,
@@ -69,7 +80,10 @@ function makeEmail(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	};
 }
 
-function parsedOk(html: string, listUnsubscribeUrls: string[] = []): ParseEmailResult {
+function parsedOk(
+	html: string,
+	listUnsubscribeUrls: string[] = [],
+): ParseEmailResult {
 	return {
 		ok: true,
 		email: {
@@ -87,7 +101,12 @@ function parsedOk(html: string, listUnsubscribeUrls: string[] = []): ParseEmailR
 }
 
 function eventBody(
-	over: Partial<{ userId: string; receivedAtMessageId: string; origin: EmailReceivedDetail["origin"] }> = {},
+	over: Partial<{
+		userId: string;
+		receivedAtMessageId: string;
+		origin: EmailReceivedDetail["origin"];
+		routing: EmailReceivedDetail["routing"];
+	}> = {},
 ): string {
 	return JSON.stringify({
 		detail: {
@@ -95,12 +114,16 @@ function eventBody(
 			receivedAtMessageId: over.receivedAtMessageId ?? RAM,
 			recipientAddress: "in-3f9a2c@read.place",
 			origin: over.origin ?? "receive",
+			routing: over.routing ?? { kind: "inbox" },
 		},
 	});
 }
 
 function makeHarness(opts?: {
-	getEmail?: (input: { userId: UserId; receivedAtMessageId: string }) => Promise<InboxEmailEntry | undefined>;
+	getEmail?: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+	}) => Promise<InboxEmailEntry | undefined>;
 	readRawEmail?: (s3Key: string) => Promise<Buffer | undefined>;
 	parseEmail?: () => Promise<ParseEmailResult>;
 	triageEmailLinks?: TriageEmailLinks;
@@ -109,12 +132,19 @@ function makeHarness(opts?: {
 	subscription?: SubscriptionRecord;
 	inboxAddress?: InboxAddressEntry;
 	findInboxAddress?: InboxAddressStore["findByAddress"];
+	failMeta?: boolean;
+	failCustomPublish?: boolean;
 }) {
 	const linkStore = initInMemoryInboxEmailLink();
 	const subscriptionReads: UserId[] = [];
 	const published: { ordinal: EmailLinkOrdinal; url: string }[] = [];
-	const submitted: { userId: UserId; url: string; readlist: ReadlistSlug }[] = [];
-	const triaged: Parameters<Parameters<typeof initExtractEmailLinksHandler>[0]["publishEmailLinksTriaged"]>[0][] = [];
+	const submitted: { userId: UserId; url: string; readlist: ReadlistSlug }[] =
+		[];
+	const triaged: Parameters<
+		Parameters<
+			typeof initExtractEmailLinksHandler
+		>[0]["publishEmailLinksTriaged"]
+	>[0][] = [];
 	const addressReads: string[] = [];
 	const alerts: { found: number }[] = [];
 	const heldNotices: {
@@ -127,7 +157,13 @@ function makeHarness(opts?: {
 		receivedAtMessageId: string;
 		inboxAddress: string;
 	}[] = [];
-	const publishOrder: ("notice" | "first-notice" | "preview" | "submit" | "triaged")[] = [];
+	const publishOrder: (
+		| "notice"
+		| "first-notice"
+		| "preview"
+		| "submit"
+		| "triaged"
+	)[] = [];
 	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
 	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
 	const countsWrites: InboxEmailLinkCounts[] = [];
@@ -137,7 +173,9 @@ function makeHarness(opts?: {
 		triageCalls.push(input);
 		return {
 			status: "triaged",
-			categories: new Map(input.links.map((link) => [link.ordinal, "article" as const])),
+			categories: new Map(
+				input.links.map((link) => [link.ordinal, "article" as const]),
+			),
 		};
 	};
 
@@ -153,6 +191,7 @@ function makeHarness(opts?: {
 		getLink: linkStore.getLink,
 		putLinksMeta: async (input) => {
 			writeOrder.push("meta");
+			if (opts?.failMeta) throw new Error("metadata write failed");
 			await linkStore.putLinksMeta(input);
 		},
 		setEmailLinkCounts: async ({ linkCounts }) => {
@@ -170,6 +209,7 @@ function makeHarness(opts?: {
 		publishEmailLinksTriaged: async (input) => {
 			publishOrder.push("triaged");
 			triaged.push(input);
+			if (opts?.failCustomPublish) throw new Error("custom publication failed");
 		},
 		alertTruncated: async ({ found }) => {
 			alerts.push({ found });
@@ -192,6 +232,14 @@ function makeHarness(opts?: {
 				addressReads.push(address);
 				return opts?.inboxAddress ?? makeInboxAddress();
 			}),
+		listReadlistDefinitions: async () => [
+			{ slug: WORK, label: "Work", createdAt: new Date(NOW) },
+			{
+				slug: ReadlistSlugSchema.parse("science"),
+				label: "Science",
+				createdAt: new Date(NOW),
+			},
+		],
 		now: () => new Date(NOW),
 		triageEmailLinks: opts?.triageEmailLinks ?? everythingIsAnArticle,
 		logger: HutchLogger.from(noopLogger),
@@ -199,9 +247,29 @@ function makeHarness(opts?: {
 	});
 
 	const run = (body: string) =>
-		handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
+		handler(
+			buildSqsEvent([{ messageId: "rec-1", body }]),
+			buildLambdaContext(),
+			() => {},
+		);
 
-	return { linkStore, published, submitted, triaged, addressReads, alerts, heldNotices, firstInboxNotices, triageCalls, deriveInputs, countsWrites, writeOrder, subscriptionReads, publishOrder, run };
+	return {
+		linkStore,
+		published,
+		submitted,
+		triaged,
+		addressReads,
+		alerts,
+		heldNotices,
+		firstInboxNotices,
+		triageCalls,
+		deriveInputs,
+		countsWrites,
+		writeOrder,
+		subscriptionReads,
+		publishOrder,
+		run,
+	};
 }
 
 describe("initExtractEmailLinksHandler", () => {
@@ -215,8 +283,18 @@ describe("initExtractEmailLinksHandler", () => {
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(0);
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
-			{ userId: USER, url: "https://b.test/y", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+			{
+				userId: USER,
+				url: "https://a.test/x",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
+			{
+				userId: USER,
+				url: "https://b.test/y",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
 		]);
 	});
 
@@ -235,7 +313,11 @@ describe("initExtractEmailLinksHandler", () => {
 			"preview",
 		]);
 		expect(harness.firstInboxNotices).toEqual([
-			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
+			{
+				userId: USER,
+				receivedAtMessageId: RAM,
+				inboxAddress: "in-3f9a2c@read.place",
+			},
 		]);
 	});
 
@@ -257,10 +339,19 @@ describe("initExtractEmailLinksHandler", () => {
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(0);
 		expect(harness.submitted).toEqual([]);
-		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x", "https://b.test/y"]);
-		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 0, truncated: false }]);
+		expect(harness.published.map((p) => p.url)).toEqual([
+			"https://a.test/x",
+			"https://b.test/y",
+		]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 2, skipped: 0, truncated: false },
+		]);
 		expect(harness.heldNotices).toEqual([
-			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
+			{
+				userId: USER,
+				receivedAtMessageId: RAM,
+				inboxAddress: "in-3f9a2c@read.place",
+			},
 		]);
 		expect(harness.firstInboxNotices).toEqual([]);
 		const { links } = await harness.linkStore.listLinksByEmail({
@@ -285,7 +376,11 @@ describe("initExtractEmailLinksHandler", () => {
 		await harness.run(eventBody());
 
 		expect(harness.heldNotices).toEqual([
-			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
+			{
+				userId: USER,
+				receivedAtMessageId: RAM,
+				inboxAddress: "in-3f9a2c@read.place",
+			},
 		]);
 	});
 
@@ -330,7 +425,12 @@ describe("initExtractEmailLinksHandler", () => {
 		await harness.run(eventBody());
 
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+			{
+				userId: USER,
+				url: "https://a.test/x",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
 		]);
 	});
 
@@ -352,7 +452,12 @@ describe("initExtractEmailLinksHandler", () => {
 
 		expect(harness.subscriptionReads).toEqual([USER]);
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+			{
+				userId: USER,
+				url: "https://a.test/x",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
 		]);
 		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x"]);
 	});
@@ -368,7 +473,14 @@ describe("initExtractEmailLinksHandler", () => {
 			"https://a.test/x",
 			"https://localhost/private",
 		]);
-		expect(harness.submitted).toEqual([{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
+		expect(harness.submitted).toEqual([
+			{
+				userId: USER,
+				url: "https://a.test/x",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
+		]);
 	});
 
 	it("stores and crawls the link byte-exact, utm tags included — the crawl input must not be rewritten", async () => {
@@ -385,7 +497,12 @@ describe("initExtractEmailLinksHandler", () => {
 			"https://link.mail.test/ss/c/token?utm_source=nl",
 		]);
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://link.mail.test/ss/c/token?utm_source=nl", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+			{
+				userId: USER,
+				url: "https://link.mail.test/ss/c/token?utm_source=nl",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
 		]);
 	});
 
@@ -449,14 +566,16 @@ describe("initExtractEmailLinksHandler", () => {
 			["0002", "https://c.test/z", "pending"],
 		]);
 		// Meta is always written once extraction finishes (the "extraction ran"
-			// barrier the detail view polls against); only `truncated` differs.
-			expect(meta).toEqual({ truncated: false, extractionFailed: false });
+		// barrier the detail view polls against); only `truncated` differs.
+		expect(meta).toEqual({ truncated: false, extractionFailed: false });
 		expect(harness.published).toEqual([
 			{ ordinal: "0000", url: "https://a.test/x" },
 			{ ordinal: "0001", url: "https://b.test/y" },
 			{ ordinal: "0002", url: "https://c.test/z" },
 		]);
-		expect(harness.countsWrites).toEqual([{ kept: 3, skipped: 0, truncated: false }]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 3, skipped: 0, truncated: false },
+		]);
 		expect(harness.writeOrder).toEqual(["counts", "meta"]);
 		expect(harness.alerts).toHaveLength(0);
 		// Extraction must derive with NO remote-image rehost map: CDN image URLs
@@ -467,8 +586,10 @@ describe("initExtractEmailLinksHandler", () => {
 
 	it("writes a List-Unsubscribe match as a terminal skipped row and does not fan it out", async () => {
 		const harness = makeHarness({
-			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
-			derivedHtml: "https://a.test/x https://news.example.com/unsub?token=send-1",
+			parseEmail: async () =>
+				parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
+			derivedHtml:
+				"https://a.test/x https://news.example.com/unsub?token=send-1",
 		});
 
 		const result = await harness.run(eventBody());
@@ -479,13 +600,24 @@ describe("initExtractEmailLinksHandler", () => {
 			userId: USER,
 			receivedAtMessageId: RAM,
 		});
-		expect(links.map((l) => [l.ordinal, l.url, l.status, l.skipReason])).toEqual([
+		expect(
+			links.map((l) => [l.ordinal, l.url, l.status, l.skipReason]),
+		).toEqual([
 			["0000", "https://a.test/x", "pending", undefined],
-			["0001", "https://news.example.com/unsub?token=send-1", "skipped", "list-unsubscribe"],
+			[
+				"0001",
+				"https://news.example.com/unsub?token=send-1",
+				"skipped",
+				"list-unsubscribe",
+			],
 		]);
 		expect(meta).toEqual({ truncated: false, extractionFailed: false });
-		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x" }]);
-		expect(harness.countsWrites).toEqual([{ kept: 1, skipped: 1, truncated: false }]);
+		expect(harness.published).toEqual([
+			{ ordinal: "0000", url: "https://a.test/x" },
+		]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 1, skipped: 1, truncated: false },
+		]);
 	});
 
 	it("caps the fan-out, writes a truncated meta item, and raises one alert", async () => {
@@ -506,12 +638,15 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(meta).toEqual({ truncated: true, extractionFailed: false });
 		expect(harness.published).toHaveLength(2);
 		expect(harness.alerts).toEqual([{ found: 3 }]);
-		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 0, truncated: true }]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 2, skipped: 0, truncated: true },
+		]);
 	});
 
 	it("skips an email that is not in the received state", async () => {
 		const harness = makeHarness({
-			getEmail: async () => makeEmail({ status: "unparsed", bodyS3Key: undefined }),
+			getEmail: async () =>
+				makeEmail({ status: "unparsed", bodyS3Key: undefined }),
 			derivedHtml: "https://a.test/x",
 		});
 
@@ -526,7 +661,10 @@ describe("initExtractEmailLinksHandler", () => {
 	});
 
 	it("skips when the email row is not yet visible", async () => {
-		const harness = makeHarness({ getEmail: async () => undefined, derivedHtml: "https://a.test/x" });
+		const harness = makeHarness({
+			getEmail: async () => undefined,
+			derivedHtml: "https://a.test/x",
+		});
 
 		const result = await harness.run(eventBody());
 
@@ -545,7 +683,9 @@ describe("initExtractEmailLinksHandler", () => {
 	});
 
 	it("acks (no rows) when the raw no longer parses", async () => {
-		const harness = makeHarness({ parseEmail: async () => ({ ok: false, reason: "unparseable" }) });
+		const harness = makeHarness({
+			parseEmail: async () => ({ ok: false, reason: "unparseable" }),
+		});
 
 		const result = await harness.run(eventBody());
 
@@ -557,7 +697,9 @@ describe("initExtractEmailLinksHandler", () => {
 	it("fails the record for a malformed event envelope", async () => {
 		const harness = makeHarness({ derivedHtml: "https://a.test/x" });
 
-		const result = await harness.run(JSON.stringify({ detail: { wrong: "shape" } }));
+		const result = await harness.run(
+			JSON.stringify({ detail: { wrong: "shape" } }),
+		);
 
 		assert(result);
 		expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
@@ -579,7 +721,8 @@ describe("initExtractEmailLinksHandler", () => {
 
 	it("decodes entity-encoded hrefs before storing, classifying, and publishing", async () => {
 		const harness = makeHarness({
-			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub&go"]),
+			parseEmail: async () =>
+				parsedOk("<p>body</p>", ["https://news.example.com/unsub&go"]),
 			derivedHtml:
 				'<a href="https://a.test/x?a=1&amp;b=2">A</a> <a href="https://news.example.com/unsub&amp;go">Unsub</a>',
 		});
@@ -594,7 +737,9 @@ describe("initExtractEmailLinksHandler", () => {
 			["https://a.test/x?a=1&b=2", "pending"],
 			["https://news.example.com/unsub&go", "skipped"],
 		]);
-		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x?a=1&b=2" }]);
+		expect(harness.published).toEqual([
+			{ ordinal: "0000", url: "https://a.test/x?a=1&b=2" },
+		]);
 	});
 
 	it("skips links the triage marks as noise, ad, menu, or subscription", async () => {
@@ -611,7 +756,9 @@ describe("initExtractEmailLinksHandler", () => {
 				categories: new Map(
 					input.links.flatMap((link) => {
 						const category = verdicts.get(link.ordinal);
-						return category === undefined ? [] : [[link.ordinal, category] as const];
+						return category === undefined
+							? []
+							: [[link.ordinal, category] as const];
 					}),
 				),
 			}),
@@ -637,7 +784,9 @@ describe("initExtractEmailLinksHandler", () => {
 			{ ordinal: "0000", url: "https://a.test/1" },
 			{ ordinal: "0005", url: "https://a.test/6" },
 		]);
-		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 4, truncated: false }]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 2, skipped: 4, truncated: false },
+		]);
 	});
 
 	it("crawls every remaining link when the triage is unavailable", async () => {
@@ -659,7 +808,8 @@ describe("initExtractEmailLinksHandler", () => {
 
 	it("does not invoke the triage when every link is excluded by rules", async () => {
 		const harness = makeHarness({
-			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
+			parseEmail: async () =>
+				parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
 			derivedHtml: "https://news.example.com/unsub?token=send-1",
 		});
 
@@ -675,7 +825,8 @@ describe("initExtractEmailLinksHandler", () => {
 
 	it("sends each link's anchor text with the email context to the triage", async () => {
 		const harness = makeHarness({
-			derivedHtml: '<a href="https://a.test/essay?x=1&amp;y=2">Read the essay</a>',
+			derivedHtml:
+				'<a href="https://a.test/essay?x=1&amp;y=2">Read the essay</a>',
 		});
 
 		await harness.run(eventBody());
@@ -685,7 +836,11 @@ describe("initExtractEmailLinksHandler", () => {
 				subject: "Digest",
 				from: "news@example.com",
 				links: [
-					{ ordinal: "0000", url: "https://a.test/essay?x=1&y=2", anchorText: "Read the essay" },
+					{
+						ordinal: "0000",
+						url: "https://a.test/essay?x=1&y=2",
+						anchorText: "Read the essay",
+					},
 				],
 			},
 		]);
@@ -696,10 +851,13 @@ describe("initExtractEmailLinksHandler", () => {
 		const harness = makeHarness({
 			triageEmailLinks: async (input) => {
 				deliveries += 1;
-				const category = deliveries === 1 ? ("subscription" as const) : ("article" as const);
+				const category =
+					deliveries === 1 ? ("subscription" as const) : ("article" as const);
 				return {
 					status: "triaged",
-					categories: new Map(input.links.map((link) => [link.ordinal, category])),
+					categories: new Map(
+						input.links.map((link) => [link.ordinal, category]),
+					),
 				};
 			},
 			derivedHtml: "https://a.test/x",
@@ -728,10 +886,13 @@ describe("initExtractEmailLinksHandler", () => {
 		const harness = makeHarness({
 			triageEmailLinks: async (input) => {
 				deliveries += 1;
-				const category = deliveries === 1 ? ("article" as const) : ("subscription" as const);
+				const category =
+					deliveries === 1 ? ("article" as const) : ("subscription" as const);
 				return {
 					status: "triaged",
-					categories: new Map(input.links.map((link) => [link.ordinal, category])),
+					categories: new Map(
+						input.links.map((link) => [link.ordinal, category]),
+					),
 				};
 			},
 			derivedHtml: "https://a.test/x",
@@ -749,7 +910,9 @@ describe("initExtractEmailLinksHandler", () => {
 			{ kept: 1, skipped: 0, truncated: false },
 			{ kept: 1, skipped: 0, truncated: false },
 		]);
-		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x" }]);
+		expect(harness.published).toEqual([
+			{ ordinal: "0000", url: "https://a.test/x" },
+		]);
 	});
 
 	it("writes zero counts and the meta barrier for an email with no links", async () => {
@@ -763,12 +926,15 @@ describe("initExtractEmailLinksHandler", () => {
 		});
 		expect(links).toEqual([]);
 		expect(meta).toEqual({ truncated: false, extractionFailed: false });
-		expect(harness.countsWrites).toEqual([{ kept: 0, skipped: 0, truncated: false }]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 0, skipped: 0, truncated: false },
+		]);
 	});
 
 	it("keeps a skipped link terminal and unpublished across re-delivery", async () => {
 		const harness = makeHarness({
-			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
+			parseEmail: async () =>
+				parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
 			derivedHtml: "https://a.test/x https://news.example.com/unsub",
 		});
 
@@ -794,7 +960,9 @@ describe("initExtractEmailLinksHandler", () => {
 	});
 
 	it("is idempotent under re-delivery: no duplicate rows, re-publishes the fan-out", async () => {
-		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y" });
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+		});
 
 		await harness.run(eventBody());
 		await harness.run(eventBody());
@@ -809,10 +977,30 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.published).toHaveLength(4);
 		// Still-pending rows re-submit too; the subscriber converges duplicates.
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
-			{ userId: USER, url: "https://b.test/y", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
-			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
-			{ userId: USER, url: "https://b.test/y", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+			{
+				userId: USER,
+				url: "https://a.test/x",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
+			{
+				userId: USER,
+				url: "https://b.test/y",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
+			{
+				userId: USER,
+				url: "https://a.test/x",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
+			{
+				userId: USER,
+				url: "https://b.test/y",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
 		]);
 	});
 
@@ -839,8 +1027,16 @@ describe("initExtractEmailLinksHandler", () => {
 					senderEmail: "news@example.com",
 					subject: "Digest",
 					links: [
-						{ ordinal: "0000", url: "https://a.test/x", anchorText: "Ship small PRs" },
-						{ ordinal: "0001", url: "https://b.test/y", anchorText: "Our spring sale" },
+						{
+							ordinal: "0000",
+							url: "https://a.test/x",
+							anchorText: "Ship small PRs",
+						},
+						{
+							ordinal: "0001",
+							url: "https://b.test/y",
+							anchorText: "Our spring sale",
+						},
 					],
 				},
 			]);
@@ -854,9 +1050,18 @@ describe("initExtractEmailLinksHandler", () => {
 
 			await harness.run(eventBody());
 
-			expect(harness.publishOrder).toEqual(["preview", "preview", "triaged", "first-notice"]);
+			expect(harness.publishOrder).toEqual([
+				"preview",
+				"preview",
+				"triaged",
+				"first-notice",
+			]);
 			expect(harness.firstInboxNotices).toEqual([
-				{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
+				{
+					userId: USER,
+					receivedAtMessageId: RAM,
+					inboxAddress: "in-3f9a2c@read.place",
+				},
 			]);
 		});
 
@@ -909,16 +1114,25 @@ describe("initExtractEmailLinksHandler", () => {
 				triageEmailLinks: async (input) => ({
 					status: "triaged",
 					categories: new Map(
-						input.links.map((link) => [link.ordinal, link.ordinal === "0001" ? "ad" : "article"] as const),
+						input.links.map(
+							(link) =>
+								[
+									link.ordinal,
+									link.ordinal === "0001" ? "ad" : "article",
+								] as const,
+						),
 					),
 				}),
-				derivedHtml: "https://a.test/x https://b.test/sale https://localhost/private",
+				derivedHtml:
+					"https://a.test/x https://b.test/sale https://localhost/private",
 				inboxAddress: routedInbox,
 			});
 
 			await harness.run(eventBody());
 
-			expect(harness.triaged[0]?.links.map((link) => link.url)).toEqual(["https://a.test/x"]);
+			expect(harness.triaged[0]?.links.map((link) => link.url)).toEqual([
+				"https://a.test/x",
+			]);
 			expect(harness.published.map((p) => p.url)).toEqual([
 				"https://a.test/x",
 				"https://localhost/private",
@@ -960,7 +1174,9 @@ describe("initExtractEmailLinksHandler", () => {
 
 			await harness.run(eventBody());
 
-			expect(harness.triaged.map((event) => event.links.map((link) => link.ordinal))).toEqual([
+			expect(
+				harness.triaged.map((event) => event.links.map((link) => link.ordinal)),
+			).toEqual([
 				["0000", "0001"],
 				["0000", "0001"],
 			]);
@@ -976,7 +1192,13 @@ describe("initExtractEmailLinksHandler", () => {
 						status: "triaged",
 						categories: new Map(
 							input.links.map(
-								(link) => [link.ordinal, delivery === 1 && link.ordinal === "0001" ? "menu" : "article"] as const,
+								(link) =>
+									[
+										link.ordinal,
+										delivery === 1 && link.ordinal === "0001"
+											? "menu"
+											: "article",
+									] as const,
 							),
 						),
 					};
@@ -988,10 +1210,9 @@ describe("initExtractEmailLinksHandler", () => {
 			await harness.run(eventBody());
 			await harness.run(eventBody());
 
-			expect(harness.triaged.map((event) => event.links.map((link) => link.ordinal))).toEqual([
-				["0000"],
-				["0000"],
-			]);
+			expect(
+				harness.triaged.map((event) => event.links.map((link) => link.ordinal)),
+			).toEqual([["0000"], ["0000"]]);
 		});
 
 		it("saves to All as today for a read-only reader, holding every save", async () => {
@@ -1034,7 +1255,12 @@ describe("initExtractEmailLinksHandler", () => {
 
 			expect(harness.triaged).toEqual([]);
 			expect(harness.submitted).toEqual([
-				{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+				{
+					userId: USER,
+					url: "https://a.test/x",
+					provenance: DIGEST_PROVENANCE,
+					readlist: DEFAULT_READLIST_SLUG,
+				},
 			]);
 		});
 
@@ -1049,7 +1275,12 @@ describe("initExtractEmailLinksHandler", () => {
 			expect(harness.addressReads).toEqual(["in-3f9a2c@read.place"]);
 			expect(harness.triaged).toEqual([]);
 			expect(harness.submitted).toEqual([
-				{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+				{
+					userId: USER,
+					url: "https://a.test/x",
+					provenance: DIGEST_PROVENANCE,
+					readlist: DEFAULT_READLIST_SLUG,
+				},
 			]);
 		});
 
@@ -1066,4 +1297,190 @@ describe("initExtractEmailLinksHandler", () => {
 			expect(harness.triaged).toEqual([]);
 		});
 	});
+});
+
+describe("Gmail destination snapshots", () => {
+	it("publishes no custom outcomes when metadata fails and extraction reaches its dead-letter queue", async () => {
+		const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), failMeta: true });
+		const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } });
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
+		}
+		const dlq = initExtractEmailLinksDlqHandler({ markLinksExtractionFailed: harness.linkStore.markLinksExtractionFailed, logger: noopLogger });
+		await dlq(buildSqsEvent([{ messageId: "extraction-dlq", body }]), buildLambdaContext(), () => {});
+		expect(harness.triaged).toEqual([]);
+		expect(harness.submitted).toHaveLength(3);
+		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(links.map(({ status, droppedFor }) => ({ status, droppedFor }))).toEqual([{ status: "pending", droppedFor: undefined }]);
+		expect(meta?.extractionFailed).toBe(true);
+	});
+
+	it("preserves the Gmail snapshot and All article after custom publication fails, extraction reaches its dead-letter queue, and a rejection arrives", async () => {
+		const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), failCustomPublish: true });
+		const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } });
+		expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
+		const dlq = initExtractEmailLinksDlqHandler({ markLinksExtractionFailed: harness.linkStore.markLinksExtractionFailed, logger: noopLogger });
+		await dlq(buildSqsEvent([{ messageId: "extraction-dlq", body }]), buildLambdaContext(), () => {});
+		const recorder = initRecordEmailLinksFilteredHandler({ markLinkDropped: harness.linkStore.markLinkDropped, settleReadlistDecision: harness.linkStore.settleReadlistDecision, putReadlistOutcome: harness.linkStore.putReadlistOutcome, listLinksByEmail: harness.linkStore.listLinksByEmail, setEmailLinkCounts: async () => { throw new Error("Gmail rejection must preserve All counts"); }, logger: noopLogger });
+		const rejection = { userId: USER, receivedAtMessageId: RAM, readlist: WORK, savedTo: WORK, readlistLabel: "Work", dropped: [{ ordinal: "0000", reason: "Outside the list topic" }] };
+		expect(await recorder(buildSqsEvent([{ messageId: "late-rejection", body: JSON.stringify({ "detail-type": EmailLinksFilteredEvent.detailType, detail: rejection }) }]), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(links.map(({ status, droppedFor }) => ({ status, droppedFor }))).toEqual([{ status: "pending", droppedFor: undefined }]);
+		expect(meta?.selectedReadlists).toEqual([{ readlist: WORK, label: "Work" }]);
+		expect(meta?.readlistOutcomes?.[0]?.dropped).toEqual(rejection.dropped);
+		expect(meta?.extractionFailed).toBe(false);
+	});
+
+	it("saves eligible articles to All before previewing and filters each distinct custom list", async () => {
+		const second = ReadlistSlugSchema.parse("science");
+		const workAddress = InboxAddressSchema.parse("work-abc123@read.place");
+		const secondAddress = InboxAddressSchema.parse("science-def456@read.place");
+		const harness = makeHarness({
+			derivedHtml: "https://example.com/article",
+			findInboxAddress: async (address) =>
+				makeInboxAddress({
+					address,
+					readlist: address === workAddress ? WORK : second,
+				}),
+		});
+		await harness.run(
+			eventBody({
+				routing: {
+					kind: "gmail",
+					destinationAddresses: [workAddress, secondAddress, workAddress],
+				},
+			}),
+		);
+		expect(harness.submitted).toEqual([
+			{
+				userId: USER,
+				url: "https://example.com/article",
+				provenance: DIGEST_PROVENANCE,
+				readlist: DEFAULT_READLIST_SLUG,
+			},
+		]);
+		expect(harness.publishOrder).toEqual([
+			"submit",
+			"first-notice",
+			"preview",
+			"triaged",
+			"triaged",
+		]);
+		expect(harness.triaged.map(({ readlist }) => readlist)).toEqual([
+			WORK,
+			second,
+		]);
+		const { meta } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(meta?.selectedReadlists).toEqual([
+			{ readlist: WORK, label: "Work" },
+			{ readlist: second, label: "Science" },
+		]);
+	});
+
+	it("keeps Gmail All saves held and publishes no custom filters for a read-only reader", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://example.com/article",
+			subscription: READ_ONLY_SUBSCRIPTION,
+		});
+		await harness.run(
+			eventBody({
+				routing: {
+					kind: "gmail",
+					destinationAddresses: ["work-abc123@read.place"],
+				},
+			}),
+		);
+		expect(harness.submitted).toEqual([]);
+		expect(harness.triaged).toEqual([]);
+		expect(harness.heldNotices).toEqual([
+			{
+				userId: USER,
+				receivedAtMessageId: RAM,
+				inboxAddress: "in-3f9a2c@read.place",
+			},
+		]);
+	});
+});
+
+it("snapshots a retired custom list without exposing its internal slug", async () => {
+	const readlist = ReadlistSlugSchema.parse("retired");
+	const harness = makeHarness({
+		derivedHtml: "https://example.com/article",
+		inboxAddress: makeInboxAddress({ readlist }),
+	});
+	await harness.run(
+		eventBody({
+			routing: {
+				kind: "gmail",
+				destinationAddresses: ["old-abc123@read.place"],
+			},
+		}),
+	);
+	expect(
+		(
+			await harness.linkStore.listLinksByEmail({
+				userId: USER,
+				receivedAtMessageId: RAM,
+			})
+		).meta?.selectedReadlists,
+	).toEqual([{ readlist, label: "Deleted readlist" }]);
+});
+
+it("snapshots every Gmail selection and settles empty custom inputs without sending a first-save notice", async () => {
+	const harness = makeHarness({ derivedHtml: "https://example.com/unsubscribe", inboxAddress: makeInboxAddress({ readlist: WORK }) });
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } }));
+	expect(harness.triaged.map(({ readlist, links }) => ({ readlist, links }))).toEqual([{ readlist: WORK, links: [] }]);
+	expect(harness.firstInboxNotices).toEqual([]);
+	const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+	expect(meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [] });
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } }));
+	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual(meta);
+});
+
+it("captures Gmail custom selections for a read-only reader while holding both All and custom saves", async () => {
+	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), subscription: READ_ONLY_SUBSCRIPTION });
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } }));
+	expect(harness.triaged).toEqual([]);
+	expect(harness.submitted).toEqual([]);
+	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true, readlistOutcomes: [] });
+});
+
+it("counts eligible articles for Gmail All-only mappings without custom filtering", async () => {
+	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["all-abc123@read.place"] } }));
+	expect(harness.submitted.map(({ readlist }) => readlist)).toEqual([DEFAULT_READLIST_SLUG]);
+	expect(harness.triaged).toEqual([]);
+	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] });
+});
+
+it("keeps the full custom snapshot when a retry changes triage from noise to article", async () => {
+	let category: EmailLinkTriageCategory = "noise";
+	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), triageEmailLinks: async ({ links }) => ({ status: "triaged", categories: new Map(links.map(({ ordinal }) => [ordinal, category])) }) });
+	const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } });
+	await harness.run(body);
+	category = "article";
+	await harness.run(body);
+	expect(harness.triaged.map(({ readlist, links }) => ({ readlist, links }))).toEqual([{ readlist: WORK, links: [] }, { readlist: WORK, links: [] }]);
+	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta?.selectedReadlists).toEqual([{ readlist: WORK, label: "Work" }]);
+	expect(harness.firstInboxNotices).toEqual([]);
+});
+
+it("preserves a Gmail article's first eligibility when custom publication retries after triage changes to noise", async () => {
+	let category: EmailLinkTriageCategory = "article";
+	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), failCustomPublish: true, triageEmailLinks: async ({ links }) => ({ status: "triaged", categories: new Map(links.map(({ ordinal }) => [ordinal, category])) }) });
+	const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } });
+	expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
+	await harness.linkStore.setLinkOutcome({ userId: USER, receivedAtMessageId: RAM, ordinal: EmailLinkOrdinalSchema.parse("0000"), outcome: { status: "failed", failureReason: "Preview unavailable" } });
+	category = "noise";
+	expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
+	expect(harness.triaged.map(({ links }) => links.map(({ ordinal }) => ordinal))).toEqual([["0000"], ["0000"]]);
+	expect(harness.submitted).toHaveLength(1);
+	expect(harness.firstInboxNotices).toHaveLength(1);
+	const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+	expect(links[0]?.status).toBe("failed");
+	expect(meta?.eligibleArticleCount).toBe(1);
+	expect(meta?.selectedReadlists).toEqual([{ readlist: WORK, label: "Work" }]);
 });

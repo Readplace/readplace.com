@@ -9,12 +9,14 @@ import {
 	InboxEmailLinkDropSchema,
 	InboxEmailStatusSchema,
 	InboxReadlistDecisionSchema,
+	InboxReadlistOutcomeSchema,
 	isExcludedLink,
 	MessageIdSchema,
 	AliasNameSchema,
 } from "@packages/domain/inbox";
 import type { InboxEmailLinkEntry } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
@@ -55,6 +57,12 @@ const seedEmailSchema = z.object({
 		.default([]),
 	extractionFinished: z.boolean().default(true),
 	readlistDecision: InboxReadlistDecisionSchema.optional(),
+	selectedReadlists: z
+		.array(z.object({ readlist: ReadlistSlugSchema, label: z.string().min(1) }))
+		.optional(),
+	readlistOutcomes: z.array(InboxReadlistOutcomeSchema).default([]),
+	eligibleArticleCount: z.number().int().nonnegative().optional(),
+	savesHeld: z.boolean().optional(),
 });
 
 const seedAddressSchema = z.object({ name: z.string().min(1) });
@@ -148,6 +156,9 @@ server.post("/e2e/seed-email", async (req, res) => {
 
 	for (const row of rows) {
 		await fixture.inboxEmail.inboxEmailLinkStore.putLink(row);
+		if (input.selectedReadlists !== undefined && !isExcludedLink(row)) {
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({ userId, url: row.url });
+		}
 	}
 
 	if (input.extractionFinished) {
@@ -159,6 +170,9 @@ server.post("/e2e/seed-email", async (req, res) => {
 				truncated: false,
 				extractionFailed: false,
 				readlistDecision: decision === undefined ? undefined : { readlist: decision.readlist },
+				selectedReadlists: input.selectedReadlists,
+				eligibleArticleCount: input.eligibleArticleCount,
+				savesHeld: input.savesHeld,
 			},
 		});
 		if (decision !== undefined && decision.state !== "deciding") {
@@ -166,6 +180,13 @@ server.post("/e2e/seed-email", async (req, res) => {
 				userId,
 				receivedAtMessageId,
 				decision,
+			});
+		}
+		for (const outcome of input.readlistOutcomes) {
+			await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
+				userId,
+				receivedAtMessageId,
+				outcome,
 			});
 		}
 	}

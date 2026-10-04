@@ -207,8 +207,8 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 		await page.keyboard.press("ArrowUp");
 		const techOption = page.locator('[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])');
 		await expect(techOption).toBeFocused();
-		await page.keyboard.press("Enter");
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Tech");
+		await page.keyboard.press("Space");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
 
 		await tabTo(page, page.locator(`${READLIST_PICKER} summary`));
 		await page.keyboard.press("Enter");
@@ -216,7 +216,7 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 		await page.keyboard.type("Science");
 		await page.keyboard.press("Enter");
 		await expect(page.locator('[data-test-alert="readlist_created"]')).toBeVisible();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Science");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech, Science");
 		await expect(page.locator("#gmail-sender-choice")).toContainText(BREW);
 
 		const importChoice = page.locator('[data-test-gmail-save-mapping] input[name="import"]');
@@ -273,7 +273,8 @@ test.describe("GMail Newsletters without JavaScript", () => {
 
 			await page.locator(`${READLIST_PICKER} summary`).click();
 			await page.locator('[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])').click();
-			await expect(page.locator("#gmail-readlist-choice")).toHaveText("Tech");
+			await page.locator("[data-gmail-confirm-readlists]").click();
+			await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
 			await page.locator('[data-test-gmail-save-mapping] input[name="import"]').check();
 			await page.locator("[data-test-gmail-save]").click();
 
@@ -375,7 +376,7 @@ test.describe("GMail Newsletters polling keeps the reader's choices", () => {
 		const techSlug = await techOption.getAttribute("data-test-gmail-readlist-option");
 		assert(techSlug, "the Tech readlist option must name its slug");
 		await techOption.click();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Tech");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
 		const chosenUrl = page.url();
 
 		const discoveryPolls: string[] = [];
@@ -395,32 +396,32 @@ test.describe("GMail Newsletters polling keeps the reader's choices", () => {
 			assert.equal(params.get("search"), "news", `${polled} must keep the search`);
 			assert.equal(params.get("advanced"), "1", `${polled} must keep advanced mode`);
 			assert.equal(params.get("sender"), KALE, `${polled} must keep the chosen newsletter`);
-			assert.equal(params.get("readlist"), techSlug, `${polled} must keep the chosen readlist`);
+			assert.deepEqual(params.getAll("readlist"), ["default", techSlug], `${polled} must keep the chosen readlist`);
 		}
 		assert.equal(page.url(), chosenUrl, "a poll must not rewrite the address bar");
 		const address = new URL(page.url()).searchParams;
 		assert.equal(address.get("search"), "news");
 		assert.equal(address.get("advanced"), "1");
 		assert.equal(address.get("sender"), KALE);
-		assert.equal(address.get("readlist"), techSlug);
+		assert.deepEqual(address.getAll("readlist"), ["default", techSlug]);
 		await expect(page.locator("#gmail-sender-search")).toHaveValue("news");
 		await expect(page.locator('#gmail-sender-search-form input[name="advanced"]')).toHaveValue("1");
 		await expect(page.locator("#gmail-sender-choice")).toContainText(KALE);
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Tech");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
 		const optionFields = page.locator(`[data-test-gmail-sender-option="${KALE}"]`).locator("xpath=ancestor::form[1]");
-		await expect(optionFields.locator('input[name="readlist"]')).toHaveValue(techSlug);
+		await expect(optionFields.locator(`input[name="readlist"][value="${techSlug}"]`)).toHaveValue(techSlug);
 		await expect(optionFields.locator('input[name="search"]')).toHaveValue("news");
 		await expect(optionFields.locator('input[name="advanced"]')).toHaveValue("1");
 		await expect(page.locator('[data-test-gmail-save-mapping] input[name="sender"]')).toHaveValue(KALE);
-		await expect(page.locator('[data-test-gmail-save-mapping] input[name="readlist"]')).toHaveValue(techSlug);
+		await expect(page.locator(`[data-test-gmail-save-mapping] input[name="readlist"][value="${techSlug}"]`)).toHaveValue(techSlug);
 		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-import-state]")).toHaveAttribute("data-test-gmail-import-state", "running");
 
 		await page.goBack();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Choose a readlist");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
 		await expect(page.locator("#gmail-sender-choice")).toContainText(KALE);
 		await expect(page.locator("#gmail-sender-search")).toHaveValue("news");
 		await page.goForward();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Tech");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
 		await expect(page.locator("#gmail-sender-choice")).toContainText(KALE);
 		assert.equal(page.url(), chosenUrl, "going forward must return to the chosen newsletter and readlist");
 	});

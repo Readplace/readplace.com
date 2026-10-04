@@ -55,6 +55,7 @@ const JobRow = z.object({
 	jobId: GmailHistoryImportJobIdSchema,
 	senderEmail: ForwardableSenderSchema,
 	destinationAddress: InboxAddressSchema,
+	additionalDestinationAddresses: dynamoField(z.array(InboxAddressSchema)),
 	connection: z.object({ gatewayAddress: InboxAddressSchema, accountEmail: GmailAccountEmailSchema }),
 	window: dynamoField(z.object({ start: z.string(), end: z.string() })),
 	generation: z.string(),
@@ -101,7 +102,7 @@ function toJob(row: z.infer<typeof JobRow>): GmailHistoryImportJob {
 		userId: row.userId,
 		jobId: row.jobId,
 		senderEmail: row.senderEmail,
-		destinationAddress: row.destinationAddress,
+		destinationAddresses: [row.destinationAddress, ...(row.additionalDestinationAddresses ?? [])],
 		connection: row.connection,
 		window: row.window,
 		generation: row.generation,
@@ -227,8 +228,14 @@ export function initDynamoDbGmailHistoryImport(deps: {
 
 	return {
 		createJob: async (job) => {
+			const { destinationAddresses: [destinationAddress, ...additionalDestinationAddresses], ...attributes } = job;
 			await jobs.put({
-				Item: definedOnly({ ...job, ...jobKey(job) }),
+				Item: definedOnly({
+					...attributes,
+					...jobKey(job),
+					destinationAddress,
+					...(additionalDestinationAddresses.length === 0 ? {} : { additionalDestinationAddresses }),
+				}),
 				ConditionExpression: "attribute_not_exists(recordKey)",
 			});
 		},

@@ -1,7 +1,10 @@
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import {
+	initDynamoDbInboxEmail,
+	initDynamoDbInboxEmailLink,
+} from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
-import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink } from "@packages/inbox-store";
 import { initRecordEmailLinksFilteredHandler } from "./domain/inbox/record-email-links-filtered-handler";
 
 const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
@@ -13,11 +16,15 @@ const inboxEmailLinkStore = initDynamoDbInboxEmailLink({
 	client: dynamoClient,
 	tableName: inboxEmailLinksTable,
 });
-const inboxEmailStore = initDynamoDbInboxEmail({ client: dynamoClient, tableName: inboxEmailsTable });
+const inboxEmailStore = initDynamoDbInboxEmail({
+	client: dynamoClient,
+	tableName: inboxEmailsTable,
+});
 
 export const handler = initRecordEmailLinksFilteredHandler({
 	markLinkDropped: inboxEmailLinkStore.markLinkDropped,
 	settleReadlistDecision: inboxEmailLinkStore.settleReadlistDecision,
+	putReadlistOutcome: inboxEmailLinkStore.putReadlistOutcome,
 	listLinksByEmail: inboxEmailLinkStore.listLinksByEmail,
 	setEmailLinkCounts: inboxEmailStore.setEmailLinkCounts,
 	logger,

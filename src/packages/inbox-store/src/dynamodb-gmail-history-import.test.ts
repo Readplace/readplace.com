@@ -58,7 +58,7 @@ const JOB: GmailHistoryImportJob = {
 	userId: USER,
 	jobId: JOB_ID,
 	senderEmail: ForwardableSenderSchema.parse("news@example.com"),
-	destinationAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
+	destinationAddresses: [InboxAddressSchema.parse("gmail-a7b2c9@read.place")],
 	connection: {
 		gatewayAddress: InboxAddressSchema.parse("gmail-f0rwrd@read.place"),
 		accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
@@ -79,7 +79,8 @@ const JOB: GmailHistoryImportJob = {
 
 function jobRow(overrides: Partial<GmailHistoryImportJob> & { claimUntil?: number } = {}): Record<string, unknown> {
 	const jobId = overrides.jobId ?? JOB_ID;
-	return { ...JOB, userId: USER, recordKey: `JOB#${jobId}`, window: null, pageToken: null, listingCompletedAt: null, failureReason: null, cancelReason: null, completedAt: null, ...overrides };
+	const { destinationAddresses, ...attributes } = { ...JOB, ...overrides };
+	return { ...attributes, destinationAddress: destinationAddresses[0], userId: USER, recordKey: `JOB#${jobId}`, window: null, pageToken: null, listingCompletedAt: null, failureReason: null, cancelReason: null, completedAt: null, ...overrides };
 }
 
 function messageRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -134,7 +135,7 @@ describe("initDynamoDbGmailHistoryImport", () => {
 				...JOB_KEY,
 				jobId: JOB_ID,
 				senderEmail: JOB.senderEmail,
-				destinationAddress: JOB.destinationAddress,
+				destinationAddress: JOB.destinationAddresses[0],
 				connection: JOB.connection,
 				generation: "run-1",
 				page: 0,
@@ -147,6 +148,17 @@ describe("initDynamoDbGmailHistoryImport", () => {
 		});
 		const conflict = conditionFailed();
 		await expect(harness(() => { throw conflict; }).store.createJob(JOB)).rejects.toBe(conflict);
+	});
+
+	it("snapshots all selected destinations beside the primary address and reads them back", async () => {
+		const secondary = InboxAddressSchema.parse("travel-a7b2c9@read.place");
+		const job: GmailHistoryImportJob = { ...JOB, destinationAddresses: [JOB.destinationAddresses[0], secondary] };
+		const { commands, store } = harness(() => ({ Item: { ...jobRow(), additionalDestinationAddresses: [secondary] } }));
+
+		await store.createJob(job);
+
+		expect(commands[0].input.Item).toEqual(expect.objectContaining({ destinationAddress: JOB.destinationAddresses[0], additionalDestinationAddresses: [secondary] }));
+		expect((await store.findJob({ userId: USER, jobId: JOB_ID }))?.destinationAddresses).toEqual(job.destinationAddresses);
 	});
 
 	it("finds a job with a consistent read, dropping the page lease", async () => {

@@ -251,11 +251,15 @@ function catalogNamespaceOf(cookieHeader: string | undefined): string {
 	return cookie.slice(CATALOG_NAMESPACE_COOKIE.length + 1)
 }
 
+let seededReadlistAt = 0
 const upsertE2eReadlist = initUpsertReadlist({
 	listReadlistDefinitions: fixture.articleStore.listReadlistDefinitions,
 	createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
 	generateReadlistSlug,
-	now: () => new Date(),
+	now: () => {
+		seededReadlistAt = Math.max(Date.now(), seededReadlistAt + 1)
+		return new Date(seededReadlistAt)
+	},
 })
 
 async function seedReadlistSlug(input: { userId: UserId; label: string }): Promise<ReadlistSlug> {
@@ -685,6 +689,7 @@ const SeedGmailMappingBody = z.discriminatedUnion('destination', [
 		destination: z.literal('readlist'),
 		email: ForwardableSenderSchema,
 		readlist: z.string().min(1),
+		additionalReadlists: z.array(z.string().min(1)).default([]),
 		pending: z.boolean().default(false),
 	}),
 	z.object({
@@ -862,7 +867,7 @@ async function seedLegacyGmailSenders(input: { userId: UserId; senders: SeedGmai
 				name: entry.name,
 				purpose: 'gmail-mapped',
 			})
-			await gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddress: inbox.address })
+			await gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddresses: [inbox.address] })
 		}
 		await gmailSenderStore.addSenderToFilter({ userId, senderEmail })
 	}
@@ -878,9 +883,13 @@ async function seedGmailMappings(input: {
 	const destinations: InboxAddress[] = []
 	for (const mapping of mappings) {
 		const mappedAddress = await seedMappingDestination({ userId, mapping })
-		await gmailSenderStore.mapSenderToAddress({ userId, senderEmail: mapping.email, mappedAddress })
+		const additional = mapping.destination === 'readlist'
+			? await Promise.all(mapping.additionalReadlists.map((label) => seedMappingDestination({ userId, mapping: { ...mapping, readlist: label } })))
+			: []
+		await gmailSenderStore.mapSenderToAddress({ userId, senderEmail: mapping.email, mappedAddresses: [mappedAddress, ...additional] })
 		await gmailSenderStore.addSenderToFilter({ userId, senderEmail: mapping.email })
 		destinations.push(mappedAddress)
+		destinations.push(...additional)
 	}
 	return destinations
 }
@@ -894,7 +903,7 @@ async function seedGmailImports(input: {
 	const { gmailSenderStore, gmailHistoryImportStore, newGmailHistoryImportJobId } = gmailIntegration.bundle
 	for (const entry of input.imports) {
 		const sender = await gmailSenderStore.findSender({ userId, senderEmail: entry.sender })
-		assert(sender?.mappedAddress, `a seeded import for ${entry.sender} needs that sender mapped in the same seed`)
+		assert(sender?.mappedAddresses, `a seeded import for ${entry.sender} needs that sender mapped in the same seed`)
 		const now = gmailNow()
 		const counts = {
 			imported: 0,
@@ -909,7 +918,7 @@ async function seedGmailImports(input: {
 			userId,
 			jobId: newGmailHistoryImportJobId(),
 			senderEmail: entry.sender,
-			destinationAddress: sender.mappedAddress,
+			destinationAddresses: sender.mappedAddresses,
 			connection: { gatewayAddress, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL },
 			window:
 				entry.state === 'awaiting-permission'

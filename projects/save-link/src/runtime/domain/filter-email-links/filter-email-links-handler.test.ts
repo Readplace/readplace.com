@@ -249,13 +249,26 @@ describe("initFilterEmailLinksHandler", () => {
 		expect(harness.published).toEqual([]);
 	});
 
-	it("fails a triage with no links", async () => {
+	it("settles an empty selection without asking the model or submitting links", async () => {
 		const harness = makeHarness({});
 
 		const result = await harness.run({ ...TRIAGED, links: [] });
 
 		assert(result);
-		expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		expect(result.batchItemFailures).toEqual([]);
+		expect(harness.decisions).toEqual([]);
+		expect(harness.published).toEqual([{ detailType: "EmailLinksFiltered", detail: {
+			userId: USER,
+			receivedAtMessageId: RAM,
+			readlist: "a1b2c3d4",
+			savedTo: "a1b2c3d4",
+			readlistLabel: "Work",
+			decision: "filtered",
+			dropped: [],
+			inputTokens: 0,
+			outputTokens: 0,
+			reasoningTokens: 0,
+		} }]);
 	});
 
 	it("fails a triage whose link ordinal is malformed", async () => {

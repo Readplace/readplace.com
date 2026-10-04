@@ -65,6 +65,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 				const url = new URL(GMAIL_PATH, deps.appOrigin);
 				url.searchParams.set("sender", senderEmail);
 				url.searchParams.set("notification", "1");
+				url.searchParams.set("readlist_choice_for", senderEmail);
 				url.searchParams.set("utm_source", "gmail-newsletter-notice");
 				url.searchParams.set("utm_medium", "email");
 				url.searchParams.set("utm_campaign", "gmail-newsletter-mapping");
@@ -72,7 +73,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 				const component = GmailNewsletterNoticeEmail({ founderAvatarUrl: deps.founderAvatarUrl, newsletterName: recognition.name, senderEmail, gmailUrl: url.toString() });
 				const message: EmailMessage = notice.message ?? {
 					from: "Fayner from Readplace <fayner@readplace.com>", replyTo: "fayner@readplace.com", to: email,
-					subject: `Choose a readlist for ${recognition.name ?? senderEmail}`,
+					subject: `Choose readlists for ${recognition.name ?? senderEmail}`,
 					html: component.to("text/html"), text: component.to("text/plain"),
 					idempotencyKey: `gmail-newsletter/${createHash("sha256").update(JSON.stringify([userId, senderEmail])).digest("hex")}`,
 				};

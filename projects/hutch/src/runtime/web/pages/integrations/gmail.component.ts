@@ -67,6 +67,7 @@ function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string
 	if (vm.selectedSender === undefined) return "";
 	return render(GMAIL_MAPPING_CHOICE_TEMPLATE, {
 		save: vm.save,
+		readlistPicker: vm.readlistPicker,
 		notificationSender: vm.notificationSender,
 		outOfBand,
 		readlistPickerHtml: render(GMAIL_READLIST_PICKER_TEMPLATE, { ...vm.readlistPicker, submitLoader: SUBMIT_LOADER_HTML }),
@@ -126,7 +127,7 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 				pollLine:
 					vm.pollState === undefined
 						? ""
-						: renderGmailPoll(toGmailPollViewModel({ pollCount: 0, state: vm.pollState })),
+						: renderGmailPoll(toGmailPollViewModel({ pollCount: 0, state: vm.pollState, picker: vm.pickerState })),
 				loadButton: renderGmailLoadButton(vm, false),
 				senderResults: renderGmailSenderResults(vm),
 				mappingChoiceHtml: renderMappingChoice(vm, false),

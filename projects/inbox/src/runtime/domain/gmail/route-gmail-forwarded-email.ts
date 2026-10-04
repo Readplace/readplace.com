@@ -15,7 +15,7 @@ export type RouteGmailForwardedEmail = (input: {
 	receivedAtMessageId: string;
 	receivedAt: string;
 	rawEmailS3Key: string;
-}) => Promise<InboxAddress | undefined>;
+}) => Promise<[InboxAddress, ...InboxAddress[]] | undefined>;
 
 export function initRouteGmailForwardedEmail(deps: {
 	senders: GmailSenderStore;
@@ -35,24 +35,35 @@ export function initRouteGmailForwardedEmail(deps: {
 	}) => {
 		const senderEmail = parseForwardableSender(email.from);
 		if (senderEmail === undefined) {
-			logger.warn("[route-gmail-forwarded-email] unreadable sender, delivered as addressed", {
-				userId,
-			});
-			return recipientAddress;
+			logger.warn(
+				"[route-gmail-forwarded-email] unreadable sender, delivered as addressed",
+				{
+					userId,
+				},
+			);
+			return [recipientAddress];
 		}
 
 		if (purpose === "gmail-mapped") {
 			const existing = await senders.findSender({ userId, senderEmail });
 			if (existing !== undefined) {
-				await senders.recordSenderSeen({ userId, senderEmail, subject: email.subject });
+				await senders.recordSenderSeen({
+					userId,
+					senderEmail,
+					subject: email.subject,
+				});
 			}
-			return recipientAddress;
+			return existing?.mappedAddresses ?? [recipientAddress];
 		}
 
-		await senders.recordSenderSeen({ userId, senderEmail, subject: email.subject });
+		await senders.recordSenderSeen({
+			userId,
+			senderEmail,
+			subject: email.subject,
+		});
 		const sender = await senders.findSender({ userId, senderEmail });
-		const mappedAddress = sender?.mappedAddress;
-		if (mappedAddress !== undefined) return mappedAddress;
+		const mappedAddresses = sender?.mappedAddresses;
+		if (mappedAddresses !== undefined) return mappedAddresses;
 
 		await heldMail.holdMail({
 			userId,
@@ -63,7 +74,9 @@ export function initRouteGmailForwardedEmail(deps: {
 			rawEmailS3Key,
 			recipientAddress,
 		});
-		logger.info("[route-gmail-forwarded-email] held an unmapped sender", { userId });
+		logger.info("[route-gmail-forwarded-email] held an unmapped sender", {
+			userId,
+		});
 		return undefined;
 	};
 }

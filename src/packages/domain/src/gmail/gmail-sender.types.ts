@@ -10,7 +10,7 @@ export interface GmailSenderEntry {
 	lastSeenAt: string | undefined;
 	seenCount: number | undefined;
 	lastSubject: string | undefined;
-	mappedAddress: InboxAddress | undefined;
+	mappedAddresses: [InboxAddress, ...InboxAddress[]] | undefined;
 	mappedAt: string | undefined;
 }
 
@@ -27,7 +27,7 @@ export interface GmailSenderStore {
 	mapSenderToAddress: (input: {
 		userId: UserId;
 		senderEmail: ForwardableSender;
-		mappedAddress: InboxAddress;
+		mappedAddresses: [InboxAddress, ...InboxAddress[]];
 	}) => Promise<void>;
 	findSender: (input: {
 		userId: UserId;

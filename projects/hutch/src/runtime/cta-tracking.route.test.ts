@@ -188,14 +188,14 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		});
 		const destination = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
 		for (const senderEmail of [waiting, idle]) {
-			await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddress: destination.address });
+			await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddresses: [destination.address] });
 			await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
 		}
 		await gmail.bundle.gmailHistoryImportStore.createJob({
 			userId,
 			jobId: gmail.bundle.newGmailHistoryImportJobId(),
 			senderEmail: waiting,
-			destinationAddress: destination.address,
+			destinationAddresses: [destination.address],
 			connection: { gatewayAddress, accountEmail },
 			window: undefined,
 			generation: "waiting",

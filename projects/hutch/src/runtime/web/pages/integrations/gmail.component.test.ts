@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { GmailConnection } from "@packages/domain/gmail";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
-import { DEFAULT_READLIST } from "@packages/domain/readlist";
+import { DEFAULT_READLIST, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { parseHTML } from "linkedom";
 import { GmailPage, renderGmailSenderResults } from "./gmail.component";
@@ -96,5 +96,44 @@ describe("GMail Newsletters discovery fragments", () => {
 		assert.equal(beside.querySelector("[data-test-gmail-discovery-reconnect]")?.getAttribute("class"), "btn btn--neutral");
 		const alone = fragmentDocument(renderGmailSenderResults(toGmailPageViewModel(input({ discovery: requiresReconnect }))));
 		assert.equal(alone.querySelector("[data-test-gmail-discovery-reconnect]")?.getAttribute("class"), "btn btn--primary");
+	});
+});
+
+
+describe("Gmail mandatory All and independent custom choices", () => {
+	const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
+	const SCIENCE = { slug: ReadlistSlugSchema.parse("science"), label: "Science" };
+
+	it("locks All and enables an ordinary sender while custom lists remain optional", () => {
+		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH, SCIENCE], state: { sender: TLDR } }));
+		const all = doc.querySelector('[data-test-gmail-readlist-option="default"]');
+		assert(all);
+		assert.equal(all.hasAttribute("checked"), true);
+		assert.equal(all.hasAttribute("disabled"), true);
+		assert.equal(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled"), false);
+		assert.equal(doc.querySelector("#gmail-readlist-choice")?.textContent, "All");
+	});
+
+	it("requires notification confirmation and keeps the pending sender in search and selection forms", () => {
+		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR }, notification: true }));
+		assert.equal(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled"), true);
+		assert.equal(doc.querySelector("[data-gmail-confirm-readlists]")?.textContent, "Confirm readlists");
+		assert.deepEqual(Array.from(doc.querySelectorAll('#gmail-sender-search-form input[name="readlist_choice_for"], #gmail-readlist-selection input[name="readlist_choice_for"]'), (field) => field.getAttribute("value")), [TLDR, TLDR]);
+		const confirm = doc.querySelector("[data-gmail-confirm-readlists]");
+		assert.equal(confirm?.getAttribute("formmethod"), "get");
+		assert.equal(confirm?.getAttribute("name"), "confirm_readlists");
+		assert.equal(confirm?.getAttribute("value"), TLDR);
+	});
+
+	it("keeps repeated choices independent and shares a native form between confirmation, Save and Create", () => {
+		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH, SCIENCE], state: { sender: TLDR, readlist: ["science", "tech", "tech"] } }));
+		assert.equal(doc.querySelector("#gmail-readlist-choice")?.textContent, "All, Tech, Science");
+		assert.deepEqual(Array.from(doc.querySelectorAll("[data-test-gmail-readlist-option]"), (field) => [field.getAttribute("value"), field.hasAttribute("checked")]), [["default", true], ["tech", true], ["science", true]]);
+		const form = doc.querySelector("[data-test-gmail-save-mapping]");
+		assert(form);
+		assert.equal(form.getAttribute("method"), "GET");
+		assert.equal(form.querySelector("[data-test-gmail-save]")?.getAttribute("formmethod"), "post");
+		assert.equal(form.querySelector("[data-test-gmail-readlist-create] button")?.getAttribute("formmethod"), "post");
+		assert.equal(form.querySelectorAll("form").length, 0);
 	});
 });

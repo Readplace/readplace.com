@@ -1,13 +1,5 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
-	type DynamoDBDocumentClient,
-	defineDynamoTable,
-	dynamoField,
-	forEachQueryPage,
-} from "@packages/hutch-storage-client";
-import { z } from "zod";
-import {
 	EmailLinkOrdinalSchema,
 	EmailLinkSkipReasonSchema,
 	EmailLinkStatusSchema,
@@ -16,13 +8,25 @@ import {
 	type InboxEmailLinkStore,
 	type InboxEmailLinksMeta,
 	InboxReadlistDecisionSchema,
+	type InboxReadlistOutcome,
+	InboxReadlistOutcomeSchema,
 } from "@packages/domain/inbox";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+	defineDynamoTable,
+	dynamoField,
+	forEachQueryPage,
+} from "@packages/hutch-storage-client";
+import { z } from "zod";
 
 /** Sort key of the per-email meta item co-located in the links partition. Holds
  * only `truncated`. `^\d{4}$` ordinals sort before `"meta"` lexicographically, so
  * the meta item trails the link rows in a single ascending Query. */
 const META_SORT_KEY = "meta";
+const READLIST_OUTCOME_PREFIX = "readlist#";
 
 const FAILED_UPDATE_EXPRESSION =
 	"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason";
@@ -41,7 +45,10 @@ const FAILED_UPDATE_NAMES: Record<string, string> = {
 /** One partition per email so every link (and the meta item) returns from a
  * single Query. `receivedAtMessageId` already embeds the message id, so the
  * composite is unique per email. */
-function groupKey(input: { userId: UserId; receivedAtMessageId: string }): string {
+function groupKey(input: {
+	userId: UserId;
+	receivedAtMessageId: string;
+}): string {
 	return `${input.userId}#${input.receivedAtMessageId}`;
 }
 
@@ -67,6 +74,14 @@ const InboxEmailLinkRow = z.object({
 	extractionFailed: dynamoField(z.boolean()),
 	droppedFor: dynamoField(InboxEmailLinkDropSchema),
 	readlistDecision: dynamoField(InboxReadlistDecisionSchema),
+	selectedReadlists: dynamoField(
+		z.array(
+			z.object({ readlist: ReadlistSlugSchema, label: z.string().min(1) }),
+		),
+	),
+	readlistOutcome: dynamoField(InboxReadlistOutcomeSchema),
+	eligibleArticleCount: dynamoField(z.number().int().nonnegative()),
+	savesHeld: dynamoField(z.boolean()),
 });
 
 type InboxEmailLinkRowType = z.infer<typeof InboxEmailLinkRow>;
@@ -115,7 +130,9 @@ export function initDynamoDbInboxEmailLink(deps: {
 			async (rows) => {
 				await Promise.all(
 					rows.map((row) =>
-						table.delete({ Key: { userLinkGroup: row.userLinkGroup, ordinal: row.ordinal } }),
+						table.delete({
+							Key: { userLinkGroup: row.userLinkGroup, ordinal: row.ordinal },
+						}),
 					),
 				);
 			},
@@ -136,17 +153,34 @@ export function initDynamoDbInboxEmailLink(deps: {
 			};
 			if (link.skipReason !== undefined) Item.skipReason = link.skipReason;
 			try {
-				await table.put({ Item, ConditionExpression: "attribute_not_exists(ordinal)" });
+				await table.put({
+					Item,
+					ConditionExpression: "attribute_not_exists(ordinal)",
+				});
 				return "stored";
 			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return "duplicate";
+				if (error instanceof ConditionalCheckFailedException)
+					return "duplicate";
 				throw error;
 			}
 		},
-		setLinkOutcome: async ({ userId, receivedAtMessageId, ordinal, outcome }) => {
-			const Key = { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal };
+		setLinkOutcome: async ({
+			userId,
+			receivedAtMessageId,
+			ordinal,
+			outcome,
+		}) => {
+			const Key = {
+				userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+				ordinal,
+			};
 			if (outcome.status === "crawled") {
-				const sets = ["#status = :status", "#title = :title", "#excerpt = :excerpt", "#siteName = :siteName"];
+				const sets = [
+					"#status = :status",
+					"#title = :title",
+					"#excerpt = :excerpt",
+					"#siteName = :siteName",
+				];
 				const names: Record<string, string> = {
 					"#status": "status",
 					"#title": "title",
@@ -193,14 +227,26 @@ export function initDynamoDbInboxEmailLink(deps: {
 				ConditionExpression: "attribute_exists(ordinal)",
 				UpdateExpression: FAILED_UPDATE_EXPRESSION,
 				ExpressionAttributeNames: FAILED_UPDATE_NAMES,
-				ExpressionAttributeValues: { ":status": "failed", ":failureReason": outcome.failureReason },
+				ExpressionAttributeValues: {
+					":status": "failed",
+					":failureReason": outcome.failureReason,
+				},
 			});
 		},
-		failPendingLink: async ({ userId, receivedAtMessageId, ordinal, failureReason }) => {
+		failPendingLink: async ({
+			userId,
+			receivedAtMessageId,
+			ordinal,
+			failureReason,
+		}) => {
 			try {
 				await table.update({
-					Key: { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal },
-					ConditionExpression: "attribute_exists(ordinal) AND #status = :pending",
+					Key: {
+						userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+						ordinal,
+					},
+					ConditionExpression:
+						"attribute_exists(ordinal) AND #status = :pending",
 					UpdateExpression: FAILED_UPDATE_EXPRESSION,
 					ExpressionAttributeNames: FAILED_UPDATE_NAMES,
 					ExpressionAttributeValues: {
@@ -211,7 +257,8 @@ export function initDynamoDbInboxEmailLink(deps: {
 				});
 				return "failed";
 			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return "already-terminal";
+				if (error instanceof ConditionalCheckFailedException)
+					return "already-terminal";
 				throw error;
 			}
 		},
@@ -229,11 +276,32 @@ export function initDynamoDbInboxEmailLink(deps: {
 				":extractionFailed": meta.extractionFailed,
 			};
 			if (meta.readlistDecision !== undefined) {
-				sets.push("readlistDecision = if_not_exists(readlistDecision, :deciding)");
-				values[":deciding"] = { state: "deciding", readlist: meta.readlistDecision.readlist };
+				sets.push(
+					"readlistDecision = if_not_exists(readlistDecision, :deciding)",
+				);
+				values[":deciding"] = {
+					state: "deciding",
+					readlist: meta.readlistDecision.readlist,
+				};
 			}
+			if (meta.selectedReadlists !== undefined) {
+				sets.push(
+					"selectedReadlists = if_not_exists(selectedReadlists, :selectedReadlists)",
+				);
+				values[":selectedReadlists"] = meta.selectedReadlists;
+			}
+			for (const field of ["eligibleArticleCount", "savesHeld"] as const) {
+				if (meta[field] !== undefined) {
+					sets.push(`${field} = if_not_exists(${field}, :${field})`);
+					values[`:${field}`] = meta[field];
+				}
+			}
+
 			await table.update({
-				Key: { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal: META_SORT_KEY },
+				Key: {
+					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+					ordinal: META_SORT_KEY,
+				},
 				UpdateExpression: `SET ${sets.join(", ")}`,
 				ExpressionAttributeValues: values,
 			});
@@ -253,34 +321,59 @@ export function initDynamoDbInboxEmailLink(deps: {
 				});
 				return "stored";
 			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return "superseded";
+				if (error instanceof ConditionalCheckFailedException)
+					return "superseded";
 				throw error;
 			}
 		},
-		markLinkDropped: async ({ userId, receivedAtMessageId, ordinal, droppedFor }) => {
+		markLinkDropped: async ({
+			userId,
+			receivedAtMessageId,
+			ordinal,
+			droppedFor,
+		}) => {
 			try {
 				await table.update({
-					Key: { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal },
-					ConditionExpression: "attribute_exists(ordinal) AND #status <> :skipped",
+					Key: {
+						userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+						ordinal,
+					},
+					ConditionExpression:
+						"attribute_exists(ordinal) AND #status <> :skipped",
 					UpdateExpression: "SET droppedFor = :droppedFor",
 					ExpressionAttributeNames: { "#status": "status" },
-					ExpressionAttributeValues: { ":droppedFor": droppedFor, ":skipped": "skipped" },
+					ExpressionAttributeValues: {
+						":droppedFor": droppedFor,
+						":skipped": "skipped",
+					},
 				});
 				return "marked";
 			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return "not-a-candidate";
+				if (error instanceof ConditionalCheckFailedException)
+					return "not-a-candidate";
 				throw error;
 			}
 		},
-		settleReadlistDecision: async ({ userId, receivedAtMessageId, decision }) => {
-			const Key = { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal: META_SORT_KEY };
+		settleReadlistDecision: async ({
+			userId,
+			receivedAtMessageId,
+			decision,
+		}) => {
+			const Key = {
+				userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+				ordinal: META_SORT_KEY,
+			};
 			try {
 				await table.update({
 					Key,
-					ConditionExpression: "attribute_exists(ordinal) AND readlistDecision.#state = :deciding",
+					ConditionExpression:
+						"attribute_exists(ordinal) AND readlistDecision.#state = :deciding",
 					UpdateExpression: "SET readlistDecision = :decision",
 					ExpressionAttributeNames: { "#state": "state" },
-					ExpressionAttributeValues: { ":decision": decision, ":deciding": "deciding" },
+					ExpressionAttributeValues: {
+						":decision": decision,
+						":deciding": "deciding",
+					},
 				});
 				return "settled";
 			} catch (error) {
@@ -290,15 +383,43 @@ export function initDynamoDbInboxEmailLink(deps: {
 			assert(meta, "readlist decision arrived before the extraction barrier");
 			return "already-settled";
 		},
+		putReadlistOutcome: async ({ userId, receivedAtMessageId, outcome }) => {
+			try {
+				await table.put({
+					Item: {
+						userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+						ordinal: `${READLIST_OUTCOME_PREFIX}${outcome.readlist}`,
+						userId,
+						receivedAtMessageId,
+						readlistOutcome: outcome,
+					},
+					ConditionExpression: "attribute_not_exists(ordinal)",
+				});
+				return "stored";
+			} catch (error) {
+				if (error instanceof ConditionalCheckFailedException)
+					return "duplicate";
+				throw error;
+			}
+		},
 		listLinksByEmail: async ({ userId, receivedAtMessageId }) => {
 			const { items } = await table.query({
+				ConsistentRead: true,
 				KeyConditionExpression: "userLinkGroup = :pk",
-				ExpressionAttributeValues: { ":pk": groupKey({ userId, receivedAtMessageId }) },
+				ExpressionAttributeValues: {
+					":pk": groupKey({ userId, receivedAtMessageId }),
+				},
 				ScanIndexForward: true,
 			});
 			const links: InboxEmailLinkEntry[] = [];
 			let meta: InboxEmailLinksMeta | undefined;
+			const readlistOutcomes: InboxReadlistOutcome[] = [];
 			for (const item of items) {
+				if (item.ordinal.startsWith(READLIST_OUTCOME_PREFIX)) {
+					assert(item.readlistOutcome, "readlist outcome row missing result");
+					readlistOutcomes.push(item.readlistOutcome);
+					continue;
+				}
 				if (item.ordinal === META_SORT_KEY) {
 					// Coerced rather than parsed: rows written before the give-up marker
 					// existed carry no such column, and their absence means the extraction
@@ -307,12 +428,23 @@ export function initDynamoDbInboxEmailLink(deps: {
 						truncated: Boolean(item.truncated),
 						extractionFailed: Boolean(item.extractionFailed),
 						readlistDecision: item.readlistDecision,
+						...(item.eligibleArticleCount === undefined ? {} : { eligibleArticleCount: item.eligibleArticleCount }),
+						...(item.savesHeld === undefined ? {} : { savesHeld: item.savesHeld }),
+						...(item.selectedReadlists === undefined
+							? {}
+							: { selectedReadlists: item.selectedReadlists }),
 					};
 					continue;
 				}
 				links.push(toEntry(item));
 			}
-			return { links, meta };
+			return {
+				links,
+				meta:
+					meta?.selectedReadlists === undefined
+						? meta
+						: { ...meta, readlistOutcomes },
+			};
 		},
 		getLink: async ({ userId, receivedAtMessageId, ordinal }) => {
 			const row = await table.get({

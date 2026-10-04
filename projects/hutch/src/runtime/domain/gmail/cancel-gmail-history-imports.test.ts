@@ -21,7 +21,7 @@ function awaitingJob(input: { jobId: string; senderEmail: typeof TLDR }): GmailH
 		userId: READER,
 		jobId: GmailHistoryImportJobIdSchema.parse(input.jobId),
 		senderEmail: input.senderEmail,
-		destinationAddress: InboxAddressSchema.parse("gmail-abc123@read.place"),
+		destinationAddresses: [InboxAddressSchema.parse("gmail-abc123@read.place")],
 		connection: {
 			gatewayAddress: InboxAddressSchema.parse("gmail-def456@read.place"),
 			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),

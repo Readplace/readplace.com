@@ -1,5 +1,12 @@
+import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { initResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import {
+	ForwardableSenderSchema,
+	GmailAccountEmailSchema,
+	GmailHistoryImportJobIdSchema,
+	GmailMessageIdSchema,
+} from "@packages/domain/gmail";
 import {
 	AliasNameSchema,
 	DEFAULT_INBOX_ALIAS,
@@ -12,14 +19,9 @@ import {
 	NormalizedMessageIdSchema,
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
-import {
-	ForwardableSenderSchema,
-	GmailAccountEmailSchema,
-	GmailHistoryImportJobIdSchema,
-	GmailMessageIdSchema,
-} from "@packages/domain/gmail";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
+import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -46,7 +48,9 @@ const MESSAGE_KEY = messageIdentityKey({
 });
 const IMPORT_ATTEMPT: IngestionAttempt = {
 	origin: "gmail-import",
-	jobId: GmailHistoryImportJobIdSchema.parse("0123456789abcdef0123456789abcdef"),
+	jobId: GmailHistoryImportJobIdSchema.parse(
+		"0123456789abcdef0123456789abcdef",
+	),
 	accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
 	gmailMessageId: GmailMessageIdSchema.parse("18c2f0a1b2c3d4e5"),
 };
@@ -85,17 +89,36 @@ function makeHarness(opts?: {
 	maxEmailBytes?: number;
 	interceptGmailConfirmation?: InterceptGmailConfirmation;
 	routeGmailForwardedEmail?: RouteGmailForwardedEmail;
+	publishErrorOnce?: boolean;
 }) {
+	let publishError = opts?.publishErrorOnce === true;
 	const addressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const emailStore = initInMemoryInboxEmail();
 	const identities = initInMemoryEmailIdentity();
 	const rawMap = new Map<string, Buffer>();
-	const published: { detail: { receivedAtMessageId: string; userId: string; recipientAddress: string } }[] = [];
+	const published: {
+		detail: {
+			receivedAtMessageId: string;
+			userId: string;
+			recipientAddress: string;
+		};
+	}[] = [];
 	const imageDownloadCalls: { html: string }[] = [];
 	const interceptions: { recipientCount: number }[] = [];
 	const routings: { recipientAddress: string; purpose: string }[] = [];
 
+	const publishEvent: PublishEvent = async (_event, detail) => {
+				if (publishError) { publishError = false; throw new Error("EventBridge unavailable"); }
+				published.push({
+					detail: detail as {
+						receivedAtMessageId: string;
+						userId: string;
+						recipientAddress: string;
+					},
+				});
+			};
 	const handler = initReceiveEmailHandler({
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emailStore.getEmail, publishEvent }),
 		readRawEmail: async (key) => rawMap.get(key),
 		findByAddress: addressStore.findByAddress,
 		putEmail: emailStore.putEmail,
@@ -113,11 +136,8 @@ function makeHarness(opts?: {
 		ingest: initIngestParsedEmail({
 			storeBody: opts?.storeBody ?? (async () => "content/email/content.html"),
 			putEmail: emailStore.putEmail,
-			publishEvent: async (_event, detail) => {
-				published.push({
-					detail: detail as { receivedAtMessageId: string; userId: string; recipientAddress: string },
-				});
-			},
+			getEmail: emailStore.getEmail,
+			publishEvent,
 			logger: HutchLogger.from(noopLogger),
 		}),
 		interceptGmailConfirmation:
@@ -130,7 +150,7 @@ function makeHarness(opts?: {
 			opts?.routeGmailForwardedEmail ??
 			(async ({ recipientAddress, purpose }) => {
 				routings.push({ recipientAddress, purpose });
-				return recipientAddress;
+				return [recipientAddress];
 			}),
 		logger: HutchLogger.from(noopLogger),
 		maxEmailBytes: opts?.maxEmailBytes ?? 20 * 1024 * 1024,
@@ -138,7 +158,9 @@ function makeHarness(opts?: {
 
 	const runMany = (recipients: string[]) =>
 		handler(
-			buildSqsEvent([{ messageId: "rec-1", body: sesNotification(recipients) }]),
+			buildSqsEvent([
+				{ messageId: "rec-1", body: sesNotification(recipients) },
+			]),
 			buildLambdaContext(),
 			() => {},
 		);
@@ -168,7 +190,9 @@ async function listEmails(emailStore: InboxEmailStore, userId: UserId) {
 	return emails;
 }
 
-async function mintAddress(addressStore: ReturnType<typeof initInMemoryInboxAddress>) {
+async function mintAddress(
+	addressStore: ReturnType<typeof initInMemoryInboxAddress>,
+) {
 	const entry = await addressStore.createAddress({
 		userId: OWNER,
 		domain: "read.place",
@@ -178,7 +202,9 @@ async function mintAddress(addressStore: ReturnType<typeof initInMemoryInboxAddr
 	return entry.address;
 }
 
-async function mintGatewayAddress(addressStore: ReturnType<typeof initInMemoryInboxAddress>) {
+async function mintGatewayAddress(
+	addressStore: ReturnType<typeof initInMemoryInboxAddress>,
+) {
 	const entry = await addressStore.createAddress({
 		userId: OWNER,
 		domain: "read.place",
@@ -193,7 +219,9 @@ describe("initReceiveEmailHandler", () => {
 		const { emailStore, published, handler } = makeHarness();
 
 		const result = await handler(
-			buildSqsEvent([{ messageId: "rec-1", body: JSON.stringify({ wrong: "shape" }) }]),
+			buildSqsEvent([
+				{ messageId: "rec-1", body: JSON.stringify({ wrong: "shape" }) },
+			]),
 			buildLambdaContext(),
 			() => {},
 		);
@@ -230,9 +258,14 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("rejects an oversize email with an audit row under the owner and a DLQ failure", async () => {
-		const { addressStore, emailStore, rawMap, published, run } = makeHarness({ maxEmailBytes: 8 });
+		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
+			maxEmailBytes: 8,
+		});
 		const address = await mintAddress(addressStore);
-		rawMap.set(RAW_KEY, Buffer.from("this is definitely longer than eight bytes"));
+		rawMap.set(
+			RAW_KEY,
+			Buffer.from("this is definitely longer than eight bytes"),
+		);
 
 		const result = await run(address);
 
@@ -245,8 +278,13 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("ACKs an oversize email addressed only to unknown recipients (no page)", async () => {
-		const { emailStore, rawMap, published, run } = makeHarness({ maxEmailBytes: 8 });
-		rawMap.set(RAW_KEY, Buffer.from("this is definitely longer than eight bytes"));
+		const { emailStore, rawMap, published, run } = makeHarness({
+			maxEmailBytes: 8,
+		});
+		rawMap.set(
+			RAW_KEY,
+			Buffer.from("this is definitely longer than eight bytes"),
+		);
 
 		const result = await run("in-zzzzzz@read.place");
 
@@ -260,7 +298,8 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("records an unknown recipient under the unrouted partition and ACKs (no page)", async () => {
-		const { emailStore, rawMap, published, imageDownloadCalls, run } = makeHarness();
+		const { emailStore, rawMap, published, imageDownloadCalls, run } =
+			makeHarness();
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		const result = await run("in-zzzzzz@read.place");
@@ -362,12 +401,21 @@ describe("initReceiveEmailHandler", () => {
 		expect(row.bodyS3Key).toBe("content/email/content.html");
 		expect(row.senderEmail).toBe("news@example.com");
 		expect(published).toHaveLength(1);
-		expect(published[0].detail.receivedAtMessageId).toBe(`${RECEIVED_AT}#<real@x>`);
+		expect(published[0].detail.receivedAtMessageId).toBe(
+			`${RECEIVED_AT}#<real@x>`,
+		);
 		expect(published[0].detail.userId).toBe(OWNER);
 	});
 
 	it("hands a Gmail forwarding confirmation to its worker, writing no row and publishing nothing", async () => {
-		const { addressStore, emailStore, rawMap, published, imageDownloadCalls, run } = makeHarness({
+		const {
+			addressStore,
+			emailStore,
+			rawMap,
+			published,
+			imageDownloadCalls,
+			run,
+		} = makeHarness({
 			interceptGmailConfirmation: async () => true,
 		});
 		const address = await mintAddress(addressStore);
@@ -383,7 +431,8 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("offers every parsed message to the interceptor and lets a declined one flow on unchanged", async () => {
-		const { addressStore, rawMap, interceptions, published, run } = makeHarness();
+		const { addressStore, rawMap, interceptions, published, run } =
+			makeHarness();
 		const address = await mintAddress(addressStore);
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
@@ -437,8 +486,14 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("stores a row and publishes for EVERY forwarding recipient in one envelope", async () => {
-		const { addressStore, emailStore, rawMap, published, imageDownloadCalls, runMany } =
-			makeHarness();
+		const {
+			addressStore,
+			emailStore,
+			rawMap,
+			published,
+			imageDownloadCalls,
+			runMany,
+		} = makeHarness();
 		const ownerAddress = await mintAddress(addressStore);
 		const second = await addressStore.createAddress({
 			userId: SECOND,
@@ -466,7 +521,8 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("collapses an envelope addressed to two of the SAME user's addresses to one row", async () => {
-		const { addressStore, emailStore, rawMap, published, runMany } = makeHarness();
+		const { addressStore, emailStore, rawMap, published, runMany } =
+			makeHarness();
 		const first = await mintAddress(addressStore);
 		const { address: secondOfSameUser } = await addressStore.createAddress({
 			userId: OWNER,
@@ -488,7 +544,8 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("delivers the known recipient and audits the unknown one, ACKing the batch", async () => {
-		const { addressStore, emailStore, rawMap, published, runMany } = makeHarness();
+		const { addressStore, emailStore, rawMap, published, runMany } =
+			makeHarness();
 		const ownerAddress = await mintAddress(addressStore);
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
@@ -535,9 +592,10 @@ describe("initReceiveEmailHandler", () => {
 
 	it("delivers gateway mail to the alias the sender is mapped to", async () => {
 		let mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
-		const { addressStore, emailStore, rawMap, published, routings, run } = makeHarness({
-			routeGmailForwardedEmail: async () => mappedAddress,
-		});
+		const { addressStore, emailStore, rawMap, published, routings, run } =
+			makeHarness({
+				routeGmailForwardedEmail: async () => [mappedAddress],
+			});
 		const gateway = await mintGatewayAddress(addressStore);
 		const mapped = await addressStore.createAddress({
 			userId: OWNER,
@@ -560,7 +618,7 @@ describe("initReceiveEmailHandler", () => {
 	it("rejects gateway mail mapped to a disabled inbox and resumes delivery when it is enabled", async () => {
 		let mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
 		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
-			routeGmailForwardedEmail: async () => mappedAddress,
+			routeGmailForwardedEmail: async () => [mappedAddress],
 		});
 		const gateway = await mintGatewayAddress(addressStore);
 		const mapped = await addressStore.createAddress({
@@ -570,7 +628,10 @@ describe("initReceiveEmailHandler", () => {
 			purpose: "gmail-mapped",
 		});
 		mappedAddress = mapped.address;
-		await addressStore.disableAddress({ userId: OWNER, address: mapped.address });
+		await addressStore.disableAddress({
+			userId: OWNER,
+			address: mapped.address,
+		});
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		const result = await run(gateway);
@@ -583,7 +644,10 @@ describe("initReceiveEmailHandler", () => {
 		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
 		expect(published).toHaveLength(0);
 
-		await addressStore.enableAddress({ userId: OWNER, address: mapped.address });
+		await addressStore.enableAddress({
+			userId: OWNER,
+			address: mapped.address,
+		});
 		await run(gateway);
 		const [received] = await listEmails(emailStore, OWNER);
 		expect(received.status).toBe("received");
@@ -594,7 +658,7 @@ describe("initReceiveEmailHandler", () => {
 	it("audits gateway mail whose mapped inbox no longer resolves", async () => {
 		const mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
 		const { addressStore, emailStore, rawMap, run } = makeHarness({
-			routeGmailForwardedEmail: async () => mappedAddress,
+			routeGmailForwardedEmail: async () => [mappedAddress],
 		});
 		const gateway = await mintGatewayAddress(addressStore);
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
@@ -634,7 +698,8 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("routes mail delivered straight to a named inbox so the sighting is recorded", async () => {
-		const { addressStore, emailStore, rawMap, published, routings, run } = makeHarness();
+		const { addressStore, emailStore, rawMap, published, routings, run } =
+			makeHarness();
 		const inbox = await addressStore.createAddress({
 			userId: OWNER,
 			domain: "read.place",
@@ -645,14 +710,24 @@ describe("initReceiveEmailHandler", () => {
 
 		await run(inbox.address);
 
-		assert.deepEqual(routings, [{ recipientAddress: inbox.address, purpose: "gmail-mapped" }]);
+		assert.deepEqual(routings, [
+			{ recipientAddress: inbox.address, purpose: "gmail-mapped" },
+		]);
 		const [row] = await listEmails(emailStore, OWNER);
 		expect(row.status).toBe("received");
 		expect(published).toHaveLength(1);
 	});
 
 	it("drops a forwarded copy of a message the reader already imported: no row, no event, no image fetch", async () => {
-		const { addressStore, emailStore, identities, rawMap, published, imageDownloadCalls, run } = makeHarness();
+		const {
+			addressStore,
+			emailStore,
+			identities,
+			rawMap,
+			published,
+			imageDownloadCalls,
+			run,
+		} = makeHarness();
 		const address = await mintAddress(addressStore);
 		await emailStore.putEmail({
 			userId: OWNER,
@@ -667,20 +742,32 @@ describe("initReceiveEmailHandler", () => {
 			bodyS3Key: "content/imported/content.html",
 			linkCounts: undefined,
 		});
-		await identities.claim({ key: MESSAGE_KEY, userId: OWNER, receivedAtMessageId: IMPORTED_ROW, attempt: IMPORT_ATTEMPT, now: new Date(IMPORTED_AT) });
+		await identities.claim({
+			key: MESSAGE_KEY,
+			userId: OWNER,
+			receivedAtMessageId: IMPORTED_ROW,
+			attempt: IMPORT_ATTEMPT,
+			now: new Date(IMPORTED_AT),
+		});
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		const result = await run(address);
 
 		assert(result);
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.deepEqual((await listEmails(emailStore, OWNER)).map((row) => row.receivedAtMessageId), [IMPORTED_ROW]);
+		assert.deepEqual(
+			(await listEmails(emailStore, OWNER)).map(
+				(row) => row.receivedAtMessageId,
+			),
+			[IMPORTED_ROW],
+		);
 		assert.deepEqual(published, []);
 		assert.deepEqual(imageDownloadCalls, []);
 	});
 
 	it("adopts a row stored before identity claims existed instead of storing the copy again", async () => {
-		const { addressStore, emailStore, identities, rawMap, published, run } = makeHarness();
+		const { addressStore, emailStore, identities, rawMap, published, run } =
+			makeHarness();
 		const address = await mintAddress(addressStore);
 		await emailStore.putEmail({
 			userId: OWNER,
@@ -711,39 +798,68 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("takes over an import's claim that never wrote its row, storing under the claimed row id", async () => {
-		const { addressStore, emailStore, identities, rawMap, published, run } = makeHarness();
+		const { addressStore, emailStore, identities, rawMap, published, run } =
+			makeHarness();
 		const address = await mintAddress(addressStore);
-		await identities.claim({ key: MESSAGE_KEY, userId: OWNER, receivedAtMessageId: IMPORTED_ROW, attempt: IMPORT_ATTEMPT, now: new Date(IMPORTED_AT) });
+		await identities.claim({
+			key: MESSAGE_KEY,
+			userId: OWNER,
+			receivedAtMessageId: IMPORTED_ROW,
+			attempt: IMPORT_ATTEMPT,
+			now: new Date(IMPORTED_AT),
+		});
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		await run(address);
 
-		assert.deepEqual((await listEmails(emailStore, OWNER)).map((row) => row.receivedAtMessageId), [IMPORTED_ROW]);
-		assert.deepEqual(published.map((entry) => entry.detail.receivedAtMessageId), [IMPORTED_ROW]);
-		assert.deepEqual((await identities.find(MESSAGE_KEY))?.attempt, { origin: "receive", sesMessageId: "ses-msg-1" });
+		assert.deepEqual(
+			(await listEmails(emailStore, OWNER)).map(
+				(row) => row.receivedAtMessageId,
+			),
+			[IMPORTED_ROW],
+		);
+		assert.deepEqual(
+			published.map((entry) => entry.detail.receivedAtMessageId),
+			[IMPORTED_ROW],
+		);
+		assert.deepEqual((await identities.find(MESSAGE_KEY))?.attempt, {
+			origin: "receive",
+			sesMessageId: "ses-msg-1",
+		});
 	});
 
 	it("delivers a message without a Message-ID without claiming an identity for it", async () => {
-		const { addressStore, emailStore, identities, rawMap, published, run } = makeHarness({
-			parseEmail: async () => {
-				const parsed = parsedOk();
-				assert(parsed.ok);
-				return { ok: true, email: { ...parsed.email, messageId: MessageIdSchema.parse(`sha256:${"a".repeat(64)}`) } };
-			},
-		});
+		const { addressStore, emailStore, identities, rawMap, published, run } =
+			makeHarness({
+				parseEmail: async () => {
+					const parsed = parsedOk();
+					assert(parsed.ok);
+					return {
+						ok: true,
+						email: {
+							...parsed.email,
+							messageId: MessageIdSchema.parse(`sha256:${"a".repeat(64)}`),
+						},
+					};
+				},
+			});
 		const address = await mintAddress(addressStore);
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		await run(address);
 
 		const [row] = await listEmails(emailStore, OWNER);
-		assert.equal(row.receivedAtMessageId, `${RECEIVED_AT}#sha256:${"a".repeat(64)}`);
+		assert.equal(
+			row.receivedAtMessageId,
+			`${RECEIVED_AT}#sha256:${"a".repeat(64)}`,
+		);
 		assert.equal(published.length, 1);
 		assert.equal(await identities.find(MESSAGE_KEY), undefined);
 	});
 
 	it("delivers mail sent straight to a readlist address as addressed, without sender routing", async () => {
-		const { addressStore, emailStore, rawMap, published, routings, run } = makeHarness();
+		const { addressStore, emailStore, rawMap, published, routings, run } =
+			makeHarness();
 		const readlistAddress = await addressStore.getOrCreateReadlistAddress({
 			userId: OWNER,
 			domain: "read.place",
@@ -757,6 +873,28 @@ describe("initReceiveEmailHandler", () => {
 		const [row] = await listEmails(emailStore, OWNER);
 		assert.equal(row.status, "received");
 		assert.equal(row.recipientAddress, readlistAddress.address);
-		assert.deepEqual(published.map((entry) => entry.detail.recipientAddress), [readlistAddress.address]);
+		assert.deepEqual(
+			published.map((entry) => entry.detail.recipientAddress),
+			[readlistAddress.address],
+		);
 	});
 });
+
+
+for (const change of ["removed", "retired"] as const) {
+	it(`finishes an accepted Gmail retry after its mapping was ${change}`, async () => {
+		let destinations: Awaited<ReturnType<RouteGmailForwardedEmail>>;
+		const { addressStore, emailStore, rawMap, published, run } = makeHarness({ publishErrorOnce: true, routeGmailForwardedEmail: async () => destinations });
+		const gateway = await mintGatewayAddress(addressStore);
+		const readlist = ReadlistSlugSchema.parse("work");
+		const address = (await addressStore.getOrCreateReadlistAddress({ userId: OWNER, domain: "read.place", readlist })).address;
+		destinations = [address];
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+		expect((await run(gateway))?.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		if (change === "removed") destinations = undefined;
+		else await addressStore.retireReadlistAddress({ userId: OWNER, readlist });
+		expect((await run(gateway))?.batchItemFailures).toEqual([]);
+		expect(published.map(({ detail }) => detail)).toEqual([{ userId: OWNER, receivedAtMessageId: `${RECEIVED_AT}#<real@x>`, recipientAddress: address, origin: "receive", routing: { kind: "gmail", destinationAddresses: [address] } }]);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(1);
+	});
+}

@@ -38,7 +38,7 @@ const BREW = { email: "crew@morningbrew.com", name: "Morning Brew" };
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
 type SeedMapping =
-	| { destination: "readlist" | "disabled"; email: string; readlist: string }
+	| { destination: "readlist" | "disabled"; email: string; readlist: string; additionalReadlists?: string[] }
 	| { destination: "missing"; email: string };
 
 interface MappingSeed {
@@ -132,7 +132,7 @@ async function readlistPickerOpen(page: Page, input: { options: number }): Promi
 
 async function readlistChosen(page: Page): Promise<void> {
 	await expect(page.locator(READLIST_PICKER)).not.toHaveAttribute("open");
-	await expect(page.locator(`${READLIST_OPTION}[aria-current="true"]`)).toHaveCount(1);
+	await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeChecked();
 	await expect(page.locator(SAVE)).toBeEnabled();
 }
 
@@ -257,8 +257,8 @@ test.describe("GMail Newsletters mapping", () => {
 		});
 
 		await openReadlistPicker(page);
-		await page.locator('[data-test-gmail-readlist-option="default"]').click();
-		await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toHaveAttribute("aria-current", "true");
+		await page.locator("[data-gmail-confirm-readlists]").click();
+		await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeChecked();
 		await captureMatrix(page, {
 			state: "destination-selected",
 			settled: async (settling) => {
@@ -321,7 +321,7 @@ test.describe("GMail Newsletters mapping", () => {
 			state: "readlist-cap",
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 8 });
-				await expect(settling.locator(`${READLIST_OPTION}:not([data-test-gmail-readlist-option="default"])`)).toHaveText(shelves);
+				await expect(settling.locator(".gmail__readlist-option > span:first-of-type").filter({ hasNotText: "All" })).toHaveText(shelves);
 				await expect(settling.locator("[data-test-gmail-readlist-limit]")).toBeVisible();
 				await expect(settling.locator(CREATE_READLIST)).toHaveCount(0);
 			},
@@ -356,14 +356,14 @@ test.describe("GMail Newsletters mapping", () => {
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
 				await expect(settling.locator(SENDER_CHOICE)).toContainText(TLDR.email);
-				await expect(settling.locator(`${READLIST_OPTION}[aria-current="true"]`)).toHaveCount(1);
+				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(2);
 				await expect(settling.locator(IMPORT_CHECKBOX)).toHaveCount(0);
 			},
 			geometry: readlistMenuFitsInsidePage,
 		});
 
-		await page.locator('[data-test-gmail-readlist-option="default"]').click();
-		await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toHaveAttribute("aria-current", "true");
+		await page.locator('[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])').uncheck();
+		await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeChecked();
 		await expect(page.locator(READLIST_PICKER)).not.toHaveAttribute("open");
 		await page.locator(SAVE).click();
 		await expect(page.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
@@ -385,6 +385,23 @@ test.describe("GMail Newsletters mapping", () => {
 				await expect(settling.locator(MAPPING_ROW)).toHaveCount(1);
 			},
 			geometry: mappingRowsStayInsideTheirList,
+		});
+	});
+
+	test("shows All with multiple destinations and restores the full selection while editing", async ({ page }, testInfo) => {
+		await openGmail(page, { stamp: `multiple-${testInfo.workerIndex}-${Date.now()}`, seed: { readlists: ["Tech", "Science"], mappings: [{ destination: "readlist", email: TLDR.email, readlist: "Tech", additionalReadlists: ["Science"] }] } });
+		await captureMatrix(page, { state: "multiple-mapped", settled: async (settling) => { await expect(mappingRow(settling, TLDR.email).locator("[data-test-gmail-mapping-destination]")).toContainText("All, Tech, Science"); }, geometry: mappingRowsStayInsideTheirList });
+		await mappingRow(page, TLDR.email).locator('[data-test-gmail-mapping-action="edit"]').click();
+		await captureMatrix(page, {
+			state: "multiple-edit",
+			settled: async (settling) => {
+				await readlistPickerOpen(settling, { options: 3 });
+				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(3);
+				await expect(settling.locator(".gmail__readlist-option > span:first-of-type")).toHaveText(["All", "Tech", "Science"]);
+				await expect(settling.locator("#gmail-readlist-choice")).toHaveText("All, Tech, Science");
+				await expect(settling.locator('[data-test-gmail-readlist-option="default"]')).toBeDisabled();
+			},
+			geometry: readlistMenuFitsInsidePage,
 		});
 	});
 
@@ -414,13 +431,13 @@ test.describe("GMail Newsletters mapping", () => {
 			state: "unresolved-choose",
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
-				await expect(settling.locator(`${READLIST_OPTION}[aria-current="true"]`)).toHaveCount(0);
-				await expect(settling.locator(`${SAVE_FORM} button[type="submit"]`)).toBeDisabled();
+				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(1);
+				await expect(settling.locator(SAVE)).toBeEnabled();
 			},
 			geometry: readlistMenuFitsInsidePage,
 		});
 
-		await page.locator('[data-test-gmail-readlist-option="default"]').click();
+		await page.locator("[data-gmail-confirm-readlists]").click();
 		await page.locator(SAVE).click();
 		await expect(page.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
 		await expect(mappingRow(page, TLDR.email).locator("[data-test-gmail-mapping-destination]")).toHaveAttribute(

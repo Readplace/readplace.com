@@ -28,7 +28,7 @@ import {
 } from "./gmail.url";
 
 export type GmailMappingDestination =
-	| { kind: "readlist"; readlist: ReadlistRef }
+	| { kind: "readlist"; readlists: readonly ReadlistRef[] }
 	| { kind: "unresolved"; reason: "missing" | "disabled" | "legacy" };
 
 export type GmailForwardingState = "pending" | "live" | "failed" | "confirmation-required";
@@ -103,7 +103,7 @@ const UNRESOLVED_REASONS: Record<UnresolvedReason, string> = {
 };
 
 function unresolvedNote(input: { reason: UnresolvedReason; readlistChoiceShown: boolean }): string {
-	const remedy = input.readlistChoiceShown ? "Change the readlist to choose one." : "Reconnect Gmail to choose one.";
+	const remedy = input.readlistChoiceShown ? "Change the readlists to choose them." : "Reconnect Gmail to choose one.";
 	return `${UNRESOLVED_REASONS[input.reason]} ${remedy}`;
 }
 
@@ -156,11 +156,16 @@ export function gmailMappingDestination(input: {
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
 	readlists: readonly ReadlistRef[];
 }): GmailMappingDestination {
-	if (input.sender.mappedAddress === undefined) return { kind: "unresolved", reason: "legacy" };
-	const entry = input.destinations.get(input.sender.mappedAddress);
-	if (entry === undefined || entry.userId !== input.userId) return { kind: "unresolved", reason: "missing" };
-	if (!isLiveAddress(entry)) return { kind: "unresolved", reason: "disabled" };
-	return { kind: "readlist", readlist: resolveEntry(entry, input.readlists) };
+	if (input.sender.mappedAddresses === undefined) return { kind: "unresolved", reason: "legacy" };
+	const selected = [DEFAULT_READLIST];
+	for (const address of input.sender.mappedAddresses) {
+		const entry = input.destinations.get(address);
+		if (entry === undefined || entry.userId !== input.userId) return { kind: "unresolved", reason: "missing" };
+		if (!isLiveAddress(entry)) return { kind: "unresolved", reason: "disabled" };
+		const readlist = resolveEntry(entry, input.readlists);
+		if (!selected.some((current) => current.slug === readlist.slug)) selected.push(readlist);
+	}
+	return { kind: "readlist", readlists: selected };
 }
 
 function forwardingPending(connection: GmailConnection, sender: GmailSenderEntry): boolean {
@@ -216,7 +221,7 @@ function rowActions(input: {
 	const editState: GmailPickerState = {
 		...listState,
 		sender: input.sender.senderEmail,
-		readlist: input.destination.kind === "readlist" ? input.destination.readlist.slug : undefined,
+		readlist: input.destination.kind === "readlist" ? input.destination.readlists.map((readlist) => readlist.slug) : undefined,
 		edit: "1",
 	};
 	const actions: GmailFormAction[] = [];
@@ -225,7 +230,7 @@ function rowActions(input: {
 			key: "edit",
 			method: "GET",
 			action: buildGmailUrl(),
-			label: "Change readlist",
+			label: "Change readlists",
 			variant: "neutral",
 			fields: gmailGetFields(editState, "edit-mapping"),
 		});
@@ -269,7 +274,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: Gmai
 		sender: input.sender.senderEmail,
 		newsletterName: input.candidates.get(input.sender.senderEmail)?.newsletterName,
 		destinationKind: destination.kind,
-		destinationLabel: destination.kind === "readlist" ? destination.readlist.label : "Choose a readlist",
+		destinationLabel: destination.kind === "readlist" ? destination.readlists.map((readlist) => readlist.label).join(", ") : "Choose a readlist",
 		destinationNote: destination.kind === "readlist" ? undefined : unresolvedNote({ reason: destination.reason, readlistChoiceShown: input.readlistChoiceShown }),
 		forwarding,
 		forwardingLabel: FORWARDING_LABELS[forwarding],

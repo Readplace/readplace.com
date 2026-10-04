@@ -93,8 +93,11 @@ export function initGmailHistoryImport(deps: {
 		if (connectionChange !== undefined) return cancel(job, connectionChange);
 		assert(connection, "an unchanged connection exists");
 		const sender = await senders.findSender({ userId: input.userId, senderEmail: job.senderEmail });
-		if (sender?.mappedAddress === undefined) return cancel(job, "mapping-removed");
-		if (sender.mappedAddress !== job.destinationAddress) return cancel(job, "destination-changed");
+		if (sender?.mappedAddresses === undefined) return cancel(job, "mapping-removed");
+		const destinations = new Set(sender.mappedAddresses);
+		if (destinations.size !== new Set(job.destinationAddresses).size || job.destinationAddresses.some((address) => !destinations.has(address))) {
+			return cancel(job, "destination-changed");
+		}
 		if (!(await imports.claimPage({ ...input, now: now() }))) return NOTHING;
 
 		assert(job.window, "a queued import has its listing window");
@@ -117,7 +120,7 @@ export function initGmailHistoryImport(deps: {
 				gmailMessageId,
 				accountEmail: job.connection.accountEmail,
 				senderEmail: job.senderEmail,
-				destinationAddress: job.destinationAddress,
+				destinationAddresses: job.destinationAddresses,
 				rawEmailS3Key,
 				internalDate: message.value.internalDate,
 			});

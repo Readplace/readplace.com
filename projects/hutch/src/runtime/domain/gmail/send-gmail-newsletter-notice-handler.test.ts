@@ -50,18 +50,19 @@ describe("approved Gmail newsletter notices", () => {
 		assert.equal(h.sent.length, 1);
 		const message = h.sent[0];
 		assert.equal(message.to, "readplace-account@example.com");
-		assert.equal(message.subject, "Choose a readlist for Example Letter");
+		assert.equal(message.subject, "Choose readlists for Example Letter");
 		assert.match(message.text ?? "", /letter@example.com/);
 		assert.match(message.text ?? "", /future emails/);
 		assert.match(message.text ?? "", /earlier unread messages from the last 30 days/);
 		assert.match(message.idempotencyKey ?? "", /^gmail-newsletter\/[a-f0-9]{64}$/);
 		const document = parseHTML(message.html).document;
 		const link = document.querySelector("a"); assert(link);
-		assert.equal(link.textContent, "Choose a readlist");
+		assert.equal(link.textContent, "Choose readlists");
 		const url = new URL(link.getAttribute("href") ?? "");
 		assert.equal(url.pathname, "/newsletters/gmail");
 		assert.equal(url.searchParams.get("sender"), SENDER);
 		assert.equal(url.searchParams.get("notification"), "1");
+		assert.equal(url.searchParams.get("readlist_choice_for"), SENDER);
 		assert.equal(url.searchParams.get("utm_medium"), "email");
 		assert.equal((await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "sent");
 		await h.run();
@@ -71,7 +72,7 @@ describe("approved Gmail newsletter notices", () => {
 	it("supports nameless wildcard recognition and escapes catalog text in the email", async () => {
 		const h = await harness();
 		h.deps.detectNewsletters = async () => ({ status: "available", recognized: new Map([[SENDER, { from: SENDER, name: undefined, source: "catalog", match: "domain-wildcard" }]]) });
-		await h.run(); assert.equal(h.sent[0].subject, `Choose a readlist for ${SENDER}`);
+		await h.run(); assert.equal(h.sent[0].subject, `Choose readlists for ${SENDER}`);
 		assert.match(h.sent[0].html, /Readplace recognizes this newsletter/);
 		const other = await harness();
 		other.deps.detectNewsletters = async () => ({ status: "available", recognized: new Map([[SENDER, { from: SENDER, name: NewsletterNameSchema.parse("<script>alert(1)</script>"), source: "catalog", match: "exact" }]]) });
@@ -119,6 +120,25 @@ describe("approved Gmail newsletter notices", () => {
 		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.deepEqual(h.sent[1], first);
 		assert.equal((await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "sent");
+	});
+	it("retries an already claimed single-readlist notice with its original payload and retry key", async () => {
+		const h = await harness();
+		const notice = await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER });
+		assert(notice);
+		const original: EmailMessage = {
+			from: "Fayner from Readplace <fayner@readplace.com>",
+			to: "readplace-account@example.com",
+			subject: "Choose a readlist for Example Letter",
+			html: '<a href="https://readplace.test/newsletters/gmail?notification=1">Choose a readlist</a>',
+			text: "Choose a readlist",
+			idempotencyKey: "gmail-newsletter/original-key",
+		};
+		await h.monitoring.claimNotice({ notice, message: original });
+		h.advance();
+
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+
+		assert.deepEqual(h.sent, [original]);
 	});
 	it("serializes concurrent deliveries, then acknowledges duplicates against a sent receipt", async () => {
 		const h = await harness();
