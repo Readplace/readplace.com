@@ -192,6 +192,9 @@ jobs:
     # main pushes, so only trusted (merged) code ever runs here.
     runs-on: [self-hosted, orbstack]
     environment: staging
+    permissions:
+      contents: read
+      actions: read
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -231,9 +234,9 @@ jobs:
 
       # Sets NX_BASE and NX_HEAD so nx affected knows what commits to compare.
       # The publish workflows tag instead of committing back to main, so there
-      # are no bot version-bump commits in the diff and the action's default
-      # ("last successful workflow run on main") is the correct anchor.
-      - uses: nrwl/nx-set-shas@v4
+      # are no bot version-bump commits in the diff and the newest commit with
+      # a green push run is the correct anchor.
+      - uses: ./.github/actions/affected-base
 
       - uses: pnpm/action-setup@v4
         with:
@@ -342,20 +345,23 @@ jobs:
   # to check infra drift and therefore only runs on main pushes), this job only
   # diffs paths, so it is cheap and safe to run on PRs too — which is what lets
   # ios-tests gate pre-merge, exactly like web-tests runs `pnpm check` on every
-  # PR. nx-set-shas anchors the diff: the PR's merge base on PRs, the last
-  # successful main run on pushes.
+  # PR. affected-base anchors the diff: the PR's merge base on PRs, the newest
+  # commit with a green push run on pushes.
   detect-ios:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       ios-affected: ${{ steps.detect.outputs.ios-affected }}
       ios-test-affected: ${{ steps.detect.outputs.ios-test-affected }}
     steps:
       - uses: actions/checkout@v6
         with:
-          # Full history needed for nx-set-shas to resolve the diff base
+          # Full history needed for affected-base to resolve the diff base
           fetch-depth: 0
 
-      - uses: nrwl/nx-set-shas@v4
+      - uses: ./.github/actions/affected-base
 
       - id: detect
         run: |
@@ -478,16 +484,19 @@ jobs:
   # android-tests can gate pre-merge on PRs too.
   detect-android:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       android-affected: ${{ steps.detect.outputs.android-affected }}
       android-test-affected: ${{ steps.detect.outputs.android-test-affected }}
     steps:
       - uses: actions/checkout@v6
         with:
-          # Full history needed for nx-set-shas to resolve the diff base
+          # Full history needed for affected-base to resolve the diff base
           fetch-depth: 0
 
-      - uses: nrwl/nx-set-shas@v4
+      - uses: ./.github/actions/affected-base
 
       - id: detect
         run: |

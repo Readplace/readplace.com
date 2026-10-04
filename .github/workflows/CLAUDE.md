@@ -46,6 +46,16 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 Shared step: `.github/actions/pinned-browsers` materialises that image onto a
 github-hosted runner, so a job runs the supplied binaries and downloads none.
 
+Shared step: `.github/actions/affected-base` sets `NX_BASE`/`NX_HEAD` for the
+three detect jobs by walking first-parent ancestors and asking per `head_sha`
+until one has a green push run, failing loudly otherwise. It replaced
+`nrwl/nx-set-shas`, which resolved the base through filtered listings (runs by
+branch/event/status, then the last 100 commits of `main`); GitHub has served
+those stale since September 2026 (community discussion #206725, nx-set-shas
+#219), and the action then fell back to `HEAD~1` with a warning, which is wrong
+whenever the previous push's run was not green. Keyed lookups (`head_sha`)
+stay current; do not reintroduce a filtered listing in CI.
+
 ## Prompt Files
 
 Each workflow has a corresponding `.md` file containing detailed instructions for Claude. This separation prevents cascade issues where example markers in instructions trigger other workflows.

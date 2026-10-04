@@ -1,0 +1,67 @@
+name: Affected base
+description: Sets NX_BASE and NX_HEAD for nx affected. On a push the base is the newest first-parent ancestor with a successful CI push run, looked up one commit at a time because the filtered runs listing can serve a stale page; on a pull request it is the merge base with the target branch.
+
+inputs:
+  workflow:
+    description: Workflow file whose push runs mark a commit as green
+    default: ci.yml
+  main-branch:
+    description: Branch whose push runs count
+    default: main
+  max-commits:
+    description: First-parent ancestors to walk before failing
+    default: '500'
+  token:
+    description: Token with actions read access
+    default: ${{ github.token }}
+
+outputs:
+  base:
+    description: The base SHA for nx affected
+    value: ${{ steps.shas.outputs.base }}
+  head:
+    description: The head SHA for nx affected
+    value: ${{ steps.shas.outputs.head }}
+
+runs:
+  using: composite
+  steps:
+    - id: shas
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        WORKFLOW: ${{ inputs.workflow }}
+        MAIN_BRANCH: ${{ inputs.main-branch }}
+        MAX_COMMITS: ${{ inputs.max-commits }}
+        EVENT_NAME: ${{ github.event_name }}
+        TARGET_REF: ${{ github.base_ref }}
+      run: |
+        set -euo pipefail
+        HEAD_SHA=$(git rev-parse HEAD)
+        if [ "$EVENT_NAME" = pull_request ]; then
+          BASE_SHA=$(git merge-base "origin/${TARGET_REF}" HEAD)
+          echo "Base ${BASE_SHA} (merge base with ${TARGET_REF})"
+        else
+          BASE_SHA=""
+          WALKED=0
+          ANCESTORS=$(git rev-list --first-parent --max-count="$MAX_COMMITS" "${HEAD_SHA}~1")
+          for sha in $ANCESTORS; do
+            WALKED=$((WALKED + 1))
+            GREEN=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW}/runs?head_sha=${sha}&per_page=100" \
+              --jq "[.workflow_runs[] | select(.event == \"push\" and .head_branch == \"${MAIN_BRANCH}\" and .conclusion == \"success\")] | length")
+            if [ "$GREEN" -gt 0 ]; then
+              BASE_SHA=$sha
+              break
+            fi
+          done
+          if [ -z "$BASE_SHA" ]; then
+            echo "::error::None of the ${WALKED} first-parent commits before ${HEAD_SHA} has a successful ${WORKFLOW} push run on ${MAIN_BRANCH}, so nx affected has no base. Fix ${MAIN_BRANCH} or raise max-commits (${MAX_COMMITS})."
+            exit 1
+          fi
+          echo "Base ${BASE_SHA} (${WALKED} commit(s) back, the newest with a green ${WORKFLOW} push run)"
+        fi
+        echo "Head ${HEAD_SHA}"
+        echo "NX_BASE=${BASE_SHA}" >> "$GITHUB_ENV"
+        echo "NX_HEAD=${HEAD_SHA}" >> "$GITHUB_ENV"
+        echo "base=${BASE_SHA}" >> "$GITHUB_OUTPUT"
+        echo "head=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
