@@ -1,9 +1,11 @@
 <div class="gmail-mappings__consent" data-test-gmail-import-consent>
-                  <p class="gmail-mappings__consent-copy">To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender and leaves it unread.</p>
-                  <form method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+                  <p class="gmail-mappings__consent-copy">{{message}}</p>
+                  {{#each actions}}
+                  <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
                     {{#each fields}}
                     <input type="hidden" name="{{name}}" value="{{value}}">
                     {{/each}}
-                    <button class="btn btn--neutral btn--s" type="submit" data-test-gmail-mapping-action="grant-import-permission">Grant permission</button>
+                    <button class="btn btn--{{variant}} btn--s" type="submit" data-test-gmail-mapping-action="{{key}}">{{label}}</button>
                   </form>
+                  {{/each}}
                 </div>

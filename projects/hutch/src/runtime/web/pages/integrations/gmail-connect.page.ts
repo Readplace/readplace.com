@@ -8,12 +8,14 @@ import { ForwardableSenderSchema, hasGmailScope, summarizeGmailHistoryImport } f
 import type { ForwardableSender, GmailConnection, GmailHistoryImportSummary } from "@packages/domain/gmail";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
+import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { signState, verifyState } from "../../auth/oauth-state";
 import { buildIntegrationsUrl, GMAIL_CALLBACK_PATH } from "./gmail-connect.url";
 import { buildGmailUrl, GmailPickerStateSchema, parseGmailPickerState } from "./gmail.url";
 import { importFollowsMapping, initGmailImportActions, latestGmailImportsBySender } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
+import { initRequireGmailConnectionAccess } from "./require-gmail-connection-access";
 
 const STATE_COOKIE = "hutch_gmail_state";
 const STATE_TTL_MS = 5 * 60 * 1000;
@@ -36,6 +38,7 @@ export interface GmailConnectContext {
 	requireAuth: RequestHandler;
 	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
+	getEffectiveAccess: GetEffectiveAccess;
 }
 
 export function registerGmailConnectRoutes(
@@ -45,7 +48,8 @@ export function registerGmailConnectRoutes(
 ): void {
 	const { router, callbackRouter } = routers;
 	const redirectUri = `${context.appOrigin}${GMAIL_CALLBACK_PATH}`;
-	const write = [context.requireAuth, context.requireNotLocked, context.requireWriteAccess];
+	const requireGmailConnectionAccess = initRequireGmailConnectionAccess({ getEffectiveAccess: context.getEffectiveAccess });
+	const write = [context.requireAuth, context.requireNotLocked, requireGmailConnectionAccess, context.requireWriteAccess];
 	const imports = initGmailImportActions({ gmail, now: context.now });
 
 	const verifiedPayload = (stateCookie: unknown): z.infer<typeof StatePayloadSchema> | undefined => {

@@ -4,7 +4,9 @@ import type { GmailConnection, GmailConnectionState } from "@packages/domain/gma
 import { gmailConnectionState } from "@packages/domain/gmail";
 import { CUSTOM_EMAILS_ORIGIN_PARAM, CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
 import type { CustomEmailsOrigin } from "@packages/domain/inbox";
+import { ACCOUNT_PLANS_URL } from "../account/account.url";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
+import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
 import { GMAIL_PATH } from "./gmail.url";
 
 export interface IntegrationActionViewModel {
@@ -12,7 +14,7 @@ export interface IntegrationActionViewModel {
 	method: "GET" | "POST";
 	href: string;
 	label: string;
-	variant: "primary" | "neutral";
+	variant: "primary" | "secondary" | "neutral";
 	fields: { name: string; value: string }[];
 	trackSource: string;
 	trackContent: string;
@@ -186,6 +188,28 @@ function gmailRow(connection: GmailConnection | undefined): IntegrationRowViewMo
 	};
 }
 
+function gmailUpgradeRow(connection: GmailConnection | undefined): IntegrationRowViewModel {
+	const row = gmailRow(connection);
+	const managementActions = row.statusKey === "revoked"
+		? GMAIL_ACTIONS["ready-to-filter"].map(trackedAction)
+		: row.actions.filter((action) => action.method === "GET");
+	return {
+		...row,
+		description: GMAIL_UPGRADE_MESSAGE,
+		actions: [
+			trackedAction({
+				key: "upgrade-gmail",
+				method: "GET",
+				href: ACCOUNT_PLANS_URL,
+				label: "Upgrade",
+				variant: "primary",
+				fields: [],
+			}),
+			...managementActions.map((action): IntegrationActionViewModel => ({ ...action, variant: "secondary" })),
+		],
+	};
+}
+
 function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 	const state: CustomEmailsState = activeCount > 0 ? "active" : "not-set-up";
 	return {
@@ -210,13 +234,17 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 export function toIntegrationsIndexViewModel(input: {
 	connection: GmailConnection | undefined;
 	activeCustomEmailCount: number;
+	canConnectGmail: boolean;
 	error?: string;
 	notice?: string;
 }): IntegrationsIndexViewModel {
 	const alerts = alertsFor(input.error);
 	const notices = noticesFor(input.notice);
 	return {
-		services: [gmailRow(input.connection), customEmailsRow(input.activeCustomEmailCount)],
+		services: [
+			input.canConnectGmail ? gmailRow(input.connection) : gmailUpgradeRow(input.connection),
+			customEmailsRow(input.activeCustomEmailCount),
+		],
 		notices,
 		alerts,
 	};

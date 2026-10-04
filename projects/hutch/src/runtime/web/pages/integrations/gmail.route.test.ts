@@ -1573,6 +1573,87 @@ describe("Remove a newsletter", () => {
 });
 
 describe("Read-only and locked readers", () => {
+	it.each([1, -1])("offers a tracked upgrade for a revoked connection when the trial ends in %s days", async (trialDays) => {
+		const { agent, gmail, userId, harness } = await connectedAgent();
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + trialDays * ONE_DAY_MS).toISOString() });
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+
+		const response = await agent.get(GMAIL).set("HX-Request", "true");
+		expect(response.status).toBe(200);
+		const doc = load(response.text);
+		const reconnect = doc.querySelector("[data-test-gmail-reconnect]");
+		assert(reconnect);
+		expect(reconnect.querySelector(".gmail__step-copy")?.textContent).toBe("Gmail integration is only available with an active paid subscription.");
+		const button = reconnect.querySelector('[data-test-gmail-connection-action="upgrade-gmail"]');
+		assert(button);
+		expect(button.textContent).toBe("Upgrade");
+		const form = button.closest("form");
+		assert(form);
+		expect(form.getAttribute("method")).toBe("GET");
+		expect(form.getAttribute("action")).toBe("/account/plans?utm_source=integrations-gmail&utm_medium=internal&utm_content=upgrade-gmail");
+		expect(hiddenFields(form)).toEqual({ utm_source: "integrations-gmail", utm_medium: "internal", utm_content: "upgrade-gmail" });
+		const disconnect = doc.querySelector("[data-test-gmail-disconnect]")?.closest("form");
+		assert(disconnect);
+		expect(disconnect.getAttribute("action")).toBe("/newsletters/gmail/disconnect?utm_source=integrations-gmail&utm_medium=internal&utm_content=disconnect");
+	});
+
+	it("offers upgrade for missing metadata permission and in a discovery reconnect fragment", async () => {
+		const { agent, gmail, userId, harness, gatewayAddress } = await connectedAgent({ scope: GMAIL_SETTINGS_SCOPE });
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString() });
+		const doc = load((await agent.get(GMAIL)).text);
+		const metadata = doc.querySelector("[data-test-gmail-metadata-reconnect]");
+		assert(metadata);
+		expect(metadata.querySelector(".gmail__step-copy")?.textContent).toBe("Gmail integration is only available with an active paid subscription.");
+		const upgrade = metadata.querySelector('[data-test-gmail-connection-action="upgrade-gmail"]')?.closest("form");
+		assert(upgrade);
+		expect(upgrade.getAttribute("method")).toBe("GET");
+		expect(hiddenFields(upgrade)).toEqual({ utm_source: "integrations-gmail", utm_medium: "internal", utm_content: "upgrade-gmail" });
+
+		await seedDiscovery({ gmail, userId, gatewayAddress, senders: [], generation: "upgrade-reconnect", state: "running" });
+		await gmail.bundle.gmailDiscoveryStore.failDiscovery({ userId, generation: "upgrade-reconnect", error: "invalid_grant", requiresReconnect: true });
+		const fragment = load((await agent.get(`${GMAIL}/senders?discovery=started&poll=1`).set("HX-Request", "true")).text);
+		expect(fragment.querySelector("[data-test-gmail-discovery-status]")?.textContent).toBe("Gmail integration is only available with an active paid subscription.");
+		const reconnect = results(fragment).querySelector('[data-test-gmail-connection-action="upgrade-gmail"]')?.closest("form");
+		assert(reconnect);
+		expect(reconnect.getAttribute("method")).toBe("GET");
+		expect(hiddenFields(reconnect)).toEqual({ utm_source: "integrations-gmail", utm_medium: "internal", utm_content: "upgrade-gmail" });
+	});
+
+	it.each([1, -1])("offers upgrade instead of new import permission in pages and fragments when the trial ends in %s days", async (trialDays) => {
+		const { agent, harness, userId, mapSender, seedJob } = await connectedAgent();
+		const destination = await mapSender(TLDR, "default");
+		await seedJob({ sender: TLDR, destination, state: "awaiting-permission" });
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + trialDays * ONE_DAY_MS).toISOString() });
+		const page = await agent.get(GMAIL);
+		const fragment = await agent.get(`${GMAIL}/senders?search=dan`).set("HX-Request", "true");
+		for (const response of [page, fragment]) {
+			expect(response.status).toBe(200);
+			const mapping = row(load(response.text), TLDR);
+			const consent = mapping.querySelector("[data-test-gmail-import-consent]");
+			assert(consent);
+			expect(consent.querySelector(".gmail-mappings__consent-copy")?.textContent).toBe("Gmail integration is only available with an active paid subscription.");
+			const form = consent.querySelector('[data-test-gmail-mapping-action="upgrade-gmail"]')?.closest("form");
+			assert(form);
+			expect(form.getAttribute("method")).toBe("GET");
+			expect(form.getAttribute("action")).toBe("/account/plans?utm_source=integrations-gmail&utm_medium=internal&utm_content=upgrade-gmail");
+			expect(hiddenFields(form)).toEqual({ utm_source: "integrations-gmail", utm_medium: "internal", utm_content: "upgrade-gmail" });
+			expect(rowActionKeys(mapping)).toEqual(["edit", "cancel-import", "remove"]);
+		}
+	});
+
+	it("keeps paid readers' reconnect action available", async () => {
+		const { agent, harness, userId } = await connectedAgent({ scope: GMAIL_SETTINGS_SCOPE });
+		await harness.subscriptionProviders.upsertActive({ userId, customerId: "gmail-customer", subscriptionId: "gmail-subscription" });
+		const doc = load((await agent.get(GMAIL)).text);
+		const button = doc.querySelector("[data-test-gmail-metadata-reconnect-button]");
+		assert(button);
+		expect(button.textContent).toBe("Reconnect Gmail");
+		const form = button.closest("form");
+		assert(form);
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe("/newsletters/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=grant-sender-access");
+	});
+
 	it("lets a read-only reader remove a newsletter, cancel an import and disconnect", async () => {
 		const { agent, gmail, userId, harness, mapSender, seedJob, findJob } = await connectedAgent();
 		const destination = await mapSender(TLDR, "default");

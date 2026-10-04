@@ -5,9 +5,11 @@ import { sendComponent } from "@packages/web-shell";
 import { countLiveCappedAddresses } from "@packages/domain/inbox";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
+import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { type GmailConnectContext, registerGmailConnectRoutes } from "./gmail-connect.page";
+import { canConnectGmail } from "./gmail-connection-access";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import { registerGmailPageRoutes } from "./gmail.page";
 import { IntegrationsIndexPage } from "./integrations-index.component";
@@ -18,6 +20,7 @@ interface IntegrationsDependencies {
 	requireAuth: RequestHandler;
 	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
+	getEffectiveAccess: GetEffectiveAccess;
 	appOrigin: string;
 	secureCookies: boolean;
 	logError: (message: string, error?: Error) => void;
@@ -43,6 +46,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 			requireAuth: deps.requireAuth,
 			requireNotLocked: deps.requireNotLocked,
 			requireWriteAccess: deps.requireWriteAccess,
+			getEffectiveAccess: deps.getEffectiveAccess,
 		};
 		registerGmailConnectRoutes({ router, callbackRouter }, gmail, context);
 		registerGmailPageRoutes(router, gmail, {
@@ -50,6 +54,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 			requireAuth: deps.requireAuth,
 			requireNotLocked: deps.requireNotLocked,
 			requireWriteAccess: deps.requireWriteAccess,
+			getEffectiveAccess: deps.getEffectiveAccess,
 			now: deps.now,
 		});
 	}
@@ -57,12 +62,14 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 	router.get("/", deps.requireAuth, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
-		const [connection, addresses] = await Promise.all([
+		const [connection, addresses, access] = await Promise.all([
 			gmail?.gmailConnectionStore.findConnectionByUserId(userId),
 			deps.listInboxAddresses(userId),
+			deps.getEffectiveAccess(userId),
 		]);
 		const vm = toIntegrationsIndexViewModel({
 			connection,
+			canConnectGmail: canConnectGmail(access),
 			activeCustomEmailCount: countLiveCappedAddresses(addresses),
 			error: typeof req.query.error === "string" ? req.query.error : undefined,
 			notice: typeof req.query.notice === "string" ? req.query.notice : undefined,

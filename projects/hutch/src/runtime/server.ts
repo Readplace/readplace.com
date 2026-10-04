@@ -1599,6 +1599,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		requireAuth,
 		requireNotLocked,
 		requireWriteAccess,
+		getEffectiveAccess,
 		appOrigin,
 		secureCookies,
 		logError: deps.logError,

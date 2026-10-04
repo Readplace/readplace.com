@@ -20,6 +20,12 @@ const CONNECT = "/newsletters/gmail/connect";
 const CALLBACK = "/integrations/gmail/callback";
 const ONE_DAY_MS = 86_400_000;
 
+function gmailStateCookieNames(headers: { [key: string]: string | string[] | undefined }): string[] {
+	const raw = headers["set-cookie"];
+	const cookies = Array.isArray(raw) ? raw : raw ? [raw] : [];
+	return cookies.map((cookie) => cookie.split("=")[0]).filter((name) => name === "hutch_gmail_state");
+}
+
 function grantOk(): GmailGrantResult {
 	return {
 		ok: true,
@@ -171,8 +177,8 @@ describe("POST /newsletters/gmail/connect", () => {
 		expect(response.headers.location).toBe("/login");
 	});
 
-	it("redirects a read-only reader to /queue?inactive=1 without starting the grant", async () => {
-		const { fixture } = fixtureWithGmail();
+	it("redirects a read-only reader to newsletters without starting the grant", async () => {
+		const { fixture, codes, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
@@ -185,7 +191,56 @@ describe("POST /newsletters/gmail/connect", () => {
 		const response = await agent.post(CONNECT).set("Accept", "text/html").send();
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/newsletters");
+		expect(gmailStateCookieNames(response.headers)).toEqual([]);
+		expect(codes).toEqual([]);
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
+	});
+
+	it.each(["connect", "reconnect", "import"])("blocks a trial reader's %s attempt without changing Gmail", async (intent) => {
+		const { fixture, codes, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString(),
+		});
+		if (intent !== "connect") {
+			const gatewayAddress = await fixture.gmailIntegration.mintGatewayAddress({ userId });
+			await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+			await gmailCredentialsStore.saveCredentials({ userId, refreshToken: "existing-grant", grantedScope: GMAIL_SCOPES });
+		}
+		const connection = await gmailConnectionStore.findConnectionByUserId(userId);
+		const credentials = await gmailCredentialsStore.findRefreshTokenByUserId(userId);
+
+		const response = await agent.post(CONNECT).type("form").send({ intent, sender: "dan@tldr.tech" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/newsletters");
+		expect(gmailStateCookieNames(response.headers)).toEqual([]);
+		expect(codes).toEqual([]);
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe(credentials);
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toEqual(connection);
+	});
+
+	it("hands a trial htmx reader an HX-Redirect to newsletters", async () => {
+		const { fixture, codes } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString() });
+
+		const response = await agent.post(CONNECT).set("HX-Request", "true").send();
+
+		expect(response.status).toBe(200);
+		expect(response.headers["hx-redirect"]).toBe("/newsletters");
+		expect(response.headers.location).toBeUndefined();
+		expect(gmailStateCookieNames(response.headers)).toEqual([]);
+		expect(codes).toEqual([]);
 	});
 
 	it("blocks a locked reader with the account-locked screen", async () => {
@@ -203,6 +258,29 @@ describe("POST /newsletters/gmail/connect", () => {
 });
 
 describe("GET /integrations/gmail/callback", () => {
+	it.each(["active", "pending_cancellation"])("connects a paid reader with an %s subscription", async (status) => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore, codes } = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_paid", customerId: "cus_paid" });
+		if (status === "pending_cancellation") {
+			await harness.subscriptionProviders.markPendingCancellation({
+				userId,
+				cancellationEffectiveAt: new Date(Date.now() + ONE_DAY_MS).toISOString(),
+			});
+		}
+
+		const response = await connectAndCallback(agent);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=connected");
+		expect(codes).toEqual(["auth-code"]);
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("refresh-value");
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeDefined();
+	});
+
 	it("stores the refresh token and reports the connection", async () => {
 		const { fixture, gmailCredentialsStore, gmailConnectionStore, codes } = fixtureWithGmail();
 		const harness = useApp(fixture);
@@ -660,7 +738,7 @@ describe("GET /integrations/gmail/callback", () => {
 		);
 	});
 
-	it("redirects a reader whose access lapsed mid-grant and exchanges no code", async () => {
+	it.each([-ONE_DAY_MS, ONE_DAY_MS])("blocks a reader moved to a trial ending %i ms from now mid-grant and exchanges no code", async (remainingTrialMs) => {
 		const { fixture, gmailCredentialsStore, gmailConnectionStore, codes } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -670,7 +748,7 @@ describe("GET /integrations/gmail/callback", () => {
 		const state = new URL(started.headers.location).searchParams.get("state") ?? "";
 		await harness.subscriptionProviders.upsertTrialing({
 			userId,
-			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+			trialEndsAt: new Date(Date.now() + remainingTrialMs).toISOString(),
 		});
 
 		const response = await agent
@@ -679,7 +757,29 @@ describe("GET /integrations/gmail/callback", () => {
 			.query({ code: "auth-code", state });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/newsletters");
+		expect(codes).toEqual([]);
+		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
+		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();
+	});
+
+	it("blocks the OAuth callback at the paid cancellation deadline", async () => {
+		const { fixture, gmailCredentialsStore, gmailConnectionStore, codes } = fixtureWithGmail();
+		const now = new Date();
+		fixture.shared.now = () => now;
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_paid", customerId: "cus_paid" });
+		const started = await agent.post(CONNECT).send();
+		const state = new URL(started.headers.location).searchParams.get("state");
+		await harness.subscriptionProviders.markPendingCancellation({ userId, cancellationEffectiveAt: now.toISOString() });
+
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/newsletters");
 		expect(codes).toEqual([]);
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBeUndefined();
 		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toBeUndefined();

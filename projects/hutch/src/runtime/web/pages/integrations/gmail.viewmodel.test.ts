@@ -50,6 +50,7 @@ function recognised(entries: [typeof TLDR, string][]): GmailPageInput["detection
 function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 	return {
 		userId: USER,
+		canConnectGmail: true,
 		connection: connection(),
 		senders: [],
 		destinations: new Map(),
@@ -86,15 +87,15 @@ describe("GMail Newsletters calls to action", () => {
 	it("keeps the discovery Reconnect amber only when no other amber CTA is on screen", () => {
 		const requiresReconnect: GmailPageInput["discovery"] = { state: "failed", mode: "full", checkedMessageCount: 0, requiresReconnect: true };
 		const alone = toGmailPageViewModel(input({ discovery: requiresReconnect }));
-		assert.equal(alone.chooser.reconnectVariant, "primary");
+		assert.equal(alone.chooser.reconnectActions[0]?.variant, "primary");
 		assert.equal(alone.chooser.statusLead, "Reconnect Gmail to continue loading senders. Your existing mappings stay in place.");
 		assert.equal(alone.chooser.checkedLabel, undefined);
 		assert.equal(alone.showMetadataReconnect, true);
 		assert.equal(alone.showSenders, false);
 		const besideOpenGmail = toGmailPageViewModel(input({ discovery: requiresReconnect, connection: connection({ forwardingConfirmedAt: undefined }) }));
-		assert.equal(besideOpenGmail.chooser.reconnectVariant, "neutral");
+		assert.equal(besideOpenGmail.chooser.reconnectActions[0]?.variant, "neutral");
 		const besideSave = toGmailPageViewModel(input({ discovery: requiresReconnect, state: { sender: TLDR, readlist: "default" } }));
-		assert.equal(besideSave.chooser.reconnectVariant, "neutral");
+		assert.equal(besideSave.chooser.reconnectActions[0]?.variant, "neutral");
 	});
 
 	it("opens the connected mailbox for the account that granted access", () => {

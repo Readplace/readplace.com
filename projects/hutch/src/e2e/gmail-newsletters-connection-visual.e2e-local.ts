@@ -27,6 +27,9 @@ type Theme = "light" | "dark";
 const GMAIL_MAIN = "main.gmail";
 const INTEGRATIONS_MAIN = "main.integrations";
 const CONFIRMATION_EXHAUSTED_POLL = "100";
+const UPGRADE_COPY = "Gmail integration is only available with an active paid subscription.";
+const INTEGRATION_UPGRADE = '[data-test-integration="gmail"] [data-test-integration-action="upgrade-gmail"]';
+const GMAIL_UPGRADE = '[data-test-gmail-connection-action="upgrade-gmail"]';
 
 interface Scenario {
 	state: string;
@@ -66,13 +69,22 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
-async function signInWithGmail(page: Page, input: { stamp: string; seed: object | undefined }): Promise<void> {
+async function signInWithGmail(
+	page: Page,
+	input: { stamp: string; seed: object | undefined; subscription?: "trialing" | "inactive" },
+): Promise<void> {
 	await seedApprovedNewsletters(page, `gmail-connection-${input.stamp}`);
 	const email = `gmail-connection-${input.stamp}@example.com`;
 	const userId = await createUser(page, email);
 	if (input.seed !== undefined) {
 		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, { data: { userId, ...input.seed } });
 		assert.equal(seeded.status(), 201, "the Gmail fixture must accept the connection seed");
+	}
+	if (input.subscription !== undefined) {
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: { userId, state: input.subscription },
+		});
+		assert.equal(seeded.status(), 201, "the subscription fixture must accept the reader's access state");
 	}
 	await loginAs(page, email);
 }
@@ -136,6 +148,62 @@ const CONNECTED_SEED = {
 };
 
 const SCENARIOS: readonly Scenario[] = [
+	{
+		state: "trial-upgrade",
+		target: INTEGRATIONS_MAIN,
+		open: async (page, stamp) => {
+			await signInWithGmail(page, { stamp, seed: undefined, subscription: "trialing" });
+			await openIntegrations(page);
+		},
+		settled: async (page) => {
+			await integrationStatusShown(page, "disconnected");
+			await expect(page.locator('[data-test-integration="gmail"]')).toContainText(UPGRADE_COPY);
+			await expect(page.locator(INTEGRATION_UPGRADE)).toHaveText("Upgrade");
+		},
+		pinnedText: [],
+	},
+	{
+		state: "inactive-connected-upgrade",
+		target: INTEGRATIONS_MAIN,
+		open: async (page, stamp) => {
+			await signInWithGmail(page, { stamp, seed: CONNECTED_SEED, subscription: "inactive" });
+			await openIntegrations(page);
+		},
+		settled: async (page) => {
+			await integrationStatusShown(page, "filtering");
+			await expect(page.locator('[data-test-integration="gmail"]')).toContainText(UPGRADE_COPY);
+			await expect(page.locator('[data-test-integration="gmail"] [data-test-integration-action]')).toHaveText(["Upgrade", "Manage"]);
+		},
+		pinnedText: [],
+	},
+	{
+		state: "inactive-revoked-upgrade",
+		target: GMAIL_MAIN,
+		open: async (page, stamp) => {
+			await signInWithGmail(page, { stamp, seed: { ...CONNECTED_SEED, connection: "revoked" }, subscription: "inactive" });
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
+		},
+		settled: async (page) => {
+			await gmailStateShown(page, "revoked");
+			await expect(page.locator("[data-test-gmail-reconnect]")).toContainText(UPGRADE_COPY);
+			await expect(page.locator(GMAIL_UPGRADE)).toHaveText("Upgrade");
+		},
+		pinnedText: [],
+	},
+	{
+		state: "trial-missing-permission-upgrade",
+		target: GMAIL_MAIN,
+		open: async (page, stamp) => {
+			await signInWithGmail(page, { stamp, seed: { ...CONNECTED_SEED, grantedScopes: ["settings"] }, subscription: "trialing" });
+			await openGmailPage(page, "/newsletters/gmail?discovery=started");
+		},
+		settled: async (page) => {
+			await gmailStateShown(page, "filtering");
+			await expect(page.locator("[data-test-gmail-metadata-reconnect]")).toContainText(UPGRADE_COPY);
+			await expect(page.locator(GMAIL_UPGRADE)).toHaveText("Upgrade");
+		},
+		pinnedText: [],
+	},
 	{
 		state: "disconnected",
 		target: INTEGRATIONS_MAIN,
@@ -315,4 +383,51 @@ test("opens the Gmail page from anywhere on its Newsletters row", async ({ page 
 	await clickAndWaitForPageReload(page, page.locator('[data-test-integration="gmail"]'));
 
 	await expect(page.locator(GMAIL_MAIN)).toHaveCount(1);
+});
+
+test.describe("Gmail upgrades without JavaScript", () => {
+	test.use({ javaScriptEnabled: false });
+
+	test("opens plan selection with tracking and keeps existing connection management available", async ({ page }, testInfo) => {
+		await signInWithGmail(page, {
+			stamp: `upgrade-index-${testInfo.workerIndex}-${Date.now()}`,
+			seed: CONNECTED_SEED,
+			subscription: "inactive",
+		});
+		await openIntegrations(page);
+		await expect(page.locator('[data-test-integration="gmail"] [data-test-integration-action]')).toHaveText(["Upgrade", "Manage"]);
+
+		await clickAndWaitForPageReload(page, page.locator(INTEGRATION_UPGRADE));
+
+		await expect(page.locator("body.page-plans")).toHaveCount(1);
+		expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({
+			utm_source: "integrations",
+			utm_medium: "internal",
+			utm_content: "upgrade-gmail",
+		});
+
+		await openIntegrations(page);
+		await clickAndWaitForPageReload(page, page.locator('[data-test-integration="gmail"] [data-test-integration-action="manage"]'));
+
+		await expect(page.locator("body.page-integrations-gmail")).toHaveCount(1);
+		await expect(page.locator('[data-test-gmail-state="filtering"]')).toBeVisible();
+	});
+
+	test("opens plan selection with Gmail tracking when reconnect needs a paid subscription", async ({ page }, testInfo) => {
+		await signInWithGmail(page, {
+			stamp: `upgrade-reconnect-${testInfo.workerIndex}-${Date.now()}`,
+			seed: { ...CONNECTED_SEED, connection: "revoked" },
+			subscription: "trialing",
+		});
+		await openGmailPage(page, "/newsletters/gmail?discovery=started");
+
+		await clickAndWaitForPageReload(page, page.locator(GMAIL_UPGRADE));
+
+		await expect(page.locator("body.page-plans")).toHaveCount(1);
+		expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({
+			utm_source: "integrations-gmail",
+			utm_medium: "internal",
+			utm_content: "upgrade-gmail",
+		});
+	});
 });

@@ -13,7 +13,7 @@ import { GMAIL_HISTORY_IMPORT_MAX_POLLS, summarizeGmailHistoryImport } from "@pa
 import { type InboxAddressEntry, isLiveAddress } from "@packages/domain/inbox";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
-import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
+import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { type FormField, type GmailFormAction, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
 import { importFollowsMapping, latestGmailImportsBySender } from "./gmail-import-actions";
 import type { GmailSenderCandidate } from "./gmail-sender-picker.viewmodel";
@@ -51,7 +51,7 @@ export interface GmailMappingRow {
 	importState: GmailImportState;
 	importMessage: string;
 	importCounts: GmailImportCount[];
-	consent: { action: string; fields: FormField[] } | undefined;
+	consent: GmailConnectionPrompt | undefined;
 	actions: GmailFormAction[];
 }
 
@@ -75,6 +75,7 @@ export interface GmailMappingsViewModel {
 
 export interface GmailMappingsInput {
 	userId: UserId;
+	canConnectGmail: boolean;
 	connection: GmailConnection;
 	senders: readonly GmailSenderEntry[];
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
@@ -250,6 +251,7 @@ function rowActions(input: {
 
 function consentFor(input: {
 	sender: ForwardableSender;
+	canConnectGmail: boolean;
 	importable: boolean;
 	importState: GmailImportState;
 	readonlyScopeGranted: boolean;
@@ -257,10 +259,14 @@ function consentFor(input: {
 }): GmailMappingRow["consent"] {
 	if (!input.importable || input.readonlyScopeGranted || !RESTARTABLE.has(input.importState)) return undefined;
 	const { sender: _picked, edit: _edit, ...listState } = input.state;
-	return {
-		action: trackGmail(GMAIL_CONNECT_PATH, "grant-import-permission"),
+	return gmailConnectionPrompt({
+		canConnectGmail: input.canConnectGmail,
+		message: "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender and leaves it unread.",
+		content: "grant-import-permission",
+		label: "Grant permission",
+		variant: "neutral",
 		fields: [...gmailBodyFields(listState), { name: "intent", value: "import" }, { name: "sender", value: input.sender }],
-	};
+	});
 }
 
 function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: GmailHistoryImportJob | undefined }): GmailMappingRow {
@@ -283,6 +289,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: Gmai
 		importCounts: importCounts(summary),
 		consent: consentFor({
 			sender: input.sender.senderEmail,
+			canConnectGmail: input.canConnectGmail,
 			importable,
 			importState,
 			readonlyScopeGranted: input.readonlyScopeGranted,

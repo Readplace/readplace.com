@@ -6,7 +6,7 @@ import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { loginAgent, useTestServer } from "../../../test-app";
+import { BROWSER_REQUEST_HEADERS, loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 
@@ -108,6 +108,50 @@ describe("GET /newsletters", () => {
 		const doc = load((await agent.get("/newsletters")).text);
 
 		expect(integrationActions(doc)).toEqual(["connect"]);
+	});
+
+	it.each(["trial", "expired", "cancelled"])("offers a tracked upgrade to a %s reader", async (state) => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the signed-in reader must exist");
+		harness.subscriptionProviders.seedRow({
+			userId: user.userId,
+			provider: "stripe",
+			status: state === "cancelled" ? "cancelled" : "trialing",
+			trialEndsAt: new Date(Date.now() + (state === "trial" ? 86_400_000 : -86_400_000)).toISOString(),
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const doc = load((await agent.get("/newsletters")).text);
+		expect(integrationActions(doc)).toEqual(["upgrade-gmail"]);
+		const row = doc.querySelector('[data-test-integration="gmail"]');
+		assert(row, "the Gmail row must render");
+		const copy = row.querySelector(".integrations__description");
+		assert(copy, "the Gmail row must explain access");
+		expect(copy.textContent).toBe("Gmail integration is only available with an active paid subscription.");
+		const upgrade = row.querySelector('[data-test-integration-action="upgrade-gmail"]');
+		assert(upgrade, "the blocked connection offers an upgrade");
+		expect(upgrade.textContent).toBe("Upgrade");
+		const form = upgrade.closest("form");
+		assert(form, "Upgrade navigates with a form");
+		expect(form.getAttribute("method")).toBe("GET");
+		const destination = new URL(form.action, TEST_APP_ORIGIN);
+		destination.search = new URLSearchParams(Array.from(form.querySelectorAll<HTMLInputElement>("input"), (field) => [field.name, field.value])).toString();
+		expect(destination.pathname).toBe("/account/plans");
+		expect(Object.fromEntries(destination.searchParams)).toEqual({
+			utm_source: "integrations",
+			utm_medium: "internal",
+			utm_content: "upgrade-gmail",
+		});
+		const plans = await agent.get(destination.pathname + destination.search).set(BROWSER_REQUEST_HEADERS);
+		expect(plans.status).toBe(200);
+		expect(load(plans.text).body.classList.contains("page-plans")).toBe(true);
+		expect(harness.analytics.events.filter((event) => event.event === "click")).toEqual([
+			expect.objectContaining({ path: "/account/plans", utm_source: "integrations", utm_medium: "internal", utm_content: "upgrade-gmail" }),
+		]);
 	});
 
 	it("routes a connected-but-unconfirmed reader to finish setup on the Gmail page", async () => {

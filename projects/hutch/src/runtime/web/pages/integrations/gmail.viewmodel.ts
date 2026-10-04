@@ -19,8 +19,10 @@ import {
 	type ReadlistRef,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
-import { GMAIL_CONNECT_PATH, INTEGRATIONS_PATH } from "./gmail-connect.url";
-import { type FormField, gmailGetFields, trackGmail } from "./gmail-form-fields";
+import { INTEGRATIONS_PATH } from "./gmail-connect.url";
+import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
+import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
+import { type FormField, type GmailFormAction, gmailGetFields, trackGmail } from "./gmail-form-fields";
 import { gmailMappingDestination, type GmailMappingsViewModel, toGmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import {
 	type GmailResultsAction,
@@ -54,6 +56,7 @@ export interface GmailNoticeViewModel extends GmailBannerViewModel { variant: Al
 
 export interface GmailPageInput {
 	userId: UserId;
+	canConnectGmail: boolean;
 	connection: GmailConnection;
 	senders: readonly GmailSenderEntry[];
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
@@ -93,8 +96,7 @@ interface GmailChooserViewModel {
 	options: GmailSenderOption[];
 	hasOptions: boolean;
 	actions: GmailResultsAction[];
-	reconnectAction: string | undefined;
-	reconnectVariant: "primary" | "neutral";
+	reconnectActions: GmailFormAction[];
 	pollUrl: string | undefined;
 	pollTrigger: string | undefined;
 	pagePath: string;
@@ -139,13 +141,12 @@ export interface GmailPageViewModel {
 	searchPath: string;
 	discoveryAction: string;
 	disconnectAction: string;
-	reconnectAction: string;
-	metadataReconnectAction: string;
+	reconnect: GmailConnectionPrompt;
+	metadataReconnect: GmailConnectionPrompt;
 	showStep: boolean;
 	showSenders: boolean;
 	showReconnect: boolean;
 	showMetadataReconnect: boolean;
-	commitVariant: "primary" | "neutral";
 	autoDiscoverAction: string | undefined;
 	search: string;
 	searchFields: FormField[];
@@ -260,7 +261,7 @@ function checkingForNewMessages(input: GmailPageInput): boolean {
 function discoveryStatus(input: GmailPageInput, discovering: boolean): { lead: string; checked: string | undefined } {
 	const count = input.discovery.checkedMessageCount;
 	if (input.discovery.requiresReconnect) {
-		return { lead: "Reconnect Gmail to continue loading senders. Your existing mappings stay in place.", checked: undefined };
+		return { lead: input.canConnectGmail ? "Reconnect Gmail to continue loading senders. Your existing mappings stay in place." : GMAIL_UPGRADE_MESSAGE, checked: undefined };
 	}
 	if (discovering && input.pollCount >= GMAIL_DISCOVERY_MAX_POLLS) {
 		return { lead: "Still checking. ", checked: checkedLabel(count, " so far…") };
@@ -403,13 +404,20 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		pickerState, pagePath: GMAIL_PATH, pageUrl: buildGmailUrl({ ...pickerState, discovery: "started" }), searchPath: GMAIL_SENDERS_PATH,
 		discoveryAction: trackGmail(GMAIL_DISCOVERY_START_PATH, "load-senders"),
 		disconnectAction: trackGmail(GMAIL_DISCONNECT_PATH, "disconnect"),
-		reconnectAction: trackGmail(GMAIL_CONNECT_PATH, "reconnect"),
-		metadataReconnectAction: trackGmail(GMAIL_CONNECT_PATH, "grant-sender-access"),
+		reconnect: gmailConnectionPrompt({
+			canConnectGmail: input.canConnectGmail,
+			message: "Google ended the connection. Reconnect to keep forwarding newsletters.",
+			content: "reconnect", label: "Reconnect Gmail", variant: "primary", fields: [],
+		}),
+		metadataReconnect: gmailConnectionPrompt({
+			canConnectGmail: input.canConnectGmail,
+			message: "Reconnect Gmail to choose senders from your mailbox. Your existing mappings stay in place.",
+			content: "grant-sender-access", label: "Reconnect Gmail", variant: commitVariant, fields: [],
+		}),
 		showStep,
 		showSenders,
 		showReconnect: revoked,
 		showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
-		commitVariant,
 		autoDiscoverAction: input.discoveryStarted ? undefined : GMAIL_DISCOVERY_START_PATH,
 		search: pickerState.search ?? "",
 		searchFields: gmailGetFields(pickerState, "search-senders").filter((field) => field.name !== "search" && field.name !== "discovery_after"),
@@ -429,8 +437,11 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			options: results.options,
 			hasOptions: results.options.length > 0,
 			actions: results.actions,
-			reconnectAction: input.discovery.requiresReconnect ? trackGmail(GMAIL_CONNECT_PATH, "reconnect-sender-access") : undefined,
-			reconnectVariant: showStep || save !== undefined ? "neutral" : "primary",
+			reconnectActions: input.discovery.requiresReconnect ? gmailConnectionPrompt({
+				canConnectGmail: input.canConnectGmail,
+				message: status.lead,
+				content: "reconnect-sender-access", label: "Reconnect Gmail", variant: showStep || save !== undefined ? "neutral" : "primary", fields: [],
+			}).actions : [],
 			pollUrl: polling ? `${poll.pathname}${poll.search}` : undefined,
 			pollTrigger: polling ? discoveryPollTrigger(input.pollCount + 1) : undefined,
 			pagePath: GMAIL_PATH,
@@ -439,6 +450,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		save,
 		mappings: toGmailMappingsViewModel({
 			userId: input.userId,
+			canConnectGmail: input.canConnectGmail,
 			connection: input.connection,
 			senders: input.senders,
 			destinations: input.destinations,

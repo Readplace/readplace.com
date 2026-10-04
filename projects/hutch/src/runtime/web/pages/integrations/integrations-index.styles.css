@@ -127,15 +127,15 @@
   background: var(--muted);
 }
 
-.integrations__action .btn {
+.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn {
   position: static;
 }
 
-.integrations__action .btn::before {
+.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn::before {
   display: none;
 }
 
-.integrations__action .btn::after {
+.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn::after {
   content: "";
   position: absolute;
   inset: 0;

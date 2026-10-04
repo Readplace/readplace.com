@@ -30,11 +30,13 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 
 type IndexInput = Parameters<typeof toIntegrationsIndexViewModel>[0];
 
-function indexViewModel(input: Omit<IndexInput, "activeCustomEmailCount">) {
-	return toIntegrationsIndexViewModel({ ...input, activeCustomEmailCount: 0 });
+type GmailIndexInput = Omit<IndexInput, "activeCustomEmailCount" | "canConnectGmail"> & { canConnectGmail?: boolean };
+
+function indexViewModel(input: GmailIndexInput) {
+	return toIntegrationsIndexViewModel({ canConnectGmail: true, ...input, activeCustomEmailCount: 0 });
 }
 
-function gmailRow(input: Omit<IndexInput, "activeCustomEmailCount">) {
+function gmailRow(input: GmailIndexInput) {
 	const gmail = indexViewModel(input).services.find((s) => s.key === "gmail");
 	assert(gmail, "the Gmail row is always present");
 	return gmail;
@@ -51,7 +53,7 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it("counts the active custom emails and links to manage them", () => {
-		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 2 })
+		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 2, canConnectGmail: true })
 			.services.find((s) => s.key === "custom-emails");
 		assert(customEmails, "the Custom Emails row is always present");
 
@@ -70,7 +72,7 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it("shows custom emails as not set up while none is active", () => {
-		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0 })
+		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0, canConnectGmail: true })
 			.services.find((s) => s.key === "custom-emails");
 		assert(customEmails, "the Custom Emails row is always present");
 
@@ -92,6 +94,29 @@ describe("toIntegrationsIndexViewModel", () => {
 				"primary",
 			]],
 		);
+	});
+
+	it.each([
+		[undefined, ["upgrade-gmail"]],
+		[connection({ revokedAt: "2026-08-27T01:00:00.000Z", revokedReason: "invalid-grant" }), ["upgrade-gmail", "manage"]],
+		[connection(), ["upgrade-gmail", "finish-setup"]],
+		[connection({ forwardingConfirmedAt: "2026-08-27T00:05:00.000Z" }), ["upgrade-gmail", "manage"]],
+	])("offers Upgrade while preserving existing setup and management for connection %j", (existing, actions) => {
+		const gmail = gmailRow({ connection: existing, canConnectGmail: false });
+
+		assert.equal(gmail.description, "Gmail integration is only available with an active paid subscription.");
+		assert.deepEqual(gmail.actions.map((action) => action.key), actions);
+		assert.deepEqual(gmail.actions[0], {
+			key: "upgrade-gmail",
+			method: "GET",
+			href: "/account/plans?utm_source=integrations&utm_medium=internal&utm_content=upgrade-gmail",
+			label: "Upgrade",
+			variant: "primary",
+			fields: [],
+			trackSource: "integrations",
+			trackContent: "upgrade-gmail",
+		});
+		assert.deepEqual(gmail.actions.slice(1).map((action) => action.variant), actions.slice(1).map(() => "secondary"));
 	});
 
 	it("sends an unconfirmed connection to step 2 as the pressing action", () => {

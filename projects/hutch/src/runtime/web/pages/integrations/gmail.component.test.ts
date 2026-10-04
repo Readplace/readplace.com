@@ -26,6 +26,7 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 	return {
 		userId: USER,
+		canConnectGmail: true,
 		connection: connection(),
 		senders: [],
 		destinations: new Map(),

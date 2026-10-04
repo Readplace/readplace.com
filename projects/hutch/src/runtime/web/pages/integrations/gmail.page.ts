@@ -14,6 +14,7 @@ import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, readerReadlists } from "@
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import { GMAIL_METADATA_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -31,6 +32,7 @@ import {
 } from "./gmail.url";
 import { gmailPollState, toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 import { buildIntegrationsUrl, INTEGRATIONS_PATH } from "./gmail-connect.url";
+import { canConnectGmail } from "./gmail-connection-access";
 import { initGmailImportActions } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import { registerGmailMappingRoutes } from "./gmail-mappings.page";
@@ -40,6 +42,7 @@ const SaveBodySchema = z.object({ readlist: z.union([z.string(), z.array(z.strin
 
 export interface GmailPageContext {
 	buildBannerState: BuildBannerState;
+	getEffectiveAccess: GetEffectiveAccess;
 	requireAuth: RequestHandler;
 	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
@@ -108,7 +111,7 @@ export function registerGmailPageRoutes(
 		const userId = ownerOf(req);
 		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		assert(connection, "the connected middleware requires a Gmail connection");
-		const [senders, gateway, discoveredSenders, discovery, grantedScope, definitions, jobs, observedSenders] = await Promise.all([
+		const [senders, gateway, discoveredSenders, discovery, grantedScope, definitions, jobs, observedSenders, access] = await Promise.all([
 			gmail.gmailSenderStore.listSendersByUserId(userId),
 			gmail.findInboxAddress(connection.gatewayAddress),
 			gmail.gmailDiscoveryStore.listSendersByUserId(userId),
@@ -117,6 +120,7 @@ export function registerGmailPageRoutes(
 			gmail.listReadlistDefinitions(userId),
 			gmail.gmailHistoryImportStore.listJobsByUserId(userId),
 			connection.accountEmail === undefined ? [] : gmail.gmailMonitoringStore.listObservedSenders({ userId, accountEmail: connection.accountEmail }),
+			context.getEffectiveAccess(userId),
 		]);
 		const sameMailbox = discoveryMatchesConnection(discovery, connection);
 		const discovered = [...new Map([...observedSenders, ...(sameMailbox ? discoveredSenders : [])].map((sender) => [sender.email, sender])).values()];
@@ -130,6 +134,7 @@ export function registerGmailPageRoutes(
 		]);
 		return toGmailPageViewModel({
 			userId,
+			canConnectGmail: canConnectGmail(access),
 			connection,
 			senders,
 			destinations: new Map(entries.flatMap((entry) => (entry === undefined ? [] : [[entry.address, entry] as const]))),

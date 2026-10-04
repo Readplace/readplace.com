@@ -36,19 +36,29 @@
 
         {{#if showReconnect}}
         <section class="gmail__reconnect" data-test-gmail-reconnect>
-          <p class="gmail__step-copy">Google ended the connection. Reconnect to keep forwarding newsletters.</p>
-          <form method="POST" action="{{reconnectAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-            <button type="submit" class="btn btn--primary" data-test-gmail-reconnect-button>Reconnect Gmail</button>
+          <p class="gmail__step-copy">{{reconnect.message}}</p>
+          {{#each reconnect.actions}}
+          <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+            {{#each fields}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            <button type="submit" class="btn btn--{{variant}}" data-test-gmail-reconnect-button data-test-gmail-connection-action="{{key}}">{{label}}</button>
           </form>
+          {{/each}}
         </section>
         {{/if}}
 
         {{#if showMetadataReconnect}}
         <section class="gmail__reconnect" data-test-gmail-metadata-reconnect>
-          <p class="gmail__step-copy">Reconnect Gmail to choose senders from your mailbox. Your existing mappings stay in place.</p>
-          <form method="POST" action="{{metadataReconnectAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-            <button type="submit" class="btn btn--{{commitVariant}}" data-test-gmail-metadata-reconnect-button>Reconnect Gmail</button>
+          <p class="gmail__step-copy">{{metadataReconnect.message}}</p>
+          {{#each metadataReconnect.actions}}
+          <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+            {{#each fields}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            <button type="submit" class="btn btn--{{variant}}" data-test-gmail-metadata-reconnect-button data-test-gmail-connection-action="{{key}}">{{label}}</button>
           </form>
+          {{/each}}
         </section>
         {{/if}}
 
