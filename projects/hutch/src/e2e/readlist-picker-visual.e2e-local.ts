@@ -10,6 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -78,9 +79,9 @@ async function nameReadlist(page: Page, index: number, label: string): Promise<v
 
 async function openReaderWithReadlists(
 	page: Page,
-	stamp: string,
-	secondReadlist: string,
+	input: { stamp: string; secondReadlist: string; openRail: (page: Page) => Promise<void> },
 ): Promise<string> {
+	const { stamp, secondReadlist, openRail } = input;
 	const email = `readlist-picker-visual-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -108,8 +109,10 @@ async function openReaderWithReadlists(
 
 	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	await expect(page.locator(READLIST_TAB)).toHaveCount(1);
+	await openRail(page);
 	await page.click(NEW_READLIST);
 	await expect(page.locator(READLIST_TAB)).toHaveCount(2);
+	await openRail(page);
 	await page.click(NEW_READLIST);
 	await expect(page.locator(READLIST_TAB)).toHaveCount(3);
 	await nameReadlist(page, 1, DEEP_WORK);
@@ -120,8 +123,11 @@ async function openReaderWithReadlists(
 	return articleId;
 }
 
-async function openReadlistPicker(page: Page, stamp: string): Promise<void> {
-	await openReaderWithReadlists(page, stamp, WEEKEND);
+async function openReadlistPicker(
+	page: Page,
+	input: { stamp: string; openRail: (page: Page) => Promise<void> },
+): Promise<void> {
+	await openReaderWithReadlists(page, { stamp: input.stamp, secondReadlist: WEEKEND, openRail: input.openRail });
 	await page.click(TRIGGER);
 }
 
@@ -256,7 +262,7 @@ test.describe("Add-to-readlist picker", () => {
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await openReadlistPicker(page, `light-${testInfo.workerIndex}-${Date.now()}`);
+		await openReadlistPicker(page, { stamp: `light-${testInfo.workerIndex}-${Date.now()}`, openRail: railIsOpen });
 		await captureCheckpoint(page, READLIST_PICKER_OPEN_LIGHT);
 	});
 
@@ -264,7 +270,7 @@ test.describe("Add-to-readlist picker", () => {
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openReadlistPicker(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
+		await openReadlistPicker(page, { stamp: `dark-${testInfo.workerIndex}-${Date.now()}`, openRail: railIsOpen });
 		await captureCheckpoint(page, READLIST_PICKER_OPEN_DARK);
 	});
 });
@@ -276,7 +282,7 @@ test.describe("Add-to-readlist picker on the narrowest phone", () => {
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openReadlistPicker(page, `phone-${testInfo.workerIndex}-${Date.now()}`);
+		await openReadlistPicker(page, { stamp: `phone-${testInfo.workerIndex}-${Date.now()}`, openRail: openReadlistSwitcher });
 		await captureCheckpoint(page, READLIST_PICKER_OPEN_PHONE);
 	});
 });
@@ -353,7 +359,11 @@ test.describe("Reader readlist tag", () => {
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await openReaderWithReadlists(page, `tag-light-${testInfo.workerIndex}-${Date.now()}`, WEEKEND);
+		await openReaderWithReadlists(page, {
+			stamp: `tag-light-${testInfo.workerIndex}-${Date.now()}`,
+			secondReadlist: WEEKEND,
+			openRail: railIsOpen,
+		});
 		await assignReadlist(page, WEEKEND);
 		await captureCheckpoint(
 			page,
@@ -366,7 +376,11 @@ test.describe("Reader readlist tag", () => {
 
 	test("shows an assigned readlist as a removable accent tag (dark)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openReaderWithReadlists(page, `tag-dark-${testInfo.workerIndex}-${Date.now()}`, WEEKEND);
+		await openReaderWithReadlists(page, {
+			stamp: `tag-dark-${testInfo.workerIndex}-${Date.now()}`,
+			secondReadlist: WEEKEND,
+			openRail: railIsOpen,
+		});
 		await assignReadlist(page, WEEKEND);
 		await captureCheckpoint(
 			page,
@@ -380,7 +394,11 @@ test.describe("Reader readlist tag on a phone", () => {
 
 	test("keeps a cap-length readlist tag inside the page", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await openReaderWithReadlists(page, `tag-phone-${testInfo.workerIndex}-${Date.now()}`, LONG_READLIST_NAME);
+		await openReaderWithReadlists(page, {
+			stamp: `tag-phone-${testInfo.workerIndex}-${Date.now()}`,
+			secondReadlist: LONG_READLIST_NAME,
+			openRail: openReadlistSwitcher,
+		});
 		await assignReadlist(page, LONG_READLIST_NAME);
 		await captureCheckpoint(
 			page,
@@ -392,11 +410,11 @@ test.describe("Reader readlist tag on a phone", () => {
 	});
 
 	test("styles the tag in the chromeless reader the iOS and Android apps load", async ({ page }, testInfo) => {
-		const articleId = await openReaderWithReadlists(
-			page,
-			`tag-chromeless-${testInfo.workerIndex}-${Date.now()}`,
-			WEEKEND,
-		);
+		const articleId = await openReaderWithReadlists(page, {
+			stamp: `tag-chromeless-${testInfo.workerIndex}-${Date.now()}`,
+			secondReadlist: WEEKEND,
+			openRail: openReadlistSwitcher,
+		});
 		await assignReadlist(page, WEEKEND);
 
 		await page.goto(`${BASE_URL}/queue/${articleId}/view?platform=ios`, { waitUntil: "domcontentloaded" });

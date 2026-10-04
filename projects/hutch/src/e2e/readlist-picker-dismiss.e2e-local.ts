@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { openReadlistSwitcher } from "./page-interactions";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 
@@ -44,6 +45,7 @@ async function openOwnerReaderWithPicker(page: Page, stamp: string): Promise<voi
 
 	// A second readlist gives the picker something to offer, so it has a menu to
 	// dismiss rather than only the create row.
+	await openReadlistSwitcher(page);
 	await page.click('[data-test-action="new-readlist"]');
 	await expect(page.locator("[data-test-readlist]")).toHaveCount(2);
 

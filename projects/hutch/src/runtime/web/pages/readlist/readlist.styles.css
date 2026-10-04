@@ -4,9 +4,9 @@
 }
 
 .readlist__layout {
-  max-width: 1200px;
+  max-width: calc(var(--frame-max-width) + 2 * var(--page-gutter));
   margin: 0 auto;
-  padding: 24px 16px 64px;
+  padding: var(--page-top) var(--page-gutter) 64px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 20px;
@@ -34,13 +34,30 @@
 @media (min-width: 1024px) {
   .readlist__layout {
     grid-template-columns: 220px minmax(0, 1fr) 300px;
-    gap: 24px;
-    padding: 28px 24px 80px;
+    column-gap: var(--column-gap);
+    padding-bottom: 80px;
   }
 
   .readlist__rail {
     position: sticky;
-    top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px) + 28px);
+    top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px) + var(--page-top));
+  }
+
+  @supports selector(::details-content) {
+    .readlist-nav__switcher-toggle {
+      display: none;
+    }
+
+    .readlist-nav__switcher::details-content {
+      content-visibility: visible;
+      display: block;
+    }
+  }
+}
+
+@media (min-width: 1200px) {
+  .readlist__layout {
+    grid-template-columns: 230px minmax(0, 1fr) 340px;
   }
 }
 
@@ -66,10 +83,11 @@
 
 .readlist-nav__title {
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
+  font-size: var(--text-md);
+  line-height: 1.25;
   font-weight: 600;
-  color: var(--foreground);
-  margin: 0 0 8px 12px;
+  color: var(--ink-rail-heading);
+  margin: 0 0 8px;
 }
 
 .readlist-nav__list {
@@ -81,57 +99,59 @@
   gap: 4px;
 }
 
-.readlist-nav__item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  border-radius: var(--radius);
-}
-
-.readlist-nav__item--active {
-  background: var(--secondary);
-}
-
-.readlist-nav__link {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--foreground);
-  text-decoration: none;
-  transition: background-color 0.15s ease;
-}
-
-.readlist-nav__link svg {
-  flex: 0 0 auto;
-  width: 1.125rem;
-  height: 1.125rem;
-  color: var(--muted-foreground);
-}
-
-.readlist-nav__link:hover {
+.readlist-nav__item:not(.readlist-row--selected):hover,
+.readlist-nav__new-form:hover {
   background: var(--card);
 }
 
-.readlist-nav__link--active,
-.readlist-nav__link--active:hover {
-  background: transparent;
-  color: var(--primary-text-on-tint);
+.readlist-nav__switcher-toggle {
+  list-style: none;
+  cursor: pointer;
 }
 
-.readlist-nav__link--active svg {
-  color: var(--primary-text-on-tint);
+.readlist-nav__switcher-toggle::-webkit-details-marker {
+  display: none;
 }
 
-.readlist-nav__label {
-  min-width: 0;
-  overflow-wrap: anywhere;
+.readlist-nav__switcher-toggle:focus-visible,
+.readlist-nav__link:focus-visible,
+.readlist-nav__new:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.readlist-nav__switcher-chevron {
+  display: inline-flex;
+  justify-content: center;
+  width: 36px;
+  color: var(--foreground);
+}
+
+.readlist-nav__switcher-chevron svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.readlist-nav__switcher[open] .readlist-nav__switcher-chevron svg {
+  transform: rotate(180deg);
+}
+
+.readlist-nav__switcher-toggle + .readlist-nav__list {
+  margin-top: 4px;
+}
+
+@media (max-width: 1023px) {
+  .readlist-nav__title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
 .readlist-nav__confirm-trigger,
@@ -165,34 +185,19 @@
 }
 
 .readlist-nav__new-form {
-  display: flex;
+  margin-top: 4px;
 }
 
 .readlist-nav__new {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
   border: none;
-  border-radius: var(--radius);
   background: transparent;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
   color: var(--muted-foreground);
+  text-align: left;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.readlist-nav__new svg {
-  width: 1.125rem;
-  height: 1.125rem;
 }
 
 .readlist-nav__new:hover {
-  background: var(--card);
   color: var(--foreground);
 }
 

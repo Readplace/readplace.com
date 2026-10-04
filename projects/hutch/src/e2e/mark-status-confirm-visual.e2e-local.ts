@@ -10,6 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -36,7 +37,11 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
-async function openMarkReadConfirm(page: Page, stamp: string): Promise<void> {
+async function openMarkReadConfirm(
+	page: Page,
+	input: { stamp: string; openRail: (page: Page) => Promise<void> },
+): Promise<void> {
+	const { stamp } = input;
 	const email = `mark-status-visual-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -61,6 +66,7 @@ async function openMarkReadConfirm(page: Page, stamp: string): Promise<void> {
 	await loginAs(page, email);
 
 	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+	await input.openRail(page);
 	await page.click('[data-test-action="new-readlist"]');
 	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
 
@@ -154,7 +160,7 @@ test.describe("Mark-as-read confirmation panel", () => {
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await openMarkReadConfirm(page, `light-${testInfo.workerIndex}-${Date.now()}`);
+		await openMarkReadConfirm(page, { stamp: `light-${testInfo.workerIndex}-${Date.now()}`, openRail: railIsOpen });
 		await expect(page.locator(`${PANEL_ITEMS} li`)).toHaveText(["All", "New Readlist"]);
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_LIGHT);
 	});
@@ -163,7 +169,7 @@ test.describe("Mark-as-read confirmation panel", () => {
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openMarkReadConfirm(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
+		await openMarkReadConfirm(page, { stamp: `dark-${testInfo.workerIndex}-${Date.now()}`, openRail: railIsOpen });
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_DARK);
 		await page.locator(PANEL_NEVER).hover();
 		await expect(page.locator(PANEL_NEVER)).toHaveCSS("background-color", "rgb(42, 42, 42)");
@@ -175,7 +181,7 @@ test.describe("Mark-as-read confirmation panel on a phone", () => {
 
 	test("stacks both full-width answers under the readlists", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await openMarkReadConfirm(page, `phone-${testInfo.workerIndex}-${Date.now()}`);
+		await openMarkReadConfirm(page, { stamp: `phone-${testInfo.workerIndex}-${Date.now()}`, openRail: openReadlistSwitcher });
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_PHONE);
 	});
 });

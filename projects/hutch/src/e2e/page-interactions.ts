@@ -90,3 +90,10 @@ export async function deleteArticleWithConfirmation(page: Page, trigger: Locator
 	await clickAndWaitForPageReload(page, confirm)
 	await expect(page.locator(`[id="${popoverId}"]`)).toHaveCount(0, { timeout: 15000 })
 }
+
+export async function openReadlistSwitcher(page: Page): Promise<void> {
+	await page.click('[data-test-action="readlist-switcher"]')
+	await expect(page.locator('[data-test-readlist-switcher]')).toHaveAttribute('open', '')
+}
+
+export async function railIsOpen(_page: Page): Promise<void> {}

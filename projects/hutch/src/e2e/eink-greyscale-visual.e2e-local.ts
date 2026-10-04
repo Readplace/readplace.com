@@ -11,6 +11,7 @@ import {
 	waitForImagePixels,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { clickAndWaitForPageReload, openReadlistSwitcher } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -26,6 +27,7 @@ const CONTRAST_SENSITIVE = {
 const READER_ROOT = "main.reader";
 const READLIST_LIST = "[data-test-article-list]";
 const READLIST_TABS = "[data-test-filters]";
+const READLIST_RAIL = ".readlist__rail";
 const THUMBNAIL_URL = "https://cdn.example.com/eink-greyscale-thumbnail.svg";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
@@ -243,6 +245,30 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 			await expect(page.locator(READLIST_LIST)).toHaveScreenshot(
 				`eink-readlist-menu-open-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the open readlist switcher keeps its selected row in greyscale (${theme})`, async ({
+			page,
+		}, testInfo) => {
+			await pinThumbnail(page);
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await seedReaderAndReadlist(
+				page,
+				`readlist-switcher-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await openReadlistSwitcher(page);
+			await clickAndWaitForPageReload(page, page.locator('main [data-test-action="new-readlist"]'));
+			await openReadlistSwitcher(page);
+			await clickAndWaitForPageReload(page, page.locator('main [data-test-readlist="default"]'));
+			await expect(page.locator('main [data-test-readlist="default"]')).toHaveAttribute("aria-current", "page");
+			await openReadlistSwitcher(page);
+			await settle(page, READLIST_RAIL);
+
+			await expect(page.locator(READLIST_RAIL)).toHaveScreenshot(
+				`eink-readlist-switcher-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -46,6 +47,7 @@ export interface ReadlistNavItem extends ReadlistNavMenu {
 
 export interface ReadlistNavDisplayModel {
 	items: readonly ReadlistNavItem[];
+	current: { title: string; iconName: IconName };
 	newReadlistAction: string;
 	canCreate: boolean;
 }
@@ -78,24 +80,28 @@ export function buildReadlistNav(input: {
 	newReadlistAction: string;
 	canCreate: boolean;
 }): ReadlistNavDisplayModel {
+	const items: ReadlistNavItem[] = input.readlists.map((readlist) => {
+		const isActive = readlist.slug === input.activeSlug;
+		const kind = readlist.slug === DEFAULT_READLIST_SLUG ? "default" : "custom";
+		return {
+			href: withInternalTracking(
+				buildReadlistUrl({ readlist: readlist.slug }),
+				{ source: NAV_SOURCE, content: `queue-${readlist.slug}` },
+			),
+			title: readlist.label,
+			name: readlist.slug,
+			iconName: READLIST_KIND_ICON[kind],
+			itemClass: `readlist-row readlist-nav__item${isActive ? " readlist-row--selected" : ""}`,
+			linkClass: "readlist-row__main readlist-nav__link",
+			isActive,
+			...navMenu({ slug: readlist.slug, viewedSlug: input.activeSlug, canEdit: input.canCreate }),
+		};
+	});
+	const current = items.find((item) => item.isActive);
+	assert(current, "the viewed readlist must be one of the readlists the rail lists");
 	return {
-		items: input.readlists.map((readlist) => {
-			const isActive = readlist.slug === input.activeSlug;
-			const kind = readlist.slug === DEFAULT_READLIST_SLUG ? "default" : "custom";
-			return {
-				href: withInternalTracking(
-					buildReadlistUrl({ readlist: readlist.slug }),
-					{ source: NAV_SOURCE, content: `queue-${readlist.slug}` },
-				),
-				title: readlist.label,
-				name: readlist.slug,
-				iconName: READLIST_KIND_ICON[kind],
-				itemClass: `readlist-nav__item${isActive ? " readlist-nav__item--active" : ""}`,
-				linkClass: `readlist-nav__link${isActive ? " readlist-nav__link--active" : ""}`,
-				isActive,
-				...navMenu({ slug: readlist.slug, viewedSlug: input.activeSlug, canEdit: input.canCreate }),
-			};
-		}),
+		items,
+		current: { title: current.title, iconName: current.iconName },
 		newReadlistAction: withInternalTracking(input.newReadlistAction, {
 			source: NAV_SOURCE,
 			content: "new-readlist",

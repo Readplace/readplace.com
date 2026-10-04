@@ -20,7 +20,7 @@ import {
 } from "@packages/onboarding-extension-signal";
 import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
-import { clickAndWaitForPageReload } from "./page-interactions";
+import { clickAndWaitForPageReload, openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { growRailToFitOpenFlyout } from "./readlist.browser";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 
@@ -45,7 +45,9 @@ const RAIL = ".readlist__rail";
 const MAIN_COLUMN = ".readlist__main";
 const SIDE = ".readlist__side";
 const NEW_READLIST_BUTTON = '[data-test-action="new-readlist"]';
-const ACTIVE_READLIST_LABEL = ".readlist-nav__link--active .readlist-nav__label";
+const ACTIVE_READLIST_LINK = '[data-test-readlist][aria-current="page"]';
+const ACTIVE_READLIST_LABEL = `${ACTIVE_READLIST_LINK} [data-test-readlist-label]`;
+const READLIST_SWITCHER_TOGGLE = '[data-test-action="readlist-switcher"]';
 const READLIST_MENU_SUMMARY = '[data-test-action="readlist-menu"]';
 const READLIST_MENU_PANEL = "[data-test-readlist-menu]";
 const READLIST_MENU_FLYOUT = `${READLIST_MENU_PANEL} .menu__panel`;
@@ -233,10 +235,14 @@ async function clickAndWaitForCounts(page: Page, locator: ReturnType<Page["locat
 	await counts;
 }
 
-async function openCustomReadlist(page: Page, email: string): Promise<void> {
-	await createVerifiedUser(page, email);
-	await loginAs(page, email);
+async function openCustomReadlist(
+	page: Page,
+	input: { email: string; openRail: (page: Page) => Promise<void> },
+): Promise<void> {
+	await createVerifiedUser(page, input.email);
+	await loginAs(page, input.email);
 	await gotoReadlistQueue(page, "");
+	await input.openRail(page);
 	await clickAndWaitForCounts(page, page.locator(NEW_READLIST_BUTTON));
 }
 
@@ -370,6 +376,16 @@ async function railStacksAboveTheListing(page: Page): Promise<void> {
 	assert.ok(
 		rail.y + rail.height <= main.y,
 		`the rail must stack above the listing on a phone, measured rail=${JSON.stringify(rail)} main=${JSON.stringify(main)}`,
+	);
+}
+
+async function railFoldsToOneRow(page: Page): Promise<void> {
+	const rail = await measuredBox(page, RAIL);
+	const summary = await measuredBox(page, `${RAIL} ${READLIST_SWITCHER_TOGGLE}`);
+	assert.equal(
+		rail.height,
+		summary.height,
+		`a closed switcher must fold the rail to its one summary row, measured rail=${rail.height}px summary=${summary.height}px`,
 	);
 }
 
@@ -518,6 +534,24 @@ async function renameDialogSettled(page: Page): Promise<void> {
 	await page.click(READLIST_MENU_RENAME);
 	await page.waitForSelector(`${READLIST_RENAME_POPOVER}:popover-open`);
 	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function renameDialogPhoneSettled(page: Page): Promise<void> {
+	await openReadlistSwitcher(page);
+	await renameDialogSettled(page);
+}
+
+async function railPhoneOpenSettled(page: Page): Promise<void> {
+	await customReadlistPageSettled(page);
+	await openReadlistSwitcher(page);
+	await page.mouse.move(0, 0);
+}
+
+async function readOnlyRailSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(`${RAIL} [data-test-readlist]`)).toHaveCount(3);
+	await page.mouse.move(0, 0);
 }
 
 async function deleteReadlistDialogSettled(page: Page): Promise<void> {
@@ -704,6 +738,7 @@ const RENAME_DIALOG: VisualCheckpoint = {
 const RENAME_DIALOG_PHONE: VisualCheckpoint = {
 	...RENAME_DIALOG,
 	name: "readlist-rename-dialog-phone",
+	settled: renameDialogPhoneSettled,
 	geometry: renameDialogPhoneGeometry,
 };
 
@@ -885,7 +920,28 @@ const SUBSCRIPTION_TRIAL_PHONE: VisualCheckpoint = {
 const RAIL_PHONE: VisualCheckpoint = {
 	name: "readlist-rail-phone",
 	settled: customReadlistPageSettled,
+	geometry: async (page) => {
+		await railStacksAboveTheListing(page);
+		await railFoldsToOneRow(page);
+	},
+	target: RAIL,
+	capture: "element",
+	pinnedText: [],
+};
+
+const RAIL_PHONE_OPEN: VisualCheckpoint = {
+	name: "readlist-rail-phone-open",
+	settled: railPhoneOpenSettled,
 	geometry: railStacksAboveTheListing,
+	target: RAIL,
+	capture: "element",
+	pinnedText: [],
+};
+
+const RAIL_READ_ONLY: VisualCheckpoint = {
+	name: "readlist-rail-read-only",
+	settled: readOnlyRailSettled,
+	geometry: railBesideMainBesideSide,
 	target: RAIL,
 	capture: "element",
 	pinnedText: [],
@@ -995,7 +1051,7 @@ test.describe("Readlist page (custom readlist)", () => {
 		test(`lands on a freshly made readlist with its own empty state (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-custom-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
-			await openCustomReadlist(page, email);
+			await openCustomReadlist(page, { email, openRail: railIsOpen });
 
 			await captureCheckpoint(page, withTheme(PAGE_CUSTOM_READLIST, theme));
 		});
@@ -1067,7 +1123,7 @@ test.describe("Readlist rail menu", () => {
 		test(`opens the rail menu for a custom readlist (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-rail-menu-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
-			await openCustomReadlist(page, email);
+			await openCustomReadlist(page, { email, openRail: railIsOpen });
 
 			await captureCheckpoint(page, withTheme(RAIL_MENU_OPEN, theme));
 		});
@@ -1077,7 +1133,7 @@ test.describe("Readlist rail menu", () => {
 		test(`opens the rename dialog from the rail menu (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-rename-dialog-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
-			await openCustomReadlist(page, email);
+			await openCustomReadlist(page, { email, openRail: railIsOpen });
 
 			await captureCheckpoint(page, withTheme(RENAME_DIALOG, theme));
 		});
@@ -1087,7 +1143,7 @@ test.describe("Readlist rail menu", () => {
 		test(`opens the delete-readlist dialog from the rail menu (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-delete-readlist-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
-			await openCustomReadlist(page, email);
+			await openCustomReadlist(page, { email, openRail: railIsOpen });
 
 			await captureCheckpoint(page, withTheme(DELETE_READLIST_DIALOG, theme));
 		});
@@ -1169,7 +1225,7 @@ test.describe("Readlist dialogs on a phone", () => {
 	test("stacks Save above Cancel in the rename dialog", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const email = `readlist-rename-dialog-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openCustomReadlist(page, email);
+		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
 		await captureCheckpoint(page, RENAME_DIALOG_PHONE);
 	});
 
@@ -1356,7 +1412,7 @@ test.describe("Readlist page on a phone", () => {
 
 	test("hides the save card on a custom readlist and points back at the default", async ({ page }, testInfo) => {
 		const email = `readlist-phone-custom-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openCustomReadlist(page, email);
+		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
 		await expect(page.locator(SAVE_CARD)).toHaveClass(/readlist-save--hidden/);
 		await expect(page.locator('[data-test-empty-action="open-default"]')).toBeVisible();
 
@@ -1369,9 +1425,55 @@ test.describe("Readlist rail on a phone", () => {
 
 	test("keeps every readlist reachable above the listing", async ({ page }, testInfo) => {
 		const email = `readlist-phone-rail-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openCustomReadlist(page, email);
+		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
 
 		await captureCheckpoint(page, RAIL_PHONE);
+	});
+	test("opens the switcher onto every readlist and the create row", async ({ page }, testInfo) => {
+		const email = `readlist-phone-rail-open-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
+
+		await captureCheckpoint(page, RAIL_PHONE_OPEN);
+	});
+});
+
+test.describe("Readlist rail for a read-only account", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`lists the readlists with no menus and no create row (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-rail-read-only-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+			await clickAndWaitForCounts(page, page.locator(NEW_READLIST_BUTTON));
+			await clickAndWaitForCounts(page, page.locator(NEW_READLIST_BUTTON));
+			await seedSubscriptionState(page, { userId, state: "inactive" });
+			await gotoReadlistQueue(page, "");
+
+			await expect(page.locator(`${RAIL} ${READLIST_MENU_SUMMARY}`)).toHaveCount(0);
+			await expect(page.locator(`${RAIL} ${NEW_READLIST_BUTTON}`)).toHaveCount(0);
+			await captureCheckpoint(page, withTheme(RAIL_READ_ONLY, theme));
+		});
+	}
+});
+
+test.describe("Readlist grid tracks", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("sizes the rail, main and side tracks to the design grid from 1200px", async ({ page }, testInfo) => {
+		const email = `readlist-grid-tracks-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+
+		const rail = await measuredBox(page, RAIL);
+		const main = await measuredBox(page, MAIN_COLUMN);
+		const side = await measuredBox(page, SIDE);
+		assert.equal(rail.width, 230, `the rail track must be 230px wide, measured ${rail.width}px`);
+		assert.equal(main.width, 518, `the main track must be 518px wide at 1280, measured ${main.width}px`);
+		assert.equal(side.width, 340, `the side track must be 340px wide, measured ${side.width}px`);
 	});
 });
 
@@ -1402,9 +1504,9 @@ test.describe("Readlist rail at the name cap", () => {
 
 	test("wraps a cap-length name inside a rail it never widens", async ({ page }, testInfo) => {
 		const email = `readlist-cap-name-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openCustomReadlist(page, email);
+		await openCustomReadlist(page, { email, openRail: railIsOpen });
 		const railBefore = await measuredBox(page, RAIL);
-		const singleLine = await measuredBox(page, `${RAIL} .readlist-nav__link--active`);
+		const singleLine = await measuredBox(page, `${RAIL} ${ACTIVE_READLIST_LINK}`);
 
 		await page.click(READLIST_MENU_SUMMARY);
 		await page.click(READLIST_MENU_RENAME);
@@ -1414,7 +1516,7 @@ test.describe("Readlist rail at the name cap", () => {
 		await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText(LONGEST_READLIST_NAME);
 
 		const railAfter = await measuredBox(page, RAIL);
-		const wrapped = await measuredBox(page, `${RAIL} .readlist-nav__link--active`);
+		const wrapped = await measuredBox(page, `${RAIL} ${ACTIVE_READLIST_LINK}`);
 		const menu = await measuredBox(page, `${RAIL} ${READLIST_MENU_SUMMARY}`);
 		assert.equal(railAfter.width, railBefore.width, "a long name must never widen the rail");
 		assert.ok(

@@ -110,6 +110,12 @@ describe("readlist menu styles", () => {
 		expect(styles).toContain(".menu__panel {");
 		expect(styles).toContain(".menu__item {");
 	});
+
+	it("ships the shared readlist row styles with the readlist page", () => {
+		const styles = buildPage().styles;
+		expect(styles).toContain(".readlist-row {");
+		expect(styles).toContain(".readlist-row--selected {");
+	});
 });
 
 function pageDoc(

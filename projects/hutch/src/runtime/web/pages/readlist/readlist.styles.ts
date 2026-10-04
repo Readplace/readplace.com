@@ -7,6 +7,7 @@ import {
 	PAGINATION_STYLES,
 	UNDERLINE_TABS_STYLES,
 } from "@packages/web-shell";
+import { READLIST_ROW_STYLES } from "../../shared/readlist-row/readlist-row.styles";
 
 const stylesPath = join(__dirname, "readlist.styles.css");
-export const READLIST_STYLES = `${UNDERLINE_TABS_STYLES}\n${IN_FLIGHT_DOTS_STYLES}\n${MENU_STYLES}\n${PAGINATION_STYLES}\n${ALERT_STYLES}\n${readFileSync(stylesPath, "utf-8")}`;
+export const READLIST_STYLES = `${UNDERLINE_TABS_STYLES}\n${IN_FLIGHT_DOTS_STYLES}\n${MENU_STYLES}\n${PAGINATION_STYLES}\n${ALERT_STYLES}\n${READLIST_ROW_STYLES}\n${readFileSync(stylesPath, "utf-8")}`;

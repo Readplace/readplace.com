@@ -10,7 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { clickAndWaitForPageReload } from "./page-interactions";
+import { clickAndWaitForPageReload, openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -84,8 +84,9 @@ async function gotoReadlistQueue(page: Page, query: string): Promise<void> {
 	await expect(page.locator(UNREAD_TAB)).toHaveText("To Read (0)");
 }
 
-async function createCustomReadlist(page: Page): Promise<string> {
+async function createCustomReadlist(page: Page, openRail: (page: Page) => Promise<void>): Promise<string> {
 	await page.goto(`${BASE_URL}/queue?feature=pref`, { waitUntil: "domcontentloaded" });
+	await openRail(page);
 	await clickAndWaitForPageReload(page, page.locator(NEW_READLIST_BUTTON));
 	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
 	const slug = new URL(page.url()).searchParams.get("queue");
@@ -318,7 +319,7 @@ test.describe("Underline tabs geometry on the readlist at desktop", () => {
 
 	test("keeps the Preferences tab at one width whether it is open or not", async ({ page }, testInfo) => {
 		await signIn(page, `underline-tabs-preferences-width-${testInfo.workerIndex}-${Date.now()}@example.com`);
-		const slug = await createCustomReadlist(page);
+		const slug = await createCustomReadlist(page, railIsOpen);
 		await gotoCustomReadlist(page, slug);
 		await waitForBrandFonts(page, ["Inter"]);
 		const closed = await tabHugsItsReservedLabel(page, PREFERENCES_TAB);
@@ -346,7 +347,7 @@ test.describe("Underline tabs geometry on the readlist on a phone", () => {
 
 	test("fits three tabs on one row on a custom readlist", async ({ page }, testInfo) => {
 		await signIn(page, `underline-tabs-phone-three-${testInfo.workerIndex}-${Date.now()}@example.com`);
-		const slug = await createCustomReadlist(page);
+		const slug = await createCustomReadlist(page, openReadlistSwitcher);
 		await gotoCustomReadlist(page, slug);
 		await waitForBrandFonts(page, ["Inter"]);
 
@@ -395,7 +396,7 @@ test.describe("Underline tabs on the readlist at desktop", () => {
 		test(`shows three tabs with Preferences open on a custom readlist (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			await signIn(page, `underline-tabs-three-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`);
-			const slug = await createCustomReadlist(page);
+			const slug = await createCustomReadlist(page, railIsOpen);
 			await gotoCustomReadlistPreferences(page, slug);
 
 			await captureCheckpoint(

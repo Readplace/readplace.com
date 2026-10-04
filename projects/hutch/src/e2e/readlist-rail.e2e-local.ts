@@ -4,7 +4,7 @@ import { z } from "zod";
 import { expect, measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { formatTabCountLabel } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
-import { clickAndWaitForPageReload } from "./page-interactions";
+import { clickAndWaitForPageReload, openReadlistSwitcher } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -14,8 +14,12 @@ const DESKTOP = { width: 1280, height: 900 };
 const MAIN = "main.readlist";
 const RAIL_LINK = `${MAIN} [data-test-readlist]`;
 const DEFAULT_RAIL_LINK = '[data-test-readlist="default"]';
-const ACTIVE_RAIL_LINK = `${MAIN} .readlist-nav__link--active`;
-const ACTIVE_RAIL_LABEL = `${ACTIVE_RAIL_LINK} .readlist-nav__label`;
+const ACTIVE_RAIL_LINK = `${MAIN} [data-test-readlist][aria-current="page"]`;
+const ACTIVE_RAIL_LABEL = `${ACTIVE_RAIL_LINK} [data-test-readlist-label]`;
+const SWITCHER = `${MAIN} [data-test-readlist-switcher]`;
+const SWITCHER_TOGGLE = `${MAIN} [data-test-action="readlist-switcher"]`;
+const NEW_READLIST = '[data-test-action="new-readlist"]';
+const PHONE = { width: 390, height: 844 };
 const READLIST_MENU = "[data-test-readlist-menu]";
 const READLIST_MENU_TOGGLE = '[data-test-action="readlist-menu"]';
 const RENAME_TRIGGER = '[data-test-action="readlist-rename"]';
@@ -278,6 +282,86 @@ test.describe("The readlists rail", () => {
 	});
 });
 
+test.describe("The readlists rail on a desktop", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("lists every readlist without opening anything, and hides the switcher summary", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-rail-desktop-open-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await makeReadlist(page);
+
+		const nav = page.getByRole("navigation", { name: "Readlists" });
+		await expect(nav.getByRole("link", { name: "All" })).toBeVisible();
+		await expect(page.locator(SWITCHER_TOGGLE)).toBeHidden();
+
+		await page.locator(ACTIVE_RAIL_LINK).focus();
+		await page.keyboard.press("Tab");
+		await expect(page.locator(`${MAIN} ${READLIST_MENU_TOGGLE}`).first()).toBeFocused();
+	});
+
+	test("keeps the selected row's tint and on-tint ink when the pointer rests on it", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-rail-selected-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+
+		const tokens = await page.evaluate(() => {
+			const probe = document.createElement("span");
+			document.body.append(probe);
+			probe.style.color = "var(--primary-text-on-tint)";
+			probe.style.backgroundColor = "var(--secondary)";
+			const style = getComputedStyle(probe);
+			const resolved = { ink: style.color, tint: style.backgroundColor };
+			probe.remove();
+			return resolved;
+		});
+		const row = page.locator(ACTIVE_RAIL_LINK).locator("xpath=..");
+		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveCSS("color", tokens.ink);
+		await page.locator(ACTIVE_RAIL_LINK).hover();
+		await expect(row).toHaveCSS("background-color", tokens.tint);
+	});
+});
+
+test.describe("The readlist switcher on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("folds the rail into one closed row that opens onto every readlist and switches", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-rail-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+
+		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
+		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("All");
+		await expect(page.locator(`${MAIN} ${NEW_READLIST}`)).toBeHidden();
+
+		await openReadlistSwitcher(page);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(1);
+		await expect(page.locator(`${MAIN} ${NEW_READLIST}`)).toBeVisible();
+		await makeReadlist(page);
+		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
+
+		await openReadlistSwitcher(page);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
+		await clickAndWaitForPageReload(page, page.locator(DEFAULT_RAIL_LINK));
+		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
+		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("All");
+
+		await openReadlistSwitcher(page);
+		await clickAndWaitForPageReload(page, page.locator(`${RAIL_LINK}:not(${DEFAULT_RAIL_LINK})`));
+		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
+		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("New Readlist");
+	});
+});
+
 test.describe("Dismissing a menu dialog returns focus to the kebab that opened it", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -394,9 +478,7 @@ test.describe("The readlist status tabs", () => {
 
 		const releaseDefault = holdNextCounts();
 		await page.click(DEFAULT_RAIL_LINK);
-		await expect(page.locator(`${DEFAULT_RAIL_LINK}`)).toHaveClass(
-			/readlist-nav__link--active/,
-		);
+		await expect(page.locator(DEFAULT_RAIL_LINK)).toHaveAttribute("aria-current", "page");
 		await expect(page.locator(UNREAD_TAB)).toHaveText(`To Read (${SEEDED_ARTICLES.length})`);
 		releaseDefault();
 	});

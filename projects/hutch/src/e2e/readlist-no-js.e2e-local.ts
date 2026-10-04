@@ -204,4 +204,23 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 		await expect(page.locator('[data-test-form="login"]')).toBeVisible({ timeout: SETTLE_MS });
 	});
+
+	test("the readlist switcher opens and switches readlist with no script", async ({ page }, testInfo) => {
+		const email = await seedArticleWithThumbnail(page, `${testInfo.workerIndex}-${Date.now()}-switcher`);
+		await loginAs(page, email);
+		const switcher = page.locator("main [data-test-readlist-switcher]");
+		const toggle = page.locator('main [data-test-action="readlist-switcher"]');
+
+		await toggle.click();
+		await expect(switcher).toHaveJSProperty("open", true);
+		await page.locator('main [data-test-action="new-readlist"]').click();
+		await page.waitForSelector("body.page-readlist");
+		await expect(toggle).toContainText("New Readlist", { timeout: SETTLE_MS });
+		await expect(switcher).toHaveJSProperty("open", false);
+
+		await toggle.click();
+		await page.locator('main [data-test-readlist="default"]').click();
+		await expect(toggle).toContainText("All", { timeout: SETTLE_MS });
+		await expect(switcher).toHaveJSProperty("open", false);
+	});
 });

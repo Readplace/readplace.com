@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { READLIST_LABEL_MAX_LENGTH, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
 import { JSDOM } from "jsdom";
+import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
@@ -191,14 +192,12 @@ describe("buildReadlistNav", () => {
 	it("marks the viewed readlist's link and item as the selected one, and leaves the others plain", () => {
 		const doc = renderNav({ activeSlug: WORK.slug });
 
-		expect(readlistLink(doc, "work").getAttribute("class")).toBe(
-			"readlist-nav__link readlist-nav__link--active",
-		);
+		expect(readlistLink(doc, "work").getAttribute("class")).toBe("readlist-row__main readlist-nav__link");
 		expect(readlistLink(doc, "work").parentElement?.className).toBe(
-			"readlist-nav__item readlist-nav__item--active",
+			"readlist-row readlist-nav__item readlist-row--selected",
 		);
-		expect(readlistLink(doc, "default").getAttribute("class")).toBe("readlist-nav__link");
-		expect(readlistLink(doc, "default").parentElement?.className).toBe("readlist-nav__item");
+		expect(readlistLink(doc, "default").getAttribute("class")).toBe("readlist-row__main readlist-nav__link");
+		expect(readlistLink(doc, "default").parentElement?.className).toBe("readlist-row readlist-nav__item");
 	});
 
 	it("tells assistive tech which readlist the reader is on, and only that one", () => {
@@ -206,6 +205,33 @@ describe("buildReadlistNav", () => {
 
 		expect(readlistLink(doc, "work").getAttribute("aria-current")).toBe("page");
 		expect(readlistLink(doc, "default").hasAttribute("aria-current")).toBe(false);
+	});
+
+	it("names the viewed readlist in the switcher summary with its readlist-kind icon", () => {
+		for (const { activeSlug, kind, label } of [
+			{ activeSlug: DEFAULT_READLIST.slug, kind: "default", label: DEFAULT_READLIST.label },
+			{ activeSlug: WORK.slug, kind: "custom", label: WORK.label },
+		] as const) {
+			const doc = renderNav({ activeSlug });
+
+			const summary = doc.querySelector('[data-test-action="readlist-switcher"]');
+			assert(summary, "the rail must open from a switcher summary");
+			expect(summary.textContent?.replace(/\s+/g, " ").trim()).toBe(`Current readlist: ${label}`);
+			expect(iconPathD(summary)).toBe(firstPathD(iconSvg(READLIST_KIND_ICON[kind])));
+		}
+	});
+
+	it("keeps every readlist row and the create row inside the switcher", () => {
+		const doc = renderNav();
+
+		const switcher = doc.querySelector("[data-test-readlist-switcher]");
+		assert(switcher, "the rail must wrap its rows in the switcher");
+		const rows = Array.from(switcher.querySelectorAll("[data-test-readlist]"), (el) =>
+			el.getAttribute("data-test-readlist"),
+		);
+		expect(rows).toEqual(["default", "work"]);
+		expect(doc.querySelectorAll("[data-test-readlist]")).toHaveLength(2);
+		expect(switcher.querySelectorAll('[data-test-action="new-readlist"]')).toHaveLength(1);
 	});
 
 	it("starts a new readlist by posting, tagged for funnel attribution", () => {
