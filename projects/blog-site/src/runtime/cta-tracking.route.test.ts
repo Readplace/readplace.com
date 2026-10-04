@@ -47,19 +47,22 @@ function makeApp() {
 }
 
 describe("every same-origin CTA carries its own utm_source", () => {
-	it("holds across the blog chrome and every published post's own prose", async () => {
-		const app = makeApp();
-		const slugs = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: OWN_HOST }).getAllSlugs();
-		const paths = ["/blog", "/blog/no-such-post", ...slugs.map((slug) => `/blog/${slug}`)];
+	const app = makeApp();
+	const slugs = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: OWN_HOST }).getAllSlugs();
+	const paths = ["/blog", "/blog/no-such-post", ...slugs.map((slug) => `/blog/${slug}`)];
 
-		const untracked: string[] = [];
-		for (const path of paths) {
+	it("checks at least one published post", () => {
+		expect(slugs.length).toBeGreaterThan(0);
+	});
+
+	for (const path of paths) {
+		it(`holds across ${path}`, async () => {
 			const response = await request(app).get(path).set(BROWSER_HEADERS);
 			const found = findUntrackedCtas(response.text, { skipSelectors: [], ownOrigin: `https://${OWN_HOST}` });
+			const untracked: string[] = [];
 			for (const line of describeUntrackedCtas(found)) untracked.push(`${path}  ${line}`);
-		}
 
-		expect(slugs.length).toBeGreaterThan(0);
-		expect(untracked).toEqual([]);
-	});
+			expect(untracked).toEqual([]);
+		});
+	}
 });

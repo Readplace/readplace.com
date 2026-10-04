@@ -302,9 +302,9 @@ describe("GET /blog/:slug", () => {
 });
 
 describe("share image", () => {
-	it("gives every post a share image", async () => {
-		const expected = `${STATIC_BASE_URL}/og-image-1200x630.png`;
-		for (const post of blogPosts.getAllPosts()) {
+	for (const post of blogPosts.getAllPosts()) {
+		it(`gives ${post.slug} a share image`, async () => {
+			const expected = `${STATIC_BASE_URL}/og-image-1200x630.png`;
 			const response = await request(app).get(`/blog/${post.slug}`);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(expected);
@@ -312,8 +312,8 @@ describe("share image", () => {
 				.map((script) => JSON.parse(script.textContent ?? ""))
 				.find((block) => block["@type"] === "BlogPosting");
 			expect(blogPosting?.image).toBe(expected);
-		}
-	});
+		});
+	}
 });
 
 describe("old hutch-vs-* slug redirects", () => {
