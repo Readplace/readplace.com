@@ -56,8 +56,8 @@ Forwarding copies. The issues keep arriving in Gmail, unread state intact, at th
 
 Removing a mapping stops the forwarding for that sender and keeps what was already saved. The notice on the page commits to it: "Mapping removed. Articles you already saved stay in your readlists."
 
-## Map the sender with the deepest pile
+## A month of backlog on day 1
 
-The 30-day import is what makes the first mapping a fair test on day 1 instead of a week of waiting. Pick the sender whose issues stack up fastest and give it a readlist of its own. Tick the import. The backlog comes back as summarized articles, which is an easier thing to face than a month of unread mail from the same sender.
+The 30-day import makes the first mapping a fair test instead of a week of waiting. Pick the sender whose issues stack up fastest and give it a readlist of its own. Tick the import. The backlog comes back as summarized articles, which is an easier thing to face than a month of unread mail from the same sender.
 
-A sign-in and one pasted address is the whole setup, under [Newsletters](/newsletters?utm_source=blog-gmail-newsletters-skip-the-inbox&utm_medium=internal&utm_content=newsletters) at [readplace.com](/?utm_source=blog-gmail-newsletters-skip-the-inbox&utm_medium=internal&utm_content=home). The next issue is coming either way. Where it lands just became a choice.
+The whole setup is a sign-in and one pasted address, under [Newsletters](/newsletters?utm_source=blog-gmail-newsletters-skip-the-inbox&utm_medium=internal&utm_content=newsletters) at [readplace.com](/?utm_source=blog-gmail-newsletters-skip-the-inbox&utm_medium=internal&utm_content=home). The next issue is coming either way. Where it lands just became a choice.
