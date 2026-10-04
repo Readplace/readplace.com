@@ -1,10 +1,10 @@
 ---
-title: "Your Gmail Newsletters Can Skip the Inbox"
-description: "A newsletter you chose arrives in Gmail between a receipt and a calendar invite, and the inbox clears it like the rest. Connect Gmail to Readplace, point a sender at a readlist, and each new issue lands there as saved articles, summarized and sorted out from the packaging. The subscription keeps its address, the mail stays unread, and connecting reads mail headers, not mail."
-slug: "gmail-newsletters-skip-the-inbox"
+title: "Introducing GMail integration"
+description: "A newsletter you chose arrives in Gmail between a receipt and a calendar invite, and gets cleared with the rest. Connect Gmail to Readplace, point a sender at a readlist, and each new issue lands there as saved articles, summarized and sorted out from the packaging. The subscription keeps its address, the mail stays unread, and connecting reads mail headers, not mail."
+slug: "introducing-gmail-integration"
 date: "2026-10-03"
 author: "Fayner Brack"
-keywords: "read gmail newsletters outside the inbox, gmail newsletter reader, save newsletters to read later, newsletter to read it later app, connect gmail to read it later, newsletter overload, gmail newsletters to readlist, read newsletters without the inbox, readplace"
+keywords: "gmail integration, read gmail newsletters, gmail newsletter reader, save newsletters to read later, newsletter to read it later app, connect gmail to read it later, newsletter overload, gmail newsletters to readlist, readplace"
 tags: ["changelog"]
 banner: "The newsletters in your Gmail can fill a readlist"
 ---
@@ -18,17 +18,17 @@ Week after week, the newsletters you chose lose to the email you didn't. Readpla
 </div>
 </details>
 
-The inbox clears things, and a falling count is what a good day there looks like. A newsletter asks for the opposite of clearing, 20 unhurried minutes, and it arrives in the middle of the clearing anyway, between a receipt and a calendar invite.
+The mailbox is a machine for clearing, and a falling count is what a good day there looks like. A newsletter asks for the opposite of clearing, 20 unhurried minutes, and it arrives in the middle of the clearing anyway, between a receipt and a calendar invite.
 
-The subscription was a decision about reading. The inbox files it under mail to get through.
+The subscription was a decision about reading. The mailbox files it under mail to get through.
 
-Readplace's first answer shipped in July: [an address you hand one newsletter](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-gmail-newsletters-skip-the-inbox&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist), so the issues skip your mail entirely. That answer stands, and it asks for a trade. Each subscription has to move to its new address through one publisher's preferences page at a time, and the subscriptions that don't get moved keep landing where they did before.
+Readplace's first answer shipped in July: [an address you hand one newsletter](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist), so the issues skip your mail entirely. That answer stands, and it asks for a trade. Each subscription has to move to its new address through one publisher's preferences page at a time, and the subscriptions that don't get moved keep landing where they did before.
 
 The trade is what this week removes. The newsletters already arriving in a Gmail account can now feed readlists directly, with nothing re-subscribed and nothing moved.
 
 ## One pasted address, confirmed on its own
 
-Connecting lives under Newsletters, the nav item that now holds both ways in: From Gmail, and the July addresses as From Custom Emails. On the From Gmail page, step 1 is a Google sign-in. Step 2 is the one manual piece of the whole setup: Gmail's settings page takes [a forwarding address](/view/support.google.com/mail/answer/10957?utm_source=blog-gmail-newsletters-skip-the-inbox&utm_medium=internal&utm_content=read-support-google-com), and the page shows the exact address to paste, with screenshots for where it goes.
+Connecting lives under Newsletters, the nav item that now holds both ways in: From Gmail, and the July addresses as From Custom Emails. On the From Gmail page, step 1 is a Google sign-in. Step 2 is the one manual piece of the whole setup: Gmail's settings page takes [a forwarding address](/view/support.google.com/mail/answer/10957?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=read-support-google-com), and the page shows the exact address to paste, with screenshots for where it goes.
 
 Gmail responds to a new forwarding address by emailing a confirmation to that address. The address belongs to Readplace, so the confirmation is handled the moment it arrives. In the page's own words: "Readplace confirms it for you — you never need the code Gmail mentions."
 
@@ -60,4 +60,4 @@ Removing a mapping stops the forwarding for that sender and keeps what was alrea
 
 The 30-day import makes the first mapping a fair test instead of a week of waiting. Pick the sender whose issues stack up fastest and give it a readlist of its own. Tick the import. The backlog comes back as summarized articles, which is an easier thing to face than a month of unread mail from the same sender.
 
-The whole setup is a sign-in and one pasted address, under [Newsletters](/newsletters?utm_source=blog-gmail-newsletters-skip-the-inbox&utm_medium=internal&utm_content=newsletters) at [readplace.com](/?utm_source=blog-gmail-newsletters-skip-the-inbox&utm_medium=internal&utm_content=home). The next issue is coming either way. Where it lands just became a choice.
+The whole setup is a sign-in and one pasted address, under [Newsletters](/newsletters?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=newsletters) at [readplace.com](/?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=home). The next issue is coming either way. Where it lands just became a choice.
