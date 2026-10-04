@@ -13,7 +13,7 @@ banner: "The newsletters in your Gmail can fill a readlist"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Week after week, the newsletters you chose lose to the email you didn't. Readplace now connects to Gmail: pick a sender, point it at a readlist, and each new issue lands there as saved articles, sorted out from the sponsor slots and the unsubscribe footer. The subscription keeps its address, and the mail stays in Gmail, unread and unmoved. Connecting reads mail headers, not the mail itself, and permission to read arrives only if you ask for the unread issues of the last 30 days, one sender at a time.
+Week after week, the newsletters you chose lose to the email you didn't. Readplace now connects to Gmail: pick a sender, point it at a readlist, and each new issue lands there as saved articles, sorted out from the sponsor slots and the unsubscribe footer. The subscription keeps its address, and the mail stays in Gmail, unread and unmoved. The connection comes with a paid Readplace subscription, reads mail headers, not the mail itself, and permission to read arrives only if you ask for the unread issues of the last 30 days, one sender at a time.
 
 </div>
 </details>
@@ -60,4 +60,4 @@ Removing a mapping stops the forwarding for that sender and keeps what was alrea
 
 The 30-day import makes the first mapping a fair test instead of a week of waiting. Pick the sender whose issues stack up fastest and give it a readlist of its own. Tick the import. The backlog comes back as summarized articles, which is an easier thing to face than a month of unread mail from the same sender.
 
-The whole setup is a sign-in and one pasted address, under [Newsletters](/newsletters?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=newsletters) at [readplace.com](/?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=home). The next issue is coming either way. Where it lands just became a choice.
+Connecting Gmail takes an active paid Readplace subscription, and the setup itself is a sign-in and one pasted address, under [Newsletters](/newsletters?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=newsletters) at [readplace.com](/?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=home). The next issue is coming either way. Where it lands just became a choice.
