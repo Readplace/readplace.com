@@ -9,17 +9,18 @@ const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 
 const OWNER_PASSWORD = "password123";
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
-const THUMBNAIL_URL = "https://cdn.example.com/readlist-status-button-thumbnail.svg";
 
 const SHORT_META_CARD = {
 	url: "https://go.dev/blog/short",
-	title: "Short meta and no thumbnail",
+	title: "Short meta",
 };
-const THUMBNAIL_CARD = {
+const LONG_SITE_CARD = {
 	url: "https://engineering.a-very-long-publication-name.example.com/deep/post",
-	title: "Long site name and a thumbnail",
-	imageUrl: THUMBNAIL_URL,
+	title: "Long site name",
 };
+
+const WIDTHS = [320, 390, 900, 1024, 1280];
+const TOLERANCE = 1.5;
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
@@ -36,7 +37,6 @@ async function seedCard(
 	params: {
 		url: string;
 		title: string;
-		imageUrl?: string;
 		savedAt: string;
 		userId: string;
 		summarised: boolean;
@@ -46,7 +46,6 @@ async function seedCard(
 		data: {
 			url: params.url,
 			title: params.title,
-			...(params.imageUrl ? { imageUrl: params.imageUrl } : {}),
 			content: "<p>Seeded body for the readlist-card status-button placement test.</p>",
 			contentFetchedAt: CONTENT_FETCHED_AT,
 			savedAt: params.savedAt,
@@ -56,15 +55,6 @@ async function seedCard(
 		},
 	});
 	assert.equal(response.status(), 201, "the seed endpoint must create the crawled article");
-}
-
-async function pinThumbnail(page: Page): Promise<void> {
-	await page.route(THUMBNAIL_URL, (route) =>
-		route.fulfill({
-			contentType: "image/svg+xml",
-			body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"><rect width="320" height="240" fill="#B9712A"/></svg>',
-		}),
-	);
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
@@ -85,32 +75,51 @@ async function cardId(page: Page, title: string): Promise<string> {
 	return id;
 }
 
-async function measureCard(
+type Placement = "beside-the-facts" | "own-leading-row";
+
+async function measurePlacement(
 	page: Page,
-	id: string,
-): Promise<{ factsBottom: number; factsLeft: number; buttonTop: number; buttonLeft: number }> {
-	const [facts, button] = await page.evaluate(measureBoxes, [
-		`[data-test-article="${id}"] .readlist-article__facts`,
-		`[data-test-article="${id}"] [data-test-action="mark-read"]`,
+	input: { id: string; lead: string; width: number; name: string },
+): Promise<Placement> {
+	const [foot, lead, button] = await page.evaluate(measureBoxes, [
+		`[data-test-article="${input.id}"] .readlist-article__foot`,
+		`[data-test-article="${input.id}"] ${input.lead}`,
+		`[data-test-article="${input.id}"] [data-test-action="mark-read"]`,
 	]);
-	return {
-		factsBottom: facts.y + facts.height,
-		factsLeft: facts.x,
-		buttonTop: button.y,
-		buttonLeft: button.x,
-	};
+	assert.ok(
+		Math.abs(lead.x - foot.x) <= TOLERANCE,
+		`at ${input.width}px the ${input.name} card's foot leads from the card's content edge — lead left ${lead.x}px vs foot left ${foot.x}px`,
+	);
+	const leadBottom = lead.y + lead.height;
+	if (button.y >= leadBottom - TOLERANCE) {
+		assert.ok(
+			Math.abs(button.x - lead.x) <= TOLERANCE,
+			`at ${input.width}px the ${input.name} card's wrapped button lines up with the leading edge — button left ${button.x}px vs lead left ${lead.x}px`,
+		);
+		return "own-leading-row";
+	}
+	const buttonCentre = button.y + button.height / 2;
+	assert.ok(
+		buttonCentre >= lead.y - TOLERANCE && buttonCentre <= leadBottom + TOLERANCE,
+		`at ${input.width}px the ${input.name} card's button is centred on its lead row — centre ${buttonCentre}px vs row ${lead.y}–${leadBottom}px`,
+	);
+	const contentEdge = foot.x + foot.width;
+	assert.ok(
+		Math.abs(button.x + button.width - contentEdge) <= TOLERANCE,
+		`at ${input.width}px the ${input.name} card's button ends at the row's content edge — button right ${button.x + button.width}px vs ${contentEdge}px`,
+	);
+	return "beside-the-facts";
 }
 
 test.describe("Readlist card status button placement", () => {
 	test.use({ timezoneId: "UTC" });
 
-	test("seats the status button on its own row at the card's left edge, every width", async ({
+	test("seats the status button beside the facts where the card fits it, and on its own leading-edge row where it doesn't", async ({
 		page,
 	}, testInfo) => {
 		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
 		const email = `readlist-status-button-${stamp}@example.com`;
 		const userId = await createOwner(page, email);
-		await pinThumbnail(page);
 		await seedCard(page, {
 			...SHORT_META_CARD,
 			url: `${SHORT_META_CARD.url}?${stamp}`,
@@ -119,8 +128,8 @@ test.describe("Readlist card status button placement", () => {
 			summarised: true,
 		});
 		await seedCard(page, {
-			...THUMBNAIL_CARD,
-			url: `${THUMBNAIL_CARD.url}?${stamp}`,
+			...LONG_SITE_CARD,
+			url: `${LONG_SITE_CARD.url}?${stamp}`,
 			savedAt: "2026-07-12T09:14:00.000Z",
 			userId,
 			summarised: true,
@@ -130,84 +139,86 @@ test.describe("Readlist card status button placement", () => {
 		await expect(page.locator('[data-test-action="mark-read"]')).toHaveCount(2);
 
 		const shortMetaId = await cardId(page, SHORT_META_CARD.title);
-		const thumbnailId = await cardId(page, THUMBNAIL_CARD.title);
+		const longSiteId = await cardId(page, LONG_SITE_CARD.title);
 
-		const TOLERANCE = 1.5;
-		for (const width of [320, 390, 900, 1280]) {
+		const placements: Placement[] = [];
+		for (const width of WIDTHS) {
 			await page.setViewportSize({ width, height: 900 });
-			const shortMeta = await measureCard(page, shortMetaId);
-			const thumbnail = await measureCard(page, thumbnailId);
-
-			for (const [name, card] of [
-				["short-meta", shortMeta],
-				["thumbnail", thumbnail],
-			] as const) {
-				assert.ok(
-					card.buttonTop >= card.factsBottom - TOLERANCE,
-					`at ${width}px the ${name} card's button starts below its facts row — button top ${card.buttonTop}px vs facts bottom ${card.factsBottom}px`,
-				);
-				assert.ok(
-					Math.abs(card.buttonLeft - card.factsLeft) <= TOLERANCE,
-					`at ${width}px the ${name} card's button lines up with the card's left edge — button left ${card.buttonLeft}px vs facts left ${card.factsLeft}px`,
-				);
-			}
-
-			assert.ok(
-				Math.abs(shortMeta.buttonLeft - thumbnail.buttonLeft) <= TOLERANCE,
-				`at ${width}px both cards' buttons share one x position — short-meta ${shortMeta.buttonLeft}px vs thumbnail ${thumbnail.buttonLeft}px`,
+			const shortMeta = await measurePlacement(page, {
+				id: shortMetaId,
+				lead: ".readlist-article__meta",
+				width,
+				name: "short-meta",
+			});
+			const longSite = await measurePlacement(page, {
+				id: longSiteId,
+				lead: ".readlist-article__meta",
+				width,
+				name: "long-site",
+			});
+			assert.equal(
+				longSite,
+				shortMeta,
+				`at ${width}px both cards take one placement — short-meta ${shortMeta} vs long-site ${longSite}`,
 			);
+			placements.push(shortMeta);
 		}
+		assert.deepEqual(
+			placements,
+			["own-leading-row", "own-leading-row", "beside-the-facts", "own-leading-row", "beside-the-facts"],
+			`the button wraps only where the card is too narrow for the facts beside it, across ${WIDTHS.join(", ")}px`,
+		);
 	});
 
-	test("keeps a processing card's unread dot right before its Processing line, every width", async ({
+	test("leads a processing card's foot with its Processing line and wraps its disabled toggle like a terminal row", async ({
 		page,
 	}, testInfo) => {
 		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
-		const email = `readlist-processing-dot-${stamp}@example.com`;
+		const email = `readlist-processing-foot-${stamp}@example.com`;
 		const userId = await createOwner(page, email);
-		await pinThumbnail(page);
 		await seedCard(page, {
 			...SHORT_META_CARD,
 			url: `${SHORT_META_CARD.url}?${stamp}`,
 			savedAt: "2026-07-11T09:14:00.000Z",
 			userId,
-			summarised: false,
+			summarised: true,
 		});
 		await seedCard(page, {
-			...THUMBNAIL_CARD,
-			url: `${THUMBNAIL_CARD.url}?${stamp}`,
+			...LONG_SITE_CARD,
+			url: `${LONG_SITE_CARD.url}?${stamp}`,
 			savedAt: "2026-07-12T09:14:00.000Z",
 			userId,
 			summarised: false,
 		});
 		await loginAs(page, email);
-		await expect(page.locator('[data-card-status="pending"]')).toHaveCount(2);
+		await expect(page.locator('[data-card-status="pending"]')).toHaveCount(1);
+		await expect(page.locator('[data-test-action="mark-read"]')).toHaveCount(2);
 
-		const shortMetaId = await cardId(page, SHORT_META_CARD.title);
-		const thumbnailId = await cardId(page, THUMBNAIL_CARD.title);
+		const terminalId = await cardId(page, SHORT_META_CARD.title);
+		const pendingId = await cardId(page, LONG_SITE_CARD.title);
+		await expect(
+			page.locator(`[data-test-article="${pendingId}"] [data-test-action="mark-read"]`),
+		).toBeDisabled();
 
-		const TOLERANCE = 1.5;
-		const FACTS_GAP_PX = 14;
-		for (const width of [320, 390, 900, 1280]) {
+		for (const width of WIDTHS) {
 			await page.setViewportSize({ width, height: 900 });
-			for (const [name, id] of [
-				["short-meta", shortMetaId],
-				["thumbnail", thumbnailId],
-			] as const) {
-				const [dot, processing] = await page.evaluate(measureBoxes, [
-					`[data-test-article="${id}"] [data-test-read-status]`,
-					`[data-test-article="${id}"] [data-test-processing]`,
-				]);
-				const gap = processing.x - (dot.x + dot.width);
-				assert.ok(
-					Math.abs(gap - FACTS_GAP_PX) <= TOLERANCE,
-					`at ${width}px the ${name} card's unread dot sits one facts gap before its Processing line — gap ${gap}px`,
-				);
-				assert.ok(
-					Math.abs(dot.y + dot.height / 2 - (processing.y + processing.height / 2)) <= TOLERANCE,
-					`at ${width}px the ${name} card's unread dot shares its Processing line — dot top ${dot.y}px vs processing top ${processing.y}px`,
-				);
-			}
+			const terminal = await measurePlacement(page, {
+				id: terminalId,
+				lead: ".readlist-article__meta",
+				width,
+				name: "terminal",
+			});
+			const pending = await measurePlacement(page, {
+				id: pendingId,
+				lead: "[data-test-processing]",
+				width,
+				name: "processing",
+			});
+			assert.equal(
+				pending,
+				terminal,
+				`at ${width}px the processing card's toggle takes the terminal card's placement — ${pending} vs ${terminal}`,
+			);
 		}
 	});
 });

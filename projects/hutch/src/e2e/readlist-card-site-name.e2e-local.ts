@@ -14,6 +14,7 @@ const SITE_NAME = ".readlist-article__site-name";
 
 const LONG_NAME = "Andi Roberts - Executive Coach | Leadership Trainer | Facilitator";
 const SHORT_HOST = "news.ycombinator.com";
+const UNBROKEN = "Supercalifragilisticexpialidocious".repeat(2).slice(0, 60);
 
 const LONG_CARD = {
 	url: "https://andiroberts.example.com/how-to-give-feedback",
@@ -163,5 +164,32 @@ test.describe("Readlist card site name", () => {
 			shortName.needed,
 			`a short name seats whole where the row has the width — painted ${shortName.painted}px of ${shortName.needed}px`,
 		);
+	});
+
+	test("never scrolls sideways with an unbroken 60-character title and site name", async ({
+		page,
+	}, testInfo) => {
+		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `readlist-unbroken-${stamp}@example.com`;
+		const userId = await createOwner(page, email);
+		await seedCard(page, {
+			url: `https://unbroken.example.com/post?${stamp}`,
+			title: UNBROKEN,
+			siteName: UNBROKEN,
+			savedAt: "2026-07-11T09:14:00.000Z",
+			userId,
+		});
+		await loginAs(page, email);
+		await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
+		await expect(page.locator("[data-test-article-title]")).toHaveText(UNBROKEN);
+		await expect(page.locator(SITE_NAME)).toHaveText(UNBROKEN);
+
+		for (const width of [320, 390, 1280]) {
+			await page.setViewportSize({ width, height: 844 });
+			assert.ok(
+				!(await page.evaluate(pageOverflowsSideways)),
+				`a ${width}px page never scrolls sideways under an unbroken title and site name`,
+			);
+		}
 	});
 });

@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { chromium } from "@playwright/test";
-import { waitForBrandFonts, waitForImagePixels } from "@packages/e2e-harness";
+import { waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { cwebp, dataUri, ffmpeg, probeImage } from "./tools.mjs";
 
@@ -108,7 +108,6 @@ async function settle(page) {
 async function openReadlist(page, origin) {
   await page.goto(`${origin}/queue`, { waitUntil: "networkidle" });
   await page.waitForSelector("[data-test-article-list]");
-  await waitForImagePixels(page, ".readlist-article__thumbnail");
   await settle(page);
 }
 

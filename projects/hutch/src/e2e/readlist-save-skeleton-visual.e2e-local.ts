@@ -34,10 +34,11 @@ const SORT_ROW = "main.readlist .readlist-listing__header";
 const LIST = "[data-test-article-list]";
 const CARD = "[data-test-article]";
 const FIRST_CARD = `${LIST} > ${CARD}:first-child`;
+const LANDED_TOGGLE = '#latest-saved [data-test-action="mark-read"]';
 const PENDING_CARD = '[data-card-status="pending"]';
 const EMPTY = "main.readlist [data-test-empty-readlist]";
 const SAVE_ERROR = "[data-test-save-error]";
-const UNREAD_FILTER_TAB = 'main.readlist [data-test-filter="unread"]';
+const LISTING_COUNT = "main.readlist #readlist-count";
 const AVATAR = "main.readlist .setup-guide__avatar";
 
 const PINNED_SAVE_URL = "https://example.com/an-article-being-saved";
@@ -133,7 +134,7 @@ async function openReadlist(page: Page): Promise<void> {
 
 async function readlistSettled(page: Page, cards: number): Promise<void> {
 	await expect(page.locator(CARD)).toHaveCount(cards);
-	await expect(page.locator(UNREAD_FILTER_TAB)).toHaveText(`To Read (${cards})`);
+	await expect(page.locator(LISTING_COUNT)).toHaveText(`${cards} Saved Articles`);
 	await waitForImagePixels(page, AVATAR);
 }
 
@@ -296,6 +297,7 @@ test.describe("The skeleton comes before the answer", () => {
 		await expect(page.locator(SKELETON)).toBeVisible();
 		await expect(page.locator(CARD)).toHaveCount(SEEDED_ARTICLES.length);
 		const [skeletonBox] = await page.evaluate(measureDocumentBoxes, [SKELETON]);
+		const [placeholder] = await page.evaluate(measureBoxes, [SKELETON_TOGGLE]);
 		release();
 
 		await expect(page.locator(CARD)).toHaveCount(SEEDED_ARTICLES.length + 1, { timeout: SETTLE_MS });
@@ -305,6 +307,12 @@ test.describe("The skeleton comes before the answer", () => {
 		assert.ok(
 			Math.abs(landedBox.top - skeletonBox.top) <= LAYOUT_TOLERANCE_PX,
 			`the saved card must land where the skeleton stood, measured ${skeletonBox.top}px then ${landedBox.top}px`,
+		);
+		const [toggle] = await page.evaluate(measureBoxes, [LANDED_TOGGLE]);
+		assert.deepEqual(
+			{ width: placeholder.width, height: placeholder.height },
+			{ width: toggle.width, height: toggle.height },
+			"the skeleton's toggle placeholder must take the box of the landed card's status button",
 		);
 	});
 

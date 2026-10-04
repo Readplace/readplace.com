@@ -4,12 +4,12 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 /**
  * Polls `/queue/:id/card` stop ticking once both pipelines reach a terminal
  * state. On the readlist-list card surface, the only visible fields that change are
- * title / siteName / excerpt / imageUrl / wordCount — i.e. the side effects of
+ * title / siteName / excerpt / wordCount — i.e. the side effects of
  * crawl and summary completion.
  *
  * 1. Failed crawl wins immediately: the pipeline gave up so nothing else will
  *    arrive. The card stays on its hostname-derived stub.
- * 2. Pending crawl: title / imageUrl / wordCount may still land.
+ * 2. Pending crawl: title / wordCount may still land.
  * 3. Crawl ready, summary pending: excerpt may still mature.
  * 4. crawl === undefined && summary === undefined: legacy stub before either
  *    state machine has a row. Keep polling; the next save-link-work tick will

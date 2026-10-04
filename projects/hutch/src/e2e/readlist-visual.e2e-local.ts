@@ -38,7 +38,6 @@ const UNBROKEN_WORD = "Supercalifragilisticexpialidociousandthensomemoretokeepgo
 const LONGEST_READLIST_NAME = "Longestpossiblereadlist".padEnd(READLIST_LABEL_MAX_LENGTH, "x");
 const RENAME_INPUT = "[data-test-readlist-rename-input]";
 const RENAME_SAVE = '[data-test-action="readlist-rename-save"]';
-const THUMBNAIL_URL = "https://cdn.example.com/readlist-thumbnail.svg";
 
 const MAIN = "main.readlist";
 const RAIL = ".readlist__rail";
@@ -70,7 +69,8 @@ const CARD_DELETE = '[data-test-action="delete"]';
 const NAV_USER = "[data-test-nav-user]";
 const NAV_USER_MENU = `${NAV_USER} .nav__user-menu`;
 const CARD_TIME = ".readlist-article__time";
-const CARD_THUMBNAIL = ".readlist-article__thumbnail";
+const PROCESSING_CARD = '[data-card-status="pending"]';
+const CARD_PROCESSING_LINE = "[data-test-processing]";
 const DELETE_ARTICLE_POPOVER = '[data-test-confirm-popover="delete"]';
 const OPEN_DELETE_ARTICLE_POPOVER = `${DELETE_ARTICLE_POPOVER}:popover-open`;
 const DELETE_ARTICLE_NEVER = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm-never"]`;
@@ -126,14 +126,12 @@ async function seedCrawledArticle(
 		savedAt: string;
 		excerpt: string;
 		userId: string;
-		imageUrl?: string;
 	},
 ): Promise<string> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
 			url: input.url,
 			title: input.title,
-			...(input.imageUrl ? { imageUrl: input.imageUrl } : {}),
 			content: "<p>Seeded body for the readlist visual baseline.</p>",
 			contentFetchedAt: SEEDED_FETCHED_AT,
 			savedAt: input.savedAt,
@@ -151,7 +149,7 @@ async function seedCrawledArticle(
 
 function seededArticles(
 	stamp: string,
-): { url: string; title: string; savedAt: string; excerpt: string; imageUrl?: string }[] {
+): { url: string; title: string; savedAt: string; excerpt: string }[] {
 	return [
 		{
 			url: `https://example.com/readlist-second-${stamp}`,
@@ -164,24 +162,13 @@ function seededArticles(
 			url: `https://example.com/readlist-first-${stamp}`,
 			title: "The article at the top of the readlist",
 			savedAt: "2026-07-12T09:14:00.000Z",
-			imageUrl: THUMBNAIL_URL,
 			excerpt:
 				"A fixed excerpt for the readlist visual baseline, long enough to occupy the card's excerpt lines.",
 		},
 	];
 }
 
-async function pinThumbnail(page: Page): Promise<void> {
-	await page.route(THUMBNAIL_URL, (route) =>
-		route.fulfill({
-			contentType: "image/svg+xml",
-			body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"><rect width="320" height="240" fill="#B9712A"/><rect x="24" y="150" width="272" height="16" fill="#F6EFE7"/></svg>',
-		}),
-	);
-}
-
 async function seedTwoArticles(page: Page, userId: string, stamp: string): Promise<void> {
-	await pinThumbnail(page);
 	for (const article of seededArticles(stamp)) {
 		await seedCrawledArticle(page, { ...article, userId });
 	}
@@ -513,7 +500,7 @@ async function emptyPageSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
 	await expect(page.locator(EMPTY)).toBeVisible();
-	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
 	await listingHeaderHidden(page);
 	await emptyArtAtDrawnSize(page);
 	await settledSetupGuide(page);
@@ -523,7 +510,7 @@ async function caughtUpSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
 	await expect(page.locator(EMPTY)).toBeVisible();
-	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
 	await listingHeaderHidden(page);
 	await expect(page.locator(EMPTY_ACTION)).toHaveCount(0);
 }
@@ -533,7 +520,7 @@ async function readEmptySettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(READ_FILTER_TAB)).toHaveAttribute("aria-current", "page");
 	await expect(page.locator(EMPTY)).toBeVisible();
-	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Read Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
 	await listingHeaderHidden(page);
 	await expect(page.locator(EMPTY_ACTION)).toHaveCount(1);
 	await expect(page.locator(`${EMPTY} [data-test-empty-action="view-unread"]`)).toBeVisible();
@@ -543,8 +530,7 @@ async function articlesPageSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
 	await expect(page.locator(ARTICLE)).toHaveCount(2);
-	await expect(page.locator(LISTING_COUNT)).toHaveText("2 Unread Articles");
-	await waitForImagePixels(page, CARD_THUMBNAIL);
+	await expect(page.locator(LISTING_COUNT)).toHaveText("2 Saved Articles");
 	await settledSetupGuide(page);
 }
 
@@ -553,8 +539,17 @@ async function readTabSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(READ_FILTER_TAB)).toHaveAttribute("aria-current", "page");
 	await expect(page.locator(ARTICLE)).toHaveCount(1);
-	await expect(page.locator(LISTING_COUNT)).toHaveText("1 Read Article");
-	await waitForImagePixels(page, CARD_THUMBNAIL);
+	await expect(page.locator(LISTING_COUNT)).toHaveText("1 Saved Article");
+	await page.mouse.move(0, 0);
+}
+
+async function processingCardSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(PROCESSING_CARD)).toHaveCount(1);
+	await expect(page.locator(`${PROCESSING_CARD} ${CARD_PROCESSING_LINE}`)).toBeVisible();
+	await expect(page.locator(`${PROCESSING_CARD} ${CARD_MARK_READ}`)).toBeDisabled();
+	await page.mouse.move(0, 0);
 }
 
 async function customReadlistPageSettled(page: Page): Promise<void> {
@@ -562,7 +557,7 @@ async function customReadlistPageSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText("New Readlist");
 	await expect(page.locator(EMPTY)).toBeVisible();
-	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
 	await listingHeaderHidden(page);
 	await settledSetupGuide(page);
 }
@@ -622,7 +617,6 @@ async function cardMenuOpenSettled(page: Page): Promise<void> {
 	await page.click(`${FIRST_CARD} ${CARD_MENU_SUMMARY}`);
 	await expect(page.locator(`${FIRST_CARD} ${CARD_MENU_PANEL}`)).toHaveAttribute("open", "");
 	await expect(page.locator(`${FIRST_CARD} ${CARD_DELETE}`)).toBeVisible();
-	await waitForImagePixels(page, CARD_THUMBNAIL);
 	await page.mouse.move(0, 0);
 }
 
@@ -698,7 +692,7 @@ async function subscriptionInactiveSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--inactive/);
 	await expect(page.locator(SAVE_INPUT)).toBeDisabled();
-	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
 	await listingHeaderHidden(page);
 	await settledSetupGuide(page);
 }
@@ -759,6 +753,15 @@ const PAGE_READ_TAB: VisualCheckpoint = {
 	target: LISTING,
 	capture: "element",
 	pinnedText: [{ selector: `${FIRST_CARD} ${CARD_TIME}`, text: "3 days ago" }],
+};
+
+const CARD_PROCESSING: VisualCheckpoint = {
+	name: "readlist-card-processing",
+	settled: processingCardSettled,
+	geometry: railBesideMainBesideSide,
+	target: PROCESSING_CARD,
+	capture: "element",
+	pinnedText: [{ selector: `${PROCESSING_CARD} ${CARD_TIME}`, text: "3 days ago" }],
 };
 
 const PAGE_CAUGHT_UP: VisualCheckpoint = {
@@ -1167,6 +1170,39 @@ test.describe("Readlist read tab", () => {
 			await gotoReadlistQueue(page, "?tab=done");
 
 			await captureCheckpoint(page, withTheme(PAGE_READ_TAB, theme));
+		});
+	}
+});
+
+async function seedProcessingArticle(page: Page, userId: string, stamp: string): Promise<void> {
+	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+		data: {
+			url: `https://example.com/readlist-processing-${stamp}`,
+			title: "An article still being processed",
+			content: "<p>Seeded body for the readlist visual baseline.</p>",
+			contentFetchedAt: SEEDED_FETCHED_AT,
+			savedAt: "2026-07-12T09:14:00.000Z",
+			savedByUserId: userId,
+			excerpt:
+				"A fixed excerpt for the readlist visual baseline, long enough to occupy the card's excerpt lines.",
+		},
+	});
+	assert.equal(response.status(), 201, "the seed endpoint must create the crawled article");
+}
+
+test.describe("Readlist processing card", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`shows the Processing line beside the disabled toggle (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const email = `readlist-card-processing-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedProcessingArticle(page, userId, email);
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+
+			await captureCheckpoint(page, withTheme(CARD_PROCESSING, theme));
 		});
 	}
 });

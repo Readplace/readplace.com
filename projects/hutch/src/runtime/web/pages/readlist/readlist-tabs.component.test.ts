@@ -156,31 +156,6 @@ describe("buildReadlistTabs", () => {
 		expect(hrefParts(tabLink(doc, "read")).params.get("feature")).toBe(null);
 	});
 
-	it("gives only the counted tab a label the counts fragment can refresh", () => {
-		const doc = renderTabs({ activeTab: "queue", readlist: WORK });
-
-		const labelled = Array.from(doc.querySelectorAll("[data-test-filter] span[id]"), (label) => [
-			label.closest("[data-test-filter]")?.getAttribute("data-test-filter"),
-			label.getAttribute("id"),
-		]);
-		expect(labelled).toEqual([["unread", "readlist-unread-label--work"]]);
-
-		const label = doc.querySelector("#readlist-unread-label--work");
-		assert(label, "the unread tab must render the label the counts fragment refreshes");
-		expect(label.hasAttribute("hx-preserve")).toBe(true);
-		expect(label.textContent).toBe("To Read");
-	});
-
-	it("paints the count the render already knows into the counted tab", () => {
-		expect(tabLink(renderTabs({ activeTab: "queue", knownUnreadCount: 0 }), "unread").textContent).toBe(
-			"To Read (0)",
-		);
-		expect(tabLink(renderTabs({ activeTab: "queue", knownUnreadCount: 2 }), "unread").textContent).toBe(
-			"To Read (2)",
-		);
-		expect(tabLink(renderTabs({ activeTab: "queue" }), "unread").textContent).toBe("To Read");
-	});
-
 	it("reserves every tab's widest label, so the pressed tab's weight change never moves the row", () => {
 		const doc = renderTabs({ activeTab: "queue", readlist: WORK, preferencesEnabled: true });
 
@@ -189,7 +164,7 @@ describe("buildReadlistTabs", () => {
 			label.getAttribute("data-widest"),
 		]);
 		expect(reserved).toEqual([
-			["unread", "To Read (99+)"],
+			["unread", "To Read"],
 			["read", "Read"],
 			["preferences", "Preferences"],
 		]);

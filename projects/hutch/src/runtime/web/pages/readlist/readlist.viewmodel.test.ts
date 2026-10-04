@@ -157,51 +157,6 @@ describe("toReadlistViewModel", () => {
 		expect(vm.statusFlash?.undoUrl).toBe(`/queue/${ARTICLE_ID}/status?tab=done&order=asc`);
 	});
 
-	it("should set isUnread to true for unread articles", () => {
-		const article = makeArticle({ status: "unread" });
-		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, {
-			now: NOW,
-		});
-
-		expect(vm.articles[0].isUnread).toBe(true);
-	});
-
-	it("should set isUnread to false for read articles", () => {
-		const article = makeArticle({ status: "read" });
-		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, {
-			now: NOW,
-		});
-
-		expect(vm.articles[0].isUnread).toBe(false);
-	});
-
-	it("should pass imageUrl from article metadata to view model", () => {
-		const article = makeArticle({
-			metadata: {
-				title: "Test Article",
-				siteName: siteLabel("example.com"),
-				excerpt: "An excerpt",
-				wordCount: 500,
-				imageUrl: "https://example.com/thumbnail.jpg",
-			},
-		});
-		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, {
-			now: NOW,
-		});
-
-		expect(vm.articles[0].imageUrl).toBe(
-			"https://example.com/thumbnail.jpg",
-		);
-	});
-
-	it("should leave imageUrl undefined when article has no image", () => {
-		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
-			now: NOW,
-		});
-
-		expect(vm.articles[0].imageUrl).toBeUndefined();
-	});
-
 	it("should format relative date as days ago", () => {
 		const article = makeArticle({
 			savedAt: new Date("2025-05-29T12:00:00Z"),

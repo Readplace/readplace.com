@@ -1,5 +1,5 @@
 <nav class="underline-tabs" aria-label="Article filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-indicator="closest .underline-tabs, closest .underline-tabs__tab, .readlist-listing" data-test-filters>
   {{#each tabs}}
-  <a class="underline-tabs__tab" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}} data-test-filter="{{testFilter}}"><span class="underline-tabs__label" data-widest="{{widestLabel}}"><span{{#if labelId}} id="{{labelId}}" hx-preserve{{/if}}>{{label}}</span></span></a>
+  <a class="underline-tabs__tab" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}} data-test-filter="{{testFilter}}"><span class="underline-tabs__label" data-widest="{{widestLabel}}"><span>{{label}}</span></span></a>
   {{/each}}
 </nav>

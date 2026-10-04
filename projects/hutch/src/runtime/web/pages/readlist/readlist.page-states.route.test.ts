@@ -89,7 +89,7 @@ describe("GET /queue/counts", () => {
 
 		const count = doc.getElementById("readlist-count");
 		assert(count, "the design count span must be rendered");
-		expect(count.textContent).toBe("2 Unread Articles");
+		expect(count.textContent).toBe("2 Saved Articles");
 
 		const info = doc.getElementById("readlist-pagination-info");
 		assert(info, "the design pagination-info span must be rendered");

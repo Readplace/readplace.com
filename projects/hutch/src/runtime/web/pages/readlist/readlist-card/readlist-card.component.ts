@@ -24,8 +24,6 @@ interface DesignCardTrigger {
 export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	titleLinkUrl: string;
 	excerptLinkUrl: string;
-	thumbnailLinkUrl: string;
-	statusClass: string;
 	excerptClampClass: string;
 	isFirst: boolean;
 	cardStatus: "pending" | "terminal";
@@ -96,8 +94,6 @@ export function toReadlistCardDisplayModel(
 		...article,
 		titleLinkUrl: openReaderLink("open-article-title"),
 		excerptLinkUrl: openReaderLink("open-article-excerpt"),
-		thumbnailLinkUrl: openReaderLink("open-article-thumbnail"),
-		statusClass: article.isUnread ? " readlist-article--unread" : " readlist-article--read",
 		excerptClampClass:
 			article.excerptSource === "parsed" ? " readlist-article__excerpt--clamped" : "",
 		isFirst: options.isFirst,

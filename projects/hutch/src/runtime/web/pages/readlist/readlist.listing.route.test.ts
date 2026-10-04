@@ -133,8 +133,8 @@ describe("Readlist routes", () => {
 		});
 	});
 
-	describe("Read status indicators", () => {
-		it("should show unread indicator on newly saved articles", async () => {
+	describe("Status action a card offers", () => {
+		it("should offer mark-read on newly saved articles", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -147,11 +147,10 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const article = doc.querySelector(".readlist-article");
-			expect(article?.classList.contains("readlist-article--unread")).toBe(true);
-			expect(article?.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status")).toBe("unread");
+			expect(article?.querySelectorAll('[data-test-action="mark-read"]').length).toBe(1);
 		});
 
-		it("should remove unread indicator after marking as read", async () => {
+		it("should offer mark-unread after marking as read", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -173,12 +172,10 @@ describe("Readlist routes", () => {
 			const afterResponse = await agent.get("/queue?status=read");
 			const afterDoc = new JSDOM(afterResponse.text).window.document;
 			const readArticle = afterDoc.querySelector(".readlist-article");
-			expect(readArticle?.classList.contains("readlist-article--unread")).toBe(false);
-			expect(readArticle?.classList.contains("readlist-article--read")).toBe(true);
-			expect(readArticle?.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status")).toBe("read");
+			expect(readArticle?.querySelectorAll('[data-test-action="mark-unread"]').length).toBe(1);
 		});
 
-		it("should restore unread indicator when marking back as unread", async () => {
+		it("should offer mark-read again when marking back as unread", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -205,8 +202,7 @@ describe("Readlist routes", () => {
 			const afterResponse = await agent.get("/queue");
 			const afterDoc = new JSDOM(afterResponse.text).window.document;
 			const unreadArticle = afterDoc.querySelector(".readlist-article");
-			expect(unreadArticle?.classList.contains("readlist-article--unread")).toBe(true);
-			expect(unreadArticle?.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status")).toBe("unread");
+			expect(unreadArticle?.querySelectorAll('[data-test-action="mark-read"]').length).toBe(1);
 		});
 
 	});
@@ -575,7 +571,7 @@ describe("Readlist routes", () => {
 			const afterResave = await agent.get("/queue");
 			const afterDoc = new JSDOM(afterResave.text).window.document;
 			const article = afterDoc.querySelector(".readlist-article");
-			expect(article?.classList.contains("readlist-article--unread")).toBe(true);
+			expect(article?.querySelectorAll('[data-test-action="mark-read"]').length).toBe(1);
 
 			const afterReadTab = await agent.get("/queue?status=read");
 			const afterReadDoc = new JSDOM(afterReadTab.text).window.document;

@@ -4,12 +4,9 @@ import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 
 import { renderReadlistTabTotal } from "./readlist-tab-total.component";
-import { formatUnreadLabel, unreadLabelId } from "./readlist.tabs";
 import { type ReadlistUrlState, buildReadlistUrl } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-counts.template.html"), "utf-8");
-
-export const UNREAD_BADGE_COUNT_LIMIT = 100;
 
 const PAGE_WINDOW = 1;
 
@@ -23,8 +20,6 @@ export interface ReadlistPageLink {
 }
 
 export interface ReadlistCountsDisplayModel {
-	unreadLabelId: string;
-	filterUnreadLabel: string;
 	countHtml: string;
 	showingLabel: string;
 	pages: readonly ReadlistPageLink[];
@@ -85,7 +80,6 @@ function buildReadlistPageLinks(input: {
 
 export function toReadlistCountsDisplayModel(input: {
 	filters: ReadlistUrlState;
-	unreadCount: number;
 	tabTotal: number;
 	pageSize: number;
 }): ReadlistCountsDisplayModel {
@@ -94,9 +88,7 @@ export function toReadlistCountsDisplayModel(input: {
 	const rowsBefore = (current - 1) * input.pageSize;
 	const rowsOnPage = Math.max(0, Math.min(input.pageSize, input.tabTotal - rowsBefore));
 	return {
-		unreadLabelId: unreadLabelId(input.filters.readlist),
-		filterUnreadLabel: formatUnreadLabel(input.unreadCount),
-		countHtml: renderReadlistTabTotal({ tab: input.filters.tab, total: input.tabTotal, oob: true }),
+		countHtml: renderReadlistTabTotal({ total: input.tabTotal, oob: true }),
 		showingLabel: showingLabel({ rowsOnPage, total: input.tabTotal }),
 		pages: buildReadlistPageLinks({ filters: input.filters, totalPages }),
 	};

@@ -184,14 +184,12 @@ import {
 	toReadlistCardDisplayModel,
 } from "./readlist-card/readlist-card.component";
 import {
-	UNREAD_BADGE_COUNT_LIMIT,
 	renderReadlistCounts,
 	toReadlistCountsDisplayModel,
 } from "./readlist-counts.component";
 import { initReadlistPreferencesRoutes } from "./readlist-preferences.page";
 import { buildReadlistRail } from "./readlist-rail";
 import { collectUtmParams } from "../../shared/utm";
-import { deriveKnownUnreadCount } from "./known-unread-count";
 import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
@@ -1432,16 +1430,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		});
 		const onboarding = signals.onboarding;
-		const knownUnreadCount = deriveKnownUnreadCount({
-			tab: input.context.state.tab,
-			hasMore: input.result.hasMore,
-			page: input.result.page,
-			pageSize: input.result.pageSize,
-			rowsOnPage: input.result.articles.length,
-			readlistHoldsArticles,
-		});
 		const cspNonce = requireCspNonce(req);
-		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, knownUnreadCount, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
+		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
 		const page = ReadlistPage(vm, { ...pageOptions, query: req.query });
 		res.vary("Cookie");
 		sendComponent(
@@ -1505,7 +1495,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		 * held the single row this page just absorbed (`rows === pageSize &&
 		 * !hasMore`). Treat that like any other DOM drift and fall through to the
 		 * full render, which re-renders the nav — the counts loader only re-arms the
-		 * unread badge and the "Page X of Y" label, never the Previous/Next links. */
+		 * "Page X of Y" label, never the Previous/Next links. */
 		const paginationWouldDrift = rows === pageSize && !result.hasMore;
 
 		if (statusFlash && rows > 0 && !paginationWouldDrift) {
@@ -1658,20 +1648,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const urlState = context.state;
 		const store = storeFor(urlState.readlist);
 		const tab = tabQuery(urlState.tab);
-		const tabTotalPromise = store.countArticlesByUser({ userId, status: tab.status });
-		const unreadCountPromise =
-			tab.status === "unread"
-				? tabTotalPromise
-				: store.countArticlesByUser({
-						userId,
-						status: "unread",
-						countLimit: UNREAD_BADGE_COUNT_LIMIT,
-					});
-		const [tabTotal, unreadCount] = await Promise.all([
-			tabTotalPromise,
-			unreadCountPromise,
-		]);
-		const counts = { filters: urlState, unreadCount, tabTotal, pageSize: READLIST_PAGE_SIZE };
+		const tabTotal = await store.countArticlesByUser({ userId, status: tab.status });
+		const counts = { filters: urlState, tabTotal, pageSize: READLIST_PAGE_SIZE };
 		res.type("html").send(renderReadlistCounts(toReadlistCountsDisplayModel(counts)));
 	});
 

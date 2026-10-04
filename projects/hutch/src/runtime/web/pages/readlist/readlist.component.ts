@@ -89,7 +89,6 @@ export interface ReadlistPageOptions {
 	cspNonce: CspNonce;
 	deviceClass: DeviceClass;
 	readlistHoldsArticles: boolean;
-	knownUnreadCount?: number;
 	rail: ReadlistRailViewModel;
 	saveTip: SaveTip;
 	saveUrl?: string;
@@ -278,12 +277,11 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				activeTab: filters.tab,
 				readlist: filters.readlist,
 				order: filters.order,
-				knownUnreadCount: options.knownUnreadCount,
 				preferencesEnabled: readlistPreferencesEnabled(options.query),
 			}),
 		),
 		countsSpanHtml: renderReadlistCountsTrigger({ countsUrl: vm.countsUrl }),
-		countHtml: renderReadlistTabTotal({ tab: filters.tab, total: firstByteTotal(vm) }),
+		countHtml: renderReadlistTabTotal({ total: firstByteTotal(vm) }),
 		sortUrl: withInternalTracking(
 			buildReadlistUrl({ readlist: filters.readlist, tab: filters.tab, order: nextOrder }),
 			{ source: "queue-sort", content: "sort", term: nextOrder },

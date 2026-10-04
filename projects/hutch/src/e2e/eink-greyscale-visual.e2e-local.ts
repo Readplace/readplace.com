@@ -8,7 +8,6 @@ import {
 	snapToWholePixels,
 	test,
 	waitForBrandFonts,
-	waitForImagePixels,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { clickAndWaitForPageReload, openReadlistSwitcher } from "./page-interactions";
@@ -28,7 +27,6 @@ const READER_ROOT = "main.reader";
 const READLIST_LIST = "[data-test-article-list]";
 const READLIST_TABS = "[data-test-filters]";
 const READLIST_RAIL = ".readlist__rail";
-const THUMBNAIL_URL = "https://cdn.example.com/eink-greyscale-thumbnail.svg";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
 const VOLATILE_CHROME = [
@@ -65,15 +63,6 @@ const READLIST_ARTICLES = [
 	},
 ];
 
-async function pinThumbnail(page: Page): Promise<void> {
-	await page.route(THUMBNAIL_URL, (route) =>
-		route.fulfill({
-			contentType: "image/svg+xml",
-			body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"><rect width="320" height="240" fill="#B9712A"/><rect x="24" y="150" width="272" height="16" fill="#F6EFE7"/></svg>',
-		}),
-	);
-}
-
 async function createEinkUser(page: Page, stamp: string): Promise<{ email: string; userId: string }> {
 	const email = `eink-greyscale-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
@@ -97,7 +86,6 @@ async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email
 				savedAt: article.savedAt,
 				savedByUserId: userId,
 				excerpt: article.excerpt,
-				imageUrl: THUMBNAIL_URL,
 				generatedSummary: { summary: "Seeded summary.", excerpt: article.excerpt },
 			},
 		});
@@ -182,7 +170,6 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 	for (const theme of ["light", "dark"] as const) {
 		test(`the reader keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
-			await pinThumbnail(page);
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email, readerUrl } = await seedReaderAndReadlist(
 				page,
@@ -200,7 +187,6 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 		});
 
 		test(`the readlist keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
-			await pinThumbnail(page);
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email } = await seedReaderAndReadlist(
 				page,
@@ -209,7 +195,6 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await expect(page.locator("[data-test-article]")).toHaveCount(READLIST_ARTICLES.length + 1);
 			await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
-			await waitForImagePixels(page, ".readlist-article__thumbnail");
 			await settle(page, READLIST_LIST);
 
 			await expect(page.locator(READLIST_LIST)).toHaveScreenshot(
@@ -217,9 +202,10 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				CONTRAST_SENSITIVE,
 			);
 
-			await expect(page.locator('[data-test-filter="unread"]')).toHaveText(
-				`To Read (${READLIST_ARTICLES.length + 1})`,
+			await expect(page.locator("#readlist-count")).toHaveText(
+				`${READLIST_ARTICLES.length + 1} Saved Articles`,
 			);
+			await expect(page.locator('[data-test-filter="unread"]')).toHaveText("To Read");
 			await settle(page, READLIST_TABS);
 			await expect(page.locator(READLIST_TABS)).toHaveScreenshot(
 				`eink-readlist-tabs-${theme}.png`,
@@ -228,7 +214,6 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 		});
 
 		test(`the open card menu keeps its edge in greyscale (${theme})`, async ({ page }, testInfo) => {
-			await pinThumbnail(page);
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email } = await seedReaderAndReadlist(
 				page,
@@ -237,7 +222,6 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await expect(page.locator("[data-test-article]")).toHaveCount(READLIST_ARTICLES.length + 1);
 			await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
-			await waitForImagePixels(page, ".readlist-article__thumbnail");
 			const card = page.locator("[data-test-article]").first();
 			await card.locator('[data-test-action="article-menu"]').click();
 			await expect(card.locator(".menu__panel")).toBeVisible();
@@ -252,7 +236,6 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 		test(`the open readlist switcher keeps its selected row in greyscale (${theme})`, async ({
 			page,
 		}, testInfo) => {
-			await pinThumbnail(page);
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email } = await seedReaderAndReadlist(
 				page,
@@ -372,7 +355,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 			await loginAs(page, email);
 			await expect(page.locator("[data-test-empty-readlist]")).toBeVisible();
-			await expect(page.locator("#readlist-count")).toHaveText("0 Unread Articles");
+			await expect(page.locator("#readlist-count")).toHaveText("0 Saved Articles");
 			await settle(page, "[data-test-listing]");
 
 			await expect(page.locator(".readlist-listing__header")).toHaveClass(/readlist-listing__header--hidden/);

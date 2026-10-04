@@ -23,7 +23,7 @@ function articleIds(doc: Document): string[] {
 
 function cardStatuses(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll("[data-test-article]"), (el) =>
-		el.className.includes("readlist-article--read") ? "read" : "unread",
+		el.querySelectorAll('[data-test-action="mark-unread"]').length === 1 ? "read" : "unread",
 	);
 }
 
@@ -400,7 +400,7 @@ describe("a readlist the reader opened", () => {
 		expect(articleIds(onWork)).toHaveLength(1);
 
 		const counts = await agent.get(`/queue/counts?queue=${readlist}`);
-		expect(counts.text).toContain("To Read (1)");
+		expect(parse(`<main>${counts.text}</main>`).getElementById("readlist-count")?.textContent).toBe("1 Saved Article");
 	});
 
 	it("drops the save into the default readlist however the request names another", async () => {
@@ -522,7 +522,9 @@ describe("the readlist every reader is given", () => {
 		await seedInto(harness, readlist, "https://example.com/work-only");
 
 		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([]);
-		expect((await agent.get("/queue/counts")).text).toContain("To Read (0)");
+		expect(
+			parse(`<main>${(await agent.get("/queue/counts")).text}</main>`).getElementById("readlist-count")?.textContent,
+		).toBe("0 Saved Articles");
 	});
 });
 

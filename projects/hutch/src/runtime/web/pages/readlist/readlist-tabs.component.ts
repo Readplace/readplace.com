@@ -5,7 +5,7 @@ import type { SortOrder } from "@packages/provider-contracts/article-store";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 
 import { preferencesFeatureParams, preferencesUrl } from "./readlist-preferences-feature";
-import { READLIST_TABS, type TabId, formatUnreadLabel } from "./readlist.tabs";
+import { READLIST_TABS, type TabId } from "./readlist.tabs";
 import { buildReadlistUrl } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-tabs.template.html"), "utf-8");
@@ -19,7 +19,6 @@ export interface ReadlistTab {
 	label: string;
 	testFilter: string;
 	isActive: boolean;
-	labelId?: string;
 	widestLabel: string;
 }
 
@@ -59,7 +58,6 @@ export function buildReadlistTabs(input: {
 	activeTab: ReadlistTabSelection;
 	readlist: ReadlistSlug;
 	order?: SortOrder;
-	knownUnreadCount?: number;
 	preferencesEnabled: boolean;
 }): ReadlistTabsDisplayModel {
 	return {
@@ -72,15 +70,10 @@ export function buildReadlistTabs(input: {
 					),
 					{ source: TABS_SOURCE, content: tab.trackingContent },
 				),
-				label:
-					tab.labelId !== undefined && input.knownUnreadCount !== undefined
-						? formatUnreadLabel(input.knownUnreadCount)
-						: tab.label,
+				label: tab.label,
 				testFilter: tab.testFilter,
 				isActive: tab.id === input.activeTab,
-				labelId: tab.labelId?.(input.readlist),
-				widestLabel:
-					tab.labelId === undefined ? tab.label : formatUnreadLabel(Number.MAX_SAFE_INTEGER),
+				widestLabel: tab.label,
 			})),
 			...preferencesTabs(input),
 		],

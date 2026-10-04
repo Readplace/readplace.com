@@ -17,7 +17,6 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		excerptSource: "generated",
 		url: "https://example.com/article",
 		status: "unread",
-		isUnread: true,
 		readTime: { value: "3", label: "3 min read" },
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
@@ -70,99 +69,40 @@ const DELETE_ACTION: ArticleAction = {
 const { confirmPopoverId: _deletePopoverId, ...UNCONFIRMED_DELETE_ACTION } = DELETE_ACTION;
 
 describe("renderReadlistCard", () => {
-	it("flags an unread article with the unread modifier", () => {
-		const doc = parse(renderReadlistCard(display(makeViewModel({ isUnread: true }), { isFirst: false })));
-
-		const card = doc.querySelector(".readlist-article");
-		assert(card, "card root must be present");
-		expect(card.classList.contains("readlist-article--unread")).toBe(true);
-	});
-
-	it("flags a read article with the read modifier", () => {
+	it("opens the reader from exactly the title and the excerpt, each with its own tracking", () => {
 		const doc = parse(
-			renderReadlistCard(
-				display(makeViewModel({ status: "read", isUnread: false }), { isFirst: false }),
-			),
+			renderReadlistCard(display(makeViewModel(), { isFirst: false, deviceClass: "mobile_ios" })),
 		);
 
-		const card = doc.querySelector(".readlist-article");
-		assert(card, "card root must be present");
-		expect(card.classList.contains("readlist-article--read")).toBe(true);
-		expect(card.classList.contains("readlist-article--unread")).toBe(false);
+		const openers = Array.from(doc.querySelectorAll("[data-opens-reader]"), (link) => ({
+			isTitle: link.hasAttribute("data-test-article-title"),
+			isExcerpt: link.hasAttribute("data-test-article-excerpt"),
+			content: urlParams(link.getAttribute("href")).get("utm_content"),
+			term: urlParams(link.getAttribute("href")).get("utm_term"),
+		}));
+		expect(openers).toEqual([
+			{ isTitle: true, isExcerpt: false, content: "open-article-title", term: "mobile_ios" },
+			{ isTitle: false, isExcerpt: true, content: "open-article-excerpt", term: "mobile_ios" },
+		]);
 	});
 
-	it("marks an unread article with a read-status indicator carrying its screen-reader label", () => {
-		const doc = parse(renderReadlistCard(display(makeViewModel({ isUnread: true }), { isFirst: false })));
+	it("leads the foot with the meta row on a terminal card and the Processing line on a pending one", () => {
+		const leadingSlot = (vm: ReadlistArticleViewModel) => {
+			const foot = parse(renderReadlistCard(display(vm, { isFirst: false }))).querySelector(
+				".readlist-article__foot",
+			);
+			assert(foot, "the card must render its foot");
+			return Array.from(foot.children, (child) => child.getAttribute("class")).slice(0, 2);
+		};
 
-		const status = doc.querySelector("[data-test-read-status]");
-		assert(status, "the card must render a read-status indicator");
-		expect(status.getAttribute("data-test-read-status")).toBe("unread");
-		expect(status.querySelector(".sr-only")?.textContent).toBe("Unread");
-		expect(status.parentElement?.classList.contains("readlist-article__facts")).toBe(true);
-	});
-
-	it("keeps the read-status indicator out of the meta row that a processing card hides", () => {
-		const doc = parse(
-			renderReadlistCard(
-				display(makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1" }), { isFirst: false }),
-			),
-		);
-
-		const meta = doc.querySelector(".readlist-article__meta");
-		assert(meta, "the meta row must be present");
-		expect(meta.classList.contains("readlist-article__meta--hidden")).toBe(true);
-		const status = doc.querySelector("[data-test-read-status]");
-		assert(status, "a processing card must still show whether it is unread");
-		expect(status.closest(".readlist-article__meta")).toBeNull();
-	});
-
-	it("leads a processing card's Processing line with its read-status marker in one facts group", () => {
-		const doc = parse(
-			renderReadlistCard(
-				display(makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1" }), { isFirst: false }),
-			),
-		);
-
-		const status = doc.querySelector("[data-test-read-status]");
-		assert(status, "a processing card must still show whether it is unread");
-		const processing = doc.querySelector("[data-test-processing]");
-		assert(processing, "a processing card must render its Processing line");
-		expect(processing.parentElement?.classList.contains("readlist-article__facts")).toBe(true);
-		expect(status.nextElementSibling).toBe(processing);
-	});
-
-	it("marks a read article with a read-status indicator carrying its screen-reader label", () => {
-		const doc = parse(
-			renderReadlistCard(
-				display(makeViewModel({ status: "read", isUnread: false }), { isFirst: false }),
-			),
-		);
-
-		const status = doc.querySelector("[data-test-read-status]");
-		assert(status, "the card must render a read-status indicator");
-		expect(status.getAttribute("data-test-read-status")).toBe("read");
-		expect(status.querySelector(".sr-only")?.textContent).toBe("Read");
-	});
-
-	it("opens the reader from the thumbnail with its own tracking when the article has an image", () => {
-		const doc = parse(
-			renderReadlistCard(
-				display(makeViewModel({ imageUrl: "https://cdn.example.com/hero.jpg" }), {
-					isFirst: false,
-					deviceClass: "mobile_ios",
-				}),
-			),
-		);
-
-		const thumbnail = doc.querySelector(".readlist-article__thumbnail-link");
-		assert(thumbnail, "the card must render a thumbnail link when it has an image");
-		const image = thumbnail.querySelector("img");
-		assert(image, "the thumbnail link must wrap the article image");
-		expect(image.getAttribute("src")).toBe("https://cdn.example.com/hero.jpg");
-		expect(thumbnail.hasAttribute("data-opens-reader")).toBe(true);
-		const href = urlParams(thumbnail.getAttribute("href"));
-		expect(href.get("utm_content")).toBe("open-article-thumbnail");
-		expect(href.get("utm_term")).toBe("mobile_ios");
+		expect(leadingSlot(makeViewModel())).toEqual([
+			"readlist-article__processing readlist-article__processing--hidden",
+			"readlist-article__meta",
+		]);
+		expect(leadingSlot(makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1" }))).toEqual([
+			"readlist-article__processing",
+			"readlist-article__meta readlist-article__meta--hidden",
+		]);
 	});
 
 	it("posts a status change to a card-scoped, design-flagged URL and swaps only the card", () => {

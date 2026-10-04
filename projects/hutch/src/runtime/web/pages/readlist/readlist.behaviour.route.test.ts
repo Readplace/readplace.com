@@ -31,9 +31,10 @@ function articleIds(doc: Document): string[] {
 		.filter((id): id is string => Boolean(id));
 }
 
-function readStatusOf(card: Element): string | null {
-	return (
-		card.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status") ?? null
+function offeredStatusActions(card: Element): (string | null)[] {
+	return Array.from(
+		card.querySelectorAll('[data-test-action="mark-read"], [data-test-action="mark-unread"]'),
+		(action) => action.getAttribute("data-test-action"),
 	);
 }
 
@@ -71,26 +72,26 @@ async function fileIntoReadlist(harness: TestHarness, readlist: string, url: str
 }
 
 describe("`/queue` behaviour", () => {
-	it("flips the read-status indicator from unread to read and back", async () => {
+	it("flips the offered status action from mark-read to mark-unread and back", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await save(agent, "https://example.com/article");
 
 		const [savedCard] = cards(parse((await agent.get("/queue")).text));
 		assert(savedCard, "the saved article must render as a card");
-		expect(readStatusOf(savedCard)).toBe("unread");
+		expect(offeredStatusActions(savedCard)).toEqual(["mark-read"]);
 		const articleId = savedCard.getAttribute("data-test-article");
 		assert(articleId, "the card must expose its article id");
 
 		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
 		const [readCard] = cards(parse((await agent.get("/queue?tab=done")).text));
 		assert(readCard, "the read article must render on the Read tab");
-		expect(readStatusOf(readCard)).toBe("read");
+		expect(offeredStatusActions(readCard)).toEqual(["mark-unread"]);
 
 		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });
 		const [unreadCard] = cards(parse((await agent.get("/queue")).text));
 		assert(unreadCard, "the article must return to the To Read tab");
-		expect(readStatusOf(unreadCard)).toBe("unread");
+		expect(offeredStatusActions(unreadCard)).toEqual(["mark-read"]);
 	});
 
 	it("walks a multi-page listing forwards and back through the pagination controls", async () => {
@@ -154,7 +155,7 @@ describe("`/queue` behaviour", () => {
 		const after = parse((await agent.get("/queue?tab=done")).text);
 		const [readCard] = cards(after);
 		assert(readCard, "the confirmed article must land on the Read tab");
-		expect(readStatusOf(readCard)).toBe("read");
+		expect(offeredStatusActions(readCard)).toEqual(["mark-unread"]);
 		expect(panels(after, "mark-status")).toHaveLength(0);
 	});
 

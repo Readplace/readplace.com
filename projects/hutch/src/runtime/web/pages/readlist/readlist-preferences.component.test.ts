@@ -125,6 +125,20 @@ describe("ReadlistPreferencesPage", () => {
 		]);
 	});
 
+	it("labels the To Read tab without a count or a counts-swap target", () => {
+		const doc = documentOf(page({}).content.html);
+		const label = doc.querySelector('[data-test-filter="unread"] .underline-tabs__label');
+		assert(label, "the To Read tab must render its label");
+		const text = label.firstElementChild;
+		assert(text, "the label must wrap its text");
+
+		expect({
+			text: label.textContent,
+			widest: label.getAttribute("data-widest"),
+			textAttributes: text.getAttributeNames(),
+		}).toEqual({ text: "To Read", widest: "To Read", textAttributes: [] });
+	});
+
 	it("titles the alert a rejected rename lands on", () => {
 		const doc = documentOf(page({ query: { queue_error: "rename_invalid-name" } }).content.html);
 		const alert = doc.querySelector('[data-test-alert="readlist"]');

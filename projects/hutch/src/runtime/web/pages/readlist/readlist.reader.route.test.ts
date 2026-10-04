@@ -280,7 +280,7 @@ describe("Readlist routes", () => {
 				.querySelector("[data-test-article-list] .readlist-article")
 				?.getAttribute("data-test-article");
 			const article = readlistDoc.querySelector(".readlist-article");
-			expect(article?.classList.contains("readlist-article--unread")).toBe(true);
+			expect(article?.querySelectorAll('[data-test-action="mark-read"]').length).toBe(1);
 
 			await agent.get(`/queue/${articleId}/view`);
 
@@ -288,7 +288,7 @@ describe("Readlist routes", () => {
 			const afterDoc = new JSDOM(afterResponse.text).window.document;
 			const afterArticle = afterDoc.querySelector(".readlist-article");
 			assert(afterArticle, "article must remain visible in the unread readlist");
-			expect(afterArticle.classList.contains("readlist-article--unread")).toBe(true);
+			expect(afterArticle.querySelectorAll('[data-test-action="mark-read"]').length).toBe(1);
 		});
 
 		it("should mark the article as read only when the user POSTs status=read from the reader", async () => {

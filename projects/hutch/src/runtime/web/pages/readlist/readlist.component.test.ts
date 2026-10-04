@@ -30,7 +30,6 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	excerptSource: "generated",
 	url: "https://example.com/article",
 	status: "unread",
-	isUnread: true,
 	readTime: { value: "3", label: "3 min read" },
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
@@ -58,7 +57,6 @@ const PLAIN_ARTICLE: ReadlistArticleViewModel = {
 	excerptSource: "generated",
 	url: "https://example.org/plain",
 	status: "unread",
-	isUnread: true,
 	readTime: undefined,
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
@@ -273,12 +271,13 @@ describe("ReadlistPage", () => {
 		expect(urlParams(read.getAttribute("href")).get("tab")).toBe("done");
 	});
 
-	it("labels the To Read tab with the count the shell already knows, without waiting for the counts fragment", () => {
-		const doc = pageDoc({}, { knownUnreadCount: 5 });
+	it("labels the filter tabs without a count", () => {
+		const doc = pageDoc();
 
-		const unread = doc.querySelector('[data-test-filter="unread"] .underline-tabs__label');
-		assert(unread, "the To Read tab's label must render");
-		expect(unread.textContent).toBe("To Read (5)");
+		const labels = Array.from(doc.querySelectorAll("[data-test-filter] .underline-tabs__label"), (label) =>
+			label.textContent,
+		);
+		expect(labels).toEqual(["To Read", "Read"]);
 	});
 
 	it("sorts oldest first once the reader has reordered ascending", () => {
@@ -309,12 +308,12 @@ describe("ReadlistPage", () => {
 		expect(span.getAttribute("hx-get")).toBe("/queue/counts?tab=done");
 	});
 
-	it("shows the exact unread count only on the first page with nothing more to load", () => {
+	it("shows the exact saved count only on the first page with nothing more to load", () => {
 		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false, currentPage: 1, paginationUrls: {} });
 
 		const label = doc.querySelector("#readlist-count");
 		assert(label, "the count label must render");
-		expect(label.textContent).toBe("1 Unread Article");
+		expect(label.textContent).toBe("1 Saved Article");
 		const number = label.querySelector("[data-test-listing-count-number]");
 		assert(number, "the count number span must render");
 		expect(number.getAttribute("class")).toBe(
@@ -322,7 +321,7 @@ describe("ReadlistPage", () => {
 		);
 	});
 
-	it("names what the Read tab counts", () => {
+	it("keeps the saved noun on the Read tab", () => {
 		const doc = pageDoc({
 			filters: { ...DEFAULT_FILTERS, tab: "done" },
 			articles: [PLAIN_ARTICLE],
@@ -333,7 +332,7 @@ describe("ReadlistPage", () => {
 
 		const label = doc.querySelector("#readlist-count");
 		assert(label, "the count label must render");
-		expect(label.textContent).toBe("1 Read Article");
+		expect(label.textContent).toBe("1 Saved Article");
 	});
 
 	it("leaves the number pending once a next page exists, since the total isn't known yet", () => {
@@ -352,7 +351,7 @@ describe("ReadlistPage", () => {
 		expect(number.getAttribute("class")).toBe(
 			"readlist__count-value readlist__count-value--pending",
 		);
-		expect(noun.textContent).toBe("Unread Articles");
+		expect(noun.textContent).toBe("Saved Articles");
 	});
 
 	it("leaves the number pending once the reader has paged forward", () => {

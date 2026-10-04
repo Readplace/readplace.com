@@ -379,10 +379,7 @@ export function createReadlistActions(
 			},
 			execute: async (page) => {
 				const firstArticle = page.locator('[data-test-article]').first()
-				const hasUnreadClass = await firstArticle.evaluate(
-					el => el.classList.contains('readlist-article--unread'),
-				)
-				expect(hasUnreadClass).toBe(true)
+				await expect(firstArticle.locator('[data-test-action="mark-read"]')).toHaveCount(1)
 
 				// The earlier anonymous-visit-view-page step dismisses the share
 				// balloon and persists that to localStorage; clear it here so the

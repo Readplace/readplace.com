@@ -18,25 +18,16 @@ function parseFragment(html: string): Document {
 	return new JSDOM(`<main>${html}</main>`).window.document;
 }
 
-function swappedCountIdsFor(readlist: string): string[] {
-	return [
-		`readlist-unread-label--${readlist}`,
-		"readlist-count",
-		"readlist-pagination-info",
-		"readlist-pages",
-	];
-}
-
-const SWAPPED_COUNT_IDS = swappedCountIdsFor("default");
+const SWAPPED_COUNT_IDS = ["readlist-count", "readlist-pagination-info", "readlist-pages"];
 
 function swappedTargets(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id);
 }
 
-function unreadLabel(doc: Document): Element {
-	const label = doc.getElementById("readlist-unread-label--default");
-	assert(label, "the counts fragment must carry the unread tab's label");
-	return label;
+function listingCount(doc: Document): Element {
+	const count = doc.getElementById("readlist-count");
+	assert(count, "the counts fragment must carry the listing count");
+	return count;
 }
 
 async function save(agent: LoggedInAgent, url: string): Promise<void> {
@@ -47,15 +38,6 @@ async function saveMany(agent: LoggedInAgent, count: number, prefix: string): Pr
 	for (let i = 0; i < count; i++) {
 		await save(agent, `${prefix}${i}`);
 	}
-}
-
-async function markFirstArticleRead(agent: LoggedInAgent): Promise<void> {
-	const readlist = await agent.get("/queue");
-	const id = new JSDOM(readlist.text).window.document
-		.querySelector("[data-test-article-list] .readlist-article")
-		?.getAttribute("data-test-article");
-	assert(id, "a saved article must be listed before it can be marked read");
-	await agent.post(`/queue/${id}/status`).type("form").send({ status: "read" });
 }
 
 describe("GET /queue/counts", () => {
@@ -71,7 +53,7 @@ describe("GET /queue/counts", () => {
 	});
 
 	describe("authenticated", () => {
-		it("should answer with an HTML fragment carrying the unread badge", async () => {
+		it("should answer with an HTML fragment carrying the listing count", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await save(agent, "https://example.com/a");
@@ -81,10 +63,9 @@ describe("GET /queue/counts", () => {
 
 			expect(response.status).toBe(200);
 			expect(response.headers["content-type"]).toContain("text/html");
-			const label = unreadLabel(parseFragment(response.text));
-			expect(label.textContent).toBe("To Read (2)");
-			expect(label.getAttribute("hx-swap-oob")).toBe("innerHTML");
-			expect(label.getAttribute("id")).toBe("readlist-unread-label--default");
+			const count = listingCount(parseFragment(response.text));
+			expect(count.textContent).toBe("2 Saved Articles");
+			expect(count.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		});
 
 		it("should count zero for an empty readlist", async () => {
@@ -93,20 +74,7 @@ describe("GET /queue/counts", () => {
 
 			const response = await agent.get("/queue/counts");
 
-			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (0)");
-		});
-
-		it("should still report the unread count while the reader is on the Read tab", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-			await save(agent, "https://example.com/1");
-			await save(agent, "https://example.com/2");
-			await save(agent, "https://example.com/3");
-			await markFirstArticleRead(agent);
-
-			const response = await agent.get("/queue/counts?tab=done");
-
-			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (2)");
+			expect(listingCount(parseFragment(response.text)).textContent).toBe("0 Saved Articles");
 		});
 
 		it("should re-arm every count the listing shows, even on a single page", async () => {
@@ -118,7 +86,7 @@ describe("GET /queue/counts", () => {
 
 			const doc = parseFragment(response.text);
 			expect(swappedTargets(doc)).toEqual(SWAPPED_COUNT_IDS);
-			expect(unreadLabel(doc).textContent).toBe("To Read (1)");
+			expect(listingCount(doc).textContent).toBe("1 Saved Article");
 		});
 
 		it("should fill in the total page count once the tab spans pages", async () => {
@@ -155,7 +123,7 @@ describe("GET /queue/counts", () => {
 
 			const doc = parseFragment(response.text);
 			expect(swappedTargets(doc)).toEqual(SWAPPED_COUNT_IDS);
-			expect(unreadLabel(doc).textContent).toBe(`To Read (${READLIST_PAGE_SIZE + 1})`);
+			expect(listingCount(doc).textContent).toBe("0 Saved Articles");
 		});
 	});
 
@@ -182,7 +150,7 @@ describe("GET /queue/counts", () => {
 			};
 		}
 
-		it("should scan the partition once when the badge and the tab describe the same rows", async () => {
+		it("should scan the partition once on the To Read tab", async () => {
 			const { fixture, counted } = fixtureRecordingCounts();
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -191,11 +159,11 @@ describe("GET /queue/counts", () => {
 
 			const response = await agent.get("/queue/counts");
 
-			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (1)");
+			expect(listingCount(parseFragment(response.text)).textContent).toBe("1 Saved Article");
 			expect(counted.map((query) => query.status)).toEqual(["unread"]);
 		});
 
-		it("should scan once per tab when the badge and the tab describe different rows", async () => {
+		it("should scan the partition once on the Read tab", async () => {
 			const { fixture, counted } = fixtureRecordingCounts();
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -204,8 +172,8 @@ describe("GET /queue/counts", () => {
 
 			const response = await agent.get("/queue/counts?tab=done");
 
-			expect(unreadLabel(parseFragment(response.text)).textContent).toBe("To Read (1)");
-			expect(counted.map((query) => query.status)).toEqual(["read", "unread"]);
+			expect(listingCount(parseFragment(response.text)).textContent).toBe("0 Saved Articles");
+			expect(counted.map((query) => query.status)).toEqual(["read"]);
 		});
 	});
 
@@ -218,7 +186,7 @@ describe("GET /queue/counts", () => {
 			const page = new JSDOM((await agent.get("/queue")).text).window.document;
 			const fragment = parseFragment((await agent.get("/queue/counts")).text);
 
-			for (const id of ["readlist-unread-label--default", "readlist-pagination-info"]) {
+			for (const id of ["readlist-count", "readlist-pagination-info"]) {
 				const target = page.getElementById(id);
 				const replacement = fragment.getElementById(id);
 				assert(target, `the readlist page must render #${id} for the counts swap to land on`);
@@ -226,26 +194,6 @@ describe("GET /queue/counts", () => {
 				expect(replacement.tagName).toBe(target.tagName);
 				expect(replacement.getAttribute("class")).toBe(target.getAttribute("class"));
 			}
-		});
-
-		it("should preserve the label the page rendered and refresh it without re-arming preserve", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-			await save(agent, "https://example.com/preserve");
-
-			const page = new JSDOM((await agent.get("/queue?tab=done")).text).window.document;
-			const fragment = parseFragment((await agent.get("/queue/counts?tab=done")).text);
-
-			const rendered = page.getElementById("readlist-unread-label--default");
-			assert(rendered, "the readlist page must render the label the counts swap lands in");
-			expect(rendered.hasAttribute("hx-preserve")).toBe(true);
-			expect(rendered.textContent).toBe("To Read");
-
-			const refreshed = fragment.getElementById("readlist-unread-label--default");
-			assert(refreshed, "the counts fragment must carry the label it refreshes");
-			expect(refreshed.getAttribute("hx-swap-oob")).toBe("innerHTML");
-			expect(refreshed.hasAttribute("hx-preserve")).toBe(false);
-			expect(refreshed.textContent).toBe("To Read (1)");
 		});
 
 		it("should be requested by the readlist page on load, carrying the reader's filters", async () => {
@@ -270,17 +218,16 @@ describe("GET /queue/counts", () => {
 			const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 			assert(slug, "creating a queue must land the reader on it");
 
-			const defaultFragment = parseFragment((await agent.get("/queue/counts")).text);
-			expect(swappedTargets(defaultFragment)).toEqual(SWAPPED_COUNT_IDS);
-
-			const createdPage = new JSDOM((await agent.get(`/queue?queue=${slug}`)).text).window.document;
-			const createdFragment = parseFragment((await agent.get(`/queue/counts?queue=${slug}`)).text);
-			expect(swappedTargets(createdFragment)).toEqual(swappedCountIdsFor(slug));
-			for (const id of swappedTargets(createdFragment)) {
-				assert(
-					createdPage.getElementById(id),
-					`the ${slug} page must render #${id} for its counts swap to land on`,
-				);
+			for (const query of ["", `?queue=${slug}`]) {
+				const page = new JSDOM((await agent.get(`/queue${query}`)).text).window.document;
+				const fragment = parseFragment((await agent.get(`/queue/counts${query}`)).text);
+				expect(swappedTargets(fragment)).toEqual(SWAPPED_COUNT_IDS);
+				for (const id of SWAPPED_COUNT_IDS) {
+					assert(
+						page.getElementById(id),
+						`the /queue${query} page must render #${id} for its counts swap to land on`,
+					);
+				}
 			}
 		});
 	});

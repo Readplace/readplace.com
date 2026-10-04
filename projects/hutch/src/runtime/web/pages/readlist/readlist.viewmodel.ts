@@ -71,10 +71,8 @@ export interface ReadlistArticleViewModel {
 	excerptSource: PickedExcerpt["source"];
 	url: string;
 	status: string;
-	isUnread: boolean;
 	readTime: DisplayableReadTime | undefined;
 	saved: LocalTime;
-	imageUrl?: string;
 	actions: ArticleAction[];
 	deleteConfirm?: DeleteConfirmViewModel;
 	markStatusConfirm?: MarkStatusConfirmViewModel;
@@ -273,10 +271,8 @@ export function toReadlistArticleViewModel(params: {
 		excerptSource: excerpt.source,
 		url: article.destinationUrl,
 		status: article.status,
-		isUnread: article.status === "unread",
 		readTime: displayableReadTime(article),
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
-		imageUrl: article.metadata.imageUrl,
 		actions: [
 			...toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
 			deleteAction,

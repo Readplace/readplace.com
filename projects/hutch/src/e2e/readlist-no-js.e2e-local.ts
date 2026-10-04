@@ -6,7 +6,6 @@ import { requireEnv } from "@packages/require-env";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
-const THUMBNAIL_URL = "https://cdn.example.com/queue-no-js-thumbnail.svg";
 const CONTENT_FETCHED_AT = "2026-04-27T08:00:00.000Z";
 const SETTLE_MS = 45000;
 
@@ -19,16 +18,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		javaScriptEnabled: false,
 	});
 
-	async function pinThumbnail(page: Page): Promise<void> {
-		await page.route(THUMBNAIL_URL, (route) =>
-			route.fulfill({
-				contentType: "image/svg+xml",
-				body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"><rect width="320" height="240" fill="#B9712A"/></svg>',
-			}),
-		);
-	}
-
-	async function seedArticleWithThumbnail(page: Page, stamp: string): Promise<string> {
+	async function seedArticle(page: Page, stamp: string): Promise<string> {
 		const email = `readlist-no-js-${stamp}@example.com`;
 		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 			data: { email, password: PASSWORD, verified: true },
@@ -39,11 +29,10 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 			data: {
 				url: `https://example.com/queue-no-js-${stamp}`,
-				title: "A saved article that carries a thumbnail",
-				content: "<p>Seeded so the listing renders a card with an image.</p>",
+				title: "A saved article",
+				content: "<p>Seeded so the listing renders a card.</p>",
 				contentFetchedAt: CONTENT_FETCHED_AT,
 				savedByUserId: userId,
-				imageUrl: THUMBNAIL_URL,
 			},
 		});
 		assert.equal(seeded.status(), 201, "the seed endpoint must create the saved article");
@@ -80,23 +69,10 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await page.waitForSelector("body.page-readlist");
 	}
 
-	test("a card thumbnail is visible with scripting off", async ({ page }, testInfo) => {
-		await pinThumbnail(page);
-		const email = await seedArticleWithThumbnail(page, `${testInfo.workerIndex}-${Date.now()}`);
-		await loginAs(page, email);
-
-		const thumbnail = page.locator(".readlist-article__thumbnail-link").first();
-		await expect(thumbnail).toBeVisible({ timeout: SETTLE_MS });
-		const box = await thumbnail.boundingBox();
-		assert.ok(box, "the thumbnail must occupy a measurable box");
-		assert.ok(box.width > 1 && box.height > 1, "the thumbnail must occupy more than a hairline");
-	});
-
 	test("reading an article and marking it read work as plain form submits", async ({
 		page,
 	}, testInfo) => {
-		await pinThumbnail(page);
-		const email = await seedArticleWithThumbnail(
+		const email = await seedArticle(
 			page,
 			`${testInfo.workerIndex}-${Date.now()}-flow`,
 		);
@@ -131,14 +107,13 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(page.locator("[data-test-article]")).toHaveCount(0, { timeout: SETTLE_MS });
 
 		await page.goto(`${BASE_URL}/queue?tab=done`, { waitUntil: "domcontentloaded" });
-		await expect(page.locator('[data-test-read-status="read"]')).toHaveCount(1, {
+		await expect(page.locator('[data-test-action="mark-unread"]')).toHaveCount(1, {
 			timeout: SETTLE_MS,
 		});
 	});
 
 	test("a status toast's Undo works as a plain form submit", async ({ page }, testInfo) => {
-		await pinThumbnail(page);
-		const email = await seedArticleWithThumbnail(
+		const email = await seedArticle(
 			page,
 			`${testInfo.workerIndex}-${Date.now()}-undo`,
 		);
@@ -164,19 +139,19 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
 
 		await page.goto(`${BASE_URL}/queue?tab=done`, { waitUntil: "domcontentloaded" });
-		await expect(page.locator('[data-test-read-status="read"]')).toHaveCount(0, {
+		await expect(page.locator('[data-test-action="mark-unread"]')).toHaveCount(0, {
 			timeout: SETTLE_MS,
 		});
 	});
 
-	test("the listing count names the tab and shows no bar when the total is deferred", async ({
+	test("the listing count keeps its noun and shows no bar when the total is deferred", async ({
 		page,
 	}, testInfo) => {
 		const email = await seedManyArticles(page, `${testInfo.workerIndex}-${Date.now()}-count`, 21);
 		await loginAs(page, email);
 
 		const noun = page.locator("#readlist-count [data-test-listing-count-noun]");
-		await expect(noun).toHaveText("Unread Articles", { timeout: SETTLE_MS });
+		await expect(noun).toHaveText("Saved Articles", { timeout: SETTLE_MS });
 
 		const number = page.locator("#readlist-count [data-test-listing-count-number]");
 		await expect(number).toBeEmpty();
@@ -191,7 +166,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 
 	test("the nav opens and signs the reader out with no script", async ({ page }, testInfo) => {
 		await page.emulateMedia({ reducedMotion: "reduce" });
-		const email = await seedArticleWithThumbnail(page, `${testInfo.workerIndex}-${Date.now()}-nav`);
+		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-nav`);
 		await loginAs(page, email);
 
 		const menu = page.locator("#nav-menu");
@@ -206,7 +181,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 	});
 
 	test("the readlist switcher opens and switches readlist with no script", async ({ page }, testInfo) => {
-		const email = await seedArticleWithThumbnail(page, `${testInfo.workerIndex}-${Date.now()}-switcher`);
+		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-switcher`);
 		await loginAs(page, email);
 		const switcher = page.locator("main [data-test-readlist-switcher]");
 		const toggle = page.locator('main [data-test-action="readlist-switcher"]');

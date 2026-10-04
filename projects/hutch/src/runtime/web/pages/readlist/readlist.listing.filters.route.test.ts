@@ -99,8 +99,8 @@ describe("Readlist routes", () => {
 		});
 	});
 
-	describe("Unread tab count", () => {
-		it("should show unread count on the Unread tab", async () => {
+	describe("Tab labels and the listing count", () => {
+		it("should name the To Read tab without a count and count its saves in the listing header", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -111,14 +111,15 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const unreadTab = doc.querySelector('[data-test-filter="unread"]');
-			expect(unreadTab?.textContent).toBe("To Read (2)");
+			expect(unreadTab?.textContent).toBe("To Read");
+			expect(doc.getElementById("readlist-count")?.textContent).toBe("2 Saved Articles");
 
 			const counts = await agent.get("/queue/counts");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.getElementById("readlist-unread-label--default")?.textContent).toBe("To Read (2)");
+			expect(countsDoc.getElementById("readlist-count")?.textContent).toBe("2 Saved Articles");
 		});
 
-		it("should show unread count when viewing read tab", async () => {
+		it("should count the read saves when viewing the Read tab", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -139,7 +140,7 @@ describe("Readlist routes", () => {
 
 			const counts = await agent.get("/queue/counts?tab=done");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.getElementById("readlist-unread-label--default")?.textContent).toBe("To Read (2)");
+			expect(countsDoc.getElementById("readlist-count")?.textContent).toBe("1 Saved Article");
 		});
 
 		it("should not show count on the Read tab", async () => {
@@ -153,7 +154,7 @@ describe("Readlist routes", () => {
 			expect(readTab?.textContent).toBe("Read");
 		});
 
-		it("should show zero unread count on empty readlist", async () => {
+		it("should count zero saves on an empty readlist", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -161,14 +162,14 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const unreadTab = doc.querySelector('[data-test-filter="unread"]');
-			expect(unreadTab?.textContent).toBe("To Read (0)");
+			expect(unreadTab?.textContent).toBe("To Read");
 
 			const counts = await agent.get("/queue/counts");
 			const countsDoc = new JSDOM(counts.text).window.document;
-			expect(countsDoc.getElementById("readlist-unread-label--default")?.textContent).toBe("To Read (0)");
+			expect(countsDoc.getElementById("readlist-count")?.textContent).toBe("0 Saved Articles");
 		});
 
-		it("should leave the unread tab uncounted at first byte when the queue spills past one page", async () => {
+		it("should keep the To Read tab uncounted when the queue spills past one page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);

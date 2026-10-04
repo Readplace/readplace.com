@@ -24,6 +24,7 @@ const TAB_HEIGHT = 40;
 const STRIP_HEIGHT = 41;
 const HIT_AREA_OVERHANG = 2;
 const READ_TAB_WIDTH = 88;
+const TO_READ_TAB_WIDTH = 111;
 const TAB_SIDE_PADDING = 24;
 
 const READLIST_TABS = "[data-test-filters]";
@@ -36,6 +37,7 @@ const READLIST_MAIN = ".readlist__main";
 const PREFERENCES_PANEL = "[data-test-readlist-preferences]";
 const NEW_READLIST_BUTTON = '[data-test-action="new-readlist"]';
 const PAGE_READLIST = "body.page-readlist";
+const LISTING_COUNT = "#readlist-count";
 
 const IMPORT_TABS = "[data-test-import-tabs]";
 const INSTALL_TABS = '[data-test-section="tabs"]';
@@ -81,7 +83,8 @@ async function gotoReadlistQueue(page: Page, query: string): Promise<void> {
 	await page.goto(`${BASE_URL}/queue${query}`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector(PAGE_READLIST);
 	await counts;
-	await expect(page.locator(UNREAD_TAB)).toHaveText("To Read (0)");
+	await expect(page.locator(UNREAD_TAB)).toHaveText("To Read");
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
 }
 
 async function createCustomReadlist(page: Page, openRail: (page: Page) => Promise<void>): Promise<string> {
@@ -315,6 +318,29 @@ test.describe("Underline tabs geometry on the readlist at desktop", () => {
 			`the Read tab must be ${READ_TAB_WIDTH}px wide in both states, measured closed=${closed}px open=${open}px`,
 		);
 		await openUnderlineSitsOnTheBaseline(page);
+	});
+
+	test("keeps the To Read tab at 111px whether it is open or not", async ({ page }, testInfo) => {
+		await signIn(page, `underline-tabs-to-read-width-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		await gotoReadlistQueue(page, "");
+		await waitForBrandFonts(page, ["Inter"]);
+		const open = await tabWidth(page, UNREAD_TAB);
+
+		await gotoReadlistQueue(page, "?tab=done");
+		await expect(page.locator(READ_TAB)).toHaveAttribute("aria-current", "page");
+		await waitForBrandFonts(page, ["Inter"]);
+		const closed = await tabWidth(page, UNREAD_TAB);
+
+		const slug = await createCustomReadlist(page, railIsOpen);
+		await gotoCustomReadlistPreferences(page, slug);
+		await waitForBrandFonts(page, ["Inter"]);
+		const onPreferences = await tabWidth(page, UNREAD_TAB);
+
+		assert.deepEqual(
+			[open, closed, onPreferences].map((actual) => near({ actual, expected: TO_READ_TAB_WIDTH })),
+			[true, true, true],
+			`the To Read tab must be ${TO_READ_TAB_WIDTH}px wide everywhere, measured open=${open}px closed=${closed}px preferences=${onPreferences}px`,
+		);
 	});
 
 	test("keeps the Preferences tab at one width whether it is open or not", async ({ page }, testInfo) => {
