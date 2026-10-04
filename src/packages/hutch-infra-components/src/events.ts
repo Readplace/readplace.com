@@ -33,6 +33,7 @@ export const SaveLinkCommand = defineEvent({
 	detailSchema: z.object({
 		url: z.string(),
 		userId: z.string(),
+		captureUrl: z.string().optional(),
 	}),
 });
 export type SaveLinkDetail = z.infer<typeof SaveLinkCommand.detailSchema>;
@@ -73,6 +74,7 @@ export const SaveAnonymousLinkCommand = defineEvent({
 	detailType: "SaveAnonymousLinkCommand",
 	detailSchema: z.object({
 		url: z.string(),
+		captureUrl: z.string().optional(),
 	}),
 });
 export type SaveAnonymousLinkDetail = z.infer<
@@ -393,7 +395,7 @@ export const TierContentExtractedEvent = defineEvent({
 	detailType: "TierContentExtracted",
 	detailSchema: z.object({
 		url: z.string(),
-		tier: z.enum(["tier-0", "tier-1"]),
+		tier: z.enum(["tier-0", "tier-1", "tier-2"]),
 		userId: z.string().optional(),
 		/* Extraction instant, stamped once by the emitter. The selector uses it as
 		 * the crawl-version minute-id, so an SQS redelivery (e.g. a persist failure
@@ -407,6 +409,20 @@ export const TierContentExtractedEvent = defineEvent({
 });
 export type TierContentExtractedDetail = z.infer<
 	typeof TierContentExtractedEvent.detailSchema
+>;
+
+export const ArchiveCaptureCrawlFailedEvent = defineEvent({
+	name: "archive-capture-crawl-failed",
+	source: "hutch.save-link",
+	detailType: "ArchiveCaptureCrawlFailed",
+	detailSchema: z.object({
+		url: z.string(),
+		captureUrl: z.string(),
+		reason: z.string(),
+	}),
+});
+export type ArchiveCaptureCrawlFailedDetail = z.infer<
+	typeof ArchiveCaptureCrawlFailedEvent.detailSchema
 >;
 
 export const CrawlArticleCompletedEvent = defineEvent({
@@ -869,7 +885,7 @@ export const ReaderViewLoadingSucceeded = defineEvent({
 		url: z.string(),
 		succeededAt: z.string(),
 		hasSummary: z.boolean(),
-		contentSourceTier: z.enum(["tier-0", "tier-1"]).optional(),
+		contentSourceTier: z.enum(["tier-0", "tier-1", "tier-2"]).optional(),
 	}),
 });
 export type ReaderViewLoadingSucceededDetail = z.infer<

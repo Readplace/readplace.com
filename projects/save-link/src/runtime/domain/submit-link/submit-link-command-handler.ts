@@ -33,6 +33,8 @@ import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identi
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import { initSaveLinkWork, logRecordFailure } from "../save-link/save-link-work";
 import { crawlFailureReasonForError } from "../save-link/crawl-failure-reason-for-error";
+import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
+import { ARCHIVE_TIER } from "@packages/article-state-types";
 
 export function initSubmitLinkCommandHandler(deps: {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -79,6 +81,26 @@ export function initSubmitLinkCommandHandler(deps: {
 		readTierSnapshot: deps.readTierSnapshot,
 		logPrefix,
 	});
+
+	const crawlArchiveCapture = initCrawlArchiveCapture({
+		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
+		putTierSource: deps.putTierSource,
+		readTierSnapshot: deps.readTierSnapshot,
+		logCrawlOutcome: deps.logCrawlOutcome,
+		publishEvent,
+		logger,
+	});
+
+	async function crawlCapture(link: { url: string; userId: UserId; captureUrl: string }): Promise<void> {
+		const capture = await crawlArchiveCapture({ url: link.url, captureUrl: link.captureUrl });
+		if (capture === "not-written") return;
+		await publishEvent(TierContentExtractedEvent, {
+			url: link.url,
+			tier: ARCHIVE_TIER,
+			userId: link.userId,
+			extractedAt: deps.now().toISOString(),
+		});
+	}
 
 	async function crawlTier1(link: { url: string; userId: UserId }): Promise<void> {
 		const result = await saveLinkWork(link.url, { userId: link.userId });
@@ -127,7 +149,7 @@ export function initSubmitLinkCommandHandler(deps: {
 				);
 				const url = prepareNewSaveUrl(validation.url);
 
-				const enrichment: Array<{ url: string; userId: UserId }> = [];
+				const enrichment: Array<{ url: string; userId: UserId; captureUrl?: string }> = [];
 				const saveArticleFromUrl = initSaveArticleFromUrl({
 					saveArticle: deps.saveArticle,
 					updateArticleStatus: deps.updateArticleStatus,
@@ -172,6 +194,10 @@ export function initSubmitLinkCommandHandler(deps: {
 				}
 
 				for (const link of enrichment) {
+					if (link.captureUrl !== undefined) {
+						await crawlCapture({ url: link.url, userId: link.userId, captureUrl: link.captureUrl });
+						continue;
+					}
 					try {
 						await crawlTier1(link);
 					} catch (error) {

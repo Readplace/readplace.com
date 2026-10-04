@@ -54,6 +54,7 @@ import { initEventBridgeLinkSaved } from "./events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./events/eventbridge-recrawl-link-initiated";
 import { initEventBridgeRemoveMyContent } from "./events/eventbridge-remove-my-content";
 import { initEventBridgeSaveAnonymousLink } from "./events/eventbridge-save-anonymous-link";
+import { initEventBridgeSubmitLink } from "./events/eventbridge-submit-link";
 import { initEventBridgeStaleCheckRequested } from "./events/eventbridge-stale-check-requested";
 import { initEventBridgeSaveLinkRawHtmlCommand } from "./events/eventbridge-save-link-raw-html-command";
 import { initEventBridgeSaveLinkRawPdfCommand } from "./events/eventbridge-save-link-raw-pdf-command";
@@ -240,6 +241,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 	const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 	const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
+	const { publishSubmitLink } = initEventBridgeSubmitLink({ publishEvent });
 	const { publishStaleCheckRequested } = initEventBridgeStaleCheckRequested({ publishEvent });
 	const { publishSaveLinkRawHtmlCommand } = initEventBridgeSaveLinkRawHtmlCommand({ publishEvent });
 	const { publishSaveLinkRawPdfCommand } = initEventBridgeSaveLinkRawPdfCommand({ publishEvent });
@@ -502,6 +504,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,
+		publishSubmitLink,
 		publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand,

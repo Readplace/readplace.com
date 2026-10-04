@@ -1,6 +1,4 @@
-import { z } from "zod";
+import type { ContentTier } from "@packages/article-state-types";
 
-export const TierSchema = z.enum(["tier-0", "tier-1"]);
-export type Tier = z.infer<typeof TierSchema>;
-
-export const KNOWN_TIERS: readonly Tier[] = TierSchema.options;
+export { ContentTierSchema as TierSchema, KNOWN_TIERS } from "@packages/article-state-types";
+export type Tier = ContentTier;

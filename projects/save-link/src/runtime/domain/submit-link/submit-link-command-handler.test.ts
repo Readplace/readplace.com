@@ -179,6 +179,56 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 	});
 
+	describe("a link whose identity carries an archive capture", () => {
+		const capture = "https://web.archive.org/web/20081203185222/https://example.com/post";
+		const withCapture = { resolveSaveIdentity: async (url: string) => ({ url, contentSourceUrl: capture }) };
+
+		it("crawls the live page and the capture in-process, offering both to the content judge", async () => {
+			const crawls: Parameters<CrawlAndFinalizeArticle>[0][] = [];
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				...withCapture,
+				crawlAndFinalizeArticle: async (params) => {
+					crawls.push(params);
+					return fetchedResult;
+				},
+				publishEvent,
+				putTierSource,
+			});
+
+			const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+			expect(response.batchItemFailures).toEqual([]);
+			expect(crawls).toEqual([{ url: exampleUrl }, { url: exampleUrl, fetchUrl: capture }]);
+			expect(putTierSource.mock.calls.map(([params]) => params.tier)).toEqual(["tier-1", "tier-2"]);
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+				url: exampleUrl,
+				tier: "tier-2",
+				userId,
+				extractedAt: fixedNow().toISOString(),
+			});
+		});
+
+		it("leaves the original's crawl state alone when the archive will not serve the capture", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				...withCapture,
+				refreshArticleIfStale: jest.fn().mockResolvedValue({ action: "skip" }),
+				crawlAndFinalizeArticle: async () => ({ status: "blocked", httpStatus: 429 }),
+				publishEvent,
+				transitionAndPersist,
+			});
+
+			const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+			expect(response.batchItemFailures).toEqual([]);
+			expect(transitionAndPersist).not.toHaveBeenCalled();
+			expect(publishEvent).not.toHaveBeenCalledWith(TierContentExtractedEvent, expect.anything());
+		});
+	});
+
 	it("asks to resurface earlier saves for a newsletter link the reader did not already have, keyed on the alias target", async () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({

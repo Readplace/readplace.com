@@ -21,7 +21,7 @@ import {
 	decodeImportSkippedCookie,
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
-import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, isUnresolvedArchiveCapture, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
 import { articlesSavedAt } from "./articles-saved-at";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
@@ -60,7 +60,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
-import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
+import type { PublishSaveLinkRawPdfCommand, PublishSubmitLink } from "@packages/provider-contracts/events";
 import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
 import type {
 	CreateUploadSlot,
@@ -401,6 +401,7 @@ interface ReadlistDependencies {
 	markCrawlPending: MarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	refreshArticleIfStaleStored: RefreshArticleIfStale;
+	publishSubmitLink: PublishSubmitLink;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
@@ -1891,10 +1892,18 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		const prepareOnePage = async (job: PageJob): Promise<PreparedPage | PageOutcome> => {
 			try {
-				const [freshness, canonicalUrl] = await Promise.all([
-					deps.refreshArticleIfStaleStored({ url: job.url }),
-					deps.resolveCanonicalIdentity(job.url),
-				]);
+				const freshness = await deps.refreshArticleIfStaleStored({ url: job.url });
+				if (isUnresolvedArchiveCapture(freshness.identity?.url ?? job.url)) {
+					await deps.publishSubmitLink({
+						url: job.url,
+						userId,
+						provenance: resolveSaveProvenance(req.oauthClientId),
+						readlist: DEFAULT_READLIST_SLUG,
+					});
+					emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
+					return { index: job.index, outcome: "created" };
+				}
+				const canonicalUrl = freshness.identity?.url ?? (await deps.resolveCanonicalIdentity(job.url));
 				return { job, freshness, canonicalUrl };
 			} catch (error) {
 				return failOnePage(job, error);
@@ -1908,8 +1917,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					/** Stage the captured bytes when the media type is supported; an
 					 * unsupported type stages nothing and the page is saved URL-only,
 					 * so the crawl enriches it the ordinary way. */
-					const media = mediaFor({ mediaType: job.mediaType, url: job.url });
-					if (media) await media.stageInlineBytes({ url: job.url, bytes: job.bytes, title: job.title, userId });
+					const media = mediaFor({ mediaType: job.mediaType, url: page.canonicalUrl });
+					if (media) await media.stageInlineBytes({ url: page.canonicalUrl, bytes: job.bytes, title: job.title, userId });
 				}
 				const { createdUserArticle } = await saveArticleFromUrl({
 					userId,
@@ -2080,8 +2089,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				return undefined;
 			};
 
-			const finishSave = async (articleUrl: SaveableUrl): Promise<void> => {
-				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
+			const finishSave = async (articleUrl: SaveableUrl, freshness: ContentFreshnessResult): Promise<void> => {
 				const result = await attachArticleContent({
 					userId,
 					url: articleUrl,
@@ -2114,11 +2122,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						refuse(validation.error.message);
 						return;
 					}
-					const media = mediaFor({ mediaType, url: validation.url });
+					const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+					const stageUrl = freshness.identity?.url ?? (await deps.resolveSaveIdentity(validation.url)).url;
+					const media = mediaFor({ mediaType, url: stageUrl });
 					if (media) {
-						await media.stageInlineBytes({ url: validation.url, bytes: contentBytes, title, userId });
+						await media.stageInlineBytes({ url: stageUrl, bytes: contentBytes, title, userId });
 					}
-					await finishSave(validation.url);
+					await finishSave(validation.url, freshness);
 					return;
 				}
 
@@ -2150,7 +2160,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						refuse(admitted.message, admitted.code);
 						return;
 					}
-					await finishSave(pending.url);
+					await finishSave(pending.url, await deps.refreshArticleIfStale({ url: pending.url }));
 					return;
 				}
 

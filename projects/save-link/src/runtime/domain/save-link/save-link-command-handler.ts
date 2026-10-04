@@ -11,6 +11,8 @@ import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initSaveLinkWork, logRecordFailure } from "./save-link-work";
+import { initCrawlArchiveCapture } from "./crawl-archive-capture";
+import { ARCHIVE_TIER } from "@packages/article-state-types";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -50,6 +52,15 @@ export function initSaveLinkCommandHandler(deps: {
 		logPrefix,
 	});
 
+	const crawlArchiveCapture = initCrawlArchiveCapture({
+		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
+		putTierSource: deps.putTierSource,
+		readTierSnapshot: deps.readTierSnapshot,
+		logCrawlOutcome: deps.logCrawlOutcome,
+		publishEvent,
+		logger,
+	});
+
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
@@ -57,6 +68,19 @@ export function initSaveLinkCommandHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = SaveLinkCommand.detailSchema.parse(envelope.detail);
+
+				if (detail.captureUrl !== undefined) {
+					const capture = await crawlArchiveCapture({ url: detail.url, captureUrl: detail.captureUrl });
+					if (capture === "written") {
+						await publishEvent(TierContentExtractedEvent, {
+							url: detail.url,
+							tier: ARCHIVE_TIER,
+							userId: detail.userId,
+							extractedAt: deps.now().toISOString(),
+						});
+					}
+					continue;
+				}
 
 				const result = await saveLinkWork(detail.url, { userId: detail.userId });
 				if (result === "tier-1-deferred") {

@@ -15,7 +15,7 @@ function attributes(receiveCount: number): SQSRecordAttributes {
 }
 
 function createSqsEvent(
-	detail: { url: string },
+	detail: { url: string; captureUrl?: string },
 	receiveCount = 3,
 ): SQSEvent {
 	return {
@@ -104,5 +104,16 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
+	it("leaves the original's crawl state alone when a dead-lettered command carried an archive capture", async () => {
+		const CAPTURE = "https://web.archive.org/web/20081203185222/https://example.com/article";
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = initSaveAnonymousLinkDlqHandler({ transitionAndPersist, logger: noopLogger });
+
+		const result = await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: CAPTURE }), buildLambdaContext(), () => {});
+
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+		expect(result).toEqual({ batchItemFailures: [] });
 	});
 });

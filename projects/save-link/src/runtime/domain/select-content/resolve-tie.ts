@@ -1,8 +1,12 @@
 import assert from "node:assert";
+import { ARCHIVE_TIER } from "@packages/article-state-types";
 import type { LoadArticle } from "@packages/domain/article-aggregate";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { tiersDifferInMedia } from "./tiers-differ-in-media";
 import type { TierSource } from "./tier-source.types";
+import type { Tier } from "./tier.types";
+
+const TIE_FALLBACK_ORDER: readonly Tier[] = ["tier-1", "tier-0", ARCHIVE_TIER];
 
 export type TieResolution =
 	| { kind: "keep-canonical" }
@@ -21,7 +25,8 @@ export function initResolveTie(deps: {
 	const { findContentSourceTier, loadArticle } = deps;
 
 	return async ({ sources, freshTier, url }) => {
-		const mediaChanged = tiersDifferInMedia(sources);
+		const mediaChanged =
+			freshTier !== ARCHIVE_TIER && tiersDifferInMedia(sources.filter((s) => s.tier !== ARCHIVE_TIER));
 
 		if (mediaChanged) {
 			assert(
@@ -44,9 +49,8 @@ export function initResolveTie(deps: {
 			return { kind: "keep-canonical" };
 		}
 
-		const fallback =
-			sources.find((s) => s.tier === "tier-1") ??
-			sources.find((s) => s.tier === "tier-0");
+		const fallbackTier = TIE_FALLBACK_ORDER.find((tier) => sources.some((s) => s.tier === tier));
+		const fallback = sources.find((s) => s.tier === fallbackTier);
 		assert(fallback, "tie with no candidate tiers should be unreachable");
 		const reason = summaryStuckOnTooShort
 			? `tie + canonical summary skipped on too-short content; promoted ${fallback.tier} to retry`

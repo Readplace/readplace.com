@@ -58,12 +58,13 @@ export type ReconcileStubMetadata = (params: {
 	displayUrl: string;
 }) => Promise<void>;
 
-/** The URL a re-crawl of `url` must actually fetch: the snapshot an archive save
- * pinned its content to (`contentSourceUrl`), else the redirect terminal an
+/** The URL a re-crawl of `url` must actually fetch: the redirect terminal an
  * adopted article was pinned to (its `displayUrl`), or `undefined` for a normal
  * article, so the crawl fetches `url` itself. Closes the content-poisoning
  * vector — a re-crawl never re-fetches the origin that redirected here. */
 export type FindAdoptedFetchUrl = (url: string) => Promise<string | undefined>;
+
+export type FindContentSourceUrl = (url: string) => Promise<string | undefined>;
 
 export function initCanonicalAliasStore(deps: {
 	client: DynamoDBDocumentClient;
@@ -76,6 +77,7 @@ export function initCanonicalAliasStore(deps: {
 	pinContentSource: PinContentSource;
 	reconcileStubMetadata: ReconcileStubMetadata;
 	findAdoptedFetchUrl: FindAdoptedFetchUrl;
+	findContentSourceUrl: FindContentSourceUrl;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -172,11 +174,14 @@ export function initCanonicalAliasStore(deps: {
 
 	const findAdoptedFetchUrl: FindAdoptedFetchUrl = async (url) => {
 		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value });
-		if (row === undefined) return undefined;
-		if (row.contentSourceUrl !== undefined) return row.contentSourceUrl;
 		// Only an adopted real article carries displayUrl; a normal article and an
 		// alias row both lack it, so the crawl falls back to fetching `url` as-is.
-		return row.displayUrl;
+		return row?.displayUrl;
+	};
+
+	const findContentSourceUrl: FindContentSourceUrl = async (url) => {
+		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value });
+		return row?.contentSourceUrl;
 	};
 
 	return {
@@ -187,5 +192,6 @@ export function initCanonicalAliasStore(deps: {
 		pinContentSource,
 		reconcileStubMetadata,
 		findAdoptedFetchUrl,
+		findContentSourceUrl,
 	};
 }

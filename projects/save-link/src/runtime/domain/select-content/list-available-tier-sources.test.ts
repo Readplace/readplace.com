@@ -27,15 +27,19 @@ const tierOneSource: TierSource = {
 };
 
 describe("initListAvailableTierSources", () => {
-	it("returns both tiers when both sources are present", async () => {
-		const readTierSource: ReadTierSource = jest.fn(async ({ tier }) =>
-			tier === "tier-0" ? tierZeroSource : tierOneSource,
-		);
+	it("returns every tier whose source is present", async () => {
+		const archiveSource: TierSource = { ...tierOneSource, tier: "tier-2" };
+		const byTier: Record<TierSource["tier"], TierSource> = {
+			"tier-0": tierZeroSource,
+			"tier-1": tierOneSource,
+			"tier-2": archiveSource,
+		};
+		const readTierSource: ReadTierSource = jest.fn(async ({ tier }) => byTier[tier]);
 		const { listAvailableTierSources } = initListAvailableTierSources({ readTierSource });
 
 		const result = await listAvailableTierSources("https://example.com/a");
 
-		expect(result).toEqual([tierZeroSource, tierOneSource]);
+		expect(result).toEqual([tierZeroSource, tierOneSource, archiveSource]);
 	});
 
 	it("filters out missing tiers", async () => {

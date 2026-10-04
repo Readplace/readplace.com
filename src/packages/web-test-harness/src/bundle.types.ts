@@ -157,6 +157,7 @@ import type {
 	PublishRecrawlLinkInitiated,
 	PublishRemoveMyContent,
 	PublishSaveAnonymousLink,
+	PublishSubmitLink,
 	PublishSaveLinkRawHtmlCommand,
 	PublishSaveLinkRawPdfCommand,
 	PublishStaleCheckRequested,
@@ -399,7 +400,7 @@ export interface ArticleStoreBundle {
 		metadata: ArticleMetadata;
 		estimatedReadTime: Minutes;
 	}) => Promise<void>;
-	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
+	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	claimAlias: (params: { aliasUrl: string; targetOriginalUrl: string; now: Date }) => Promise<"claimed" | "occupied">;
@@ -409,6 +410,7 @@ export interface ArticleStoreBundle {
 	) => Promise<{ kind: "absent" } | { kind: "article" } | { kind: "alias"; targetUrl: string }>;
 	pinContentSource: (params: { articleUrl: string; contentSourceUrl: string }) => Promise<void>;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
+	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 	setReaderAvailableAt: (params: { url: string; at: Date }) => Promise<void>;
@@ -514,6 +516,11 @@ export interface PasswordResetBundle {
 export interface RateLimitBundle {
 	consumeRateLimit: ConsumeRateLimit;
 	rules: RateLimitRules;
+}
+
+export interface SubmitLinkBundle {
+	publishSubmitLink: PublishSubmitLink;
+	submitLinks: Parameters<PublishSubmitLink>[0][];
 }
 
 export interface WrapperTargetBundle {
@@ -654,6 +661,7 @@ export interface TestAppFixture {
 	passwordReset: PasswordResetBundle;
 	rateLimit: RateLimitBundle;
 	wrapperTarget: WrapperTargetBundle;
+	submitLink: SubmitLinkBundle;
 	onboardingSignals: OnboardingSignalsBundle;
 	google: GoogleAuthBundle | undefined;
 	gmailIntegration: GmailIntegrationBundle | undefined;

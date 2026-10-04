@@ -15,6 +15,7 @@ export {
 	type PinContentSource,
 	type ReconcileStubMetadata,
 	type FindAdoptedFetchUrl,
+	type FindContentSourceUrl,
 } from "./canonical-alias";
 export type { ArticleStore } from "@packages/domain/article-aggregate";
 export {

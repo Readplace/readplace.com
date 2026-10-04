@@ -58,6 +58,7 @@ export {
 	unwrapWrapperUrl,
 	wrapperFamilyOf,
 	wrapperResolutionOf,
+	isUnresolvedArchiveCapture,
 	type UnwrappedUrl,
 	type WrapperFamily,
 	type WrapperResolution,

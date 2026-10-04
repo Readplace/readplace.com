@@ -24,6 +24,7 @@ export type {
 export { resolveDocumentUrl } from "./resolve-document-url";
 export { initCrawlFetch } from "./crawl-fetch";
 export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
+export { initCaptureFallbackCrawl } from "./fetch-capture-fallback";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
 export { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "./curl-fetch";
 export type { CurlImpersonateProbe, CurlImpersonateProbeResult } from "./curl-fetch";

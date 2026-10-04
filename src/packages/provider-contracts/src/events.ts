@@ -1,3 +1,5 @@
+import type { SaveProvenance } from "@packages/domain/article";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { BillingPlan } from "./subscription-providers";
 
@@ -23,6 +25,7 @@ export type PublishDeleteAccountCommand = (params: {
 export type PublishLinkSaved = (params: {
 	url: string;
 	userId: UserId;
+	captureUrl?: string;
 }) => Promise<void>;
 
 /** Announce that a save reached its terminal accept state. `url` is the URL as
@@ -79,8 +82,16 @@ export type PublishRefreshArticleContent = (params: {
 	bodyHash: string;
 }) => Promise<void>;
 
+export type PublishSubmitLink = (params: {
+	url: string;
+	userId: UserId;
+	provenance: SaveProvenance;
+	readlist: ReadlistSlug;
+}) => Promise<void>;
+
 export type PublishSaveAnonymousLink = (params: {
 	url: string;
+	captureUrl?: string;
 }) => Promise<void>;
 
 export type PublishSaveLinkRawHtmlCommand = (params: {

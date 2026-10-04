@@ -343,6 +343,27 @@ describe("Admin recrawl routes", () => {
 			expect(badge?.textContent).toContain("HTTP crawl");
 		});
 
+		it("renders the Tier 2 badge when an archive capture won the content judgement", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleStore.setContentSourceTier({ url: ARTICLE_URL, tier: "tier-2" });
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const badge = doc.querySelector("[data-test-tier-badge]");
+			expect(badge?.getAttribute("data-test-tier-badge")).toBe("tier-2");
+			expect(badge?.textContent).toContain("archive capture");
+		});
+
 		it("renders the legacy badge when contentSourceTier is unset (rows written before the selector existed)", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

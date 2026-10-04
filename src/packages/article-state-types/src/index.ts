@@ -17,6 +17,8 @@ export type {
 	SummaryStatus,
 } from "./article-state";
 export { blockedCauseForStatus } from "./blocked-cause";
+export { ARCHIVE_TIER, ContentTierSchema, KNOWN_TIERS } from "./content-tier";
+export type { ContentTier } from "./content-tier";
 export { CrawlFailureReasonSchema } from "./crawl-failure-reason";
 export type { CrawlFailureReason } from "./crawl-failure-reason";
 export { parseCrawlFailureReason } from "./parse-crawl-failure-reason";

@@ -1,3 +1,4 @@
+import type { ContentTier } from "@packages/article-state-types";
 import type {
 	ArticleDestinationUrl,
 	Minutes,
@@ -76,7 +77,7 @@ export interface AdminRecrawlPageInput {
 	summary?: GeneratedSummary;
 	summaryPollUrl?: string;
 	progress?: ProgressTick;
-	contentSourceTier?: "tier-0" | "tier-1";
+	contentSourceTier?: ContentTier;
 	extensionInstallUrl?: string;
 	appOrigin: string;
 	recrawlFormAction?: string;
@@ -141,12 +142,15 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 	};
 }
 
-function renderTierBadge(tier: "tier-0" | "tier-1" | undefined): string {
-	if (tier === "tier-0") {
-		return `<div class="admin-recrawl__tier-badge" data-test-tier-badge="tier-0">Showing Tier 0 (extension capture)</div>`;
-	}
-	if (tier === "tier-1") {
-		return `<div class="admin-recrawl__tier-badge" data-test-tier-badge="tier-1">Showing Tier 1 (HTTP crawl)</div>`;
+const TIER_BADGE_LABELS = {
+	"tier-0": "Showing Tier 0 (extension capture)",
+	"tier-1": "Showing Tier 1 (HTTP crawl)",
+	"tier-2": "Showing Tier 2 (archive capture)",
+} satisfies Record<ContentTier, string>;
+
+function renderTierBadge(tier: ContentTier | undefined): string {
+	if (tier !== undefined) {
+		return `<div class="admin-recrawl__tier-badge" data-test-tier-badge="${tier}">${TIER_BADGE_LABELS[tier]}</div>`;
 	}
 	return `<div class="admin-recrawl__tier-badge admin-recrawl__tier-badge--legacy" data-test-tier-badge="legacy">Showing Tier 1 (legacy)</div>`;
 }

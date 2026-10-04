@@ -499,16 +499,48 @@ describe("saveArticleFromUrl", () => {
 			]);
 		});
 
-		it("pins nothing on a 'skip' verdict — a row with live content is never re-pointed at the snapshot", async () => {
+		it("asks for the snapshot to be crawled as a content candidate after priming the live crawl", async () => {
 			const tracker = makeTracker();
+			const linkSaves: Array<{ url: string; captureUrl?: string }> = [];
 			const deps: SaveArticleFromUrlDependencies = {
 				...tracker.deps,
 				resolveSaveIdentity: async (url) => ({ url, contentSourceUrl: snapshot }),
+				publishLinkSaved: async ({ url, captureUrl }) => {
+					linkSaves.push({ url, captureUrl });
+				},
 			};
 
-			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "skip" } });
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "new" } });
 
-			expect(tracker.calls.pinContentSource).toBe(0);
+			expect(linkSaves).toEqual([
+				{ url: exampleUrl, captureUrl: undefined },
+				{ url: exampleUrl, captureUrl: snapshot },
+			]);
+		});
+
+		it.each([
+			{ label: "a 'skip' verdict", freshness: { action: "skip" as const } },
+			{ label: "an 'unchanged' verdict", freshness: { action: "unchanged" as const } },
+		])("records the snapshot and offers it to the content judge on $label, without re-priming the live crawl", async ({ freshness }) => {
+			const tracker = makeTracker();
+			const pinned: Array<{ articleUrl: string; contentSourceUrl: string }> = [];
+			const linkSaves: Array<{ url: string; captureUrl?: string }> = [];
+			const deps: SaveArticleFromUrlDependencies = {
+				...tracker.deps,
+				resolveSaveIdentity: async (url) => ({ url, contentSourceUrl: snapshot }),
+				pinContentSource: async (params) => {
+					pinned.push(params);
+				},
+				publishLinkSaved: async ({ url, captureUrl }) => {
+					linkSaves.push({ url, captureUrl });
+				},
+			};
+
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness });
+
+			expect(pinned).toEqual([{ articleUrl: exampleUrl, contentSourceUrl: snapshot }]);
+			expect(linkSaves).toEqual([{ url: exampleUrl, captureUrl: snapshot }]);
+			expect(tracker.calls.markCrawlPending).toBe(0);
 		});
 	});
 

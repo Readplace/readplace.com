@@ -5,6 +5,7 @@ import type {
 	ParseArticle,
 	ParseArticleResult,
 } from "@packages/article-parser";
+import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { useTestServer, BROWSER_REQUEST_HEADERS } from "../../../test-app";
@@ -2428,7 +2429,27 @@ describe("View routes", () => {
 			expect(harness.wrapperTarget.calls).toEqual([]);
 			expect(await harness.articleStore.findArticleByUrl(snapshot)).toBeNull();
 			expect(await harness.articleStore.findArticleByUrl(original)).not.toBeNull();
-			expect(await harness.articleStore.findAdoptedFetchUrl(original)).toBe(snapshot);
+			expect(await harness.articleStore.findContentSourceUrl(original)).toBe(snapshot);
+		});
+
+		it("asks for the live page and the Wayback capture to be crawled as competing candidates", async () => {
+			const snapshot = "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106.html";
+			const original = "http://www.onscreenasia.com/article-106.html";
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const anonymousSaves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishSaveAnonymousLink: async (params) => {
+						anonymousSaves.push(params);
+					},
+				},
+			});
+
+			await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+
+			expect(anonymousSaves).toEqual([{ url: original }, { url: original, captureUrl: snapshot }]);
 		});
 	});
 });

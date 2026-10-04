@@ -1042,3 +1042,61 @@ describe("POST /queue/save-articles per-entry results", () => {
 		expect(stored.articles).toHaveLength(0);
 	});
 });
+
+describe("POST /queue/save-articles with an archive capture tab", () => {
+	const ORIGINAL = "http://www.onscreenasia.com/article-106.html";
+	const WAYBACK = `https://web.archive.org/web/20081203185222/${ORIGINAL}`;
+
+	it("stages the captured page under the original the save is keyed on", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+		const testApp = useApp({
+			...fixture,
+			freshness: {
+				refreshArticleIfStale: async () => ({ action: "new", identity: { url: ORIGINAL, contentSourceUrl: WAYBACK } }),
+			},
+			events: {
+				...fixture.events,
+				publishSaveLinkRawHtmlCommand: async (params) => {
+					publishedSaveHtml.push(params);
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: WAYBACK, title: "Archived", mediaType: "text/html" }]))
+			.attach("content-0", VALID_HTML, "content-0");
+
+		expect(response.status).toBe(200);
+		expect(publishedSaveHtml.map((params) => params.url)).toEqual([ORIGINAL]);
+		expect(await testApp.articleStore.findArticleByUrl(ORIGINAL)).not.toBeNull();
+	});
+});
+
+describe("POST /queue/save-articles with an archive.today short id", () => {
+	const SHORT_ID = "https://archive.ph/Ab1cD";
+
+	it("hands the page to the background submit, which asks the archive, and reports it created", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp(fixture);
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: SHORT_ID }, { url: "https://example.com/inline" }]));
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(expect.objectContaining({ saved: 2, failed: 0 }));
+		expect(fixture.submitLink.submitLinks).toEqual([
+			{ url: SHORT_ID, userId: TEST_USER_ID, provenance: { kind: "client", clientName: "firefox" }, readlist: "default" },
+		]);
+		expect(await testApp.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
+		expect(await testApp.articleStore.findArticleByUrl("https://example.com/inline")).not.toBeNull();
+	});
+});

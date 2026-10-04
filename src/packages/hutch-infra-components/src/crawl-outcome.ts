@@ -1,6 +1,6 @@
 export const CRAWL_OUTCOME_STREAM = "crawl-outcomes";
 
-export type TierName = "tier-0" | "tier-1";
+export type TierName = "tier-0" | "tier-1" | "tier-2";
 
 export interface CrawlOutcomeEvent {
 	stream: typeof CRAWL_OUTCOME_STREAM;

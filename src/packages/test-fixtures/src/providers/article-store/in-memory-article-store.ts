@@ -81,7 +81,7 @@ interface GlobalArticle {
 	lastModified?: string;
 	contentFetchedAt?: string;
 	bodyHash?: string;
-	contentSourceTier?: "tier-0" | "tier-1";
+	contentSourceTier?: "tier-0" | "tier-1" | "tier-2";
 	crawlVersions?: ArticleCrawlVersion[];
 	purgedAt?: Date;
 	readerAvailableAt?: Date;
@@ -192,7 +192,7 @@ export function initInMemoryArticleStore(): {
 		contentType: string;
 	}) => Promise<void>;
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
-	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
+	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	claimAlias: (params: { aliasUrl: string; targetOriginalUrl: string; now: Date }) => Promise<"claimed" | "occupied">;
@@ -202,6 +202,7 @@ export function initInMemoryArticleStore(): {
 	) => Promise<{ kind: "absent" } | { kind: "article" } | { kind: "alias"; targetUrl: string }>;
 	pinContentSource: (params: { articleUrl: string; contentSourceUrl: string }) => Promise<void>;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
+	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 	setReaderAvailableAt: (params: { url: string; at: Date }) => Promise<void>;
@@ -874,7 +875,7 @@ export function initInMemoryArticleStore(): {
 		article.estimatedReadTime = params.estimatedReadTime;
 	};
 
-	const setContentSourceTier = async (params: { url: string; tier: "tier-0" | "tier-1" }) => {
+	const setContentSourceTier = async (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
@@ -931,10 +932,11 @@ export function initInMemoryArticleStore(): {
 
 	const findAdoptedFetchUrl = async (url: string) => {
 		const article = articles.get(ArticleResourceUniqueId.parse(url).value);
-		if (!article) return undefined;
-		if (article.contentSourceUrl !== undefined) return article.contentSourceUrl;
-		return article.displayUrl;
+		return article?.displayUrl;
 	};
+
+	const findContentSourceUrl = async (url: string) =>
+		articles.get(ArticleResourceUniqueId.parse(url).value)?.contentSourceUrl;
 
 	const setPurgedAt = async (params: { url: string; at: Date }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -1006,6 +1008,7 @@ export function initInMemoryArticleStore(): {
 		findIdentityRow,
 		pinContentSource,
 		findAdoptedFetchUrl,
+		findContentSourceUrl,
 		setCrawlVersions,
 		setPurgedAt,
 		setReaderAvailableAt,

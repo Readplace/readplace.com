@@ -13,6 +13,7 @@ export const TierSourceMetadataSchema = z.object({
 	 * The tier-0 slot is a single object per URL, so among co-savers the
 	 * recorded author is last-writer-wins. */
 	authorUserId: z.string().optional(),
+	sourceUrl: z.string().optional(),
 });
 
 export type TierSourceMetadata = z.infer<typeof TierSourceMetadataSchema>;

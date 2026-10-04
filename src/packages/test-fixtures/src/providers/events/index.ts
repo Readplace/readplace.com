@@ -29,6 +29,7 @@ export * from "./in-memory-save-anonymous-link";
 export * from "./in-memory-save-link-raw-html-command";
 export * from "./in-memory-save-link-raw-pdf-command";
 export * from "./in-memory-stale-check-requested";
+export * from "./in-memory-submit-link";
 export * from "./in-memory-subscription-reactivated";
 export * from "./in-memory-update-fetch-timestamp";
 export * from "./in-memory-compute-related-past-reads";

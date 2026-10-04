@@ -32,6 +32,7 @@ export type CrawlAndFinalizeResult =
 
 export type CrawlAndFinalizeArticle = (params: {
 	url: string;
+	fetchUrl?: string;
 	etag?: string;
 	lastModified?: string;
 	previousBodyHash?: string;
@@ -57,12 +58,13 @@ export function initCrawlAndFinalizeArticle(deps: {
 		/** Defence-in-depth: validation runs at the web boundary, but the async
 		 * workers re-fetch a stored URL, so re-check here and fail closed before
 		 * any network call rather than trusting that intake validated it. */
-		if (validateSaveableUrl(params.url).status === "ERROR") {
+		const fetchUrl = params.fetchUrl ?? params.url;
+		if (validateSaveableUrl(fetchUrl).status === "ERROR") {
 			return { status: "failed", reason: "unsafe-url" };
 		}
 
 		const crawlResult = await crawlArticle({
-			url: params.url,
+			url: fetchUrl,
 			etag: params.etag,
 			lastModified: params.lastModified,
 			previousBodyHash: params.previousBodyHash,
@@ -94,7 +96,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 
 		const finalized = await finalizeArticle({
 			url: params.url,
-			documentUrl: resolveDocumentUrl({ requestedUrl: params.url, finalUrl: crawlResult.finalUrl }),
+			documentUrl: resolveDocumentUrl({ requestedUrl: fetchUrl, finalUrl: crawlResult.finalUrl }),
 			html: crawlResult.html,
 			resolvedThumbnail: crawlResult.thumbnail,
 			mediaType: crawlResult.mediaType,

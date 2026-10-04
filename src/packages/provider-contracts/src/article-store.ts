@@ -105,7 +105,7 @@ export interface GlobalArticleData {
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	savedAt: Date;
-	contentSourceTier?: "tier-0" | "tier-1";
+	contentSourceTier?: "tier-0" | "tier-1" | "tier-2";
 	/** Set once the URL's content was purged and the row tombstoned. Serving
 	 * surfaces treat a purged row as gone (404) even though the row survives so
 	 * in-flight transitions still load it and its id still resolves. */

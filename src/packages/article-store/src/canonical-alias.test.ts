@@ -237,7 +237,7 @@ describe("initCanonicalAliasStore", () => {
 			expect(await findAdoptedFetchUrl("https://evil.com/x")).toBe("https://victim.com/article");
 		});
 
-		it("prefers the pinned content source over the adopted destination", async () => {
+		it("fetches the adopted destination even when an archive capture is recorded for the article", async () => {
 			const client = createFakeClient(() => ({
 				Item: {
 					url: "dead.example/article",
@@ -249,9 +249,7 @@ describe("initCanonicalAliasStore", () => {
 			}));
 			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
 
-			expect(await findAdoptedFetchUrl("http://dead.example/article")).toBe(
-				"https://web.archive.org/web/20140413140620/http://dead.example/article",
-			);
+			expect(await findAdoptedFetchUrl("http://dead.example/article")).toBe("https://dead.example/article");
 		});
 
 		it("returns undefined for a normal (un-adopted) article", async () => {
@@ -268,6 +266,34 @@ describe("initCanonicalAliasStore", () => {
 			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
 
 			expect(await findAdoptedFetchUrl("https://site.com/page")).toBeUndefined();
+		});
+	});
+
+	describe("findContentSourceUrl", () => {
+		it("returns the archive capture recorded for the article", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					url: "dead.example/article",
+					routeId: "a".repeat(32),
+					originalUrl: "http://dead.example/article",
+					contentSourceUrl: "https://web.archive.org/web/20140413140620/http://dead.example/article",
+				},
+			}));
+			const { findContentSourceUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findContentSourceUrl("http://dead.example/article")).toBe(
+				"https://web.archive.org/web/20140413140620/http://dead.example/article",
+			);
+		});
+
+		it.each([
+			{ label: "an article without a capture", item: { url: "site.com/page", routeId: "a".repeat(32), originalUrl: "https://site.com/page" } },
+			{ label: "a missing row", item: undefined },
+		])("returns undefined for $label", async ({ item }) => {
+			const client = createFakeClient(() => ({ Item: item }));
+			const { findContentSourceUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findContentSourceUrl("https://site.com/page")).toBeUndefined();
 		});
 	});
 

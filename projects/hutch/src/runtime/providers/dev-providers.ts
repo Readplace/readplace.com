@@ -86,7 +86,7 @@ import {
 	initInMemoryRelatedArticles,
 } from "@packages/test-fixtures/providers/related-articles";
 import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
-import { initInMemorySaveAnonymousLink } from "@packages/test-fixtures/providers/events";
+import { initInMemorySaveAnonymousLink, initInMemorySubmitLink } from "@packages/test-fixtures/providers/events";
 import { initInMemoryStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
@@ -444,6 +444,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const { publishDeleteAccountCommand } = initInMemoryDeleteAccountCommand({ logger: consoleLogger });
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({ logger: consoleLogger });
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
+	const { publishSubmitLink } = initInMemorySubmitLink();
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const { putPendingPdf } = initInMemoryPendingPdf();
 	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ findIdentityRow: articleStore.findIdentityRow });
@@ -552,6 +553,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,
+		publishSubmitLink,
 		publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand,

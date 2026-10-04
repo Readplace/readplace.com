@@ -6,7 +6,12 @@ import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
-import { DEFAULT_CRAWL_HEADERS, initFetchRedirectHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
+import {
+	DEFAULT_CRAWL_HEADERS,
+	initCaptureFallbackCrawl,
+	initFetchRedirectHop,
+	initResolveAppleNewsStoryUrl,
+} from "@packages/crawl-article";
 import {
 	initCanonicalAliasStore,
 	initDynamoDbArticleCrawl,
@@ -64,7 +69,13 @@ const parser = initParserDepBundle({
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
-	parser,
+	parser: {
+		...parser,
+		crawlArticle: initCaptureFallbackCrawl({
+			crawlArticle: parser.crawlArticle,
+			findContentSourceUrl: canonicalAliasStore.findContentSourceUrl,
+		}),
+	},
 	media,
 	articleStore,
 	imagesCdnBaseUrl,

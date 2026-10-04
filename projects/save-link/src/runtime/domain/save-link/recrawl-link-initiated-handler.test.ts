@@ -75,6 +75,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		logParseError: jest.fn(),
 		logCrawlOutcome: jest.fn(),
 		readTierSnapshot: jest.fn().mockResolvedValue({ tier0Status: "not_attempted", tier1Status: "not_attempted", pickedTier: "none" }),
+		findContentSourceUrl: async () => undefined,
 		...overrides,
 	});
 }
@@ -240,5 +241,65 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 			expect.objectContaining({ messageId: "msg-1" }),
 		);
 		expect(logger.warn).not.toHaveBeenCalled();
+	});
+
+	describe("an article with a recorded archive capture", () => {
+		const capture = "https://web.archive.org/web/20081203185222/https://example.com/article";
+
+		it("re-crawls the capture into the archive tier before the live page, then asks for one content judgement", async () => {
+			const crawls: Parameters<CrawlAndFinalizeArticle>[0][] = [];
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async (params) => {
+					crawls.push(params);
+					return fetchedResult;
+				},
+				putTierSource,
+				publishEvent,
+				findContentSourceUrl: async () => capture,
+			});
+
+			await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
+
+			expect(crawls).toEqual([{ url: "https://example.com/article", fetchUrl: capture }, { url: "https://example.com/article" }]);
+			expect(putTierSource.mock.calls.map(([params]) => params.tier)).toEqual(["tier-2", "tier-1"]);
+			expect(publishEvent).toHaveBeenCalledTimes(1);
+			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
+				url: "https://example.com/article",
+				extractedAt: "2026-04-30T12:00:00.000Z",
+			});
+		});
+
+		it("still asks for a content judgement when the live page is gone but the capture was re-crawled", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async (params) =>
+					params.fetchUrl === undefined ? { status: "not-found", httpStatus: 404 } : fetchedResult,
+				publishEvent,
+				findContentSourceUrl: async () => capture,
+			});
+
+			const result = await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
+				url: "https://example.com/article",
+				extractedAt: "2026-04-30T12:00:00.000Z",
+			});
+		});
+
+		it("asks for nothing when neither the capture nor the live page could be crawled", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async () => ({ status: "not-found", httpStatus: 404 }),
+				publishEvent,
+				findContentSourceUrl: async () => capture,
+			});
+
+			await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
+
+			expect(publishEvent).not.toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.anything());
+		});
 	});
 });

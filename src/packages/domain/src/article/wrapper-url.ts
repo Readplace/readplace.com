@@ -214,6 +214,10 @@ export function wrapperResolutionOf(url: string): WrapperResolution {
 	return unwrapped !== url && wrapperFamilyOf(unwrapped) === undefined ? "syntactic" : "network";
 }
 
+export function isUnresolvedArchiveCapture(url: string): boolean {
+	return wrapperFamilyOf(url) === "archive-snapshot" && wrapperResolutionOf(url) === "network";
+}
+
 export function stripRedirectAddedParams(params: { wrapperUrl: string; targetUrl: string }): string {
 	const wrapper = parseHttpUrl(params.wrapperUrl);
 	if (wrapper === undefined || !SUBSTACK_HOSTS.has(hostnameOf(wrapper))) return params.targetUrl;

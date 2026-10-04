@@ -19,7 +19,7 @@ const stubAttributes: SQSRecordAttributes = {
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
 
-function createSqsEvent(detail: { url: string; userId: string }): SQSEvent {
+function createSqsEvent(detail: { url: string; userId: string; captureUrl?: string }): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
@@ -449,5 +449,62 @@ describe("initSaveLinkCommandHandler", () => {
 			expect.objectContaining({ messageId: "msg-1" }),
 		);
 		expect(logger.warn).not.toHaveBeenCalled();
+	});
+
+	describe("a command carrying an archive capture", () => {
+		const capture = "https://web.archive.org/web/20081203185222/https://example.com/article";
+
+		it("crawls the capture into the archive tier and announces it to the content judge, leaving the live crawl alone", async () => {
+			const crawls: Parameters<CrawlAndFinalizeArticle>[0][] = [];
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const markCrawlStage = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async (params) => {
+					crawls.push(params);
+					return fetchedResult;
+				},
+				putTierSource,
+				publishEvent,
+				markCrawlStage,
+			});
+
+			const result = await handler(
+				createSqsEvent({ url: "https://example.com/article", userId: "user-1", captureUrl: capture }),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(crawls).toEqual([{ url: "https://example.com/article", fetchUrl: capture }]);
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/article", tier: "tier-2" }));
+			expect(markCrawlStage).not.toHaveBeenCalled();
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+				url: "https://example.com/article",
+				tier: "tier-2",
+				userId: "user-1",
+				extractedAt: "2026-04-18T12:00:00.000Z",
+			});
+		});
+
+		it("announces nothing to the content judge when the archive would not serve the capture", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async () => ({ status: "blocked", httpStatus: 429 }),
+				publishEvent,
+				transitionAndPersist,
+			});
+
+			const result = await handler(
+				createSqsEvent({ url: "https://example.com/article", userId: "user-1", captureUrl: capture }),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(publishEvent).not.toHaveBeenCalledWith(TierContentExtractedEvent, expect.anything());
+			expect(transitionAndPersist).not.toHaveBeenCalled();
+		});
 	});
 });

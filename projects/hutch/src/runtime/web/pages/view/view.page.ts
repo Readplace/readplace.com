@@ -346,6 +346,9 @@ function handleViewArticle(
 					await deps.markCrawlPending({ url: articleUrl });
 					await deps.markSummaryPending({ url: articleUrl });
 					await deps.publishSaveAnonymousLink({ url: articleUrl });
+					if (identity.contentSourceUrl !== undefined) {
+						await deps.publishSaveAnonymousLink({ url: articleUrl, captureUrl: identity.contentSourceUrl });
+					}
 				}
 			}
 			await deps.publishStaleCheckRequested({ url: articleUrl });

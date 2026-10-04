@@ -38,6 +38,32 @@ describe("initCrawlAndFinalizeArticle", () => {
 		}));
 	});
 
+	it("fetches a capture URL while finalizing under the article's own URL, resolving relative links against the capture", async () => {
+		const capture = "https://web.archive.org/web/20081203185222/https://example.com/article";
+		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>(async () => ({
+			status: "fetched",
+			html: "<html></html>",
+			bodyHash: "a".repeat(64),
+		}));
+		const finalizeArticle = jest.fn(okFinalize);
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle });
+
+		await crawlAndFinalize({ url: URL_UNDER_TEST, fetchUrl: capture });
+
+		expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({ url: capture }));
+		expect(finalizeArticle).toHaveBeenCalledWith(expect.objectContaining({ url: URL_UNDER_TEST, documentUrl: capture }));
+	});
+
+	it("fails closed without fetching a capture URL that no longer passes validateSaveableUrl", async () => {
+		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>();
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle: okFinalize });
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST, fetchUrl: "http://169.254.169.254/latest/meta-data/" });
+
+		expect(result).toEqual({ status: "failed", reason: "unsafe-url" });
+		expect(crawlArticle).not.toHaveBeenCalled();
+	});
+
 	it("fails closed without fetching when the stored URL no longer passes validateSaveableUrl (SSRF defence-in-depth)", async () => {
 		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>();
 		const finalizeArticle = jest.fn(okFinalize);

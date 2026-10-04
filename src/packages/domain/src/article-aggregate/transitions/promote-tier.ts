@@ -1,3 +1,4 @@
+import type { ContentTier } from "@packages/article-state-types";
 import type { Article, ArticleMetadata } from "../article.types";
 import type { CanonicalImageUrl } from "../canonical-image-url";
 import type { Effect } from "../effects.types";
@@ -5,7 +6,7 @@ import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
 
 export interface PromoteTierInput {
-	tier: "tier-0" | "tier-1";
+	tier: ContentTier;
 	/** `imageUrl` is branded `CanonicalImageUrl` so the only way to populate it
 	 * is `resolveCanonicalImageUrl` (save-link/select-content), which rescues
 	 * an og:image from a losing tier when the winner has none. Passing

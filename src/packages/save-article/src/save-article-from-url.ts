@@ -116,6 +116,9 @@ async function saveByFreshness(
 			}),
 			deps.publishLinkSaved({ url, userId }),
 		]);
+		if (contentSourceUrl !== undefined) {
+			await deps.publishLinkSaved({ url, userId, captureUrl: contentSourceUrl });
+		}
 		return outcome;
 	}
 
@@ -131,6 +134,11 @@ async function saveByFreshness(
 	if (freshness.action === "refreshed" && freshness.article.article.content) {
 		await deps.markSummaryPending({ url });
 		await deps.publishLinkSaved({ url, userId });
+	}
+
+	if (contentSourceUrl !== undefined) {
+		await deps.pinContentSource({ articleUrl: url, contentSourceUrl });
+		await deps.publishLinkSaved({ url, userId, captureUrl: contentSourceUrl });
 	}
 
 	return markUnreadIfRead(deps.updateArticleStatus, written);

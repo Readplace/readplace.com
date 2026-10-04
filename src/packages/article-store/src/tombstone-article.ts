@@ -39,6 +39,7 @@ const CONTENT_BEARING_COLUMNS = [
 	"lastModified",
 	"contentFetchedAt",
 	"imageUrl",
+	"contentSourceUrl",
 ] as const;
 
 /** 1. Both axes land on terminal, non-error states so pollers stop, the

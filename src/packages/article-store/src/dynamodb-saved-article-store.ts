@@ -1,3 +1,4 @@
+import { ContentTierSchema } from "@packages/article-state-types";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -97,7 +98,7 @@ const ArticleRow = z.object({
 	content: dynamoField(z.string()),
 	estimatedReadTime: MinutesSchema,
 	savedAt: dynamoField(z.string()),
-	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
+	contentSourceTier: dynamoField(ContentTierSchema),
 	purgedAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),

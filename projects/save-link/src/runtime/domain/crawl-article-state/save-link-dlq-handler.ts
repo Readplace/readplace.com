@@ -29,6 +29,15 @@ export function initSaveLinkDlqHandler(
 				const command = SaveLinkCommand.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
+				if (command.captureUrl !== undefined) {
+					logger.warn("[SaveLinkDlq] archive capture exhausted its retries", {
+						url: command.url,
+						captureUrl: command.captureUrl,
+						receiveCount,
+					});
+					continue;
+				}
+
 				logger.info("[SaveLinkDlq] marking crawl exhausted", {
 					url: command.url,
 					receiveCount,

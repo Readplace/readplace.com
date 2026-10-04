@@ -988,3 +988,39 @@ describe("POST /queue/save-content for a host that can never hold an article", (
 		]);
 	});
 });
+
+describe("POST /queue/save-content of an archive capture", () => {
+	const ORIGINAL = "http://www.onscreenasia.com/article-106.html";
+	const WAYBACK = `https://web.archive.org/web/20081203185222/${ORIGINAL}`;
+
+	it("stages the captured page under the original the save is keyed on", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+		const testApp = useApp({
+			...fixture,
+			freshness: {
+				refreshArticleIfStale: async () => ({ action: "new", identity: { url: ORIGINAL, contentSourceUrl: WAYBACK } }),
+			},
+			events: {
+				...fixture.events,
+				publishSaveLinkRawHtmlCommand: async (params) => {
+					publishedSaveHtml.push(params);
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", WAYBACK)
+			.field("mediaType", "text/html")
+			.attach("content", VALID_HTML, "content");
+
+		expect(response.status).toBe(201);
+		expect(publishedSaveHtml.map((params) => params.url)).toEqual([ORIGINAL]);
+		expect(await testApp.articleStore.findArticleByUrl(ORIGINAL)).not.toBeNull();
+		expect(await testApp.articleStore.findArticleByUrl(WAYBACK)).toBeNull();
+	});
+});

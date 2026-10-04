@@ -76,15 +76,15 @@ describe("initInMemoryArticleStore", () => {
 			expect(await store.findIdentityRow("https://nowhere.example/z")).toEqual({ kind: "absent" });
 		});
 
-		it("re-crawls a pinned article from its content source ahead of its adopted destination", async () => {
+		it("re-crawls an adopted article from its destination and records an archive capture beside it", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());
 
 			expect(await store.findAdoptedFetchUrl(URL)).toBeUndefined();
 			await store.setDisplayUrl({ url: URL, displayUrl: "https://example.com/article-final" });
-			expect(await store.findAdoptedFetchUrl(URL)).toBe("https://example.com/article-final");
 			await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot" });
-			expect(await store.findAdoptedFetchUrl(URL)).toBe("https://archive.example/snapshot");
+			expect(await store.findAdoptedFetchUrl(URL)).toBe("https://example.com/article-final");
+			expect(await store.findContentSourceUrl(URL)).toBe("https://archive.example/snapshot");
 		});
 
 		it("ignores a pin or a fetch-url lookup for an unknown article", async () => {
@@ -93,6 +93,7 @@ describe("initInMemoryArticleStore", () => {
 			await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot" });
 
 			expect(await store.findAdoptedFetchUrl(URL)).toBeUndefined();
+			expect(await store.findContentSourceUrl(URL)).toBeUndefined();
 		});
 	});
 

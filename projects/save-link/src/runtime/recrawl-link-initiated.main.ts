@@ -5,6 +5,7 @@ import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initCanonicalAliasStore } from "@packages/article-store";
+import { initCaptureFallbackCrawl } from "@packages/crawl-article";
 import { initRecrawlLinkInitiatedHandler } from "./domain/save-link/recrawl-link-initiated-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -39,7 +40,13 @@ const parser = initParserDepBundle({
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
-	parser,
+	parser: {
+		...parser,
+		crawlArticle: initCaptureFallbackCrawl({
+			crawlArticle: parser.crawlArticle,
+			findContentSourceUrl: canonicalAliasStore.findContentSourceUrl,
+		}),
+	},
 	media,
 	articleStore,
 	imagesCdnBaseUrl,
@@ -70,5 +77,6 @@ export const handler = initRecrawlLinkInitiatedHandler({
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	emitSimpleCrawlUnsupported,
 	adoptCanonicalIdentity,
+	findContentSourceUrl: canonicalAliasStore.findContentSourceUrl,
 	now,
 });

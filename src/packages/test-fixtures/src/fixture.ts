@@ -64,6 +64,7 @@ import { initInMemoryComputeRelatedPastReads } from "./providers/events/in-memor
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
+import { initInMemorySubmitLink } from "./providers/events/in-memory-submit-link";
 import { initInMemoryStaleCheckRequested } from "./providers/events/in-memory-stale-check-requested";
 import { initInMemoryRemoveMyContent } from "./providers/events/in-memory-remove-my-content";
 import { initInMemoryUpdateFetchTimestamp } from "./providers/events/in-memory-update-fetch-timestamp";
@@ -398,6 +399,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			findIdentityRow: articleStoreMemory.findIdentityRow,
 			pinContentSource: articleStoreMemory.pinContentSource,
 			findAdoptedFetchUrl: articleStoreMemory.findAdoptedFetchUrl,
+			findContentSourceUrl: articleStoreMemory.findContentSourceUrl,
 			setCrawlVersions: articleStoreMemory.setCrawlVersions,
 			setPurgedAt: articleStoreMemory.setPurgedAt,
 			setReaderAvailableAt: articleStoreMemory.setReaderAvailableAt,
@@ -464,6 +466,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		passwordReset,
 		rateLimit,
 		wrapperTarget: initInMemoryWrapperTarget(),
+		submitLink: initInMemorySubmitLink(),
 		onboardingSignals: initInMemoryOnboardingSignals({ now: () => new Date() }),
 		google: undefined,
 		gmailIntegration: undefined,

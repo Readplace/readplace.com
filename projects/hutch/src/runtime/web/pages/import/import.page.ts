@@ -12,6 +12,9 @@ import {
 } from "@packages/domain/import-session";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
+import { isUnresolvedArchiveCapture } from "@packages/domain/article";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import type { PublishSubmitLink } from "@packages/provider-contracts/events";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { AllocateSavedAtSequence } from "@packages/provider-contracts/article-store";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
@@ -38,6 +41,7 @@ import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
+	publishSubmitLink: PublishSubmitLink;
 	validateNewSaveUrl: ValidateSaveableUrl;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	importSessionStore: ImportSessionStore;
@@ -341,7 +345,16 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 						),
 				),
 			);
-			const ready = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
+			const settled = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
+			const submitted = settled.filter(({ url, freshness }) => isUnresolvedArchiveCapture(freshness.identity?.url ?? url));
+			await Promise.all(
+				submitted.map(({ url }) =>
+					deps
+						.publishSubmitLink({ url, userId, provenance: { kind: "import" }, readlist: DEFAULT_READLIST_SLUG })
+						.catch((error: unknown) => logImportFailure(url, error)),
+				),
+			);
+			const ready = settled.filter((page) => !submitted.includes(page));
 			if (ready.length === 0) continue;
 			let savedAts: Date[];
 			try {

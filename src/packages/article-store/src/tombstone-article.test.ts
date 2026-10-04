@@ -54,6 +54,7 @@ describe("initTombstoneArticle", () => {
 			"lastModified",
 			"contentFetchedAt",
 			"imageUrl",
+			"contentSourceUrl",
 		]) {
 			const removeClause = expression.slice(expression.indexOf("REMOVE"));
 			expect(removeClause).toContain(column);

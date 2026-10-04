@@ -25,6 +25,8 @@ export {
 	type SummaryGenerationFailedDetail,
 	TierContentExtractedEvent,
 	type TierContentExtractedDetail,
+	ArchiveCaptureCrawlFailedEvent,
+	type ArchiveCaptureCrawlFailedDetail,
 	CrawlArticleCompletedEvent,
 	type CrawlArticleCompletedDetail,
 	CanonicalContentChangedEvent,

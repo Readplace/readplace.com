@@ -3,6 +3,7 @@ import {
 	stripRedirectAddedParams,
 	unwrapWrapperUrl,
 	wrapperFamilyOf,
+	isUnresolvedArchiveCapture,
 	wrapperResolutionOf,
 } from "./wrapper-url";
 
@@ -294,5 +295,14 @@ describe("archive URL shapes", () => {
 		{ label: "a Wayback capture of a tracker", url: "https://web.archive.org/web/2026/https://javascriptweekly.com/link/100000/rss", resolution: "network" },
 	])("resolves $label by $resolution", ({ url, resolution }) => {
 		expect(wrapperResolutionOf(url)).toBe(resolution);
+	});
+
+	it.each([
+		{ label: "an archive.today short id", url: "https://archive.ph/Ab1cD", unresolved: true },
+		{ label: "a Wayback capture whose path names the article", url: `https://web.archive.org/web/2026/${ARTICLE}`, unresolved: false },
+		{ label: "a newsletter tracker", url: "https://javascriptweekly.com/link/100000/rss", unresolved: false },
+		{ label: "a plain article", url: ARTICLE, unresolved: false },
+	])("needs the network to find the article behind $label: $unresolved", ({ url, unresolved }) => {
+		expect(isUnresolvedArchiveCapture(url)).toBe(unresolved);
 	});
 });

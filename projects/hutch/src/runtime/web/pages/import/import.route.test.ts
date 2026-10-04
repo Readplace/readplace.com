@@ -703,6 +703,68 @@ describe("Import routes", () => {
 	});
 
 	describe("POST /import/:id/commit", () => {
+		describe("an archive.today short id, which names no article until the archive is asked", () => {
+			const SHORT_ID = "https://archive.ph/Ab1cD";
+			const ORIGINAL = "https://publisher.example/article";
+
+			async function commitFile(harness: ReturnType<typeof useApp>, urls: string) {
+				const agent = await loginAgent(harness.server, harness.auth);
+				const { body, contentType } = multipartBody("urls.txt", Buffer.from(urls));
+				const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+				const commit = await agent.post(`${create.headers.location}/commit`);
+				const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+				assert(userId, "user must exist");
+				return { commit, userId };
+			}
+
+			it("hands it to the background submit, which asks the archive, and saves the rest inline", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp(fixture);
+
+				const { commit, userId } = await commitFile(harness, `${SHORT_ID} https://example.com/imported-a`);
+
+				expect(commit.status).toBe(303);
+				expect(fixture.submitLink.submitLinks).toEqual([
+					{ url: SHORT_ID, userId, provenance: { kind: "import" }, readlist: "default" },
+				]);
+				expect(await harness.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
+				expect(await harness.articleStore.findArticleByUrl("https://example.com/imported-a")).not.toBeNull();
+			});
+
+			it("saves it inline when an earlier save already resolved it to its article", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({
+					...fixture,
+					freshness: {
+						refreshArticleIfStale: async ({ url }) => ({ action: "new", identity: { url: url === SHORT_ID ? ORIGINAL : url } }),
+					},
+				});
+
+				await commitFile(harness, SHORT_ID);
+
+				expect(fixture.submitLink.submitLinks).toEqual([]);
+				expect(await harness.articleStore.findArticleByUrl(ORIGINAL)).not.toBeNull();
+			});
+
+			it("still finishes the import when the background submit cannot be published", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({
+					...fixture,
+					submitLink: {
+						...fixture.submitLink,
+						publishSubmitLink: async () => {
+							throw new Error("eventbridge down");
+						},
+					},
+				});
+
+				const { commit } = await commitFile(harness, `${SHORT_ID} https://example.com/imported-a`);
+
+				expect(commit.status).toBe(303);
+				expect(await harness.articleStore.findArticleByUrl("https://example.com/imported-a")).not.toBeNull();
+			});
+		});
+
 		it("tags every committed URL as an import, so the reader can name where it came from", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, articleStore } = harness;

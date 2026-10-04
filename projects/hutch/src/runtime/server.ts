@@ -150,7 +150,7 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
-import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
+import type { PublishSaveAnonymousLink, PublishSubmitLink } from "@packages/provider-contracts/events";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
@@ -412,6 +412,7 @@ interface AppDependencies {
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
+	publishSubmitLink: PublishSubmitLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -1349,6 +1350,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markCrawlPending: deps.markCrawlPending,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		refreshArticleIfStaleStored: deps.refreshArticleIfStaleStored,
+		publishSubmitLink: deps.publishSubmitLink,
 		allocateSavedAt: deps.allocateSavedAt,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
 		findSavedUrls: deps.findSavedUrls,
@@ -1402,6 +1404,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkQueued: deps.publishLinkQueued,
 		publishQueueEntryCreated: deps.publishQueueEntryCreated,
 		refreshArticleIfStale: deps.refreshArticleIfStaleStored,
+		publishSubmitLink: deps.publishSubmitLink,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
 		resolveSaveIdentity: deps.resolveSaveIdentity,
 		pinContentSource: deps.pinContentSource,

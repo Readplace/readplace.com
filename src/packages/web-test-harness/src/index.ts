@@ -37,6 +37,7 @@ export type {
 	TestAppFixture,
 	TrialSchedulerBundle,
 	ValidateAccessToken,
+	SubmitLinkBundle,
 	WrapperTargetBundle,
 } from "./bundle.types";
 export type { RunningServer } from "./harness";

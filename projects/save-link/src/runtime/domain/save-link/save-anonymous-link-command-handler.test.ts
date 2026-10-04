@@ -19,7 +19,7 @@ const stubAttributes: SQSRecordAttributes = {
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
 
-function createSqsEvent(detail: { url: string }): SQSEvent {
+function createSqsEvent(detail: { url: string; captureUrl?: string }): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
@@ -281,5 +281,37 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 			expect.objectContaining({ messageId: "msg-1" }),
 		);
 		expect(logger.warn).not.toHaveBeenCalled();
+	});
+
+	describe("a command carrying an archive capture", () => {
+		const capture = "https://web.archive.org/web/20081203185222/https://example.com/article";
+
+		it("crawls the capture into the archive tier and announces it to the content judge", async () => {
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ putTierSource, publishEvent });
+
+			await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: capture }), buildLambdaContext(), () => {});
+
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/article", tier: "tier-2" }));
+			expect(putTierSource).toHaveBeenCalledTimes(1);
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+				url: "https://example.com/article",
+				tier: "tier-2",
+				extractedAt: expect.any(String),
+			});
+		});
+
+		it("announces nothing to the content judge when the archive would not serve the capture", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async () => ({ status: "not-found", httpStatus: 404 }),
+				publishEvent,
+			});
+
+			await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: capture }), buildLambdaContext(), () => {});
+
+			expect(publishEvent).not.toHaveBeenCalledWith(TierContentExtractedEvent, expect.anything());
+		});
 	});
 });
