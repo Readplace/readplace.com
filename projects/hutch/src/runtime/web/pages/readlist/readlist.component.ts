@@ -18,6 +18,7 @@ import {
 	OnboardingChecklist,
 } from "../../onboarding/onboarding.component";
 import type { OnboardingContext } from "../../onboarding/onboarding.types";
+import { buildExtensionInstallUrl, type PitchablePlatform } from "../../onboarding/extension-install";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import {
@@ -108,9 +109,27 @@ interface EmptyState {
 	actions: EmptyAction[];
 }
 
-const NOTHING_SAVED: Omit<EmptyState, "actions"> = {
-	title: "Nothing saved yet",
-	text: `Save your first article by pasting a link above, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
+interface DeviceClient {
+	platform: PitchablePlatform;
+	installed: boolean;
+}
+
+const NOTHING_SAVED_TITLE = "Nothing saved yet";
+
+const EXTENSION_INVITE_TEXT =
+	"Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.";
+
+const NOTHING_SAVED_INVITES: Record<PitchablePlatform, { text: string; label: string }> = {
+	chrome: { text: EXTENSION_INVITE_TEXT, label: "Install Chrome extension" },
+	firefox: { text: EXTENSION_INVITE_TEXT, label: "Install Firefox extension" },
+	iphone: {
+		text: "Save your first article by pasting a link above, or use the Readplace iPhone app to save it from the share sheet.",
+		label: "Install iPhone app",
+	},
+	other: {
+		text: `Save your first article by pasting a link above, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
+		label: "Set up one-tap saving",
+	},
 };
 
 const CAUGHT_UP: Omit<EmptyState, "actions"> = {
@@ -125,40 +144,43 @@ const NOTHING_READ: Omit<EmptyState, "actions"> = {
 
 const CUSTOM_READLIST_EMPTY: Omit<EmptyState, "actions"> = {
 	title: "No articles in this readlist yet",
-	text: `Every link you save lands in ${DEFAULT_READLIST.label}. Open an article there to add it to this readlist.`,
+	text: `Choose an article from ${DEFAULT_READLIST.label} and add it here to start organising this readlist.`,
 };
+
+function nothingSaved(client: DeviceClient): EmptyState {
+	const invite = NOTHING_SAVED_INVITES[client.platform];
+	const install: EmptyAction = {
+		key: "install",
+		href: withInternalTracking(buildExtensionInstallUrl(client.platform), {
+			source: "queue-empty",
+			content: "install",
+		}),
+		label: invite.label,
+	};
+	return {
+		title: NOTHING_SAVED_TITLE,
+		text: invite.text,
+		actions: client.installed ? [] : [install],
+	};
+}
 
 function emptyState(input: {
 	tab: TabId;
 	readlistHoldsArticles: boolean;
 	isDefaultReadlist: boolean;
 	unreadUrl: string;
-	defaultReadlistUrl: string;
+	client: DeviceClient;
 }): EmptyState {
-	const install: EmptyAction = {
-		key: "install",
-		href: withInternalTracking("/install", { source: "queue-empty", content: "install" }),
-		label: "Set up one-tap saving",
-	};
-	const openDefault: EmptyAction = {
-		key: "open-default",
-		href: input.defaultReadlistUrl,
-		label: `Go to ${DEFAULT_READLIST.label}`,
-	};
-	const keepSaving = input.isDefaultReadlist ? install : openDefault;
 	if (!input.readlistHoldsArticles) {
 		return input.isDefaultReadlist
-			? { ...NOTHING_SAVED, actions: [install] }
-			: { ...CUSTOM_READLIST_EMPTY, actions: [openDefault] };
+			? nothingSaved(input.client)
+			: { ...CUSTOM_READLIST_EMPTY, actions: [] };
 	}
 	return input.tab === "queue"
-		? { ...CAUGHT_UP, actions: [keepSaving] }
+		? { ...CAUGHT_UP, actions: [] }
 		: {
 				...NOTHING_READ,
-				actions: [
-					{ key: "view-unread", href: input.unreadUrl, label: "View Unread Articles" },
-					keepSaving,
-				],
+				actions: [{ key: "view-unread", href: input.unreadUrl, label: "View Unread Articles" }],
 			};
 }
 
@@ -187,6 +209,12 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 	};
 }
 
+function installClientOf(context: OnboardingContext): DeviceClient {
+	return context.hasInstallableClient
+		? { platform: context.platform, installed: context.installed }
+		: { platform: "other", installed: false };
+}
+
 function firstByteTotal(vm: ReadlistViewModel): number | undefined {
 	const totalIsKnown = vm.currentPage === 1 && !vm.paginationUrls.next;
 	return totalIsKnown ? vm.articles.length : undefined;
@@ -201,7 +229,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		effectiveOrder === "desc"
 			? { label: "Newest first", iconName: "arrow-down" }
 			: { label: "Oldest first", iconName: "arrow-up" };
-	const defaultReadlistUrl = buildReadlistUrl({});
 	const alert = readlistAlertFor(options.query);
 	const banner = vm.subscriptionBanner;
 	const panels = readlistPanels(options.rail);
@@ -213,10 +240,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			buildReadlistUrl({ readlist: filters.readlist, tab: "queue" }),
 			{ source: "queue-empty", content: "view-unread" },
 		),
-		defaultReadlistUrl: withInternalTracking(defaultReadlistUrl, {
-			source: "queue-empty",
-			content: "open-default",
-		}),
+		client: installClientOf(options.onboarding.context),
 	});
 	const saveTipState: SaveTipState = options.saveTip.state;
 	const saveError = vm.errors?.[0]?.message;
@@ -280,6 +304,9 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				toReadlistCardDisplayModel(article, { isFirst: index === 0, deviceClass: options.deviceClass }),
 			),
 		),
+		listingHeaderStateClass: vm.isEmpty
+			? "readlist-listing__header--hidden"
+			: "readlist-listing__header--visible",
 		paginationStateClass: vm.isEmpty
 			? "pagination--hidden"
 			: "pagination--visible",

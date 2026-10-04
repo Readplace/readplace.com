@@ -41,7 +41,7 @@ describe("Readlist routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-empty-readlist]")?.textContent).toContain("Nothing saved yet");
 			expect(doc.querySelector("[data-test-empty-readlist]")?.textContent).toContain(
-				"set up one-tap saving from your browser, phone, or AI assistant.",
+				"use the Readplace browser extension to save it in one click.",
 			);
 			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save?utm_source=queue&utm_medium=internal&utm_content=save");
 			expect(response.text).toContain(

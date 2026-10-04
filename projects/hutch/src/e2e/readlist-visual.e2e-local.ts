@@ -79,6 +79,10 @@ const MARK_STATUS_CONFIRM_BUTTON = '[data-test-action="mark-status-confirm"]';
 const EMPTY = "[data-test-empty-readlist]";
 const LISTING = "[data-test-listing]";
 const LISTING_COUNT = "#readlist-count";
+const LISTING_HEADER = ".readlist-listing__header";
+const EMPTY_ART = `${EMPTY} [data-test-illustration="book-lightbulb"]`;
+const EMPTY_TEXT = `${EMPTY} .readlist-empty__text`;
+const EMPTY_ACTION = `${EMPTY} [data-test-empty-action]`;
 const PAGINATION_PAGES = "#readlist-pages";
 const PAGINATION_PAGE = "[data-test-pagination-page]";
 const READ_FILTER_TAB = '[data-test-filter="read"]';
@@ -364,6 +368,21 @@ async function pageFromTopGeometry(page: Page): Promise<void> {
 	await pageFitsTheClip(page);
 }
 
+async function emptyActionFitsEveryViewport(page: Page, key: "install" | "view-unread"): Promise<void> {
+	const action = `${EMPTY} [data-test-empty-action="${key}"]`;
+	for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, { width: 768, height: 900 }, DESKTOP]) {
+		await page.setViewportSize(viewport);
+		await expect(page.locator(action)).toBeVisible();
+		await neverScrollsSideways(page);
+		const box = await measuredBox(page, action);
+		assert.equal(
+			Math.round(box.height),
+			48,
+			`the ${key} action must stay one 48px line at ${viewport.width}px, measured ${box.height}px`,
+		);
+	}
+}
+
 async function neverScrollsSideways(page: Page): Promise<void> {
 	const overflows = await page.evaluate(pageOverflowsSideways);
 	assert.equal(overflows, false, "the queue page must never scroll sideways");
@@ -480,12 +499,44 @@ async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
 	);
 }
 
+async function listingHeaderHidden(page: Page): Promise<void> {
+	await expect(page.locator(LISTING_HEADER)).toHaveClass(/readlist-listing__header--hidden/);
+}
+
+async function emptyArtAtDrawnSize(page: Page): Promise<void> {
+	const art = await measuredBox(page, EMPTY_ART);
+	assert.equal(Math.round(art.width), 80, `the empty-state art must keep its drawn width, measured ${art.width}px`);
+	assert.equal(Math.round(art.height), 64, `the empty-state art must keep its drawn height, measured ${art.height}px`);
+}
+
 async function emptyPageSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
 	await expect(page.locator(EMPTY)).toBeVisible();
 	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
+	await listingHeaderHidden(page);
+	await emptyArtAtDrawnSize(page);
 	await settledSetupGuide(page);
+}
+
+async function caughtUpSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(EMPTY)).toBeVisible();
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
+	await listingHeaderHidden(page);
+	await expect(page.locator(EMPTY_ACTION)).toHaveCount(0);
+}
+
+async function readEmptySettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(READ_FILTER_TAB)).toHaveAttribute("aria-current", "page");
+	await expect(page.locator(EMPTY)).toBeVisible();
+	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Read Articles");
+	await listingHeaderHidden(page);
+	await expect(page.locator(EMPTY_ACTION)).toHaveCount(1);
+	await expect(page.locator(`${EMPTY} [data-test-empty-action="view-unread"]`)).toBeVisible();
 }
 
 async function articlesPageSettled(page: Page): Promise<void> {
@@ -512,6 +563,7 @@ async function customReadlistPageSettled(page: Page): Promise<void> {
 	await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText("New Readlist");
 	await expect(page.locator(EMPTY)).toBeVisible();
 	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
+	await listingHeaderHidden(page);
 	await settledSetupGuide(page);
 }
 
@@ -647,6 +699,7 @@ async function subscriptionInactiveSettled(page: Page): Promise<void> {
 	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--inactive/);
 	await expect(page.locator(SAVE_INPUT)).toBeDisabled();
 	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Unread Articles");
+	await listingHeaderHidden(page);
 	await settledSetupGuide(page);
 }
 
@@ -706,6 +759,24 @@ const PAGE_READ_TAB: VisualCheckpoint = {
 	target: LISTING,
 	capture: "element",
 	pinnedText: [{ selector: `${FIRST_CARD} ${CARD_TIME}`, text: "3 days ago" }],
+};
+
+const PAGE_CAUGHT_UP: VisualCheckpoint = {
+	name: "readlist-page-caught-up",
+	settled: caughtUpSettled,
+	geometry: railBesideMainBesideSide,
+	target: LISTING,
+	capture: "element",
+	pinnedText: [],
+};
+
+const PAGE_READ_EMPTY: VisualCheckpoint = {
+	name: "readlist-page-read-empty",
+	settled: readEmptySettled,
+	geometry: railBesideMainBesideSide,
+	target: LISTING,
+	capture: "element",
+	pinnedText: [],
 };
 
 const PAGE_CUSTOM_READLIST: VisualCheckpoint = {
@@ -902,6 +973,12 @@ const PAGE_EMPTY_PHONE: VisualCheckpoint = {
 	geometry: phonePageGeometry,
 };
 
+const PAGE_CAUGHT_UP_PHONE: VisualCheckpoint = {
+	...PAGE_CAUGHT_UP,
+	name: "readlist-page-caught-up-phone",
+	geometry: railStacksAboveTheListing,
+};
+
 const PAGE_CUSTOM_READLIST_PHONE: VisualCheckpoint = {
 	...PAGE_CUSTOM_READLIST,
 	name: "readlist-page-custom-readlist-phone",
@@ -1090,6 +1167,60 @@ test.describe("Readlist read tab", () => {
 			await gotoReadlistQueue(page, "?tab=done");
 
 			await captureCheckpoint(page, withTheme(PAGE_READ_TAB, theme));
+		});
+	}
+});
+
+async function openCaughtUpReadlist(page: Page, email: string): Promise<void> {
+	const userId = await createVerifiedUser(page, email);
+	await seedCrawledArticle(page, {
+		userId,
+		url: `https://example.com/readlist-caught-up-${email}`,
+		title: "The article the reader has already finished",
+		savedAt: "2026-07-12T09:14:00.000Z",
+		excerpt: "A seeded article that is marked read so the To Read tab empties.",
+	});
+	await loginAs(page, email);
+	await gotoReadlistQueue(page, "");
+	await markFirstArticleRead(page);
+	await gotoReadlistQueue(page, "");
+}
+
+async function openReadEmptyReadlist(page: Page, email: string): Promise<void> {
+	const userId = await createVerifiedUser(page, email);
+	await seedCrawledArticle(page, {
+		userId,
+		url: `https://example.com/readlist-read-empty-${email}`,
+		title: "The article the reader has not finished yet",
+		savedAt: "2026-07-12T09:14:00.000Z",
+		excerpt: "A seeded unread article so the Read tab is empty.",
+	});
+	await loginAs(page, email);
+	await gotoReadlistQueue(page, "?tab=done");
+}
+
+test.describe("Readlist empty reasons", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`shows the caught-up state with no action (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openCaughtUpReadlist(
+				page,
+				`readlist-caught-up-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`,
+			);
+
+			await captureCheckpoint(page, withTheme(PAGE_CAUGHT_UP, theme));
+		});
+
+		test(`shows the empty Read tab with one view-unread action (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openReadEmptyReadlist(
+				page,
+				`readlist-read-empty-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`,
+			);
+
+			await captureCheckpoint(page, withTheme(PAGE_READ_EMPTY, theme));
 		});
 	}
 });
@@ -1410,13 +1541,21 @@ test.describe("Readlist page on a phone", () => {
 		await captureCheckpoint(page, SUBSCRIPTION_TRIAL_PHONE);
 	});
 
-	test("hides the save card on a custom readlist and points back at the default", async ({ page }, testInfo) => {
+	test("hides the save card on a custom readlist and asks for an article from All", async ({ page }, testInfo) => {
 		const email = `readlist-phone-custom-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
 		await expect(page.locator(SAVE_CARD)).toHaveClass(/readlist-save--hidden/);
-		await expect(page.locator('[data-test-empty-action="open-default"]')).toBeVisible();
+		await expect(page.locator(EMPTY_TEXT)).toHaveText(
+			"Choose an article from All and add it here to start organising this readlist.",
+		);
 
 		await captureCheckpoint(page, PAGE_CUSTOM_READLIST_PHONE);
+	});
+
+	test("stacks the caught-up state under the rail with no action", async ({ page }, testInfo) => {
+		await openCaughtUpReadlist(page, `readlist-phone-caught-up-${testInfo.workerIndex}-${Date.now()}@example.com`);
+
+		await captureCheckpoint(page, PAGE_CAUGHT_UP_PHONE);
 	});
 });
 
@@ -1496,6 +1635,24 @@ test.describe("Readlist page reflow", () => {
 			await expect(page.locator(ARTICLE)).toHaveCount(1);
 			await neverScrollsSideways(page);
 		}
+	});
+
+	test("keeps the never-used install action on one line, down to the reflow minimum", async ({ page }, testInfo) => {
+		const email = `readlist-reflow-empty-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await waitForBrandFonts(page, ["Inter"]);
+
+		await emptyActionFitsEveryViewport(page, "install");
+	});
+
+	test("keeps the Read tab's view-unread action on one line, down to the reflow minimum", async ({ page }, testInfo) => {
+		const email = `readlist-reflow-read-empty-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await openReadEmptyReadlist(page, email);
+		await waitForBrandFonts(page, ["Inter"]);
+
+		await emptyActionFitsEveryViewport(page, "view-unread");
 	});
 });
 

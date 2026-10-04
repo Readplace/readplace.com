@@ -3,6 +3,7 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import { iconSvg } from "@packages/ui-icons";
 import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
+import type { InstallableClientOnboarding, OnboardingContext } from "../../onboarding/onboarding.types";
 import type { ReadlistRailViewModel } from "./readlist-rail";
 import { deleteConfirmPopoverId } from "./readlist-card/delete-confirm.component";
 import { markStatusConfirmPopoverId } from "./mark-status-confirm.component";
@@ -95,6 +96,25 @@ function pageOptions(overrides: Partial<ReadlistPageOptions> = {}): ReadlistPage
 		query: {},
 		...overrides,
 	};
+}
+
+function installableClient(
+	overrides: Partial<Omit<InstallableClientOnboarding, "hasInstallableClient">>,
+): InstallableClientOnboarding {
+	return {
+		hasInstallableClient: true,
+		installed: false,
+		savedArticle: false,
+		savedCount: 0,
+		platform: "chrome",
+		inboxArticleQueued: false,
+		emailStepMarkedDone: false,
+		...overrides,
+	};
+}
+
+function onboardingWith(context: OnboardingContext): ReadlistPageOptions["onboarding"] {
+	return { context, dismissed: false, completedBefore: false, completionUnearned: false };
 }
 
 function buildPage(
@@ -350,62 +370,122 @@ describe("ReadlistPage", () => {
 		);
 	});
 
-	it("invites installing the extension when nothing has ever been saved to the default readlist", () => {
+	it.each([
+		{
+			device: "a device with no installable client",
+			context: { hasInstallableClient: false } as const,
+			text: "Save your first article by pasting a link above, or set up one-tap saving from your browser, phone, or AI assistant.",
+			label: "Set up one-tap saving",
+			client: null,
+		},
+		{
+			device: "Chrome",
+			context: installableClient({ platform: "chrome" }),
+			text: "Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+			label: "Install Chrome extension",
+			client: "chrome",
+		},
+		{
+			device: "Firefox",
+			context: installableClient({ platform: "firefox" }),
+			text: "Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+			label: "Install Firefox extension",
+			client: "firefox",
+		},
+		{
+			device: "iPhone",
+			context: installableClient({ platform: "iphone" }),
+			text: "Save your first article by pasting a link above, or use the Readplace iPhone app to save it from the share sheet.",
+			label: "Install iPhone app",
+			client: "iphone",
+		},
+	])("invites installing the client for $device when nothing has ever been saved to the default readlist", ({ context, text, label, client }) => {
 		const doc = pageDoc(
 			{ filters: { ...DEFAULT_FILTERS, readlist: DEFAULT_READLIST_SLUG } },
-			{ readlistHoldsArticles: false },
+			{ readlistHoldsArticles: false, onboarding: onboardingWith(context) },
 		);
 
 		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("Nothing saved yet");
-		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Save your first article by pasting a link above, or set up one-tap saving from your browser, phone, or AI assistant.",
-		);
-		expect(doc.querySelector("[data-test-empty-action='install']")?.textContent).toBe(
-			"Set up one-tap saving",
-		);
-		expect(doc.querySelectorAll('[data-test-empty-action="install"]')).toHaveLength(1);
+		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(text);
+		expect(emptyActionKeys(doc)).toEqual(["install"]);
+		const install = doc.querySelector('[data-test-empty-action="install"]');
+		assert(install, "the install CTA must be offered");
+		expect(install.textContent).toBe(label);
+		const href = new URL(install.getAttribute("href") ?? "", "https://internal.invalid");
+		expect(href.pathname).toBe("/install");
+		expect(href.searchParams.get("client")).toBe(client);
+		expect(href.searchParams.get("utm_source")).toBe("queue-empty");
+		expect(href.searchParams.get("utm_medium")).toBe("internal");
+		expect(href.searchParams.get("utm_content")).toBe("install");
 	});
 
-	it("points a reader at All when their custom readlist holds no articles yet", () => {
+	it("offers no install to a reader who already has the extension when nothing has ever been saved", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, readlist: DEFAULT_READLIST_SLUG } },
+			{
+				readlistHoldsArticles: false,
+				onboarding: onboardingWith(installableClient({ platform: "chrome", installed: true })),
+			},
+		);
+
+		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
+			"Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+		);
+		expect(emptyActionKeys(doc)).toEqual([]);
+	});
+
+	it("tells a reader with an empty custom readlist to add an article from All, with no action", () => {
 		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } }, { readlistHoldsArticles: false });
 
 		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe(
 			"No articles in this readlist yet",
 		);
-		const action = doc.querySelector('[data-test-empty-action="open-default"]');
-		assert(action, "the Go to All CTA must be offered");
-		expect(action.textContent).toBe(`Go to ${DEFAULT_READLIST.label}`);
+		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
+			"Choose an article from All and add it here to start organising this readlist.",
+		);
+		expect(emptyActionKeys(doc)).toEqual([]);
 	});
 
-	it("keeps one-tap saving in reach of a reader who is caught up on To Read", () => {
+	it("offers no action to a reader who is caught up on To Read", () => {
 		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, tab: "queue" } }, { readlistHoldsArticles: true });
 
 		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("You're all caught up");
-		expect(emptyActionKeys(doc)).toEqual(["install"]);
-		const install = doc.querySelector('[data-test-empty-action="install"]');
-		assert(install, "the one-tap saving CTA must be offered");
-		expect(install.getAttribute("href")).toBe(
-			"/install?utm_source=queue-empty&utm_medium=internal&utm_content=install",
-		);
+		expect(emptyActionKeys(doc)).toEqual([]);
 	});
 
 	it("points a reader at their unread articles when nothing is read yet", () => {
 		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, tab: "done" } }, { readlistHoldsArticles: true });
 
 		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("No finished articles yet");
-		expect(emptyActionKeys(doc)).toEqual(["view-unread", "install"]);
+		expect(emptyActionKeys(doc)).toEqual(["view-unread"]);
 		const action = doc.querySelector('[data-test-empty-action="view-unread"]');
 		assert(action, "the View Unread Articles CTA must be offered");
 		expect(urlParams(action.getAttribute("href")).get("utm_content")).toBe("view-unread");
 	});
 
-	it("sends a caught-up reader of a custom readlist back to the readlist that receives saves", () => {
+	it("offers no action to a caught-up reader of a custom readlist", () => {
 		const doc = pageDoc(
 			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug, tab: "queue" } },
 			{ readlistHoldsArticles: true },
 		);
 
-		expect(emptyActionKeys(doc)).toEqual(["open-default"]);
+		expect(emptyActionKeys(doc)).toEqual([]);
+	});
+
+	it("hides the list header on an empty list", () => {
+		const doc = pageDoc({ isEmpty: true });
+
+		const header = doc.querySelector(".readlist-listing__header");
+		assert(header, "the list header must always render");
+		expect(header.classList.contains("readlist-listing__header--hidden")).toBe(true);
+	});
+
+	it("shows the list header on a list that holds articles", () => {
+		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false });
+
+		const header = doc.querySelector(".readlist-listing__header");
+		assert(header, "the list header must always render");
+		expect(header.classList.contains("readlist-listing__header--visible")).toBe(true);
 	});
 
 	it("offers the Preferences tab on a custom readlist the reader asked to configure", () => {

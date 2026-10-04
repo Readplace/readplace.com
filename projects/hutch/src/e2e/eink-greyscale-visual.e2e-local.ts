@@ -74,13 +74,18 @@ async function pinThumbnail(page: Page): Promise<void> {
 	);
 }
 
-async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email: string; readerUrl: string; articleId: string }> {
+async function createEinkUser(page: Page, stamp: string): Promise<{ email: string; userId: string }> {
 	const email = `eink-greyscale-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
 	});
 	assert.equal(created.status(), 201, "the e2e user fixture must create the owner");
 	const { userId } = CreatedUser.parse(await created.json());
+	return { email, userId };
+}
+
+async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email: string; readerUrl: string; articleId: string }> {
+	const { email, userId } = await createEinkUser(page, stamp);
 
 	for (const article of READLIST_ARTICLES) {
 		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
@@ -126,12 +131,7 @@ async function seedPendingSummary(
 	page: Page,
 	stamp: string,
 ): Promise<{ email: string; readerUrl: string }> {
-	const email = `eink-greyscale-${stamp}@example.com`;
-	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
-		data: { email, password: PASSWORD, verified: true },
-	});
-	assert.equal(created.status(), 201, "the e2e user fixture must create the owner");
-	const { userId } = CreatedUser.parse(await created.json());
+	const { email, userId } = await createEinkUser(page, stamp);
 
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
@@ -360,6 +360,27 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 			await expect(page.locator("[data-test-subscription-banner]")).toHaveScreenshot(
 				`eink-subscription-chip-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the empty readlist keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await createEinkUser(
+				page,
+				`readlist-empty-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await expect(page.locator("[data-test-empty-readlist]")).toBeVisible();
+			await expect(page.locator("#readlist-count")).toHaveText("0 Unread Articles");
+			await settle(page, "[data-test-listing]");
+
+			await expect(page.locator(".readlist-listing__header")).toHaveClass(/readlist-listing__header--hidden/);
+			const art = await measuredBox(page, '[data-test-empty-readlist] [data-test-illustration="book-lightbulb"]');
+			assert.equal(Math.round(art.width), 80);
+			assert.equal(Math.round(art.height), 64);
+			await expect(page.locator("[data-test-listing]")).toHaveScreenshot(
+				`eink-readlist-empty-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

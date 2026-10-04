@@ -2,11 +2,23 @@ import assert from "node:assert/strict";
 import { saveableUrlErrorMessage } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import {
+	ALIVE_COOKIE_NAME,
+	ALIVE_COOKIE_VALUE,
+	SAVE_COOKIE_NAME,
+	SAVE_COOKIE_VALUE,
+} from "@packages/onboarding-extension-signal";
 import { JSDOM } from "jsdom";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { READLIST_PAGE_SIZE } from "./readlist-page-size";
 
 const useApp = useTestServer();
+
+const CHROME_UA =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+const DESKTOP_SAFARI_UA =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
+const EXTENSION_COOKIES = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 
 type TestAgent = Awaited<ReturnType<typeof loginAgent>>;
 type TestHarness = ReturnType<typeof useApp>;
@@ -175,22 +187,97 @@ describe("the alert box", () => {
 });
 
 describe("empty states", () => {
-	it("welcomes a fresh user with the install action", async () => {
+	function emptyActionKeys(empty: Element): (string | null)[] {
+		return Array.from(empty.querySelectorAll("[data-test-empty-action]"), (action) =>
+			action.getAttribute("data-test-empty-action"),
+		);
+	}
+
+	it("welcomes a fresh user on a device with no installable client with the one-tap saving action", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const doc = parse((await agent.get("/queue")).text);
+		const doc = parse((await agent.get("/queue").set("User-Agent", DESKTOP_SAFARI_UA)).text);
 
 		const empty = doc.querySelector("[data-test-empty-readlist]");
 		assert(empty, "the empty state must be rendered for a fresh user");
 		const title = empty.querySelector(".readlist-empty__title");
 		assert(title, "the empty state title must be rendered");
 		expect(title.textContent).toBe("Nothing saved yet");
-		const install = doc.querySelector('[data-test-empty-action="install"]');
+		const text = empty.querySelector(".readlist-empty__text");
+		assert(text, "the empty state text must be rendered");
+		expect(text.textContent).toBe(
+			"Save your first article by pasting a link above, or set up one-tap saving from your browser, phone, or AI assistant.",
+		);
+		expect(emptyActionKeys(empty)).toEqual(["install"]);
+		const install = empty.querySelector('[data-test-empty-action="install"]');
 		assert(install, "the install empty action must be rendered");
+		expect(install.textContent).toBe("Set up one-tap saving");
+		expect(install.getAttribute("href")).toBe(
+			"/install?utm_source=queue-empty&utm_medium=internal&utm_content=install",
+		);
 	});
 
-	it("keeps one-tap saving in reach of a caught-up reader", async () => {
+	it("invites a fresh user on Chrome to install the Chrome extension", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = parse((await agent.get("/queue").set("User-Agent", CHROME_UA)).text);
+
+		const empty = doc.querySelector("[data-test-empty-readlist]");
+		assert(empty, "the empty state must be rendered for a fresh user");
+		expect(emptyActionKeys(empty)).toEqual(["install"]);
+		const install = empty.querySelector('[data-test-empty-action="install"]');
+		assert(install, "the install empty action must be rendered");
+		expect(install.textContent).toBe("Install Chrome extension");
+		const href = new URL(install.getAttribute("href") ?? "", TEST_APP_ORIGIN);
+		expect(href.pathname).toBe("/install");
+		expect(href.searchParams.get("client")).toBe("chrome");
+		expect(href.searchParams.get("utm_source")).toBe("queue-empty");
+		expect(href.searchParams.get("utm_medium")).toBe("internal");
+		expect(href.searchParams.get("utm_content")).toBe("install");
+	});
+
+	it("keeps the Chrome extension invitation on the page a rejected save lands on", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = parse(
+			(await agent.get("/queue?error_code=malformed_url").set("User-Agent", CHROME_UA)).text,
+		);
+
+		assert(doc.querySelector("[data-test-save-error]"), "the save error must be rendered");
+		const empty = doc.querySelector("[data-test-empty-readlist]");
+		assert(empty, "the empty state must be rendered for a fresh user");
+		const install = empty.querySelector('[data-test-empty-action="install"]');
+		assert(install, "the install empty action must be rendered");
+		expect(install.textContent).toBe("Install Chrome extension");
+		const href = new URL(install.getAttribute("href") ?? "", TEST_APP_ORIGIN);
+		expect(href.pathname).toBe("/install");
+		expect(href.searchParams.get("client")).toBe("chrome");
+		expect(href.searchParams.get("utm_source")).toBe("queue-empty");
+		expect(href.searchParams.get("utm_content")).toBe("install");
+	});
+
+	it("offers no install to a fresh user whose browser already has the extension", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = parse(
+			(await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", EXTENSION_COOKIES)).text,
+		);
+
+		const empty = doc.querySelector("[data-test-empty-readlist]");
+		assert(empty, "the empty state must be rendered for a fresh user");
+		const text = empty.querySelector(".readlist-empty__text");
+		assert(text, "the empty state text must be rendered");
+		expect(text.textContent).toBe(
+			"Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+		);
+		expect(emptyActionKeys(empty)).toEqual([]);
+	});
+
+	it("offers no action to a caught-up reader", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await save(agent, "https://example.com/article");
@@ -204,11 +291,7 @@ describe("empty states", () => {
 		const title = empty.querySelector(".readlist-empty__title");
 		assert(title, "the empty state title must be rendered");
 		expect(title.textContent).toBe("You're all caught up");
-		expect(
-			Array.from(empty.querySelectorAll("[data-test-empty-action]"), (action) =>
-				action.getAttribute("data-test-empty-action"),
-			),
-		).toEqual(["install"]);
+		expect(emptyActionKeys(empty)).toEqual([]);
 	});
 
 	it("offers a view-unread action on the Read tab of a reader with only unread saves", async () => {
@@ -228,14 +311,10 @@ describe("empty states", () => {
 		expect(viewUnread.getAttribute("href")).toBe(
 			"/queue?utm_source=queue-empty&utm_medium=internal&utm_content=view-unread",
 		);
-		expect(
-			Array.from(empty.querySelectorAll("[data-test-empty-action]"), (action) =>
-				action.getAttribute("data-test-empty-action"),
-			),
-		).toEqual(["view-unread", "install"]);
+		expect(emptyActionKeys(empty)).toEqual(["view-unread"]);
 	});
 
-	it("points a new custom readlist's empty state at the default readlist", async () => {
+	it("tells a reader with a new custom readlist to add an article from All, with no action", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent);
@@ -247,8 +326,12 @@ describe("empty states", () => {
 		const title = empty.querySelector(".readlist-empty__title");
 		assert(title, "the empty state title must be rendered");
 		expect(title.textContent).toBe("No articles in this readlist yet");
-		const openDefault = doc.querySelector('[data-test-empty-action="open-default"]');
-		assert(openDefault, "the open-default empty action must be rendered");
+		const text = empty.querySelector(".readlist-empty__text");
+		assert(text, "the empty state text must be rendered");
+		expect(text.textContent).toBe(
+			"Choose an article from All and add it here to start organising this readlist.",
+		);
+		expect(emptyActionKeys(empty)).toEqual([]);
 	});
 });
 

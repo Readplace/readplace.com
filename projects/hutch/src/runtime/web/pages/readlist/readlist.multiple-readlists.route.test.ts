@@ -427,7 +427,9 @@ describe("a readlist the reader opened", () => {
 		expect(saveCardClasses(onDefault)).toContain("readlist-save--visible");
 		const empty = onWork.querySelector("[data-test-empty-readlist]");
 		assert(empty, "an untouched readlist must render its empty state");
-		expect(empty.textContent).toContain("Every link you save lands in All");
+		expect(empty.textContent).toContain(
+			"Choose an article from All and add it here to start organising this readlist.",
+		);
 	});
 
 	it("opens the owner reader for an article only that readlist holds", async () => {

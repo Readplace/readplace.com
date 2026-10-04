@@ -320,11 +320,18 @@ test.describe("The skeleton comes before the answer", () => {
 		await expect(page.locator(SKELETON)).toBeVisible();
 		await expect(page.locator(EMPTY)).toBeHidden();
 		await expect(page.locator(LIST)).toHaveCount(0);
+		const [skeletonBox] = await page.evaluate(measureDocumentBoxes, [SKELETON]);
 		release();
 
 		await expect(page.locator(CARD)).toHaveCount(1, { timeout: SETTLE_MS });
 		await expect(page.locator(EMPTY)).toHaveCount(0);
 		await expect(page.locator(SKELETON)).toBeHidden();
+		await expect(page.locator(FIRST_CARD)).toHaveId("latest-saved");
+		const [landedBox] = await page.evaluate(measureDocumentBoxes, ["#latest-saved"]);
+		assert.ok(
+			Math.abs(landedBox.top - skeletonBox.top) <= LAYOUT_TOLERANCE_PX,
+			`the first saved card must land where the skeleton stood, measured ${skeletonBox.top}px then ${landedBox.top}px`,
+		);
 	});
 
 	test("shows the skeleton first and the error pill after a rejected URL", async ({
