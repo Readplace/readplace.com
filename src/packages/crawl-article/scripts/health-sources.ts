@@ -225,6 +225,29 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
+		label: "Wayback Machine capture (origin now redirects elsewhere)",
+		url: "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+		expectedContent: "utilised an all-digital production environment for the movie",
+		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+		expectsThumbnail: false,
+	},
+	{
+		// The calendar form is what the Wayback UI leaves in the address bar. It names no capture, so the trigger and the reader poll must resolve it to the same original as the exact-capture entry above without a network hop.
+		label: "Wayback Machine calendar URL",
+		url: "https://web.archive.org/web/*/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+		expectedContent: "utilised an all-digital production environment for the movie",
+		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+		expectsThumbnail: false,
+	},
+	{
+		// archive.today long-form capture on a page the canary already owns. Proves the mirror/long-form grammar keys the save on the original; the live page keeps the row green, so archive.today fetch health is read from the crawl-outcomes log stream and the capture-failed event, not from this entry.
+		label: "archive.today long-form capture",
+		url: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
+		expectedContent: "he had had to carry the ice and glassware",
+		expectedDestinationUrl: "https://hex.ooo/library/last_question.html",
+		expectsThumbnail: false,
+	},
+	{
 		label: "The Hill (residential unlocker path)",
 		url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks",
 		expectedContent: "ranked five times more valuable than likes",
