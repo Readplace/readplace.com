@@ -92,6 +92,49 @@ describe("initResolveSaveIdentity", () => {
 		});
 	});
 
+	describe("an archive URL whose path names the article", () => {
+		it("keys a new save on the original even when an earlier save left a row on the capture URL", async () => {
+			const harness = createHarness({ rows: { [WAYBACK]: { kind: "article" } } });
+
+			expect(await harness.resolve(WAYBACK)).toEqual({ url: ORIGINAL, contentSourceUrl: WAYBACK });
+			expect(harness.lookups).toEqual([ORIGINAL]);
+		});
+
+		it("keeps the capture as the content source when the original is aliased onto another article", async () => {
+			const harness = createHarness({ rows: { [ORIGINAL]: { kind: "alias", targetUrl: PUBLISHER } } });
+
+			expect(await harness.resolve(WAYBACK)).toEqual({ url: PUBLISHER, contentSourceUrl: WAYBACK });
+		});
+
+		it("canonicalises the original's host the way a direct save would", async () => {
+			const capture = "https://web.archive.org/web/20230101000000/https://twitter.com/someone/status/1";
+
+			expect(await createHarness().resolve(capture)).toEqual({
+				url: "https://x.com/someone/status/1",
+				contentSourceUrl: capture,
+			});
+		});
+
+		describe("naming an original a save would refuse", () => {
+			const capture = "https://web.archive.org/web/20230101000000/http://localhost/admin";
+
+			it("keeps the archive URL and asks the archive for the original instead", async () => {
+				const harness = createHarness();
+
+				expect(await harness.resolve(capture)).toEqual({ url: capture });
+				expect(harness.lookups).toEqual([capture]);
+				expect(harness.resolverCalls).toEqual([capture]);
+			});
+
+			it("follows an alias already stored on the archive URL", async () => {
+				const harness = createHarness({ rows: { [capture]: { kind: "alias", targetUrl: PUBLISHER } } });
+
+				expect(await harness.resolve(capture)).toEqual({ url: PUBLISHER });
+				expect(harness.resolverCalls).toEqual([]);
+			});
+		});
+	});
+
 	describe("resolving a wrapper nothing is stored for", () => {
 		it("keys the save on the resolved target and claims the wrapper as its alias", async () => {
 			const harness = createHarness({ targets: { [TRACKER]: PUBLISHER } });

@@ -1,4 +1,4 @@
-import { type WrapperFamily, wrapperFamilyOf } from "@packages/domain/article";
+import { type WrapperFamily, isArchiveHost, wrapperFamilyOf } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 
 export type ResolveWrapperTarget = (url: string) => Promise<string | undefined>;
@@ -37,6 +37,13 @@ function parseHttpLocation(location: string, base: string): string | undefined {
 	}
 	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
 	return parsed.href;
+}
+
+function archiveRedirectOf(response: Response, current: string): string | undefined {
+	if (response.status < 300 || response.status > 399) return undefined;
+	const location = response.headers.get("location");
+	const next = location === null ? undefined : parseHttpLocation(location, current);
+	return next !== undefined && isArchiveHost(next) ? next : undefined;
 }
 
 function hostOf(url: string | undefined): string | undefined {
@@ -79,13 +86,21 @@ export function initResolveWrapperTarget(deps: {
 	};
 
 	const readMementoOriginal = async (url: string, deadline: AbortSignal): Promise<Resolution> => {
-		const response = await hop(url, deadline);
-		const link = response.headers.get("link");
-		const original = link === null ? null : MEMENTO_ORIGINAL.exec(link);
-		if (original === null) return { outcome: "no-memento-original", hops: 1 };
-		const target = parseHttpLocation(original[1], url);
-		if (target === undefined) return { outcome: "non-http-location", hops: 1 };
-		return { target, outcome: "resolved", hops: 1 };
+		let current = url;
+		for (let hops = 1; hops <= MAX_HOPS; hops += 1) {
+			const response = await hop(current, deadline);
+			const link = response.headers.get("link");
+			const original = link === null ? null : MEMENTO_ORIGINAL.exec(link);
+			if (original !== null) {
+				const target = parseHttpLocation(original[1], current);
+				if (target === undefined) return { outcome: "non-http-location", hops };
+				return { target, outcome: "resolved", hops };
+			}
+			const next = archiveRedirectOf(response, current);
+			if (next === undefined) return { outcome: "no-memento-original", hops };
+			current = next;
+		}
+		return { outcome: "hop-budget-exhausted", hops: MAX_HOPS };
 	};
 
 	const RESOLVERS: Record<WrapperFamily, (url: string, deadline: AbortSignal) => Promise<Resolution>> = {

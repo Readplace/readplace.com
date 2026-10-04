@@ -22,20 +22,21 @@ export function initSubmitFreshness(deps: SubmitFreshnessDependencies): {
 	} = deps;
 
 	const refreshArticleIfStale: RefreshArticleIfStale = async ({ url }) => {
-		const { url: resolved, contentSourceUrl } = await resolveSaveIdentity(url);
+		const identity = await resolveSaveIdentity(url);
+		const { url: resolved, contentSourceUrl } = identity;
 		const existing = await findArticleByUrl(resolved);
 		if (!existing || existing.purgedAt) {
-			return { action: "new" };
+			return { action: "new", identity };
 		}
 		const crawl = await findArticleCrawlStatus(resolved);
 		if (!crawl || crawl.status === "pending") {
-			return { action: "new" };
+			return { action: "new", identity };
 		}
 		if (contentSourceUrl !== undefined && crawl.status !== "ready") {
-			return { action: "new" };
+			return { action: "new", identity };
 		}
 		await publishStaleCheckRequested({ url: resolved });
-		return { action: "skip" };
+		return { action: "skip", identity };
 	};
 
 	return { refreshArticleIfStale };

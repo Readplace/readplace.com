@@ -140,7 +140,7 @@ export function initSaveArticleFromUrl(
 	deps: SaveArticleFromUrlDependencies,
 ): SaveArticleFromUrl {
 	return async (params) => {
-		const { url, contentSourceUrl } = await deps.resolveSaveIdentity(params.url);
+		const { url, contentSourceUrl } = params.freshness.identity ?? (await deps.resolveSaveIdentity(params.url));
 		const result = await saveByFreshness(deps, {
 			userId: params.userId,
 			url,

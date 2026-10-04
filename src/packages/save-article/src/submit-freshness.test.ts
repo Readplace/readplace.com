@@ -36,7 +36,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: "https://example.com/post" });
 
-		expect(freshness).toEqual({ action: "new" });
+		expect(freshness).toEqual({ action: "new", identity: { url: "https://example.com/post" } });
 		expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 	});
 
@@ -51,7 +51,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "new" });
+		expect(freshness).toEqual({ action: "new", identity: { url: canonicalUrl } });
 		expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 	});
 
@@ -65,7 +65,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "new" });
+		expect(freshness).toEqual({ action: "new", identity: { url: canonicalUrl } });
 		expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 	});
 
@@ -77,7 +77,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "new" });
+		expect(freshness).toEqual({ action: "new", identity: { url: canonicalUrl } });
 	});
 
 	it("verdicts 'skip' for a crawl-ready article and hands staleness to the async stale-check pipeline", async () => {
@@ -89,7 +89,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "skip" });
+		expect(freshness).toEqual({ action: "skip", identity: { url: canonicalUrl } });
 		expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: canonicalUrl });
 	});
 
@@ -103,7 +103,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "skip" });
+		expect(freshness).toEqual({ action: "skip", identity: { url: canonicalUrl } });
 		expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: canonicalUrl });
 	});
 
@@ -138,7 +138,7 @@ describe("initSubmitFreshness", () => {
 				publishStaleCheckRequested,
 			});
 
-			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new" });
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new", identity: { url: canonicalUrl, contentSourceUrl: snapshot } });
 			expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 		});
 
@@ -150,14 +150,14 @@ describe("initSubmitFreshness", () => {
 				publishStaleCheckRequested,
 			});
 
-			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "skip" });
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "skip", identity: { url: canonicalUrl, contentSourceUrl: snapshot } });
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: canonicalUrl });
 		});
 
 		it("verdicts 'new' when the original has no row yet", async () => {
 			const { refreshArticleIfStale } = createFreshness({ resolveSaveIdentity: keyedOnOriginal });
 
-			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new" });
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new", identity: { url: canonicalUrl, contentSourceUrl: snapshot } });
 		});
 	});
 });

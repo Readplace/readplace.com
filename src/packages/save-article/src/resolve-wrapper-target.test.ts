@@ -280,5 +280,46 @@ describe("initResolveWrapperTarget", () => {
 			expect(await resolve(ARCHIVE)).toBeUndefined();
 			expect(parsedLine(lines)).toMatchObject({ outcome });
 		});
+
+		it("follows a redirect to an archive.today mirror before reading the Link header", async () => {
+			const MIRROR = "https://archive.li/Ab1cD";
+			const { fetchRedirectHop, requests } = scriptedHops({
+				[ARCHIVE]: () => redirect(MIRROR),
+				[MIRROR]: () =>
+					new Response(null, { status: 200, headers: { link: '<https://publisher.example/article>; rel="original"' } }),
+			});
+			const { resolve, lines } = createResolver({ fetchRedirectHop });
+
+			expect(await resolve(ARCHIVE)).toBe("https://publisher.example/article");
+			expect(requests.map((request) => request.url)).toEqual([ARCHIVE, MIRROR]);
+			expect(parsedLine(lines)).toMatchObject({ outcome: "resolved", hops: 2 });
+		});
+
+		it.each([
+			{ label: "a redirect off the archive hosts", response: () => redirect("https://publisher.example/article") },
+			{ label: "a redirect without a Location", response: () => redirect(undefined) },
+			{ label: "a redirect to a non-HTTP Location", response: () => redirect("ftp://archive.li/Ab1cD") },
+		])("stops at $label without a Link header", async ({ response }) => {
+			const { fetchRedirectHop, requests } = scriptedHops({ [ARCHIVE]: response });
+			const { resolve, lines } = createResolver({ fetchRedirectHop });
+
+			expect(await resolve(ARCHIVE)).toBeUndefined();
+			expect(requests).toHaveLength(1);
+			expect(parsedLine(lines)).toMatchObject({ outcome: "no-memento-original", hops: 1 });
+		});
+
+		it("gives up after five redirects between archive mirrors", async () => {
+			const mirrors = ["https://archive.ph/Ab1cD", "https://archive.li/Ab1cD", "https://archive.md/Ab1cD"];
+			const { fetchRedirectHop, requests } = scriptedHops({
+				[mirrors[0]]: () => redirect(mirrors[1]),
+				[mirrors[1]]: () => redirect(mirrors[2]),
+				[mirrors[2]]: () => redirect(mirrors[0]),
+			});
+			const { resolve, lines } = createResolver({ fetchRedirectHop });
+
+			expect(await resolve(ARCHIVE)).toBeUndefined();
+			expect(requests).toHaveLength(5);
+			expect(parsedLine(lines)).toMatchObject({ outcome: "hop-budget-exhausted", hops: 5 });
+		});
 	});
 });

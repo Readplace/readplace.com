@@ -182,6 +182,35 @@ describe("saveArticleFromUrl", () => {
 		]);
 	});
 
+	it("keys the save on the identity the freshness probe already resolved, without resolving it again", async () => {
+		const tracker = makeTracker();
+		const resolved: string[] = [];
+		const pinned: Array<{ articleUrl: string; contentSourceUrl: string }> = [];
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			resolveSaveIdentity: async (url) => {
+				resolved.push(url);
+				return { url };
+			},
+			pinContentSource: async (params) => {
+				pinned.push(params);
+			},
+		};
+		const identity = { url: "https://example.com/original", contentSourceUrl: "https://web.archive.org/web/https://example.com/original" };
+
+		const result = await initSaveArticleFromUrl(deps)({
+			userId,
+			url: exampleUrl,
+			provenance,
+			savedAt: operationSavedAt,
+			freshness: { action: "new", identity },
+		});
+
+		expect(result.canonicalUrl).toBe(identity.url);
+		expect(pinned).toEqual([{ articleUrl: identity.url, contentSourceUrl: identity.contentSourceUrl }]);
+		expect(resolved).toEqual([]);
+	});
+
 	it("asks to resurface earlier saves against the alias target, not the submitted URL", async () => {
 		const tracker = makeTracker();
 		const deps: SaveArticleFromUrlDependencies = {
