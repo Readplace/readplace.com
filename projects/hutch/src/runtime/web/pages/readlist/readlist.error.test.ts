@@ -3,8 +3,11 @@ import {
 	READLIST_RENAME_REJECTIONS,
 	collectStatusFlashParams,
 	httpErrorMessageMapping,
+	importFlashMapping,
 	readlistErrorFlashMapping,
+	saveFormRejectionMessage,
 	saveableUrlErrorCodeMapping,
+	skippedLinkReasonLabel,
 	statusFlashMapping,
 } from "./readlist.error";
 
@@ -62,7 +65,7 @@ describe("httpErrorMessageMapping", () => {
 	});
 
 	it("returns the mapped message for save_failed", () => {
-		expect(httpErrorMessageMapping({ error_code: "save_failed" })).toBe("Could not save article. Please try again.");
+		expect(httpErrorMessageMapping({ error_code: "save_failed" })).toBe("Couldn't save this article. Try again.");
 	});
 });
 
@@ -81,6 +84,76 @@ describe("saveableUrlErrorCodeMapping", () => {
 
 	it("returns the URL rejection code the save redirect carried", () => {
 		expect(saveableUrlErrorCodeMapping({ error_code: "private_network" })).toBe("private_network");
+	});
+});
+
+describe("saveFormRejectionMessage", () => {
+	it("asks for a valid article link when the link is malformed", () => {
+		expect(saveFormRejectionMessage("malformed_url")).toBe("Enter a valid article link.");
+	});
+
+	it("names the supported schemes when the link uses another scheme", () => {
+		expect(saveFormRejectionMessage("unsupported_scheme")).toBe("Only http:// and https:// links are supported.");
+	});
+
+	it("explains why a private or local network link cannot be saved", () => {
+		expect(saveFormRejectionMessage("private_network")).toBe("Private or local network links can't be saved.");
+	});
+});
+
+describe("skippedLinkReasonLabel", () => {
+	it("labels a malformed link", () => {
+		expect(skippedLinkReasonLabel("malformed_url")).toBe("Invalid link");
+	});
+
+	it("labels an unsupported link", () => {
+		expect(skippedLinkReasonLabel("unsupported_scheme")).toBe("Unsupported link");
+	});
+
+	it("labels a private or local network link", () => {
+		expect(skippedLinkReasonLabel("private_network")).toBe("Private or local network link");
+	});
+});
+
+describe("importFlashMapping", () => {
+	it("reports a clean import with a plural total", () => {
+		expect(importFlashMapping({ import_imported: "3", import_total: "3", import_skipped: "0" })).toBe("3 of 3 links imported.");
+	});
+
+	it("uses the singular noun when the total is one", () => {
+		expect(importFlashMapping({ import_imported: "1", import_total: "1", import_skipped: "0" })).toBe("1 of 1 link imported.");
+	});
+
+	it("reports how many links were imported and skipped", () => {
+		expect(importFlashMapping({ import_imported: "42", import_total: "50", import_skipped: "8" })).toBe("42 of 50 links imported. 8 couldn't be imported.");
+	});
+
+	it("reports an import where every link was skipped", () => {
+		expect(importFlashMapping({ import_imported: "0", import_total: "2", import_skipped: "2" })).toBe("0 of 2 links imported. 2 couldn't be imported.");
+	});
+
+	it("keeps the imported count when the skipped count is absent", () => {
+		expect(importFlashMapping({ import_imported: "3", import_total: "3" })).toBe("3 of 3 links imported.");
+	});
+
+	it("keeps the imported count when the skipped count is not numeric", () => {
+		expect(importFlashMapping({ import_imported: "3", import_total: "3", import_skipped: "many" })).toBe("3 of 3 links imported.");
+	});
+
+	it("returns undefined without an imported count", () => {
+		expect(importFlashMapping({ import_total: "3" })).toBeUndefined();
+	});
+
+	it("returns undefined without a total count", () => {
+		expect(importFlashMapping({ import_imported: "3" })).toBeUndefined();
+	});
+
+	it("returns undefined for a non-numeric imported count", () => {
+		expect(importFlashMapping({ import_imported: "many", import_total: "3" })).toBeUndefined();
+	});
+
+	it("returns undefined for a non-numeric total count", () => {
+		expect(importFlashMapping({ import_imported: "3", import_total: "many" })).toBeUndefined();
 	});
 });
 

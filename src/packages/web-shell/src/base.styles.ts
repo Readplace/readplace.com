@@ -528,6 +528,15 @@ export const FORM_CONTROL_STYLES = `
 		display: none;
 	}
 
+	.form-field__message {
+		margin: 0;
+		font-size: 0.75rem;
+		font-weight: 500;
+		line-height: 1.35;
+		color: var(--muted-foreground);
+		text-wrap: pretty;
+	}
+
 	.form-input {
 		height: var(--input-height);
 		padding: var(--input-padding);

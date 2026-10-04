@@ -1,0 +1,9 @@
+<ul class="readlist-save__skipped-list">
+  {{#each entries}}
+  <li class="readlist-save__skipped-row" data-test-import-skipped-row>
+    <span><span class="readlist-save__skipped-reason" data-test-import-skipped-reason>{{reasonLabel}}</span> —</span>
+    <span class="readlist-save__skipped-url" data-test-import-skipped-url>{{url}}</span>
+  </li>
+  {{/each}}
+</ul>
+{{#if andMore}}<p class="readlist-save__skipped-more" data-test-import-skipped-more>And {{andMore}} more.</p>{{/if}}

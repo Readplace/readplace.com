@@ -20,7 +20,6 @@ import {
 import type { OnboardingContext } from "../../onboarding/onboarding.types";
 import { buildExtensionInstallUrl, type PitchablePlatform } from "../../onboarding/extension-install";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
-import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import {
 	SUBSCRIBE_PLANS_STYLES,
 	renderSubscribePlansPopover,
@@ -37,12 +36,12 @@ import {
 	renderReadlistSaveSkeleton,
 	toReadlistSaveSkeletonDisplayModel,
 } from "./readlist-save-skeleton.component";
+import { renderReadlistSave, toReadlistSaveDisplayModel } from "./readlist-save.component";
 import { READER_PAGE_SCRIPTS, renderReaderSkeleton } from "./reader-skeleton/reader-skeleton.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import { type TabId, tabQuery } from "./readlist.tabs";
 import {
-	READLIST_SAVE_PATH,
 	buildReadlistUrl,
 	readlistDeletePath,
 	readlistReturnQuery,
@@ -241,8 +240,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		),
 		client: installClientOf(options.onboarding.context),
 	});
-	const saveTipState: SaveTipState = options.saveTip.state;
-	const saveError = vm.errors?.[0]?.message;
 
 	const content = render(TEMPLATE, {
 		readlistNavHtml: renderReadlistNav(
@@ -257,21 +254,18 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		statusToastHtml: vm.statusFlash
 			? renderStatusToast(vm.statusFlash)
 			: "",
-		saveCardClass: isDefaultReadlist ? "readlist-save--visible" : "readlist-save--hidden",
-		saveInputInvalid: Boolean(saveError),
-		saveAction: withInternalTracking(
-			`${READLIST_SAVE_PATH}${readlistReturnQuery({ ...filters, readlist: DEFAULT_READLIST.slug })}`,
-			{ source: "queue", content: "save" },
+		saveCardHtml: renderReadlistSave(
+			toReadlistSaveDisplayModel({
+				filters,
+				accessIsReadOnly: vm.accessIsReadOnly,
+				saveTipState: options.saveTip.state,
+				errors: vm.errors,
+				saveErrorCode: vm.saveErrorCode,
+				importFlash: vm.importFlash,
+				importSkipped: vm.importSkipped,
+				saveUrl: options.saveUrl,
+			}),
 		),
-		saveUrl: options.saveUrl,
-		saveTipState,
-		accessIsReadOnly: vm.accessIsReadOnly,
-		saveError,
-		saveErrorCode: vm.saveErrorCode,
-		importFlash: vm.importFlash,
-		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
-		importSkippedEntries: vm.importSkipped?.entries ?? [],
-		importSkippedAndMore: vm.importSkipped?.andMore,
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: filters.tab,

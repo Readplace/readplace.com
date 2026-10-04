@@ -61,7 +61,7 @@ export function createImportFromUrlActions(
 				await expect(summary).toHaveText('3')
 				await commitAndAssertOnReadlist(page)
 				const flash = page.locator('[data-test-import-flash]')
-				await expect(flash).toContainText('Imported 3')
+				await expect(flash).toContainText('3 of 3 links imported')
 				await deleteAllOnReadlist(page)
 				importFromUrlProgress.happyPathImported = true
 			},

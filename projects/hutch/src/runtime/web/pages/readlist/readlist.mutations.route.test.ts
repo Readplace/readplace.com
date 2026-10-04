@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import request from "supertest";
 import { JSDOM } from "jsdom";
-import { MinutesSchema, saveableUrlErrorMessage, type SaveableUrlErrorCode } from "@packages/domain/article";
+import { MinutesSchema, type SaveableUrlErrorCode } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
 import type { ArticleReadEvent } from "@packages/web-analytics";
 import {
@@ -62,19 +62,19 @@ describe("Readlist routes", () => {
 		});
 
 		describe("invalid URLs redirect so htmx swaps the error pill in (canary-historical inputs)", () => {
-			const cases: Array<{ url: string; code: SaveableUrlErrorCode }> = [
-				{ url: "not-a-url",                  code: "malformed_url" },
-				{ url: "chrome://extensions/",       code: "unsupported_scheme" },
-				{ url: "about:blank",                code: "unsupported_scheme" },
-				{ url: "https://cd.home.arpa/x",     code: "private_network" },
-				{ url: "http://localhost:3000/x",    code: "private_network" },
-				{ url: "https://192.168.1.1/x",      code: "private_network" },
-				{ url: "www.theinformation....",     code: "malformed_url" },
-				{ url: "https://server",             code: "malformed_url" },
-				{ url: "",                           code: "malformed_url" },
+			const cases: Array<{ url: string; code: SaveableUrlErrorCode; message: string }> = [
+				{ url: "not-a-url", code: "malformed_url", message: "Enter a valid article link." },
+				{ url: "chrome://extensions/", code: "unsupported_scheme", message: "Only http:// and https:// links are supported." },
+				{ url: "about:blank", code: "unsupported_scheme", message: "Only http:// and https:// links are supported." },
+				{ url: "https://cd.home.arpa/x", code: "private_network", message: "Private or local network links can't be saved." },
+				{ url: "http://localhost:3000/x", code: "private_network", message: "Private or local network links can't be saved." },
+				{ url: "https://192.168.1.1/x", code: "private_network", message: "Private or local network links can't be saved." },
+				{ url: "www.theinformation....", code: "malformed_url", message: "Enter a valid article link." },
+				{ url: "https://server", code: "malformed_url", message: "Enter a valid article link." },
+				{ url: "", code: "malformed_url", message: "Enter a valid article link." },
 			];
 
-			for (const { url, code } of cases) {
+			for (const { url, code, message } of cases) {
 				it(`redirects ${JSON.stringify(url)} to /queue with ${code} and never saves`, async () => {
 					const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 					const { auth, articleStore } = harness;
@@ -92,7 +92,7 @@ describe("Readlist routes", () => {
 					expect(landing.status).toBe(200);
 					const pill = new JSDOM(landing.text).window.document.querySelector("[data-test-save-error]");
 					assert.ok(pill, "the page the redirect lands on must render the error pill");
-					expect(pill.textContent).toBe(saveableUrlErrorMessage(code));
+					expect(pill.textContent).toBe(message);
 					expect(pill.getAttribute("data-test-saveable-url-code")).toBe(code);
 
 					const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
@@ -129,7 +129,9 @@ describe("Readlist routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-save-error]")?.textContent).toBe("Could not save article. Please try again.");
+			const error = doc.querySelector("[data-test-save-error]");
+			assert(error, "the failed save must render its error message");
+			expect(error.textContent).toBe("Couldn't save this article. Try again.");
 		});
 
 		it("does NOT re-prime via /queue/save when refreshArticleIfStale returns 'skip' for a previously-failed crawl (auto-heal removed; operator owns recovery)", async () => {

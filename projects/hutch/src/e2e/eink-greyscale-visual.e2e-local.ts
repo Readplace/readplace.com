@@ -10,6 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { clickAndWaitForPageReload, openReadlistSwitcher } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
@@ -27,6 +28,7 @@ const READER_ROOT = "main.reader";
 const READLIST_LIST = "[data-test-article-list]";
 const READLIST_TABS = "[data-test-filters]";
 const READLIST_RAIL = ".readlist__rail";
+const READLIST_SAVE_CARD = "[data-test-save-card]";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
 const VOLATILE_CHROME = [
@@ -209,6 +211,38 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await settle(page, READLIST_TABS);
 			await expect(page.locator(READLIST_TABS)).toHaveScreenshot(
 				`eink-readlist-tabs-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the save card keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await createEinkUser(
+				page,
+				`readlist-save-card-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await page.context().addCookies([{
+				name: IMPORT_SKIPPED_COOKIE_NAME,
+				value: encodeImportSkippedCookie([
+					{ code: "unsupported_scheme", url: "chrome://extensions/" },
+					{ code: "private_network", url: "http://192.168.1.10/admin" },
+					{ code: "malformed_url", url: "invalid-link-".padEnd(150, "x") },
+				]),
+				domain: new URL(BASE_URL).hostname,
+				path: "/queue",
+			}]);
+			const counts = page.waitForResponse((response) => response.url().includes("/queue/counts"));
+			await page.goto(`${BASE_URL}/queue?import_imported=42&import_total=50&import_skipped=3`, {
+				waitUntil: "domcontentloaded",
+			});
+			await counts;
+			await expect(page.locator("[data-test-import-flash]")).toHaveText("42 of 50 links imported. 3 couldn't be imported.");
+			await expect(page.locator("[data-test-import-skipped-row]")).toHaveCount(3);
+			await settle(page, READLIST_SAVE_CARD);
+
+			await expect(page.locator(READLIST_SAVE_CARD)).toHaveScreenshot(
+				`eink-readlist-save-card-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

@@ -16,6 +16,14 @@
 .readlist__main {
   display: flex;
   flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+}
+
+.readlist__lead,
+.readlist__results {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   min-width: 0;
 }
@@ -202,18 +210,10 @@
 }
 
 .readlist-save {
-  padding: 20px 24px;
+  padding: 24px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-}
-
-.readlist-save--visible {
-  display: block;
-}
-
-.readlist-save--hidden {
-  display: none;
 }
 
 .readlist-save__title {
@@ -221,7 +221,7 @@
   font-size: 1rem;
   font-weight: 600;
   color: var(--foreground);
-  margin: 0 0 4px;
+  margin: 0 0 8px;
   text-wrap: balance;
 }
 
@@ -234,10 +234,11 @@
 
 .readlist-save__form {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  align-items: flex-start;
 }
 
-.readlist-save__input {
+.readlist-save__field {
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -247,68 +248,24 @@
   white-space: nowrap;
 }
 
-.readlist-save__error {
-  margin: 8px 0 0;
-}
-
-.readlist-save__import-flash {
-  margin: 8px 0 0;
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-}
-
 .readlist-save__skipped {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
   margin-top: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius);
-  background: var(--error-bg);
-}
-
-.readlist-save__skipped-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: calc(0.875rem * 1.6);
-  color: var(--error-text);
-}
-
-.readlist-save__skipped-icon svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.readlist-save__skipped-text {
-  min-width: 0;
-}
-
-.readlist-save__skipped-title {
-  margin: 0 0 6px;
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--foreground);
-  text-wrap: balance;
 }
 
 .readlist-save__skipped-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .readlist-save__skipped-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0 6px;
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
+}
+
+.readlist-save__skipped-reason {
+  font-weight: 500;
 }
 
 .readlist-save__skipped-url {
@@ -316,9 +273,20 @@
 }
 
 .readlist-save__skipped-more {
-  margin: 8px 0 0;
-  font-size: 0.8125rem;
+  margin: 0;
   color: var(--muted-foreground);
+}
+
+@media (max-width: 600px) {
+  .readlist-save__form {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .readlist-save__field {
+    align-self: stretch;
+  }
 }
 
 .readlist-listing {

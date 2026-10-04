@@ -149,12 +149,6 @@ function saveInput(doc: Document): HTMLInputElement {
 	return input;
 }
 
-function saveErrorLine(doc: Document): Element {
-	const error = doc.getElementById("readlist-save-error");
-	assert(error, "the save error line must render while the save is rejected");
-	return error;
-}
-
 function emptyActionKeys(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-empty-action]"), (action) =>
 		action.getAttribute("data-test-empty-action"),
@@ -207,57 +201,17 @@ describe("ReadlistPage", () => {
 		expect(alert.classList.contains("alert--hidden")).toBe(true);
 	});
 
-	it("shows the save card on the All readlist", () => {
-		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: DEFAULT_READLIST_SLUG } });
-
-		const card = doc.querySelector("[data-test-save-card]");
-		assert(card, "the save card must always render");
-		expect(card.classList.contains("readlist-save--visible")).toBe(true);
-	});
-
-	it("hides the save card on a custom readlist", () => {
+	it("renders the save card, posting to the default readlist, on a custom readlist", () => {
 		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } });
-
 		const card = doc.querySelector("[data-test-save-card]");
-		assert(card, "the save card must always render");
-		expect(card.classList.contains("readlist-save--hidden")).toBe(true);
-	});
-
-	it("flags the save input invalid and describes it by the error line when the server rejected the url with a code", () => {
-		const doc = pageDoc({
-			saveErrorCode: "malformed_url",
-			errors: [{ message: "Please enter a valid URL" }],
-		});
-
-		const input = saveInput(doc);
-		expect(input.getAttribute("aria-invalid")).toBe("true");
-		expect(input.getAttribute("aria-describedby")).toBe("readlist-save-error");
-		expect(saveErrorLine(doc).textContent).toBe("Please enter a valid URL");
-	});
-
-	it("flags the save input invalid and describes it by the error line when validation left a field error", () => {
-		const doc = pageDoc({ errors: [{ message: "That link isn't shaped like a URL." }] });
-
-		const input = saveInput(doc);
-		expect(input.getAttribute("aria-invalid")).toBe("true");
-		expect(input.getAttribute("aria-describedby")).toBe("readlist-save-error");
-		expect(saveErrorLine(doc).textContent).toBe("That link isn't shaped like a URL.");
-	});
-
-	it("draws the save input and its error line with the shared form-field look", () => {
-		const doc = pageDoc({ errors: [{ message: "That link isn't shaped like a URL." }] });
-
-		expect(saveInput(doc).classList.contains("form-input")).toBe(true);
-		expect(saveErrorLine(doc).classList.contains("form-field__error")).toBe(true);
-		expect(saveErrorLine(doc).getAttribute("role")).toBe("alert");
-	});
-
-	it("keeps the save input valid when nothing is wrong with it", () => {
-		const doc = pageDoc();
-
-		const input = saveInput(doc);
-		expect(input.hasAttribute("aria-invalid")).toBe(false);
-		expect(input.hasAttribute("aria-describedby")).toBe(false);
+		assert(card, "the save card must render on a custom readlist");
+		const form = card.querySelector('[data-test-form="save-article"]');
+		assert(form, "the save card must submit through a form");
+		const action = form.getAttribute("action");
+		assert(action, "the save form must have a destination");
+		const url = new URL(action, "https://internal.invalid");
+		expect(url.pathname).toBe("/queue/save");
+		expect(url.searchParams.has("queue")).toBe(false);
 	});
 
 	it("points every filter tab at its own listing", () => {
@@ -656,21 +610,6 @@ describe("ReadlistPage", () => {
 		const action = doc.querySelector("[data-test-toast-action]")?.closest("form");
 		assert(action, "the status toast must post its Undo through a form");
 		expect(urlParams(action.getAttribute("action")).get("utm_content")).toBe("undo");
-	});
-
-	it("shows which imported links were skipped and how many more there were", () => {
-		const doc = pageDoc({
-			importSkipped: {
-				entries: [{ url: "https://example.com/x", reasonLabel: "Not an article" }],
-				andMore: 3,
-			},
-		});
-
-		const row = doc.querySelector("[data-test-import-skipped-row]");
-		assert(row, "the skipped-imports panel must render a row per skipped link");
-		expect(row.querySelector("[data-test-import-skipped-reason]")?.textContent).toBe("Not an article");
-		expect(row.querySelector("[data-test-import-skipped-url]")?.textContent).toBe("https://example.com/x");
-		expect(doc.querySelector("[data-test-import-skipped-more]")?.textContent).toBe("And 3 more.");
 	});
 
 	it("resubmits a pending save once the page loads, only when a save is actually pending", () => {

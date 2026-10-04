@@ -84,7 +84,7 @@ import type {
  * map. The fixture cannot import that map from the application package without
  * re-introducing a dependency cycle, so both copies must be kept consistent. */
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
-	save_failed: "Could not save article. Please try again.",
+	save_failed: "Couldn't save this article. Try again.",
 	import_too_large:
 		"That file is too large. The limit is 4.5 MB — split the export into smaller files and import them one at a time.",
 	import_no_urls: "We couldn't find any links in that file.",

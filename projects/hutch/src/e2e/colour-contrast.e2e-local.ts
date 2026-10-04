@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
 import { z } from "zod";
+import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import {
@@ -280,10 +281,24 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 			done: `${BASE_URL}/queue?tab=done`,
 			"save-error": `${BASE_URL}/queue?error_code=save_failed`,
 			"alert-limit": `${BASE_URL}/queue?queue_error=limit`,
+			"import-result": `${BASE_URL}/queue?import_imported=42&import_total=50&import_skipped=25`,
 		} as const;
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			for (const view of ["to-read", "done", "save-error", "alert-limit"] as const) {
+			for (const view of ["to-read", "done", "save-error", "alert-limit", "import-result"] as const) {
+				if (view === "import-result") {
+					const skipped = [
+						{ code: "unsupported_scheme" as const, url: "chrome://extensions/" },
+						{ code: "private_network" as const, url: "http://192.168.1.10/admin" },
+						{ code: "malformed_url" as const, url: "invalid-link-".padEnd(150, "x") },
+					];
+					await page.context().addCookies([{
+						name: IMPORT_SKIPPED_COOKIE_NAME,
+						value: encodeImportSkippedCookie(Array.from({ length: 25 }, (_, index) => skipped[index % skipped.length])),
+						domain: new URL(BASE_URL).hostname,
+						path: "/queue",
+					}]);
+				}
 				await page.goto(viewUrls[view], { waitUntil: "domcontentloaded" });
 				if (view === "save-error") {
 					await expect(page.locator("[data-test-save-error]")).toBeVisible({
@@ -292,6 +307,11 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 				}
 				if (view === "alert-limit") {
 					await expect(page.locator('[data-test-alert="readlist"]')).toBeVisible({ timeout: SETTLE_MS });
+				}
+				if (view === "import-result") {
+					await expect(page.locator("[data-test-import-skipped-row]")).toHaveCount(20);
+					await expect(page.locator("[data-test-import-skipped-more]")).toHaveText("And 5 more.");
+					await expect(page.locator("[data-test-import-flash]")).toHaveText("42 of 50 links imported. 25 couldn't be imported.");
 				}
 				await auditReadlistQueue(page, { theme, view });
 			}

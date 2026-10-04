@@ -360,7 +360,7 @@ test.describe("The skeleton comes before the answer", () => {
 		await expect(page.locator(`${SAVE_ERROR}[data-test-saveable-url-code="malformed_url"]`)).toBeVisible({
 			timeout: SETTLE_MS,
 		});
-		await expect(page.locator(SAVE_ERROR)).toHaveText("Please enter a valid URL");
+		await expect(page.locator(SAVE_ERROR)).toHaveText("Enter a valid article link.");
 		await expect(page.locator(SKELETON)).toBeHidden();
 		await expect(page.locator(CARD)).toHaveCount(SEEDED_ARTICLES.length);
 	});

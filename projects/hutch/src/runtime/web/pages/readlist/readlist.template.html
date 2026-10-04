@@ -4,83 +4,61 @@
           {{{readlistNavHtml}}}
         </div>
         <div class="readlist__main">
-          {{{alertHtml}}}
-          <div id="status-toast">{{{statusToastHtml}}}</div>
-          <section class="readlist-save {{saveCardClass}}" data-test-save-card>
-            <h2 class="readlist-save__title" id="readlist-save-title">Save something for later</h2>
-            <p class="readlist-save__lede">Paste any article link and add it directly to your reading list.</p>
-            <form class="readlist-save__form" method="POST" action="{{saveAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".readlist__save-btn" hx-indicator="closest form, .readlist-save-skeleton" data-save-tip="{{saveTipState}}" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
-              <input class="form-input readlist-save__input" type="url" name="url" placeholder="Paste a link to save an article" aria-labelledby="readlist-save-title" required value="{{saveUrl}}"{{#if saveInputInvalid}} aria-invalid="true" aria-describedby="readlist-save-error"{{/if}}{{#if accessIsReadOnly}} disabled{{/if}}>
-              <button class="btn btn--primary readlist__save-btn readlist-save__btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="btn__label-stack"><span class="readlist__save-btn-label">Save</span><span class="readlist__save-btn-saving">Saving…</span></span></button>
-            </form>
-            {{#if saveError}}<p class="form-field__error readlist-save__error" id="readlist-save-error" role="alert" data-test-save-error{{#if saveErrorCode}} data-test-saveable-url-code="{{saveErrorCode}}"{{/if}}>{{saveError}}</p>{{/if}}
-            {{#if importFlash}}<p class="readlist-save__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
-            {{#if hasImportSkipped}}
-            <div class="readlist-save__skipped" data-test-import-skipped role="alert">
-              <span class="readlist-save__skipped-icon" aria-hidden="true">{{icon "x-circle"}}</span>
-              <div class="readlist-save__skipped-text">
-                <p class="readlist-save__skipped-title">Some links couldn't be imported</p>
-                <ul class="readlist-save__skipped-list">
-                  {{#each importSkippedEntries}}
-                  <li class="readlist-save__skipped-row" data-test-import-skipped-row>
-                    <span><span class="readlist-save__skipped-reason" data-test-import-skipped-reason>{{reasonLabel}}</span> —</span>
-                    <span class="readlist-save__skipped-url" data-test-import-skipped-url>{{url}}</span>
-                  </li>
-                  {{/each}}
-                </ul>
-                {{#if importSkippedAndMore}}<p class="readlist-save__skipped-more" data-test-import-skipped-more>And {{importSkippedAndMore}} more.</p>{{/if}}
-              </div>
-            </div>
-            {{/if}}
-          </section>
+          <div class="readlist__lead">
+            {{{alertHtml}}}
+            {{{saveCardHtml}}}
+          </div>
           {{{tabsHtml}}}
-          {{{countsSpanHtml}}}
-          <section class="readlist-listing" data-test-listing>
-            <header class="readlist-listing__header {{listingHeaderStateClass}}">
-              {{{countHtml}}}
-              <a class="readlist-listing__sort" href="{{sortUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
-            </header>
-            {{{saveSkeletonHtml}}}
-            {{#if isEmpty}}
-            <div class="readlist-empty" data-test-empty-readlist>
-              <div class="readlist-empty__illustration">{{{emptyIllustrationHtml}}}</div>
-              <h2 class="readlist-empty__title" data-test-empty-title>{{emptyTitle}}</h2>
-              <p class="readlist-empty__text">{{emptyText}}</p>
-              {{#each emptyActions}}
-              <a class="btn btn--neutral readlist-empty__cta" href="{{href}}" data-test-empty-action="{{key}}">{{label}}</a>
-              {{/each}}
-            </div>
-            {{/if}}
-            {{#if hasArticles}}
-            <div class="readlist-list" data-test-article-list>
-              {{#each articleHtmls}}{{{this}}}{{/each}}
-            </div>
-            {{/if}}
-          </section>
-          <nav class="pagination {{paginationStateClass}}" aria-label="Pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
-            <span class="pagination__info" id="readlist-pagination-info" data-test-pagination-info>{{showingLabel}}</span>
-            <div class="pagination__controls">
-              {{#if prevUrl}}
-              <a class="pagination__link pagination__link--enabled" href="{{prevUrl}}" data-test-pagination-prev>{{icon "chevron-left"}} Previous</a>
-              {{else}}
-              <span class="pagination__link pagination__link--disabled" aria-disabled="true" data-test-pagination-prev>{{icon "chevron-left"}} Previous</span>
+          <div class="readlist__results">
+            <section class="readlist-listing" data-test-listing>
+              <header class="readlist-listing__header {{listingHeaderStateClass}}">
+                {{{countHtml}}}
+                <a class="readlist-listing__sort" href="{{sortUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
+              </header>
+              {{{saveSkeletonHtml}}}
+              {{#if isEmpty}}
+              <div class="readlist-empty" data-test-empty-readlist>
+                <div class="readlist-empty__illustration">{{{emptyIllustrationHtml}}}</div>
+                <h2 class="readlist-empty__title" data-test-empty-title>{{emptyTitle}}</h2>
+                <p class="readlist-empty__text">{{emptyText}}</p>
+                {{#each emptyActions}}
+                <a class="btn btn--neutral readlist-empty__cta" href="{{href}}" data-test-empty-action="{{key}}">{{label}}</a>
+                {{/each}}
+              </div>
               {{/if}}
-              <ol class="pagination__pages" id="readlist-pages" data-test-pagination-pages>
-                <li class="pagination__page-item"><span class="pagination__page pagination__page--current" aria-current="page" data-test-pagination-page="{{currentPage}}">{{currentPage}}</span></li>
-              </ol>
-              {{#if nextUrl}}
-              <a class="pagination__link pagination__link--enabled" href="{{nextUrl}}" data-test-pagination-next>Next {{icon "chevron-right"}}</a>
-              {{else}}
-              <span class="pagination__link pagination__link--disabled" aria-disabled="true" data-test-pagination-next>Next {{icon "chevron-right"}}</span>
+              {{#if hasArticles}}
+              <div class="readlist-list" data-test-article-list>
+                {{#each articleHtmls}}{{{this}}}{{/each}}
+              </div>
               {{/if}}
-            </div>
-          </nav>
+            </section>
+            <nav class="pagination {{paginationStateClass}}" aria-label="Pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
+              <span class="pagination__info" id="readlist-pagination-info" data-test-pagination-info>{{showingLabel}}</span>
+              <div class="pagination__controls">
+                {{#if prevUrl}}
+                <a class="pagination__link pagination__link--enabled" href="{{prevUrl}}" data-test-pagination-prev>{{icon "chevron-left"}} Previous</a>
+                {{else}}
+                <span class="pagination__link pagination__link--disabled" aria-disabled="true" data-test-pagination-prev>{{icon "chevron-left"}} Previous</span>
+                {{/if}}
+                <ol class="pagination__pages" id="readlist-pages" data-test-pagination-pages>
+                  <li class="pagination__page-item"><span class="pagination__page pagination__page--current" aria-current="page" data-test-pagination-page="{{currentPage}}">{{currentPage}}</span></li>
+                </ol>
+                {{#if nextUrl}}
+                <a class="pagination__link pagination__link--enabled" href="{{nextUrl}}" data-test-pagination-next>Next {{icon "chevron-right"}}</a>
+                {{else}}
+                <span class="pagination__link pagination__link--disabled" aria-disabled="true" data-test-pagination-next>Next {{icon "chevron-right"}}</span>
+                {{/if}}
+              </div>
+            </nav>
+          </div>
         </div>
         <div class="readlist__side">
           {{{subscriptionHtml}}}
           {{{onboardingHtml}}}
         </div>
       </div>
+      <div id="status-toast">{{{statusToastHtml}}}</div>
+      {{{countsSpanHtml}}}
       {{{readlistRenamesHtml}}}
       {{{readlistDeleteConfirmHtml}}}
       {{{deleteConfirmsHtml}}}

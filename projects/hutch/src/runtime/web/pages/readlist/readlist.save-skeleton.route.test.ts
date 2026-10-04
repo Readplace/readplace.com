@@ -111,8 +111,8 @@ describe("GET /queue save skeleton", () => {
 		assert(skeleton, "the skeleton renders on every readlist");
 		expect(skeleton.classList.contains("readlist-save-skeleton--inert")).toBe(true);
 		const card = doc.querySelector("[data-test-save-card]");
-		assert(card, "the save card is present but hidden on a reader-made readlist");
-		expect(card.className).toContain("readlist-save--hidden");
+		assert(card, "the save card renders on a reader-made readlist");
+		expect(card.className).toBe("readlist-save");
 	});
 
 	it("stays inert when access is read-only", async () => {
@@ -140,9 +140,9 @@ describe("GET /queue save skeleton", () => {
 
 describe("GET /queue save error surfaced from the save redirect", () => {
 	const cases = [
-		{ code: "malformed_url", message: "Please enter a valid URL" },
-		{ code: "unsupported_scheme", message: "Only http and https URLs can be saved" },
-		{ code: "private_network", message: "Private-network and loopback addresses can't be saved" },
+		{ code: "malformed_url", message: "Enter a valid article link." },
+		{ code: "unsupported_scheme", message: "Only http:// and https:// links are supported." },
+		{ code: "private_network", message: "Private or local network links can't be saved." },
 	] as const;
 
 	for (const { code, message } of cases) {

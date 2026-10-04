@@ -8,8 +8,34 @@ import {
 import type { Request } from "express";
 
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
-	save_failed: "Could not save article. Please try again.",
+	save_failed: "Couldn't save this article. Try again.",
 };
+
+const SAVEABLE_URL_REJECTION_COPY: Record<
+	SaveableUrlErrorCode,
+	{ fieldMessage: string; skippedLabel: string }
+> = {
+	malformed_url: {
+		fieldMessage: "Enter a valid article link.",
+		skippedLabel: "Invalid link",
+	},
+	unsupported_scheme: {
+		fieldMessage: "Only http:// and https:// links are supported.",
+		skippedLabel: "Unsupported link",
+	},
+	private_network: {
+		fieldMessage: "Private or local network links can't be saved.",
+		skippedLabel: "Private or local network link",
+	},
+};
+
+export function saveFormRejectionMessage(code: SaveableUrlErrorCode): string {
+	return SAVEABLE_URL_REJECTION_COPY[code].fieldMessage;
+}
+
+export function skippedLinkReasonLabel(code: SaveableUrlErrorCode): string {
+	return SAVEABLE_URL_REJECTION_COPY[code].skippedLabel;
+}
 
 export const READLIST_ERROR_LIMIT = "limit";
 
@@ -121,9 +147,9 @@ export const importFlashMapping: ImportFlashMapping = (query) => {
 	const skippedRaw = query.import_skipped;
 	const skipped =
 		typeof skippedRaw === "string" ? Number.parseInt(skippedRaw, 10) : 0;
-	const base = `Imported ${imported} of ${total} link${total === 1 ? "" : "s"}.`;
+	const base = `${imported} of ${total} link${total === 1 ? "" : "s"} imported.`;
 	if (Number.isFinite(skipped) && skipped > 0) {
-		return `${base} Skipped ${skipped} link${skipped === 1 ? "" : "s"} that couldn't be imported.`;
+		return `${base} ${skipped} couldn't be imported.`;
 	}
 	return base;
 };

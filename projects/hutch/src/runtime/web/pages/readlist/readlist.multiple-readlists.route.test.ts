@@ -85,10 +85,10 @@ async function seedInto(harness: TestHarness, readlist: string, url: string) {
 	});
 }
 
-function saveCardClasses(doc: Document): string[] {
+function saveCardIn(doc: Document): Element {
 	const card = doc.querySelector("[data-test-save-card]");
 	assert(card, "the readlist page must render the save card");
-	return card.className.split(" ");
+	return card;
 }
 
 function deleteTriggerTargets(doc: Document): (string | null)[] {
@@ -415,7 +415,7 @@ describe("a readlist the reader opened", () => {
 		expect(articleIds(parse((await agent.get(`/queue?queue=${readlist}`)).text))).toEqual([]);
 	});
 
-	it("hides the save bar and points the empty state at the default readlist", async () => {
+	it("shows the save bar on a custom readlist and points the empty state at the default readlist", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent);
@@ -423,13 +423,39 @@ describe("a readlist the reader opened", () => {
 		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 		const onDefault = parse((await agent.get("/queue")).text);
 
-		expect(saveCardClasses(onWork)).toContain("readlist-save--hidden");
-		expect(saveCardClasses(onDefault)).toContain("readlist-save--visible");
+		expect(saveCardIn(onWork).className).toBe("readlist-save");
+		expect(saveCardIn(onDefault).className).toBe("readlist-save");
 		const empty = onWork.querySelector("[data-test-empty-readlist]");
 		assert(empty, "an untouched readlist must render its empty state");
 		expect(empty.textContent).toContain(
 			"Choose an article from All and add it here to start organising this readlist.",
 		);
+	});
+
+	it("redirects a link rejected from a custom readlist to All with its error code", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const readlist = await createReadlistAndOpen(agent);
+
+		const response = await saveFrom(agent, readlist, "chrome://extensions/");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?error_code=unsupported_scheme");
+	});
+
+	it("posts the save form on a custom readlist to the default readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const readlist = await createReadlistAndOpen(agent);
+		const doc = parse((await agent.get(`/queue?queue=${readlist}`)).text);
+		const form = saveCardIn(doc).querySelector('[data-test-form="save-article"]');
+		assert(form, "the custom readlist's save card must render its form");
+		const action = form.getAttribute("action");
+		assert(action, "the save form must post somewhere");
+		const target = new URL(action, TEST_APP_ORIGIN);
+
+		expect(target.pathname).toBe("/queue/save");
+		expect(target.searchParams.has("queue")).toBe(false);
 	});
 
 	it("opens the owner reader for an article only that readlist holds", async () => {
@@ -512,7 +538,11 @@ describe("the readlist every reader is given", () => {
 
 		const doc = parse((await agent.get("/queue?queue=never-minted")).text);
 
-		expect(saveCardClasses(doc)).toContain("readlist-save--visible");
+		const form = saveCardIn(doc).querySelector('[data-test-form="save-article"]');
+		assert(form, "the save card must render its form");
+		const action = form.getAttribute("action");
+		assert(action, "the save form must post somewhere");
+		expect(new URL(action, TEST_APP_ORIGIN).pathname).toBe("/queue/save");
 	});
 
 	it("counts and lists only its own saves", async () => {

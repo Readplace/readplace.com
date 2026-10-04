@@ -1131,6 +1131,10 @@ describe("Import routes", () => {
 			);
 			expect(urls).toContain("http://localhost/secret");
 			expect(urls).toContain("http://router.home.arpa/");
+			expect(Array.from(skipped, (row) => row.querySelector("[data-test-import-skipped-reason]")?.textContent)).toEqual([
+				"Private or local network link",
+				"Private or local network link",
+			]);
 
 			const clearCookie = findCookie(readlistResponse.headers, "import_skipped=");
 			assert(clearCookie, "readlist must clear the import_skipped cookie");

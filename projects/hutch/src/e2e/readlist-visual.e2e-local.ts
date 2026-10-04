@@ -19,6 +19,7 @@ import {
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import { requireEnv } from "@packages/require-env";
+import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { clickAndWaitForPageReload, openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { growRailToFitOpenFlyout } from "./readlist.browser";
@@ -59,6 +60,10 @@ const READLIST_DELETE_CONFIRM = '[data-test-action="readlist-delete-confirm"]';
 const SAVE_CARD = "[data-test-save-card]";
 const SAVE_ERROR = "[data-test-save-error]";
 const SAVE_INPUT = `${SAVE_CARD} input[name="url"]`;
+const SAVE_BUTTON = `${SAVE_CARD} button[type="submit"]`;
+const SAVE_FIELD = `${SAVE_CARD} .readlist-save__field`;
+const IMPORT_FLASH = "[data-test-import-flash]";
+const IMPORT_SKIPPED = "[data-test-import-skipped]";
 const SAVE_TIP_POPOVER = '[data-test-confirm-popover="save-tip"]';
 const ARTICLE = "[data-test-article]";
 const FIRST_CARD = "#latest-saved";
@@ -86,6 +91,7 @@ const EMPTY_ACTION = `${EMPTY} [data-test-empty-action]`;
 const PAGINATION_PAGES = "#readlist-pages";
 const PAGINATION_PAGE = "[data-test-pagination-page]";
 const READ_FILTER_TAB = '[data-test-filter="read"]';
+const FILTER_TABS = "[data-test-filters]";
 const ALERT = '[data-test-alert="readlist"]';
 const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 const SUBSCRIPTION_BANNER = "[data-test-subscription-banner]";
@@ -355,6 +361,71 @@ async function pageFromTopGeometry(page: Page): Promise<void> {
 	await pageFitsTheClip(page);
 }
 
+async function columnTopsAlign(page: Page): Promise<void> {
+	await pageFromTopGeometry(page);
+	await saveCardRowGeometry(page);
+	const save = await measuredBox(page, SAVE_CARD);
+	const rail = await measuredBox(page, RAIL);
+	const side = await measuredBox(page, SIDE);
+	const tabs = await measuredBox(page, FILTER_TABS);
+	const listing = await measuredBox(page, LISTING);
+	assert.ok(near(save.y, rail.y), `the save card and rail must start together, measured ${save.y}px and ${rail.y}px`);
+	assert.ok(near(save.y, side.y), `the save card and side column must start together, measured ${save.y}px and ${side.y}px`);
+	assert.ok(near(tabs.y - (save.y + save.height), 32), "the tabs must sit 32px below the save card");
+	assert.ok(near(listing.y - (tabs.y + tabs.height), 32), "the listing must sit 32px below the tabs");
+}
+
+async function articlesPageGeometry(page: Page): Promise<void> {
+	await columnTopsAlign(page);
+	const listing = await measuredBox(page, LISTING);
+	const pagination = await measuredBox(page, "[data-test-pagination]");
+	assert.ok(near(pagination.y - (listing.y + listing.height), 16), "pagination must sit 16px below the listing");
+}
+
+async function alertLimitGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const alert = await measuredBox(page, ALERT);
+	const save = await measuredBox(page, SAVE_CARD);
+	assert.ok(near(save.y - (alert.y + alert.height), 16), "the save card must sit 16px below the readlist alert");
+}
+
+async function saveCardRowGeometry(page: Page): Promise<void> {
+	const input = await measuredBox(page, SAVE_INPUT);
+	const button = await measuredBox(page, SAVE_BUTTON);
+	assert.ok(near(button.x - (input.x + input.width), 8), "Save must sit 8px beside the field above the phone breakpoint");
+	assert.ok(near(button.y, input.y), "Save must align with the field's top edge");
+	assert.ok(near(input.height, 48), "the save field must stay 48px high");
+	assert.ok(near(button.height, 48), "Save must keep its 48px height");
+}
+
+async function saveCardPhoneGeometry(page: Page): Promise<void> {
+	const input = await measuredBox(page, SAVE_INPUT);
+	const button = await measuredBox(page, SAVE_BUTTON);
+	const content = await page.locator(SAVE_CARD).evaluate((card) => {
+		const styles = getComputedStyle(card);
+		return {
+			x: card.getBoundingClientRect().x + Number.parseFloat(styles.borderLeftWidth) + Number.parseFloat(styles.paddingLeft),
+			width: card.clientWidth - Number.parseFloat(styles.paddingLeft) - Number.parseFloat(styles.paddingRight),
+		};
+	});
+	assert.ok(near(input.width, content.width), "the save field must fill the card's content width on a phone");
+	assert.ok(near(input.height, 48), "the save field must stay 48px high on a phone");
+	assert.ok(near(button.y - (input.y + input.height), 16), "Save must sit 16px below the field on a phone");
+	assert.ok(near(button.height, 48), "Save must keep its 48px height on a phone");
+	assert.ok(button.width < content.width, "Save must hold its own width on a phone");
+	assert.ok(near(button.x, content.x), "Save must align with the field's leading edge on a phone");
+}
+
+async function saveErrorPhoneGeometry(page: Page): Promise<void> {
+	await neverScrollsSideways(page);
+	const input = await measuredBox(page, SAVE_INPUT);
+	const message = await measuredBox(page, SAVE_ERROR);
+	const field = await measuredBox(page, SAVE_FIELD);
+	const button = await measuredBox(page, SAVE_BUTTON);
+	assert.ok(near(message.y - (input.y + input.height), 8), "the save error must sit 8px below the phone field");
+	assert.ok(near(button.y - (field.y + field.height), 16), "Save must sit 16px below the field and its error");
+}
+
 async function emptyActionFitsEveryViewport(page: Page, key: "install" | "view-unread"): Promise<void> {
 	const action = `${EMPTY} [data-test-empty-action="${key}"]`;
 	for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, { width: 768, height: 900 }, DESKTOP]) {
@@ -397,6 +468,7 @@ async function railFoldsToOneRow(page: Page): Promise<void> {
 
 async function phonePageGeometry(page: Page): Promise<void> {
 	await railStacksAboveTheListing(page);
+	await saveCardPhoneGeometry(page);
 	await pageFitsTheClip(page);
 }
 
@@ -791,6 +863,13 @@ async function saveErrorSettled(page: Page): Promise<void> {
 	await expect(page.locator(SAVE_ERROR)).toHaveAttribute("data-test-saveable-url-code", "malformed_url");
 }
 
+async function importResultSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(IMPORT_FLASH)).toBeVisible();
+	await expect(page.locator(`${IMPORT_SKIPPED} [data-test-alert="import-skipped"]`)).toHaveAttribute("data-test-alert-variant", "error");
+}
+
 async function saveFieldFocusSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
@@ -856,7 +935,7 @@ async function setupGuideNextReadSettled(page: Page): Promise<void> {
 const PAGE_EMPTY: VisualCheckpoint = {
 	name: "readlist-page-empty",
 	settled: emptyPageSettled,
-	geometry: pageFromTopGeometry,
+	geometry: columnTopsAlign,
 	target: MAIN,
 	capture: "page-from-top",
 	pinnedText: [],
@@ -865,7 +944,7 @@ const PAGE_EMPTY: VisualCheckpoint = {
 const PAGE_ARTICLES: VisualCheckpoint = {
 	name: "readlist-page-articles",
 	settled: articlesPageSettled,
-	geometry: pageFromTopGeometry,
+	geometry: articlesPageGeometry,
 	target: MAIN,
 	capture: "page-from-top",
 	pinnedText: [
@@ -998,7 +1077,7 @@ const DELETE_ARTICLE_DIALOG_PHONE: VisualCheckpoint = {
 const ALERT_LIMIT: VisualCheckpoint = {
 	name: "readlist-alert-limit",
 	settled: alertLimitSettled,
-	geometry: railBesideMainBesideSide,
+	geometry: alertLimitGeometry,
 	target: ALERT,
 	capture: "element",
 	pinnedText: [],
@@ -1026,6 +1105,26 @@ const SAVE_ERROR_CHECKPOINT: VisualCheckpoint = {
 	target: SAVE_CARD,
 	capture: "element",
 	pinnedText: [],
+};
+
+const SAVE_ERROR_PHONE: VisualCheckpoint = {
+	...SAVE_ERROR_CHECKPOINT,
+	name: "readlist-save-error-phone",
+	geometry: saveErrorPhoneGeometry,
+};
+
+const IMPORT_RESULT: VisualCheckpoint = {
+	name: "readlist-import-result",
+	settled: importResultSettled,
+	geometry: railBesideMainBesideSide,
+	target: SAVE_CARD,
+	capture: "element",
+	pinnedText: [],
+};
+
+const IMPORT_RESULT_MORE: VisualCheckpoint = {
+	...IMPORT_RESULT,
+	name: "readlist-import-result-more",
 };
 
 const SAVE_FIELD_FOCUS: VisualCheckpoint = {
@@ -1238,6 +1337,8 @@ test.describe("Readlist page (empty)", () => {
 			await gotoReadlistQueue(page, "");
 
 			await captureCheckpoint(page, withTheme(PAGE_EMPTY, theme));
+			await page.setViewportSize({ width: 1440, height: DESKTOP_TALL.height });
+			await columnTopsAlign(page);
 		});
 	}
 });
@@ -1256,6 +1357,8 @@ test.describe("Readlist page (seeded articles)", () => {
 			await page.waitForSelector(`${PAGINATION_PAGES} ${PAGINATION_PAGE}`);
 
 			await captureCheckpoint(page, withTheme(PAGE_ARTICLES, theme));
+			await page.setViewportSize({ width: 1440, height: DESKTOP_TALL.height });
+			await articlesPageGeometry(page);
 		});
 	}
 });
@@ -1335,6 +1438,7 @@ test.describe("Readlist processing card", () => {
 			const email = `readlist-card-processing-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);
 			await seedProcessingArticle(page, userId, email);
+			await page.route("**/queue/*/card?*", (route) => route.fulfill({ status: 204 }));
 			await loginAs(page, email);
 			await gotoReadlistQueue(page, "");
 
@@ -1585,6 +1689,21 @@ test.describe("Readlist save field", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
 	for (const theme of THEMES) {
+		test(`keeps the field and Save in one row at tablet widths (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-save-tablet-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+			await waitForBrandFonts(page, ["Inter"]);
+			await neutralise(page);
+			for (const viewport of [{ width: 601, height: 900 }, { width: 768, height: 900 }, { width: 1023, height: 900 }]) {
+				await page.setViewportSize(viewport);
+				await neverScrollsSideways(page);
+				await saveCardRowGeometry(page);
+			}
+		});
+
 		test(`shows the empty save field focused (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-save-field-focus-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
@@ -1595,6 +1714,88 @@ test.describe("Readlist save field", () => {
 			await captureCheckpoint(page, withTheme(SAVE_FIELD_FOCUS, theme));
 		});
 	}
+});
+
+test.describe("Readlist import results", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
+
+	for (const theme of THEMES) {
+		test(`shows imported counts and the reasons for skipped links (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-import-result-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await page.context().addCookies([{
+				name: IMPORT_SKIPPED_COOKIE_NAME,
+				value: encodeImportSkippedCookie([
+					{ code: "unsupported_scheme", url: "chrome://extensions/" },
+					{ code: "private_network", url: "http://192.168.1.10/admin" },
+					{ code: "malformed_url", url: "invalid-link-".padEnd(150, "x") },
+				]),
+				domain: new URL(BASE_URL).hostname,
+				path: "/queue",
+			}]);
+			await gotoReadlistQueue(page, "?import_imported=42&import_total=50&import_skipped=3");
+			await expect(page.locator(IMPORT_FLASH)).toHaveText("42 of 50 links imported. 3 couldn't be imported.");
+			await expect(page.locator("[data-test-import-skipped-row]")).toHaveCount(3);
+
+			await captureCheckpoint(page, withTheme(IMPORT_RESULT, theme));
+			for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE]) {
+				await page.setViewportSize(viewport);
+				await neverScrollsSideways(page);
+			}
+		});
+
+		test(`shows the remaining count after twenty skipped links (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-import-result-more-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			const skipped = [
+				{ code: "unsupported_scheme" as const, url: "chrome://extensions/" },
+				{ code: "private_network" as const, url: "http://192.168.1.10/admin" },
+				{ code: "malformed_url" as const, url: "invalid-link-".padEnd(150, "x") },
+			];
+			await page.context().addCookies([{
+				name: IMPORT_SKIPPED_COOKIE_NAME,
+				value: encodeImportSkippedCookie(Array.from({ length: 25 }, (_, index) => skipped[index % skipped.length])),
+				domain: new URL(BASE_URL).hostname,
+				path: "/queue",
+			}]);
+			await gotoReadlistQueue(page, "?import_imported=42&import_total=50&import_skipped=25");
+			await expect(page.locator("[data-test-import-skipped-row]")).toHaveCount(20);
+			await expect(page.locator("[data-test-import-skipped-more]")).toHaveText("And 5 more.");
+
+			await captureCheckpoint(page, withTheme(IMPORT_RESULT_MORE, theme));
+		});
+	}
+});
+
+test.describe("Readlist save card on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("keeps the field full width and Save at its own width down to 320px", async ({ page }, testInfo) => {
+		const email = `readlist-save-stack-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await waitForBrandFonts(page, ["Inter"]);
+		await neutralise(page);
+		for (const viewport of [PHONE, WCAG_REFLOW_MINIMUM]) {
+			await page.setViewportSize(viewport);
+			await neverScrollsSideways(page);
+			await saveCardPhoneGeometry(page);
+		}
+	});
+
+	test("keeps the error between the field and Save", async ({ page }, testInfo) => {
+		const email = `readlist-save-error-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "?error_code=malformed_url");
+
+		await captureCheckpoint(page, SAVE_ERROR_PHONE);
+	});
 });
 
 test.describe("Readlist subscription banner", () => {
@@ -1766,10 +1967,10 @@ test.describe("Readlist page on a phone", () => {
 		await captureCheckpoint(page, SUBSCRIPTION_TRIAL_PHONE);
 	});
 
-	test("hides the save card on a custom readlist and asks for an article from All", async ({ page }, testInfo) => {
+	test("shows the save card on a custom readlist and asks for an article from All", async ({ page }, testInfo) => {
 		const email = `readlist-phone-custom-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
-		await expect(page.locator(SAVE_CARD)).toHaveClass(/readlist-save--hidden/);
+		await expect(page.locator(SAVE_CARD)).toBeVisible();
 		await expect(page.locator(EMPTY_TEXT)).toHaveText(
 			"Choose an article from All and add it here to start organising this readlist.",
 		);

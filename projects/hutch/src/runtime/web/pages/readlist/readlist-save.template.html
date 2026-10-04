@@ -1,0 +1,18 @@
+<section class="readlist-save" data-test-save-card>
+              <h2 class="readlist-save__title" id="readlist-save-title">Save something for later</h2>
+              <p class="readlist-save__lede">Paste any article link and add it directly to your reading list.</p>
+              <form class="readlist-save__form" method="POST" action="{{saveAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".readlist__save-btn" hx-indicator="closest form, .readlist-save-skeleton" data-save-tip="{{saveTipState}}" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
+                <div class="form-field readlist-save__field">
+                  <input class="form-input" type="url" name="url" placeholder="Paste a link to save an article" aria-labelledby="readlist-save-title" required value="{{saveUrl}}"{{#if saveInputInvalid}} aria-invalid="true" aria-describedby="readlist-save-error"{{/if}}{{#if accessIsReadOnly}} disabled{{/if}}>
+                  {{#each fieldMessages}}
+                  <p class="{{className}}"{{#each attributes}} {{name}}="{{value}}"{{/each}}>{{text}}</p>
+                  {{/each}}
+                </div>
+                <button class="btn btn--primary readlist__save-btn readlist-save__btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="btn__label-stack"><span class="readlist__save-btn-label">Save</span><span class="readlist__save-btn-saving">Saving…</span></span></button>
+              </form>
+              {{#if skippedCalloutHtml}}
+              <div class="readlist-save__skipped" data-test-import-skipped>
+                {{{skippedCalloutHtml}}}
+              </div>
+              {{/if}}
+            </section>

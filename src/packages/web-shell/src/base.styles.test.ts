@@ -206,6 +206,16 @@ describe("FORM_CONTROL_STYLES", () => {
 		expect(error).toContain("color: var(--error-text);");
 	});
 
+	it("sets a neutral field message at 12/500 in secondary ink", () => {
+		const message = formControlRule(".form-field__message");
+		expect(message).toContain("margin: 0;");
+		expect(message).toContain("font-size: 0.75rem;");
+		expect(message).toContain("font-weight: 500;");
+		expect(message).toContain("line-height: 1.35;");
+		expect(message).toContain("color: var(--muted-foreground);");
+		expect(message).toContain("text-wrap: pretty;");
+	});
+
 	it("collapses an empty error line, so a field with no message reserves no space", () => {
 		expect(formControlRule(".form-field__error:empty")).toContain("display: none;");
 	});

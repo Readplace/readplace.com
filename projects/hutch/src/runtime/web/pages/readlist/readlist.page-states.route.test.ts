@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { saveableUrlErrorMessage } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import {
@@ -75,6 +74,28 @@ describe("GET /queue", () => {
 		expect(doc.body.classList.contains("page-readlist")).toBe(true);
 		expect(doc.body.classList.contains("page-readlist")).toBe(true);
 		expect(doc.body.classList.contains("theme-dark")).toBe(true);
+	});
+
+	it("keeps toast and counts mounts outside the main column and groups the save card and results", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const doc = parse((await agent.get("/queue")).text);
+
+		const main = doc.querySelector("main[data-test-readlist-page]");
+		assert(main, "the readlist page must render its main region");
+		const toast = doc.getElementById("status-toast");
+		const counts = doc.getElementById("readlist-counts");
+		assert(toast, "the status toast mount must render");
+		assert(counts, "the counts loading mount must render");
+		expect(toast.parentElement).toBe(main);
+		expect(counts.parentElement).toBe(main);
+
+		const card = main.querySelector("[data-test-save-card]");
+		const listing = main.querySelector("[data-test-listing]");
+		assert(card, "the save card must render");
+		assert(listing, "the listing must render");
+		expect(card.parentElement?.className).toBe("readlist__lead");
+		expect(listing.parentElement?.className).toBe("readlist__results");
 	});
 });
 
@@ -503,7 +524,7 @@ describe("the save error", () => {
 
 		const error = doc.querySelector("[data-test-save-error]");
 		assert(error, "the save error must be rendered");
-		expect(error.textContent).toBe(saveableUrlErrorMessage("malformed_url"));
+		expect(error.textContent).toBe("Enter a valid article link.");
 
 		const input = doc.querySelector('[data-test-form="save-article"] input[name="url"]');
 		assert(input, "the save input must always be rendered");
