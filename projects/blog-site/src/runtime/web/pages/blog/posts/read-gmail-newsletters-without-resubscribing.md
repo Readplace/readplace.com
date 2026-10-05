@@ -1,6 +1,6 @@
 ---
 title: "Read Your Gmail Newsletters Without Re-subscribing"
-description: "The newsletters you never moved out of Gmail can finally reach your reading app. Connect the account they already arrive in, pick the senders worth keeping, and the articles inside each new issue save to your readlists as readable, summarized articles. The one change made inside Gmail is a forwarding filter you can read in your own settings."
+description: "The newsletters you never moved out of Gmail can now reach your reading app. Connect the account they already arrive in, pick the senders worth keeping, and the articles inside each new issue save to your readlists as readable, summarized articles. The one change made inside Gmail is a forwarding filter you can read in your own settings."
 slug: "read-gmail-newsletters-without-resubscribing"
 date: "2026-10-04"
 author: "Fayner Brack"
@@ -56,7 +56,7 @@ The order is the point. Delivery doesn't run on Readplace reading your inbox: Gm
 
 ## Beta, and easy to leave
 
-The first Connect Gmail opens a plain disclosure before Google's screen does: the integration is experimental, it only reads your newsletters, and the filter is its one change inside Gmail. The Gmail card carries a Beta chip. Connecting is part of the paid subscription, and a free account sees that stated on the page rather than a button that fails.
+Connect Gmail opens a plain disclosure before Google's screen does: the integration is experimental, it only reads your newsletters, and the filter is its one change inside Gmail. The Gmail card carries a Beta chip. Connecting is part of the paid subscription, and a free account sees that stated on the page rather than a button that fails.
 
 Leaving is as plain as arriving. Disconnect Gmail is one button, removing a single sender is one control, and either way the articles already saved stay in your readlists.
 
