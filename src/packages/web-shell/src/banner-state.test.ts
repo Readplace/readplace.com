@@ -171,7 +171,7 @@ describe("buildNavGroups", () => {
 		expect(integrations.href).toBe(
 			"/newsletters?utm_source=header-nav&utm_medium=internal&utm_content=integrations",
 		);
-		expect(integrations.label).toBe("Integrations");
+		expect(integrations.label).toBe("Connectors");
 	});
 });
 

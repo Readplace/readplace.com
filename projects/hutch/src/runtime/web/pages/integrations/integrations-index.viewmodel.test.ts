@@ -48,7 +48,7 @@ describe("toIntegrationsIndexViewModel", () => {
 
 		assert.deepEqual(
 			vm.services.map((s) => [s.key, s.name]),
-			[["gmail", "Newsletters from Gmail"], ["custom-emails", "Custom Emails"]],
+			[["gmail", "Newsletters from Gmail"], ["custom-emails", "My Custom Emails"]],
 		);
 	});
 
