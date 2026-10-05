@@ -62,4 +62,4 @@ Leaving is as plain as arriving. Disconnect Gmail is one button, removing a sing
 
 ## The sender to start with
 
-The newsletter that earns the first mapping is the one you archive out of guilt instead of reading. Connect the account it arrives in under [Integrations](/newsletters?utm_source=blog-read-gmail-newsletters-without-resubscribing&utm_medium=internal&utm_content=newsletters), give it a readlist, and its next issue shows up as articles instead of mail. The rest of your reading still saves the usual ways, through [the browser extension](https://readplace.com/install) or a link pasted at [readplace.com](/?utm_source=blog-read-gmail-newsletters-without-resubscribing&utm_medium=internal&utm_content=home).
+The newsletter that earns the first mapping is the one you archive out of guilt instead of reading. Connect the account it arrives in under [Integrations](/newsletters?utm_source=blog-read-gmail-newsletters-without-resubscribing&utm_medium=internal&utm_content=newsletters), give it a readlist, and its next issue shows up as articles instead of mail.
