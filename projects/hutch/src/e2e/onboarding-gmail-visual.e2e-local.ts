@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
-import { captureCheckpoint, expect, measuredBox, test, waitForBrandFonts, waitForImagePixels } from "@packages/e2e-harness";
+import { captureCheckpoint, expect, measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { requireEnv } from "@packages/require-env";
 import { clickAndWaitForPageReload } from "./page-interactions";
@@ -60,7 +60,6 @@ for (const device of DEVICES) {
 					pinnedText: [],
 					settled: async (settledPage) => {
 						await waitForBrandFonts(settledPage, ["Inter"]);
-						if (device.hasClient) await waitForImagePixels(settledPage, ".setup-guide__avatar");
 						await expect(settledPage.locator(STEP)).toHaveAttribute("data-test-onboarding-current", "true");
 						await expect(settledPage.locator(DISMISS)).toBeVisible();
 						await expect(settledPage.locator("[data-test-onboarding-progress]")).toHaveAttribute("data-test-onboarding-progress", device.hasClient ? "60" : "0");
@@ -124,6 +123,9 @@ test.describe("Unsupported-device dismissal without JavaScript", () => {
 		await clickAndWaitForPageReload(page, page.locator("[data-test-onboarding-dismiss]"));
 		await expect(page.locator("[data-test-onboarding-no-client]")).toBeHidden();
 		await expect(page.locator(CONNECT)).toBeVisible();
+		const card = await measuredBox(page, CARD);
+		const progressRow = await measuredBox(page, `${CARD} .setup-guide__progress-row`);
+		assert.ok(Math.abs(progressRow.y - card.y - 21) <= 1, "the progress row must keep a 20px inset once the notice is dismissed");
 		await clickAndWaitForPageReload(page, page.locator(DISMISS));
 		await expect(page.locator(STEP)).toHaveCount(0);
 		await expect(page.locator(CARD)).toBeHidden();

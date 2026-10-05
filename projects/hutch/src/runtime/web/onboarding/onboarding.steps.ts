@@ -10,7 +10,7 @@ import type {
 	OnboardingAction,
 	OnboardingStep,
 } from "./onboarding.types";
-import { READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH } from "../pages/readlist/readlist.url";
+import { READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH } from "../pages/readlist/readlist.url";
 import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 
 interface StepCopy {
@@ -29,15 +29,12 @@ function installAction(platform: PitchablePlatform): OnboardingAction {
 	};
 }
 
-function downloadAction(client: {
-	platform: PitchablePlatform;
-	label: string;
-}): OnboardingAction {
+function saveArticleAction(platform: PitchablePlatform): OnboardingAction {
 	return {
-		key: "download-client",
+		key: "save-article",
 		method: "GET",
-		href: buildExtensionInstallUrl(client.platform),
-		label: client.label,
+		href: buildExtensionInstallUrl(platform),
+		label: "Save an article",
 		variant: "primary",
 	};
 }
@@ -53,7 +50,7 @@ const CHOOSE_BROWSER_ACTION: OnboardingAction = {
 const INSTALL_BROWSER_DESCRIPTION =
 	"Add Readplace to your browser and log-in so you can save any page with one click.";
 
-const SAVE_BROWSER_DESCRIPTION = "This way sites can't block the clean reader view.";
+const SAVE_BROWSER_DESCRIPTION = "Use the browser extension to save your first article for later.";
 
 const INSTALL_COPY: Record<PitchablePlatform, StepCopy> = {
 	firefox: {
@@ -83,18 +80,18 @@ const SAVE_COPY: Record<PitchablePlatform, StepCopy> = {
 	firefox: {
 		title: "Save your first article using the browser extension",
 		description: SAVE_BROWSER_DESCRIPTION,
-		actions: [downloadAction({ platform: "firefox", label: "Download Firefox extension" })],
+		actions: [saveArticleAction("firefox")],
 	},
 	chrome: {
 		title: "Save your first article using the browser extension",
 		description: SAVE_BROWSER_DESCRIPTION,
-		actions: [downloadAction({ platform: "chrome", label: "Download Chrome extension" })],
+		actions: [saveArticleAction("chrome")],
 	},
 	iphone: {
 		title: "Save your first article using the iPhone app",
 		description:
-			"Open any page in Safari, tap Share, and choose Readplace to save it to your queue.",
-		actions: [downloadAction({ platform: "iphone", label: "Download the iPhone app" })],
+			"Open any page in Safari, tap Share, and choose Readplace to save it for later.",
+		actions: [saveArticleAction("iphone")],
 	},
 	other: {
 		title: "Save your first article using a browser extension",
@@ -125,13 +122,21 @@ const EMAIL_STEP_ACTIONS: OnboardingAction[] = [
 
 const NEXT_READ_TITLE = `Save ${NEXT_READ_MINIMUM_SAVES} articles so Next Read can start`;
 
+const VIEW_READLIST_ACTION: OnboardingAction = {
+	key: "view-readlist",
+	method: "GET",
+	href: READLIST_PATH,
+	label: "View readlist",
+	variant: "primary",
+};
+
 /** Promises readiness, never results: the compute side compares against fewer
  * candidates than the raw save count (it excludes the article in hand and drops
  * uncrawled rows), so reaching the minimum makes Next Read possible, not certain. */
 function nextReadDescription(savedCount: number): string {
 	return hasEnoughSavesForNextRead(savedCount)
 		? "Next Read can analyse now. It only shows when something you've saved relates to what you just read."
-		: `Next Read starts analysing at ${NEXT_READ_MINIMUM_SAVES} saves, and only shows when something you've saved relates. You've saved ${savedCount} of ${NEXT_READ_MINIMUM_SAVES}.`;
+		: `Next Read starts analysing at ${NEXT_READ_MINIMUM_SAVES} saves, and only shows when something you've saved relates.`;
 }
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
@@ -141,6 +146,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		title: (ctx) => ctx.hasInstallableClient ? INSTALL_COPY[ctx.platform].title : "",
 		description: (ctx) => ctx.hasInstallableClient ? INSTALL_COPY[ctx.platform].description : "",
 		isComplete: (ctx) => ctx.hasInstallableClient && ctx.installed,
+		partialProgress: () => 0,
 		actions: (ctx) => ctx.hasInstallableClient ? INSTALL_COPY[ctx.platform].actions : [],
 	},
 	{
@@ -149,6 +155,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		title: (ctx) => ctx.hasInstallableClient ? SAVE_COPY[ctx.platform].title : "",
 		description: (ctx) => ctx.hasInstallableClient ? SAVE_COPY[ctx.platform].description : "",
 		isComplete: (ctx) => ctx.hasInstallableClient && ctx.savedArticle,
+		partialProgress: () => 0,
 		actions: (ctx) => ctx.hasInstallableClient ? SAVE_COPY[ctx.platform].actions : [],
 	},
 	{
@@ -157,6 +164,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		title: () => EMAIL_STEP_TITLE,
 		description: () => EMAIL_STEP_DESCRIPTION,
 		isComplete: (ctx) => ctx.hasInstallableClient && (ctx.inboxArticleQueued || ctx.emailStepMarkedDone),
+		partialProgress: () => 0,
 		actions: () => EMAIL_STEP_ACTIONS,
 	},
 	{
@@ -166,6 +174,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		title: () => "Connect your Gmail",
 		description: () => "Connect Gmail to choose which newsletters arrive in Readplace.",
 		isComplete: (ctx) => ctx.gmail?.connected === true || ctx.gmail?.dismissed === true,
+		partialProgress: () => 0,
 		actions: () => [
 			{ key: "connect-gmail", method: "GET", href: INTEGRATIONS_PATH, label: "Connect your Gmail", variant: "primary" },
 			{ key: "gmail-dismiss", method: "POST", href: READLIST_GMAIL_STEP_DISMISS_PATH, label: "I don't want to do this", variant: "text" },
@@ -177,7 +186,8 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		title: () => NEXT_READ_TITLE,
 		description: (ctx) => ctx.hasInstallableClient ? nextReadDescription(ctx.savedCount) : "",
 		isComplete: (ctx) => ctx.hasInstallableClient && hasEnoughSavesForNextRead(ctx.savedCount),
-		actions: () => [],
+		partialProgress: (ctx) => ctx.hasInstallableClient ? Math.min(ctx.savedCount, NEXT_READ_MINIMUM_SAVES) / NEXT_READ_MINIMUM_SAVES : 0,
+		actions: () => [VIEW_READLIST_ACTION],
 		chip: (ctx) => ctx.hasInstallableClient ? `Saved ${Math.min(ctx.savedCount, NEXT_READ_MINIMUM_SAVES)} of ${NEXT_READ_MINIMUM_SAVES}` : "",
 	},
 ];

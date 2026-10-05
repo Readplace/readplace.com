@@ -139,6 +139,19 @@ function alertOf(doc: Document): { visible: boolean; title: string | undefined; 
 }
 
 describe("GET /queue/queues/:slug/preferences", () => {
+	it("keeps the preferences column together when the readlist blocks interleave on phones", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent);
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		const main = doc.querySelector(".readlist__main");
+		assert(main, "preferences must render its own main column");
+		expect(main.className).toBe("readlist__main");
+		expect(Array.from(main.children, (child) => child.className.split(" ")[0])).toEqual([
+			"alert", "underline-tabs", "readlist-listing", "readlist-listing",
+		]);
+	});
+
 	it("offers to set the readlist up while it has no purpose", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

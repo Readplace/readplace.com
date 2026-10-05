@@ -10,7 +10,6 @@ import {
 	test,
 	type VisualCheckpoint,
 	waitForBrandFonts,
-	waitForImagePixels,
 } from "@packages/e2e-harness";
 import {
 	ALIVE_COOKIE_NAME,
@@ -33,6 +32,7 @@ const DESKTOP_TALL = { width: 1280, height: 1700 };
 const PHONE = { width: 390, height: 844 };
 const PHONE_TALL = { width: 390, height: 2600 };
 const WCAG_REFLOW_MINIMUM = { width: 320, height: 800 };
+const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 
 const SEEDED_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const UNBROKEN_WORD = "Supercalifragilisticexpialidociousandthensomemoretokeepgoing";
@@ -97,7 +97,6 @@ const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 const SUBSCRIPTION_BANNER = "[data-test-subscription-banner]";
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const TOAST = "[data-test-toast]";
-const SETUP_GUIDE_AVATAR = ".setup-guide__avatar";
 const ONBOARDING_PROGRESS = "[data-test-onboarding-progress]";
 const ONBOARDING_CHIP = "[data-test-onboarding-chip]";
 const SUBSCRIPTION_CHIP = "[data-test-subscription-chip]";
@@ -254,7 +253,6 @@ async function markFirstArticleRead(page: Page): Promise<void> {
 
 async function settledSetupGuide(page: Page): Promise<void> {
 	await expect(page.locator(SETUP_GUIDE)).toBeVisible();
-	await waitForImagePixels(page, SETUP_GUIDE_AVATAR);
 }
 
 async function neutralise(page: Page): Promise<void> {
@@ -449,7 +447,7 @@ async function neverScrollsSideways(page: Page): Promise<void> {
 async function railStacksAboveTheListing(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
 	const rail = await measuredBox(page, RAIL);
-	const main = await measuredBox(page, MAIN_COLUMN);
+	const main = await measuredBox(page, LISTING);
 	assert.ok(
 		rail.y + rail.height <= main.y,
 		`the rail must stack above the listing on a phone, measured rail=${JSON.stringify(rail)} main=${JSON.stringify(main)}`,
@@ -469,7 +467,30 @@ async function railFoldsToOneRow(page: Page): Promise<void> {
 async function phonePageGeometry(page: Page): Promise<void> {
 	await railStacksAboveTheListing(page);
 	await saveCardPhoneGeometry(page);
+	await guideSitsAboveTheTabs(page);
 	await pageFitsTheClip(page);
+}
+
+async function guideSitsAboveTheTabs(page: Page): Promise<void> {
+	const guide = await measuredBox(page, SETUP_GUIDE);
+	const save = await measuredBox(page, SAVE_CARD);
+	const tabs = await measuredBox(page, FILTER_TABS);
+	assert.ok(save.y + save.height <= guide.y, "the setup guide must follow the save card on a phone");
+	assert.ok(guide.y + guide.height <= tabs.y, "the setup guide must lead the tabs and list on a phone");
+}
+
+async function foldedGuideSettled(page: Page): Promise<void> {
+	await emptyPageSettled(page);
+	expect(await page.locator(".setup-guide__fold").evaluate((el) => el.hasAttribute("open"))).toBe(false);
+	const steps = page.locator("[data-test-onboarding-steps]");
+	await expect(steps).toBeAttached();
+	await expect(steps).toBeHidden();
+}
+
+async function foldedGuideGeometry(page: Page): Promise<void> {
+	await phonePageGeometry(page);
+	const guide = await measuredBox(page, SETUP_GUIDE);
+	assert.ok(guide.height <= 180, "the folded guide must leave room for the reading list");
 }
 
 function near(actual: number, expected: number): boolean {
@@ -681,11 +702,13 @@ async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
 	await phonePageGeometry(page);
 	const banner = await measuredBox(page, SUBSCRIPTION_BANNER);
 	const listing = await measuredBox(page, LISTING);
+	const guide = await measuredBox(page, SETUP_GUIDE);
 	const cta = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`);
 	assert.ok(
 		banner.y + banner.height <= listing.y,
 		`a trial notice must stay above the article list on a phone, measured banner=${JSON.stringify(banner)} listing=${JSON.stringify(listing)}`,
 	);
+	assert.ok(banner.y + banner.height <= guide.y, "the subscription notice must lead the setup guide on a phone");
 	subscriptionCtaIsMediumAndFullWidth({ card: banner, cta });
 }
 
@@ -928,7 +951,8 @@ async function setupGuideNextReadSettled(page: Page): Promise<void> {
 		"true",
 	);
 	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "80");
-	await expect(page.locator(ONBOARDING_CHIP)).toHaveText(`Saved 0 of ${NEXT_READ_MINIMUM_SAVES}`);
+	await expect(page.locator(ONBOARDING_CHIP)).toHaveText(`Saved 4 of ${NEXT_READ_MINIMUM_SAVES}`);
+	await expect(page.locator('[data-test-onboarding-step="save-enough-for-next-read"] .setup-guide__marker')).toHaveClass("setup-guide__marker setup-guide__marker--partial setup-guide__marker--partial-1");
 	await settledSetupGuide(page);
 }
 
@@ -1203,6 +1227,15 @@ const PAGE_ARTICLES_PHONE: VisualCheckpoint = {
 	...PAGE_ARTICLES,
 	name: "readlist-page-articles-phone",
 	geometry: phonePageGeometry,
+};
+
+const SETUP_GUIDE_PHONE_FOLDED: VisualCheckpoint = {
+	name: "readlist-setup-guide-phone-folded",
+	settled: foldedGuideSettled,
+	geometry: foldedGuideGeometry,
+	target: SETUP_GUIDE,
+	capture: "page-from-top",
+	pinnedText: [],
 };
 
 const PAGE_EMPTY_PHONE: VisualCheckpoint = {
@@ -1908,6 +1941,15 @@ test.describe("Readlist setup guide", () => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-setup-next-read-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);
+			for (let index = 0; index < 4; index += 1) {
+				await seedCrawledArticle(page, {
+					url: `https://example.com/setup-next-read-${email}-${index}`,
+					title: `Next Read article ${index + 1}`,
+					savedAt: "2026-07-12T09:14:00.000Z",
+					excerpt: "An article saved toward the Next Read milestone.",
+					userId,
+				});
+			}
 			await seedInboxArticleQueued(page, userId);
 			await loginAs(page, email);
 			const dismissed = await page.request.post(`${BASE_URL}/queue/onboarding/gmail/dismiss`);
@@ -1937,6 +1979,45 @@ test.describe("Readlist alert on a phone", () => {
 
 test.describe("Readlist page on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE_TALL });
+
+	test.describe("iPhone", () => {
+		test.use({ userAgent: IPHONE_UA });
+
+		test("folds the setup guide above the list on an iPhone", async ({ page }, testInfo) => {
+			const email = `readlist-phone-folded-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+			await captureCheckpoint(page, SETUP_GUIDE_PHONE_FOLDED);
+			await page.locator(".setup-guide__progress").click();
+			await expect(page.locator("[data-test-onboarding-steps]")).toBeVisible();
+			await expect(page.locator('[data-test-onboarding-step="install-extension"] .setup-guide__disclosure')).toHaveAttribute("open", "");
+			const foldChevron = page.locator(".setup-guide__progress .setup-guide__chevron");
+			const currentChevron = page.locator('[data-test-onboarding-step="install-extension"] .setup-guide__chevron');
+			const upcomingChevron = page.locator('[data-test-onboarding-step="save-first-article-via-extension"] .setup-guide__chevron');
+			await expect.poll(() => foldChevron.evaluate((el) => getComputedStyle(el).transform)).toBe("matrix(-1, 0, 0, -1, 0, 0)");
+			expect(await currentChevron.evaluate((el) => getComputedStyle(el).transform)).toBe("matrix(-1, 0, 0, -1, 0, 0)");
+			expect(await upcomingChevron.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
+			await guideSitsAboveTheTabs(page);
+		});
+
+		test.describe("without JavaScript", () => {
+			test.use({ javaScriptEnabled: false });
+
+			test("opens and closes the setup steps through the native fold", async ({ page }, testInfo) => {
+				const email = `readlist-phone-fold-no-js-${testInfo.workerIndex}-${Date.now()}@example.com`;
+				await createVerifiedUser(page, email);
+				await loginAs(page, email);
+				const steps = page.locator("[data-test-onboarding-steps]");
+				await expect(steps).toBeAttached();
+				await expect(steps).toBeHidden();
+				await page.locator(".setup-guide__progress").click();
+				await expect(steps).toBeVisible();
+				await page.locator(".setup-guide__progress").click();
+				await expect(steps).toBeHidden();
+			});
+		});
+	});
 
 	test("stacks the empty state under the rail with nothing saved", async ({ page }, testInfo) => {
 		const email = `readlist-phone-empty-${testInfo.workerIndex}-${Date.now()}@example.com`;

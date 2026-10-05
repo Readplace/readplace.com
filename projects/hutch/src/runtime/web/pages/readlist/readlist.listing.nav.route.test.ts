@@ -117,6 +117,14 @@ describe("Readlist nav", () => {
 			const saveForm = body.querySelector('.readlist__main [data-test-form="save-article"]');
 			assert(saveForm, "the save bar must live inside the readlist panel");
 			expect(saveForm.getAttribute("method")).toBe("POST");
+			const browse = body.querySelector(".readlist__main.readlist__main--interleaved > .readlist__browse");
+			assert(browse, "the tabs and results must share the phone browsing block");
+			expect(Array.from(browse.children, (child) => child.className.split(" ")[0])).toEqual([
+				"underline-tabs", "readlist__results",
+			]);
+			expect(Array.from(browse.querySelectorAll("[data-test-listing], [data-test-pagination]"), (child) => child.className.split(" ")[0])).toEqual([
+				"readlist-listing", "pagination",
+			]);
 		});
 
 		it("should give every navigation landmark on the page its own name", async () => {

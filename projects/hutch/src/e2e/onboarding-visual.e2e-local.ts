@@ -9,7 +9,6 @@ import {
 	test,
 	type VisualCheckpoint,
 	waitForBrandFonts,
-	waitForImagePixels,
 } from "@packages/e2e-harness";
 import {
 	ALIVE_COOKIE_NAME,
@@ -48,7 +47,7 @@ const NEXT_READ_STEP = stepSelector("save-enough-for-next-read");
 const EMAIL_CTA = `${EMAIL_STEP} [data-test-onboarding-action="see-inbox-address"]`;
 const EMAIL_MARK_DONE = `${EMAIL_STEP} [data-test-onboarding-action="email-mark-done"]`;
 
-const SETUP_GUIDE_AVATAR = "main.readlist .setup-guide__avatar";
+const DESKTOP_SAFARI_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
@@ -151,7 +150,6 @@ async function reloadReadlistWithOnboardingCookies(
 
 async function checklistSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
-	await waitForImagePixels(page, SETUP_GUIDE_AVATAR);
 	await expect(page.locator(SAVE_STEP)).toBeVisible();
 }
 
@@ -161,11 +159,11 @@ async function completedRowCollapses(page: Page): Promise<void> {
 		"true",
 	);
 	await onlyStepOpen(page, "save-first-article-via-extension");
+	await stepAnatomyHolds(page, 488);
 }
 
 async function installStepSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
-	await waitForImagePixels(page, SETUP_GUIDE_AVATAR);
 	await expect(page.locator(INSTALL_STEP)).toBeVisible();
 }
 
@@ -175,6 +173,7 @@ async function installRowStandsAlone(page: Page): Promise<void> {
 		"false",
 	);
 	await onlyStepOpen(page, "install-extension");
+	await stepAnatomyHolds(page, 508);
 }
 
 async function successSettled(page: Page): Promise<void> {
@@ -196,7 +195,6 @@ async function welcomeLineStaysHidden(page: Page): Promise<void> {
 
 async function emailStepOutstandingSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
-	await waitForImagePixels(page, SETUP_GUIDE_AVATAR);
 	await expect(page.locator(EMAIL_STEP)).toBeVisible();
 	await expect(page.locator(EMAIL_CTA)).toBeVisible();
 	await expect(page.locator(EMAIL_MARK_DONE)).toBeVisible();
@@ -204,6 +202,7 @@ async function emailStepOutstandingSettled(page: Page): Promise<void> {
 
 async function emailRowStandsAlone(page: Page): Promise<void> {
 	await onlyStepOpen(page, "receive-articles-by-email");
+	await stepAnatomyHolds(page, 576);
 
 	const row = await measuredBox(page, EMAIL_STEP);
 	const cta = await measuredBox(page, EMAIL_CTA);
@@ -237,13 +236,84 @@ async function nextReadIsTheOnlyOpenRow(page: Page): Promise<void> {
 async function autoTickedRowCollapses(page: Page): Promise<void> {
 	await expect(page.locator(EMAIL_STEP)).toHaveAttribute("data-test-onboarding-complete", "true");
 	await nextReadIsTheOnlyOpenRow(page);
+	await stepAnatomyHolds(page, 542);
 }
 
 async function nextReadRowSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
-	await waitForImagePixels(page, SETUP_GUIDE_AVATAR);
 	await expect(page.locator(NEXT_READ_STEP)).toBeVisible();
 }
+
+async function stepAnatomyHolds(page: Page, expectedHeight: number): Promise<void> {
+	const card = await measuredBox(page, ONBOARDING_CARD);
+	const title = await measuredBox(page, `${ONBOARDING_CARD} > .setup-guide__header .setup-guide__title`);
+	const list = await measuredBox(page, STEPS_LIST);
+	const label = await measuredBox(page, ".setup-guide__progress-label");
+	const track = await measuredBox(page, ".setup-guide__progress-track");
+	assert.ok(Math.abs(card.width - 340) <= 1, "the desktop track must size the guide to 340px");
+	assert.ok(Math.abs(card.height - expectedHeight) <= 2, `the guide must measure ${expectedHeight}px, measured ${card.height}px`);
+	assert.ok(Math.abs(title.x - card.x - 21) <= 1, "the heading must have a 20px inset inside the border");
+	assert.ok(Math.abs(list.x - card.x - 1) <= 1, "the divider must begin at the card's inner edge");
+	assert.ok(Math.abs(list.width - card.width + 2) <= 1, "the divider must span the card's inner width");
+	assert.ok(Math.abs(list.y - card.y - 160) <= 1, "the header and progress section must be 160px high");
+	assert.equal(await page.locator(STEPS_LIST).evaluate((el) => getComputedStyle(el).borderTopWidth), "1px");
+	assert.ok(Math.abs(track.y - label.y - label.height - 12) <= 1, "the bar must sit 12px below the progress label");
+	assert.equal(track.height, 6, "the progress bar must stay 6px high");
+	const foldChevron = await measuredBox(page, ".setup-guide__progress-row .setup-guide__chevron svg");
+	assert.ok(Math.abs(foldChevron.width - 24) <= 1 && Math.abs(foldChevron.height - 24) <= 1, "the fold chevron must draw a 24px glyph");
+	let previousMarkerBottom = list.y;
+	for (const id of ALL_STEP_IDS) {
+		const row = stepSelector(id);
+		const summary = await measuredBox(page, `${row} .setup-guide__summary`);
+		const stepTitle = await measuredBox(page, `${row} .setup-guide__step-title`);
+		const titleRow = await measuredBox(page, `${row} .setup-guide__summary-label`);
+		const marker = await measuredBox(page, `${row} .setup-guide__marker`);
+		const chevron = await measuredBox(page, `${row} .setup-guide__chevron svg`);
+		assert.ok(Math.abs(chevron.width - 24) <= 1 && Math.abs(chevron.height - 24) <= 1, "each step chevron must draw a 24px glyph");
+		assert.ok(Math.abs(stepTitle.x - summary.x - 40) <= 1, "the title must sit 40px after the marker slot's leading edge");
+		assert.ok(Math.abs(marker.x - summary.x - 2) <= 1, "the 20px marker must sit inside its 24px slot");
+		assert.equal(marker.width, 20);
+		assert.equal(marker.height, 20);
+		assert.ok(summary.height >= 44, "each summary must keep a 44px hit area");
+		assert.ok(titleRow.height >= 24, "the title row must fill its 24px slot");
+		assert.ok(marker.y >= previousMarkerBottom, "consecutive marker slots must be at least 24px apart");
+		previousMarkerBottom = marker.y + 24;
+	}
+	const emailTitleRow = await measuredBox(page, `${EMAIL_STEP} .setup-guide__summary-label`);
+	assert.ok(Math.abs(emailTitleRow.height - 24) <= 1, "a one-line title must paint a 24px row");
+	for (const check of await page.locator(".setup-guide__marker--complete svg").all()) {
+		const glyph = await check.boundingBox();
+		assert(glyph, "each completed marker must paint its check");
+		const marker = await check.locator("..").boundingBox();
+		assert(marker, "each check must sit inside its marker");
+		assert.ok(glyph.width === 12 && glyph.height === 12, "the completed check must paint Figma's 7×5 tick from a 12px glyph box");
+		assert.ok(glyph.x >= marker.x && glyph.x + glyph.width <= marker.x + marker.width);
+		assert.ok(glyph.y >= marker.y && glyph.y + glyph.height <= marker.y + marker.height);
+	}
+}
+
+async function noClientSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await expect(page.locator("[data-test-onboarding-no-client]")).toBeVisible();
+}
+
+async function noClientUsesItsOwnPadding(page: Page): Promise<void> {
+	const card = await measuredBox(page, ONBOARDING_CARD);
+	const title = await measuredBox(page, `${ONBOARDING_CARD} .setup-guide__title`);
+	const cta = await measuredBox(page, '[data-test-onboarding-action="see-install-options"]');
+	assert.ok(Math.abs(title.x - card.x - 21) <= 1, "the no-client title must use its own 20px padding");
+	assert.ok(Math.abs(cta.width - card.width + 42) <= 1, "the install button must fill the no-client content width");
+	assert.ok(Math.abs(cta.x - card.x - 21) <= 1, "the full-width install button must align with the title");
+}
+
+const NO_CLIENT: VisualCheckpoint = {
+	name: "onboarding-no-client",
+	settled: noClientSettled,
+	geometry: noClientUsesItsOwnPadding,
+	target: ONBOARDING_CARD,
+	capture: "element",
+	pinnedText: [],
+};
 
 const CHECKLIST_STEP_HIDDEN: VisualCheckpoint = {
 	name: "onboarding-completed-step-hidden",
@@ -360,5 +430,16 @@ test.describe("Onboarding card", () => {
 		]);
 
 		await captureCheckpoint(page, SUCCESS_RETURNING_USER);
+	});
+});
+
+test.describe("Onboarding on a device without a client", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, userAgent: DESKTOP_SAFARI_UA });
+
+	test("keeps the no-client card's title and install button on its own padding", async ({ page }, testInfo) => {
+		const email = `onboarding-no-client-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+		await captureCheckpoint(page, NO_CLIENT);
 	});
 });

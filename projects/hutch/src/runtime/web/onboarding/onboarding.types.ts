@@ -46,7 +46,8 @@ export type OnboardingActionMethod = "GET" | "POST";
 export type OnboardingActionVariant = "primary" | "primary-full-width" | "text";
 export type OnboardingActionKey =
 	| "install"
-	| "download-client"
+	| "save-article"
+	| "view-readlist"
 	| "choose-browser"
 	| "see-install-options"
 	| "see-inbox-address"
@@ -71,6 +72,7 @@ export interface OnboardingStep {
 	title: (ctx: OnboardingContext) => string;
 	description: (ctx: OnboardingContext) => string;
 	isComplete: (ctx: OnboardingContext) => boolean;
+	partialProgress: (ctx: OnboardingContext) => number;
 	actions: (ctx: OnboardingContext) => OnboardingAction[];
 	chip?: (ctx: OnboardingContext) => string;
 }

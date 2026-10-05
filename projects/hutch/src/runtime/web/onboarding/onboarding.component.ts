@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
-import { requireEnv } from "@packages/require-env";
+import type { PitchablePlatform } from "./extension-install";
 import { BROWSER_EXTENSIONS_OR, NATIVE_APP_DEVICES_OR } from "../shared/client-enumerations";
 import { READLIST_DISMISS_ONBOARDING_PATH } from "../pages/readlist/readlist.url";
 import { applicableOnboardingSteps, firstOutstandingStep, hasOutstandingGmailStep } from "./onboarding.steps";
@@ -20,12 +20,6 @@ const ONBOARDING_TEMPLATE = readFileSync(
 	join(__dirname, "onboarding.template.html"),
 	"utf-8",
 );
-
-const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
-const FOUNDER_AVATAR_URL = `${STATIC_BASE_URL}/fayner-brack.jpg`;
-
-const FOUNDER_LEDE =
-	"I built Readplace from my reading system so you could also save articles and actually read them later. Here are a few small things to set you up.";
 
 interface OnboardingChecklistOptions {
 	dismissed: boolean;
@@ -73,17 +67,30 @@ function toActionDisplayModel(
 
 type OnboardingStepStatus = "complete" | "current" | "upcoming";
 
-const STEP_ROW_CLASS: Record<OnboardingStepStatus, string> = {
-	complete: "setup-guide__step setup-guide__step--complete",
-	current: "setup-guide__step setup-guide__step--current",
-	upcoming: "setup-guide__step setup-guide__step--upcoming",
+type StepMarker = OnboardingStepStatus | "partial-1" | "partial-2" | "partial-3";
+
+const STEP_MARKERS: Record<StepMarker, { className: string; glyph: "check" | "dot" | "none" }> = {
+	complete: { className: "setup-guide__marker setup-guide__marker--complete", glyph: "check" },
+	current: { className: "setup-guide__marker setup-guide__marker--current", glyph: "dot" },
+	"partial-1": { className: "setup-guide__marker setup-guide__marker--partial setup-guide__marker--partial-1", glyph: "none" },
+	"partial-2": { className: "setup-guide__marker setup-guide__marker--partial setup-guide__marker--partial-2", glyph: "none" },
+	"partial-3": { className: "setup-guide__marker setup-guide__marker--partial setup-guide__marker--partial-3", glyph: "none" },
+	upcoming: { className: "setup-guide__marker setup-guide__marker--upcoming", glyph: "none" },
 };
 
-const STEP_MARKER_CLASS: Record<OnboardingStepStatus, string> = {
-	complete: "setup-guide__marker setup-guide__marker--complete",
-	current: "setup-guide__marker setup-guide__marker--current",
-	upcoming: "setup-guide__marker setup-guide__marker--upcoming",
-};
+const PARTIAL_MARKERS = ["partial-1", "partial-2", "partial-3"] as const;
+
+function stepMarker({ status, progress }: { status: OnboardingStepStatus; progress: number }): StepMarker {
+	if (status !== "current" || progress === 0) return status;
+	return PARTIAL_MARKERS[Math.min(3, Math.ceil(progress * 4)) - 1];
+}
+
+const FOLD_OPEN_BY_PLATFORM = {
+	chrome: true,
+	firefox: true,
+	iphone: false,
+	other: true,
+} satisfies Record<PitchablePlatform, boolean>;
 
 interface OnboardingStepDisplayModel {
 	id: string;
@@ -92,7 +99,6 @@ interface OnboardingStepDisplayModel {
 	chip: string;
 	completeAttr: "true" | "false";
 	currentAttr: "true" | "false";
-	rowClass: string;
 	markerClass: string;
 	showCheckIcon: boolean;
 	showDot: boolean;
@@ -109,6 +115,7 @@ interface OnboardingStepRow {
 
 function toStepDisplayModel(row: OnboardingStepRow): OnboardingStepDisplayModel {
 	const { step, ctx, returnQuery, status } = row;
+	const marker = STEP_MARKERS[stepMarker({ status, progress: step.partialProgress(ctx) })];
 	return {
 		id: step.id,
 		title: step.title(ctx),
@@ -116,10 +123,9 @@ function toStepDisplayModel(row: OnboardingStepRow): OnboardingStepDisplayModel 
 		chip: step.chip ? step.chip(ctx) : "",
 		completeAttr: status === "complete" ? "true" : "false",
 		currentAttr: status === "current" ? "true" : "false",
-		rowClass: STEP_ROW_CLASS[status],
-		markerClass: STEP_MARKER_CLASS[status],
-		showCheckIcon: status === "complete",
-		showDot: status === "current",
+		markerClass: marker.className,
+		showCheckIcon: marker.glyph === "check",
+		showDot: marker.glyph === "dot",
 		open: status === "current",
 		actions: step.actions(ctx).map((action) => toActionDisplayModel(action, returnQuery)),
 	};
@@ -160,6 +166,7 @@ function renderNoClientCard(
 		noClientStateClass: options.dismissed ? "setup-guide--hidden" : "setup-guide--visible",
 		steps,
 		showSteps: steps.length > 0,
+		foldOpen: true,
 		percent: 0,
 		progressBarClass: "setup-guide__progress-bar setup-guide__progress-bar--0",
 		dismiss: dismissDisplayModel("dismiss-no-client", options),
@@ -196,8 +203,7 @@ export function OnboardingChecklist(
 		steps,
 		showSteps: !allComplete,
 		stateClass,
-		founderAvatarUrl: FOUNDER_AVATAR_URL,
-		founderLede: FOUNDER_LEDE,
+		foldOpen: FOLD_OPEN_BY_PLATFORM[ctx.platform],
 		allComplete,
 		percent,
 		progressBarClass: `setup-guide__progress-bar setup-guide__progress-bar--${percent}`,

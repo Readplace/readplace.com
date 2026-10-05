@@ -187,32 +187,91 @@ describe("OnboardingChecklist", () => {
 		assert(root.hasAttribute("data-test-setup-guide"));
 	});
 
-	it("greets the reader in the founder's own voice above the steps", () => {
+	it("opens on the guide's own title", () => {
 		const doc = parse(checklist(contextWith()));
-		const intro = doc.querySelector(".setup-guide__intro");
-		assert(intro, "the setup guide must introduce its author");
-
-		expect(intro.querySelector(".setup-guide__title")?.textContent).toBe("Hi, I'm Fayner Brack!");
-		expect(intro.querySelector(".setup-guide__lede")?.textContent).toBe(
-			"I built Readplace from my reading system so you could also save articles and actually read them later. Here are a few small things to set you up.",
-		);
+		const title = container(doc).querySelector(".setup-guide__header > h2");
+		assert(title, "the setup guide must open with its own heading");
+		expect(title.textContent).toBe("Your quick setup guide");
 		const blocks = Array.from(container(doc).children, (child) => child.className.split(" ")[0]);
-		expect(blocks).toEqual([
-			"setup-guide__intro",
-			"setup-guide__header",
-			"setup-guide__progress",
-			"setup-guide__divider",
-			"setup-guide__steps",
-		]);
+		expect(blocks).toEqual(["setup-guide__header", "setup-guide__fold"]);
 	});
 
-	it("shows the founder's face, so the greeting reads as a person rather than a banner", () => {
-		const doc = parse(checklist(contextWith()));
-		const avatar = doc.querySelector(".setup-guide__avatar");
-		assert(avatar, "the founder intro must carry the founder's portrait");
+	it.each([
+		{ context: {}, markers: ["current", "upcoming", "upcoming", "upcoming"] },
+		{ context: { installed: true }, markers: ["complete", "current", "upcoming", "upcoming"] },
+		{ context: { installed: true, savedArticle: true, savedCount: 1 }, markers: ["complete", "complete", "current", "upcoming"] },
+		{ context: { savedArticle: true }, markers: ["current", "complete", "upcoming", "upcoming"] },
+	])("draws each step's marker from its state: $markers", ({ context, markers }) => {
+		const doc = parse(checklist(contextWith(context)));
+		expect(Array.from(doc.querySelectorAll(".setup-guide__marker"), (marker) =>
+			marker.className,
+		)).toEqual(markers.map((marker) => `setup-guide__marker setup-guide__marker--${marker}`));
+	});
 
-		expect(avatar.getAttribute("alt")).toBe("Fayner Brack");
-		expect(avatar.getAttribute("src")).toMatch(/\/fayner-brack\.jpg$/);
+	it.each([
+		{ savedCount: 0, marker: "current" },
+		{ savedCount: 1, marker: "partial-1" },
+		{ savedCount: 12, marker: "partial-1" },
+		{ savedCount: 13, marker: "partial-2" },
+		{ savedCount: 25, marker: "partial-2" },
+		{ savedCount: 26, marker: "partial-3" },
+		{ savedCount: 49, marker: "partial-3" },
+	])("fills the Next Read pie by quarter of the milestone: $savedCount", ({ savedCount, marker }) => {
+		const doc = parse(checklist(contextWith({ installed: true, savedArticle: true, emailStepMarkedDone: true, savedCount })));
+		const nextRead = stepOf(doc, "save-enough-for-next-read");
+		const progressMarker = nextRead.querySelector(".setup-guide__marker");
+		assert(progressMarker, "the milestone step must carry a marker");
+		expect(progressMarker.className).toBe(marker === "current"
+			? "setup-guide__marker setup-guide__marker--current"
+			: `setup-guide__marker setup-guide__marker--partial setup-guide__marker--${marker}`);
+	});
+
+	it.each([50, 70])("shows the completed milestone with a check and capped count at %s saves", (savedCount) => {
+		const doc = parse(checklist(contextWith({ savedCount })));
+		const nextRead = stepOf(doc, "save-enough-for-next-read");
+		const marker = nextRead.querySelector(".setup-guide__marker");
+		assert(marker, "the completed milestone must carry a marker");
+		expect(marker.className).toBe("setup-guide__marker setup-guide__marker--complete");
+		expect(marker.querySelectorAll("svg")).toHaveLength(1);
+		const chip = nextRead.querySelector("[data-test-onboarding-chip]");
+		assert(chip, "the milestone must keep its count");
+		expect(chip.textContent).toBe("Saved 50 of 50");
+	});
+
+	it.each([
+		{ platform: "iphone", open: false },
+		{ platform: "chrome", open: true },
+		{ platform: "firefox", open: true },
+		{ platform: "other", open: true },
+	] as const)("sets the guide's default fold for $platform", ({ platform, open }) => {
+		const doc = parse(checklist(contextWith({ platform })));
+		const fold = container(doc).querySelector(".setup-guide__fold");
+		assert(fold, "the checklist must fold behind its progress row");
+		expect(fold.hasAttribute("open")).toBe(open);
+		expect(Array.from(fold.children, (child) => child.tagName)).toEqual(["SUMMARY", "OL"]);
+		expect(detailsOf(doc, "install-extension").hasAttribute("open")).toBe(true);
+	});
+
+	it.each(["chrome", "firefox", "iphone"] as const)("offers each step's action for %s", (platform) => {
+		const doc = parse(checklist(contextWith({ platform })));
+		expect(stepIds(doc).map((id) => actionKeys(stepOf(doc, id)))).toEqual([
+			["install"], ["save-article"], ["see-inbox-address", "email-mark-done"], ["view-readlist"],
+		]);
+		const save = actionForm(stepOf(doc, "save-first-article-via-extension"), "save-article");
+		expect(save.querySelector("button")?.textContent).toBe("Save an article");
+		expect(save.getAttribute("action")).toBe("/install");
+		expect(save.querySelector('input[name="client"]')?.getAttribute("value")).toBe(platform);
+		expect(save.querySelector('input[name="utm_content"]')?.getAttribute("value")).toBe("save-article");
+		const view = actionForm(stepOf(doc, "save-enough-for-next-read"), "view-readlist");
+		expect(view.querySelector("button")?.textContent).toBe("View readlist");
+		expect(view.getAttribute("action")).toBe("/queue");
+		expect(view.getAttribute("method")).toBe("GET");
+		expect(view.querySelector('input[name="utm_content"]')?.getAttribute("value")).toBe("view-readlist");
+		const saveDescription = stepOf(doc, "save-first-article-via-extension").querySelector(".setup-guide__description");
+		assert(saveDescription, "the save step must explain its action");
+		expect(saveDescription.textContent).toBe(platform === "iphone"
+			? "Open any page in Safari, tap Share, and choose Readplace to save it for later."
+			: "Use the browser extension to save your first article for later.");
 	});
 
 	it("renders every step, install current and open, at 0% on first run", () => {
@@ -302,6 +361,9 @@ describe("OnboardingChecklist", () => {
 		const chip = nextRead.querySelector("[data-test-onboarding-chip]");
 		assert(chip, "the Next Read step must carry a chip once current");
 		assert.equal(chip.textContent, `Saved 4 of ${NEXT_READ_MINIMUM_SAVES}`);
+		const description = nextRead.querySelector(".setup-guide__description");
+		assert(description, "the milestone step must explain when Next Read starts");
+		expect(description.textContent).toBe("Next Read starts analysing at 50 saves, and only shows when something you've saved relates.");
 
 		for (const id of [
 			"install-extension",

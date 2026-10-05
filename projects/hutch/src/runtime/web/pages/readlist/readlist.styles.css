@@ -20,6 +20,13 @@
   min-width: 0;
 }
 
+.readlist__browse {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+}
+
 .readlist__lead,
 .readlist__results {
   display: flex;
@@ -33,10 +40,6 @@
   flex-direction: column;
   gap: 24px;
   min-width: 0;
-}
-
-.readlist__side .setup-guide {
-  max-width: none;
 }
 
 @media (min-width: 1024px) {
@@ -70,6 +73,7 @@
 }
 
 @media (max-width: 1023px) {
+  .readlist__main--interleaved,
   .readlist__side {
     display: contents;
   }
@@ -80,6 +84,14 @@
 
   .readlist-subscription {
     order: -1;
+  }
+
+  .readlist__side .setup-guide {
+    order: 1;
+  }
+
+  .readlist__browse {
+    order: 2;
   }
 }
 

@@ -6,7 +6,6 @@ import {
 	expect,
 	test,
 	type VisualCheckpoint,
-	waitForImagePixels,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
@@ -39,7 +38,6 @@ const PENDING_CARD = '[data-card-status="pending"]';
 const EMPTY = "main.readlist [data-test-empty-readlist]";
 const SAVE_ERROR = "[data-test-save-error]";
 const LISTING_COUNT = "main.readlist #readlist-count";
-const AVATAR = "main.readlist .setup-guide__avatar";
 
 const PINNED_SAVE_URL = "https://example.com/an-article-being-saved";
 
@@ -135,7 +133,6 @@ async function openReadlist(page: Page): Promise<void> {
 async function readlistSettled(page: Page, cards: number): Promise<void> {
 	await expect(page.locator(CARD)).toHaveCount(cards);
 	await expect(page.locator(LISTING_COUNT)).toHaveText(`${cards} Saved Articles`);
-	await waitForImagePixels(page, AVATAR);
 }
 
 async function holdSave(page: Page): Promise<() => void> {
@@ -165,7 +162,6 @@ async function heldSaveSettled(page: Page): Promise<void> {
 	await expect(page.locator(SAVING_LABEL)).toBeVisible();
 	await expect(page.locator(CARD)).toHaveCount(SEEDED_ARTICLES.length);
 	await expect(page.locator(PENDING_CARD)).toHaveCount(0);
-	await waitForImagePixels(page, AVATAR);
 	await page.evaluate(neutraliseVolatileChrome, {
 		volatile: VOLATILE_CHROME,
 		times: PINNED_SAVED_TIMES,

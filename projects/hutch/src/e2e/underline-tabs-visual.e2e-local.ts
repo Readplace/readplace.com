@@ -33,7 +33,7 @@ const UNREAD_TAB = '[data-test-filter="unread"]';
 const READ_TAB = '[data-test-filter="read"]';
 const PREFERENCES_TAB = '[data-test-filter="preferences"]';
 const OPEN_READLIST_TAB = `${READLIST_TABS} [aria-current="page"]`;
-const READLIST_MAIN = ".readlist__main";
+const READLIST_BROWSE = ".readlist__browse";
 const PREFERENCES_PANEL = "[data-test-readlist-preferences]";
 const NEW_READLIST_BUTTON = '[data-test-action="new-readlist"]';
 const PAGE_READLIST = "body.page-readlist";
@@ -218,7 +218,7 @@ async function threeTabStripGeometry(page: Page): Promise<void> {
 
 async function readlistPhoneGeometry(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
-	await tabsSplitTheColumn(page, { tab: READLIST_TAB, column: READLIST_MAIN });
+	await tabsSplitTheColumn(page, { tab: READLIST_TAB, column: READLIST_BROWSE });
 }
 
 async function importStripGeometry(page: Page): Promise<void> {

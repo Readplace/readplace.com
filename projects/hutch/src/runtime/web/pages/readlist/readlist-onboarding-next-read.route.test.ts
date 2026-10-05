@@ -85,12 +85,15 @@ describe("Readlist onboarding — Next Read milestone", () => {
 
 		const step = nextReadStep(response.text);
 		expect(step.getAttribute("data-test-onboarding-complete")).toBe("false");
-		expect(step.querySelector(".setup-guide__description")?.textContent).toContain(
-			`You've saved 0 of ${NEXT_READ_MINIMUM_SAVES}.`,
+		const chip = step.querySelector("[data-test-onboarding-chip]");
+		assert(chip, "the milestone must show its save count in the chip");
+		expect(chip.textContent).toBe("Saved 0 of 50");
+		expect(step.querySelector(".setup-guide__description")?.textContent).toBe(
+			"Next Read starts analysing at 50 saves, and only shows when something you've saved relates.",
 		);
 	});
 
-	it("counts the account's real saves into the step copy", async () => {
+	it("counts the account's real saves into the step chip", async () => {
 		const harness = useApp(countingFixture(12).fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -99,9 +102,13 @@ describe("Readlist onboarding — Next Read milestone", () => {
 			.set("User-Agent", CHROME_UA)
 			.set("Cookie", EXTENSION_COOKIES);
 
-		expect(
-			nextReadStep(response.text).querySelector(".setup-guide__description")?.textContent,
-		).toContain(`You've saved 12 of ${NEXT_READ_MINIMUM_SAVES}.`);
+		const step = nextReadStep(response.text);
+		const chip = step.querySelector("[data-test-onboarding-chip]");
+		assert(chip, "the milestone must show its save count in the chip");
+		expect(chip.textContent).toBe("Saved 12 of 50");
+		expect(step.querySelector(".setup-guide__description")?.textContent).toBe(
+			"Next Read starts analysing at 50 saves, and only shows when something you've saved relates.",
+		);
 	});
 
 	it("bounds the count query at the minimum rather than counting the whole readlist", async () => {

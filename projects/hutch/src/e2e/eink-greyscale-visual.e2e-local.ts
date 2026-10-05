@@ -10,6 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { clickAndWaitForPageReload, openReadlistSwitcher } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
@@ -29,6 +30,7 @@ const READLIST_LIST = "[data-test-article-list]";
 const READLIST_TABS = "[data-test-filters]";
 const READLIST_RAIL = ".readlist__rail";
 const READLIST_SAVE_CARD = "[data-test-save-card]";
+const SETUP_GUIDE = "[data-test-setup-guide]";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
 const VOLATILE_CHROME = [
@@ -171,6 +173,63 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 	test.use({ timezoneId: "UTC", viewport: EINK_VIEWPORT });
 
 	for (const theme of ["light", "dark"] as const) {
+		test(`the setup guide keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, userId } = await createEinkUser(page, `setup-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			const subscription = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+				data: { userId, state: "trialing" },
+			});
+			assert.equal(subscription.status(), 201);
+			await loginAs(page, email);
+			await page.context().addCookies([
+				{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE, url: BASE_URL },
+				{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE, url: BASE_URL },
+			]);
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-onboarding-progress="50"]')).toBeVisible();
+			await expect(page.locator(".setup-guide__marker--complete")).toHaveCount(2);
+			await expect(page.locator(".setup-guide__marker--current")).toHaveCount(1);
+			await expect(page.locator(".setup-guide__marker--upcoming")).toHaveCount(1);
+			await settle(page, SETUP_GUIDE);
+			await expect(page.locator(SETUP_GUIDE)).toHaveScreenshot(`eink-setup-guide-${theme}.png`, CONTRAST_SENSITIVE);
+		});
+
+		test(`the setup guide's pie stays distinct in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, userId } = await createEinkUser(page, `setup-pie-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			const subscription = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+				data: { userId, state: "trialing" },
+			});
+			assert.equal(subscription.status(), 201);
+			const inbox = await page.request.post(`${BASE_URL}/e2e/seed-inbox-article-queued`, { data: { userId } });
+			assert.equal(inbox.status(), 201);
+			for (let index = 0; index < 4; index += 1) {
+				const article = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+					data: {
+						url: `https://example.com/eink-setup-${email}-${index}`,
+						title: `Saved article ${index + 1}`,
+						content: "<p>An article for the greyscale milestone capture.</p>",
+						contentFetchedAt: FETCHED_AT,
+						savedAt: "2026-07-12T09:14:00.000Z",
+						savedByUserId: userId,
+					},
+				});
+				assert.equal(article.status(), 201);
+			}
+			await loginAs(page, email);
+			await page.context().addCookies([
+				{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE, url: BASE_URL },
+				{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE, url: BASE_URL },
+			]);
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-onboarding-progress="75"]')).toBeVisible();
+			await expect(page.locator("[data-test-onboarding-chip]")).toHaveText("Saved 4 of 50");
+			await expect(page.locator(".setup-guide__marker--complete")).toHaveCount(3);
+			await expect(page.locator(".setup-guide__marker--partial-1")).toHaveCount(1);
+			await settle(page, SETUP_GUIDE);
+			await expect(page.locator(SETUP_GUIDE)).toHaveScreenshot(`eink-setup-guide-next-read-${theme}.png`, CONTRAST_SENSITIVE);
+		});
+
 		test(`the reader keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email, readerUrl } = await seedReaderAndReadlist(
