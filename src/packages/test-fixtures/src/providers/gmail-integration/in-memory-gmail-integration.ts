@@ -22,6 +22,7 @@ export interface InMemoryGmailIntegration {
 	discoveryRequests: { userId: UserId }[];
 	importStartRequests: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }[];
 	newsletterSenderSubmissions: { senderEmail: ForwardableSender }[];
+	diagnosticLines: string[];
 }
 
 export function initInMemoryGmailIntegration(input: {
@@ -47,6 +48,10 @@ export function initInMemoryGmailIntegration(input: {
 	const rewriteRequests: { userId: UserId; reason: string }[] = [];
 	const disconnectRequests: { userId: UserId }[] = [];
 	const discoveryRequests: { userId: UserId }[] = [];
+	const diagnosticLines: string[] = [];
+	const captureDiagnostic = (...parts: unknown[]) => {
+		diagnosticLines.push(parts.map(String).join(" "));
+	};
 
 	return {
 		addresses,
@@ -56,6 +61,7 @@ export function initInMemoryGmailIntegration(input: {
 		discoveryRequests,
 		importStartRequests,
 		newsletterSenderSubmissions,
+		diagnosticLines,
 		bundle: {
 			exchangeGmailCode: async ({ code }) => {
 				exchangedCodes.push(code);
@@ -107,6 +113,12 @@ export function initInMemoryGmailIntegration(input: {
 			newGmailHistoryImportGeneration: () => {
 				generationSequence += 1;
 				return `generation-${generationSequence}`;
+			},
+			diagnosticsLogger: {
+				info: captureDiagnostic,
+				error: captureDiagnostic,
+				warn: captureDiagnostic,
+				debug: captureDiagnostic,
 			},
 		},
 	};

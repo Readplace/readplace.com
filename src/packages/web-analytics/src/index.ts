@@ -39,6 +39,7 @@ export {
 	type ContentClass,
 } from "./content-source";
 export { baseCookieOptions, isHttpsOrigin } from "./cookie-options";
+export { gatewayRequestIdOf } from "./gateway-request-id";
 export {
 	VISITOR_COOKIE_NAME,
 	type VisitorId,

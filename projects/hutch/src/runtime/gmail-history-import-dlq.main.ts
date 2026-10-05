@@ -9,13 +9,17 @@ import {
 	initGmailHistoryImportOutcomeDlqHandler,
 	initGmailHistoryImportPageDlqHandler,
 } from "./domain/gmail/gmail-history-import-dlq-handler";
+import { initRecordGmailDiagnostic } from "./observability/gmail-diagnostics";
 
 const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: requireEnv("EVENT_BUS_NAME") });
+const now = () => new Date();
+const logger = HutchLogger.from(consoleLogger);
 const dependencies = {
 	imports: initDynamoDbGmailHistoryImport({ client: createDynamoDocumentClient(), tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE") }),
 	publishEvent,
-	now: () => new Date(),
-	logger: HutchLogger.from(consoleLogger),
+	now,
+	logger,
+	recordDiagnostic: initRecordGmailDiagnostic({ logger, now }),
 };
 
 export const handler = initDeadLetterRouter({

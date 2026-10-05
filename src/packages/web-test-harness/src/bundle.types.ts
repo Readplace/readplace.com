@@ -581,6 +581,7 @@ export interface GmailIntegrationBundle {
 	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
 	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
 	newGmailHistoryImportGeneration: () => string;
+	diagnosticsLogger: HutchLogger;
 }
 
 export interface NewsletterCatalogBundle {

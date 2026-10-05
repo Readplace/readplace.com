@@ -2,31 +2,47 @@ import { z } from "zod";
 import type { UserId } from "@packages/domain/user";
 import type { GetGmailAccessToken, GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 
-const GmailErrorResponse = z.object({
+export const GmailErrorResponse = z.object({
 	error: z.object({ message: z.string() }),
 });
 
-export async function rejection(response: Response): Promise<GmailApiResult<never>> {
-	const parsed = GmailErrorResponse.safeParse(await response.json().catch(() => undefined));
+export function rejectionFrom(input: {
+	response: Response;
+	body: z.ZodSafeParseResult<z.output<typeof GmailErrorResponse>>;
+}): GmailApiResult<never> {
 	return {
 		ok: false,
 		reason: "rejected",
-		status: response.status,
-		message: parsed.success ? parsed.data.error.message : response.statusText,
+		status: input.response.status,
+		message: input.body.success ? input.body.data.error.message : input.response.statusText,
 	};
+}
+
+export async function rejection(response: Response): Promise<GmailApiResult<never>> {
+	return rejectionFrom({ response, body: GmailErrorResponse.safeParse(await response.json().catch(() => undefined)) });
+}
+
+export async function classifyWith<TValue>(
+	call: GmailApiResult<Response>,
+	handle: {
+		onOk: (response: Response) => Promise<GmailApiResult<TValue>>;
+		onRefused: (response: Response) => Promise<GmailApiResult<never>>;
+	},
+): Promise<GmailApiResult<TValue>> {
+	if (!call.ok) return call;
+	const response = call.value;
+	if (response.ok) return handle.onOk(response);
+	if (response.status === 429 || response.status >= 500) {
+		return { ok: false, reason: "unavailable", status: response.status };
+	}
+	return handle.onRefused(response);
 }
 
 export async function classify<TValue>(
 	call: GmailApiResult<Response>,
 	onOk: (response: Response) => Promise<GmailApiResult<TValue>>,
 ): Promise<GmailApiResult<TValue>> {
-	if (!call.ok) return call;
-	const response = call.value;
-	if (response.ok) return onOk(response);
-	if (response.status === 429 || response.status >= 500) {
-		return { ok: false, reason: "unavailable", status: response.status };
-	}
-	return rejection(response);
+	return classifyWith(call, { onOk, onRefused: rejection });
 }
 
 export function initCallGmail(deps: {

@@ -14,12 +14,13 @@ import {
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { GmailHistoryImportMessageFetchedDetail } from "@packages/hutch-infra-components";
-import type { GmailHistory, PutGmailImportRaw } from "@packages/provider-contracts/gmail-history";
+import type { GmailHistory, GmailHttpAttempt, GmailHttpClassification, GmailHttpOperation, PutGmailImportRaw } from "@packages/provider-contracts/gmail-history";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailHistory, initInMemoryRawEmailBucket } from "@packages/test-fixtures/providers/gmail-history";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
-import { type GmailHistoryImportStep, initGmailHistoryImport } from "./gmail-history-import";
+import { type GmailHistoryImportPage, type GmailHistoryImportStep, initGmailHistoryImport } from "./gmail-history-import";
+import type { GmailHistoryImportObservation } from "./gmail-history-import-observation.types";
 
 const READER = UserIdSchema.parse("reader-1");
 const JOB = GmailHistoryImportJobIdSchema.parse("a".repeat(32));
@@ -71,6 +72,7 @@ async function harness(overrides: {
 	history?: (history: GmailHistory, context: HarnessContext) => GmailHistory;
 	imports?: (imports: GmailHistoryImportStore) => GmailHistoryImportStore;
 	putRaw?: (putRaw: PutGmailImportRaw, context: HarnessContext) => PutGmailImportRaw;
+	publishFetched?: (detail: GmailHistoryImportMessageFetchedDetail) => Promise<void>;
 } = {}) {
 	let clock = CREATED_AT;
 	const now = () => clock;
@@ -83,6 +85,7 @@ async function harness(overrides: {
 	const connections = initInMemoryGmailConnection({ now });
 	const senders = initInMemoryGmailSender({ now });
 	const published: GmailHistoryImportMessageFetchedDetail[] = [];
+	const observations: GmailHistoryImportObservation[] = [];
 	const context: HarnessContext = { store, connections, advance, now };
 	const wrapHistory = overrides.history ?? ((history) => history);
 	const wrapImports = overrides.imports ?? ((imports) => imports);
@@ -94,17 +97,25 @@ async function harness(overrides: {
 	await senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST] });
 	await store.createJob({ ...awaitingPermissionJob(), destinationAddresses: overrides.destinationAddresses ?? [WORK_READLIST] });
 
-	const importer = initGmailHistoryImport({
+	const observed = initGmailHistoryImport({
 		history: wrapHistory(gmail.history, context),
 		imports: wrapImports(store),
 		connections,
 		senders,
 		putRaw: wrapPutRaw(bucket.put, context),
-		publishFetched: async (detail) => {
+		publishFetched: overrides.publishFetched ?? (async (detail) => {
 			published.push(detail);
-		},
+		}),
 		now,
 	});
+	const observe = (observation: GmailHistoryImportObservation) => {
+		observations.push(observation);
+	};
+	const importer = {
+		start: (input: { userId: typeof READER; jobId: typeof JOB; generation: string }) => observed.start(input, observe),
+		page: (input: GmailHistoryImportPage) => observed.page(input, observe),
+	};
+	const takeObservations = () => observations.splice(0);
 
 	const startJob = async (generation: string) => {
 		const started = await store.startJob({ userId: READER, jobId: JOB, generation, now: clock });
@@ -140,11 +151,36 @@ async function harness(overrides: {
 		return found;
 	};
 
-	return { gmail, bucket, store, connections, senders, published, importer, advance, now, startJob, addUnread, runAllPages, settle, job };
+	return { gmail, bucket, store, connections, senders, published, importer, takeObservations, advance, now, startJob, addUnread, runAllPages, settle, job };
 }
 
 function publishedIds(published: GmailHistoryImportMessageFetchedDetail[]): string[] {
 	return published.map((detail) => detail.gmailMessageId);
+}
+
+function publishedAt(count: number): GmailHistoryImportObservation[] {
+	return Array.from({ length: count }, (_, index): GmailHistoryImportObservation => ({ kind: "message-processed", index, outcome: "published" }));
+}
+
+const ATTEMPTED: { [Operation in GmailHttpOperation]: Pick<GmailHttpAttempt, "request" | "requestedEndpoint"> } = {
+	"messages.list": {
+		request: { operation: "messages.list", fieldMask: "messages/id,nextPageToken", pageSize: 25, includeSpamTrash: false, pageTokenPresent: false },
+		requestedEndpoint: "gmail.messages.list",
+	},
+	"messages.get": { request: { operation: "messages.get", fieldMask: "raw,internalDate,labelIds", format: "raw" }, requestedEndpoint: "gmail.messages.get" },
+	"oauth.refresh": { request: { operation: "oauth.refresh", forceRefresh: false }, requestedEndpoint: "oauth.token" },
+};
+
+function attemptFor(operation: GmailHttpOperation, classification: GmailHttpClassification = "ok"): GmailHttpAttempt {
+	return {
+		operation,
+		attempt: 1,
+		...ATTEMPTED[operation],
+		durationMs: 30,
+		response: undefined,
+		transportFailure: undefined,
+		classification,
+	};
 }
 
 describe("initGmailHistoryImport", () => {
@@ -172,6 +208,7 @@ describe("initGmailHistoryImport", () => {
 
 		assert.deepEqual(h.gmail.listRequests, []);
 		assert.equal((await h.job()).cancelReason, "destination-changed");
+		assert.deepEqual(h.takeObservations(), [{ kind: "job-cancelled", reason: "destination-changed", cancelledJobs: 1 }]);
 	});
 
 	it("fixes the 30-day window when permission is granted and keeps it when a partial failure is retried", async () => {
@@ -241,6 +278,12 @@ describe("initGmailHistoryImport", () => {
 		assert(step.completed, "the import completes");
 		assert.equal(summarizeGmailHistoryImport(step.completed).status, "no-unread");
 		assert.equal(step.next, undefined);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 0, nextPagePresent: false },
+			{ kind: "page-saved", nextPagePresent: false },
+			{ kind: "job-completed", persisted: true },
+		]);
 	});
 
 	it("leaves out mail that moved to spam or trash, or was deleted, after it was listed", async () => {
@@ -267,6 +310,16 @@ describe("initGmailHistoryImport", () => {
 		assert.deepEqual(publishedIds(h.published), ["keep"]);
 		assert.deepEqual(h.bucket.keys(), [`gmail-import/${READER}/${JOB}/keep.eml`]);
 		assert.equal((await h.job()).counts.listed, 1);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 4, nextPagePresent: false },
+			{ kind: "message-processed", index: 0, outcome: "published" },
+			{ kind: "message-processed", index: 1, outcome: "unlisted-label" },
+			{ kind: "message-processed", index: 2, outcome: "unlisted-label" },
+			{ kind: "message-processed", index: 3, outcome: "not-found" },
+			{ kind: "page-saved", nextPagePresent: false },
+			{ kind: "job-completed", persisted: false },
+		]);
 	});
 
 	it("ignores a page from an earlier generation, another page number, a missing job or a job that is no longer running", async () => {
@@ -274,6 +327,7 @@ describe("initGmailHistoryImport", () => {
 		await h.startJob("generation-1");
 		for (let index = 0; index < 30; index++) h.addUnread(`m${String(index).padStart(2, "0")}`, "2026-08-31T00:00:00.000Z");
 		await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+		h.takeObservations();
 
 		const earlierGeneration = await h.importer.page({ userId: READER, jobId: JOB, generation: "generation-0", page: 1 });
 		const skippedAhead = await h.importer.page({ userId: READER, jobId: JOB, generation: "generation-1", page: 3 });
@@ -283,6 +337,12 @@ describe("initGmailHistoryImport", () => {
 
 		assert.deepEqual([earlierGeneration, skippedAhead, missingJob, cancelled], [NOTHING, NOTHING, NOTHING, NOTHING]);
 		assert.equal(h.gmail.listRequests.length, 1);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-skipped", reason: "generation-stale" },
+			{ kind: "page-skipped", reason: "page-mismatch" },
+			{ kind: "page-skipped", reason: "job-missing" },
+			{ kind: "page-skipped", reason: "job-not-runnable" },
+		]);
 	});
 
 	it("re-announces the next page when a saved page is delivered again, and completes a listed import once it has settled", async () => {
@@ -291,9 +351,12 @@ describe("initGmailHistoryImport", () => {
 		for (let index = 0; index < 30; index++) h.addUnread(`m${String(index).padStart(2, "0")}`, "2026-08-31T00:00:00.000Z");
 
 		const first = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+		const firstObserved = h.takeObservations();
 		const redelivered = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+		const redeliveredObserved = h.takeObservations();
 		assert(first.next, "a second page follows");
 		const lastPage = await h.importer.page(first.next);
+		const lastPageObserved = h.takeObservations();
 		for (const id of publishedIds(h.published)) await h.settle({ id, generation: "generation-1", outcome: "imported" });
 		const lastPageAgain = await h.importer.page(first.next);
 
@@ -305,6 +368,24 @@ describe("initGmailHistoryImport", () => {
 		assert.equal(h.published.length, 30);
 		assert.equal(lastPageAgain.completed?.state, "complete");
 		assert.deepEqual(lastPageAgain.completed?.counts, { ...NO_COUNTS, listed: 30, imported: 30 });
+		assert.deepEqual(firstObserved, [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 25, nextPagePresent: true },
+			...publishedAt(25),
+			{ kind: "page-saved", nextPagePresent: true },
+		]);
+		assert.deepEqual(redeliveredObserved, [{ kind: "page-already-processed", listingCompleted: false }]);
+		assert.deepEqual(lastPageObserved, [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 5, nextPagePresent: false },
+			...publishedAt(5),
+			{ kind: "page-saved", nextPagePresent: false },
+			{ kind: "job-completed", persisted: false },
+		]);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-already-processed", listingCompleted: true },
+			{ kind: "job-completed", persisted: true },
+		]);
 	});
 
 	it("completes a retried import whose last page finds only mail that was already settled", async () => {
@@ -315,12 +396,20 @@ describe("initGmailHistoryImport", () => {
 		await h.settle({ id: "only", generation: "generation-1", outcome: "imported" });
 		await h.store.failJob({ userId: READER, jobId: JOB, generation: "generation-1", reason: "dead-lettered", now: h.now() });
 		await h.startJob("generation-2");
+		h.takeObservations();
 
 		const retried = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-2" });
 
 		assert.equal(retried.completed?.state, "complete");
 		assert.deepEqual(retried.completed?.counts, { ...NO_COUNTS, listed: 1, imported: 1 });
 		assert.deepEqual(publishedIds(h.published), ["only"]);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 1, nextPagePresent: false },
+			{ kind: "message-processed", index: 0, outcome: "already-settled" },
+			{ kind: "page-saved", nextPagePresent: false },
+			{ kind: "job-completed", persisted: true },
+		]);
 	});
 
 	it("publishes the fetched mail again without counting it twice when the page could not be saved after publishing", async () => {
@@ -379,6 +468,10 @@ describe("initGmailHistoryImport", () => {
 		assert.deepEqual([(await otherAccount.job()).state, (await otherAccount.job()).cancelReason], ["cancelled", "account-changed"]);
 		assert.deepEqual([(await otherGateway.job()).state, (await otherGateway.job()).cancelReason], ["cancelled", "account-changed"]);
 		assert.deepEqual([otherAccount.gmail.listRequests, otherGateway.gmail.listRequests], [[], []]);
+		assert.deepEqual([otherAccount.takeObservations(), otherGateway.takeObservations()], [
+			[{ kind: "job-cancelled", reason: "account-changed", cancelledJobs: 1 }],
+			[{ kind: "job-cancelled", reason: "account-changed", cancelledJobs: 1 }],
+		]);
 	});
 
 	it("cancels the import when Gmail is being disconnected or is gone", async () => {
@@ -394,6 +487,10 @@ describe("initGmailHistoryImport", () => {
 
 		assert.equal((await disconnecting.job()).cancelReason, "disconnected");
 		assert.equal((await disconnected.job()).cancelReason, "disconnected");
+		assert.deepEqual([disconnecting.takeObservations(), disconnected.takeObservations()], [
+			[{ kind: "job-cancelled", reason: "disconnected", cancelledJobs: 1 }],
+			[{ kind: "job-cancelled", reason: "disconnected", cancelledJobs: 1 }],
+		]);
 	});
 
 	it("cancels the import when the sender now goes to another readlist or is no longer mapped", async () => {
@@ -409,6 +506,10 @@ describe("initGmailHistoryImport", () => {
 
 		assert.deepEqual([(await remapped.job()).state, (await remapped.job()).cancelReason], ["cancelled", "destination-changed"]);
 		assert.deepEqual([(await removed.job()).state, (await removed.job()).cancelReason], ["cancelled", "mapping-removed"]);
+		assert.deepEqual([remapped.takeObservations(), removed.takeObservations()], [
+			[{ kind: "job-cancelled", reason: "destination-changed", cancelledJobs: 1 }],
+			[{ kind: "job-cancelled", reason: "mapping-removed", cancelledJobs: 1 }],
+		]);
 	});
 
 	it("stops when another delivery of the same page holds its claim", async () => {
@@ -420,6 +521,7 @@ describe("initGmailHistoryImport", () => {
 
 		assert.deepEqual(step, NOTHING);
 		assert.deepEqual(h.gmail.listRequests, []);
+		assert.deepEqual(h.takeObservations(), [{ kind: "page-skipped", reason: "claim-lost" }]);
 	});
 
 	it("fails the import as permission-revoked when the read-only permission is missing", async () => {
@@ -431,16 +533,29 @@ describe("initGmailHistoryImport", () => {
 
 		assert.deepEqual(step, { ...NOTHING, failed: "permission-revoked" });
 		assert.deepEqual([(await h.job()).state, (await h.job()).failureReason], ["failed", "permission-revoked"]);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "gmail-call-failed", operation: "messages.list", lastAttemptOperation: undefined, reason: "readonly-permission-required", status: undefined },
+			{ kind: "job-failed", reason: "permission-revoked", persisted: true },
+		]);
 	});
 
 	it("fails the import as gmail-rejected when Gmail refuses a message fetch, having published only the mail recorded before it", async () => {
 		let fetches = 0;
 		const h = await harness({
 			history: (inner) => ({
-				...inner,
+				listUnreadMessageIds: async (input) => {
+					input.observe(attemptFor("oauth.refresh"));
+					input.observe(attemptFor("messages.list"));
+					return inner.listUnreadMessageIds(input);
+				},
 				fetchRawMessage: async (input) => {
 					fetches++;
-					if (fetches === 2) return { ok: false, reason: "rejected", status: 400, message: "Invalid id" };
+					if (fetches === 2) {
+						input.observe(attemptFor("messages.get", "rejected"));
+						return { ok: false, reason: "rejected", status: 400, message: "Invalid id" };
+					}
+					input.observe(attemptFor("messages.get"));
 					return inner.fetchRawMessage(input);
 				},
 			}),
@@ -454,6 +569,52 @@ describe("initGmailHistoryImport", () => {
 		assert.deepEqual(step, { ...NOTHING, failed: "gmail-rejected" });
 		assert.equal((await h.job()).failureReason, "gmail-rejected");
 		assert.deepEqual(publishedIds(h.published), ["newer"]);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "http-attempt", attempt: attemptFor("oauth.refresh") },
+			{ kind: "http-attempt", attempt: attemptFor("messages.list") },
+			{ kind: "page-listed", messageCount: 2, nextPagePresent: false },
+			{ kind: "http-attempt", attempt: attemptFor("messages.get") },
+			{ kind: "message-processed", index: 0, outcome: "published" },
+			{ kind: "http-attempt", attempt: attemptFor("messages.get", "rejected") },
+			{ kind: "gmail-call-failed", operation: "messages.get", lastAttemptOperation: "messages.get", reason: "rejected", status: 400 },
+			{ kind: "job-failed", reason: "gmail-rejected", persisted: true },
+		]);
+	});
+
+	it("blames no earlier call's HTTP attempt when a message fetch fails before sending any request", async () => {
+		let fetches = 0;
+		const h = await harness({
+			history: (inner) => ({
+				listUnreadMessageIds: async (input) => {
+					input.observe(attemptFor("messages.list"));
+					return inner.listUnreadMessageIds(input);
+				},
+				fetchRawMessage: async (input) => {
+					fetches++;
+					if (fetches === 2) return { ok: false, reason: "reauth-required" };
+					input.observe(attemptFor("messages.get"));
+					return inner.fetchRawMessage(input);
+				},
+			}),
+		});
+		await h.startJob("generation-1");
+		h.addUnread("newer", "2026-08-31T00:00:00.000Z");
+		h.addUnread("older", "2026-08-30T00:00:00.000Z");
+
+		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+
+		assert.deepEqual(step, { ...NOTHING, failed: "permission-revoked" });
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "http-attempt", attempt: attemptFor("messages.list") },
+			{ kind: "page-listed", messageCount: 2, nextPagePresent: false },
+			{ kind: "http-attempt", attempt: attemptFor("messages.get") },
+			{ kind: "message-processed", index: 0, outcome: "published" },
+			{ kind: "gmail-call-failed", operation: "messages.get", lastAttemptOperation: undefined, reason: "reauth-required", status: undefined },
+			{ kind: "connection-revoked", persisted: true },
+			{ kind: "job-failed", reason: "permission-revoked", persisted: true },
+		]);
 	});
 
 	it("completes once every recorded message settles when mail recorded before Gmail became unavailable is read before the retry", async () => {
@@ -493,6 +654,32 @@ describe("initGmailHistoryImport", () => {
 	});
 
 	it("marks the connection revoked and fails the import when Google no longer accepts the grant", async () => {
+		const h = await harness({
+			history: (inner) => ({
+				...inner,
+				listUnreadMessageIds: async (input) => {
+					input.observe(attemptFor("oauth.refresh", "reauth-required"));
+					return { ok: false, reason: "reauth-required" };
+				},
+			}),
+		});
+		await h.startJob("generation-1");
+
+		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+
+		assert.deepEqual(step, { ...NOTHING, failed: "permission-revoked" });
+		assert.equal((await h.connections.findConnectionByUserId(READER))?.revokedReason, "invalid-grant");
+		assert.equal((await h.job()).failureReason, "permission-revoked");
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "http-attempt", attempt: attemptFor("oauth.refresh", "reauth-required") },
+			{ kind: "gmail-call-failed", operation: "messages.list", lastAttemptOperation: "oauth.refresh", reason: "reauth-required", status: undefined },
+			{ kind: "connection-revoked", persisted: true },
+			{ kind: "job-failed", reason: "permission-revoked", persisted: true },
+		]);
+	});
+
+	it("blames no HTTP attempt when the listing fails before any request because no refresh token is stored", async () => {
 		const h = await harness();
 		await h.startJob("generation-1");
 		h.gmail.failNext({ method: "listUnreadMessageIds", failure: { ok: false, reason: "reauth-required" } });
@@ -500,8 +687,12 @@ describe("initGmailHistoryImport", () => {
 		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
 		assert.deepEqual(step, { ...NOTHING, failed: "permission-revoked" });
-		assert.equal((await h.connections.findConnectionByUserId(READER))?.revokedReason, "invalid-grant");
-		assert.equal((await h.job()).failureReason, "permission-revoked");
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "gmail-call-failed", operation: "messages.list", lastAttemptOperation: undefined, reason: "reauth-required", status: undefined },
+			{ kind: "connection-revoked", persisted: true },
+			{ kind: "job-failed", reason: "permission-revoked", persisted: true },
+		]);
 	});
 
 	it("retries instead of failing when the connection was replaced while Google refused the grant", async () => {
@@ -519,6 +710,11 @@ describe("initGmailHistoryImport", () => {
 
 		await assert.rejects(h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" }), /connection changed/);
 		assert.equal((await h.job()).state, "running");
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "gmail-call-failed", operation: "messages.list", lastAttemptOperation: undefined, reason: "reauth-required", status: undefined },
+			{ kind: "connection-revoked", persisted: false },
+		]);
 	});
 
 	it("reports no failure when the import was cancelled while Gmail was refusing it", async () => {
@@ -537,15 +733,55 @@ describe("initGmailHistoryImport", () => {
 
 		assert.deepEqual(step, NOTHING);
 		assert.equal((await h.job()).state, "cancelled");
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "gmail-call-failed", operation: "messages.list", lastAttemptOperation: undefined, reason: "rejected", status: 400 },
+			{ kind: "job-failed", reason: "gmail-rejected", persisted: false },
+		]);
 	});
 
 	it("throws so the page is retried when Gmail is unavailable", async () => {
-		const h = await harness();
+		const h = await harness({
+			history: (inner) => ({
+				...inner,
+				listUnreadMessageIds: async (input) => {
+					input.observe(attemptFor("oauth.refresh"));
+					input.observe(attemptFor("messages.list", "unavailable"));
+					return { ok: false, reason: "unavailable", status: 503 };
+				},
+			}),
+		});
 		await h.startJob("generation-1");
-		h.gmail.failNext({ method: "listUnreadMessageIds", failure: { ok: false, reason: "unavailable", status: 503 } });
 
 		await assert.rejects(h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" }), /unavailable \(503\)/);
 		assert.equal((await h.job()).state, "running");
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "http-attempt", attempt: attemptFor("oauth.refresh") },
+			{ kind: "http-attempt", attempt: attemptFor("messages.list", "unavailable") },
+			{ kind: "gmail-call-failed", operation: "messages.list", lastAttemptOperation: "messages.list", reason: "unavailable", status: 503 },
+		]);
+	});
+
+	it("blames the token refresh, not the listing, and retries the page when Google's token endpoint is unavailable", async () => {
+		const h = await harness({
+			history: (inner) => ({
+				...inner,
+				listUnreadMessageIds: async (input) => {
+					input.observe(attemptFor("oauth.refresh", "unavailable"));
+					return { ok: false, reason: "unavailable", status: 503 };
+				},
+			}),
+		});
+		await h.startJob("generation-1");
+
+		await assert.rejects(h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" }), /unavailable \(503\)/);
+		assert.equal((await h.job()).state, "running");
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "http-attempt", attempt: attemptFor("oauth.refresh", "unavailable") },
+			{ kind: "gmail-call-failed", operation: "messages.list", lastAttemptOperation: "oauth.refresh", reason: "unavailable", status: 503 },
+		]);
 	});
 
 	it("stops without publishing when the import is cancelled while its mail is being stored", async () => {
@@ -562,6 +798,11 @@ describe("initGmailHistoryImport", () => {
 
 		assert.deepEqual(step, NOTHING);
 		assert.deepEqual(h.published, []);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 1, nextPagePresent: false },
+			{ kind: "page-skipped", reason: "fetched-stale" },
+		]);
 	});
 
 	it("asks for no further page when the page can no longer be saved", async () => {
@@ -573,5 +814,67 @@ describe("initGmailHistoryImport", () => {
 
 		assert.deepEqual(step, NOTHING);
 		assert.deepEqual(publishedIds(h.published), ["published"]);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 1, nextPagePresent: false },
+			{ kind: "message-processed", index: 0, outcome: "published" },
+			{ kind: "page-skipped", reason: "save-page-lost" },
+		]);
+	});
+
+	it("hands each Gmail HTTP attempt to the observer of the page it belongs to, without message ids or addresses", async () => {
+		const h = await harness({
+			history: (inner) => ({
+				listUnreadMessageIds: async (input) => {
+					input.observe(attemptFor("messages.list"));
+					return inner.listUnreadMessageIds(input);
+				},
+				fetchRawMessage: async (input) => {
+					input.observe(attemptFor("messages.get"));
+					return inner.fetchRawMessage(input);
+				},
+			}),
+		});
+		await h.startJob("generation-1");
+		h.addUnread("SentinelMessageA1", "2026-08-31T00:00:00.000Z");
+		h.addUnread("SentinelMessageB2", "2026-08-30T00:00:00.000Z");
+
+		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+
+		const observed = h.takeObservations();
+		assert.deepEqual(step, NOTHING);
+		assert.deepEqual(observed, [
+			{ kind: "page-claimed" },
+			{ kind: "http-attempt", attempt: attemptFor("messages.list") },
+			{ kind: "page-listed", messageCount: 2, nextPagePresent: false },
+			{ kind: "http-attempt", attempt: attemptFor("messages.get") },
+			{ kind: "message-processed", index: 0, outcome: "published" },
+			{ kind: "http-attempt", attempt: attemptFor("messages.get") },
+			{ kind: "message-processed", index: 1, outcome: "published" },
+			{ kind: "page-saved", nextPagePresent: false },
+			{ kind: "job-completed", persisted: false },
+		]);
+		const serialized = JSON.stringify(observed);
+		for (const sensitive of ["SentinelMessage", TLDR, ACCOUNT, GATEWAY]) assert.equal(serialized.includes(sensitive), false, sensitive);
+	});
+
+	it("observes a fetched message it could not announce by position and error class, then rethrows the same error", async () => {
+		const refused = new TypeError("EventBridge refused SentinelMessageA1 from dan@tldrnewsletter.com");
+		const h = await harness({
+			publishFetched: async () => {
+				throw refused;
+			},
+		});
+		await h.startJob("generation-1");
+		h.addUnread("SentinelMessageA1", "2026-08-31T00:00:00.000Z");
+
+		await assert.rejects(h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" }), (error) => error === refused);
+
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 1, nextPagePresent: false },
+			{ kind: "message-publication-failed", index: 0, errorName: "TypeError" },
+		]);
+		assert.equal((await h.job()).state, "running");
 	});
 });

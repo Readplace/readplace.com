@@ -9,6 +9,7 @@ const OTHER_READER = UserIdSchema.parse("user-2");
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const BREW = ForwardableSenderSchema.parse("crew@morningbrew.com");
 const WINDOW = { start: "2026-09-01T00:00:00.000Z", end: "2026-10-01T00:00:00.000Z" };
+const IGNORED_ATTEMPTS = () => {};
 
 function message(overrides: Partial<InMemoryGmailMessage> & { messageId: InMemoryGmailMessage["messageId"] }): InMemoryGmailMessage {
 	return {
@@ -34,7 +35,7 @@ describe("initInMemoryGmailHistory", () => {
 		gmail.addMessage(message({ messageId: GmailMessageIdSchema.parse("otherSender"), sender: BREW }));
 		gmail.addMessage(message({ messageId: GmailMessageIdSchema.parse("otherReader"), userId: OTHER_READER }));
 
-		const listed = await gmail.history.listUnreadMessageIds({ userId: READER, sender: TLDR, window: WINDOW, pageToken: undefined });
+		const listed = await gmail.history.listUnreadMessageIds({ userId: READER, sender: TLDR, window: WINDOW, pageToken: undefined, observe: IGNORED_ATTEMPTS });
 
 		assert.deepEqual(listed, { ok: true, value: { messageIds: ["newer", "older"], nextPageToken: undefined } });
 		assert.deepEqual(gmail.listRequests, [{ sender: TLDR, window: WINDOW, pageToken: undefined }]);
@@ -51,7 +52,7 @@ describe("initInMemoryGmailHistory", () => {
 			);
 		}
 
-		const first = await gmail.history.listUnreadMessageIds({ userId: READER, sender: TLDR, window: WINDOW, pageToken: undefined });
+		const first = await gmail.history.listUnreadMessageIds({ userId: READER, sender: TLDR, window: WINDOW, pageToken: undefined, observe: IGNORED_ATTEMPTS });
 		assert(first.ok);
 		assert.equal(first.value.messageIds.length, GMAIL_HISTORY_IMPORT_PAGE_SIZE);
 		assert.equal(first.value.messageIds[0], "m25");
@@ -61,6 +62,7 @@ describe("initInMemoryGmailHistory", () => {
 			sender: TLDR,
 			window: WINDOW,
 			pageToken: first.value.nextPageToken,
+			observe: IGNORED_ATTEMPTS,
 		});
 		assert.deepEqual(second, { ok: true, value: { messageIds: ["m00"], nextPageToken: undefined } });
 	});
@@ -70,7 +72,7 @@ describe("initInMemoryGmailHistory", () => {
 		const stored = message({ messageId: GmailMessageIdSchema.parse("abc") });
 		gmail.addMessage(stored);
 
-		const fetched = await gmail.history.fetchRawMessage({ userId: READER, messageId: stored.messageId });
+		const fetched = await gmail.history.fetchRawMessage({ userId: READER, messageId: stored.messageId, observe: IGNORED_ATTEMPTS });
 
 		assert.deepEqual(fetched, { ok: true, value: { raw: stored.raw, internalDate: stored.internalDate, labelIds: stored.labelIds } });
 	});
@@ -79,11 +81,11 @@ describe("initInMemoryGmailHistory", () => {
 		const gmail = initInMemoryGmailHistory();
 		gmail.addMessage(message({ messageId: GmailMessageIdSchema.parse("theirs"), userId: OTHER_READER }));
 
-		assert.deepEqual(await gmail.history.fetchRawMessage({ userId: READER, messageId: GmailMessageIdSchema.parse("gone") }), {
+		assert.deepEqual(await gmail.history.fetchRawMessage({ userId: READER, messageId: GmailMessageIdSchema.parse("gone"), observe: IGNORED_ATTEMPTS }), {
 			ok: true,
 			value: { notFound: true },
 		});
-		assert.deepEqual(await gmail.history.fetchRawMessage({ userId: READER, messageId: GmailMessageIdSchema.parse("theirs") }), {
+		assert.deepEqual(await gmail.history.fetchRawMessage({ userId: READER, messageId: GmailMessageIdSchema.parse("theirs"), observe: IGNORED_ATTEMPTS }), {
 			ok: true,
 			value: { notFound: true },
 		});
@@ -96,15 +98,15 @@ describe("initInMemoryGmailHistory", () => {
 		gmail.failNext({ method: "listUnreadMessageIds", failure: { ok: false, reason: "readonly-permission-required" } });
 		gmail.failNext({ method: "fetchRawMessage", failure: { ok: false, reason: "unavailable", status: 503 } });
 
-		const listing = { userId: READER, sender: TLDR, window: WINDOW, pageToken: undefined };
+		const listing = { userId: READER, sender: TLDR, window: WINDOW, pageToken: undefined, observe: IGNORED_ATTEMPTS };
 		assert.deepEqual(await gmail.history.listUnreadMessageIds(listing), { ok: false, reason: "readonly-permission-required" });
 		assert.deepEqual(await gmail.history.listUnreadMessageIds(listing), { ok: true, value: { messageIds: ["abc"], nextPageToken: undefined } });
-		assert.deepEqual(await gmail.history.fetchRawMessage({ userId: READER, messageId: stored.messageId }), {
+		assert.deepEqual(await gmail.history.fetchRawMessage({ userId: READER, messageId: stored.messageId, observe: IGNORED_ATTEMPTS }), {
 			ok: false,
 			reason: "unavailable",
 			status: 503,
 		});
-		assert.equal((await gmail.history.fetchRawMessage({ userId: READER, messageId: stored.messageId })).ok, true);
+		assert.equal((await gmail.history.fetchRawMessage({ userId: READER, messageId: stored.messageId, observe: IGNORED_ATTEMPTS })).ok, true);
 	});
 });
 

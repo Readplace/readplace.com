@@ -14,12 +14,14 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { initGmailHistoryImport } from "./domain/gmail/gmail-history-import";
 import { initGmailHistoryImportHandler } from "./domain/gmail/gmail-history-import-handler";
+import { initRecordGmailDiagnostic } from "./observability/gmail-diagnostics";
 import { initGmailReadonlyAccessToken } from "./providers/gmail-api/gmail-access-token";
 import { initGmailHistory } from "./providers/gmail-api/gmail-history";
 
 const client = createDynamoDocumentClient();
 const now = () => new Date();
 const logger = HutchLogger.from(consoleLogger);
+const recordDiagnostic = initRecordGmailDiagnostic({ logger, now });
 const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: requireEnv("EVENT_BUS_NAME") });
 const credentials = initDynamoDbGmailCredentials({ client, tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"), now });
 const history = initGmailHistory({
@@ -32,6 +34,7 @@ const history = initGmailHistory({
 		logger,
 	}),
 	fetch: globalThis.fetch,
+	now,
 });
 
 export const handler = initGmailHistoryImportHandler({
@@ -54,4 +57,6 @@ export const handler = initGmailHistoryImportHandler({
 	}).dispatch,
 	publishEvent,
 	logger,
+	recordDiagnostic,
+	now,
 });

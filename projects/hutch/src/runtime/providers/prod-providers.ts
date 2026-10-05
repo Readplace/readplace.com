@@ -430,6 +430,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		},
 		newGmailHistoryImportJobId: () => GmailHistoryImportJobIdSchema.parse(randomBytes(16).toString("hex")),
 		newGmailHistoryImportGeneration: randomUUID,
+		diagnosticsLogger: logger,
 	};
 	const { consumeRateLimit } = initDynamoDbRateLimit({
 		client,

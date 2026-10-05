@@ -128,6 +128,17 @@ describe("initInMemoryGmailIntegration", () => {
 		);
 	});
 
+	it("captures the diagnostic lines written at every level, in order", () => {
+		const gmail = initInMemoryGmailIntegration({ grant: GRANT, addresses: initInMemoryInboxAddress({ now: () => new Date() }) });
+
+		gmail.bundle.diagnosticsLogger.info('{"event":"first"}');
+		gmail.bundle.diagnosticsLogger.error('{"event":"second"}');
+		gmail.bundle.diagnosticsLogger.warn("third", 3);
+		gmail.bundle.diagnosticsLogger.debug("fourth");
+
+		assert.deepEqual(gmail.diagnosticLines, ['{"event":"first"}', '{"event":"second"}', "third 3", "fourth"]);
+	});
+
 	it("captures import starts and newsletter sender submissions", async () => {
 		const gmail = initInMemoryGmailIntegration({ grant: GRANT, addresses: initInMemoryInboxAddress({ now: () => new Date() }) });
 		const jobId = gmail.bundle.newGmailHistoryImportJobId();
