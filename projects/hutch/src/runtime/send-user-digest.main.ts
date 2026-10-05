@@ -25,6 +25,7 @@ import { initDynamoDbGeneratedSummary } from "@packages/article-store";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
+import { QUEUE_DIGEST_INTERVAL_DAYS, QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "./domain/email/queue-digest-cadence";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "./observability/queue-digest-events";
 import { initSendQueueDigestHandler } from "./send-queue-digest/send-queue-digest-handler";
 import { requireEnv } from "@packages/require-env";
@@ -39,9 +40,13 @@ import { requireEnv } from "@packages/require-env";
  * own claim instead of finding the slot free and sending a second copy. */
 const DIGEST_EMAIL_COOLDOWN_MS = 5.5 * 60 * 60 * 1000;
 
-const REGULAR_DIGEST_MIN_GAP_MS = 47.5 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-const MIN_SAVE_AGE_MS = 24 * 60 * 60 * 1000;
+const FLUSH_TICK_TOLERANCE_MS = 30 * 60 * 1000;
+
+const REGULAR_DIGEST_MIN_GAP_MS = QUEUE_DIGEST_INTERVAL_DAYS * DAY_MS - FLUSH_TICK_TOLERANCE_MS;
+
+const MIN_SAVE_AGE_MS = QUEUE_DIGEST_MIN_SAVE_AGE_DAYS * DAY_MS;
 
 const MAX_DIGEST_ITEMS = 10;
 

@@ -49,7 +49,7 @@ function fixedNow(): Date {
 
 interface HandlerHarness {
 	uploadCalls: Array<{ userId: string; bodyLength: number; parsedBody: unknown }>;
-	emailCalls: Array<{ to: string; subject: string; html: string }>;
+	emailCalls: Array<{ from: string; to: string; subject: string; html: string }>;
 	publishedEvents: Array<{ source: string; detailType: string; detail: unknown }>;
 	handler: ReturnType<typeof initExportUserDataHandler>;
 	store: ReturnType<typeof initInMemoryArticleStore>;
@@ -76,7 +76,7 @@ function createHarness(): HandlerHarness {
 		findArticlesAcrossReadlists: store.findArticlesAcrossReadlists,
 		uploadUserDataExport,
 		sendEmail: async (msg) => {
-			emailCalls.push({ to: msg.to, subject: msg.subject, html: msg.html });
+			emailCalls.push({ from: msg.from, to: msg.to, subject: msg.subject, html: msg.html });
 		},
 		publishEvent: async (event, detail) => {
 			publishedEvents.push({
@@ -213,6 +213,7 @@ describe("initExportUserDataHandler", () => {
 
 		expect(harness.emailCalls).toHaveLength(1);
 		const email = harness.emailCalls[0];
+		expect(email.from).toBe("Readplace <fayner@readplace.com>");
 		expect(email.to).toBe("user@example.com");
 		expect(email.subject).toBe("Your Readplace export is ready");
 		expect(email.html).toContain(`https://example.com/signed/${userId}`);

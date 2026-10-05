@@ -72,7 +72,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 				url.searchParams.set("utm_content", "choose-readlist");
 				const component = GmailNewsletterNoticeEmail({ founderAvatarUrl: deps.founderAvatarUrl, newsletterName: recognition.name, senderEmail, gmailUrl: url.toString() });
 				const message: EmailMessage = notice.message ?? {
-					from: "Fayner from Readplace <fayner@readplace.com>", replyTo: "fayner@readplace.com", to: email,
+					from: "Readplace <fayner@readplace.com>", replyTo: "fayner@readplace.com", to: email,
 					subject: `Choose readlists for ${recognition.name ?? senderEmail}`,
 					html: component.to("text/html"), text: component.to("text/plain"),
 					idempotencyKey: `gmail-newsletter/${createHash("sha256").update(JSON.stringify([userId, senderEmail])).digest("hex")}`,

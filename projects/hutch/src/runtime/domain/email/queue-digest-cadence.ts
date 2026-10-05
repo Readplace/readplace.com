@@ -1,0 +1,3 @@
+export const QUEUE_DIGEST_INTERVAL_DAYS = 7;
+
+export const QUEUE_DIGEST_MIN_SAVE_AGE_DAYS = 30;

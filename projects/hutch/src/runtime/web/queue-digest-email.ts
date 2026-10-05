@@ -4,6 +4,7 @@ import type { ReaderArticleHashId } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { EMAIL_CLICK_MEDIUM } from "@packages/web-analytics";
 import { formatLocalInstant, render } from "@packages/web-shell";
+import { QUEUE_DIGEST_INTERVAL_DAYS, QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cadence";
 import { payCutoff } from "../domain/stripe/stripe-trial-config";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "./email-colors";
 import { EMAIL_POSTAL_ADDRESS, EMAIL_REPLY_INVITATION } from "./email-copy";
@@ -19,7 +20,11 @@ export const QUEUE_DIGEST_EMAIL_SUBJECT = "Waiting in your readlist";
 const CONTINUE_READING_LABEL = "Continue reading";
 const KEEP_READPLACE_LABEL = "Keep Readplace";
 export const UNSUBSCRIBE_LABEL = "Stop these emails";
-const FOOTER_REASON = "You're getting this because you save articles to Readplace.";
+const FOOTER_REASON: Record<QueueDigestKind, string> = {
+	regular: `You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for ${QUEUE_DIGEST_MIN_SAVE_AGE_DAYS} days.`,
+	pay: "You're getting this because you save articles to Readplace.",
+	starter: "You're getting this because you save articles to Readplace.",
+};
 
 const QUEUE_DIGEST_UTM_SOURCE = "queue-digest";
 const READLIST_PATH = "/queue";
@@ -110,9 +115,17 @@ function unsubscribeUrl(links: QueueDigestLinks): URL {
 	return url;
 }
 
-function introLine(count: number): string {
-	const phrase = count === 1 ? "article you saved is" : "articles you saved are";
-	return `${count} ${phrase} ready to read.`;
+function introParagraphs(input: { kind: QueueDigestKind; count: number }): string[] {
+	const one = input.count === 1;
+	if (input.kind === "pay") {
+		return [`${input.count} ${one ? "article you saved is" : "articles you saved are"} ready to read.`];
+	}
+	return [
+		one
+			? `This article has been in your readlist for at least ${QUEUE_DIGEST_MIN_SAVE_AGE_DAYS} days and is still marked unread.`
+			: `These ${input.count} articles have been in your readlist for at least ${QUEUE_DIGEST_MIN_SAVE_AGE_DAYS} days and are still marked unread.`,
+		`This is a one-time reminder about ${one ? "it" : "them"}. Readplace sends these at most once every ${QUEUE_DIGEST_INTERVAL_DAYS} days.`,
+	];
 }
 
 function payParagraphs(trialEndsAt: string): string[] {
@@ -150,8 +163,11 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 	}));
 	const intro =
 		starter === undefined
-			? introLine(cards.length)
-			: `Readplace selected ten articles from Hacker News for you once. ${cards.length} ${cards.length === 1 ? "pick is" : "picks are"} still unread. They're in All and Hacker News picks; you can read, file, or delete them.`;
+			? introParagraphs({ kind, count: cards.length })
+			: [
+					`Readplace selected ten articles from Hacker News for you once. ${cards.length} ${cards.length === 1 ? "pick is" : "picks are"} still unread. They're in All and Hacker News picks; you can read, file, or delete them.`,
+				];
+	const footerReason = FOOTER_REASON[kind];
 	const readlistUrl = new URL(READLIST_PATH, links.appOrigin);
 	if (starter !== undefined) readlistUrl.searchParams.set("queue", starter.readlist);
 	const continueReadingUrl = link(readlistUrl, "continue-reading");
@@ -187,7 +203,7 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 					payBlocks,
 					keepLabel: KEEP_READPLACE_LABEL,
 					replyLine: EMAIL_REPLY_INVITATION,
-					footerReason: FOOTER_REASON,
+					footerReason,
 					unsubscribeUrl: unsubscribeLinkUrl,
 					unsubscribeLabel: UNSUBSCRIBE_LABEL,
 					postalAddress: EMAIL_POSTAL_ADDRESS,
@@ -198,7 +214,7 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 
 			return [
 				subject,
-				intro,
+				...intro,
 				...cards.map((card) =>
 					starter === undefined
 						? `${card.title}\n${card.readerUrl}`
@@ -207,7 +223,7 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 				`${continueLabel}: ${continueReadingUrl}`,
 				...payBlocks.flatMap((block) => [...block.paragraphs, `${KEEP_READPLACE_LABEL}: ${block.keepUrl}`]),
 				EMAIL_REPLY_INVITATION,
-				`${FOOTER_REASON} ${UNSUBSCRIBE_LABEL}: ${unsubscribeLinkUrl}`,
+				`${footerReason} ${UNSUBSCRIBE_LABEL}: ${unsubscribeLinkUrl}`,
 				EMAIL_POSTAL_ADDRESS,
 			].join("\n\n");
 		},

@@ -4,14 +4,14 @@ Every automated email Readplace sends to customers: who gets it, exactly when, a
 
 Each example was produced by running the real sending code (the route, Lambda handler or sender function that calls `sendEmail`) with in-memory fakes and example inputs, using the production origins `https://readplace.com` and `https://static.readplace.com`. The capture records the exact message handed to the mail provider. The HTML files in [`html/`](html/) are those bodies, byte for byte. The screenshots are Chromium renders of the same HTML at 800px and 390px wide, with the brand font Inter installed. Mail clients without Inter fall back to the system fonts in the template's font stack.
 
-Each email's conditions were traced through the code with `path:line` citations, then checked against the code by two independent reviews. The inventory reflects commit `117f15b` (2026-10-05). When an email's template, copy or trigger changes, update its section.
+Each email's conditions were traced through the code with `path:line` citations, then checked against the code by two independent reviews. The inventory reflects the code as of 2026-10-05. When an email's template, copy or trigger changes, update its section.
 
 ## How every email is delivered
 
 - All of these emails are sent by the `hutch` project through Resend (`projects/hutch/src/runtime/providers/email/resend-email.ts:8`). Resend authenticates on the `send.readplace.com` envelope subdomain; its SPF, MX and DKIM records are managed in Resend, outside Pulumi (`projects/hutch/src/infra/outbound-mail-auth.ts:15`).
 - Every production entry point wraps Resend in a filter that silently drops any message whose To address is at example.com, example.net or example.org, or under a .test, .example, .invalid or .localhost domain. The Bcc copy is dropped with it (`projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`).
 - With `PERSISTENCE=development` the local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:533`); with `PERSISTENCE=prod` it uses the production providers and sends through Resend (`projects/hutch/src/runtime/dev-app.ts:15`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
-- Every email comes from `Fayner from Readplace <fayner@readplace.com>`. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: either through Reply-To or, for the verification, password reset and data export emails, which set no Reply-To, because it is the From address.
+- The account emails (email verification, welcome, password reset) come from `Fayner from Readplace <fayner@readplace.com>`; every other email comes from `Readplace <fayner@readplace.com>`. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: either through Reply-To or, for the verification, password reset and data export emails, which set no Reply-To, because it is the From address.
 - Nine emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the data export email and the Gmail newsletter notice have no Bcc.
 - Only the two digests carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that turning off their inbox addresses stops it.
 - Only the Gmail newsletter notice sets a Resend idempotency key. The rest rely on their own once-only markers, or on none.
@@ -29,7 +29,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 | 7 | [Payment failed](#7-payment-failed) | `your Readplace payment didn't go through` | Within seconds of each failed renewal charge attempt that Stripe will retry; not on the final attempt and never during a trial. | `readplace+payment_failed@readplace.com` |
 | 8 | [Trial feedback request](#8-trial-feedback-request) | `you tried Readplace — what was missing?` | About 3 days after a trial ends without a membership, normally 17 days and 1 hour after signup. | `readplace+trial_feedback@readplace.com` |
 | 9 | [Inbox saves paused](#9-inbox-saves-paused) | `links sent to your Readplace inbox are waiting` | Immediately, the first time mail to a reader's Readplace inbox address brings article links while their subscription is read-only. Once per lapse. | `readplace+automation_saves_held@readplace.com` |
-| 10 | [Readlist digest](#10-readlist-digest) | `Waiting in your readlist` | Every 48h, for verified trialists and paying members only (never founding members), while new saves (24h+ old, reader view and summary ready) are waiting; checked every 6 hours. | none |
+| 10 | [Readlist digest](#10-readlist-digest) | `Waiting in your readlist` | At most once every 7 days, for verified paying members (never founding members; trialists are checked, but a 14-day trial never holds a 30-day-old save), while saves at least 30 days old (unread, reader view and summary ready, never listed before) are waiting; checked every 6 hours. | none |
 | 11 | [First inbox email arrived](#11-first-inbox-email-arrived) | `Your first email landed in your Readplace inbox` | Seconds after the first email with a saveable article link reaches any of the reader's Readplace addresses while the reader can save (a read-only reader gets Inbox saves paused instead, and this email waits for a later email after access returns); once per account, ever. | `readplace+first_inbox_email@readplace.com` |
 | 12 | [Gmail newsletter notice](#12-gmail-newsletter-notice) | `Choose readlists for {newsletterName}` | At the next 6-hourly check after an approved, unmapped newsletter mails a connected Gmail account or a seen sender becomes approved. | none |
 | 13 | [Data export ready](#13-data-export-ready) | `Your Readplace export is ready` | Seconds to minutes after a signed-in customer clicks Email Me My Data on /export; one email per click. | none |
@@ -148,7 +148,7 @@ Subject: **Verify your email — Readplace** · To: `sam.reader@gmail.com`
   "route": "POST https://readplace.com/signup (application/x-www-form-urlencoded)",
   "formBody": {
     "website": "",
-    "loadedAt": "1791185168969",
+    "loadedAt": "1791189997456",
     "email": "sam.reader@gmail.com",
     "password": "<8+ chars, redacted>"
   },
@@ -158,7 +158,7 @@ Subject: **Verify your email — Readplace** · To: `sam.reader@gmail.com`
   "signupBranch": "founding allocation exhausted -> 14-day trial (startTrial mode 'signup')",
   "resultingSubscriptionStatus": "trialing",
   "routeRedirect": "/queue",
-  "verificationToken": "be34b7e163ee6d9da87e27346e232dcee6f2aa698d863aa34d2dc03d0cc444d4 (randomBytes(32).toString('hex'), 64 hex chars, single-use, valid 7 days)",
+  "verificationToken": "669d1635354998dd40ca4c8bd8c60adefe77a7d759cb67d8ee85f8ed5978bbca (randomBytes(32).toString('hex'), 64 hex chars, single-use, valid 7 days)",
   "env": {
     "APP_ORIGIN": "https://readplace.com",
     "STATIC_BASE_URL": "https://static.readplace.com",
@@ -298,13 +298,13 @@ Subject: **Welcome to Readplace** · To: `sam.reader@gmail.com`
 ```json
 {
   "trigger": "GET /verify-email?token=<token>&utm_source=verification-email&utm_medium=email&utm_content=verify-email (first successful GET/HEAD of the signup verification link)",
-  "verifyCtaUrl": "https://readplace.com/verify-email?token=845f1128c1d761d777487e02b10a97bf58565e329defa286a828eb955cc9f672&utm_source=verification-email&utm_medium=email&utm_content=verify-email",
+  "verifyCtaUrl": "https://readplace.com/verify-email?token=b1f7dc475a50c45d7a53eaa0bc3a1b85bea4ccc354a715c53ff7be5baf19b297&utm_source=verification-email&utm_medium=email&utm_content=verify-email",
   "signupForm": {
     "email": "sam.reader@gmail.com",
     "password": "<8+ chars>",
     "loadedAt": "<page load ms, >= 2.5s before submit>"
   },
-  "verificationToken": "845f1128c1d761d777487e02b10a97bf58565e329defa286a828eb955cc9f672",
+  "verificationToken": "b1f7dc475a50c45d7a53eaa0bc3a1b85bea4ccc354a715c53ff7be5baf19b297",
   "usersAtSignup": "1287 (illustrative; any count >= FOUNDING_MEMBER_LIMIT selects the trial branch of POST /signup — the welcome is identical in both branches)",
   "foundingMemberLimit": 50,
   "env": {
@@ -473,7 +473,7 @@ Subject: **Reset your password — Readplace** · To: `sam.reader@gmail.com`
     "email": "sam.reader@gmail.com",
     "signInMethod": "password"
   },
-  "generatedToken": "c1a400f73abca89cf1225eca2487fda114070eae4b1aee318943c3c4f16e6aba",
+  "generatedToken": "c6bfc985741f2c645e5927d720c232635628f32acf4c48af5e516f08b000aae6",
   "tokenFormat": "randomBytes(32).toString('hex') — 64 lowercase hex chars, single-use, expires 3600 s after creation",
   "env": {
     "APP_ORIGIN": "https://readplace.com",
@@ -510,7 +510,7 @@ Exact HTML body: [`html/password-reset--default.html`](html/password-reset--defa
 
 ### When it is sent
 
-When a trialist reaches 96 hours before their trial ends, the next 6-hourly digest check sends this version of 'Waiting in your readlist' instead of the regular readlist digest. It lists up to 10 of their newest ready unread saves of any age, including ones already emailed, then states the date to choose a plan by and adds a Keep Readplace button to /account/plans. It goes out once per trial window, ignores the readlist digest's 47.5-hour gap and restarts it, and once sent it stops the 'your Readplace trial ends in 2 days' reminder from going out 48 hours before the end.
+When a trialist reaches 96 hours before their trial ends, the next 6-hourly digest check sends this version of 'Waiting in your readlist' instead of the regular readlist digest. It lists up to 10 of their newest ready unread saves of any age, including ones already emailed, then states the date to choose a plan by and adds a Keep Readplace button to /account/plans. It goes out once per trial window, ignores the readlist digest's 7-day gap and restarts it, and once sent it stops the 'your Readplace trial ends in 2 days' reminder from going out 48 hours before the end. Because the regular readlist digest only lists saves at least 30 days old, on a standard 14-day trial this is the only readlist digest a trialist gets.
 
 Trigger chain:
 
@@ -534,21 +534,21 @@ Sent only when:
 - At least one save qualifies: it is in the All readlist and unread, at any age, including saves already listed in an earlier digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:289`
 - Its reader view has loaded, its content has not been purged, and it is not the consent-seed article `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:352`
 - Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:363`
-- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:31`
+- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:36`
 - The claim on the subscription row succeeds: the row is still trialing with the same trialEndsAt and no pay marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:196`
 
 Not sent when:
 
 - No user row or an unverified email: skipped with reason no-verified-email, and the trial reminder goes out 48h before trial end instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:155`
 - Unsubscribed from the readlist digest: this version is never sent either, and the trial reminder goes out instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:156`
-- The trialist pressed cancel (pending_cancellation): never sent; they keep getting regular readlist digests until access ends `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:50`
+- The trialist pressed cancel (pending_cancellation): never sent `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:50`, and since the regular readlist digest only lists saves at least 30 days old `projects/hutch/src/runtime/send-user-digest.main.ts:34`, on a standard 14-day trial they get no readlist digest before access ends either
 - The trialist already chose a plan: their row is active, so they count as a paying member and get regular readlist digests only `src/packages/subscription-access/src/effective-access.ts:45`
 - Already sent in this trial window: not sent again `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:58`
 - Re-opening the trial window clears the once-only marker, so a trialist who cancels and then reactivates, or gets an admin trial extension, can receive it again `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:58`
 - No ready unread save on a check: skipped with reason pay-no-ready-saves and retried on the next check; if none of the window's 6 checks finds one, it never goes out and the trial reminder is sent instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:168`
 - Deleting an account does not stop it right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:180`
 
-**Timing:** Sent on the first 6-hourly check at or after trialEndsAt − 96h that finds a ready unread save, and never at or after trialEndsAt − 60h; on a standard 14-day trial that is 10.0 to 11.5 days after signup, normally the first check of the window, 90 to 96h before the trial ends. It can arrive 6h after a regular readlist digest, the next regular digest waits at least 47.5h after it, and the deadline it shows is trialEndsAt − 48h05m in UTC.
+**Timing:** Sent on the first 6-hourly check at or after trialEndsAt − 96h that finds a ready unread save, and never at or after trialEndsAt − 60h; on a standard 14-day trial that is 10.0 to 11.5 days after signup, normally the first check of the window, 90 to 96h before the trial ends. On a standard trial no regular readlist digest comes before it, since none of the trialist's saves is 30 days old yet (after an admin extension one can, as little as 6h earlier); the next regular digest waits at least 7 days less 30 minutes (167.5h) after it, and the deadline it shows is trialEndsAt − 48h05m in UTC.
 
 **If sending fails:** Any error fails the SQS record, which is retried after 120s up to 3 receives and then moves to the send-user-digest DLQ, whose alarm emails the team. A Resend 4xx releases the pay marker so a retry or a later check in the window can send, while a 5xx or network error keeps it so the trialist never gets a second copy.
 
@@ -560,7 +560,7 @@ Not sent when:
 - Saves are picked by the same reader as the readlist digest apart from the age floor and the emailed filter: All readlist only, 10-item cap, 50-candidate read budget, consent-seed URL match, and saves with no shared article row dropped `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:326`
 - Recipients at reserved test domains are dropped by a wrapper that reports success, so the pay marker is still set and the trial reminder is then skipped for that account `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
 - queue_digest_sent records kind pay with hours_to_trial_end rounded down `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:288`
-- The deadline and end date are always formatted in UTC, whatever the reader's timezone `projects/hutch/src/runtime/web/queue-digest-email.ts:113`
+- The deadline and end date are always formatted in UTC, whatever the reader's timezone `projects/hutch/src/runtime/web/queue-digest-email.ts:125`
 - Every deployed stack, staging included, sends it through Resend with that stack's APP_ORIGIN in the links `projects/hutch/src/infra/index.ts:781`
 
 </details>
@@ -572,32 +572,34 @@ Not sent when:
 > - A Resend 4xx removes the pay marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:227`, so an address Resend keeps refusing is retried on each check in the window (3 receives each), and each check ends in the DLQ alarm.
 > - Unsubscribing from the readlist digest also stops this email, which carries the charge terms, while the unsubscribe page says account and billing emails still arrive `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.component.ts:25`; the trial reminder still goes out in its place.
 > - A trialist who pressed cancel gets neither this email nor the trial reminder, which also requires status trialing `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:276`.
-> - It shares the readlist digest's template, so the developer HTML comment in every card `projects/hutch/src/runtime/web/queue-digest-email.template.html:28` and the reply line without a closing period `projects/hutch/src/runtime/web/email-copy.ts:2` appear here too.
+> - It shares the readlist digest's template, so the developer HTML comment in every card `projects/hutch/src/runtime/web/queue-digest-email.template.html:30` and the reply line without a closing period `projects/hutch/src/runtime/web/email-copy.ts:2` appear here too.
+> - On a standard 14-day trial `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:4` no save reaches the readlist digest's 30-day age floor `projects/hutch/src/runtime/send-user-digest.main.ts:34`, so a trialist gets no regular readlist digest: this email is the first and only readlist digest of the trial, and in the trial's first window none of the saves it lists has been emailed before.
+> - After an admin extension that leaves a trialist with saves at least 30 days old (the extension accepts any future end date `projects/hutch/src/runtime/domain/trial/resolve-trial-extension.ts:62`), they can get a regular readlist digest that says 'This is the only reminder Readplace sends about them.' `projects/hutch/src/runtime/web/queue-digest-email.ts:119`, and this email can then list the same saves again, because it ignores whether a save was already emailed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:289`.
 
 ### Message
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The trialist's account email (the email on their Readplace user row, looked up by userId) |
 | Bcc | none |
 | Reply-To | `fayner@readplace.com` |
 | Subject | Waiting in your readlist |
 | Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
-| Plain-text part | Yes: the readlist digest's plain-text copy plus the charge-terms paragraph and a 'Keep Readplace: {link}' line. |
+| Plain-text part | Yes: the readlist digest's plain-text layout with this version's one-line intro and footer reason, plus the charge-terms paragraph and a 'Keep Readplace: {link}' line. |
 | Idempotency key | none |
 
 Content variants:
 
 | Variant | Shown when |
 |---|---|
-| pay | The trial-ending digest is due. Below a divider it adds 'Choose a plan before {trialEndsAt − 48h05m, e.g. Oct 7, 2026, 07:26 UTC} and nothing is charged until {trialEndsAt date, e.g. Oct 9, 2026}. After that, choosing a plan starts it the same day.' and an amber Keep Readplace button to /account/plans; Continue reading becomes a white button with a grey border, and every link carries utm_campaign=pay. |
+| pay | The trial-ending digest is due. Unlike the readlist digest, the intro is the single line '{n} articles you saved are ready to read.' and the footer reason is 'You're getting this because you save articles to Readplace.'. Below a divider it adds 'Choose a plan before {trialEndsAt − 48h05m, e.g. Oct 7, 2026, 07:26 UTC} and nothing is charged until {trialEndsAt date, e.g. Oct 9, 2026}. After that, choosing a plan starts it the same day.' and an amber Keep Readplace button to /account/plans; Continue reading becomes a white button with a grey border, and every link carries utm_campaign=pay. |
 | pay-single-article | Exactly one ready unread save: intro '1 article you saved is ready to read.'. Not captured for this version. |
 | pay-summary-fallback-preview | Card previews follow the readlist digest's rules: the excerpt, or for a summary that predates excerpts, the summary cut to 200 characters with '…'. Not captured for this version. |
 
 ### Example
 
-#### `pay` — A trialist 94h before trial end, on the first check of the window, gets three saves including a 2.5h-old one and one already listed in an earlier digest, plus the paragraph 'Choose a plan before Oct 7, 2026, 07:26 UTC and nothing is charged until Oct 9, 2026.' and the amber Keep Readplace button, with Continue reading turned white.
+#### `pay` — A trialist 94h before trial end, on the first check of the window (the 03:12 check before it found no save old enough for a regular digest), gets '3 articles you saved are ready to read.' over three saves from the last three days, the newest 2.5h old and none emailed before, then the paragraph 'Choose a plan before Oct 7, 2026, 07:26 UTC and nothing is charged until Oct 9, 2026.' and the amber Keep Readplace button, with Continue reading turned white.
 
 Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
 
@@ -620,8 +622,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
   },
   "productionConstants": {
     "cooldownMs": "5.5h",
-    "regularDigestMinGapMs": "47.5h",
-    "minSaveAgeMs": "24h",
+    "regularDigestMinGapMs": "7 days less 30 minutes (167.5h)",
+    "minSaveAgeMs": "30 days",
     "maxDigestItems": 10,
     "maxCandidatesRead": 50
   },
@@ -633,13 +635,7 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
     "kind": "trialing",
     "trialEndsAt": "2026-10-09T07:31:09.482Z"
   },
-  "previousRegularDigest": {
-    "at": "2026-10-03T09:12:40.902Z",
-    "messageId": "1d7c9e44-0b2a-4f31-8e6d-a95c3b2f7e10",
-    "urls": [
-      "https://mcfunley.com/choose-boring-technology"
-    ]
-  },
+  "previousRegularDigest": null,
   "saves": [
     {
       "url": "https://jvns.ca/blog/2025/02/05/some-terminal-frustrations/",
@@ -669,7 +665,7 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "readerAvailableAt": "2026-10-02T07:03:40.000Z",
       "summaryStatus": "ready",
       "excerpt": "Every team gets about three innovation tokens, so spend them on what makes the product different.",
-      "emailSentAt": "2026-10-03T09:12:40.902Z"
+      "emailSentAt": null
     }
   ],
   "analyticsEmitted": [
@@ -682,7 +678,7 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "kind": "pay",
       "hours_to_trial_end": 94,
       "item_count": 3,
-      "previously_emailed_count": 1,
+      "previously_emailed_count": 0,
       "tier": "trial",
       "trial_day": 11
     }
@@ -692,7 +688,7 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
     "outcome": [
       {
         "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
-        "reason": "cadence"
+        "reason": "no-eligible-items"
       }
     ]
   }
@@ -712,11 +708,12 @@ Exact HTML body: [`html/trial-ending-digest--pay.html`](html/trial-ending-digest
 
 - `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:44` — isPayDigestDue: trialing, window, once per window
 - `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:280` — pay plan: no age floor, any emailed state, pay claim and release
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:111` — charge-terms paragraph, Keep Readplace link, neutral Continue reading button
-- `projects/hutch/src/runtime/web/queue-digest-email.template.html:49` — pay block template
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:113` — pay intro '{n} articles you saved are ready to read.' (pay footer reason at :24)
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:123` — charge-terms paragraph, Keep Readplace link, neutral Continue reading button
+- `projects/hutch/src/runtime/web/queue-digest-email.template.html:51` — pay block template
 - `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:189` — pay marker claim (release at :223)
 - `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:189` — sender (sendEmail call)
-- `projects/hutch/src/runtime/send-user-digest.main.ts:90` — composition root
+- `projects/hutch/src/runtime/send-user-digest.main.ts:95` — composition root
 - `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297` — trial reminder skipped once this is sent
 
 ## 5. Trial pre-expiry reminder
@@ -798,7 +795,7 @@ Not sent when:
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The account's login email, looked up by userId in the users table (lowercased and trimmed when the account was created) |
 | Bcc | `readplace+trial_reminder@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
@@ -1150,7 +1147,7 @@ Not sent when:
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | Account email for the reader's userId, looked up in the users table at send time |
 | Bcc | `readplace+charge_reminder@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
@@ -1547,7 +1544,7 @@ Not sent when:
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The Readplace account email of the member who owns the failing subscription, read from the users table (not Stripe's customer_email) |
 | Bcc | `readplace+payment_failed@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
@@ -1774,7 +1771,7 @@ Not sent when:
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The account's login email, looked up by userId in the users table |
 | Bcc | `readplace+trial_feedback@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
@@ -2105,7 +2102,7 @@ Not sent when:
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The reader's login email from the users table (findEmailByUserId), not their Readplace inbox address |
 | Bcc | `readplace+automation_saves_held@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
@@ -2233,11 +2230,11 @@ Exact HTML body: [`html/automation-saves-held--no-inbox-address.html`](html/auto
 
 ## 10. Readlist digest
 
-**Reading** · Trialists and paying members (including members who cancelled but whose access has not ended yet) with a verified email who have not unsubscribed; founding members, expired trials and ended memberships never get it.
+**Reading** · Paying members (including members who cancelled but whose access has not ended yet) with a verified email who have not unsubscribed. Trialists are checked too, but a trial ends 14 days after signup and a save must be 30 days old, so a trialist only gets it if an operator extends or re-opens the trial past that point. Founding members, expired trials and ended memberships never get it.
 
 ### When it is sent
 
-Every 6 hours Readplace checks every trialist and paying member. If at least 47.5 hours have passed since their last digest and their All readlist holds unread saves that are at least 24 hours old, were never in an earlier digest, and have a ready reader view and AI summary, it emails up to 10 of the newest. On the checks where a trialist's trial-ending digest is due, that version goes out instead, and once it is sent the next readlist digest waits at least 47.5 hours from it and never repeats the saves it listed.
+Every 6 hours Readplace checks every trialist and paying member. If at least 7 days less 30 minutes have passed since their last digest and their All readlist holds unread saves that are at least 30 days old, were never in an earlier digest, and have a ready reader view and AI summary, it emails up to 10 of the newest. On the checks where a trialist's trial-ending digest is due, that version goes out instead, and once it is sent the next readlist digest waits at least 7 days less 30 minutes from it and never repeats the saves it listed. A trial ends 14 days after signup, so in practice the readlist digest goes to paying members, not trialists.
 
 Trigger chain:
 
@@ -2246,7 +2243,7 @@ Trigger chain:
 3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:141`
 4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:155`
 5. The trial-ending digest is not due, so the regular plan applies `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:162`
-6. The regular plan holds if under 47.5h have passed since the last regular or trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:273`
+6. The regular plan holds if under 7 days less 30 minutes (167.5h) have passed since the last regular or trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:273`
 7. It picks up to 10 qualifying saves and claims the user's digest slot on the reader-ready-notifications row `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:170`
 8. It sends through Resend, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:189`
 
@@ -2257,12 +2254,12 @@ Sent only when:
 - The user has not unsubscribed from this digest; it is on by default `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:156`
 - Access is trial (trialing before trialEndsAt, or a cancelled trial before its end date) or paid (an active membership, including a trialist who already chose a plan, or a cancelled membership before its end date) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:157`
 - The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:162`
-- At least 47.5h have passed since the later of the last regular digest and the trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:273`
-- At least one save qualifies: it is in the All readlist, unread, and was saved at least 24h before this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:270`
+- At least 7 days less 30 minutes (167.5h) have passed since the later of the last regular digest and the trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:273`
+- At least one save qualifies: it is in the All readlist, unread, and was saved at least 30 days before this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:270`
 - The save was never listed in an earlier regular or trial-ending digest `src/packages/article-store/src/dynamodb-saved-article-store.ts:615`
 - Its reader view has loaded, its content has not been purged, and it is not the consent-seed article (the one saved automatically when a user with no saves first authorizes an external app or AI assistant) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:352`
 - Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:363`
-- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:31`
+- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:36`
 - No other message claimed this user's digest slot in the last 5.5h `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:60`
 
 Not sent when:
@@ -2270,26 +2267,27 @@ Not sent when:
 - No user row or an unverified email: skipped, and queue_digest_skipped is recorded with reason no-verified-email `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:155`
 - Unsubscribed, either by confirming on the page behind the email's Stop these emails link or through the mail client's one-click unsubscribe: skipped for good with reason unsubscribed `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page.ts:68`
 - Founding members (no subscription row), expired trials, cancelled memberships and cancellations past their end date: never sent, logged only with no analytics event `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:157`
-- Under 47.5h since the last regular or trial-ending digest: held and logged as cadence `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:273`
+- Under 7 days less 30 minutes (167.5h) since the last regular or trial-ending digest: held and logged as cadence `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:273`
 - A trialist inside [trialEndsAt − 96h, trialEndsAt − 60h) who has not had the trial-ending digest gets that version instead on every check until it is sent `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:162`
 - No qualifying save: skipped with reason no-eligible-items; nothing is recorded, so a later check can still send `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:168`
+- Saves under 30 days old are not listed yet; because a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33`, a trialist whose trial was not extended holds no qualifying save and is skipped with reason no-eligible-items on every check outside the trial-ending window `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:270`
 - A save listed in any earlier digest, regular or trial-ending, is stamped once and never listed in a regular digest again, so a user whose waiting saves were all listed gets nothing `src/packages/article-store/src/dynamodb-saved-article-store.ts:1214`
 - Saves whose summary was skipped or failed, or whose reader view never loads, are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:363`
 - Deleting an account does not stop the digest right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:180`
 
-**Timing:** Checked every 6 hours by an EventBridge Scheduler rate(6 hours) schedule whose clock times depend on when it was created (the examples assume 03:12, 09:12, 15:12 and 21:12 UTC). A user gets it at most once per 47.5h after their last regular or trial-ending digest, which is every 48h (every 8th check) while new qualifying saves keep arriving, and a save first qualifies on the first check at least 24h after it was saved.
+**Timing:** Checked every 6 hours by an EventBridge Scheduler rate(6 hours) schedule whose clock times depend on when it was created (the examples assume 03:12, 09:12, 15:12 and 21:12 UTC). A user gets it at most once per 7 days less 30 minutes (167.5h) after their last regular or trial-ending digest, which is every 7 days (every 28th check) while unlisted saves keep turning 30 days old; the 30 minutes stop a few minutes of processing delay from holding the 28th check. A save first qualifies on the first check at least 30 days after it was saved.
 
 **If sending fails:** Any error fails the SQS record, which is retried after 120s up to 3 receives and then moves to the send-user-digest DLQ, whose alarm emails the team. A Resend 4xx releases the claim so the retry sends a fresh copy, while a 5xx or network error keeps the claim so the retry never sends again (at most once); failures stamping saves or publishing the sent event afterwards are logged and ignored.
 
 <details><summary>Edge cases</summary>
 
 - A save that exists only in a named readlist (removed from All) is never read, because the query covers only the All readlist partition `src/packages/article-store/src/dynamodb-saved-article-store.ts:622`
-- Re-saving an article moves its savedAt forward, which restarts the 24h wait, but keeps its read status and its emailSentAt stamp `src/packages/article-store/src/dynamodb-saved-article-store.ts:410`
+- Re-saving an article moves its savedAt forward, which restarts the 30-day wait, but keeps its read status and its emailSentAt stamp `src/packages/article-store/src/dynamodb-saved-article-store.ts:410`
 - A save whose shared article row is missing is dropped without notice `src/packages/article-store/src/dynamodb-saved-article-store.ts:598`
 - Each check reads at most 50 candidate saves, newest first; unready saves are never stamped and are re-read every check, so a user whose 50 newest unread saves are all unready never sees older ready ones `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:342`
 - The consent-seed exclusion matches by URL, so a user who saves that fagnerbrack.com article themselves never sees it in a digest either `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:352`
 - The query also accepts saves whose emailSentAt equals this run's instant, but that never matches: each receive takes a fresh time and a redelivery finishes from the URLs stored with its claim `src/packages/article-store/src/dynamodb-saved-article-store.ts:615`
-- The 47.5h check uses eventually consistent reads; the 5.5h conditional claim is the only atomic guard against a duplicate `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:119`
+- The 7-day gap check uses eventually consistent reads; the 5.5h conditional claim is the only atomic guard against a duplicate `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:119`
 - Another message for the same user already holds the slot (for example after a scan tick is redelivered): this one logs '[SendQueueDigest] rate-limited' and sends nothing `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:318`
 - A redelivered message that already holds the claim only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:231`
 - If stamping a save fails after the send, the error is logged and that save can be listed again in a later digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:398`
@@ -2302,13 +2300,16 @@ Not sent when:
 
 > **Observations**
 >
+> - In practice the readlist digest reaches only paying members and pending cancellations: a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33` and every save is stamped with the time it was made, imports included `projects/hutch/src/runtime/web/pages/import/import.page.ts:361`, so a trialist never holds a 30-day-old save unless an operator extends or re-opens the trial at /admin/extend-trial `projects/hutch/src/runtime/web/pages/admin/extend-trial.page.ts:169`. The trial-ending digest is the only digest a trialist gets.
+> - The readlist digest calls itself 'a one-time reminder' about the articles it lists `projects/hutch/src/runtime/web/queue-digest-email.ts:119` `projects/hutch/src/runtime/web/queue-digest-email.ts:23`, but a save whose emailSentAt stamp fails after the send can be listed again `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:398`, and so can a save the reader deletes and saves again, because deleting removes the stamped row `src/packages/article-store/src/dynamodb-saved-article-store.ts:815`.
+> - Each weekly digest lists at most 10 saves, newest first `projects/hutch/src/runtime/send-user-digest.main.ts:36`, so when more than 10 unlisted saves turn 30 days old in a week, the rest are listed only in a later week when fewer than 10 newer ones qualify; a reader who keeps leaving more than 10 saves a week unread is never reminded about the older ones `src/packages/article-store/src/dynamodb-saved-article-store.ts:631`.
 > - Accounts pending deletion keep getting the digest: deleting an account only stamps deletedAt `projects/hutch/src/runtime/web/pages/account/account.page.ts:550` and the contact lookup does not check it `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:468`, so mail continues until the deletion job removes the saves, and longer if that job is stuck in its DLQ.
 > - There is no way to opt back in: the opt-out's clear branch has no caller `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:516`, and the done page says Readplace won't send this email again `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.component.ts:38`.
-> - Unsubscribe tokens are an HMAC of the userId keyed by ANALYTICS_SALT and never expire, so rotating the analytics salt breaks every unsubscribe link already sent `projects/hutch/src/runtime/send-user-digest.main.ts:107`.
+> - Unsubscribe tokens are an HMAC of the userId keyed by ANALYTICS_SALT and never expire, so rotating the analytics salt breaks every unsubscribe link already sent `projects/hutch/src/runtime/send-user-digest.main.ts:112`.
 > - A Resend 4xx removes the user's last-digest time along with the claim `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:104`, so an address Resend keeps refusing is retried on every 6h check (3 receives each) and every check ends in the DLQ alarm.
-> - Delivery is at most once: after a 5xx or network error the claim is kept and the retry only stamps the saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:199`, so if Resend never accepted the message that digest is lost and its saves never appear in a later regular digest; the comment at `projects/hutch/src/runtime/send-user-digest.main.ts:17` says this is deliberate.
+> - Delivery is at most once: after a 5xx or network error the claim is kept and the retry only stamps the saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:199`, so if Resend never accepted the message that digest is lost and its saves never appear in a later regular digest; the comment at `projects/hutch/src/runtime/send-user-digest.main.ts:18` says this is deliberate.
 > - Sends dropped for reserved test domains still count in queue_digest_sent analytics `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:37`.
-> - The template's developer HTML comment ships inside every article card of the real email `projects/hutch/src/runtime/web/queue-digest-email.template.html:28`.
+> - The template's developer HTML comment ships inside every article card of the real email `projects/hutch/src/runtime/web/queue-digest-email.template.html:30`.
 > - The shared reply line 'If you have any questions, please reply to this email' has no closing period in both the HTML and text parts `projects/hutch/src/runtime/web/email-copy.ts:2`.
 > - The public blog post still describes the older email (only articles opened while still loading, at most every 6 hours, a button per row) `projects/blog-site/src/runtime/web/pages/blog/posts/one-email-for-every-ready-article.md:3`, and the reader-ready fan-out still writes to the digest-queue table, which this sender never reads `projects/hutch/src/runtime/reader-ready-fanout.main.ts:33`.
 
@@ -2316,7 +2317,7 @@ Not sent when:
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The user's account email (the email on their Readplace user row, looked up by userId) |
 | Bcc | none |
 | Reply-To | `fayner@readplace.com` |
@@ -2329,15 +2330,15 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| default | Two or more qualifying saves: intro '{n} articles you saved are ready to read.', an amber Continue reading button (#AD6225) to /queue, no pay block, and every link tagged utm_campaign=regular. |
-| single-article | Exactly one qualifying save: intro '1 article you saved is ready to read.'. |
+| default | Two or more qualifying saves: intro paragraphs 'These {n} articles have been in your readlist for at least 30 days and are still marked unread.' and 'This is a one-time reminder about them. Readplace sends these at most once every 7 days.', an amber Continue reading button (#AD6225) to /queue, no pay block, the footer 'You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for 30 days. Stop these emails.', and every link tagged utm_campaign=regular. |
+| single-article | Exactly one qualifying save: intro paragraphs 'This article has been in your readlist for at least 30 days and is still marked unread.' and 'This is a one-time reminder about it. Readplace sends these at most once every 7 days.'. |
 | excerpt-preview | The article's ready summary has an excerpt, as all current summaries do: the card preview is the excerpt with whitespace collapsed and no length cap, so a model excerpt longer than the prompt's 100 characters shows in full. Captured in default. |
 | summary-fallback-preview | The summary predates excerpts: the preview is the summary text with whitespace collapsed, cut at a word boundary to 200 characters with '…' only when longer. Captured in single-article. |
 | no-preview | The template drops the preview line when the preview is empty; unreachable because only ready summaries, which always carry text, are listed. Not captured. |
 
 ### Example
 
-#### `default` — A trialist on day 7 gets three saves that are 25h, 36h and 63h old, each previewed by its excerpt, with the amber Continue reading button; a 2.5h-old save, a save whose summary was skipped, a save already listed in the previous digest and the consent-seed article are left out.
+#### `default` — A paying member whose last readlist digest went out exactly 7 days earlier (the check 6 hours before was held by cadence) gets three unread saves that are 36, 44 and 84 days old, each previewed by its excerpt, under the two-paragraph intro and with the amber Continue reading button; a 15-day-old save, a save whose summary was skipped, a save already listed in the previous digest and the consent-seed article are left out.
 
 Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
 
@@ -2360,8 +2361,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
   },
   "productionConstants": {
     "cooldownMs": "5.5h",
-    "regularDigestMinGapMs": "47.5h",
-    "minSaveAgeMs": "24h",
+    "regularDigestMinGapMs": "7 days less 30 minutes (167.5h)",
+    "minSaveAgeMs": "30 days",
     "maxDigestItems": 10,
     "maxCandidatesRead": 50
   },
@@ -2370,11 +2371,12 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
     "emailVerified": true
   },
   "subscription": {
-    "kind": "trialing",
-    "trialEndsAt": "2026-10-12T15:20:07.218Z"
+    "kind": "active",
+    "subscriptionId": "sub_1Q3mKdL4kM2nP7aB",
+    "customerId": "cus_Qh7RwX2yZa9bC4"
   },
   "previousRegularDigest": {
-    "at": "2026-10-03T09:12:40.902Z",
+    "at": "2026-09-28T09:12:40.902Z",
     "messageId": "1d7c9e44-0b2a-4f31-8e6d-a95c3b2f7e10",
     "urls": [
       "https://mcfunley.com/choose-boring-technology"
@@ -2385,8 +2387,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
       "title": "Patterns of Distributed Systems",
       "siteName": "martinfowler.com",
-      "savedAt": "2026-10-04T07:48:12.000Z",
-      "readerAvailableAt": "2026-10-04T07:49:03.000Z",
+      "savedAt": "2026-08-30T07:48:12.000Z",
+      "readerAvailableAt": "2026-08-30T07:49:03.000Z",
       "summaryStatus": "ready",
       "excerpt": "The patterns Kafka, Cassandra and etcd share, from write-ahead logs to leader election.",
       "emailSentAt": null
@@ -2395,8 +2397,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "url": "https://paulgraham.com/greatwork.html",
       "title": "How to Do Great Work",
       "siteName": "paulgraham.com",
-      "savedAt": "2026-10-03T21:05:44.000Z",
-      "readerAvailableAt": "2026-10-03T21:06:30.000Z",
+      "savedAt": "2026-08-21T21:05:44.000Z",
+      "readerAvailableAt": "2026-08-21T21:06:30.000Z",
       "summaryStatus": "ready",
       "excerpt": "Pick work you have a natural aptitude for and a deep interest in, then push to the edge of it.",
       "emailSentAt": null
@@ -2405,8 +2407,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "url": "https://www.theatlantic.com/magazine/archive/2022/05/social-media-democracy-trust-babel/629369/",
       "title": "Why the Past 10 Years of American Life Have Been Uniquely Stupid",
       "siteName": "The Atlantic",
-      "savedAt": "2026-10-02T18:30:09.000Z",
-      "readerAvailableAt": "2026-10-02T18:31:52.000Z",
+      "savedAt": "2026-07-12T18:30:09.000Z",
+      "readerAvailableAt": "2026-07-12T18:31:52.000Z",
       "summaryStatus": "ready",
       "excerpt": "Social media broke the shared stories that held democracy together, and it started around 2009.",
       "emailSentAt": null
@@ -2415,8 +2417,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "url": "https://jvns.ca/blog/2025/02/05/some-terminal-frustrations/",
       "title": "Some terminal frustrations",
       "siteName": "Julia Evans",
-      "savedAt": "2026-10-05T06:40:27.000Z",
-      "readerAvailableAt": "2026-10-05T06:41:10.000Z",
+      "savedAt": "2026-09-20T06:40:27.000Z",
+      "readerAvailableAt": "2026-09-20T06:41:10.000Z",
       "summaryStatus": "ready",
       "excerpt": "1,600 terminal users shared what trips them up, from copy and paste to remembering syntax.",
       "emailSentAt": null
@@ -2425,8 +2427,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "url": "https://www.dreamsongs.com/WorseIsBetter.html",
       "title": "Worse Is Better",
       "siteName": "dreamsongs.com",
-      "savedAt": "2026-10-01T12:15:00.000Z",
-      "readerAvailableAt": "2026-10-01T12:15:41.000Z",
+      "savedAt": "2026-08-01T12:15:00.000Z",
+      "readerAvailableAt": "2026-08-01T12:15:41.000Z",
       "summaryStatus": "skipped",
       "excerpt": null,
       "emailSentAt": null
@@ -2435,18 +2437,18 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "url": "https://mcfunley.com/choose-boring-technology",
       "title": "Choose Boring Technology",
       "siteName": "mcfunley.com",
-      "savedAt": "2026-10-02T07:02:51.000Z",
-      "readerAvailableAt": "2026-10-02T07:03:40.000Z",
+      "savedAt": "2026-08-10T07:02:51.000Z",
+      "readerAvailableAt": "2026-08-10T07:03:40.000Z",
       "summaryStatus": "ready",
       "excerpt": "Every team gets about three innovation tokens, so spend them on what makes the product different.",
-      "emailSentAt": "2026-10-03T09:12:40.902Z"
+      "emailSentAt": "2026-09-28T09:12:40.902Z"
     },
     {
       "url": "https://fagnerbrack.com/whats-the-point-to-save-articles-youll-never-read-22d07f6609ad",
       "title": "What's the point to save articles you'll never read?",
       "siteName": "Medium",
-      "savedAt": "2026-09-28T15:20:09.000Z",
-      "readerAvailableAt": "2026-09-28T15:20:40.000Z",
+      "savedAt": "2026-06-14T15:20:09.000Z",
+      "readerAvailableAt": "2026-06-14T15:20:40.000Z",
       "summaryStatus": "ready",
       "excerpt": "Saving articles you never read still tells you what you care about.",
       "emailSentAt": null
@@ -2462,8 +2464,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "kind": "regular",
       "item_count": 3,
       "previously_emailed_count": 0,
-      "tier": "trial",
-      "trial_day": 7
+      "tier": "paid",
+      "trial_day": null
     }
   ],
   "previousTick": {
@@ -2487,7 +2489,7 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
 
 Exact HTML body: [`html/queue-digest--default.html`](html/queue-digest--default.html)
 
-#### `single-article` — A paying member with exactly one qualifying save gets the singular intro, and because that article's summary predates excerpts, its preview is the summary cut at a word boundary to 200 characters with an ellipsis.
+#### `single-article` — A paying member with exactly one qualifying save, 62 days old, gets the singular intro, and because that article's summary predates excerpts, its preview is the summary cut at a word boundary to 200 characters with an ellipsis.
 
 Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
 
@@ -2510,8 +2512,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
   },
   "productionConstants": {
     "cooldownMs": "5.5h",
-    "regularDigestMinGapMs": "47.5h",
-    "minSaveAgeMs": "24h",
+    "regularDigestMinGapMs": "7 days less 30 minutes (167.5h)",
+    "minSaveAgeMs": "30 days",
     "maxDigestItems": 10,
     "maxCandidatesRead": 50
   },
@@ -2525,7 +2527,7 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
     "customerId": "cus_QkT3vW9xZa1bC2"
   },
   "previousRegularDigest": {
-    "at": "2026-09-30T21:12:39.114Z",
+    "at": "2026-09-28T09:12:39.114Z",
     "messageId": "8a2f6c1d-3e5b-4a97-b0c4-6d1e9f2a7b35",
     "urls": [
       "https://danluu.com/sounds-easy/"
@@ -2536,8 +2538,8 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
       "url": "http://www.incompleteideas.net/IncIdeas/BitterLesson.html",
       "title": "The Bitter Lesson",
       "siteName": "www.incompleteideas.net",
-      "savedAt": "2026-10-04T08:22:05.000Z",
-      "readerAvailableAt": "2026-10-04T08:22:48.000Z",
+      "savedAt": "2026-08-04T08:22:05.000Z",
+      "readerAvailableAt": "2026-08-04T08:22:48.000Z",
       "summaryStatus": "ready",
       "excerpt": null,
       "emailSentAt": null
@@ -2562,7 +2564,7 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
     "outcome": [
       {
         "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
-        "reason": "no-eligible-items"
+        "reason": "cadence"
       }
     ]
   }
@@ -2577,12 +2579,15 @@ Exact HTML body: [`html/queue-digest--single-article.html`](html/queue-digest--s
 
 ### Source
 
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:119` — renderer: subject, unsubscribe headers, tracked links, HTML and text parts
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:131` — renderer: subject, unsubscribe headers, tracked links, HTML and text parts
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:110` — intro paragraphs: two for the readlist digest, one for the trial-ending digest
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:22` — footer reason for each kind
 - `projects/hutch/src/runtime/web/queue-digest-email.template.html:1` — HTML template
 - `projects/hutch/src/runtime/web/digest-preview.ts:17` — card preview (excerpt or summary fallback)
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:258` — regular plan: 47.5h gap, 24h floor, not-emailed filter, slot claim
+- `projects/hutch/src/runtime/domain/email/queue-digest-cadence.ts:1` — 7-day interval and 30-day minimum save age, shared by the sender's constants and the email copy
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:258` — regular plan: 7-day gap less 30 minutes, 30-day floor, not-emailed filter, slot claim
 - `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:189` — sender (sendEmail call)
-- `projects/hutch/src/runtime/send-user-digest.main.ts:90` — composition root: constants, Resend wrapped in the reserved-domain skip
+- `projects/hutch/src/runtime/send-user-digest.main.ts:95` — composition root: constants, Resend wrapped in the reserved-domain skip
 - `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:29` — 6-hourly fan-out to every trialist and member
 - `projects/hutch/src/infra/index.ts:881` — rate(6 hours) schedule, queues and Lambdas
 
@@ -2676,7 +2681,7 @@ Not sent when:
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The account's login email, looked up by userId in the users table |
 | Bcc | `readplace+first_inbox_email@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
@@ -3190,7 +3195,7 @@ Not sent when:
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The user's Readplace account email from the users table (findEmailByUserId), not the connected Gmail address |
 | Bcc | none |
 | Reply-To | `fayner@readplace.com` |
@@ -3401,16 +3406,17 @@ Not sent when:
 > - Duplicate emails are possible: /export/start has no rate limit or dedupe, and the worker passes no idempotency key to Resend, so repeat clicks and retries after a successful send each deliver another email with a different link `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
 > - On a reserved test domain the worker still logs "[ExportUserData] sent email" and publishes UserDataExported although nothing was sent, so logs and events overstate deliveries `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:119`
 > - The worker logs the recipient address alongside the userId on every send `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:121`
-> - The download link is a raw presigned S3 URL of about 1.6 KB on hutch-user-exports-prod.s3.ap-southeast-2.amazonaws.com, not a readplace.com address, and the email prints it in full as the fallback text `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:31`
+> - The download link is a raw presigned S3 URL of about 1.6 KB on hutch-user-exports-prod.s3.ap-southeast-2.amazonaws.com, not a readplace.com address. The email no longer prints it: the fallback line reads "If the button above doesn't work, use this download link." and links the same URL as the button, so the customer cannot see or copy the address from the text, and the fallback helps only when the button fails to render, not when the link itself fails `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:31`
+> - The From name is now "Readplace" with no person named, but the body still speaks in the first person ("I've packaged 14 articles…") and has no sign-off, so the "I" is not attributed to anyone `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:26`, `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:23`
 > - The message is HTML only, with no plain-text part `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:109`
-> - An empty export still emails "I've packaged 0 articles"; the handler test asserts this, so it appears intended `projects/hutch/src/runtime/export-user-data/export-user-data-handler.test.ts:238`
+> - An empty export still emails "I've packaged 0 articles"; the handler test asserts this, so it appears intended `projects/hutch/src/runtime/export-user-data/export-user-data-handler.test.ts:239`
 > - The worker never reads the command's requestedAt, and no rule subscribes to UserDataExported, so the event triggers nothing `src/packages/hutch-infra-components/src/events.ts:636`
 
 ### Message
 
 | Field | Value |
 |---|---|
-| From | `Fayner from Readplace <fayner@readplace.com>` |
+| From | `Readplace <fayner@readplace.com>` |
 | To | The account's email address from the users table, read when the customer clicks and carried in the command |
 | Bcc | none |
 | Reply-To | none |
@@ -3439,7 +3445,7 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
 {
   "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email Me My Data\" button on https://readplace.com/export)",
   "customerEmail": "sam.reader@gmail.com",
-  "userId": "9af5289fcca29b20ba1c8da4da598813",
+  "userId": "1c22d0a76ae2f867dbcf6374854bb86e",
   "savedArticles": [
     {
       "title": "How to Do Great Work",
@@ -3529,27 +3535,27 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
   "putEventsEntry": {
     "Source": "hutch.api",
     "DetailType": "ExportUserDataCommand",
-    "Detail": "{\"userId\":\"9af5289fcca29b20ba1c8da4da598813\",\"email\":\"sam.reader@gmail.com\",\"requestedAt\":\"2026-10-05T07:31:17.512Z\"}",
+    "Detail": "{\"userId\":\"1c22d0a76ae2f867dbcf6374854bb86e\",\"email\":\"sam.reader@gmail.com\",\"requestedAt\":\"2026-10-05T08:47:15.960Z\"}",
     "EventBusName": "hutch-event-bus-4202fdd"
   },
   "sqsRecordBody": {
     "version": "0",
-    "id": "4899ff39-b619-47b9-b721-3ef9aa376445",
+    "id": "94a49935-38ef-4cf7-b354-f095b0bd63e6",
     "detail-type": "ExportUserDataCommand",
     "source": "hutch.api",
     "account": "278728209435",
-    "time": "2026-10-05T07:31:17Z",
+    "time": "2026-10-05T08:47:15Z",
     "region": "ap-southeast-2",
     "resources": [],
     "detail": {
-      "userId": "9af5289fcca29b20ba1c8da4da598813",
+      "userId": "1c22d0a76ae2f867dbcf6374854bb86e",
       "email": "sam.reader@gmail.com",
-      "requestedAt": "2026-10-05T07:31:17.512Z"
+      "requestedAt": "2026-10-05T08:47:15.960Z"
     }
   },
   "s3PutObject": {
     "Bucket": "hutch-user-exports-prod",
-    "Key": "exports/9af5289fcca29b20ba1c8da4da598813/2026-10-05T07-31-17-521Z.json",
+    "Key": "exports/1c22d0a76ae2f867dbcf6374854bb86e/2026-10-05T08-47-15-969Z.json",
     "ContentType": "application/json",
     "ContentDisposition": "attachment; filename=\"readplace-export-2026-10-05.json\"",
     "bodyBytes": 7395
@@ -3567,10 +3573,10 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
     "source": "hutch.export-user-data",
     "detailType": "UserDataExported",
     "detail": {
-      "userId": "9af5289fcca29b20ba1c8da4da598813",
+      "userId": "1c22d0a76ae2f867dbcf6374854bb86e",
       "articleCount": 14,
-      "s3Key": "exports/9af5289fcca29b20ba1c8da4da598813/2026-10-05T07-31-17-521Z.json",
-      "exportedAt": "2026-10-05T07:31:17.521Z"
+      "s3Key": "exports/1c22d0a76ae2f867dbcf6374854bb86e/2026-10-05T08-47-15-969Z.json",
+      "exportedAt": "2026-10-05T08:47:15.969Z"
     }
   }
 }
@@ -3595,7 +3601,7 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
 {
   "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email Me My Data\" button on https://readplace.com/export)",
   "customerEmail": "sam.reader@gmail.com",
-  "userId": "f8005d9a0d3b664fe973d57de3e8a3cb",
+  "userId": "f7f08993b93ac4cab8ddb8833d17222d",
   "savedArticles": [
     {
       "title": "How to Do Great Work",
@@ -3607,27 +3613,27 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
   "putEventsEntry": {
     "Source": "hutch.api",
     "DetailType": "ExportUserDataCommand",
-    "Detail": "{\"userId\":\"f8005d9a0d3b664fe973d57de3e8a3cb\",\"email\":\"sam.reader@gmail.com\",\"requestedAt\":\"2026-10-05T07:31:17.568Z\"}",
+    "Detail": "{\"userId\":\"f7f08993b93ac4cab8ddb8833d17222d\",\"email\":\"sam.reader@gmail.com\",\"requestedAt\":\"2026-10-05T08:47:16.002Z\"}",
     "EventBusName": "hutch-event-bus-4202fdd"
   },
   "sqsRecordBody": {
     "version": "0",
-    "id": "f2949b74-9815-41c5-94a6-fe7febbd5061",
+    "id": "b7ba8bd4-e599-40fe-ad2f-914867d9e675",
     "detail-type": "ExportUserDataCommand",
     "source": "hutch.api",
     "account": "278728209435",
-    "time": "2026-10-05T07:31:17Z",
+    "time": "2026-10-05T08:47:16Z",
     "region": "ap-southeast-2",
     "resources": [],
     "detail": {
-      "userId": "f8005d9a0d3b664fe973d57de3e8a3cb",
+      "userId": "f7f08993b93ac4cab8ddb8833d17222d",
       "email": "sam.reader@gmail.com",
-      "requestedAt": "2026-10-05T07:31:17.568Z"
+      "requestedAt": "2026-10-05T08:47:16.002Z"
     }
   },
   "s3PutObject": {
     "Bucket": "hutch-user-exports-prod",
-    "Key": "exports/f8005d9a0d3b664fe973d57de3e8a3cb/2026-10-05T07-31-17-570Z.json",
+    "Key": "exports/f7f08993b93ac4cab8ddb8833d17222d/2026-10-05T08-47-16-005Z.json",
     "ContentType": "application/json",
     "ContentDisposition": "attachment; filename=\"readplace-export-2026-10-05.json\"",
     "bodyBytes": 594
@@ -3645,10 +3651,10 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
     "source": "hutch.export-user-data",
     "detailType": "UserDataExported",
     "detail": {
-      "userId": "f8005d9a0d3b664fe973d57de3e8a3cb",
+      "userId": "f7f08993b93ac4cab8ddb8833d17222d",
       "articleCount": 1,
-      "s3Key": "exports/f8005d9a0d3b664fe973d57de3e8a3cb/2026-10-05T07-31-17-570Z.json",
-      "exportedAt": "2026-10-05T07:31:17.570Z"
+      "s3Key": "exports/f7f08993b93ac4cab8ddb8833d17222d/2026-10-05T08-47-16-005Z.json",
+      "exportedAt": "2026-10-05T08:47:16.005Z"
     }
   }
 }
@@ -3670,32 +3676,32 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
 {
   "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email Me My Data\" button on https://readplace.com/export)",
   "customerEmail": "sam.reader@gmail.com",
-  "userId": "29351ba36405ae0948d44f0e398e4f73",
+  "userId": "cd1cbc3dc88a0e0bae9ee724d79eaa4d",
   "savedArticles": [],
   "putEventsEntry": {
     "Source": "hutch.api",
     "DetailType": "ExportUserDataCommand",
-    "Detail": "{\"userId\":\"29351ba36405ae0948d44f0e398e4f73\",\"email\":\"sam.reader@gmail.com\",\"requestedAt\":\"2026-10-05T07:31:17.587Z\"}",
+    "Detail": "{\"userId\":\"cd1cbc3dc88a0e0bae9ee724d79eaa4d\",\"email\":\"sam.reader@gmail.com\",\"requestedAt\":\"2026-10-05T08:47:16.019Z\"}",
     "EventBusName": "hutch-event-bus-4202fdd"
   },
   "sqsRecordBody": {
     "version": "0",
-    "id": "572c4af2-e6aa-4a0d-9659-7eaa2d897ad5",
+    "id": "87a37002-f73f-4241-902e-1c1249d87992",
     "detail-type": "ExportUserDataCommand",
     "source": "hutch.api",
     "account": "278728209435",
-    "time": "2026-10-05T07:31:17Z",
+    "time": "2026-10-05T08:47:16Z",
     "region": "ap-southeast-2",
     "resources": [],
     "detail": {
-      "userId": "29351ba36405ae0948d44f0e398e4f73",
+      "userId": "cd1cbc3dc88a0e0bae9ee724d79eaa4d",
       "email": "sam.reader@gmail.com",
-      "requestedAt": "2026-10-05T07:31:17.587Z"
+      "requestedAt": "2026-10-05T08:47:16.019Z"
     }
   },
   "s3PutObject": {
     "Bucket": "hutch-user-exports-prod",
-    "Key": "exports/29351ba36405ae0948d44f0e398e4f73/2026-10-05T07-31-17-589Z.json",
+    "Key": "exports/cd1cbc3dc88a0e0bae9ee724d79eaa4d/2026-10-05T08-47-16-021Z.json",
     "ContentType": "application/json",
     "ContentDisposition": "attachment; filename=\"readplace-export-2026-10-05.json\"",
     "bodyBytes": 85
@@ -3713,10 +3719,10 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
     "source": "hutch.export-user-data",
     "detailType": "UserDataExported",
     "detail": {
-      "userId": "29351ba36405ae0948d44f0e398e4f73",
+      "userId": "cd1cbc3dc88a0e0bae9ee724d79eaa4d",
       "articleCount": 0,
-      "s3Key": "exports/29351ba36405ae0948d44f0e398e4f73/2026-10-05T07-31-17-589Z.json",
-      "exportedAt": "2026-10-05T07:31:17.589Z"
+      "s3Key": "exports/cd1cbc3dc88a0e0bae9ee724d79eaa4d/2026-10-05T08-47-16-021Z.json",
+      "exportedAt": "2026-10-05T08:47:16.021Z"
     }
   }
 }
@@ -3732,7 +3738,7 @@ Exact HTML body: [`html/user-data-export--no-articles.html`](html/user-data-expo
 
 - `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:109` — sender: builds from, to, subject and HTML and calls sendEmail
 - `projects/hutch/src/runtime/web/pages/export/user-data-export-email.ts:11` — renderer: picks "1 article" or "{n} articles" and renders the template
-- `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:22` — template: heading, count sentence, Download my data button and fallback URL
+- `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:22` — template: heading, count sentence, Download my data button and fallback download link
 - `projects/hutch/src/runtime/web/pages/export/export.page.ts:27` — web handler for POST /export/start: reads the address and publishes ExportUserDataCommand
 - `projects/hutch/src/runtime/user-data-jobs.main.ts:302` — worker composition root: routes ExportUserDataCommand to the export handler
 - `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:23` — writes the JSON file to S3 and presigns the 7-day link

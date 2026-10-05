@@ -372,7 +372,7 @@ describe("initSendQueueDigestHandler", () => {
 
 			expect(result).toEqual({ batchItemFailures: [] });
 			const sent = onlySentEmail(subject);
-			expect(sent.from).toBe("Fayner from Readplace <fayner@readplace.com>");
+			expect(sent.from).toBe("Readplace <fayner@readplace.com>");
 			expect(sent.to).toBe("reader@example.com");
 			expect(sent.replyTo).toBe("fayner@readplace.com");
 			expect(sent.subject).toBe("Waiting in your readlist");

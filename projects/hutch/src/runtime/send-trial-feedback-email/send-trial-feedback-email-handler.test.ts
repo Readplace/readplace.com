@@ -284,7 +284,7 @@ describe("send-trial-feedback-email handler", () => {
 		assert.equal(subject.email.getSentEmails().length, 1);
 		const sent = subject.email.getSentEmails()[0];
 		assert.equal(sent.to, "user@example.com");
-		assert.equal(sent.from, "Fayner from Readplace <fayner@readplace.com>");
+		assert.equal(sent.from, "Readplace <fayner@readplace.com>");
 		assert.equal(sent.replyTo, "fayner@readplace.com");
 		assert.equal(sent.bcc, "readplace+trial_feedback@readplace.com");
 		assert.equal(sent.subject, "you tried Readplace — what was missing?");
@@ -548,7 +548,7 @@ describe("send-trial-feedback-email handler", () => {
 			assert.equal(subject.email.getSentEmails().length, 1);
 			const sent = subject.email.getSentEmails()[0];
 			assert.equal(sent.to, "user@example.com");
-			assert.equal(sent.from, "Fayner from Readplace <fayner@readplace.com>");
+			assert.equal(sent.from, "Readplace <fayner@readplace.com>");
 			assert.equal(sent.replyTo, "fayner@readplace.com");
 			assert.equal(sent.bcc, "readplace+trial_reminder@readplace.com");
 			assert.equal(sent.subject, "your Readplace trial ends in 2 days");
@@ -740,7 +740,7 @@ describe("send-trial-feedback-email handler", () => {
 			assert.equal(subject.email.getSentEmails().length, 1);
 			const sent = subject.email.getSentEmails()[0];
 			assert.equal(sent.to, "user@example.com");
-			assert.equal(sent.from, "Fayner from Readplace <fayner@readplace.com>");
+			assert.equal(sent.from, "Readplace <fayner@readplace.com>");
 			assert.equal(sent.replyTo, "fayner@readplace.com");
 			assert.equal(sent.bcc, "readplace+charge_reminder@readplace.com");
 			assert.equal(sent.subject, "your Readplace membership starts on Jun 6, 2026");

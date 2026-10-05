@@ -13,6 +13,9 @@ const TRIAL_ENDS_AT = "2026-10-05T03:00:00.000Z";
 const PAY_TERMS =
 	"Choose a plan before Oct 3, 2026, 02:55 UTC and nothing is charged until Oct 5, 2026. After that, choosing a plan starts it the same day.";
 const POSTAL_ADDRESS = "Suite 349/585 Little Collins St, Melbourne VIC 3000";
+const REGULAR_FOOTER_REASON =
+	"You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for 30 days.";
+const PAY_FOOTER_REASON = "You're getting this because you save articles to Readplace.";
 const AMBER_FILL = "rgb(173, 98, 37)";
 
 const item = (overrides: Partial<QueueDigestEmailItem> = {}): QueueDigestEmailItem => ({
@@ -66,13 +69,29 @@ describe("QueueDigestEmail", () => {
 			expect(doc.querySelector("h1")?.textContent).toBe("Waiting in your readlist");
 		});
 
-		it("counts the articles listed, pluralising from the count", () => {
+		it("tells a regular-digest reader the articles are old unread saves, that this is a one-time reminder about them and how often these come, pluralising from the count", () => {
 			expect(readableTextOf(regularDigest([item()]).to("text/html"))).toContain(
-				"1 article you saved is ready to read.",
+				"This article has been in your readlist for at least 30 days and is still marked unread. This is a one-time reminder about it. Readplace sends these at most once every 7 days.",
 			);
 			expect(
 				readableTextOf(regularDigest([item(), item({ articleId: SECOND_ARTICLE_ID })]).to("text/html")),
+			).toContain(
+				"These 2 articles have been in your readlist for at least 30 days and are still marked unread. This is a one-time reminder about them. Readplace sends these at most once every 7 days.",
+			);
+		});
+
+		it("counts the articles listed in a pay digest, pluralising from the count", () => {
+			expect(readableTextOf(payDigest([item()]).to("text/html"))).toContain("1 article you saved is ready to read.");
+			expect(
+				readableTextOf(payDigest([item(), item({ articleId: SECOND_ARTICLE_ID })]).to("text/html")),
 			).toContain("2 articles you saved are ready to read.");
+		});
+
+		it("never tells a pay-digest reader the articles are old or that this is a one-time reminder, since a pay digest lists any unread save", () => {
+			const text = readableTextOf(payDigest([item()]).to("text/html"));
+
+			expect(text).not.toContain("30 days");
+			expect(text).not.toContain("one-time reminder");
 		});
 
 		it("links a card's title, site name and preview to that article's owner reader view, carrying the login marker and the digest's click tags", () => {
@@ -205,9 +224,9 @@ describe("QueueDigestEmail", () => {
 		});
 
 		it.each([
-			["regular", regularDigest],
-			["pay", payDigest],
-		])("closes a %s digest with why it arrived, its unsubscribe link and the postal address", (kind, buildDigest) => {
+			["regular", regularDigest, REGULAR_FOOTER_REASON],
+			["pay", payDigest, PAY_FOOTER_REASON],
+		])("closes a %s digest with why it arrived, its unsubscribe link and the postal address", (kind, buildDigest, footerReason) => {
 			const html = buildDigest([item()]).to("text/html");
 
 			const unsubscribeLinks = linksTo(html, "/email/queue-digest/unsubscribe");
@@ -221,7 +240,7 @@ describe("QueueDigestEmail", () => {
 				utm_term: SEND_ID,
 			});
 			const text = readableTextOf(html);
-			expect(text).toContain("You're getting this because you save articles to Readplace. Stop these emails.");
+			expect(text).toContain(`${footerReason} Stop these emails.`);
 			expect(text).toContain(POSTAL_ADDRESS);
 		});
 
@@ -253,12 +272,14 @@ describe("QueueDigestEmail", () => {
 			expect(text).not.toContain("dataintensive.net");
 		});
 
-		it("opens with the subject and the count, and offers the readlist link", () => {
+		it("opens with the subject and why these articles were sent, and offers the readlist link", () => {
 			const text = regularDigest([item()]).to("text/plain");
 
-			expect(text.startsWith("Waiting in your readlist\n\n1 article you saved is ready to read.\n\n")).toBe(
-				true,
-			);
+			expect(
+				text.startsWith(
+					"Waiting in your readlist\n\nThis article has been in your readlist for at least 30 days and is still marked unread.\n\nThis is a one-time reminder about it. Readplace sends these at most once every 7 days.\n\n",
+				),
+			).toBe(true);
 			expect(text).toContain(
 				`Continue reading: https://readplace.com/queue?utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=continue-reading&utm_term=${SEND_ID}`,
 			);
@@ -286,7 +307,7 @@ describe("QueueDigestEmail", () => {
 				text.endsWith(
 					[
 						"If you have any questions, please reply to this email",
-						`You're getting this because you save articles to Readplace. Stop these emails: https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=unsubscribe&utm_term=${SEND_ID}`,
+						`${REGULAR_FOOTER_REASON} Stop these emails: https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=unsubscribe&utm_term=${SEND_ID}`,
 						POSTAL_ADDRESS,
 					].join("\n\n"),
 				),

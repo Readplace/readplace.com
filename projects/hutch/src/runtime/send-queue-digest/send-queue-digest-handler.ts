@@ -46,7 +46,7 @@ import {
 	type QueueDigestLinks,
 } from "../web/queue-digest-email";
 
-const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
+const EMAIL_FROM = "Readplace <fayner@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
