@@ -10,10 +10,10 @@ Each email's conditions were traced through the code with `path:line` citations,
 
 - All of these emails are sent by the `hutch` project through Resend (`projects/hutch/src/runtime/providers/email/resend-email.ts:8`). Resend authenticates on the `send.readplace.com` envelope subdomain; its SPF, MX and DKIM records are managed in Resend, outside Pulumi (`projects/hutch/src/infra/outbound-mail-auth.ts:15`).
 - Every production entry point wraps Resend in a filter that silently drops any message whose To address is at example.com, example.net or example.org, or under a .test, .example, .invalid or .localhost domain. The Bcc copy is dropped with it (`projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`).
-- The local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:533`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
+- With `PERSISTENCE=development` the local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:533`); with `PERSISTENCE=prod` it uses the production providers and sends through Resend (`projects/hutch/src/runtime/dev-app.ts:15`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
 - Every email comes from `Fayner from Readplace <fayner@readplace.com>`. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: either through Reply-To or, for the verification, password reset and data export emails, which set no Reply-To, because it is the From address.
 - Nine emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the data export email and the Gmail newsletter notice have no Bcc.
-- Only the two digests carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers, and they are the only emails a customer can opt out of. Every other email is transactional or once-only and has no unsubscribe.
+- Only the two digests carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that turning off their inbox addresses stops it.
 - Only the Gmail newsletter notice sets a Resend idempotency key. The rest rely on their own once-only markers, or on none.
 
 ## At a glance
@@ -23,16 +23,16 @@ Each email's conditions were traced through the code with `path:line` citations,
 | 1 | [Email verification](#1-email-verification) | `Verify your email — Readplace` | Immediately after someone creates an account with email and password on the signup form; never for Google or Apple sign-ups. | `readplace+account_verifications@readplace.com` |
 | 2 | [Welcome email](#2-welcome-email) | `Welcome to Readplace` | Once per new account: email+password sign-ups when the verification link is first opened, Google and Apple sign-ups at account creation. | `readplace+welcome@readplace.com` |
 | 3 | [Password reset](#3-password-reset) | `Reset your password — Readplace` | Immediately after someone submits the Forgot password form with an address that matches a Readplace account. | `readplace+password_resets@readplace.com` |
-| 4 | [Trial-ending digest](#4-trial-ending-digest) | `Waiting in your readlist` | Once per trial, on the first 6-hourly check 96h to 60h before the trial ends (around day 11 of 14). | `none` |
-| 5 | [Trial pre-expiry reminder](#5-trial-pre-expiry-reminder) | `your Readplace trial ends in 2 days` | 48 hours before a no-card trial ends (day 12 of 14), if the reader is still trialing and got no pay digest. | `readplace+trial_reminder@readplace.com` |
+| 4 | [Trial-ending digest](#4-trial-ending-digest) | `Waiting in your readlist` | Once per trial window, on the first 6-hourly check 96h to 60h before the trial ends (around day 11 of 14) that finds a ready unread save; verified trialists who have not unsubscribed. A trial reopened by reactivation or an admin extension can get it again. | none |
+| 5 | [Trial pre-expiry reminder](#5-trial-pre-expiry-reminder) | `your Readplace trial ends in 2 days` | 48 hours before a no-card trial ends (12 days after signup, day 13 of 14), if the reader is still trialing and got no trial-ending digest. | `readplace+trial_reminder@readplace.com` |
 | 6 | [Pre-charge reminder](#6-pre-charge-reminder) | `your Readplace membership starts on {chargeDate}` | 7 days before a trial subscriber's first charge, or 5 minutes after subscribing or reactivating when less than 7 days remain. | `readplace+charge_reminder@readplace.com` |
 | 7 | [Payment failed](#7-payment-failed) | `your Readplace payment didn't go through` | Within seconds of each failed renewal charge attempt that Stripe will retry; not on the final attempt and never during a trial. | `readplace+payment_failed@readplace.com` |
 | 8 | [Trial feedback request](#8-trial-feedback-request) | `you tried Readplace — what was missing?` | About 3 days after a trial ends without a membership, normally 17 days and 1 hour after signup. | `readplace+trial_feedback@readplace.com` |
 | 9 | [Inbox saves paused](#9-inbox-saves-paused) | `links sent to your Readplace inbox are waiting` | Immediately, the first time mail to a reader's Readplace inbox address brings article links while their subscription is read-only. Once per lapse. | `readplace+automation_saves_held@readplace.com` |
-| 10 | [Readlist digest](#10-readlist-digest) | `Waiting in your readlist` | Every 48h while new saves (24h+ old, reader view and summary ready) are waiting; checked every 6 hours. | `none` |
-| 11 | [First inbox email arrived](#11-first-inbox-email-arrived) | `Your first email landed in your Readplace inbox` | Seconds after the first email with a saveable article link reaches any of the reader's Readplace addresses; once per account, ever. | `readplace+first_inbox_email@readplace.com` |
-| 12 | [Gmail newsletter notice](#12-gmail-newsletter-notice) | `Choose readlists for {newsletterName}` | At the next 6-hourly check after an approved, unmapped newsletter mails a connected Gmail account or a seen sender becomes approved. | `none` |
-| 13 | [Data export ready](#13-data-export-ready) | `Your Readplace export is ready` | Seconds to minutes after a signed-in customer clicks Email Me My Data on /export; one email per click. | `none` |
+| 10 | [Readlist digest](#10-readlist-digest) | `Waiting in your readlist` | Every 48h, for verified trialists and paying members only (never founding members), while new saves (24h+ old, reader view and summary ready) are waiting; checked every 6 hours. | none |
+| 11 | [First inbox email arrived](#11-first-inbox-email-arrived) | `Your first email landed in your Readplace inbox` | Seconds after the first email with a saveable article link reaches any of the reader's Readplace addresses while the reader can save (a read-only reader gets Inbox saves paused instead, and this email waits for a later email after access returns); once per account, ever. | `readplace+first_inbox_email@readplace.com` |
+| 12 | [Gmail newsletter notice](#12-gmail-newsletter-notice) | `Choose readlists for {newsletterName}` | At the next 6-hourly check after an approved, unmapped newsletter mails a connected Gmail account or a seen sender becomes approved. | none |
+| 13 | [Data export ready](#13-data-export-ready) | `Your Readplace export is ready` | Seconds to minutes after a signed-in customer clicks Email Me My Data on /export; one email per click. | none |
 
 ## 1. Email verification
 
@@ -73,7 +73,7 @@ Not sent when:
 - A filled honeypot or a missing or malformed loadedAt silently redirects to /?signup=pending without creating an account `projects/hutch/src/runtime/web/auth/auth.page.ts:348`
 - A form submitted less than 2.5 seconds after it loaded re-renders with "Please try again" and no account is created `projects/hutch/src/runtime/web/auth/auth.page.ts:343`
 - An invalid email, a disposable-email domain or a password under 8 characters re-renders the form with field errors and no account is created `projects/hutch/src/runtime/web/auth/auth.page.ts:356`
-- More than 10 signup submissions from one IP within 3600 seconds get a 429 "Too many requests from your network" `projects/hutch/src/runtime/web/middleware/rate-limit.ts:20`
+- From the 11th signup submission from one IP in the same UTC clock hour, the visitor gets a 429 "Too many requests from your network"; the count resets at the top of each hour `projects/hutch/src/runtime/web/middleware/rate-limit.ts:20`
 - A banned IP gets a 403 before any route runs `projects/hutch/src/runtime/web/middleware/ban.ts:29`
 - Google and Apple sign-ups never get it: their accounts are created already verified and receive the welcome email instead `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:266`
 - Returning from Stripe checkout creates no account and sends no verification email `projects/hutch/src/runtime/web/auth/auth.page.ts:454`
@@ -123,7 +123,7 @@ Not sent when:
 | From | `Fayner from Readplace <fayner@readplace.com>` |
 | To | The email address typed on the signup form, with its original casing |
 | Bcc | `readplace+account_verifications@readplace.com` |
-| Reply-To | `none` |
+| Reply-To | none |
 | Subject | Verify your email — Readplace |
 | Headers | none |
 | Plain-text part | none |
@@ -440,7 +440,7 @@ Not sent when:
 | From | `Fayner from Readplace <fayner@readplace.com>` |
 | To | The address typed into the Forgot password form, with its casing kept |
 | Bcc | `readplace+password_resets@readplace.com` |
-| Reply-To | `none` |
+| Reply-To | none |
 | Subject | Reset your password — Readplace |
 | Headers | none |
 | Plain-text part | none |
@@ -580,7 +580,7 @@ Not sent when:
 |---|---|
 | From | `Fayner from Readplace <fayner@readplace.com>` |
 | To | The trialist's account email (the email on their Readplace user row, looked up by userId) |
-| Bcc | `none` |
+| Bcc | none |
 | Reply-To | `fayner@readplace.com` |
 | Subject | Waiting in your readlist |
 | Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
@@ -721,11 +721,11 @@ Exact HTML body: [`html/trial-ending-digest--pay.html`](html/trial-ending-digest
 
 ## 5. Trial pre-expiry reminder
 
-**Trial & billing** · Readers on the 14-day no-card trial who are still trialing 48 hours before it ends and have not had this trial's pay digest; founding members, paid members and readers who cancelled never get it, but unverified email signups do.
+**Trial & billing** · Readers on the 14-day no-card trial who are still trialing 48 hours before it ends and have not had this trial's trial-ending digest; founding members, paid members and readers who cancelled never get it, but unverified email signups do.
 
 ### When it is sent
 
-A no-card trial starts when someone signs up after the founding-member allocation is used up, reactivates a cancelled trial before it ends, or gets a trial extension from an admin. At that point Readplace schedules a one-shot reminder for exactly 48 hours before the trial ends. When the reminder fires, the send-trial-feedback-email Lambda reads the reader's subscription again. It sends only if the reader is still trialing, the trial has not ended, and neither this reminder nor this trial's pay digest has gone out. The email asks them to subscribe from their account page and mentions how many articles they have saved. Subscribing at checkout, cancelling or deleting the account removes the schedule before it fires.
+A no-card trial starts when someone signs up after the founding-member allocation is used up, reactivates a cancelled trial before it ends, or gets a trial extension from an admin. At that point Readplace schedules a one-shot reminder for exactly 48 hours before the trial ends. When the reminder fires, the send-trial-feedback-email Lambda reads the reader's subscription again. It sends only if the reader is still trialing, the trial has not ended, and neither this reminder nor this trial's trial-ending digest has gone out. The email asks them to subscribe from their account page and mentions how many articles they have saved. Subscribing at checkout, cancelling or deleting the account removes the schedule before it fires.
 
 Trigger chain:
 
@@ -745,7 +745,7 @@ Sent only when:
 - At send time the reader's subscription row exists and its status is still trialing `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:276`
 - At send time the trial end is still in the future `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:283`
 - No trial reminder has gone out in this trial window, so trialReminderEmailSentAt is unset `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:290`
-- This trial's pay digest has not been claimed, so payDigestEmailSentAt is unset `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
+- This trial's trial-ending digest has not been claimed, so payDigestEmailSentAt is unset `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
 - The account has an email address on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:306`
 - The address is not on a reserved test domain: not example.com, example.net or example.org, and not under a .test, .example, .invalid or .localhost TLD `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
 
@@ -756,12 +756,12 @@ Not sent when:
 - Cancelling the trial stops it. The cancel job deletes the reminder schedule and the row moves to pending_cancellation `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:94`
 - Deleting the account stops it once the deletion job deletes the reminder schedule `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:134`
 - A reader gets one reminder per trial window. Once trialReminderEmailSentAt is set, later fires are skipped until a reopened trial clears it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:290`
-- The pay digest replaces it. If the queue digest has claimed this trial's pay digest, the reminder is skipped. The pay digest goes out 96 to 60 hours before the trial ends, and only to trialists with a verified email, no digest opt-out and at least one ready save `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
+- The trial-ending digest replaces it. If this trial's trial-ending digest has been claimed, the reminder is skipped. The trial-ending digest goes out 96 to 60 hours before the trial ends, and only to trialists with a verified email, no readlist-digest opt-out and at least one ready save `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
 - A trial that is reactivated or extended by an admin with 48 hours or less left gets no reminder, because the fire time has already passed `projects/hutch/src/runtime/domain/trial/start-trial.ts:110`
 - If creating the schedule fails at signup, the failure is logged and the trial starts anyway. Nothing retries it, so that reader never gets a reminder `projects/hutch/src/runtime/domain/trial/start-trial.ts:80`
 - A reserved test-domain recipient is dropped with a warning and nothing is sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:33`
 
-**Timing:** Fires once at the trial end minus exactly 48 hours, in UTC, to the second (milliseconds are dropped). For a signup that is day 12 of the 14-day trial at the signup's UTC time of day: a signup at 2026-09-23T07:42:18.604Z is sent at 2026-10-05T07:42:18Z, and a reopened trial fires 48 hours before its restored or admin-chosen end. Delivery through EventBridge, SQS and Lambda normally adds only seconds.
+**Timing:** Fires once at the trial end minus exactly 48 hours, in UTC, to the second (milliseconds are dropped). For a standard trial that is 12 days after signup at the signup's UTC time of day, the start of day 13 of 14: a signup at 2026-09-23T07:42:18.604Z is sent at 2026-10-05T07:42:18Z, and a reopened trial fires 48 hours before its restored or admin-chosen end. Delivery through EventBridge, SQS and Lambda normally adds only seconds.
 
 **If sending fails:** A failed record (a DynamoDB read, the Resend send or the marker write) goes back to send-trial-feedback-email-q. It is retried for up to 3 receives with a 60-second visibility timeout, then moves to send-trial-feedback-email-dlq, which keeps it for 14 days and has a CloudWatch alarm that emails the alert address. The schedule sets no retry policy or DLQ of its own, so EventBridge Scheduler's defaults apply, and every guard runs again on each retry.
 
@@ -775,7 +775,7 @@ Not sent when:
 - The recipient is the stored login email, lowercased and trimmed when the account was created, not exactly as the reader typed it `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:200`
 - Sign in with Apple accounts get it at whatever address Apple returned, which can be a @privaterelay.appleid.com relay address `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:325`
 - The save count is a COUNT over all of the reader's saves, read and unread, with no status filter `src/packages/article-store/src/dynamodb-saved-article-store.ts:513`
-- The charge reminder uses the same trialReminderEmailSentAt marker and is skipped when the marker is set, and becoming active does not clear it. In practice they never conflict: a checkout after this reminder has less than the 48 hours and 5 minutes needed to keep the trial, so no charge reminder is created `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:12`
+- The charge reminder uses the same trialReminderEmailSentAt marker and is skipped when the marker is set, and becoming active does not clear it. They do conflict: the 48 hours 5 minutes check runs only when Checkout starts, so a reader who starts Checkout with at least that much left and finishes it after this reminder went out keeps the trial and gets a charge-reminder schedule, but that charge reminder is skipped and the reader is charged at trial end with no pre-charge notice (see the Pre-charge reminder's observations) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:380`
 - Local dev uses an in-memory scheduler that records schedules and never fires them, so the email is never sent locally `projects/hutch/src/runtime/providers/dev-providers.ts:166`
 
 </details>
@@ -790,7 +790,7 @@ Not sent when:
 > - There is no way to opt out. It ignores the queue-digest opt-out and has no List-Unsubscribe header or unsubscribe link, even though it is a nudge to subscribe `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:327`
 > - The copy always says the trial ends in 2 days, but the handler only checks that the end is still ahead. A late delivery, such as an SQS redrive or EventBridge Scheduler's default retries for up to 24 hours (from AWS docs, unverified in code), overstates the time left `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:283`
 > - A permanent Resend rejection (a 4xx, such as an invalid address) is retried like any other error. After 3 receives it lands in the DLQ and emails the alert address `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:99`
-> - The pay-digest claim is set before the pay digest is sent and is released only on a Resend 4xx. After a 5xx or network failure, the reminder is skipped even if the pay digest never arrived `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:199`
+> - The trial-ending digest's claim (payDigestEmailSentAt) is set before that digest is sent and is released only on a Resend 4xx. After a 5xx or network failure, the reminder is skipped even if the trial-ending digest never arrived `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:199`
 > - The wording for the same email varies. The subject says "ends in 2 days", the HTML title says "Your Readplace trial ends soon", the button reads "Keep using Readplace", and the text part labels the same link "Subscribe:" `projects/hutch/src/runtime/web/auth/trial-reminder-email.template.html:36`
 > - Staging deploys the same Lambda and its own scheduler group, hutch-trial-end-staging, so staging trialists with real addresses may also get it through Resend (unverified: depends on staging's RESEND_API_KEY) `projects/hutch/Pulumi.staging.yaml:56`
 
@@ -1064,18 +1064,18 @@ Exact HTML body: [`html/trial-reminder--no-saved-articles.html`](html/trial-remi
 
 ## 6. Pre-charge reminder
 
-**Trial & billing** · Readers who subscribe during their free trial with at least 48 hours 5 minutes left, so Stripe keeps the trial and charges the card when it ends, and paid members who reactivate a cancelled membership while Stripe still has them on trial.
+**Trial & billing** · Readers who subscribe during their free trial with at least 48 hours 5 minutes left, so Stripe keeps the trial and charges the card when it ends, and members who undo a scheduled cancellation (Reactivate subscription on /account, before the membership ends) while Stripe still has them on trial. Members whose membership has already ended and who subscribe again are charged at once and never get it.
 
 ### When it is sent
 
-A reader on the free trial subscribes from /account with at least 48 hours 5 minutes of trial left, so Stripe keeps the trial and first charges the card when it ends; when their browser returns from Stripe Checkout, Readplace schedules this email for 7 days before that charge, or 5 minutes later if less than 7 days 5 minutes remain. A paid member who reactivates a cancelled membership while Stripe still has them on trial gets the same schedule. When it fires, the email goes out only if the membership is still active, the charge is still ahead, and no trial-ending reminder or earlier charge reminder went out in this trial. It tells the reader the charge date, the amount and how to cancel before then, with a "Manage your subscription" button to /account.
+A reader on the free trial subscribes from /account with at least 48 hours 5 minutes of trial left, so Stripe keeps the trial and first charges the card when it ends; when their browser returns from Stripe Checkout, Readplace schedules this email for 7 days before that charge, or 5 minutes later if less than 7 days 5 minutes remain. A member who undoes a scheduled cancellation (Reactivate subscription on /account) while Stripe still has them on trial gets the same schedule. When it fires, the email goes out only if the membership is still active, the charge is still ahead, and neither the trial pre-expiry reminder ('your Readplace trial ends in 2 days') nor an earlier charge reminder went out in this trial; having had the trial-ending digest does not stop it. It tells the reader the charge date, the amount and how to cancel before then, with a "Manage your subscription" button to /account.
 
 Trigger chain:
 
 1. A trial starts at email, Google or Apple signup and ends 14 days later to the millisecond; an admin can also set a new trial end on a row with no Stripe link `projects/hutch/src/runtime/web/auth/auth.page.ts:418`
 2. The trialing reader subscribes from /account; Readplace keeps the trial end only if at least 48 hours 5 minutes remain at that moment, and the plan defaults to Yearly `projects/hutch/src/runtime/web/pages/account/account.page.ts:722`
 3. Readplace creates a Stripe Checkout session with that trial end and stores a pending signup holding the trial end and plan `projects/hutch/src/runtime/web/pages/account/account.page.ts:662`
-4. Stripe sends the browser back to /auth/checkout/success, which marks the membership active with the chosen plan and deletes the trial-end and trial-ending reminder schedules `projects/hutch/src/runtime/web/auth/auth.page.ts:527`
+4. Stripe sends the browser back to /auth/checkout/success, which marks the membership active with the chosen plan and deletes the trial-end and trial pre-expiry reminder schedules `projects/hutch/src/runtime/web/auth/auth.page.ts:527`
 5. Because the pending signup carries a trial end, the route creates the one-shot schedule charge-reminder-{userId} for max(chargeAt − 7 days, now + 5 minutes) `projects/hutch/src/runtime/web/auth/auth.page.ts:560`
 6. Alternatively, a paid member reactivating a cancelled membership re-creates the same schedule when Stripe reports the subscription still on trial `projects/hutch/src/runtime/web/pages/account/account.page.ts:594`
 7. At that time EventBridge Scheduler puts SendTrialFeedbackEmailCommand {userId, kind: "charge_reminder", chargeAt} on the hutch event bus, and a rule routes it through the send-trial-feedback-email queue to its Lambda `projects/hutch/src/infra/index.ts:1204`
@@ -1092,7 +1092,7 @@ Sent only when:
 - Or, on the reactivate path: the member is pending cancellation with a Stripe subscription, and Stripe returns that subscription still trialing with a trial end `projects/hutch/src/runtime/providers/stripe-subscriptions/stripe-subscriptions.ts:230`
 - When the schedule fires, the subscription row exists and its status is still active `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:366`
 - The charge instant is still in the future `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:373`
-- Neither the trial-ending reminder nor an earlier charge reminder has gone out in this trial window (trialReminderEmailSentAt is unset) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:380`
+- Neither the trial pre-expiry reminder ('your Readplace trial ends in 2 days') nor an earlier charge reminder has gone out in this trial window (trialReminderEmailSentAt is unset); the trial-ending digest sets a different marker and does not block it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:380`
 - The user has an email address on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:388`
 - The address is not on a reserved test domain `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
 
@@ -1100,13 +1100,13 @@ Not sent when:
 
 - The reader cancels first: processing the cancellation deletes the schedule, and reactivating re-creates it `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:68`
 - The membership is no longer active when the schedule fires, for example because the cancellation has been processed `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:366`
-- Once per trial window: a trial-ending reminder or charge reminder already sent in this trial stops it, so a member who cancels and reactivates after the notice gets no second one, and a reader who finishes Checkout after the trial-ending reminder went out gets none `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:380`
+- Once per trial window: a trial pre-expiry reminder or charge reminder already sent in this trial stops it, so a member who cancels and reactivates after the notice gets no second one, and a reader who finishes Checkout after the trial pre-expiry reminder went out gets none `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:380`
 - The reader deletes their account: the deletion job removes the schedule and then the subscription row `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:135`
 - The charge instant has already passed, which happens when a member reactivates less than 5 minutes before the charge `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:373`
 - No email address is on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:389`
 - Recipients on example.com, example.net or example.org, or on a .test, .example, .invalid or .localhost domain, are dropped `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
 - The schedule could not be created at Checkout return or reactivate: the failure is logged and never retried `projects/hutch/src/runtime/web/auth/auth.page.ts:568`
-- There is no opt-out: the email reads no preference, so unsubscribing from the queue digest does not stop it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:346`
+- There is no opt-out: the email reads no preference, so unsubscribing from the readlist digest does not stop it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:346`
 
 **Timing:** Fires once at max(chargeAt − 7 days, schedule creation + 5 minutes) in UTC: chargeAt is the trial end (normally signup + 14 days, so usually signup + 7 days at the signup's time of day), and schedule creation is when the browser returns from Checkout or the member reactivates. The schedule drops fractional seconds and has no flexible window, and the email prints the charge as a UTC date with no time.
 
@@ -1134,7 +1134,7 @@ Not sent when:
 
 > **Observations**
 >
-> - The once-per-trial marker is shared with the trial-ending reminder, and the DynamoDB membership update keeps it. A reader who starts Checkout with 48h05m or more left and finishes after the 48-hour trial-ending reminder went out (and no pay digest went out before it) is charged with no pre-charge notice; a review probe reproduced this with the real handler `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:84`, `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
+> - The once-per-trial marker is shared with the trial pre-expiry reminder, and the DynamoDB membership update keeps it. A reader who starts Checkout with 48h05m or more left and finishes after the 48-hour trial pre-expiry reminder went out (which happens only when no trial-ending digest went out before it) is charged with no pre-charge notice; a review probe reproduced this with the real handler `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:84`, `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
 > - The amount is the list price from PRICING_PLANS, but Checkout accepts promotion codes, so readers with a discount, tax or credit are told a different first charge than Stripe takes; the /account page uses the invoice amount_due for this reason `projects/hutch/src/runtime/web/auth/charge-reminder-email.ts:42`, `projects/hutch/src/runtime/providers/stripe-subscriptions/stripe-subscriptions.ts:69`
 > - The charge date is a UTC calendar date with no time, so for readers west of UTC the charge can land the evening before the printed date while the copy says "Cancel any time before {chargeDate}" `projects/hutch/src/runtime/web/auth/charge-reminder-email.ts:33`
 > - Only the browser's return from Checkout arms the reminder, and there is no checkout.session.completed webhook, so a reader who closes the tab after paying is charged at trial end with no notice `projects/hutch/src/runtime/stripe-webhook-receiver.main.ts:33`
@@ -1768,6 +1768,7 @@ Not sent when:
 > - The HTML <title> differs from the subject and has typos: "Hii Fayner here! So you tried Readplace.. what was missing?" `projects/hutch/src/runtime/web/auth/trial-feedback-email.template.html:6`.
 > - There is no unsubscribe link, no List-Unsubscribe header and no opt-out check `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:160`; whether that is intended for a one-time founder email is (unverified).
 > - The status-guard log line says "user reactivated during delay window", but reactivation cannot happen once the row is cancelled; the real causes are a checkout membership or an admin trial extension `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:126`.
+> - Copy defect: the closing paragraph joins two sentences with a comma and sets "ALL" in capitals ("I respond to ALL replies personally, this is my promise 🤝 :D"), although the brand guidelines rule out all-caps in body text `projects/hutch/src/runtime/web/auth/trial-feedback-email.ts:39`.
 
 ### Message
 
@@ -2317,7 +2318,7 @@ Not sent when:
 |---|---|
 | From | `Fayner from Readplace <fayner@readplace.com>` |
 | To | The user's account email (the email on their Readplace user row, looked up by userId) |
-| Bcc | `none` |
+| Bcc | none |
 | Reply-To | `fayner@readplace.com` |
 | Subject | Waiting in your readlist |
 | Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
@@ -2623,7 +2624,7 @@ Sent only when:
 Not sent when:
 
 - Once per account, ever: every later trigger finds the firstInboxEmailNoticeSentAt marker set and is skipped; only deleting the account removes the marker `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:183`
-- A reader who is read-only when the links are extracted (trial ended, membership cancelled or past its end date) never gets it; the inbox Lambda publishes the command for the separate 'saves held' email instead `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:411`
+- A reader who is read-only when the links are extracted (trial ended, membership cancelled or past its end date) does not get it for that email; the inbox Lambda requests the separate Inbox saves paused email instead, and since no marker is set, a later email after access returns can still trigger this one `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:411`
 - A reader who is read-only when the send Lambda runs is skipped without setting the marker, so a later email can still trigger it once access returns `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - An account with no login email on file is skipped without setting the marker `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:72`
 - Email to an unknown or disabled address gets an audit row only and is never ingested `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:248`
@@ -2649,7 +2650,7 @@ Not sent when:
 - Mail sent directly to a gmail-<token> readlist address is treated as ordinary inbox mail, so it follows the default or custom-readlist path depending on that address's readlist `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:268`
 - When an earlier ingest attempt claimed the same sender and Message-ID but never wrote its row, the later attempt reuses the earlier highlight id, so a forwarded email can carry an import-shaped id or the reverse `projects/inbox/src/runtime/domain/inbox/resolve-email-identity.ts:77`
 - A Gmail history import only fetches unread mail from the chosen sender in the last 30 days, skipping Spam and Trash `projects/hutch/src/runtime/domain/gmail/gmail-history-import.ts:104`
-- If access is full at extraction but read-only when the send Lambda runs, the reader gets neither this email nor the 'saves held' email for that message `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
+- If access is full at extraction but read-only when the send Lambda runs, the reader gets neither this email nor the Inbox saves paused email for that message `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - If extraction fails 3 times, the inbox-failures DLQ handler only marks extraction failed; the trigger for that email is never published, though a later email can still trigger it `projects/inbox/src/runtime/domain/inbox/extract-email-links-dlq-handler.ts:44`
 - An unreadable raw .eml in S3 fails the extraction record so SQS retries it `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:197`
 - Reserved-domain matching is exact for example.com, example.net and example.org (case-insensitive) and by TLD for .test, .example, .invalid and .localhost; a subdomain such as mail.example.com is not matched and would be sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
@@ -2669,6 +2670,7 @@ Not sent when:
 > - No unsubscribe or preference check and no List-Unsubscribe header; it is sent as a one-time transactional notice `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:101`
 > - The internal BCC copy carries the reader's Readplace inbox address, which anyone can use to send mail into their inbox `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:104`
 > - The HTML <title> repeats the subject as a literal instead of using the subject constant, so the two can drift `projects/hutch/src/runtime/web/auth/inbox-first-arrival-email.template.html:6`
+> - Cosmetic: the shared reply line 'If you have any questions, please reply to this email' has no closing period in both the HTML and text parts `projects/hutch/src/runtime/web/email-copy.ts:2`
 
 ### Message
 
@@ -3108,7 +3110,7 @@ Exact HTML body: [`html/inbox-first-arrival--custom-readlist-alias.html`](html/i
 
 ### When it is sent
 
-Every 6 hours Readplace checks each connected Gmail account using message metadata only. When an approved catalog newsletter the reader has not mapped to readlists sends a new message, or a sender Readplace has already seen as unapproved becomes approved, Readplace records a notice for that sender address and emails the reader at the end of the same check. The first check of a newly connected Gmail account only records what is already there and sends nothing. Each reader hears about each sender address at most once, and there are no reminders.
+Every 6 hours Readplace checks each connected Gmail account using message metadata only. When an approved catalog newsletter the reader has not mapped to readlists sends a new message, or a sender Readplace has already seen as unapproved becomes approved, Readplace records a notice for that sender address and emails the reader at the end of the same check. The first check of a newly connected Gmail account only records what is already in the mailbox; it sends a notice only for an approved, unmapped newsletter whose mail arrives while that first check is running. Each reader hears about each sender address at most once, and there are no reminders.
 
 Trigger chain:
 
@@ -3190,7 +3192,7 @@ Not sent when:
 |---|---|
 | From | `Fayner from Readplace <fayner@readplace.com>` |
 | To | The user's Readplace account email from the users table (findEmailByUserId), not the connected Gmail address |
-| Bcc | `none` |
+| Bcc | none |
 | Reply-To | `fayner@readplace.com` |
 | Subject | Choose readlists for {newsletterName} — the deciding approved catalog record (the sender's own record, or the *@domain wildcard when it has none) has a name; names are trimmed, 1 to 80 characters, and appear unescaped<br>Choose readlists for {senderEmail} — the deciding approved record has no name, for example a reader-submitted record approved without a name<br>Choose a readlist for {newsletterName or senderEmail} — only when resending a message first claimed by the superseded build 508b6d7 (in the repo on 2026-10-04 from 08:06Z to 11:10Z; whether it was deployed is unverified) and still unresolved within 23h55m of its first attempt |
 | Headers | none |
@@ -3410,8 +3412,8 @@ Not sent when:
 |---|---|
 | From | `Fayner from Readplace <fayner@readplace.com>` |
 | To | The account's email address from the users table, read when the customer clicks and carried in the command |
-| Bcc | `none` |
-| Reply-To | `none` |
+| Bcc | none |
+| Reply-To | none |
 | Subject | Your Readplace export is ready |
 | Headers | none |
 | Plain-text part | none |
