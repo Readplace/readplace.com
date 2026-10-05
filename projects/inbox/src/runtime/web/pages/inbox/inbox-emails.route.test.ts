@@ -271,7 +271,7 @@ describe("Inbox emails list route", () => {
 
 		const button = doc.querySelector("[data-test-inbox-manage-addresses]");
 		assert(button, "the Custom Emails button must render");
-		expect(button.textContent).toBe("Custom Emails");
+		expect(button.textContent).toBe("My Custom Emails");
 		expect(button.getAttribute("href")).toBe(
 			"/newsletters/custom-emails?utm_source=inbox-emails&utm_medium=internal&utm_content=manage-addresses",
 		);

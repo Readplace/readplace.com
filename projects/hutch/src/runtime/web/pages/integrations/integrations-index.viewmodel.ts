@@ -220,7 +220,7 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 	const state: CustomEmailsState = activeCount > 0 ? "active" : "not-set-up";
 	return {
 		key: "custom-emails",
-		name: "Custom Emails",
+		name: "My Custom Emails",
 		description: "Sign up for newsletters with your own Readplace emails.",
 		iconName: "inbox",
 		beta: false,

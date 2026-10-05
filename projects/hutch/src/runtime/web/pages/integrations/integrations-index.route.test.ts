@@ -175,7 +175,7 @@ describe("GET /newsletters", () => {
 
 		const customEmails = doc.querySelector('[data-test-integration="custom-emails"]');
 		assert(customEmails, "the Custom Emails row must render");
-		expect(customEmails.querySelector(".integrations__name")?.textContent).toBe("Custom Emails");
+		expect(customEmails.querySelector(".integrations__name")?.textContent).toBe("My Custom Emails");
 		const status = customEmails.querySelector("[data-test-integration-status]");
 		assert(status, "the Custom Emails row must carry a status");
 		expect(status.textContent).toBe("2 active");

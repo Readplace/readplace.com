@@ -39,8 +39,8 @@ const INTEGRATIONS_COPY_SCRIPT = `<script src="/client-dist/integrations.client.
 export function IntegrationsIndexPage(vm: IntegrationsIndexViewModel): PageBody {
 	return {
 		seo: {
-			title: "Integrations — Readplace",
-			description: "Choose where your newsletters come from.",
+			title: "Connectors — Readplace",
+			description: "Choose where your articles come from.",
 			canonicalUrl: INTEGRATIONS_PATH,
 			robots: "noindex, nofollow",
 		},

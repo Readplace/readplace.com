@@ -87,7 +87,7 @@ export function InboxPage(params: {
 
 	return {
 		seo: {
-			title: "From Custom Emails — Readplace",
+			title: "From My Custom Emails — Readplace",
 			description: "Your personal inbox emails for forwarding newsletters to Readplace.",
 			canonicalUrl: CUSTOM_EMAILS_PATH,
 			robots: "noindex, nofollow",
