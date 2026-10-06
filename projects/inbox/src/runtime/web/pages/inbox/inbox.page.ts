@@ -23,6 +23,7 @@ import type {
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { Base } from "../../base.component";
@@ -85,6 +86,7 @@ interface InboxDependencies {
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
 	}) => Promise<void>;
+	recordEngagementActivity: RecordEngagementActivity;
 	/** Save gates applied to the write actions — the per-link save (it lands an article
 	 * in the reader's queue). Both gates run: `requireNotLocked` blocks a
 	 * locked (unverified-past-window) account, `requireWriteAccess` blocks a
@@ -526,6 +528,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				provenance: { kind: "email", senderEmail: email.senderEmail },
 				readlist: link.droppedFor?.readlist ?? DEFAULT_READLIST_SLUG,
 			});
+			await deps.recordEngagementActivity({ userId, kind: "personal-save", at: deps.now() });
 			// Saving a skipped link is itself the reader's verdict that the classifier
 			// was wrong to skip it, so it emits the same classifier-audit line the
 			// removed "This is an article" report button did — Save both remediates and

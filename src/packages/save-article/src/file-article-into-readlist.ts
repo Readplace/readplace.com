@@ -31,6 +31,7 @@ export function initFileArticleIntoReadlist(
 			metadata: article.metadata,
 			estimatedReadTime: article.estimatedReadTime,
 			provenance,
+			suggestionAttribution: article.suggestionAttribution,
 			savedAt: await deps.allocateSavedAt({ userId }),
 		});
 		const resurfacedFromRead = filed.wroteUserArticle && filed.saved.status === "read";

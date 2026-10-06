@@ -17,6 +17,7 @@ import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { PublishSubmitLink } from "@packages/provider-contracts/events";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { AllocateSavedAtSequence } from "@packages/provider-contracts/article-store";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { createRateLimitMiddleware } from "../../middleware/rate-limit";
@@ -46,6 +47,7 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
+	recordEngagementActivity: RecordEngagementActivity;
 	logError: (message: string, error?: Error) => void;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
@@ -333,6 +335,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			);
 			return "failed";
 		};
+		let savedCount = 0;
 		for (let i = 0; i < saveable.length; i += IMPORT_COMMIT_CONCURRENCY) {
 			const batch = saveable.slice(i, i + IMPORT_COMMIT_CONCURRENCY);
 			const prepared = await Promise.all(
@@ -363,7 +366,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 				for (const { url } of ready) logImportFailure(url, error);
 				continue;
 			}
-			await Promise.all(
+			const outcomes = await Promise.all(
 				ready.map(({ url, freshness }, index) =>
 					saveArticleFromUrl({
 						userId,
@@ -374,6 +377,10 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 					}).catch((error: unknown) => logImportFailure(url, error)),
 				),
 			);
+			savedCount += outcomes.filter((outcome) => outcome !== "failed").length;
+		}
+		if (savedCount > 0) {
+			await deps.recordEngagementActivity({ userId, kind: "personal-save", at: deps.now() });
 		}
 
 		await deps.importSessionStore.deleteImportSession({ id: parsedId.data, userId });

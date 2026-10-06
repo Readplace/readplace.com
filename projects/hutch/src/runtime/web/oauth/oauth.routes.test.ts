@@ -1340,7 +1340,6 @@ describe("OAuth routes", () => {
 
 describe("consent seed save on approve", () => {
 	const DAY_MS = 24 * 60 * 60 * 1000;
-	const SEED_MATCH = "whats-the-point-to-save-articles";
 
 	async function registerMcpClient(harness: ReturnType<typeof useApp>): Promise<string> {
 		const registration = await request(harness.server)
@@ -1381,34 +1380,18 @@ describe("consent seed save on approve", () => {
 		return harness.analytics.events.filter((e) => e.event === "first_article_seeded");
 	}
 
-	it("seeds a starter article for a zero-save user authorising an MCP client, and still issues the code with its state intact", async () => {
+	it("authorises an MCP client without automatically saving a founder article", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const clientId = await registerMcpClient(harness);
 		const { agent, userId } = await loginFreshUser(harness, "seed-me@example.com");
-
 		const response = await approve(agent, clientId, CLAUDE_CALLBACK);
-
 		expect(response.status).toBe(302);
 		const location = new URL(response.headers.location);
 		expect(location.origin + location.pathname).toBe(CLAUDE_CALLBACK);
 		expect(location.searchParams.get("code")).toBeTruthy();
 		expect(location.searchParams.get("state")).toBe("seed-state");
-
-		const { articles } = await harness.articleStore.findArticlesByUser({ userId });
-		expect(articles).toHaveLength(1);
-		expect(articles[0]?.url).toContain(SEED_MATCH);
-
-		const seeded = seedEvents(harness);
-		expect(seeded).toHaveLength(1);
-		expect(seeded[0]).toMatchObject({ outcome: "saved", oauth_client_id: clientId, user_id: userId });
-		const intent = harness.analytics.events.find(
-			(e) => e.event === "view_save_intent" && "surface" in e && e.surface === "oauth_consent_seed",
-		);
-		assert(intent && "outcome" in intent, "a consent-seed view_save_intent must be emitted");
-		expect(intent).toMatchObject({ outcome: "saved", client: "web", path: "/oauth/authorize", is_authenticated: 1 });
-		const serialized = JSON.stringify(seeded[0]);
-		expect(serialized).not.toContain("seed-state");
-		expect(serialized).not.toContain("code_challenge");
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toEqual([]);
+		expect(seedEvents(harness)).toEqual([]);
 	});
 
 	it("does not seed for a built-in client — an extension or native app authorising keeps the empty-list behaviour", async () => {
@@ -1501,27 +1484,22 @@ describe("consent seed save on approve", () => {
 		expect(seedEvents(harness)).toHaveLength(0);
 	});
 
-	it("records the error outcome but still issues the code when the seed save pipeline throws", async () => {
+	it("authorisation leaves the save pipeline idle", async () => {
 		const fixture = {
 			...createDefaultTestAppFixture(TEST_APP_ORIGIN),
-			freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
+			freshness: {
+				refreshArticleIfStale: async () => {
+					throw new Error("boom");
+				},
+			},
 		};
 		const harness = useApp(fixture);
 		const clientId = await registerMcpClient(harness);
 		const { agent, userId } = await loginFreshUser(harness, "boom@example.com");
-
 		const response = await approve(agent, clientId, CLAUDE_CALLBACK);
-
 		expect(response.status).toBe(302);
 		expect(new URL(response.headers.location).searchParams.get("code")).toBeTruthy();
-		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
-		const seeded = seedEvents(harness);
-		expect(seeded).toHaveLength(1);
-		expect(seeded[0]).toMatchObject({ outcome: "error", oauth_client_id: clientId });
-		const intent = harness.analytics.events.find(
-			(e) => e.event === "view_save_intent" && "surface" in e && e.surface === "oauth_consent_seed",
-		);
-		assert(intent && "outcome" in intent, "an error consent-seed view_save_intent must be emitted");
-		expect(intent).toMatchObject({ outcome: "error" });
+		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toEqual([]);
+		expect(seedEvents(harness)).toEqual([]);
 	});
 });

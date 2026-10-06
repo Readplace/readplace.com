@@ -10,7 +10,15 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
-import { MinutesSchema, ArticleStatusSchema, SaveProvenanceSchema, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
+import {
+	MinutesSchema,
+	ArticleStatusSchema,
+	SaveProvenanceSchema,
+	SuggestionAttributionSchema,
+	articleDestinationUrl,
+	articleDisplayMetadata,
+} from "@packages/domain/article";
+import type { FindPersonalLibrary } from "@packages/provider-contracts/engagement-starter";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
@@ -141,6 +149,7 @@ const UserArticleRow = z.object({
 	lastSummaryOpenedAt: dynamoField(z.string()),
 	lastSummaryClosedAt: dynamoField(z.string()),
 	provenance: dynamoField(SaveProvenanceSchema),
+	suggestionAttribution: dynamoField(SuggestionAttributionSchema),
 	relatedDismissedAt: dynamoField(z.string()),
 	relatedDismissedSuggestionId: dynamoField(ReaderArticleHashIdSchema),
 });
@@ -154,6 +163,9 @@ function digestIndexKeyOfLast(rows: z.infer<typeof UserArticleRow>[]): Record<st
 function toOptionalDate(value: string | undefined): Date | undefined {
 	return value ? new Date(value) : undefined;
 }
+
+const PERSONAL_PROVENANCE_FILTER =
+	"(attribute_not_exists(provenance.#kind) OR (provenance.#kind <> :suggestion AND provenance.#kind <> :seed))";
 
 function toSavedArticle(
 	article: z.infer<typeof ArticleRow>,
@@ -183,6 +195,7 @@ function toSavedArticle(
 		readAt: toOptionalDate(userArticle.readAt),
 		contentFetchedAt: toOptionalDate(article.contentFetchedAt),
 		provenance: userArticle.provenance,
+		suggestionAttribution: userArticle.suggestionAttribution,
 		relatedDismissedAt: toOptionalDate(userArticle.relatedDismissedAt),
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
 	};
@@ -207,6 +220,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
 	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
+	findPersonalLibrary: FindPersonalLibrary;
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	deleteAllUserArticles: DeleteAllUserArticles;
@@ -406,14 +420,20 @@ export function initDynamoDbSavedArticleStore(deps: {
 			try {
 				const priorUserArticle = await userArticles.update({
 					Key: { userId: partition, url: articleResourceUniqueId.value },
-					UpdateExpression:
-						"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
+					UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)${
+						params.suggestionAttribution === undefined
+							? ""
+							: ", suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)"
+					}`,
 					ConditionExpression: userRowCondition,
 					ExpressionAttributeNames: { "#status": "status" },
 					ExpressionAttributeValues: {
 						":savedAt": params.savedAt.toISOString(),
 						":provenance": params.provenance,
 						":unread": "unread",
+						...(params.suggestionAttribution === undefined
+							? {}
+							: { ":attribution": params.suggestionAttribution }),
 					},
 					ReturnValues: "ALL_OLD",
 				});
@@ -620,12 +640,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const { items, lastEvaluatedKey } = await userArticles.query({
 			IndexName: "userId-savedAt-index",
 			KeyConditionExpression: "userId = :userId AND savedAt <= :cutoff",
-			FilterExpression: `#status = :unread${emailSentAtFilter.expression}`,
-			ExpressionAttributeNames: { "#status": "status" },
+			FilterExpression: `#status = :unread AND ${PERSONAL_PROVENANCE_FILTER}${emailSentAtFilter.expression}`,
+			ExpressionAttributeNames: { "#status": "status", "#kind": "kind" },
 			ExpressionAttributeValues: {
 				":userId": userId,
 				":cutoff": savedAtOrBefore.toISOString(),
 				":unread": "unread",
+				":suggestion": "hn-suggestion",
+				":seed": "founder-seed",
 				...emailSentAtFilter.values,
 			},
 			ScanIndexForward: false,
@@ -765,6 +787,37 @@ export function initDynamoDbSavedArticleStore(deps: {
 			);
 		}
 		return { articles, total, hasMore, page, pageSize };
+	};
+
+	const findPersonalLibrary: FindPersonalLibrary = async (userId) => {
+		const urls = new Set<string>();
+		const personal = new Set<string>();
+		const readlists = await ownedReadlistSlugsInCreationOrder(userId);
+		const partitions = [
+			userId,
+			...readlists.map((readlist) => readlistPartitionValue({ userId, readlist })),
+		];
+		for (const partition of partitions) {
+			await forEachQueryPage(
+				userArticles,
+				{
+					KeyConditionExpression: "userId = :userId",
+					FilterExpression: "attribute_exists(savedAt) AND attribute_exists(#status)",
+					ExpressionAttributeNames: { "#status": "status" },
+					ExpressionAttributeValues: { ":userId": partition },
+					ConsistentRead: true,
+				},
+				async (rows) => {
+					for (const row of rows) {
+						urls.add(row.url);
+						if (row.provenance?.kind !== "hn-suggestion" && row.provenance?.kind !== "founder-seed") {
+							personal.add(row.url);
+						}
+					}
+				},
+			);
+		}
+		return { urls: [...urls], personalCount: personal.size };
 	};
 
 	const countArticlesInPartition = async (
@@ -1157,6 +1210,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 					savedAt: savedAt.toISOString(),
 					...(source.readAt === undefined ? {} : { readAt: source.readAt }),
 					...(source.provenance === undefined ? {} : { provenance: source.provenance }),
+					...(source.suggestionAttribution === undefined
+						? {}
+						: { suggestionAttribution: source.suggestionAttribution }),
 				},
 				ConditionExpression: "attribute_not_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
@@ -1301,6 +1357,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findArticleUrlById,
 		findArticlesByUser,
 		findArticlesAcrossReadlists,
+		findPersonalLibrary,
 		countArticlesByUser,
 		deleteArticle,
 		deleteAllUserArticles,

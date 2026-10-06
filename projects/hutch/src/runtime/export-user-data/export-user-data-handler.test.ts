@@ -3,6 +3,7 @@ import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from 
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { z } from "zod";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
 import { MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
@@ -52,10 +53,12 @@ interface HandlerHarness {
 	publishedEvents: Array<{ source: string; detailType: string; detail: unknown }>;
 	handler: ReturnType<typeof initExportUserDataHandler>;
 	store: ReturnType<typeof initInMemoryArticleStore>;
+	engagement: ReturnType<typeof initInMemoryEngagementStarter>;
 }
 
 function createHarness(): HandlerHarness {
 	const store = initInMemoryArticleStore();
+	const engagement = initInMemoryEngagementStarter({ library: store });
 	const uploadCalls: HandlerHarness["uploadCalls"] = [];
 	const uploadUserDataExport: UploadUserDataExport = async ({ userId, body }) => {
 		uploadCalls.push({ userId, bodyLength: body.length, parsedBody: JSON.parse(body) });
@@ -68,6 +71,8 @@ function createHarness(): HandlerHarness {
 	const publishedEvents: HandlerHarness["publishedEvents"] = [];
 
 	const handler = initExportUserDataHandler({
+		engagementState: engagement,
+		listReadlistDefinitions: store.listReadlistDefinitions,
 		findArticlesAcrossReadlists: store.findArticlesAcrossReadlists,
 		uploadUserDataExport,
 		sendEmail: async (msg) => {
@@ -84,7 +89,7 @@ function createHarness(): HandlerHarness {
 		now: fixedNow,
 	});
 
-	return { uploadCalls, emailCalls, publishedEvents, handler, store };
+	return { uploadCalls, emailCalls, publishedEvents, handler, store, engagement };
 }
 
 async function invokeHandler(
@@ -98,6 +103,82 @@ async function invokeHandler(
 }
 
 describe("initExportUserDataHandler", () => {
+	it("exports the permanent assignment, frozen starter, readlist identity and article attribution", async () => {
+		const harness = createHarness();
+		const userId = UserIdSchema.parse("starter-user");
+		const now = fixedNow();
+		const picks = Array.from({ length: 10 }, (_, index) => ({
+			url: `https://publisher.com/${index}`,
+			hnItemId: index + 100,
+			rank: index + 1,
+			snapshotAt: now.toISOString(),
+		}));
+		const pack = {
+			campaignId: "hn-starter-v1",
+			picks,
+			readlist: ReadlistSlugSchema.parse("hn-picks"),
+			readlistLabel: "Hacker News picks",
+			selectedAt: now.toISOString(),
+			emailStatus: "pending" as const,
+		};
+		const observed = await harness.engagement.observeEngagement({
+			userId,
+			startedAt: now.toISOString(),
+		});
+		const assignment = {
+			campaignId: pack.campaignId,
+			arm: "treatment" as const,
+			assignedAt: now.toISOString(),
+			tier: "paid" as const,
+			accountCohort: "existing" as const,
+		};
+		await harness.engagement.assignStarter({
+			userId,
+			revision: observed.activityRevision,
+			assignment,
+			pack,
+		});
+		for (const pick of picks) {
+			await harness.store.saveArticleGlobally({
+				url: pick.url,
+				metadata: { title: "Pick", siteName: "Publisher", excerpt: "", wordCount: 100 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: now,
+			});
+			await harness.store.setReaderAvailableAt({ url: pick.url, at: now });
+		}
+		await harness.engagement.saveStarterPack({
+			userId,
+			activityRevision: observed.activityRevision + 1,
+			pack,
+			savedAt: Array(10).fill(now),
+			at: now,
+		});
+		await invokeHandler(harness, {
+			userId,
+			email: "reader@recipient.com",
+			requestedAt: now.toISOString(),
+		});
+		expect(harness.uploadCalls[0]?.parsedBody).toMatchObject({
+			engagement: { assignment, observationStartedAt: now.toISOString() },
+			starterPack: { ...pack, insertedAt: now.toISOString() },
+			readlists: [{ slug: pack.readlist, starterCampaignId: pack.campaignId }],
+			articleCount: 10,
+		});
+		const body = ExportBodySchema.parse(harness.uploadCalls[0]?.parsedBody);
+		expect(body.articles.sort((a, b) => a.url.localeCompare(b.url))).toMatchObject(
+			picks.map((pick) => ({
+				url: pick.url,
+				provenance: { kind: "hn-suggestion", campaignId: pack.campaignId },
+				suggestionAttribution: {
+					campaignId: pack.campaignId,
+					hnItemId: pick.hnItemId,
+					snapshotAt: pick.snapshotAt,
+					rank: pick.rank,
+				},
+			})),
+		);
+	});
 	it("uploads an export, emails the user a download link, and publishes UserDataExportedEvent", async () => {
 		const harness = createHarness();
 		const userId = UserIdSchema.parse("user-1");
@@ -291,6 +372,11 @@ describe("initExportUserDataHandler", () => {
 		const publishedEvents: Array<{ detail: unknown }> = [];
 
 		const handler = initExportUserDataHandler({
+			engagementState: {
+				findEngagement: async () => ({ activityRevision: 0 }),
+				findStarterPack: async () => undefined,
+			},
+			listReadlistDefinitions: async () => [],
 			findArticlesAcrossReadlists,
 			uploadUserDataExport: async ({ userId: uid, body }) => {
 				uploadCalls.push({ parsedBody: JSON.parse(body) });

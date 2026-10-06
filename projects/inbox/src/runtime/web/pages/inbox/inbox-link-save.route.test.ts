@@ -91,6 +91,71 @@ describe("Inbox link save route", () => {
 		expect(errors).toHaveLength(0);
 	});
 
+	it("counts the reader's save as engagement activity that activates a recent assignment", async () => {
+		const now = new Date("2026-06-24T10:00:00.000Z");
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.now = () => now;
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+		const assignment = {
+			campaignId: "hn-starter-v1",
+			arm: "comparison" as const,
+			assignedAt: "2026-06-23T10:00:00.000Z",
+			tier: "trial" as const,
+			accountCohort: "new" as const,
+		};
+		await fixture.engagementStarter.assignStarter({
+			userId,
+			revision: 0,
+			assignment,
+			pack: {
+				campaignId: assignment.campaignId,
+				picks: [],
+				readlist: WORK,
+				readlistLabel: "Hacker News picks",
+				selectedAt: assignment.assignedAt,
+				emailStatus: "pending",
+			},
+		});
+
+		await agent.post(savePath);
+
+		expect(await fixture.engagementStarter.findEngagement(userId)).toEqual({
+			assignment,
+			activityRevision: 2,
+			lastActivityAt: now.toISOString(),
+			activatedAt: now.toISOString(),
+		});
+	});
+
+	const onboardingDown = new Error("onboarding write failed");
+	it.each<{ failure: unknown; logged: Error | undefined; description: string }>([
+		{ failure: onboardingDown, logged: onboardingDown, description: "an error" },
+		{ failure: "onboarding write failed", logged: undefined, description: "a non-error value" },
+	])(
+		"keeps the save when recording its activity throws $description",
+		async ({ failure, logged }) => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.engagementStarter.recordEngagementActivity = async () => {
+				throw failure;
+			};
+			const errors: { message: string; error: Error | undefined }[] = [];
+			fixture.shared.logError = (message, error) => {
+				errors.push({ message, error });
+			};
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = await seed(fixture);
+
+			const response = await agent.post(savePath);
+
+			expect(response.status).toBe(303);
+			expect(harness.submittedLinks.map((submitted) => submitted.userId)).toEqual([userId]);
+			expect(errors).toEqual([{ message: "Failed to record engagement activity", error: logged }]);
+		},
+	);
+
 	it("confirms the save on the followed redirect as a dismissable status toast", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

@@ -478,6 +478,7 @@ export function initDynamoDbAuth(deps: {
 			email: row.email,
 			emailVerified: row.emailVerified === true,
 			queueDigestOptOutAt: row.queueDigestOptOutAt,
+			deletedAt: row.deletedAt,
 		};
 	};
 
@@ -496,6 +497,7 @@ export function initDynamoDbAuth(deps: {
 			emailVerified: row.emailVerified === true,
 			registeredAt: row.registeredAt,
 			appearance: row.appearance,
+			deletedAt: row.deletedAt,
 		};
 	};
 

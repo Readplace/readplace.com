@@ -343,7 +343,17 @@ export class HutchStorage extends pulumi.ComponentResource {
 			deletionProtectionEnabled: args.deletionProtection,
 			pointInTimeRecovery: { enabled: true },
 			hashKey: "userId",
-			attributes: [{ name: "userId", type: "S" }],
+			attributes: [
+				{ name: "userId", type: "S" },
+				{ name: "starterCampaignId", type: "S" },
+			],
+			globalSecondaryIndexes: [
+				{
+					name: "starterCampaignId-index",
+					hashKey: "starterCampaignId",
+					projectionType: "ALL",
+				},
+			],
 		}, { parent: this });
 
 		this.registerOutputs();

@@ -18,6 +18,7 @@ import { initInMemoryEmailVerification } from "./providers/email-verification/in
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
 import { initInMemoryRateLimit } from "./providers/rate-limit/in-memory-rate-limit";
 import { initInMemoryWrapperTarget } from "./providers/wrapper-target/in-memory-wrapper-target";
+import { initInMemoryEngagementStarter } from "./providers/onboarding-signals/in-memory-engagement-starter";
 import { initInMemoryOnboardingSignals } from "./providers/onboarding-signals/in-memory-onboarding-signals";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
@@ -342,6 +343,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	return {
 		auth: { ...auth, hashPassword: fastHashPassword },
 		articleStore: {
+			findPersonalLibrary: articleStoreMemory.findPersonalLibrary,
+			saveStarterPack: articleStoreMemory.saveStarterPack,
 			allocateSavedAt: articleStoreMemory.allocateSavedAt,
 			allocateSavedAtSequence: articleStoreMemory.allocateSavedAtSequence,
 			findSavedUrls: articleStoreMemory.findSavedUrls,
@@ -467,6 +470,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		rateLimit,
 		wrapperTarget: initInMemoryWrapperTarget(),
 		submitLink: initInMemorySubmitLink(),
+		engagementStarter: initInMemoryEngagementStarter({ library: articleStoreMemory }),
 		onboardingSignals: initInMemoryOnboardingSignals({ now: () => new Date() }),
 		google: undefined,
 		gmailIntegration: undefined,

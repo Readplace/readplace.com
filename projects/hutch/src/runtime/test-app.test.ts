@@ -60,6 +60,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			wrapperTarget: fixture.wrapperTarget,
 			submitLink: fixture.submitLink,
 			onboardingSignals: fixture.onboardingSignals,
+			engagementStarter: fixture.engagementStarter,
 			google: {
 				exchangeGoogleCode: async () => ({
 					googleId: GoogleIdSchema.parse("google-sub"),

@@ -64,6 +64,7 @@ export interface ArticleAction {
 }
 
 export interface ReadlistArticleViewModel {
+	suggestionLabel?: string;
 	id: string;
 	title: string;
 	siteName: string;
@@ -271,6 +272,10 @@ export function toReadlistArticleViewModel(params: {
 		excerptSource: excerpt.source,
 		url: article.destinationUrl,
 		status: article.status,
+		suggestionLabel:
+			article.provenance?.kind === "hn-suggestion"
+				? "Added by Readplace from Hacker News"
+				: undefined,
 		readTime: displayableReadTime(article),
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
 		actions: [

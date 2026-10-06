@@ -24,7 +24,10 @@ import {
 	initInMemoryInboxEmailLink,
 	initInMemoryInboxSavedLink,
 } from "@packages/test-fixtures/providers/inbox-email";
-import { initInMemoryOnboardingSignals } from "@packages/test-fixtures/providers/onboarding-signals";
+import {
+	initInMemoryEngagementStarter,
+	initInMemoryOnboardingSignals,
+} from "@packages/test-fixtures/providers/onboarding-signals";
 import {
 	createRevokeAllUserOAuthTokens,
 	initInMemoryOAuthModel,
@@ -69,6 +72,7 @@ function buildSubject() {
 	const articleStore = initInMemoryArticleStore();
 	const readerReady = initInMemoryReaderReadyState();
 	const onboarding = initInMemoryOnboardingSignals({ now: () => SEED_NOW });
+	const engagement = initInMemoryEngagementStarter({ library: articleStore });
 	const subs = initInMemorySubscriptionProviders({ now: () => SEED_NOW });
 	const inboxEmail = initInMemoryInboxEmail();
 	const inboxLink = initInMemoryInboxEmailLink();
@@ -250,6 +254,7 @@ function buildSubject() {
 		deleteDigestByUser: async (userId: UserId) => {
 			deleteDigestByUserCalls.push(userId);
 		},
+		withdrawStarterAssignment: engagement.withdrawStarterAssignment,
 		deleteReaderReadyState: readerReady.deleteReaderReadyState,
 		deleteOnboarding: onboarding.deleteOnboarding,
 		deleteUserExports: async (userId: UserId) => {
@@ -284,6 +289,7 @@ function buildSubject() {
 		articleStore,
 		readerReady,
 		onboarding,
+		engagement,
 		subs,
 		inboxEmail,
 		inboxLink,
@@ -856,6 +862,42 @@ describe("delete-account handler", () => {
 		// Billing and password-reset only fired on the first, data-bearing run.
 		assert.deepEqual(s.deleteCustomerCalls, [{ customerId: "cus_again" }]);
 		assert.deepEqual(s.passwordResetCalls, [account.email]);
+	});
+
+	it("keeps a deleted account's starter assignment in its original arm, anonymously and once across redeliveries", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "starter",
+			email: "starter@example.com",
+			subscription: "trialing",
+		});
+		const assignment = {
+			campaignId: "hn-starter-v1",
+			arm: "comparison" as const,
+			assignedAt: SEED_NOW.toISOString(),
+			tier: "trial" as const,
+			accountCohort: "existing" as const,
+		};
+		await s.engagement.assignStarter({
+			userId: account.userId,
+			revision: 0,
+			assignment,
+			pack: {
+				campaignId: "hn-starter-v1",
+				picks: [],
+				readlist: ReadlistSlugSchema.parse("hn-picks"),
+				readlistLabel: "Hacker News picks",
+				selectedAt: SEED_NOW.toISOString(),
+				emailStatus: "pending",
+			},
+		});
+
+		await run(s, [{ messageId: "msg-1", body: bodyFor(account.userId) }]);
+		await run(s, [{ messageId: "msg-2", body: bodyFor(account.userId) }]);
+
+		const outcomes = await s.engagement.listStarterObservations("hn-starter-v1");
+		expect(outcomes.map((outcome) => outcome.engagement)).toEqual([{ activityRevision: 0, assignment }]);
+		expect(outcomes.map((outcome) => outcome.userId)).not.toContain(account.userId);
 	});
 
 	it("reports the failing record in batchItemFailures while a second valid record in the same batch still succeeds", async () => {

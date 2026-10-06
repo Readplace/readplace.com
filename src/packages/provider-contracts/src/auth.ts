@@ -78,7 +78,14 @@ export type FindUserByEmailResult =
 export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
 export type FindUserByIdResult =
-	| { userId: UserId; email: string; emailVerified: boolean; registeredAt?: string; appearance?: AppearancePreference }
+	| {
+			userId: UserId;
+			email: string;
+			emailVerified: boolean;
+			registeredAt?: string;
+			appearance?: AppearancePreference;
+			deletedAt?: string;
+		}
 	| null;
 
 export type FindUserById = (userId: UserId) => Promise<FindUserByIdResult>;
@@ -99,6 +106,7 @@ export type UserContact = {
 	email: string;
 	emailVerified: boolean;
 	queueDigestOptOutAt: string | undefined;
+	deletedAt?: string;
 };
 
 /** Resolve a user's email + verification status by id (via the userId-index).

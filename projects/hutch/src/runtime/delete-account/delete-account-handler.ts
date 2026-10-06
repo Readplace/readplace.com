@@ -27,6 +27,7 @@ import type {
 import type { DeleteDigestByUser } from "@packages/provider-contracts/digest-queue";
 import type { DeleteReaderReadyState } from "@packages/provider-contracts/reader-ready-state";
 import type { DeleteOnboarding } from "@packages/provider-contracts/onboarding-signals";
+import type { EngagementStarterState } from "@packages/provider-contracts/engagement-starter";
 import type { DeletePasswordResetTokensByEmail } from "@packages/provider-contracts/password-reset";
 import type { DeleteVerificationTokensByUserId } from "@packages/provider-contracts/email-verification";
 import type { DeletePendingSignupsByUser } from "@packages/provider-contracts/pending-signup";
@@ -86,6 +87,7 @@ export interface DeleteAccountHandlerDependencies {
 	tombstoneArticle: TombstoneArticle;
 	now: () => Date;
 	deleteDigestByUser: DeleteDigestByUser;
+	withdrawStarterAssignment: EngagementStarterState["withdrawStarterAssignment"];
 	deleteReaderReadyState: DeleteReaderReadyState;
 	deleteOnboarding: DeleteOnboarding;
 	deleteUserExports: DeleteUserExports;
@@ -179,6 +181,7 @@ async function processCommand(
 	}
 	await deps.deleteAllUserArticles(userId);
 	await deps.deleteDigestByUser(userId);
+	await deps.withdrawStarterAssignment(userId);
 	await deps.deleteReaderReadyState(userId);
 	await deps.deleteOnboarding({ userId });
 	await deps.deleteUserExports(userId);

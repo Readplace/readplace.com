@@ -11,6 +11,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 
 function sessionIdFromLocation(location: string): ReturnType<typeof ImportSessionIdSchema.parse> {
 	return ImportSessionIdSchema.parse(location.replace("/import/", ""));
@@ -762,6 +763,46 @@ describe("Import routes", () => {
 
 				expect(commit.status).toBe(303);
 				expect(await harness.articleStore.findArticleByUrl("https://example.com/imported-a")).not.toBeNull();
+			});
+		});
+
+		describe("engagement activity", () => {
+			async function commitRecordingActivity(fixture: ReturnType<typeof createDefaultTestAppFixture>, urls: string[]) {
+				const activity: Parameters<RecordEngagementActivity>[0][] = [];
+				fixture.engagementStarter.recordEngagementActivity = async (input) => {
+					activity.push(input);
+				};
+				const harness = useApp(fixture);
+				const agent = await loginAgent(harness.server, harness.auth);
+				const { body, contentType } = multipartBody("urls.txt", Buffer.from(urls.join(" ")));
+				const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+				const commit = await agent.post(`${create.headers.location}/commit`);
+				const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+				assert(userId, "user must exist");
+				return { commit, userId, recorded: activity.map((input) => ({ userId: input.userId, kind: input.kind })) };
+			}
+
+			it("records one personal save for the whole commit, however many links it saves", async () => {
+				const urls = Array.from({ length: 30 }, (_, index) => `https://example.com/imported-${index}`);
+
+				const { commit, userId, recorded } = await commitRecordingActivity(createDefaultTestAppFixture(TEST_APP_ORIGIN), urls);
+
+				expect(commit.headers.location).toContain("import_imported=30&");
+				expect(recorded).toEqual([
+					{ userId, kind: "import-request" },
+					{ userId, kind: "personal-save" },
+				]);
+			});
+
+			it("records no personal save when no link of the commit could be saved", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				fixture.articleStore.saveArticle = async () => {
+					throw new Error("store down");
+				};
+
+				const { userId, recorded } = await commitRecordingActivity(fixture, ["https://example.com/imported-a"]);
+
+				expect(recorded).toEqual([{ userId, kind: "import-request" }]);
 			});
 		});
 

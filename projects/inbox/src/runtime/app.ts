@@ -10,6 +10,7 @@ import type {
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type {
 	FindUserById,
 	MarkSessionEmailVerified,
@@ -67,6 +68,7 @@ export function createInboxApp(
 			provenance: SaveProvenance;
 			readlist: ReadlistSlug;
 		}) => Promise<void>;
+		recordEngagementActivity: RecordEngagementActivity;
 		logError: (message: string, error?: Error) => void;
 		now: () => Date;
 		analyticsLogger: HutchLogger.Typed<AnalyticsEvent>;
@@ -146,6 +148,13 @@ export function createInboxApp(
 		findUserById: deps.findUserById,
 	});
 	const requireNotLocked = initRequireNotLocked({ buildBannerState });
+	const recordEngagementActivity: RecordEngagementActivity = async (input) => {
+		try {
+			await deps.recordEngagementActivity(input);
+		} catch (error) {
+			deps.logError("Failed to record engagement activity", error instanceof Error ? error : undefined);
+		}
+	};
 	const inboxRouter = initInboxRoutes({
 		inboxAddressStore: deps.inboxAddressStore,
 		inboxEmailStore: deps.inboxEmailStore,
@@ -153,6 +162,7 @@ export function createInboxApp(
 		inboxSavedLinkStore: deps.inboxSavedLinkStore,
 		readEmailContent: deps.readEmailContent,
 		publishSubmitLink: deps.publishSubmitLink,
+		recordEngagementActivity,
 		imagesCdnBaseUrl: config.imagesCdnBaseUrl,
 		logError: deps.logError,
 		buildBannerState,

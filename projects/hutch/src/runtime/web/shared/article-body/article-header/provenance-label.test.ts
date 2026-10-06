@@ -3,6 +3,18 @@ import { CLIENT_ICON_SVG } from "../../client-icons";
 import { provenanceLabel } from "./provenance-label";
 
 describe("provenanceLabel", () => {
+	it("identifies automatic suggestions and legacy founder seeds", () => {
+		expect(
+			provenanceLabel({
+				kind: "hn-suggestion",
+				campaignId: "hn-starter-v1",
+				snapshotAt: "date",
+				hnItemId: 1,
+				rank: 1,
+			}),
+		).toEqual({ label: "Added by Readplace from Hacker News" });
+		expect(provenanceLabel({ kind: "founder-seed" })).toEqual({ label: "Added by Readplace" });
+	});
 	it("names the surface a save came from", () => {
 		expect([
 			provenanceLabel({ kind: "web" }),

@@ -3,7 +3,7 @@ import type { UserId } from "../user/user.types";
 import type { ArticleDestinationUrl, SiteLabel } from "./article-site";
 import type { MinutesSchema } from "./article.schema";
 import type { ReaderArticleHashId } from "./reader-article-hash-id";
-import type { SaveProvenance } from "./save-provenance";
+import type { SaveProvenance, SuggestionAttribution } from "./save-provenance";
 
 export type Minutes = z.infer<typeof MinutesSchema>;
 
@@ -36,6 +36,7 @@ export interface SavedArticle {
 	/** Where this save came from. Absent on rows saved before provenance was
 	 * captured; a re-save stamps one. */
 	provenance?: SaveProvenance;
+	suggestionAttribution?: SuggestionAttribution;
 	relatedDismissedAt?: Date;
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
 }

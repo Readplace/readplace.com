@@ -12,6 +12,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 
 const TEST_USER_ID = "test-user-bulk" as UserId;
@@ -92,6 +93,40 @@ describe("POST /queue/save-articles", () => {
 			.field("manifest", manifest([{ url: "https://example.com/bulk-provenance" }]));
 
 		expect(provenances).toEqual([{ kind: "client", clientName: "firefox" }]);
+	});
+
+	it.each([
+		{ pages: MAX_PAGES_PER_BULK_SAVE, saving: "works", recorded: ["personal-save"] },
+		{ pages: 2, saving: "fails", recorded: [] },
+	])("records one personal save per request for $pages pages when saving $saving", async ({ pages, saving, recorded }) => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const activity: Parameters<RecordEngagementActivity>[0][] = [];
+		fixture.engagementStarter.recordEngagementActivity = async (input) => {
+			activity.push(input);
+		};
+		if (saving === "fails") {
+			fixture.articleStore.saveArticle = async () => {
+				throw new Error("store down");
+			};
+		}
+		const testApp = useApp(fixture);
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field(
+				"manifest",
+				manifest(Array.from({ length: pages }, (_, index) => ({ url: `https://example.com/bulk-${index}` }))),
+			);
+
+		expect(response.body.properties).toMatchObject(
+			saving === "works" ? { saved: pages, failed: 0 } : { saved: 0, failed: pages },
+		);
+		expect(activity.map((input) => ({ userId: input.userId, kind: input.kind }))).toEqual(
+			recorded.map((kind) => ({ userId: TEST_USER_ID, kind })),
+		);
 	});
 
 	it("stamps the pages of one request with consecutive allocator instants in manifest order, minted only after every freshness check resolved", async () => {
@@ -1098,5 +1133,25 @@ describe("POST /queue/save-articles with an archive.today short id", () => {
 		]);
 		expect(await testApp.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
 		expect(await testApp.articleStore.findArticleByUrl("https://example.com/inline")).not.toBeNull();
+	});
+
+	it("records the reader's save when the whole batch goes to the background submit", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const activity: Parameters<RecordEngagementActivity>[0][] = [];
+		fixture.engagementStarter.recordEngagementActivity = async (input) => {
+			activity.push(input);
+		};
+		const testApp = useApp(fixture);
+		const accessToken = await createAccessToken(testApp);
+
+		await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: SHORT_ID }]));
+
+		expect(activity.map((input) => ({ userId: input.userId, kind: input.kind }))).toEqual([
+			{ userId: TEST_USER_ID, kind: "personal-save" },
+		]);
 	});
 });

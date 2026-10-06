@@ -48,3 +48,4 @@ export {
 	type ReadlistRenameDecision,
 	type ReadlistRenameRejection,
 } from "./readlist-rename";
+export { nextAvailableReadlistLabel } from "./next-available-readlist-label";

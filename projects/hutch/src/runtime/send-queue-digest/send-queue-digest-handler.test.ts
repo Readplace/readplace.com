@@ -60,6 +60,8 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 	const logs: LogLine[] = [];
 	const contact = options.contact === undefined ? VERIFIED_CONTACT : options.contact;
 	const deps: SendQueueDigestDeps = {
+		enrollStarter: async () => {},
+		processStarter: async () => false,
 		findUserContactByUserId: async () => contact,
 		findSubscriptionByUserId: subscriptions.findByUserId,
 		findReaderReadyEmailState: readerReady.findReaderReadyEmailState,
@@ -193,6 +195,167 @@ function skipReasonsOf(subject: Subject): unknown[] {
 }
 
 describe("initSendQueueDigestHandler", () => {
+	it("sends a due pay digest before offering the starter", async () => {
+		let starters = 0;
+		const subject = createSubject({
+			overrides: {
+				processStarter: async () => {
+					starters++;
+					return true;
+				},
+			},
+		});
+		await subject.subscriptions.upsertTrialing({
+			userId: USER_ID,
+			trialEndsAt: TRIAL_ENDS_EIGHTY_HOURS_OUT,
+		});
+		await saveReadyArticle(subject, {
+			url: "https://example.com/payment",
+			title: "Payment pick",
+			savedAt: DAY_OLD_SAVE,
+		});
+		await subject.run();
+		expect(starters).toBe(0);
+		expect(subject.email.getSentEmails()).toHaveLength(1);
+		await subject.run("starter-opportunity");
+		expect(starters).toBe(1);
+		expect(subject.email.getSentEmails()).toHaveLength(1);
+	});
+	it.each([
+		{ starter: "takes this opportunity", handled: true, campaigns: [] },
+		{ starter: "has nothing to send", handled: false, campaigns: [["regular"]] },
+	])("sends the regular digest only when the starter $starter", async ({ handled, campaigns }) => {
+		const subject = createSubject({ overrides: { processStarter: async () => handled } });
+		await subject.subscriptions.upsertActive({ userId: USER_ID, subscriptionId: "sub", customerId: "customer" });
+		await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: DAY_OLD_SAVE });
+
+		await subject.run();
+
+		expect(subject.email.getSentEmails().map((message) => campaignsOf(message.html))).toEqual(campaigns);
+	});
+	it.each<{ record: string; arrange: (subject: Subject) => Promise<unknown>; calls: Array<[string, string]> }>([
+		{
+			record: "an ordinary digest record",
+			arrange: (subject) =>
+				subject.subscriptions.upsertActive({ userId: USER_ID, subscriptionId: "sub", customerId: "customer" }),
+			calls: [
+				["enrollStarter", USER_ID],
+				["processStarter", USER_ID],
+			],
+		},
+		{
+			record: "a record due a pay digest",
+			arrange: (subject) =>
+				subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_EIGHTY_HOURS_OUT }),
+			calls: [["enrollStarter", USER_ID]],
+		},
+		{
+			record: "this message's own redrive",
+			arrange: async (subject) => {
+				await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TEN_DAYS_OUT });
+				await subject.readerReady.claimReaderReadyEmailSlot({
+					userId: USER_ID,
+					now: new Date(SEND_INSTANT.getTime() - 5 * 60 * 1000),
+					cooldownMs: COOLDOWN_MS,
+					messageId: MESSAGE_ID,
+					urls: ["https://example.com/alpha"],
+				});
+			},
+			calls: [],
+		},
+	])("enrolls the reader before offering the starter on $record", async ({ arrange, calls }) => {
+		const starterCalls: Array<[string, string]> = [];
+		const subject = createSubject({
+			overrides: {
+				enrollStarter: async (userId) => {
+					starterCalls.push(["enrollStarter", userId]);
+				},
+				processStarter: async (userId) => {
+					starterCalls.push(["processStarter", userId]);
+					return false;
+				},
+			},
+		});
+		await arrange(subject);
+		await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: DAY_OLD_SAVE });
+
+		await subject.run();
+
+		expect(starterCalls).toEqual(calls);
+	});
+	it("still sends a due pay digest when the starter insertion fails", async () => {
+		const failure = new Error("transaction cancelled");
+		const subject = createSubject({
+			overrides: {
+				enrollStarter: async () => {
+					throw failure;
+				},
+			},
+		});
+		await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_EIGHTY_HOURS_OUT });
+		await saveReadyArticle(subject, {
+			url: "https://example.com/payment",
+			title: "Payment pick",
+			savedAt: DAY_OLD_SAVE,
+		});
+
+		const result = await subject.run();
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(campaignsOf(onlySentEmail(subject).html)).toEqual(["pay"]);
+		expect(subject.logs.filter((line) => line.level === "error")).toEqual([
+			{
+				level: "error",
+				message: "[SendQueueDigest] starter enrollment failed",
+				data: { userId: USER_ID, error: failure },
+			},
+		]);
+	});
+	it.each([
+		"regular",
+		"payment",
+	])("excludes HN suggestions from %s while keeping ordinary Gmail articles", async (kind) => {
+		const subject = createSubject();
+		if (kind === "payment")
+			await subject.subscriptions.upsertTrialing({
+				userId: USER_ID,
+				trialEndsAt: TRIAL_ENDS_EIGHTY_HOURS_OUT,
+			});
+		else
+			await subject.subscriptions.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub",
+				customerId: "customer",
+			});
+		for (const [slug, provenance] of [
+			[
+				"hn",
+				{
+					kind: "hn-suggestion",
+					campaignId: "hn-starter-v1",
+					snapshotAt: SEND_INSTANT.toISOString(),
+					hnItemId: 1,
+					rank: 1,
+				},
+			],
+			["seed", { kind: "founder-seed" }],
+			["gmail", { kind: "email", senderEmail: "newsletter@sender.com" }],
+		] satisfies Array<[string, import("@packages/domain/article").SaveProvenance]>) {
+			const url = `https://example.com/${slug}`;
+			await subject.articleStore.saveArticle({
+				userId: USER_ID,
+				url,
+				provenance,
+				metadata: { title: slug, siteName: "Site", excerpt: "", wordCount: 200 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: DAY_OLD_SAVE,
+			});
+			await subject.articleStore.setReaderAvailableAt({ url, at: DAY_OLD_SAVE });
+			await subject.summaries.markSummaryReady({ url, summary: "Summary" });
+		}
+		await subject.run();
+		expect(cardTitlesOf(onlySentEmail(subject).text)).toEqual(["gmail"]);
+	});
 	describe("regular digest", () => {
 		it("emails the reader's own unread ready saves older than a day, stamps them at the send instant, and records one send", async () => {
 			const subject = createSubject();

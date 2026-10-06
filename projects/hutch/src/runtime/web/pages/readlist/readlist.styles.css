@@ -943,3 +943,14 @@
 .readlist-rename .confirm-popover__buttons {
   margin-top: 16px;
 }
+
+.readlist-article__suggestion {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.readlist-article__suggestion--hidden {
+  display: none;
+}

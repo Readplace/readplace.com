@@ -2,24 +2,29 @@ import type { Request } from "express";
 import type { SavedArticle } from "@packages/domain/article";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
+import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleUrlById,
+	ListUserSavesForUrl,
 } from "@packages/provider-contracts/article-store";
 import type { Redirect } from "../../redirect.component";
 import { collectUtmParams } from "../../shared/utm";
 import { viewPathFor } from "../view/view-path";
 import {
 	ownerReaderLoginPath,
+	readerPermalinkPathInReadlist,
 	readerPermalinkPathWithoutMarker,
 	wantsOwnerLogin,
 } from "./owner-reader-link";
 
 export interface ReaderPermalinkDeps {
+	readlist: ReadlistSlug;
 	findArticleById: FindArticleById;
 	findArticleUrlById: FindArticleUrlById;
 	findArticleByUrl: FindArticleByUrl;
+	listUserSavesForUrl: ListUserSavesForUrl;
 }
 
 export interface ReaderPermalinkInput {
@@ -94,6 +99,23 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 
 		const articleUrl = await deps.findArticleUrlById(parsedId.data);
 		if (!articleUrl) return REDIRECT_TO_READLIST;
+
+		if (input.requesterId !== undefined && deps.readlist !== DEFAULT_READLIST_SLUG) {
+			const saves = await deps.listUserSavesForUrl({ userId: input.requesterId, url: articleUrl });
+			const held = saves.find((save) => save.readlist !== deps.readlist);
+			if (held !== undefined) {
+				return {
+					kind: "redirect",
+					redirect: {
+						statusCode: 303,
+						location: readerPermalinkPathInReadlist(parsedId.data, {
+							query: input.query,
+							readlist: held.readlist,
+						}),
+					},
+				};
+			}
+		}
 
 		/** A tombstoned URL still resolves its id → url (the row survives) so this
 		 * is a genuine "removed", not a "never existed": 404 directly instead of

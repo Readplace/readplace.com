@@ -144,6 +144,10 @@
     "./trial-scheduler": {
       "types": "./dist/trial-scheduler.d.ts",
       "default": "./dist/trial-scheduler.js"
+    },
+    "./engagement-starter": {
+      "types": "./dist/engagement-starter.d.ts",
+      "default": "./dist/engagement-starter.js"
     }
   },
   "typesVersions": {
@@ -181,7 +185,8 @@
       "related-articles": ["./dist/related-articles.d.ts"],
       "subscription-billing": ["./dist/subscription-billing.d.ts"],
       "subscription-providers": ["./dist/subscription-providers.d.ts"],
-      "trial-scheduler": ["./dist/trial-scheduler.d.ts"]
+      "trial-scheduler": ["./dist/trial-scheduler.d.ts"],
+      "engagement-starter": ["./dist/engagement-starter.d.ts"]
     }
   },
   "private": true,

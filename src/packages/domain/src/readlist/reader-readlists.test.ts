@@ -18,6 +18,12 @@ describe("readerReadlists", () => {
 	it("is just the built-in readlist when the reader has created none", () => {
 		assert.deepEqual(readerReadlists([]), [DEFAULT_READLIST]);
 	});
+	it("preserves a starter readlist's campaign through the reader rail", () => {
+		assert.deepEqual(readerReadlists([{ ...WORK, starterCampaignId: "hn-starter-v1" }]), [
+			DEFAULT_READLIST,
+			{ ...WORK, starterCampaignId: "hn-starter-v1" },
+		]);
+	});
 
 	it("carries only slug and label, dropping any extra fields on the definitions", () => {
 		const withExtras = { slug: WORK.slug, label: WORK.label, createdAt: new Date(0) };

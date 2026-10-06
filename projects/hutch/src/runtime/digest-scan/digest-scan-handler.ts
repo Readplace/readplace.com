@@ -19,6 +19,7 @@ const DIGEST_AUDIENCE_STATUSES = [
 ] satisfies readonly SubscriptionStatus[];
 
 export interface DigestScanDeps {
+	prepareStarterSnapshot: () => Promise<void>;
 	listUserIdsByStatus: ListUserIdsBySubscriptionStatus;
 	dispatchSendUserDigest: DispatchCommand<typeof SendUserDigestCommand>;
 	logger: HutchLogger;
@@ -34,6 +35,11 @@ export function initDigestScanHandler(deps: DigestScanDeps): Handler<SQSEvent, S
 
 		for (const record of event.Records) {
 			try {
+				try {
+					await deps.prepareStarterSnapshot();
+				} catch (error) {
+					logger.error("[DigestScan] starter snapshot unavailable", { error });
+				}
 				const listed = await Promise.all(
 					DIGEST_AUDIENCE_STATUSES.map((status) => listUserIdsByStatus(status)),
 				);

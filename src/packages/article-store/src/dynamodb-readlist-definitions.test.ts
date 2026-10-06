@@ -52,6 +52,20 @@ function conditionalCheckFailed(): ConditionalCheckFailedException {
 }
 
 describe("listReadlistDefinitions", () => {
+	it("preserves a starter definition's campaign", async () => {
+		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[{ Items: [definitionItem({ starterCampaignId: "hn-starter-v1" })] }],
+				() => undefined,
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		const [definition] = await listReadlistDefinitions(USER);
+
+		expect(definition?.starterCampaignId).toBe("hn-starter-v1");
+	});
+
 	it("queries the user's partition by definition-key prefix and never scans", async () => {
 		const commands: { name: string; input: Record<string, unknown> }[] = [];
 		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({

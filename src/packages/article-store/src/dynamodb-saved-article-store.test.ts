@@ -127,6 +127,142 @@ function userArticleItem(overrides: Record<string, unknown> = {}): Record<string
 	};
 }
 
+describe("initDynamoDbSavedArticleStore suggestion provenance", () => {
+	const suggestionAttribution = {
+		campaignId: "hn-starter-v1",
+		snapshotAt: STORE_NOW.toISOString(),
+		hnItemId: 1,
+		rank: 1,
+	};
+	const suggestion = { kind: "hn-suggestion", ...suggestionAttribution };
+
+	it("copies suggestion provenance, campaign attribution and read status when filing into another list", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				default: {
+					Item: userArticleItem({
+						provenance: suggestion,
+						suggestionAttribution,
+						status: "read",
+						readAt: STORE_NOW.toISOString(),
+					}),
+				},
+			},
+		});
+
+		const result = await initStore(client).assignSavedArticleToReadlist({
+			userId: USER,
+			url: URL,
+			from: DEFAULT_READLIST_SLUG,
+			readlist: ReadlistSlugSchema.parse("work"),
+			savedAt: STORE_NOW,
+		});
+
+		expect(result).toEqual({ assigned: true });
+		const put = commands.find((command) => command.name === "PutCommand");
+		expect(put?.input.Item).toMatchObject({
+			provenance: suggestion,
+			suggestionAttribution,
+			status: "read",
+			readAt: STORE_NOW.toISOString(),
+			userId: `${USER}#queue/work`,
+		});
+	});
+
+	it("counts personal copies after excluding suggestion memberships, including read articles and Gmail duplicates", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{
+						Items: [
+							{
+								userId: USER,
+								url: "readplace:queue-def/gmail",
+								queueSlug: "gmail",
+								queueLabel: "Gmail",
+								createdAt: STORE_NOW.toISOString(),
+							},
+						],
+					},
+					{
+						Items: [
+							userArticleItem({ provenance: suggestion }),
+							userArticleItem({ url: "example.com/personal", status: "read" }),
+							userArticleItem({ url: "example.com/seed", provenance: { kind: "founder-seed" } }),
+						],
+						LastEvaluatedKey: { userId: USER, url: "example.com/personal" },
+					},
+					{
+						Items: [
+							userArticleItem({
+								url: "example.com/mail",
+								provenance: { kind: "email", senderEmail: "newsletter@sender.com" },
+							}),
+						],
+					},
+					{
+						Items: [
+							userArticleItem({ userId: `${USER}#queue/gmail`, provenance: { kind: "web" } }),
+							userArticleItem({
+								userId: `${USER}#queue/gmail`,
+								url: "example.com/mail",
+								provenance: { kind: "email", senderEmail: "newsletter@sender.com" },
+							}),
+						],
+					},
+				],
+			},
+		});
+
+		const library = await initStore(client).findPersonalLibrary(USER);
+
+		expect(library).toEqual({
+			personalCount: 3,
+			urls: [RESOURCE_ID, "example.com/personal", "example.com/seed", "example.com/mail"],
+		});
+		const queries = commands.filter((command) => command.name === "QueryCommand");
+		expect(queries.every((query) => query.input.ConsistentRead === true)).toBe(true);
+	});
+
+	it("reports an empty library for a reader with no saves", async () => {
+		const library = await initStore(createFakeClient().client).findPersonalLibrary(USER);
+
+		expect(library).toEqual({ personalCount: 0, urls: [] });
+	});
+
+	it("retains immutable suggestion attribution when an explicit save acquires personal provenance", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				readlist: [
+					{ Item: articleItem() },
+					{ Item: userArticleItem({ provenance: { kind: "web" }, suggestionAttribution }) },
+				],
+			},
+		});
+
+		const result = await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance: { kind: "web" },
+			suggestionAttribution,
+			savedAt: OPERATION_SAVED_AT,
+		});
+
+		expect(result.saved.suggestionAttribution).toEqual(suggestionAttribution);
+		const userRowUpdate = commands.find(
+			(command) => command.name === "UpdateCommand" && command.input.ReturnValues === "ALL_OLD",
+		);
+		expect(userRowUpdate?.input.UpdateExpression).toContain(
+			"suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)",
+		);
+		expect(userRowUpdate?.input.ExpressionAttributeValues?.[":attribution"]).toEqual(
+			suggestionAttribution,
+		);
+	});
+});
+
 describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 	it("markArticleViewed stamps viewedAt only on a row that still exists so a delete race cannot resurrect it", async () => {
 		const { client, commands } = createFakeClient();
@@ -1253,14 +1389,19 @@ describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
 		expect(queries[0]?.input.IndexName).toBe("userId-savedAt-index");
 		expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId AND savedAt <= :cutoff");
 		expect(queries[0]?.input.FilterExpression).toBe(
-			"#status = :unread AND (attribute_not_exists(emailSentAt) OR emailSentAt = :sendInstant)",
+			`#status = :unread AND (attribute_not_exists(provenance.#kind) OR (provenance.#kind <> :suggestion AND provenance.#kind <> :seed)) AND (attribute_not_exists(emailSentAt) OR emailSentAt = :sendInstant)`,
 		);
-		expect(queries[0]?.input.ExpressionAttributeNames).toEqual({ "#status": "status" });
+		expect(queries[0]?.input.ExpressionAttributeNames).toEqual({
+			"#status": "status",
+			"#kind": "kind",
+		});
 		expect(queries[0]?.input.ExpressionAttributeValues).toEqual({
 			":userId": USER,
 			":cutoff": "2026-05-29T12:00:00.000Z",
 			":unread": "unread",
 			":sendInstant": "2026-05-30T12:00:00.000Z",
+			":suggestion": "hn-suggestion",
+			":seed": "founder-seed",
 		});
 		expect(queries[0]?.input.ScanIndexForward).toBe(false);
 		expect(queries[0]?.input.ExclusiveStartKey).toBeUndefined();
@@ -1281,11 +1422,15 @@ describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
 		});
 
 		const [query] = queryCommands(commands);
-		expect(query?.input.FilterExpression).toBe("#status = :unread");
+		expect(query?.input.FilterExpression).toBe(
+			"#status = :unread AND (attribute_not_exists(provenance.#kind) OR (provenance.#kind <> :suggestion AND provenance.#kind <> :seed))",
+		);
 		expect(query?.input.ExpressionAttributeValues).toEqual({
 			":userId": USER,
 			":cutoff": "2026-05-30T12:00:00.000Z",
 			":unread": "unread",
+			":suggestion": "hn-suggestion",
+			":seed": "founder-seed",
 		});
 	});
 

@@ -2,7 +2,6 @@ import assert from "node:assert";
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
 import type {
-	ArticleMetadata,
 	Minutes,
 	SavedArticle,
 } from "@packages/domain/article";
@@ -66,7 +65,7 @@ import {
 } from "../../shared/epub/article-epub";
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import { initResolveStoredArticle } from "../../shared/resolve-stored-article";
-import type { ResolveSaveIdentity } from "@packages/save-article";
+import { initStartAnonymousCrawl, type ResolveSaveIdentity } from "@packages/save-article";
 import {
 	ViewPage,
 	renderViewDownloadsOob,
@@ -232,6 +231,7 @@ function handleViewArticle(
 	buildArticleEpub: BuildArticleEpub,
 ) {
 	const resolveStoredArticle = initResolveStoredArticle(deps);
+	const startAnonymousCrawl = initStartAnonymousCrawl(deps);
 	return async (
 		req: Request<{ splat: string[] }>,
 		res: Response,
@@ -332,23 +332,7 @@ function handleViewArticle(
 					existing = await deps.findArticleByUrl(articleUrl);
 				}
 				if (!existing) {
-					const stubHost = articleHostFrom(articleUrl);
-					const stubMetadata: ArticleMetadata = { title: stubHost, siteName: stubHost, excerpt: "", wordCount: 0 };
-					await deps.saveArticleGlobally({
-						url: articleUrl,
-						metadata: stubMetadata,
-						estimatedReadTime: stubReadTime,
-						savedAt: deps.now(),
-					});
-					if (identity.contentSourceUrl !== undefined) {
-						await deps.pinContentSource({ articleUrl, contentSourceUrl: identity.contentSourceUrl });
-					}
-					await deps.markCrawlPending({ url: articleUrl });
-					await deps.markSummaryPending({ url: articleUrl });
-					await deps.publishSaveAnonymousLink({ url: articleUrl });
-					if (identity.contentSourceUrl !== undefined) {
-						await deps.publishSaveAnonymousLink({ url: articleUrl, captureUrl: identity.contentSourceUrl });
-					}
+					await startAnonymousCrawl({ url: articleUrl, contentSourceUrl: identity.contentSourceUrl });
 				}
 			}
 			await deps.publishStaleCheckRequested({ url: articleUrl });

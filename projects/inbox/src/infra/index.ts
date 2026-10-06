@@ -99,6 +99,7 @@ const tableNames = {
 	sessions: config.require("dynamodbSessionsTable"),
 	users: config.require("dynamodbUsersTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
+	onboarding: config.require("dynamodbOnboardingTable"),
 	emailIdentities: config.require("dynamodbInboxEmailIdentitiesTable"),
 	gmailHistoryImports: config.require("dynamodbGmailHistoryImportsTable"),
 };
@@ -183,6 +184,11 @@ const webSavedLinksRead = new HutchDynamoDBAccess("inbox-web-saved-links-read", 
 	actions: ["dynamodb:BatchGetItem"],
 });
 
+const webOnboarding = new HutchDynamoDBAccess("inbox-web-onboarding", {
+	tables: [{ arn: tableArn(tableNames.onboarding), includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
 const webLambda = new HutchLambda("inbox-web", {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/inbox-web",
@@ -200,6 +206,7 @@ const webLambda = new HutchLambda("inbox-web", {
 		DYNAMODB_SESSIONS_TABLE: tableNames.sessions,
 		DYNAMODB_USERS_TABLE: tableNames.users,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: tableNames.subscriptionProviders,
+		DYNAMODB_ONBOARDING_TABLE: tableNames.onboarding,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		// Pinned into the email iframe's CSP so only rehosted image copies load.
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
@@ -214,6 +221,7 @@ const webLambda = new HutchLambda("inbox-web", {
 		...webUsersRead.policies,
 		...webSubscriptionProvidersRead.policies,
 		...webSavedLinksRead.policies,
+		...webOnboarding.policies,
 		// Reads the sanitized email bodies the receive worker wrote to the shared
 		// content bucket.
 		...HutchS3ReadWrite.readPoliciesForBucket("inbox-web-content", contentBucketName),

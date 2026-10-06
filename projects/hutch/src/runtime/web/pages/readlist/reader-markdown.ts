@@ -7,11 +7,14 @@ import type {
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { MarkdownPage, sendComponent, wantsMarkdown } from "@packages/web-shell";
 import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
 import { articleMarkdown } from "../../shared/article-markdown/article-markdown";
 
 interface OwnerArticleMarkdownDeps {
+	recordEngagementActivity: RecordEngagementActivity;
+	now: () => Date;
 	appOrigin: string;
 	resolveOwnedArticle: ResolveOwnedArticle;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -19,6 +22,15 @@ interface OwnerArticleMarkdownDeps {
 	readArticleContent: ReadArticleContent;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	listUserSavesForUrl: ListUserSavesForUrl;
+}
+
+export function isDeliberateReaderRequest(req: Request): boolean {
+	return (
+		req.query.poll === undefined &&
+		req.get("X-Purpose") !== "preview" &&
+		!req.get("Purpose")?.includes("prefetch") &&
+		!req.get("Sec-Purpose")?.includes("prefetch")
+	);
 }
 
 export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
@@ -52,6 +64,14 @@ export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
 			saves,
 			readlists: readerReadlists(definitions),
 		});
+		if (isDeliberateReaderRequest(req))
+			await deps.recordEngagementActivity({
+				userId,
+				kind: "reader-open",
+				articleId: article.id,
+				campaignId: article.suggestionAttribution?.campaignId,
+				at: deps.now(),
+			});
 
 		res.set("Cache-Control", "private, no-cache");
 		sendComponent(

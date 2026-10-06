@@ -251,6 +251,19 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: alert }),
+		starterExplanationHtml: renderAlert({
+			key: "starter-picks",
+			content:
+				options.rail.activeReadlist.starterCampaignId === undefined
+					? undefined
+					: {
+							variant: "info",
+							title: { text: "Your Hacker News picks", element: "p" },
+							message: {
+								text: "Readplace added these ten picks once to All and this readlist. Read, file, or delete them as you like. New links you save here go to All.",
+							},
+						},
+		}),
 		statusToastHtml: vm.statusFlash
 			? renderStatusToast(vm.statusFlash)
 			: "",

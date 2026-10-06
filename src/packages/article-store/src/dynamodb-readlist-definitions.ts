@@ -25,6 +25,7 @@ const ReadlistDefinitionRow = z.object({
 	queueSlug: ReadlistSlugSchema,
 	queueLabel: z.string(),
 	queuePurpose: z.string().optional(),
+	starterCampaignId: z.string().optional(),
 	createdAt: z.string(),
 });
 
@@ -66,6 +67,9 @@ export function initDynamoDbReadlistDefinitions(deps: {
 				slug: row.queueSlug,
 				label: row.queueLabel,
 				purpose: row.queuePurpose,
+				...(row.starterCampaignId === undefined
+					? {}
+					: { starterCampaignId: row.starterCampaignId }),
 				createdAt: new Date(row.createdAt),
 			}))
 			.sort(

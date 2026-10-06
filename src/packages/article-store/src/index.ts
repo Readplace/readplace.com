@@ -47,3 +47,7 @@ export type { S3GetObject } from "./s3-read-content";
 export { initS3ReadArticleImage } from "./s3-read-image";
 export type { S3GetImageObject } from "./s3-read-image";
 export type { ReadArticleImage } from "@packages/provider-contracts/article-store";
+export {
+	initDynamoDbEngagementActivity,
+	initDynamoDbEngagementStarter,
+} from "./dynamodb-engagement-starter";

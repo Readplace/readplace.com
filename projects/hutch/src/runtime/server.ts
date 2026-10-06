@@ -1,3 +1,6 @@
+import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
+import { initRecordImportRequest } from "./domain/engagement/record-import-request";
+import type { StarterReport } from "./domain/engagement/starter-report";
 import { refreshContext } from "./oauth-refresh/evidence";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
@@ -249,7 +252,7 @@ import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
-import { initSeedFirstArticleOnConsent } from "./web/oauth/consent-seed-save";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
 import { initChangelogDismissRoute } from "./web/pages/banner/changelog-dismiss.route";
@@ -317,6 +320,8 @@ export const PORT = requireEnv("PORT");
 const noop = () => {};
 
 interface AppDependencies {
+	getStarterReport: () => Promise<StarterReport | undefined>;
+	recordEngagementActivity: RecordEngagementActivity;
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	staticBaseUrl: string;
@@ -524,7 +529,37 @@ const OPENAI_APPS_CHALLENGE_TOKEN = "dfMZUMNhT2ApI31okvdB5BD1vdly8Ku5QRGcSLtDQ5k
 const LANDING_PAGE_SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 
 export function createApp(dependencies: AppDependencies): Express {
-	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, analytics, conversionLogger, subscriptionLogger, ...deps } = dependencies;
+	const {
+		appOrigin,
+		staticBaseUrl,
+		getSessionUserId,
+		countUsers,
+		foundingAllocation,
+		analytics,
+		conversionLogger,
+		subscriptionLogger,
+		...providers
+	} = dependencies;
+	const recordEngagementActivity: RecordEngagementActivity = async (input) => {
+		try {
+			await providers.recordEngagementActivity(input);
+		} catch (error) {
+			providers.logError("Failed to record engagement activity", error instanceof Error ? error : undefined);
+		}
+	};
+	const deps = {
+		...providers,
+		recordEngagementActivity,
+		...initRecordPersonalSaves({ ...providers, recordEngagementActivity }),
+		importSessionStore: {
+			...providers.importSessionStore,
+			createImportSession: initRecordImportRequest({
+				request: providers.importSessionStore.createImportSession,
+				recordEngagementActivity,
+				now: providers.now,
+			}),
+		},
+	};
 	const ownHost = new URL(appOrigin).hostname;
 	const recordAnalyticsEvent = initRecordAudienceEvent({ logger: analytics });
 	const recordConversionEvent = initRecordAudienceEvent({ logger: conversionLogger });
@@ -565,23 +600,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		allocateSavedAt: deps.allocateSavedAt,
 		saveArticleFromUrl: initSaveArticleFromUrl(deps),
 	});
-	const seedFirstArticleOnConsent = initSeedFirstArticleOnConsent({
-		countArticlesByUser: deps.countArticlesByUser,
-		resolveSaveAccess,
-		getEffectiveAccess,
-		validateNewSaveUrl,
-		refreshArticleIfStale: deps.refreshArticleIfStale,
-		saveArticleAtReadlistTop,
-		recordAnalyticsEvent,
-		logError: deps.logError,
-		now: deps.now,
-		salt: deps.salt,
-	});
+
 	const upsertReadlist = initUpsertReadlist({ ...deps, generateReadlistSlug });
 	const gmailIntegration = deps.gmailIntegration === undefined
 		? undefined
 		: {
 				...deps.gmailIntegration,
+				gmailHistoryImportStore: {
+					...deps.gmailIntegration.gmailHistoryImportStore,
+					createJob: initRecordImportRequest({
+						request: deps.gmailIntegration.gmailHistoryImportStore.createJob,
+						recordEngagementActivity: deps.recordEngagementActivity,
+						now: deps.now,
+					}),
+				},
 				detectNewsletters: initNewsletterDetectorChain({
 					detectors: [initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog })],
 				}),
@@ -685,6 +717,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			findGeneratedSummary: deps.findGeneratedSummary,
 			findRelatedArticles: deps.findRelatedArticles,
 			updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
+			recordEngagementActivity: deps.recordEngagementActivity,
+			now: deps.now,
 		}),
 	});
 
@@ -1305,6 +1339,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		findArticleUrlById: deps.findArticleUrlById,
 		saveArticle: deps.saveArticle,
+		saveArticleWithoutActivity: providers.saveArticle,
 		saveArticleKeepingPosition: deps.saveArticleKeepingPosition,
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,
@@ -1329,6 +1364,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		listInboxAddresses: deps.listInboxAddresses,
 		setInboxAddressReadlist: deps.setInboxAddressReadlist,
 		markSummaryToggled: deps.markSummaryToggled,
+		recordEngagementActivity: deps.recordEngagementActivity,
 		markRelatedDismissed: deps.markRelatedDismissed,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
@@ -1403,7 +1439,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		secureCookies,
 		importSessionStore: deps.importSessionStore,
 		extractLinksFromPageUrl: deps.extractLinksFromPageUrl,
-		saveArticle: deps.saveArticle,
+		saveArticle: providers.saveArticle,
+		recordEngagementActivity: deps.recordEngagementActivity,
 		updateArticleStatus: deps.updateArticleStatus,
 		markCrawlPending: deps.markCrawlPending,
 		markSummaryPending: deps.markSummaryPending,
@@ -1520,6 +1557,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.get(
 		"/admin",
 		...initAdminIndexHandlers({
+			getStarterReport: deps.getStarterReport,
 			findUserByEmail: deps.findUserByEmail,
 			adminEmails: deps.adminEmails,
 			buildBannerState,
@@ -1631,7 +1669,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
 		tokenRateLimitRule: deps.rateLimitRules.oauthToken,
 		recordUngatedAnalyticsEvent,
-		seedFirstArticleOnConsent,
 		now: deps.now,
 		salt: deps.salt,
 	});

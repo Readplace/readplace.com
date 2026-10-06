@@ -30,6 +30,11 @@ export {
 	neverResolveWrapperTarget,
 	type ResolveWrapperTarget,
 } from "./resolve-wrapper-target";
+export {
+	initStartAnonymousCrawl,
+	type StartAnonymousCrawl,
+	type StartAnonymousCrawlDependencies,
+} from "./start-anonymous-crawl";
 export { withSyntacticUnwrap } from "./with-syntactic-unwrap";
 export { rankNewLinksAbove } from "./rank-new-links-above";
 export {

@@ -1,3 +1,4 @@
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import assert from "node:assert";
 import {
 	displayableReadTime,
@@ -34,6 +35,8 @@ import type { ResolveOwnedArticle } from "./article-lookup";
 import type { ResolveReadlistMembership } from "./readlist-membership";
 
 interface McpArticleOperationDeps {
+	recordEngagementActivity: RecordEngagementActivity;
+	now: () => Date;
 	resolveOwnedArticle: ResolveOwnedArticle;
 	resolveReadlistMembership: ResolveReadlistMembership;
 	findReadlistArticles: FindReadlistArticles;
@@ -161,6 +164,14 @@ export function initMcpArticleOperations(
 			status,
 		});
 		if (!updated) return { status: "not_found" };
+		await deps.recordEngagementActivity({
+			userId,
+			kind: "read-status",
+			markedRead: status === "read",
+			at: deps.now(),
+			articleId: updated.id,
+			campaignId: updated.suggestionAttribution?.campaignId,
+		});
 		return { status: "ok", article: await projectArticle(userId, updated) };
 	}
 
@@ -209,6 +220,15 @@ export function initMcpArticleOperations(
 			const { article } = owned;
 			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
 			const content = await deps.readArticleContent(article.url);
+			if (content !== undefined) {
+				await deps.recordEngagementActivity({
+					userId,
+					kind: "mcp-content",
+					at: deps.now(),
+					articleId: article.id,
+					campaignId: article.suggestionAttribution?.campaignId,
+				});
+			}
 			return content === undefined
 				? { status: "pending" }
 				: { status: "ready", content };
@@ -220,6 +240,15 @@ export function initMcpArticleOperations(
 			const { article } = owned;
 			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
 			const summary = await deps.findGeneratedSummary(article.url);
+			if (summary?.status === "ready") {
+				await deps.recordEngagementActivity({
+					userId,
+					kind: "mcp-summary",
+					at: deps.now(),
+					articleId: article.id,
+					campaignId: article.suggestionAttribution?.campaignId,
+				});
+			}
 			return toSummaryResult(summary);
 		},
 

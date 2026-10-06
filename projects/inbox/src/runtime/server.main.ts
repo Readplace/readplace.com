@@ -206,6 +206,7 @@ async function main(): Promise<void> {
 				logger.info("[dev] submit-link", input);
 				await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved(input);
 			},
+			recordEngagementActivity: fixture.engagementStarter.recordEngagementActivity,
 			logError: (message, error) =>
 				logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),
 			now: () => new Date(),

@@ -11,6 +11,7 @@ const NOW = new Date("2026-09-30T00:00:00.000Z");
 
 function createHandler(overrides: Partial<DigestScanDeps> = {}) {
 	const deps: DigestScanDeps = {
+		prepareStarterSnapshot: async () => {},
 		listUserIdsByStatus: jest.fn().mockResolvedValue([]),
 		dispatchSendUserDigest: jest.fn().mockResolvedValue(undefined),
 		logger: noopLogger,
@@ -38,6 +39,38 @@ async function seedOneUserPerStatus() {
 }
 
 describe("initDigestScanHandler", () => {
+	it("prepares the starter snapshot once per tick before dispatching digests", async () => {
+		const calls: string[] = [];
+		const { handler } = createHandler({
+			prepareStarterSnapshot: async () => {
+				calls.push("prepare");
+			},
+			listUserIdsByStatus: jest.fn().mockResolvedValue([UserIdSchema.parse("reader")]),
+			dispatchSendUserDigest: async ({ userId }) => {
+				calls.push(`dispatch:${userId}`);
+			},
+		});
+
+		await handler(buildSqsEvent([{ messageId: "tick", body: TRIGGER }]), buildLambdaContext(), () => {});
+
+		expect(calls).toEqual(["prepare", "dispatch:reader"]);
+	});
+	it("continues existing digests when HN preparation is temporarily unavailable", async () => {
+		const { handler, deps } = createHandler({
+			prepareStarterSnapshot: async () => {
+				throw new Error("HN unavailable");
+			},
+			listUserIdsByStatus: jest.fn().mockResolvedValue([UserIdSchema.parse("reader")]),
+		});
+		expect(
+			await handler(
+				buildSqsEvent([{ messageId: "tick", body: TRIGGER }]),
+				buildLambdaContext(),
+				() => {},
+			),
+		).toEqual({ batchItemFailures: [] });
+		expect(deps.dispatchSendUserDigest).toHaveBeenCalledWith({ userId: "reader" });
+	});
 	it("dispatches one SendUserDigestCommand per trialing, active and pending-cancellation user", async () => {
 		const { listUserIdsByStatus, trialist, payer, leaving } = await seedOneUserPerStatus();
 		const { handler, deps } = createHandler({ listUserIdsByStatus });

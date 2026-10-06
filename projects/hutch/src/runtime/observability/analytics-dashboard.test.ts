@@ -27,6 +27,7 @@ import {
 import { buildAnalyticsDashboardBody, type DashboardWidget } from "./analytics-dashboard";
 import type { ExcludedIdentities } from "./excluded-identities";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
+import { ENGAGEMENT_EVENTS } from "../domain/engagement/engagement-events";
 
 const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
 const EXCLUDED_USER_ID = "22222222222222222222222222222222";
@@ -86,9 +87,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 61 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 64 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 3 starter) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(61);
+		expect(body.widgets).toHaveLength(64);
 	});
 
 	it("counts EPUB visitor/article pairs after a public render or directly from the owner reader, preferring click labels over historical pageviews", () => {
@@ -114,6 +115,17 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain('coalesce(click_browser_label, pageview_browser_label, "unclassified") as browser_label');
 		expect(query).toContain('if(owner_clicks > 0, "reader", "view-article") as source');
 		expect(query).toContain("stats count(*) as downloads, count_distinct(visitor_id) as downloaders by device, browser_label, source");
+	});
+
+	it("splits the starter activity widget by whether the activity acted on a suggestion", () => {
+		const widget = buildBody().widgets.find(
+			({ properties }) =>
+				properties.title === "Hacker News starter — reader visits, suggestion reads and personal saves",
+		);
+		assert(widget, "the starter activity widget must exist");
+		expect(String(widget.properties.query)).toContain(
+			"| stats count(*) as actions, count_distinct(user_id) as accounts by campaign_id, arm, activity_kind, marked_read, on_suggestion",
+		);
 	});
 
 	describe("Queue digest widgets", () => {
@@ -517,6 +529,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			...Object.values(CONVERSION_EVENTS),
 			...Object.values(SUBSCRIPTION_EVENTS),
 			...Object.values(QUEUE_DIGEST_EVENTS),
+			...Object.values(ENGAGEMENT_EVENTS),
 		];
 		const missing = declared.filter((e) => !referenced.has(e));
 		expect(missing).toEqual([]);
@@ -536,6 +549,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			...Object.values(CONVERSION_EVENTS),
 			...Object.values(SUBSCRIPTION_EVENTS),
 			...Object.values(QUEUE_DIGEST_EVENTS),
+			...Object.values(ENGAGEMENT_EVENTS),
 			GMAIL_FILTER_REWRITE_FAILED_EVENT,
 			GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 		]);

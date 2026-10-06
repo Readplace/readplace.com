@@ -1,3 +1,8 @@
+import type {
+	EngagementStarterState,
+	FindPersonalLibrary,
+	SaveStarterPack,
+} from "@packages/provider-contracts/engagement-starter";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
@@ -342,6 +347,8 @@ export interface SubscriptionBillingBundle {
 }
 
 export interface ArticleStoreBundle {
+	findPersonalLibrary: FindPersonalLibrary;
+	saveStarterPack: SaveStarterPack;
 	deleteAllUserArticles: DeleteAllUserArticles;
 	listUserArticleUrls: ListUserArticleUrls;
 	findArticleById: FindArticleById;
@@ -647,6 +654,10 @@ export interface FoundingAllocationBundle {
 }
 
 export interface TestAppFixture {
+	engagementStarter: EngagementStarterState & {
+		saveStarterPack: SaveStarterPack;
+		deleteEngagement: (userId: UserId) => void;
+	};
 	auth: AuthBundle;
 	articleStore: ArticleStoreBundle;
 	articleCrawl: ArticleCrawlBundle;

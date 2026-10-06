@@ -13,7 +13,11 @@ import { requireEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initRevokeAllUserOAuthTokens } from "./providers/oauth/dynamodb-oauth-model";
-import { initDynamoDbSavedArticleStore } from "@packages/article-store";
+import {
+	initDynamoDbEngagementStarter,
+	initDynamoDbReadlistDefinitions,
+	initDynamoDbSavedArticleStore,
+} from "@packages/article-store";
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
@@ -69,6 +73,17 @@ const articleStore = initDynamoDbSavedArticleStore({
 	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
 	logger,
 	now: () => new Date(),
+});
+
+const engagementState = initDynamoDbEngagementStarter({
+	client: dynamoClient,
+	onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
+	notificationsTableName: requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE"),
+	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+});
+const readlistDefinitions = initDynamoDbReadlistDefinitions({
+	client: dynamoClient,
+	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
 });
 
 const digestQueue = initDynamoDbDigestQueue({
@@ -286,6 +301,7 @@ export const handler = initHandleByDetailType({
 				tombstoneArticle,
 				now,
 				deleteDigestByUser: digestQueue.deleteDigestByUser,
+				withdrawStarterAssignment: engagementState.withdrawStarterAssignment,
 				deleteReaderReadyState: readerReadyState.deleteReaderReadyState,
 				deleteOnboarding: onboarding.deleteOnboarding,
 				deleteUserExports,
@@ -301,6 +317,8 @@ export const handler = initHandleByDetailType({
 		],
 		[ExportUserDataCommand.detailType]: [
 			initExportUserDataHandler({
+				engagementState,
+				listReadlistDefinitions: readlistDefinitions.listReadlistDefinitions,
 				findArticlesAcrossReadlists: articleStore.findArticlesAcrossReadlists,
 				uploadUserDataExport,
 				sendEmail,

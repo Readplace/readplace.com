@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Minutes, SavedArticle } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { buildMcpReaderPath } from "./owner-reader-link";
@@ -33,9 +33,11 @@ function savedArticleFor(userId = OWNER_ID): SavedArticle {
 
 function createDeps(overrides: Partial<ReaderPermalinkDeps> = {}): ReaderPermalinkDeps {
 	return {
+		readlist: DEFAULT_READLIST_SLUG,
 		findArticleById: async () => null,
 		findArticleUrlById: async () => null,
 		findArticleByUrl: async () => null,
+		listUserSavesForUrl: async () => [],
 		...overrides,
 	};
 }
@@ -122,6 +124,55 @@ describe("resolveReaderPermalink", () => {
 				location: `/view/example.com/shared-article?${DEFAULT_UTM}`,
 			},
 		});
+	});
+
+	it.each([
+		{ heldIn: "All", saves: [{}], queue: [] },
+		{ heldIn: "another readlist", saves: [{ readlist: ReadlistSlugSchema.parse("work") }], queue: ["work"] },
+	])("sends a signed-in reader to $heldIn when the addressed readlist no longer holds the article", async ({ saves, queue }) => {
+		const resolve = initReaderPermalink(createDeps({
+			readlist: ReadlistSlugSchema.parse("hn-picks"),
+			findArticleUrlById: async (id) => (id.value === ARTICLE_ID.value ? ARTICLE_URL : null),
+			listUserSavesForUrl: async ({ userId, url }) => (userId === OWNER_ID && url === ARTICLE_URL ? saves : []),
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: OWNER_ID,
+			query: { from: "reader-ready-email", queue: "hn-picks", campaign: "hn-starter-v1" },
+		});
+
+		assert(result.kind === "redirect");
+		const location = new URL(result.redirect.location, "https://example.test");
+		expect(result.redirect.statusCode).toBe(303);
+		expect(location.pathname).toBe(`/queue/${ARTICLE_ID.value}/view`);
+		expect(location.searchParams.getAll("queue")).toEqual(queue);
+		expect(location.searchParams.get("from")).toBe("reader-ready-email");
+		expect(location.searchParams.get("campaign")).toBe("hn-starter-v1");
+	});
+
+	it("keeps the public /view redirect when the reader holds the article only where it was looked up, or nowhere", async () => {
+		const deps = createDeps({
+			readlist: ReadlistSlugSchema.parse("hn-picks"),
+			findArticleUrlById: async () => ARTICLE_URL,
+			listUserSavesForUrl: async () => [{ readlist: ReadlistSlugSchema.parse("hn-picks") }],
+		});
+
+		const results = [
+			await initReaderPermalink(deps)({ rawId: ARTICLE_ID.value, requesterId: OWNER_ID, query: { queue: "hn-picks" } }),
+			await initReaderPermalink({ ...deps, listUserSavesForUrl: async () => [] })({
+				rawId: ARTICLE_ID.value,
+				requesterId: OWNER_ID,
+				query: { queue: "hn-picks" },
+			}),
+		];
+
+		expect(results).toEqual(
+			Array(2).fill({
+				kind: "redirect",
+				redirect: { statusCode: 302, location: `/view/example.com/shared-article?${DEFAULT_UTM}` },
+			}),
+		);
 	});
 
 	it("redirects an anonymous visitor to the public /view permalink without consulting findArticleById", async () => {

@@ -13,6 +13,8 @@ import {
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { FindArticlesAcrossReadlists } from "@packages/provider-contracts/article-store";
+import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
+import type { EngagementStarterState } from "@packages/provider-contracts/engagement-starter";
 import { UserIdSchema } from "@packages/domain/user";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
@@ -27,6 +29,8 @@ const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 const PAGE_SIZE = 500;
 
 export interface ExportUserDataDependencies {
+	engagementState: Pick<EngagementStarterState, "findEngagement" | "findStarterPack">;
+	listReadlistDefinitions: ListReadlistDefinitions;
 	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	uploadUserDataExport: UploadUserDataExport;
 	sendEmail: SendEmail;
@@ -90,6 +94,9 @@ async function processCommand(
 
 	const exportedAt = deps.now().toISOString();
 	const envelope: ExportEnvelope = {
+		engagement: await deps.engagementState.findEngagement(userId),
+		starterPack: await deps.engagementState.findStarterPack(userId),
+		readlists: await deps.listReadlistDefinitions(userId),
 		exportedAt,
 		articleCount: articles.length,
 		articles,

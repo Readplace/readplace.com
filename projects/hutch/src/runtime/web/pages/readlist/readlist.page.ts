@@ -1,3 +1,4 @@
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import assert from "node:assert";
 import {
 	DISMISS_COOKIE_NAME,
@@ -134,7 +135,7 @@ import {
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { initReaderPermalink } from "./reader-permalink";
-import { initOwnerArticleMarkdown } from "./reader-markdown";
+import { initOwnerArticleMarkdown, isDeliberateReaderRequest } from "./reader-markdown";
 import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
@@ -351,6 +352,7 @@ interface ReadlistDependencies {
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
 	saveArticle: SaveArticle;
+	saveArticleWithoutActivity: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
@@ -375,6 +377,7 @@ interface ReadlistDependencies {
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
 	markSummaryToggled: MarkSummaryToggled;
+	recordEngagementActivity: RecordEngagementActivity;
 	markRelatedDismissed: MarkRelatedDismissed;
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
@@ -694,6 +697,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		...deps,
 		saveArticle: deps.saveArticleKeepingPosition,
 	});
+	const saveArticleFromUrlWithoutActivity = initSaveArticleFromUrl({
+		...deps,
+		saveArticle: deps.saveArticleWithoutActivity,
+	});
 
 	const resolveReadlistContext = initResolveReadlistContext({
 		listReadlistDefinitions: deps.listReadlistDefinitions,
@@ -843,9 +850,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	});
 	const resolveReaderPermalinkIn = (readlist: ReadlistSlug) =>
 		initReaderPermalink({
+			readlist,
 			findArticleById: storeFor(readlist).findArticleById,
 			findArticleUrlById: deps.findArticleUrlById,
 			findArticleByUrl: deps.findArticleByUrl,
+			listUserSavesForUrl: deps.listUserSavesForUrl,
 		});
 
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
@@ -1074,6 +1083,15 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
+		if (isDeliberateReaderRequest(req)) {
+			await deps.recordEngagementActivity({
+				userId: resolved.article.userId,
+				kind: "reader-open",
+				at: deps.now(),
+				articleId: resolved.article.id,
+				campaignId: resolved.article.suggestionAttribution?.campaignId,
+			});
+		}
 		const {
 			article: ownedArticle,
 			state,
@@ -1946,7 +1964,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					const media = mediaFor({ mediaType: job.mediaType, url: page.canonicalUrl });
 					if (media) await media.stageInlineBytes({ url: page.canonicalUrl, bytes: job.bytes, title: job.title, userId });
 				}
-				const { createdUserArticle } = await saveArticleFromUrl({
+				const { createdUserArticle } = await saveArticleFromUrlWithoutActivity({
 					userId,
 					url: job.url,
 					freshness,
@@ -1995,6 +2013,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const pageOutcomes = [...prepareFailures, ...(await writeAllPages(ready))];
 		const saved = pageOutcomes.filter((o) => o.outcome !== "failed").length;
 		const failed = pageOutcomes.filter((o) => o.outcome === "failed").length;
+		if (saved > 0) {
+			await deps.recordEngagementActivity({ userId, kind: "personal-save", at: deps.now() });
+		}
 
 		for (const page of pageOutcomes) {
 			entryOutcomes[page.index] = { outcome: page.outcome };
@@ -2620,6 +2641,15 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
+		if (parsedState.data === "open") {
+			await deps.recordEngagementActivity({
+				userId,
+				kind: "summary-open",
+				at: deps.now(),
+				articleId: article.id,
+				campaignId: article.suggestionAttribution?.campaignId,
+			});
+		}
 		await deps.markSummaryToggled({
 			userId,
 			url: article.url,
@@ -2723,6 +2753,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				status: parsedStatus.data,
 			});
 			if (updated) {
+				await deps.recordEngagementActivity({
+					userId,
+					kind: "read-status",
+					at: deps.now(),
+					articleId: updated.id,
+					markedRead: parsedStatus.data === "read",
+					campaignId: updated.suggestionAttribution?.campaignId,
+				});
 				statusFlash = statusFlashFor({ articleId: req.params.id, changed: parsedStatus.data });
 				flashParams.push(["status_changed", parsedStatus.data]);
 				flashParams.push(["status_article", req.params.id]);

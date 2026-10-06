@@ -330,6 +330,7 @@ export function initInMemoryAuth(opts: {
 					email: user.email,
 					emailVerified: user.emailVerified,
 					queueDigestOptOutAt: user.queueDigestOptOutAt,
+					deletedAt: user.deletedAt,
 				};
 			}
 		}
@@ -345,6 +346,7 @@ export function initInMemoryAuth(opts: {
 					emailVerified: user.emailVerified,
 					registeredAt: user.registeredAt,
 					appearance: user.appearance,
+					deletedAt: user.deletedAt,
 				};
 			}
 		}

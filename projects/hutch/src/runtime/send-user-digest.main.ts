@@ -1,4 +1,19 @@
 /* c8 ignore start -- composition root, no logic to test */
+import { S3Client } from "@aws-sdk/client-s3";
+import { z } from "zod";
+import { generateReadlistSlug } from "@packages/domain/readlist";
+import { initGetEffectiveAccess } from "@packages/subscription-access";
+import {
+	initDynamoDbEngagementStarter,
+	initDynamoDbReadlistDefinitions,
+} from "@packages/article-store";
+import { initS3HnSnapshot } from "./providers/hn-snapshot/s3-hn-snapshot";
+import { initS3StarterRollout } from "./providers/hn-snapshot/s3-starter-rollout";
+import { initFindReadySnapshot } from "./domain/engagement/hn-snapshot";
+import { initEnrollStarter } from "./domain/engagement/enroll-starter";
+import { initSendStarter } from "./domain/engagement/send-starter";
+import { initEngagementEvents, type EngagementEvent } from "./domain/engagement/engagement-events";
+import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
@@ -44,6 +59,12 @@ const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_T
 const analyticsSalt = requireEnv("ANALYTICS_SALT");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
+const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
+const onboardingTableName = requireEnv("DYNAMODB_ONBOARDING_TABLE");
+const excludedUserIds = z
+	.array(z.string())
+	.parse(JSON.parse(requireEnv("ENGAGEMENT_EXCLUDED_USER_IDS")));
+
 const dynamoClient = createDynamoDocumentClient();
 
 const articleStore = initDynamoDbSavedArticleStore({
@@ -87,7 +108,75 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
+const s3 = new S3Client({});
+const rolloutStore = initS3StarterRollout({
+	bucketName: contentBucketName,
+	get: (command) => s3.send(command),
+	put: (command) => s3.send(command),
+});
+const starterState = initDynamoDbEngagementStarter({
+	client: dynamoClient,
+	onboardingTableName,
+	notificationsTableName: readerReadyNotificationsTable,
+	userArticlesTableName: userArticlesTable,
+});
+const readlistDefinitions = initDynamoDbReadlistDefinitions({
+	client: dynamoClient,
+	userArticlesTableName: userArticlesTable,
+});
+const findReadySnapshot = initFindReadySnapshot({
+	store: initS3HnSnapshot({
+		bucketName: contentBucketName,
+		get: (command) => s3.send(command),
+		put: (command) => s3.send(command),
+	}),
+	now: () => new Date(),
+});
+const emitStarterEvent = initEngagementEvents({
+	logger: HutchLogger.fromJSON<EngagementEvent>(),
+	now: () => new Date(),
+});
+const enrollStarter = initEnrollStarter({
+	state: starterState,
+	findUserById: auth.findUserById,
+	findUserContactByUserId: auth.findUserContactByUserId,
+	getEffectiveAccess: initGetEffectiveAccess({
+		findSubscriptionByUserId: subscriptions.findByUserId,
+		now: () => new Date(),
+	}),
+	resolveSaveAccess: initResolveSaveAccess({ findUserById: auth.findUserById, now: () => new Date() }),
+	findPersonalLibrary: articleStore.findPersonalLibrary,
+	listReadlistDefinitions: readlistDefinitions.listReadlistDefinitions,
+	findReadySnapshot,
+	saveStarterPack: starterState.saveStarterPack,
+	allocateSavedAtSequence: articleStore.allocateSavedAtSequence,
+	newReadlistSlug: generateReadlistSlug,
+	findRollout: rolloutStore.findRollout,
+	excludedUserIds,
+	now: () => new Date(),
+	logger,
+	emit: emitStarterEvent,
+});
+const processStarter = initSendStarter({
+	state: starterState,
+	findUserContactByUserId: auth.findUserContactByUserId,
+	findSubscriptionByUserId: subscriptions.findByUserId,
+	findReaderReadyEmailState: readerReadyState.findReaderReadyEmailState,
+	findReadlistArticleById: articleStore.findReadlistArticleById,
+	findArticleById: articleStore.findArticleById,
+	listUserSavesForUrl: articleStore.listUserSavesForUrl,
+	findArticleByUrl: articleStore.findArticleByUrl,
+	findGeneratedSummary: summaryStore.findGeneratedSummary,
+	sendEmail,
+	signUnsubscribeToken: initQueueDigestUnsubscribeToken(analyticsSalt).sign,
+	appOrigin,
+	now: () => new Date(),
+	emit: emitStarterEvent,
+});
+
 export const handler = initSendQueueDigestHandler({
+	enrollStarter,
+	processStarter,
 	findUserContactByUserId: auth.findUserContactByUserId,
 	findSubscriptionByUserId: subscriptions.findByUserId,
 	findReaderReadyEmailState: readerReadyState.findReaderReadyEmailState,

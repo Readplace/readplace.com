@@ -648,6 +648,7 @@ describe("initInMemoryAuth", () => {
 				email: "contact@example.com",
 				emailVerified: false,
 				queueDigestOptOutAt: undefined,
+				deletedAt: undefined,
 			});
 		});
 	});
@@ -683,6 +684,7 @@ describe("initInMemoryAuth", () => {
 				email: "reader@example.com",
 				emailVerified: false,
 				queueDigestOptOutAt: undefined,
+				deletedAt: undefined,
 			});
 		});
 
@@ -701,6 +703,7 @@ describe("initInMemoryAuth", () => {
 				email: "reader@example.com",
 				emailVerified: false,
 				queueDigestOptOutAt: undefined,
+				deletedAt: undefined,
 			});
 		});
 	});

@@ -247,6 +247,21 @@ describe("initDynamoDbAuth", () => {
 			expect(contact).toBeNull();
 		});
 
+		it("carries the deletion instant so background senders can tell an account being erased", async () => {
+			const { client } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					deletedAt: "2026-10-10T12:00:00.000Z",
+				},
+			});
+
+			const contact = await initAuth(client).findUserContactByUserId(USER);
+
+			expect(contact?.deletedAt).toBe("2026-10-10T12:00:00.000Z");
+		});
+
 		it("carries the queue digest opt-out instant from the row", async () => {
 			const { client } = createQueryFakeClient({
 				row: {
@@ -263,6 +278,7 @@ describe("initDynamoDbAuth", () => {
 				email: "user@example.com",
 				emailVerified: true,
 				queueDigestOptOutAt: "2026-09-30T10:00:00.000Z",
+				deletedAt: undefined,
 			});
 		});
 
@@ -277,6 +293,7 @@ describe("initDynamoDbAuth", () => {
 				email: "user@example.com",
 				emailVerified: true,
 				queueDigestOptOutAt: undefined,
+				deletedAt: undefined,
 			});
 		});
 	});
@@ -358,6 +375,22 @@ describe("initDynamoDbAuth", () => {
 			const user = await initAuth(client).findUserById(USER);
 
 			expect(user).toBeNull();
+		});
+
+		it("carries the deletion instant so background jobs can tell an account being erased", async () => {
+			const { client } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					registeredAt: "2026-04-20T00:00:00.000Z",
+					deletedAt: "2026-10-10T12:00:00.000Z",
+				},
+			});
+
+			const user = await initAuth(client).findUserById(USER);
+
+			expect(user?.deletedAt).toBe("2026-10-10T12:00:00.000Z");
 		});
 	});
 

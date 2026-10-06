@@ -1990,4 +1990,151 @@ describe("initInMemoryArticleStore", () => {
 			expect(await store.findArticleByUrl(URL)).toBeNull();
 		});
 	});
+
+	describe("starter packs", () => {
+		type Store = ReturnType<typeof initInMemoryArticleStore>;
+		const HN_PICKS = ReadlistSlugSchema.parse("hn-picks");
+		const SELECTED_AT = "2026-10-01T09:00:00.000Z";
+		const PICK_URLS = Array.from(
+			{ length: 10 },
+			(_, index) => `https://news.example.com/story-${index + 1}`,
+		);
+		const PICK_SAVED_AT = PICK_URLS.map(
+			(_, index) => new Date(Date.parse("2026-10-01T09:00:10.000Z") - index * 1000),
+		);
+
+		const saveStarterPack = (store: Store) =>
+			store.saveStarterPack({
+				userId: USER_A,
+				activityRevision: 4,
+				pack: {
+					campaignId: "hn-starter-v1",
+					picks: PICK_URLS.map((url, index) => ({
+						url,
+						hnItemId: 41_000_001 + index,
+						rank: index + 1,
+						snapshotAt: "2026-10-01T08:00:00.000Z",
+					})),
+					readlist: HN_PICKS,
+					readlistLabel: "Hacker News picks",
+					selectedAt: SELECTED_AT,
+					emailStatus: "pending",
+				},
+				savedAt: PICK_SAVED_AT,
+				at: new Date(SELECTED_AT),
+			});
+
+		async function crawl(store: Store, url: string) {
+			await store.saveArticleGlobally({
+				url,
+				metadata: {
+					title: "A Hacker News story",
+					siteName: "news.example.com",
+					excerpt: "",
+					wordCount: 900,
+				},
+				estimatedReadTime: 4 as Minutes,
+				savedAt: new Date("2026-10-01T08:30:00.000Z"),
+			});
+		}
+
+		async function crawlReadable(store: Store, url: string) {
+			await crawl(store, url);
+			await store.setReaderAvailableAt({ url, at: new Date("2026-10-01T08:31:00.000Z") });
+		}
+
+		async function storeWithReadablePicks() {
+			const store = initInMemoryArticleStore();
+			for (const url of PICK_URLS) {
+				await crawlReadable(store, url);
+			}
+			return store;
+		}
+
+		it("files ten readable picks into All and the starter readlist, attributed to Hacker News", async () => {
+			const store = await storeWithReadablePicks();
+
+			const outcome = await saveStarterPack(store);
+
+			const firstPickAttribution = {
+				campaignId: "hn-starter-v1",
+				snapshotAt: "2026-10-01T08:00:00.000Z",
+				hnItemId: 41_000_001,
+				rank: 1,
+			};
+			const firstPick = {
+				url: PICK_URLS[0],
+				status: "unread",
+				savedAt: PICK_SAVED_AT[0],
+				provenance: { kind: "hn-suggestion", ...firstPickAttribution },
+				suggestionAttribution: firstPickAttribution,
+			};
+			const all = await store.findArticlesByUser({ userId: USER_A });
+			const starterReadlist = await store.findReadlistArticles({ userId: USER_A, readlist: HN_PICKS });
+			expect(outcome).toBe("inserted");
+			expect(await store.listReadlistDefinitions(USER_A)).toEqual([
+				{
+					slug: HN_PICKS,
+					label: "Hacker News picks",
+					purpose: undefined,
+					createdAt: new Date(SELECTED_AT),
+					starterCampaignId: "hn-starter-v1",
+				},
+			]);
+			expect(all.articles).toHaveLength(10);
+			expect(all.articles[0]).toMatchObject(firstPick);
+			expect(starterReadlist.articles).toHaveLength(10);
+			expect(starterReadlist.articles[0]).toMatchObject(firstPick);
+		});
+
+		it("counts only the reader's own saves toward their personal library", async () => {
+			const store = await storeWithReadablePicks();
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/personal" }));
+			await store.saveReadlistArticle({
+				...makeArticleParams({ url: "https://example.com/personal" }),
+				readlist: WORK,
+			});
+			await store.saveArticle(
+				makeArticleParams({ url: "https://example.com/seed", provenance: { kind: "founder-seed" } }),
+			);
+			await store.saveArticle(
+				makeArticleParams({ userId: USER_B, url: "https://example.com/someone-else" }),
+			);
+			await saveStarterPack(store);
+
+			expect(await store.findPersonalLibrary(USER_A)).toEqual({
+				personalCount: 1,
+				urls: [
+					ArticleResourceUniqueId.parse("https://example.com/personal").value,
+					ArticleResourceUniqueId.parse("https://example.com/seed").value,
+					...PICK_URLS.map((url) => ArticleResourceUniqueId.parse(url).value),
+				],
+			});
+		});
+
+		it.each<{ conflict: string; prepare: (store: Store) => Promise<unknown> }>([
+			{
+				conflict: "a pick is already in the reader's library",
+				prepare: (store) => store.saveArticle(makeArticleParams({ url: PICK_URLS[3] })),
+			},
+			{
+				conflict: "the reader already has a readlist at the starter slug",
+				prepare: (store) =>
+					store.createReadlistDefinition({
+						userId: USER_A,
+						slug: HN_PICKS,
+						label: "Reading",
+						createdAt: new Date("2026-09-01T09:00:00.000Z"),
+					}),
+			},
+		])("refuses the whole pack when $conflict", async ({ prepare }) => {
+			const store = await storeWithReadablePicks();
+			await prepare(store);
+
+			const outcome = await saveStarterPack(store);
+
+			expect(outcome).toBe("conflict");
+			expect(await store.listUserSavesForUrl({ userId: USER_A, url: PICK_URLS[0] })).toEqual([]);
+		});
+	});
 });

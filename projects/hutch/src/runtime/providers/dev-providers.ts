@@ -28,7 +28,10 @@ import { initInMemoryGmailMonitoring } from "@packages/test-fixtures/providers/g
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
 import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
-import { initInMemoryOnboardingSignals } from "@packages/test-fixtures/providers/onboarding-signals";
+import {
+	initInMemoryEngagementStarter,
+	initInMemoryOnboardingSignals,
+} from "@packages/test-fixtures/providers/onboarding-signals";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
@@ -147,8 +150,9 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const staleTtlMs = 86400000;
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
-	const onboardingSignals = initInMemoryOnboardingSignals({ now: () => new Date() });
 	const articleStore = initInMemoryArticleStore();
+	const engagementStarter = initInMemoryEngagementStarter({ library: articleStore });
+	const onboardingSignals = initInMemoryOnboardingSignals({ now: () => new Date() });
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
 	const oauthModelDeps = initInMemoryOAuthModel();
@@ -589,6 +593,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 		resolveFirstVisitIdentity: resolveSaveIdentity,
 		resolveWrapperTarget,
 		pinContentSource: articleStore.pinContentSource,
+		getStarterReport: async () => undefined,
+		recordEngagementActivity: engagementStarter.recordEngagementActivity,
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,

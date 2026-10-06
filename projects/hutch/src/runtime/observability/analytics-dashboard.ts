@@ -27,6 +27,7 @@ import {
 	SUBSCRIPTION_EVENTS,
 } from "./events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
+import { ENGAGEMENT_EVENTS } from "../domain/engagement/engagement-events";
 
 export interface DashboardWidget {
 	type: string;
@@ -1144,7 +1145,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 262, width: 8, height: 4,
+			x: index * 8, y: 282, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1282,5 +1283,51 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	widgets.push(
+		logWidget({
+			region,
+			title: "Hacker News starter — assignments, insertions and delivery outcomes",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, campaign_id, event, arm, reason",
+				`| filter stream = "${STREAMS.analytics}" and event in ["${ENGAGEMENT_EVENTS.assigned}", "${ENGAGEMENT_EVENTS.inserted}", "${ENGAGEMENT_EVENTS.sent}", "${ENGAGEMENT_EVENTS.suppressed}", "${ENGAGEMENT_EVENTS.failure}"]`,
+				...exclude,
+				"| stats count(*) as events, count_distinct(user_id) as accounts by campaign_id, event, arm, reason",
+				"| sort events desc",
+			].join(" "),
+			x: 0, y: 266, width: 24, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Hacker News starter — reader visits, suggestion reads and personal saves",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, campaign_id, activity_kind, marked_read, on_suggestion, arm, assigned_at, article_id",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ENGAGEMENT_EVENTS.activity}"`,
+				...exclude,
+				"| filter ispresent(assigned_at)",
+				"| stats count(*) as actions, count_distinct(user_id) as accounts by campaign_id, arm, activity_kind, marked_read, on_suggestion",
+				"| sort actions desc",
+			].join(" "),
+			x: 0, y: 274, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Hacker News starter — unsubscribes by original assignment",
+			logGroupNames: analyticsSource,
+			query: [
+				`fields @timestamp, user_id, arm, campaign_id, if(event = "${ANALYTICS_EVENTS.queueDigestUnsubscribed}", 1, 0) as is_unsubscribe`,
+				`| filter stream = "${STREAMS.analytics}" and (event = "${ENGAGEMENT_EVENTS.assigned}" or event = "${ANALYTICS_EVENTS.queueDigestUnsubscribed}")`,
+				...exclude,
+				"| stats earliest(arm) as original_arm, earliest(campaign_id) as campaign, sum(is_unsubscribe) as unsubscribes by user_id",
+				"| filter ispresent(original_arm) and unsubscribes > 0",
+				"| stats count(*) as accounts by campaign, original_arm",
+			].join(" "),
+			x: 12, y: 274, width: 12, height: 8,
+			view: "table",
+		}),
+	);
 	return { widgets };
 }

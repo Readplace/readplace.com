@@ -8,6 +8,7 @@ import type { BuildBannerState } from "../../banner-state";
 import { ADMIN_INDEX_STYLES } from "./admin-index.styles";
 import { initRefuseAdminAccess } from "./admin-forbidden.page";
 import { initRequireAdmin } from "./require-admin.middleware";
+import type { StarterReport } from "../../../domain/engagement/starter-report";
 
 const TEMPLATE = readFileSync(join(__dirname, "admin-index.template.html"), "utf-8");
 
@@ -35,6 +36,7 @@ const ADMIN_LINKS = [
 ];
 
 export interface AdminIndexDependencies {
+	getStarterReport: () => Promise<StarterReport | undefined>;
 	findUserByEmail: FindUserByEmail;
 	adminEmails: readonly string[];
 	buildBannerState: BuildBannerState;
@@ -59,6 +61,23 @@ export function initAdminIndexHandlers(deps: AdminIndexDependencies): RequestHan
 		],
 	}));
 	const renderIndex: RequestHandler = async (req, res) => {
+		const report = await deps.getStarterReport();
+		const starterReports =
+			report === undefined
+				? []
+				: [
+						{
+							report,
+							difference: (100 * report.absoluteActivationDifference).toFixed(2),
+							differenceLow: (100 * report.differenceInterval[0]).toFixed(2),
+							differenceHigh: (100 * report.differenceInterval[1]).toFixed(2),
+							fisher: report.twoSidedFisherPValue.toFixed(4),
+							cohorts: Object.entries(report.cohorts).map(([cohort, arms]) => ({
+								cohort,
+								...arms,
+							})),
+						},
+					];
 		sendComponent(
 			req,
 			res,
@@ -72,7 +91,7 @@ export function initAdminIndexHandlers(deps: AdminIndexDependencies): RequestHan
 					},
 					styles: ADMIN_INDEX_STYLES,
 					bodyClass: "page-admin",
-					content: { html: render(TEMPLATE, { links }) },
+					content: { html: render(TEMPLATE, { links, starterReports }) },
 				},
 				await deps.buildBannerState(req),
 			),

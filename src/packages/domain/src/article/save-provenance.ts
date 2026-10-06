@@ -12,6 +12,22 @@ export const SaveProvenanceSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("email"), senderEmail: z.string() }),
 	z.object({ kind: z.literal("import") }),
 	z.object({ kind: z.literal("mcp"), registeredName: z.string() }), /* 1 */
+	z.object({ kind: z.literal("founder-seed") }),
+	z.object({
+		kind: z.literal("hn-suggestion"),
+		campaignId: z.string(),
+		snapshotAt: z.string(),
+		hnItemId: z.number(),
+		rank: z.number(),
+	}),
 ]);
+
+export const SuggestionAttributionSchema = z.object({
+	campaignId: z.string(),
+	snapshotAt: z.string(),
+	hnItemId: z.number(),
+	rank: z.number(),
+});
+export type SuggestionAttribution = z.infer<typeof SuggestionAttributionSchema>;
 
 export type SaveProvenance = z.infer<typeof SaveProvenanceSchema>;

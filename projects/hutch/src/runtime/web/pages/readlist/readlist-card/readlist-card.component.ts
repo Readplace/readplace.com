@@ -22,6 +22,7 @@ interface DesignCardTrigger {
 }
 
 export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
+	suggestionHiddenClass: string;
 	titleLinkUrl: string;
 	excerptLinkUrl: string;
 	excerptClampClass: string;
@@ -92,6 +93,8 @@ export function toReadlistCardDisplayModel(
 	const toAction = (action: ArticleAction) => toDesignAction(action, { isProcessing, articleId: article.id });
 	return {
 		...article,
+		suggestionHiddenClass:
+			article.suggestionLabel === undefined ? " readlist-article__suggestion--hidden" : "",
 		titleLinkUrl: openReaderLink("open-article-title"),
 		excerptLinkUrl: openReaderLink("open-article-excerpt"),
 		excerptClampClass:

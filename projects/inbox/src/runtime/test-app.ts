@@ -81,6 +81,7 @@ export function createInboxTestApp(
 				// chip can appear; route tests leave it recording-only.
 				await overrides?.publishSubmitLink?.(input);
 			},
+			recordEngagementActivity: (input) => fixture.engagementStarter.recordEngagementActivity(input),
 			logError: fixture.shared.logError,
 			now: fixture.shared.now,
 			analyticsLogger: analytics.logger,

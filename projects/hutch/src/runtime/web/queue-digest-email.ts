@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderArticleHashId } from "@packages/domain/article";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import { EMAIL_CLICK_MEDIUM } from "@packages/web-analytics";
 import { formatLocalInstant, render } from "@packages/web-shell";
 import { payCutoff } from "../domain/stripe/stripe-trial-config";
@@ -26,7 +27,7 @@ export const QUEUE_DIGEST_UNSUBSCRIBE_PATH = "/email/queue-digest/unsubscribe";
 const UNSUBSCRIBE_TOKEN_QUERY = "t";
 const ONE_CLICK_UNSUBSCRIBE = "List-Unsubscribe=One-Click";
 
-export type QueueDigestKind = "regular" | "pay";
+export type QueueDigestKind = "regular" | "pay" | "starter";
 
 export interface QueueDigestEmailItem {
 	articleId: ReaderArticleHashId;
@@ -44,7 +45,11 @@ export interface QueueDigestLinks {
 type QueueDigestEmailParams = {
 	items: QueueDigestEmailItem[];
 	links: QueueDigestLinks;
-} & ({ kind: "regular" } | { kind: "pay"; pay: { trialEndsAt: string } });
+} & (
+	| { kind: "regular" }
+	| { kind: "pay"; pay: { trialEndsAt: string } }
+	| { kind: "starter"; starter: { readlist: ReadlistSlug; campaignId: string } }
+);
 
 type QueueDigestLinkContent = "article" | "continue-reading" | "keep-readplace" | "unsubscribe";
 
@@ -75,6 +80,7 @@ const NEUTRAL_BUTTON: EmailButtonColors = {
 const CONTINUE_READING_BUTTON: Record<QueueDigestKind, EmailButtonColors> = {
 	regular: AMBER_BUTTON,
 	pay: NEUTRAL_BUTTON,
+	starter: AMBER_BUTTON,
 };
 
 interface PayBlock {
@@ -87,11 +93,12 @@ function trackedLink(input: {
 	kind: QueueDigestKind;
 	content: QueueDigestLinkContent;
 	sendId: string;
+	campaignId: string;
 }): string {
 	const tracked = new URL(input.url);
 	tracked.searchParams.set("utm_source", QUEUE_DIGEST_UTM_SOURCE);
 	tracked.searchParams.set("utm_medium", EMAIL_CLICK_MEDIUM);
-	tracked.searchParams.set("utm_campaign", input.kind);
+	tracked.searchParams.set("utm_campaign", input.campaignId);
 	tracked.searchParams.set("utm_content", input.content);
 	tracked.searchParams.set("utm_term", input.sendId);
 	return tracked.toString();
@@ -118,17 +125,36 @@ function payParagraphs(trialEndsAt: string): string[] {
 
 export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEmailComponent {
 	const { links, kind } = params;
+	const starter = params.kind === "starter" ? params.starter : undefined;
+	const subject =
+		starter === undefined ? QUEUE_DIGEST_EMAIL_SUBJECT : "Your Hacker News picks are ready";
+	const continueLabel =
+		starter === undefined ? CONTINUE_READING_LABEL : "Read your Hacker News picks";
 	const link = (url: URL, content: QueueDigestLinkContent) =>
-		trackedLink({ url, kind, content, sendId: links.sendId });
+		trackedLink({
+			url,
+			kind,
+			content,
+			sendId: links.sendId,
+			campaignId: starter?.campaignId ?? kind,
+		});
 
 	const cards = params.items.map((item) => ({
 		title: item.title,
 		siteName: item.siteName,
 		preview: item.preview,
-		readerUrl: link(new URL(buildOwnerReaderPath(item.articleId), links.appOrigin), "article"),
+		readerUrl: link(
+			new URL(buildOwnerReaderPath(item.articleId, starter), links.appOrigin),
+			"article",
+		),
 	}));
-	const intro = introLine(cards.length);
-	const continueReadingUrl = link(new URL(READLIST_PATH, links.appOrigin), "continue-reading");
+	const intro =
+		starter === undefined
+			? introLine(cards.length)
+			: `Readplace selected ten articles from Hacker News for you once. ${cards.length} ${cards.length === 1 ? "pick is" : "picks are"} still unread. They're in All and Hacker News picks; you can read, file, or delete them.`;
+	const readlistUrl = new URL(READLIST_PATH, links.appOrigin);
+	if (starter !== undefined) readlistUrl.searchParams.set("queue", starter.readlist);
+	const continueReadingUrl = link(readlistUrl, "continue-reading");
 	const payBlocks: PayBlock[] =
 		params.kind === "pay"
 			? [
@@ -142,7 +168,7 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 	const unsubscribeLinkUrl = link(oneClickUnsubscribeUrl, "unsubscribe");
 
 	return {
-		subject: QUEUE_DIGEST_EMAIL_SUBJECT,
+		subject,
 		headers: {
 			"List-Unsubscribe": `<${oneClickUnsubscribeUrl.toString()}>`,
 			"List-Unsubscribe-Post": ONE_CLICK_UNSUBSCRIBE,
@@ -150,12 +176,12 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 		to(mediaType) {
 			if (mediaType === "text/html") {
 				return render(TEMPLATE, {
-					subject: QUEUE_DIGEST_EMAIL_SUBJECT,
+					subject,
 					intro,
 					items: cards,
 					continueReading: {
 						href: continueReadingUrl,
-						label: CONTINUE_READING_LABEL,
+						label: continueLabel,
 						...CONTINUE_READING_BUTTON[kind],
 					},
 					payBlocks,
@@ -171,10 +197,14 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 			}
 
 			return [
-				QUEUE_DIGEST_EMAIL_SUBJECT,
+				subject,
 				intro,
-				...cards.map((card) => `${card.title}\n${card.readerUrl}`),
-				`${CONTINUE_READING_LABEL}: ${continueReadingUrl}`,
+				...cards.map((card) =>
+					starter === undefined
+						? `${card.title}\n${card.readerUrl}`
+						: `${card.title}\n${card.preview}\n${card.readerUrl}`,
+				),
+				`${continueLabel}: ${continueReadingUrl}`,
 				...payBlocks.flatMap((block) => [...block.paragraphs, `${KEEP_READPLACE_LABEL}: ${block.keepUrl}`]),
 				EMAIL_REPLY_INVITATION,
 				`${FOOTER_REASON} ${UNSUBSCRIBE_LABEL}: ${unsubscribeLinkUrl}`,

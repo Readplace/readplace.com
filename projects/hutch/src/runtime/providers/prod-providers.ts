@@ -1,5 +1,11 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import { initStarterReport } from "../domain/engagement/starter-report";
+import { initS3StarterRollout } from "./hn-snapshot/s3-starter-rollout";
+import {
+	initRecordEngagementActivity,
+	type EngagementEvent,
+} from "../domain/engagement/engagement-events";
 import { initRecoverAuthenticatedToken } from "../oauth-refresh/authenticate";
 import { CredentialHistory } from "../oauth-refresh/evidence";
 import { initVerifyRefreshRecovery } from "../oauth-refresh/recovery";
@@ -8,7 +14,11 @@ import { defineDynamoTable } from "@packages/hutch-storage-client";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
-import { initDynamoDbReadlistDefinitions, initDynamoDbSavedArticleStore } from "@packages/article-store";
+import {
+	initDynamoDbEngagementStarter,
+	initDynamoDbReadlistDefinitions,
+	initDynamoDbSavedArticleStore,
+} from "@packages/article-store";
 import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, initCrawlFetch, initFetchRedirectHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import {
@@ -159,6 +169,12 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const schedulerClient = new SchedulerClient({});
 
 	const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
+	const engagementStarter = initDynamoDbEngagementStarter({
+		client,
+		onboardingTableName: onboardingTable,
+		notificationsTableName: requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE"),
+		userArticlesTableName: userArticlesTable,
+	});
 	const onboardingSignals = initOnboardingSignals({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
 	const queueDefinitions = initDynamoDbReadlistDefinitions({ client, userArticlesTableName: userArticlesTable });
@@ -453,6 +469,19 @@ export function initProdProviders(input: { appOrigin: string }) {
 	};
 
 	return {
+		getStarterReport: initStarterReport({
+			findRollout: initS3StarterRollout({
+				bucketName: contentBucketName,
+				get: (command) => s3Client.send(command),
+				put: (command) => s3Client.send(command),
+			}).findRollout,
+			listAccounts: engagementStarter.listStarterObservations,
+			now: () => new Date(),
+		}),
+		recordEngagementActivity: initRecordEngagementActivity({
+			state: engagementStarter,
+			logger: HutchLogger.fromJSON<EngagementEvent>(),
+		}),
 		...auth,
 		...articleStore,
 		...queueDefinitions,

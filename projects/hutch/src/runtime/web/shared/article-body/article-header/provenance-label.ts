@@ -38,6 +38,10 @@ export function provenanceLabel(provenance: ReaderProvenance): ProvenanceLabel |
 			return { label: "via Web" };
 		case "import":
 			return { label: "via Import" };
+		case "hn-suggestion":
+			return { label: "Added by Readplace from Hacker News" };
+		case "founder-seed":
+			return { label: "Added by Readplace" };
 		case "client":
 			return labelForClient(provenance.clientName);
 		case "email": {

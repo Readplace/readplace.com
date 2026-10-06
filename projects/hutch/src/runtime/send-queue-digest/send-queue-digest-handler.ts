@@ -53,6 +53,8 @@ const DAY_MS = 24 * HOUR_MS;
 const CONSENT_SEED_ARTICLE_KEY = ArticleResourceUniqueId.parse(CONSENT_SEED_ARTICLE_URL).value;
 
 export interface SendQueueDigestDeps {
+	enrollStarter: (userId: UserId) => Promise<void>;
+	processStarter: (userId: UserId) => Promise<boolean>;
 	findUserContactByUserId: FindUserContactByUserId;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	findReaderReadyEmailState: FindReaderReadyEmailState;
@@ -144,6 +146,11 @@ async function processQueueDigest(params: {
 		deps.findReaderReadyEmailState(userId),
 	]);
 	if (await finishedOwnRedrive({ userId, messageId, row, readerReadyState, sendInstant, deps })) return;
+	try {
+		await deps.enrollStarter(userId);
+	} catch (error) {
+		deps.logger.error("[SendQueueDigest] starter enrollment failed", { userId, error });
+	}
 
 	const access = resolveEffectiveAccess(row, sendInstant);
 	const skip = (reason: string) => deps.logger.info("[SendQueueDigest] skipped", { userId, reason });
@@ -152,6 +159,8 @@ async function processQueueDigest(params: {
 		skip(reason);
 	};
 
+	const payDue = row !== undefined && isPayDigestDue({ row, messageId, now: sendInstant });
+	if (!payDue && await deps.processStarter(userId)) return;
 	if (!contact?.emailVerified) return skipAndRecord("no-verified-email");
 	if (contact.queueDigestOptOutAt !== undefined) return skipAndRecord("unsubscribed");
 	if (access.tier !== "trial" && access.tier !== "paid") return skip("not-eligible-tier");
@@ -159,7 +168,7 @@ async function processQueueDigest(params: {
 	const tier = access.tier;
 
 	const context: RecipientContext = { userId, messageId, row, readerReadyState, sendInstant, deps };
-	const plan = isPayDigestDue({ row, messageId, now: sendInstant })
+	const plan = payDue
 		? payDigestPlan(context)
 		: regularDigestPlan(context);
 	if (plan.held) return skip("cadence");
@@ -350,6 +359,8 @@ async function readyItemsOf(params: {
 	const loaded = params.candidates.filter(
 		(candidate) =>
 			ArticleResourceUniqueId.parse(candidate.article.url).value !== CONSENT_SEED_ARTICLE_KEY &&
+			candidate.article.provenance?.kind !== "hn-suggestion" &&
+			candidate.article.provenance?.kind !== "founder-seed" &&
 			candidate.readerAvailableAt !== undefined &&
 			candidate.purgedAt === undefined,
 	);

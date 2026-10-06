@@ -14,6 +14,7 @@ import type {
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { FindRelatedArticles } from "@packages/provider-contracts/related-articles";
 import {
 	initMcpArticleOperations,
@@ -25,6 +26,7 @@ import { initResolveOwnedArticle } from "./article-lookup";
 import type { ResolveReadlistMembership } from "./readlist-membership";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
+const recordedAt = new Date("2026-10-01T10:00:00.000Z");
 
 function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 	const url = overrides.url ?? "https://example.com/a";
@@ -49,6 +51,7 @@ function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 }
 
 interface DepOverrides {
+	recordEngagementActivity?: RecordEngagementActivity;
 	findReadlistArticles?: FindReadlistArticles;
 	findReadlistArticleById?: FindReadlistArticleById;
 	listReadlistDefinitions?: ListReadlistDefinitions;
@@ -64,6 +67,8 @@ interface DepOverrides {
 
 function buildOps(overrides: DepOverrides = {}) {
 	return initMcpArticleOperations({
+		recordEngagementActivity: overrides.recordEngagementActivity ?? (async () => {}),
+		now: () => recordedAt,
 		resolveOwnedArticle: initResolveOwnedArticle({
 			findArticleById: overrides.findArticleById ?? (async () => null),
 			findReadlistArticleById: overrides.findReadlistArticleById ?? (async () => null),
@@ -203,6 +208,81 @@ describe("toSummaryResult", () => {
 });
 
 describe("initMcpArticleOperations", () => {
+	it("records successful content, summaries and status actions, while leaving metadata and listings out of engagement", async () => {
+		const activity: Parameters<RecordEngagementActivity>[0][] = [];
+		const article = buildArticle({
+			suggestionAttribution: {
+				campaignId: "hn-starter-v1",
+				snapshotAt: "snapshot",
+				hnItemId: 1,
+				rank: 1,
+			},
+		});
+		const ops = buildOps({
+			findArticleById: async () => article,
+			readArticleContent: async () => "<p>Article</p>",
+			findGeneratedSummary: async () => ({ status: "ready", summary: "Summary" }),
+			updateArticleStatusAcrossReadlists: async ({ status }) => ({ ...article, status }),
+			recordEngagementActivity: async (input) => {
+				activity.push(input);
+			},
+		});
+		const input = { userId, id: article.id.value };
+		await ops.getArticle(input);
+		await ops.listReadlist({ userId });
+		expect(activity).toEqual([]);
+		await ops.getArticleContent(input);
+		await ops.getArticleSummary(input);
+		await ops.markAsRead(input);
+		await ops.markAsUnread(input);
+		expect(activity.map((input) => input.kind)).toEqual([
+			"mcp-content",
+			"mcp-summary",
+			"read-status",
+			"read-status",
+		]);
+		expect(
+			activity.every((input) => input.articleId === article.id && input.userId === userId),
+		).toBe(true);
+		expect(activity.map((input) => input.at)).toEqual(Array(4).fill(recordedAt));
+		expect(activity[2]).toMatchObject({ markedRead: true, campaignId: "hn-starter-v1" });
+		expect(activity[3]?.markedRead).toBe(false);
+	});
+	it("records no engagement when the content or summary is not delivered", async () => {
+		const activity: Parameters<RecordEngagementActivity>[0][] = [];
+		const recordEngagementActivity: RecordEngagementActivity = async (input) => {
+			activity.push(input);
+		};
+		const article = buildArticle();
+		await buildOps({
+			findArticleById: async () => article,
+			readArticleContent: async () => undefined,
+			recordEngagementActivity,
+		}).getArticleContent({ userId, id: article.id.value });
+		const undelivered: Awaited<ReturnType<FindGeneratedSummary>>[] = [
+			undefined,
+			{ status: "pending" },
+			{ status: "failed", reason: "too long" },
+			{ status: "skipped" },
+		];
+		for (const summary of undelivered) {
+			await buildOps({
+				findArticleById: async () => article,
+				findGeneratedSummary: async () => summary,
+				recordEngagementActivity,
+			}).getArticleSummary({ userId, id: article.id.value });
+		}
+		const mailbox = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
+		const mailboxOps = buildOps({
+			findArticleById: async () => mailbox,
+			readArticleContent: async () => "<p>42 unread</p>",
+			findGeneratedSummary: async () => ({ status: "ready", summary: "42 unread" }),
+			recordEngagementActivity,
+		});
+		await mailboxOps.getArticleContent({ userId, id: mailbox.id.value });
+		await mailboxOps.getArticleSummary({ userId, id: mailbox.id.value });
+		expect(activity).toEqual([]);
+	});
 	it("uses the saved URL for membership while displaying a merged article's destination URL", async () => {
 		const article = buildArticle({ destinationUrl: destinationUrl("https://example.com/destination") });
 		const readlist = { id: ReadlistSlugSchema.parse("work"), name: "Work" };

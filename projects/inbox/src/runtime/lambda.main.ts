@@ -15,7 +15,7 @@ import {
 	initDynamoDbInboxEmailLink,
 	initDynamoDbInboxSavedLink,
 } from "@packages/inbox-store";
-import { initS3ReadContent } from "@packages/article-store";
+import { initDynamoDbEngagementActivity, initS3ReadContent } from "@packages/article-store";
 import { SubmitLinkCommand } from "@packages/hutch-infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
@@ -99,6 +99,10 @@ const application = express()
 				}),
 				readEmailContent,
 				publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
+				recordEngagementActivity: initDynamoDbEngagementActivity({
+					client,
+					onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
+				}).recordEngagementActivity,
 				logError: (message, error) =>
 					logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),
 				now: () => new Date(),

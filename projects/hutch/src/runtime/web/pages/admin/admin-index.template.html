@@ -16,5 +16,17 @@
       </li>
       {{/each}}
     </ul>
+    {{#each starterReports}}
+    <section data-test-starter-report>
+      <h2>Hacker News starter experiment</h2>
+      <p>First formal review: day 42 after {{report.enrollmentStart}}, using assignments before {{report.enrollmentEnd}}. Conclusion: {{report.conclusion}}.</p>
+      <p>Treatment: {{report.arms.treatment.activated}} activated / {{report.arms.treatment.mature}} mature accounts ({{report.arms.treatment.assigned}} assigned, {{report.arms.treatment.immature}} immature). Comparison: {{report.arms.comparison.activated}} / {{report.arms.comparison.mature}} ({{report.arms.comparison.assigned}} assigned, {{report.arms.comparison.immature}} immature).</p>
+      <p>Absolute activation difference: {{difference}} percentage points. 95% Wilson/Newcombe interval: <span data-test-starter-difference-low>{{differenceLow}}</span> to <span data-test-starter-difference-high>{{differenceHigh}}</span>. Two-sided Fisher p: {{fisher}}; significance level: 0.05.</p>
+      <p>Inserted: {{report.arms.treatment.inserted}}; insertion failures: {{report.arms.treatment.insertionFailed}}; accepted by email provider: {{report.arms.treatment.sent}}; suppressed: {{report.arms.treatment.suppressed}}; delivery review: {{report.arms.treatment.review}}. Every assigned account stays in its original arm.</p>
+      {{#each cohorts}}
+      <p>{{cohort}} — treatment: {{treatment.activated}} / {{treatment.mature}}, {{treatment.immature}} immature; comparison: {{comparison.activated}} / {{comparison.mature}}, {{comparison.immature}} immature. Days 8–14 engagement: {{treatment.engagedDays8To14}} / {{comparison.engagedDays8To14}}.</p>
+      {{/each}}
+    </section>
+    {{/each}}
   </div>
 </main>

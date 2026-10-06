@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
@@ -56,6 +57,11 @@ import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
 const stage = config.require("stage");
+const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
+assertExcludedUserIds(excludedUserIds);
+const engagementDeploymentSha = execFileSync("git", ["rev-parse", "HEAD"], {
+	encoding: "utf-8",
+}).trim();
 const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
 const domains = config.getObject<string[]>("domains") ?? [];
 const SsrCdnSchema = z.object({
@@ -243,6 +249,7 @@ const oauthOutcomesWrite = new HutchDynamoDBAccess("oauth-outcomes-write", {
 
 const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 	tables: [
+		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
 		{ arn: storage.articlesTable.arn, includeIndexes: true },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
 		{ arn: storage.usersTable.arn, includeIndexes: true },
@@ -254,7 +261,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
-		{ arn: storage.onboardingTable.arn, includeIndexes: false },
+		{ arn: storage.onboardingTable.arn, includeIndexes: true },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false },
@@ -399,6 +406,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
+		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
 		DYNAMODB_RATE_LIMITS_TABLE: storage.rateLimitsTable.name,
 		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
 		RATE_LIMIT_LOGIN: rateLimitRules.login,
@@ -761,7 +769,8 @@ const sendUserDigestQueue = new HutchSQS("send-user-digest", {
 
 const sendUserDigestDynamodb = new HutchDynamoDBAccess("send-user-digest-dynamodb", {
 	tables: [
-		{ arn: storage.articlesTable.arn, includeIndexes: false },
+		{ arn: storage.onboardingTable.arn, includeIndexes: false },
+		{ arn: storage.articlesTable.arn, includeIndexes: true },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
 		// users table is read-only here: Query the userId-index to resolve the
 		// saver's verified contact email.
@@ -770,7 +779,15 @@ const sendUserDigestDynamodb = new HutchDynamoDBAccess("send-user-digest-dynamod
 		// by a direct PK conditional UpdateItem.
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
 	],
-	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:BatchGetItem",
+		"dynamodb:Query",
+		"dynamodb:UpdateItem",
+		"dynamodb:PutItem",
+		"dynamodb:ConditionCheckItem",
+		"dynamodb:TransactWriteItems",
+	],
 });
 
 const sendUserDigestSubscriptionsDynamodb = new HutchDynamoDBAccess("send-user-digest-subscriptions", {
@@ -786,6 +803,9 @@ const sendUserDigestLambda = new HutchLambda("send-user-digest", {
 	timeout: 60,
 	environment: {
 		APP_ORIGIN: appOrigin,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
+		ENGAGEMENT_EXCLUDED_USER_IDS: JSON.stringify(excludedUserIds),
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
@@ -798,6 +818,7 @@ const sendUserDigestLambda = new HutchLambda("send-user-digest", {
 	},
 	policies: [
 		...sendUserDigestDynamodb.policies,
+		...HutchS3ReadWrite.readPoliciesForBucket("send-user-digest-content", contentBucketName),
 		...sendUserDigestSubscriptionsDynamodb.policies,
 	],
 });
@@ -818,8 +839,16 @@ const digestScanQueue = new HutchSQS("digest-scan", {
 });
 
 const digestScanDynamodb = new HutchDynamoDBAccess("digest-scan-dynamodb", {
-	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true }],
-	actions: ["dynamodb:Query"],
+	tables: [
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
+		{ arn: storage.articlesTable.arn, includeIndexes: true },
+	],
+	actions: ["dynamodb:Query", "dynamodb:GetItem"],
+});
+
+const digestScanArticlesWrite = new HutchDynamoDBAccess("digest-scan-articles-write", {
+	tables: [{ arn: storage.articlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
 const digestScanLambda = new HutchLambda("digest-scan", {
@@ -830,14 +859,37 @@ const digestScanLambda = new HutchLambda("digest-scan", {
 	timeout: 60,
 	environment: {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		ENGAGEMENT_DEPLOYMENT_SHA: engagementDeploymentSha,
+		ENGAGEMENT_EXCLUDED_USER_IDS: JSON.stringify(excludedUserIds),
 		SEND_USER_DIGEST_QUEUE_URL: sendUserDigestQueue.queueUrl,
 	},
 	policies: [
 		...digestScanDynamodb.policies,
+		...digestScanArticlesWrite.policies,
+		...HutchS3ReadWrite.readPoliciesForBucket("digest-scan-content", contentBucketName),
+		{
+			name: "digest-scan-manifests-write",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Action: ["s3:PutObject"],
+						Resource: `arn:aws:s3:::${contentBucketName}/engagement-starter/*`,
+					},
+				],
+			}),
+		},
 		// SendMessage on the send-user-digest queue to dispatch the per-user commands.
 		...sendUserDigestQueue.policies,
 	],
 });
+
+eventBus.grantPublish(digestScanLambda);
 
 new HutchSQSBackedLambda("digest-scan", {
 	lambda: digestScanLambda,
@@ -1685,9 +1737,6 @@ const region = aws.config.requireRegion();
 
 const excludedVisitorIds = config.requireObject<string[]>("excludedVisitorIds");
 assertExcludedVisitorIds(excludedVisitorIds);
-
-const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
-assertExcludedUserIds(excludedUserIds);
 
 new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	name: "imports-completed",

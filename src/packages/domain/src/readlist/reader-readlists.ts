@@ -3,6 +3,7 @@ import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "./readlist-name.schema
 export const DEFAULT_READLIST_LABEL = "All";
 
 export interface ReadlistRef {
+	starterCampaignId?: string;
 	slug: ReadlistSlug;
 	label: string;
 }
@@ -15,7 +16,14 @@ export const DEFAULT_READLIST: ReadlistRef = {
 export function readerReadlists(
 	definitions: readonly ReadlistRef[],
 ): readonly ReadlistRef[] {
-	return [DEFAULT_READLIST, ...definitions.map(({ slug, label }) => ({ slug, label }))];
+	return [
+		DEFAULT_READLIST,
+		...definitions.map(({ slug, label, starterCampaignId }) => ({
+			slug,
+			label,
+			...(starterCampaignId === undefined ? {} : { starterCampaignId }),
+		})),
+	];
 }
 
 export function readlistsHoldingArticle(input: {

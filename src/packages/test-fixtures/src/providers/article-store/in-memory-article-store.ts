@@ -64,6 +64,7 @@ import type {
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
+import type { FindPersonalLibrary, SaveStarterPack } from "@packages/provider-contracts/engagement-starter";
 
 interface GlobalArticle {
 	url: string;
@@ -88,6 +89,7 @@ interface GlobalArticle {
 }
 
 interface UserArticle {
+	suggestionAttribution?: SavedArticle["suggestionAttribution"];
 	userId: UserId;
 	readlist?: ReadlistSlug;
 	url: string;
@@ -129,12 +131,15 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		readAt: userArticle.readAt,
 		contentFetchedAt: article.contentFetchedAt === undefined ? undefined : new Date(article.contentFetchedAt),
 		provenance: userArticle.provenance,
+		suggestionAttribution: userArticle.suggestionAttribution,
 		relatedDismissedAt: userArticle.relatedDismissedAt,
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
 	};
 }
 
 export function initInMemoryArticleStore(): {
+	findPersonalLibrary: FindPersonalLibrary;
+	saveStarterPack: SaveStarterPack;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
@@ -219,8 +224,67 @@ export function initInMemoryArticleStore(): {
 	const saveCursors = new Map<UserId, number>();
 	const readlistDefinitions = new Map<
 		string,
-		{ userId: UserId; slug: ReadlistSlug; label: string; purpose?: string; createdAt: Date }
+		{
+			userId: UserId;
+			slug: ReadlistSlug;
+			label: string;
+			purpose?: string;
+			createdAt: Date;
+			starterCampaignId?: string;
+		}
 	>();
+	const findPersonalLibrary: FindPersonalLibrary = async (userId) => {
+		const own = [...userArticles.values()].filter((row) => row.userId === userId);
+		const personal = own.filter(
+			(row) => row.provenance?.kind !== "hn-suggestion" && row.provenance?.kind !== "founder-seed",
+		);
+		return {
+			urls: [...new Set(own.map((row) => row.url))],
+			personalCount: new Set(personal.map((row) => row.url)).size,
+		};
+	};
+	const saveStarterPack: SaveStarterPack = async ({ userId, pack, savedAt }) => {
+		assert(pack.picks.length === 10 && savedAt.length === 10, "starter packs contain ten articles");
+		const ids = pack.picks.map((pick) => ArticleResourceUniqueId.parse(pick.url).value);
+		const alreadySaved = ids.some((id) =>
+			[undefined, pack.readlist].some((readlist) =>
+				userArticles.has(userArticleKey(userId, id, readlist)),
+			),
+		);
+		if (readlistDefinitions.has(readlistDefinitionKey(userId, pack.readlist)) || alreadySaved) {
+			return "conflict";
+		}
+		readlistDefinitions.set(readlistDefinitionKey(userId, pack.readlist), {
+			userId,
+			slug: pack.readlist,
+			label: pack.readlistLabel,
+			starterCampaignId: pack.campaignId,
+			createdAt: new Date(pack.selectedAt),
+		});
+		pack.picks.forEach((pick, index) => {
+			const position = savedAt[index];
+			assert(position, "each pick has a saved position");
+			const url = ArticleResourceUniqueId.parse(pick.url).value;
+			const suggestionAttribution = {
+				campaignId: pack.campaignId,
+				snapshotAt: pick.snapshotAt,
+				hnItemId: pick.hnItemId,
+				rank: pick.rank,
+			};
+			for (const readlist of [undefined, pack.readlist]) {
+				userArticles.set(userArticleKey(userId, url, readlist), {
+					userId,
+					readlist,
+					url,
+					savedAt: position,
+					status: "unread",
+					provenance: { kind: "hn-suggestion", ...suggestionAttribution },
+					suggestionAttribution,
+				});
+			}
+		});
+		return "inserted";
+	};
 
 	const allocateSavedAtSequence: AllocateSavedAtSequence = async ({ userId, count }) => {
 		assert(count > 0, "a savedAt sequence allocates at least one instant");
@@ -302,7 +366,12 @@ export function initInMemoryArticleStore(): {
 		const newerSaveWon = existing !== undefined && existing.savedAt.getTime() >= params.savedAt.getTime();
 		if (!newerSaveWon) {
 			userArticles.set(uaKey, existing
-				? { ...existing, savedAt: params.savedAt, provenance: params.provenance }
+				? {
+					...existing,
+					savedAt: params.savedAt,
+					provenance: params.provenance,
+					suggestionAttribution: existing.suggestionAttribution ?? params.suggestionAttribution,
+				}
 				: {
 					userId: params.userId,
 					readlist,
@@ -310,6 +379,7 @@ export function initInMemoryArticleStore(): {
 					status: "unread",
 					savedAt: params.savedAt,
 					provenance: params.provenance,
+					suggestionAttribution: params.suggestionAttribution,
 				});
 		}
 
@@ -400,6 +470,7 @@ export function initInMemoryArticleStore(): {
 			savedAt: article.savedAt,
 			contentSourceTier: article.contentSourceTier,
 			purgedAt: article.purgedAt,
+			readerAvailableAt: article.readerAvailableAt,
 		};
 	};
 
@@ -715,7 +786,13 @@ export function initInMemoryArticleStore(): {
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
-			.map(({ slug, label, purpose, createdAt }) => ({ slug, label, purpose, createdAt }))
+			.map(({ slug, label, purpose, createdAt, starterCampaignId }) => ({
+				slug,
+				label,
+				purpose,
+				createdAt,
+				...(starterCampaignId === undefined ? {} : { starterCampaignId }),
+			}))
 			.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.slug.localeCompare(b.slug));
 
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
@@ -798,6 +875,8 @@ export function initInMemoryArticleStore(): {
 					ua.userId === userId &&
 					ua.readlist === undefined &&
 					ua.status === "unread" &&
+					ua.provenance?.kind !== "hn-suggestion" &&
+					ua.provenance?.kind !== "founder-seed" &&
 					ua.savedAt.getTime() <= savedAtOrBefore.getTime() &&
 					passesEmailFilter(ua),
 			)
@@ -953,6 +1032,8 @@ export function initInMemoryArticleStore(): {
 	};
 
 	return {
+		findPersonalLibrary,
+		saveStarterPack,
 		saveArticle,
 		saveArticleKeepingPosition,
 		allocateSavedAt,

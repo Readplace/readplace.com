@@ -47,6 +47,8 @@ export {
 } from "./saveable-url";
 export {
 	SaveProvenanceSchema,
+	SuggestionAttributionSchema,
+	type SuggestionAttribution,
 	type SaveProvenance,
 } from "./save-provenance";
 export { sanitizeArticleHtml } from "./sanitize-article-html";

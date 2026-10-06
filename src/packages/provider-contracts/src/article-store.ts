@@ -4,6 +4,7 @@ import type {
 	ArticleMetadata,
 	ArticleStatus,
 	SaveProvenance,
+	SuggestionAttribution,
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ReaderArticleHashId } from "@packages/domain/article";
@@ -12,6 +13,7 @@ import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
 
 export interface SaveArticleParams {
+	suggestionAttribution?: SuggestionAttribution;
 	userId: UserId;
 	url: string;
 	metadata: ArticleMetadata;
@@ -266,6 +268,7 @@ export type DeleteAllUserArticles = (userId: UserId) => Promise<void>;
 export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;
 
 export interface ReadlistDefinitionData {
+	starterCampaignId?: string;
 	slug: ReadlistSlug;
 	label: string;
 	createdAt: Date;

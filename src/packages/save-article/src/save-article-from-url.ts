@@ -36,6 +36,8 @@ const RESURFACES_EARLIER_SAVES = {
 	email: true,
 	mcp: true,
 	import: false,
+	"hn-suggestion": false,
+	"founder-seed": false,
 } satisfies Record<SaveProvenance["kind"], boolean>;
 
 type SaveOutcome = {
