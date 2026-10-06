@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
@@ -59,9 +58,7 @@ const config = new pulumi.Config();
 const stage = config.require("stage");
 const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
 assertExcludedUserIds(excludedUserIds);
-const engagementDeploymentSha = execFileSync("git", ["rev-parse", "HEAD"], {
-	encoding: "utf-8",
-}).trim();
+const engagementDeploymentSha = config.require("engagementStarterDeploymentSha");
 const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
 const domains = config.getObject<string[]>("domains") ?? [];
 const SsrCdnSchema = z.object({

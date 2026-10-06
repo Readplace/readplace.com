@@ -96,6 +96,7 @@ config:
     eb37c63f-6dd2-4865-b64b-4a9145d61171,
     e59a19ac-aa60-4789-98e9-27070f4068bc
   ]
+  hutch:engagementStarterDeploymentSha: '86715381be193c8cf0b8fe2eb53428ee4ff91970'
   hutch:excludedUserIds: [
     f19792f1a14cf1d500de060278ab4bc3,
     e3beff4964016ab1da42b1a5fc388899,
