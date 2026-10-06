@@ -231,6 +231,8 @@ import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initQueueDigestUnsubscribeRoutes } from "./web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
+import { initQueueDigestMarkReadRoutes } from "./web/pages/queue-digest-mark-read/queue-digest-mark-read.page";
+import { initQueueDigestMarkReadToken } from "./domain/email/queue-digest-mark-read-token";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { ACCOUNT_PLANS_URL } from "./web/pages/account/account.url";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
@@ -1589,6 +1591,17 @@ export function createApp(dependencies: AppDependencies): Express {
 			setQueueDigestOptOut: deps.setQueueDigestOptOut,
 			recordUngatedAnalyticsEvent,
 			now: deps.now,
+			buildBannerState,
+		}),
+	);
+
+	app.use(
+		initQueueDigestMarkReadRoutes({
+			verifyMarkReadToken: initQueueDigestMarkReadToken(deps.salt).verify,
+			updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
+			findArticleById: deps.findArticleById,
+			findReadlistArticleById: deps.findReadlistArticleById,
+			listReadlistDefinitions: deps.listReadlistDefinitions,
 			buildBannerState,
 		}),
 	);

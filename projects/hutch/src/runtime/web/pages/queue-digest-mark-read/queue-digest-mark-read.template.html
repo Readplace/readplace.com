@@ -1,0 +1,17 @@
+    <main class="queue-digest-mark-read" data-test-queue-digest-mark-read="{{state}}">
+      <div class="queue-digest-mark-read__layout">
+        <div class="queue-digest-mark-read__card">
+          <h1 class="queue-digest-mark-read__title">{{title}}</h1>
+          <p class="queue-digest-mark-read__text">{{body}}</p>
+          {{#each actions}}
+          <form method="{{method}}" action="{{action}}" class="queue-digest-mark-read__action"
+            hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+            {{#each fields}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            <button type="submit" class="btn btn--primary" data-test-queue-digest-mark-read-action="{{key}}">{{label}}</button>
+          </form>
+          {{/each}}
+        </div>
+      </div>
+    </main>

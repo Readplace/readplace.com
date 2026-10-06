@@ -1460,7 +1460,6 @@ describe("Gmail destination snapshots", () => {
 		]);
 		expect(harness.publishOrder).toEqual([
 			"submit",
-			"first-notice",
 			"preview",
 			"triaged",
 			"triaged",
@@ -1557,6 +1556,13 @@ it("counts eligible articles for Gmail All-only mappings without custom filterin
 	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] });
 });
 
+it("never announces a first inbox save for mail forwarded from Gmail", async () => {
+	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["all-abc123@read.place"] } }));
+	expect(harness.submitted.map(({ readlist }) => readlist)).toEqual([DEFAULT_READLIST_SLUG]);
+	expect(harness.firstInboxNotices).toEqual([]);
+});
+
 it("keeps the full custom snapshot when a retry changes triage from noise to article", async () => {
 	let category: EmailLinkTriageCategory = "noise";
 	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), triageEmailLinks: async ({ links }) => ({ status: "triaged", categories: new Map(links.map(({ ordinal }) => [ordinal, category])) }) });
@@ -1579,7 +1585,7 @@ it("preserves a Gmail article's first eligibility when custom publication retrie
 	expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 	expect(harness.triaged.map(({ links }) => links.map(({ ordinal }) => ordinal))).toEqual([["0000"], ["0000"]]);
 	expect(harness.submitted).toHaveLength(1);
-	expect(harness.firstInboxNotices).toHaveLength(1);
+	expect(harness.firstInboxNotices).toEqual([]);
 	const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
 	expect(links[0]?.status).toBe("failed");
 	expect(meta?.eligibleArticleCount).toBe(1);

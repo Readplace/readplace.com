@@ -1330,7 +1330,7 @@ export const GmailNewsletterMonitoringProgressedEvent = defineEvent({
 });
 export const SendGmailNewsletterNoticeCommand = defineEvent({
 	name: "send-gmail-newsletter-notice", source: "hutch.app", detailType: "SendGmailNewsletterNotice",
-	detailSchema: z.object({ userId: z.string(), senderEmail: z.string() }),
+	detailSchema: z.object({ userId: z.string() }),
 });
 export const GmailNewsletterNoticeProcessedEvent = defineEvent({
 	name: "gmail-newsletter-notice-processed", source: "hutch.app", detailType: "GmailNewsletterNoticeProcessed",

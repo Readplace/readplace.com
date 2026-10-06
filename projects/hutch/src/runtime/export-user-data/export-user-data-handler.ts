@@ -25,7 +25,8 @@ import {
 import { EXPORT_DOWNLOAD_TTL_DAYS } from "../web/pages/export/export-ttl";
 import { buildUserDataExportEmailHtml } from "../web/pages/export/user-data-export-email";
 
-const EMAIL_FROM = "Readplace <fayner@readplace.com>";
+const EMAIL_FROM = "Readplace <readplace@readplace.com>";
+const EMAIL_REPLY_TO = "fayner@readplace.com";
 const PAGE_SIZE = 500;
 
 export interface ExportUserDataDependencies {
@@ -115,6 +116,7 @@ async function processCommand(
 
 	await deps.sendEmail({
 		from: EMAIL_FROM,
+		replyTo: EMAIL_REPLY_TO,
 		to: detail.email,
 		subject: "Your Readplace export is ready",
 		html: buildUserDataExportEmailHtml({

@@ -4,7 +4,7 @@ import type { ReaderArticleHashId } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { EMAIL_CLICK_MEDIUM } from "@packages/web-analytics";
 import { formatLocalInstant, render } from "@packages/web-shell";
-import { QUEUE_DIGEST_INTERVAL_DAYS, QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cadence";
+import { QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cadence";
 import { payCutoff } from "../domain/stripe/stripe-trial-config";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "./email-colors";
 import { EMAIL_POSTAL_ADDRESS, EMAIL_REPLY_INVITATION } from "./email-copy";
@@ -18,6 +18,8 @@ const TEMPLATE = readFileSync(
 
 export const QUEUE_DIGEST_EMAIL_SUBJECT = "Waiting in your readlist";
 const CONTINUE_READING_LABEL = "Continue reading";
+export const MARK_ALL_READ_LABEL = "Mark all as read";
+const STARTER_CONTINUE_LABEL = "Read your Hacker News picks";
 const KEEP_READPLACE_LABEL = "Keep Readplace";
 export const UNSUBSCRIBE_LABEL = "Stop these emails";
 const FOOTER_REASON: Record<QueueDigestKind, string> = {
@@ -29,7 +31,8 @@ const FOOTER_REASON: Record<QueueDigestKind, string> = {
 const QUEUE_DIGEST_UTM_SOURCE = "queue-digest";
 const READLIST_PATH = "/queue";
 export const QUEUE_DIGEST_UNSUBSCRIBE_PATH = "/email/queue-digest/unsubscribe";
-const UNSUBSCRIBE_TOKEN_QUERY = "t";
+export const QUEUE_DIGEST_MARK_READ_PATH = "/email/queue-digest/mark-read";
+const TOKEN_QUERY = "t";
 const ONE_CLICK_UNSUBSCRIBE = "List-Unsubscribe=One-Click";
 
 export type QueueDigestKind = "regular" | "pay" | "starter";
@@ -51,12 +54,14 @@ type QueueDigestEmailParams = {
 	items: QueueDigestEmailItem[];
 	links: QueueDigestLinks;
 } & (
-	| { kind: "regular" }
+	| { kind: "regular"; markReadToken: string }
 	| { kind: "pay"; pay: { trialEndsAt: string } }
 	| { kind: "starter"; starter: { readlist: ReadlistSlug; campaignId: string } }
 );
 
-type QueueDigestLinkContent = "article" | "continue-reading" | "keep-readplace" | "unsubscribe";
+type QueueDigestLinkContent = "article" | "continue-reading" | "mark-all-read" | "keep-readplace" | "unsubscribe";
+
+type ReadlistButtonContent = Extract<QueueDigestLinkContent, "continue-reading" | "mark-all-read">;
 
 interface QueueDigestEmailComponent {
 	subject: string;
@@ -82,11 +87,15 @@ const NEUTRAL_BUTTON: EmailButtonColors = {
 	edge: EMAIL_COLORS.border,
 };
 
-const CONTINUE_READING_BUTTON: Record<QueueDigestKind, EmailButtonColors> = {
-	regular: AMBER_BUTTON,
-	pay: NEUTRAL_BUTTON,
-	starter: AMBER_BUTTON,
-};
+interface ReadlistButton {
+	content: ReadlistButtonContent;
+	url: URL;
+	label: string;
+	colors: EmailButtonColors;
+}
+
+const BUTTON_GAP = "0 12px 12px 0";
+const NO_BUTTON_GAP = "0";
 
 interface PayBlock {
 	paragraphs: string[];
@@ -109,23 +118,40 @@ function trackedLink(input: {
 	return tracked.toString();
 }
 
-function unsubscribeUrl(links: QueueDigestLinks): URL {
-	const url = new URL(QUEUE_DIGEST_UNSUBSCRIBE_PATH, links.appOrigin);
-	url.searchParams.set(UNSUBSCRIBE_TOKEN_QUERY, links.unsubscribeToken);
+function tokenUrl(input: { path: string; token: string; appOrigin: string }): URL {
+	const url = new URL(input.path, input.appOrigin);
+	url.searchParams.set(TOKEN_QUERY, input.token);
 	return url;
 }
 
-function introParagraphs(input: { kind: QueueDigestKind; count: number }): string[] {
-	const one = input.count === 1;
-	if (input.kind === "pay") {
-		return [`${input.count} ${one ? "article you saved is" : "articles you saved are"} ready to read.`];
+const INTRO_PARAGRAPH: Record<QueueDigestKind, (count: number) => string> = {
+	regular: (count) =>
+		count === 1
+			? "This article is ready and has been in your readlist for some time but is still unread. This is a one-time reminder about it."
+			: `These ${count} articles are ready and have been in your readlist for some time but are still unread. This is a one-time reminder about them.`,
+	pay: (count) => `${count} ${count === 1 ? "article you saved is" : "articles you saved are"} ready to read.`,
+	starter: (count) =>
+		`Readplace selected ten articles from Hacker News for you once. ${count} ${count === 1 ? "pick is" : "picks are"} still unread. They're in All and Hacker News picks; you can read, file, or delete them.`,
+};
+
+function readlistButtonsFor(input: { params: QueueDigestEmailParams; readlistUrl: URL }): ReadlistButton[] {
+	const { params, readlistUrl } = input;
+	switch (params.kind) {
+		case "regular":
+			return [
+				{ content: "continue-reading", url: readlistUrl, label: CONTINUE_READING_LABEL, colors: AMBER_BUTTON },
+				{
+					content: "mark-all-read",
+					url: tokenUrl({ path: QUEUE_DIGEST_MARK_READ_PATH, token: params.markReadToken, appOrigin: params.links.appOrigin }),
+					label: MARK_ALL_READ_LABEL,
+					colors: NEUTRAL_BUTTON,
+				},
+			];
+		case "pay":
+			return [{ content: "continue-reading", url: readlistUrl, label: CONTINUE_READING_LABEL, colors: NEUTRAL_BUTTON }];
+		case "starter":
+			return [{ content: "continue-reading", url: readlistUrl, label: STARTER_CONTINUE_LABEL, colors: AMBER_BUTTON }];
 	}
-	return [
-		one
-			? `This article has been in your readlist for at least ${QUEUE_DIGEST_MIN_SAVE_AGE_DAYS} days and is still marked unread.`
-			: `These ${input.count} articles have been in your readlist for at least ${QUEUE_DIGEST_MIN_SAVE_AGE_DAYS} days and are still marked unread.`,
-		`This is a one-time reminder about ${one ? "it" : "them"}. Readplace sends these at most once every ${QUEUE_DIGEST_INTERVAL_DAYS} days.`,
-	];
 }
 
 function payParagraphs(trialEndsAt: string): string[] {
@@ -141,8 +167,6 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 	const starter = params.kind === "starter" ? params.starter : undefined;
 	const subject =
 		starter === undefined ? QUEUE_DIGEST_EMAIL_SUBJECT : "Your Hacker News picks are ready";
-	const continueLabel =
-		starter === undefined ? CONTINUE_READING_LABEL : "Read your Hacker News picks";
 	const link = (url: URL, content: QueueDigestLinkContent) =>
 		trackedLink({
 			url,
@@ -161,16 +185,16 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 			"article",
 		),
 	}));
-	const intro =
-		starter === undefined
-			? introParagraphs({ kind, count: cards.length })
-			: [
-					`Readplace selected ten articles from Hacker News for you once. ${cards.length} ${cards.length === 1 ? "pick is" : "picks are"} still unread. They're in All and Hacker News picks; you can read, file, or delete them.`,
-				];
+	const intro = INTRO_PARAGRAPH[kind](cards.length);
 	const footerReason = FOOTER_REASON[kind];
 	const readlistUrl = new URL(READLIST_PATH, links.appOrigin);
 	if (starter !== undefined) readlistUrl.searchParams.set("queue", starter.readlist);
-	const continueReadingUrl = link(readlistUrl, "continue-reading");
+	const readlistButtons = readlistButtonsFor({ params, readlistUrl }).map((button, index, row) => ({
+		href: link(button.url, button.content),
+		label: button.label,
+		gap: index === row.length - 1 ? NO_BUTTON_GAP : BUTTON_GAP,
+		...button.colors,
+	}));
 	const payBlocks: PayBlock[] =
 		params.kind === "pay"
 			? [
@@ -180,7 +204,11 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 					},
 				]
 			: [];
-	const oneClickUnsubscribeUrl = unsubscribeUrl(links);
+	const oneClickUnsubscribeUrl = tokenUrl({
+		path: QUEUE_DIGEST_UNSUBSCRIBE_PATH,
+		token: links.unsubscribeToken,
+		appOrigin: links.appOrigin,
+	});
 	const unsubscribeLinkUrl = link(oneClickUnsubscribeUrl, "unsubscribe");
 
 	return {
@@ -195,11 +223,7 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 					subject,
 					intro,
 					items: cards,
-					continueReading: {
-						href: continueReadingUrl,
-						label: continueLabel,
-						...CONTINUE_READING_BUTTON[kind],
-					},
+					readlistButtons,
 					payBlocks,
 					keepLabel: KEEP_READPLACE_LABEL,
 					replyLine: EMAIL_REPLY_INVITATION,
@@ -214,13 +238,13 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 
 			return [
 				subject,
-				...intro,
+				intro,
 				...cards.map((card) =>
 					starter === undefined
 						? `${card.title}\n${card.readerUrl}`
 						: `${card.title}\n${card.preview}\n${card.readerUrl}`,
 				),
-				`${continueLabel}: ${continueReadingUrl}`,
+				...readlistButtons.map((button) => `${button.label}: ${button.href}`),
 				...payBlocks.flatMap((block) => [...block.paragraphs, `${KEEP_READPLACE_LABEL}: ${block.keepUrl}`]),
 				EMAIL_REPLY_INVITATION,
 				`${footerReason} ${UNSUBSCRIBE_LABEL}: ${unsubscribeLinkUrl}`,

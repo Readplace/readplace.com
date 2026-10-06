@@ -39,6 +39,10 @@ export interface GmailNewsletterNotice {
 	claimUntil: number | undefined;
 }
 
+export type GmailNewsletterNoticeBatch =
+	| { userId: UserId; status: "idle"; lastSentAt: number }
+	| { userId: UserId; status: "sending"; senders: ForwardableSender[]; message: EmailMessage; firstAttemptAt: number; claimUntil: number };
+
 export interface GmailMonitoringStore {
 	findCheckpoint: (userId: UserId) => Promise<GmailMonitoringCheckpoint | undefined>;
 	startRun: (input: { checkpoint: GmailMonitoringCheckpoint; previous: GmailMonitoringCheckpoint | undefined }) => Promise<boolean>;
@@ -53,5 +57,8 @@ export interface GmailMonitoringStore {
 	claimNotice: (input: { notice: GmailNewsletterNotice; message: EmailMessage }) => Promise<GmailNewsletterNotice | undefined>;
 	markNoticeSent: (input: { userId: UserId; senderEmail: ForwardableSender }) => Promise<void>;
 	cancelNotice: (input: { userId: UserId; senderEmail: ForwardableSender }) => Promise<void>;
+	findNoticeBatch: (userId: UserId) => Promise<GmailNewsletterNoticeBatch | undefined>;
+	claimNoticeBatch: (input: { userId: UserId; senders: ForwardableSender[]; message: EmailMessage; lastSentBefore: number }) => Promise<Extract<GmailNewsletterNoticeBatch, { status: "sending" }> | undefined>;
+	finishNoticeBatch: (userId: UserId) => Promise<void>;
 	deleteAllByUserId: (userId: UserId) => Promise<void>;
 }

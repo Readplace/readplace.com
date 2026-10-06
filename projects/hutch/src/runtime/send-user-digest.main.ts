@@ -24,8 +24,9 @@ import { initDynamoDbSubscriptionProviders } from "./providers/subscription-prov
 import { initDynamoDbGeneratedSummary } from "@packages/article-store";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
+import { initQueueDigestMarkReadToken } from "./domain/email/queue-digest-mark-read-token";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
-import { QUEUE_DIGEST_INTERVAL_DAYS, QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "./domain/email/queue-digest-cadence";
+import { QUEUE_DIGEST_MIN_GAP_MS, QUEUE_DIGEST_MIN_SAVE_AGE_MS } from "./domain/email/queue-digest-cadence";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "./observability/queue-digest-events";
 import { initSendQueueDigestHandler } from "./send-queue-digest/send-queue-digest-handler";
 import { requireEnv } from "@packages/require-env";
@@ -39,14 +40,6 @@ import { requireEnv } from "@packages/require-env";
  * displace before its last receive, so a redriven message always recognises its
  * own claim instead of finding the slot free and sending a second copy. */
 const DIGEST_EMAIL_COOLDOWN_MS = 5.5 * 60 * 60 * 1000;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const FLUSH_TICK_TOLERANCE_MS = 30 * 60 * 1000;
-
-const REGULAR_DIGEST_MIN_GAP_MS = QUEUE_DIGEST_INTERVAL_DAYS * DAY_MS - FLUSH_TICK_TOLERANCE_MS;
-
-const MIN_SAVE_AGE_MS = QUEUE_DIGEST_MIN_SAVE_AGE_DAYS * DAY_MS;
 
 const MAX_DIGEST_ITEMS = 10;
 
@@ -199,10 +192,11 @@ export const handler = initSendQueueDigestHandler({
 		now: () => new Date(),
 	}),
 	signUnsubscribeToken: initQueueDigestUnsubscribeToken(analyticsSalt).sign,
+	signMarkReadToken: initQueueDigestMarkReadToken(analyticsSalt).sign,
 	appOrigin,
 	cooldownMs: DIGEST_EMAIL_COOLDOWN_MS,
-	regularDigestMinGapMs: REGULAR_DIGEST_MIN_GAP_MS,
-	minSaveAgeMs: MIN_SAVE_AGE_MS,
+	regularDigestMinGapMs: QUEUE_DIGEST_MIN_GAP_MS,
+	minSaveAgeMs: QUEUE_DIGEST_MIN_SAVE_AGE_MS,
 	maxDigestItems: MAX_DIGEST_ITEMS,
 	maxCandidatesRead: MAX_CANDIDATES_READ,
 	now: () => new Date(),

@@ -2,6 +2,7 @@ import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import type { ReaderArticleHashId } from "@packages/domain/article";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/hutch-infra-components";
@@ -46,7 +47,7 @@ import {
 	type QueueDigestLinks,
 } from "../web/queue-digest-email";
 
-const EMAIL_FROM = "Readplace <fayner@readplace.com>";
+const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -69,6 +70,7 @@ export interface SendQueueDigestDeps {
 	publishEvent: PublishEvent;
 	emitQueueDigestEvent: EmitQueueDigestEvent;
 	signUnsubscribeToken: (userId: UserId) => string;
+	signMarkReadToken: (input: { userId: UserId; articleIds: ReaderArticleHashId[] }) => string;
 	appOrigin: string;
 	cooldownMs: number;
 	regularDigestMinGapMs: number;
@@ -282,7 +284,13 @@ function regularDigestPlan(context: RecipientContext): DigestKindPlan {
 		held: sendInstant.getTime() - lastDigestMs < deps.regularDigestMinGapMs,
 		claim: (urls) => claimRegularDigest({ userId, messageId, sendInstant, deps, urls }),
 		release: () => deps.releaseReaderReadyEmailSlot({ userId, claimedAt: sendInstant, messageId }),
-		email: ({ items, links }) => QueueDigestEmail({ kind: "regular", items, links }),
+		email: ({ items, links }) =>
+			QueueDigestEmail({
+				kind: "regular",
+				items,
+				links,
+				markReadToken: deps.signMarkReadToken({ userId, articleIds: items.map((item) => item.articleId) }),
+			}),
 	};
 }
 

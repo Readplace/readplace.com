@@ -20,9 +20,7 @@
             <tr>
               <td class="email-card__body" style="padding:24px;">
                 <h1 style="margin:0 0 16px;font-size:24px;font-weight:600;line-height:1.3;color:{{colors.foreground}};">{{subject}}</h1>
-                {{#each intro}}
-                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{@root.colors.mutedForeground}};">{{this}}</p>
-                {{/each}}
+                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">{{intro}}</p>
                 {{#each items}}
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid {{../colors.border}};padding:24px 0 0;margin:0 0 24px;">
                   <tr>
@@ -41,10 +39,24 @@
                   </tr>
                 </table>
                 {{/each}}
-                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0;">
                   <tr>
-                    <td style="border-radius:6px;background-color:{{continueReading.fill}};border:1px solid {{continueReading.edge}};">
-                      <a href="{{continueReading.href}}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;line-height:20px;color:{{continueReading.ink}};text-decoration:none;border-radius:6px;">{{continueReading.label}}</a>
+                    <td>
+                      {{#each readlistButtons}}
+                      <table role="presentation" align="left" cellpadding="0" cellspacing="0" style="margin:0;">
+                        <tr>
+                          <td style="padding:{{gap}};">
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0;">
+                              <tr>
+                                <td style="border-radius:6px;background-color:{{fill}};border:1px solid {{edge}};">
+                                  <a href="{{href}}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;line-height:20px;color:{{ink}};text-decoration:none;border-radius:6px;">{{label}}</a>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                      {{/each}}
                     </td>
                   </tr>
                 </table>

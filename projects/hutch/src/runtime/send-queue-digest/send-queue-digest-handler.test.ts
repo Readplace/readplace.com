@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { MinutesSchema } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
 import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
@@ -14,6 +14,7 @@ import { initInMemoryReaderReadyState } from "@packages/test-fixtures/providers/
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { initQueueDigestMarkReadToken } from "../domain/email/queue-digest-mark-read-token";
 import { initQueueDigestUnsubscribeToken } from "../domain/email/queue-digest-unsubscribe-token";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "../observability/queue-digest-events";
 import { CONSENT_SEED_ARTICLE_URL } from "../web/oauth/consent-seed-save";
@@ -54,6 +55,7 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 	const subscriptions = initInMemorySubscriptionProviders({ now: () => clock.now });
 	const email = initInMemoryEmail();
 	const token = initQueueDigestUnsubscribeToken(UNSUBSCRIBE_SECRET);
+	const markReadToken = initQueueDigestMarkReadToken(UNSUBSCRIBE_SECRET);
 	const published: Array<{ detailType: string; detail: unknown }> = [];
 	const pageReads: Array<{ limit: number; candidates: number }> = [];
 	const events: QueueDigestLogEvent[] = [];
@@ -90,6 +92,7 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 			now: () => clock.now,
 		}),
 		signUnsubscribeToken: token.sign,
+		signMarkReadToken: markReadToken.sign,
 		appOrigin: "https://readplace.com",
 		cooldownMs: COOLDOWN_MS,
 		regularDigestMinGapMs: REGULAR_DIGEST_MIN_GAP_MS,
@@ -120,6 +123,7 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 		subscriptions,
 		email,
 		token,
+		markReadToken,
 		published,
 		pageReads,
 		events,
@@ -357,7 +361,7 @@ describe("initSendQueueDigestHandler", () => {
 		expect(cardTitlesOf(onlySentEmail(subject).text)).toEqual(["gmail"]);
 	});
 	describe("regular digest", () => {
-		it("emails the reader's own unread ready saves older than a day, stamps them at the send instant, and records one send", async () => {
+		it("emails the reader's own unread ready saves at least the minimum save age old, stamps them at the send instant, and records one send", async () => {
 			const subject = createSubject();
 			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TEN_DAYS_OUT });
 			await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: hoursBefore(24) });
@@ -372,7 +376,7 @@ describe("initSendQueueDigestHandler", () => {
 
 			expect(result).toEqual({ batchItemFailures: [] });
 			const sent = onlySentEmail(subject);
-			expect(sent.from).toBe("Readplace <fayner@readplace.com>");
+			expect(sent.from).toBe("Readplace <readplace@readplace.com>");
 			expect(sent.to).toBe("reader@example.com");
 			expect(sent.replyTo).toBe("fayner@readplace.com");
 			expect(sent.subject).toBe("Waiting in your readlist");
@@ -385,6 +389,15 @@ describe("initSendQueueDigestHandler", () => {
 			expect(sent.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
 			const oneClick = new URL((sent.headers?.["List-Unsubscribe"] ?? "").replace(/^<|>$/g, ""));
 			expect(subject.token.verify(oneClick.searchParams.get("t") ?? "")).toBe(USER_ID);
+			const markAllRead = linkUrlsOf(sent.html).find((url) => url.pathname === "/email/queue-digest/mark-read");
+			assert(markAllRead, "a regular digest carries the mark-all-read link");
+			const marked = subject.markReadToken.verify(markAllRead.searchParams.get("t") ?? "");
+			assert(marked, "the mark-all-read link carries a token signed for this digest");
+			expect(marked.userId).toBe(USER_ID);
+			expect(marked.articleIds.map((id) => id.value)).toEqual([
+				ReaderArticleHashId.from("https://example.com/alpha").value,
+				ReaderArticleHashId.from("https://example.com/beta").value,
+			]);
 
 			expect(await subject.readerReady.findReaderReadyEmailState(USER_ID)).toEqual({
 				lastSentAt: SEND_INSTANT,
@@ -823,7 +836,7 @@ describe("initSendQueueDigestHandler", () => {
 			await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: hoursBefore(80) });
 		}
 
-		it("waits when another message sent a digest 47 hours ago, without claiming", async () => {
+		it("waits when another message sent a digest just inside the minimum gap, without claiming", async () => {
 			const subject = createSubject();
 			await readyTrialist(subject);
 			await subject.readerReady.claimReaderReadyEmailSlot({
@@ -845,7 +858,7 @@ describe("initSendQueueDigestHandler", () => {
 			});
 		});
 
-		it("sends once 47.5 hours have passed since the last digest", async () => {
+		it("sends once the minimum gap has passed since the last digest", async () => {
 			const subject = createSubject();
 			await readyTrialist(subject);
 			await subject.readerReady.claimReaderReadyEmailSlot({

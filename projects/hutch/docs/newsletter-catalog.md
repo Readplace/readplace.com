@@ -39,7 +39,9 @@ The most specific record wins:
 
 ## Approved newsletter notifications
 
-Every six hours, Readplace checks connected Gmail accounts using the existing metadata permission. A reader receives one email at their **Readplace account address** for an approved newsletter sender they have not mapped when new mail arrives, or when a sender already observed in their current mailbox becomes approved. Each actual FROM address gets its own notice, including addresses recognised through a domain wildcard. There are no reminders.
+Every six hours, Readplace checks connected Gmail accounts using the existing metadata permission. An approved newsletter sender the reader has not mapped becomes due for a notice when new mail arrives, or when a sender already observed in their current mailbox becomes approved. Each actual FROM address is announced once, including addresses recognised through a domain wildcard. There are no reminders.
+
+Notices are grouped: a reader receives at most one notification email every three days at their **Readplace account address**, listing every newsletter that became due since the last one. A reader with 100 newsletters therefore gets a handful of emails rather than one per newsletter. While All is the reader's only readlist, due notices are held rather than sent; once the reader creates another readlist, the next check sends the held notices for every newsletter they still have not mapped.
 
 The first check establishes a silent baseline from the existing discovered senders for that mailbox and the recent discovery window of approximately 5,000 messages. Already-approved newsletters in that baseline produce no initial batch of emails. Readplace captures the Gmail history cursor before scanning and processes arrivals during initialization, so mail arriving while the baseline is being built remains eligible. Spam, trash, drafts and outbound-only messages are excluded. Label changes do not count as arrivals.
 
@@ -53,7 +55,7 @@ The monitor's history cursor is separate from interactive sender discovery. Inte
 
 ### Following the email
 
-The email names the newsletter when the catalog supplies a name, includes its FROM address, and explains that the reader can save future issues to All and optional custom readlists. Its tracked **Choose readlists** link opens `/newsletters/gmail` with that sender selected; signing in returns the reader to the same selection. The page accepts monitored senders only from the signed-in reader's current mailbox.
+The email names the newsletter when the catalog supplies a name, includes its FROM address, and explains that the reader can save future issues to All and optional custom readlists. Its tracked **Choose readlists** link opens `/newsletters/gmail` with that sender selected; signing in returns the reader to the same selection. An email that groups several newsletters links each one to its own sender selection, and its **Choose readlists** button opens `/newsletters/gmail` without a selection. The page accepts monitored senders only from the signed-in reader's current mailbox.
 
 All is always checked and locked. When a notification opens an unmapped sender and custom readlists are available, **Save** stays disabled until the reader explicitly confirms their selection. **Confirm readlists** with no custom selections confirms All-only; selecting a custom checkbox confirms with JavaScript. Without JavaScript, readers select lists, confirm, then Save. Successful inline creation selects the new list and confirms the choice. Search, polling and validation preserve the sender-bound `readlist_choice_for` state. When All is the only readlist, Save is available immediately. Ordinary entries start with All and can be saved immediately. A sender mapped after the email was sent opens All plus its saved custom selections.
 
@@ -63,7 +65,7 @@ Saving uses the existing mapping and Gmail filter update. Every eligible article
 
 ### Delivery retries
 
-The monitoring table stores pending notices and permanent sent receipts. An atomic claim reserves each user/sender notice, and its rendered email payload and provider idempotency key remain stable across retries. Resend retains idempotency keys for 24 hours; changing a payload under the same key is refused. See [Resend's idempotency announcement](https://resend.com/changelog/idempotency-keys).
+The monitoring table stores pending notices, permanent sent receipts and one grouped-notice row per reader. An atomic claim on that row reserves the reader's next email only when three days have passed since the last one, and the claimed email payload, its list of senders and its provider idempotency key remain stable across retries. Resend retains idempotency keys for 24 hours; changing a payload under the same key is refused. See [Resend's idempotency announcement](https://resend.com/changelog/idempotency-keys).
 
 If delivery is ambiguous, retries use the same payload and key only inside that window, stopping after 23 hours and 55 minutes to leave a five-minute margin. An unresolved attempt beyond that cutoff fails to the notification queue's DLQ for operator review, preserving the claim rather than risking a second email automatically. Review the provider's delivery evidence before any manual recovery; re-driving an expired ambiguous attempt does not authorize a new send.
 

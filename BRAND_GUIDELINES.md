@@ -815,7 +815,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 - HTML emails should use the warm amber palette. The CTA is `#AD6225` under white (4.61:1), the web's AA-safe `--primary`, and links are `#A85A1E` — never the kit's `#C8702A` fill, which carries white at 3.62:1 (see [Palette Copies Outside the Web](#palette-copies-outside-the-web)).
 - Keep emails short. One purpose per email, one CTA.
 - Always include a plain-text version.
-- Sender name: "Fayner from Readplace" on account emails (email verification, welcome, password reset), and "Readplace" on every other email. Sign off "— Fayner Brack, Founder & CEO".
+- Sender: "Fayner from Readplace <fayner@readplace.com>" on account emails (email verification, welcome, password reset), and "Readplace <readplace@readplace.com>" on every other email. Emails written in the founder's first person sign off "— Fayner Brack, Founder & CEO" (see [Writing Principles](#writing-principles)).
 
 ---
 

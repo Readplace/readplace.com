@@ -41,7 +41,7 @@ import {
 	AUTOMATION_SAVES_HELD_EMAIL_SUBJECT,
 } from "../web/auth/automation-saves-held-email";
 
-const EMAIL_FROM = "Readplace <fayner@readplace.com>";
+const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
 const EMAIL_BCC = "readplace+trial_feedback@readplace.com";
 const REMINDER_EMAIL_BCC = "readplace+trial_reminder@readplace.com";

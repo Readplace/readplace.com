@@ -31,7 +31,7 @@ function harness() {
 	const accountsQueries: { pageToken?: string }[] = [];
 	const checked: { accountsPageToken?: string }[] = [];
 	const dispatched: { userId: UserId; continuation?: { generation: string; page: number } }[] = [];
-	const notices: { userId: UserId; senderEmail: typeof SENDER }[] = [];
+	const notices: { userId: UserId }[] = [];
 	const started: UserId[] = [];
 	const pages: GmailMonitoringPage[] = [];
 	let result: GmailMonitoringProgress = { nextPage: NEXT, notices: [SENDER] };
@@ -100,14 +100,14 @@ describe("initGmailNewsletterMonitorHandler", () => {
 		assert.deepEqual(h.published[2], { event: GmailNewsletterMonitoringProgressedEvent, detail: { userId: USER, nextPage: undefined, notices: [] } });
 	});
 
-	it("routes monitoring facts into notification commands and page continuations, and stops at completion", async () => {
+	it("routes monitoring facts into one notification command per page of waiting notices and page continuations, and stops at completion", async () => {
 		const h = harness();
 		await run(initGmailNewsletterMonitorHandler(h.deps), [
-			{ messageId: "progress", body: body(GmailNewsletterMonitoringProgressedEvent, { userId: USER, nextPage: { generation: NEXT.generation, page: NEXT.page }, notices: [SENDER] }) },
+			{ messageId: "progress", body: body(GmailNewsletterMonitoringProgressedEvent, { userId: USER, nextPage: { generation: NEXT.generation, page: NEXT.page }, notices: [SENDER, ForwardableSenderSchema.parse("digest@example.com")] }) },
 			{ messageId: "complete", body: body(GmailNewsletterMonitoringProgressedEvent, { userId: USER, notices: [] }) },
 		]);
 		assert.deepEqual(h.dispatched, [{ userId: USER, continuation: { generation: NEXT.generation, page: NEXT.page } }]);
-		assert.deepEqual(h.notices, [{ userId: USER, senderEmail: SENDER }]);
+		assert.deepEqual(h.notices, [{ userId: USER }]);
 		assert.deepEqual(h.published, []);
 	});
 

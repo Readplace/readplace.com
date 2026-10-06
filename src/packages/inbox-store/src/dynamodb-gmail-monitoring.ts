@@ -18,6 +18,13 @@ const NoticeRow = z.object({
 	gatewayAddress: InboxAddressSchema, mailboxId: z.string(), status: z.enum(["pending", "sending", "sent", "cancelled"]),
 	message: dynamoField(EmailRow), firstAttemptAt: dynamoField(z.number()), claimUntil: dynamoField(z.number()),
 });
+const NoticeBatchRow = z.object({
+	userId: UserIdSchema, key: z.string(), status: z.enum(["idle", "sending"]), senders: dynamoField(z.array(ForwardableSenderSchema)),
+	message: dynamoField(EmailRow), firstAttemptAt: dynamoField(z.number()), claimUntil: dynamoField(z.number()), lastSentAt: dynamoField(z.number()),
+});
+const ClaimedNoticeBatch = z.object({ userId: UserIdSchema, status: z.literal("sending"), senders: z.array(ForwardableSenderSchema), message: EmailRow, firstAttemptAt: z.number(), claimUntil: z.number() });
+const NoticeBatch = z.discriminatedUnion("status", [z.object({ userId: UserIdSchema, status: z.literal("idle"), lastSentAt: z.number() }), ClaimedNoticeBatch]);
+const NOTICE_BATCH_KEY = "NOTICE_BATCH";
 const Cursor = z.object({ userId: z.string(), key: z.string() });
 
 async function conditional(write: () => Promise<unknown>): Promise<boolean> {
@@ -32,6 +39,7 @@ export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClie
 	const checkpoints = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: CheckpointRow });
 	const observations = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: ObservationRow });
 	const notices = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: NoticeRow });
+	const batches = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: NoticeBatchRow });
 	const keys = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: Cursor });
 	const fence = (checkpoint: GmailMonitoringCheckpoint) => ({
 		ConditionExpression: "generation = :generation AND #page = :page",
@@ -106,11 +114,31 @@ export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClie
 		markNoticeSent: async ({ userId, senderEmail }) => {
 			await conditional(() => notices.update({
 				Key: { userId, key: `NOTICE#${senderEmail}` }, UpdateExpression: "SET #status = :sent REMOVE claimUntil",
-				ConditionExpression: "#status = :sending", ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: { ":sending": "sending", ":sent": "sent" },
+				ConditionExpression: "#status = :pending OR #status = :sending", ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: { ":pending": "pending", ":sending": "sending", ":sent": "sent" },
 			}));
 		},
 		cancelNotice: async ({ userId, senderEmail }) => {
 			await conditional(() => notices.update({ Key: { userId, key: `NOTICE#${senderEmail}` }, UpdateExpression: "SET #status = :cancelled", ConditionExpression: "#status = :pending", ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: { ":pending": "pending", ":cancelled": "cancelled" } }));
+		},
+		findNoticeBatch: async (userId) => NoticeBatch.optional().parse(await batches.get({ userId, key: NOTICE_BATCH_KEY }, { consistentRead: true })),
+		claimNoticeBatch: async ({ userId, senders, message, lastSentBefore }) => {
+			const acquired = await conditional(() => batches.update({
+				Key: { userId, key: NOTICE_BATCH_KEY },
+				UpdateExpression: "SET #status = :sending, senders = if_not_exists(senders, :senders), #message = if_not_exists(#message, :message), firstAttemptAt = if_not_exists(firstAttemptAt, :now), claimUntil = :until",
+				ConditionExpression: "attribute_not_exists(userId) OR (#status = :idle AND lastSentAt <= :lastSentBefore) OR (#status = :sending AND claimUntil <= :now)",
+				ExpressionAttributeNames: { "#status": "status", "#message": "message" },
+				ExpressionAttributeValues: { ":idle": "idle", ":sending": "sending", ":senders": senders, ":message": message, ":lastSentBefore": lastSentBefore, ":now": deps.now().getTime(), ":until": deps.now().getTime() + 120_000 },
+			}));
+			return acquired ? ClaimedNoticeBatch.parse(await batches.get({ userId, key: NOTICE_BATCH_KEY }, { consistentRead: true })) : undefined;
+		},
+		finishNoticeBatch: async (userId) => {
+			await conditional(() => batches.update({
+				Key: { userId, key: NOTICE_BATCH_KEY },
+				UpdateExpression: "SET #status = :idle, lastSentAt = :now REMOVE senders, #message, firstAttemptAt, claimUntil",
+				ConditionExpression: "#status = :sending",
+				ExpressionAttributeNames: { "#status": "status", "#message": "message" },
+				ExpressionAttributeValues: { ":idle": "idle", ":sending": "sending", ":now": deps.now().getTime() },
+			}));
 		},
 		deleteAllByUserId: async (userId) => {
 			await forEachQueryPage(keys, { KeyConditionExpression: "userId = :uid", ExpressionAttributeValues: { ":uid": userId }, ConsistentRead: true }, async (rows) => {
