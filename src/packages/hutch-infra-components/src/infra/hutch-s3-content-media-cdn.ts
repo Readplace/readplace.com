@@ -11,6 +11,7 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 		args: {
 			contentBucket: HutchS3ReadWrite;
 			customDomain?: { domain: string; zoneId: pulumi.Input<string> };
+			corsAllowedOrigins: string[];
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -67,6 +68,13 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 			name: `${name}-noindex-headers`,
 			customHeadersConfig: {
 				items: [{ header: "X-Robots-Tag", value: "noindex", override: true }],
+			},
+			corsConfig: {
+				accessControlAllowCredentials: false,
+				accessControlAllowHeaders: { items: ["*"] },
+				accessControlAllowMethods: { items: ["GET", "HEAD"] },
+				accessControlAllowOrigins: { items: args.corsAllowedOrigins },
+				originOverride: true,
 			},
 		}, { parent: this });
 

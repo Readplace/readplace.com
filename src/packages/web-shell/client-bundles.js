@@ -82,7 +82,7 @@ const SHARED_CLIENT_BUNDLES = [
       "LocalTime.initLocalTime({",
       "  document: window.document,",
       "  timeZone: function () { return Intl.DateTimeFormat().resolvedOptions().timeZone; },",
-      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
+      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); document.body.addEventListener('readplace:local-time', cb); }",
       "}).attach();",
     ].join("\n"),
   },

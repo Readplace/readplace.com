@@ -52,6 +52,7 @@ const IMPORT_PREV = "[data-test-import-pagination-prev]";
 
 const VOLATILE_CHROME = [
 	".offline-banner",
+	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 ];

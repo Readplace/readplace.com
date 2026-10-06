@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
-import { initBase } from "./base.component";
+import { JSDOM, VirtualConsole } from "jsdom";
+import {
+	NEWER_READER_VERSION,
+	NEWER_VERSION_BANNER_TEXT,
+	OFFLINE_BANNER_TEXT,
+	OFFLINE_COPY_PATH_ATTRIBUTE,
+	OFFLINE_COPY_READER_SOURCE,
+	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
+	OFFLINE_SAVED_AT_HEADER,
+	READER_SOURCE_MESSAGE_TYPE,
+	READER_VERSION_MESSAGE_TYPE,
+	REVALIDATE_READER_MESSAGE_TYPE,
+	initBase,
+} from "./base.component";
 import { DISTRACTION_FREE_BODY_CLASS } from "./base.styles";
 import { type HtmxDelivery, HtmxLoaded, HtmxOmitted } from "./htmx-script";
 import { GlobalNav, GlobalEmptyNav } from "./nav.component";
@@ -33,6 +45,110 @@ const GUEST_STATE: BannerState = {
 	cspNonce: CSP_NONCE,
 	isAuthenticated: false,
 	emailVerified: undefined,
+};
+
+const READER_PAGE_URL = "https://readplace.com/queue/abc123/view?v=token";
+const READER_PAGE_PATH = "/queue/abc123/view";
+const STORED_COPY_SAVED_AT = "2026-10-04T12:00:00.000Z";
+const STORED_COPY_VERSION = "5f3c0e9a7b21d844";
+const STORED_COPY = {
+	type: READER_SOURCE_MESSAGE_TYPE,
+	source: OFFLINE_COPY_READER_SOURCE,
+	path: READER_PAGE_PATH,
+	savedAt: STORED_COPY_SAVED_AT,
+	version: STORED_COPY_VERSION,
+};
+const LIVE_PAGE = { type: READER_SOURCE_MESSAGE_TYPE, source: "network", path: READER_PAGE_PATH };
+
+function renderUnderOfflineWorker() {
+	const channels: EventTarget[] = [];
+	const messageStarts: string[] = [];
+	const posted: unknown[] = [];
+	const navigations: string[] = [];
+	const virtualConsole = new VirtualConsole();
+	virtualConsole.on("jsdomError", (error) => navigations.push(error.message));
+	const dom = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body, {
+		url: READER_PAGE_URL,
+		runScripts: "dangerously",
+		virtualConsole,
+		beforeParse(window) {
+			const channel = new window.EventTarget();
+			Object.defineProperty(channel, "startMessages", {
+				value: () => messageStarts.push("started"),
+			});
+			Object.defineProperty(channel, "controller", {
+				value: { postMessage: (message: unknown) => posted.push(message) },
+			});
+			Object.defineProperty(window.navigator, "serviceWorker", { value: channel });
+			Object.defineProperty(window.navigator, "onLine", { get: () => true });
+			channels.push(channel);
+		},
+	});
+	const [channel] = channels;
+	assert(channel, "the page must be given a service worker channel");
+	const banner = dom.window.document.querySelector(".offline-banner");
+	assert(banner, "the offline banner must be rendered");
+	const newerVersion = dom.window.document.querySelector(".newer-version-banner");
+	assert(newerVersion, "the newer-version bar must be rendered");
+	const placeSender = (input: { markup: string; sender: string }) => {
+		dom.window.document.body.insertAdjacentHTML("beforeend", input.markup);
+		const sender = dom.window.document.querySelector(input.sender);
+		assert(sender, `the markup must hold the element that sent the request: ${input.sender}`);
+		return sender;
+	};
+	const answered = (input: { sender: Element; status: number; headers: Record<string, string> }) => {
+		const answer = new Headers(input.headers);
+		return new dom.window.CustomEvent("htmx:afterRequest", {
+			bubbles: true,
+			detail: {
+				requestConfig: { elt: input.sender },
+				xhr: { status: input.status, getResponseHeader: (name: string) => answer.get(name) },
+			},
+		});
+	};
+	return {
+		dom,
+		banner,
+		newerVersion,
+		root: dom.window.document.documentElement,
+		messageStarts,
+		posted,
+		navigations,
+		workerSays: (data: unknown) =>
+			channel.dispatchEvent(new dom.window.MessageEvent("message", { data })),
+		requestFails: (input: { markup: string; sender: string }) => {
+			placeSender(input).dispatchEvent(new dom.window.CustomEvent("htmx:sendError", { bubbles: true }));
+		},
+		requestAnswered: (input: { markup: string; sender: string; status: number; headers: Record<string, string> }) => {
+			const sender = placeSender(input);
+			sender.dispatchEvent(answered({ sender, status: input.status, headers: input.headers }));
+		},
+		requestAnsweredAfterSwappingItsSenderAway: (input: {
+			markup: string;
+			sender: string;
+			status: number;
+			headers: Record<string, string>;
+		}) => {
+			const sender = placeSender(input);
+			sender.remove();
+			dom.window.document.body.dispatchEvent(answered({ sender, status: input.status, headers: input.headers }));
+		},
+	};
+}
+
+const CARD_TITLE_REQUEST = {
+	markup: `<a class="card-title" href="/queue/abc123/view" hx-boost="true">Title</a>`,
+	sender: ".card-title",
+};
+
+const IMPORT_TOGGLE_REQUEST = {
+	markup: `<form class="import-toggle" method="POST" action="/import/abc123/toggle" hx-boost="true"></form>`,
+	sender: ".import-toggle",
+};
+
+const CARD_POLL_REQUEST = {
+	markup: `<article class="card-poll" data-background-request hx-get="/queue/abc123/card" hx-trigger="every 3s" hx-swap="outerHTML"></article>`,
+	sender: ".card-poll",
 };
 
 /** Every meta the page's SeoMetadata can produce. Reading each name from this
@@ -512,6 +628,439 @@ describe("Base component", () => {
 		expect(banner?.classList.contains("banner-bar")).toBe(true);
 	});
 
+	it("words the offline banner to tell a reader without a connection that their reading is offline and Readplace is read-only", () => {
+		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window.document;
+
+		const banner = doc.querySelector(".offline-banner");
+		assert(banner, "the offline banner must be rendered");
+		expect(OFFLINE_BANNER_TEXT).toBe(
+			"Your internet is not working, your reading is offline. Readplace is read-only until you're back online.",
+		);
+		expect(banner.textContent.trim()).toBe(OFFLINE_BANNER_TEXT);
+	});
+
+	it("shows the offline sentence while the browser reports no connection, then 'Back online' once it returns", () => {
+		const connection = { online: false };
+		const dom = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body, {
+			runScripts: "dangerously",
+			beforeParse(window) {
+				Object.defineProperty(window.navigator, "onLine", { get: () => connection.online });
+			},
+		});
+		const banner = dom.window.document.querySelector(".offline-banner");
+		assert(banner, "the offline banner must be rendered");
+
+		expect(banner.textContent).toBe(OFFLINE_BANNER_TEXT);
+		expect(banner.classList.contains("offline-banner--visible")).toBe(true);
+		expect(banner.getAttribute("aria-hidden")).toBe("false");
+
+		connection.online = true;
+		dom.window.dispatchEvent(new dom.window.Event("online"));
+
+		expect(banner.textContent).toBe("Back online");
+		expect(banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		dom.window.close();
+	});
+
+	it("shows the offline sentence when the worker served a stored copy, even while the browser reports a connection", () => {
+		const page = renderUnderOfflineWorker();
+		expect(page.banner.getAttribute("aria-hidden")).toBe("true");
+
+		page.workerSays(STORED_COPY);
+
+		expect(page.banner.textContent).toBe(OFFLINE_BANNER_TEXT);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+		expect(page.banner.getAttribute("aria-hidden")).toBe("false");
+
+		page.dom.window.close();
+	});
+
+	it("flashes 'Back online' once the worker serves a live page after a stored copy", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+
+		page.workerSays(LIVE_PAGE);
+
+		expect(page.banner.textContent).toBe("Back online");
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("flashes 'Back online' when the connection returns while a stored copy is on screen", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+
+		page.dom.window.dispatchEvent(new page.dom.window.Event("online"));
+
+		expect(page.banner.textContent).toBe("Back online");
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("keeps the banner hidden when a live page arrives with nothing to recover from", () => {
+		const page = renderUnderOfflineWorker();
+
+		page.workerSays(LIVE_PAGE);
+
+		expect(page.banner.textContent.trim()).toBe(OFFLINE_BANNER_TEXT);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(false);
+		expect(page.banner.getAttribute("aria-hidden")).toBe("true");
+
+		page.dom.window.close();
+	});
+
+	it("keeps the banner hidden on a message of another kind from the worker", () => {
+		const page = renderUnderOfflineWorker();
+
+		page.workerSays({ type: "readplace:something-else", source: OFFLINE_COPY_READER_SOURCE });
+
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(false);
+		expect(page.banner.getAttribute("aria-hidden")).toBe("true");
+
+		page.dom.window.close();
+	});
+
+	it("shows the offline sentence when a request the reader made cannot reach the network, even while the browser reports a connection", () => {
+		const page = renderUnderOfflineWorker();
+
+		page.requestFails(CARD_TITLE_REQUEST);
+
+		expect(page.banner.textContent).toBe(OFFLINE_BANNER_TEXT);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+		expect(page.banner.getAttribute("aria-hidden")).toBe("false");
+
+		page.dom.window.close();
+	});
+
+	it("shows the offline sentence when the reader's tap fails on a card that polls in the background", () => {
+		const page = renderUnderOfflineWorker();
+
+		page.requestFails({
+			markup: `<article data-background-request hx-get="/queue/abc123/card" hx-trigger="every 3s">${CARD_TITLE_REQUEST.markup}</article>`,
+			sender: CARD_TITLE_REQUEST.sender,
+		});
+
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("keeps the banner hidden when only a background request cannot reach the network", () => {
+		const page = renderUnderOfflineWorker();
+
+		page.requestFails({
+			markup: `<span class="counts" data-background-request hx-get="/queue/counts" hx-trigger="load"></span>`,
+			sender: ".counts",
+		});
+
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(false);
+		expect(page.banner.getAttribute("aria-hidden")).toBe("true");
+
+		page.dom.window.close();
+	});
+
+	it("flashes 'Back online' once the worker serves a live page after a request failed", () => {
+		const page = renderUnderOfflineWorker();
+		page.requestFails(CARD_TITLE_REQUEST);
+
+		page.workerSays(LIVE_PAGE);
+
+		expect(page.banner.textContent).toBe("Back online");
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("flashes 'Back online' when the connection returns after a request failed", () => {
+		const page = renderUnderOfflineWorker();
+		page.requestFails(CARD_TITLE_REQUEST);
+
+		page.dom.window.dispatchEvent(new page.dom.window.Event("online"));
+
+		expect(page.banner.textContent).toBe("Back online");
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it.each([200, 500])(
+		"flashes 'Back online' when the reader's next request reaches the server and is answered %i, though the browser never reported the connection lost",
+		(status) => {
+			const page = renderUnderOfflineWorker();
+			page.requestFails(IMPORT_TOGGLE_REQUEST);
+
+			page.requestAnswered({ ...IMPORT_TOGGLE_REQUEST, status, headers: {} });
+
+			expect(page.banner.textContent).toBe("Back online");
+			expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+			expect(page.banner.getAttribute("aria-hidden")).toBe("false");
+
+			page.dom.window.close();
+		},
+	);
+
+	it("keeps the offline sentence when the request htmx reports on is one that never reached the server", () => {
+		const page = renderUnderOfflineWorker();
+		page.requestFails(IMPORT_TOGGLE_REQUEST);
+
+		page.requestAnswered({ ...IMPORT_TOGGLE_REQUEST, status: 0, headers: {} });
+
+		expect(page.banner.textContent).toBe(OFFLINE_BANNER_TEXT);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("keeps the offline sentence, asking for no revalidation, when the device's stored copy answers the reader's request", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+
+		page.requestAnswered({
+			...CARD_TITLE_REQUEST,
+			status: 200,
+			headers: { [OFFLINE_SAVED_AT_HEADER]: STORED_COPY_SAVED_AT },
+		});
+
+		expect(page.banner.textContent).toBe(OFFLINE_BANNER_TEXT);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+		expect(page.posted).toEqual([]);
+
+		page.dom.window.close();
+	});
+
+	it("keeps the offline sentence when only a background request reaches the server", () => {
+		const page = renderUnderOfflineWorker();
+		page.requestFails(IMPORT_TOGGLE_REQUEST);
+
+		page.requestAnswered({ ...CARD_POLL_REQUEST, status: 200, headers: {} });
+
+		expect(page.banner.textContent).toBe(OFFLINE_BANNER_TEXT);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("keeps the offline sentence when a background request that swapped itself away reaches the server, though htmx reports it on the page around it", () => {
+		const page = renderUnderOfflineWorker();
+		page.requestFails(IMPORT_TOGGLE_REQUEST);
+
+		page.requestAnsweredAfterSwappingItsSenderAway({ ...CARD_POLL_REQUEST, status: 200, headers: {} });
+
+		expect(page.banner.textContent).toBe(OFFLINE_BANNER_TEXT);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("asks the worker to revalidate the stored copy on screen when the reader's next request reaches the server", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+
+		page.requestAnswered({ ...IMPORT_TOGGLE_REQUEST, status: 200, headers: {} });
+
+		expect(page.banner.textContent).toBe("Back online");
+		expect(page.posted).toEqual([
+			{ type: REVALIDATE_READER_MESSAGE_TYPE, url: READER_PAGE_URL, version: STORED_COPY_VERSION },
+		]);
+
+		page.dom.window.close();
+	});
+
+	it("asks for the stored copy's revalidation once when the reader's request reaches the server after the returning connection already asked", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+		page.dom.window.dispatchEvent(new page.dom.window.Event("online"));
+
+		page.requestAnswered({ ...IMPORT_TOGGLE_REQUEST, status: 200, headers: {} });
+
+		expect(page.posted).toEqual([
+			{ type: REVALIDATE_READER_MESSAGE_TYPE, url: READER_PAGE_URL, version: STORED_COPY_VERSION },
+		]);
+
+		page.dom.window.close();
+	});
+
+	it("keeps the 'Back online' flash the reader's request started running when the worker then reports the live page that request brought", () => {
+		const page = renderUnderOfflineWorker();
+		page.requestFails(CARD_TITLE_REQUEST);
+		page.requestAnswered({ ...CARD_TITLE_REQUEST, status: 200, headers: {} });
+
+		page.workerSays(LIVE_PAGE);
+
+		expect(page.banner.textContent).toBe("Back online");
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+		expect(page.banner.getAttribute("aria-hidden")).toBe("false");
+
+		page.dom.window.close();
+	});
+
+	it("asks for the messages the worker posted before the page's script ran", () => {
+		const page = renderUnderOfflineWorker();
+
+		expect(page.messageStarts).toEqual(["started"]);
+
+		page.dom.window.close();
+	});
+
+	it("renders the newer-version bar hidden in the banner area, worded for the reader with a small secondary Refresh button", () => {
+		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window.document;
+
+		const bar = doc.querySelector(".banner-area > .newer-version-banner");
+		assert(bar, "the newer-version bar must sit in the banner area");
+		const refresh = bar.querySelector("button[data-newer-version-refresh]");
+		assert(refresh, "the newer-version bar must carry its Refresh button");
+		expect(NEWER_VERSION_BANNER_TEXT).toBe("There's a newer version of this article reader, want to refresh?");
+		expect(bar.querySelector("[data-test-newer-version-message]")?.textContent).toBe(NEWER_VERSION_BANNER_TEXT);
+		expect(bar.classList.contains("banner-bar")).toBe(true);
+		expect(bar.getAttribute("aria-hidden")).toBe("true");
+		expect(bar.hasAttribute("inert")).toBe(true);
+		expect(refresh.textContent).toBe("Refresh");
+		expect(Array.from(refresh.classList)).toEqual(expect.arrayContaining(["btn", "btn--secondary", "btn--s"]));
+	});
+
+	it("records the stored copy on screen on <html>, where a later script or a <main> htmx swaps in can find it, until a live page arrives", () => {
+		const page = renderUnderOfflineWorker();
+
+		page.workerSays(STORED_COPY);
+
+		expect(page.root.getAttribute(OFFLINE_COPY_PATH_ATTRIBUTE)).toBe(READER_PAGE_PATH);
+		expect(page.root.getAttribute(OFFLINE_COPY_SAVED_AT_ATTRIBUTE)).toBe(STORED_COPY_SAVED_AT);
+
+		page.workerSays(LIVE_PAGE);
+
+		expect(page.root.hasAttribute(OFFLINE_COPY_PATH_ATTRIBUTE)).toBe(false);
+		expect(page.root.hasAttribute(OFFLINE_COPY_SAVED_AT_ATTRIBUTE)).toBe(false);
+
+		page.dom.window.close();
+	});
+
+	it("shows the newer-version bar in place of the offline banner when the worker says the article on screen has a newer version online", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+
+		page.workerSays({ type: READER_VERSION_MESSAGE_TYPE, path: READER_PAGE_PATH, version: NEWER_READER_VERSION });
+
+		expect(page.newerVersion.classList.contains("newer-version-banner--visible")).toBe(true);
+		expect(page.newerVersion.getAttribute("aria-hidden")).toBe("false");
+		expect(page.newerVersion.hasAttribute("inert")).toBe(false);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(false);
+		expect(page.banner.getAttribute("aria-hidden")).toBe("true");
+		expect(page.root.getAttribute(OFFLINE_COPY_PATH_ATTRIBUTE)).toBe(READER_PAGE_PATH);
+
+		page.dom.window.close();
+	});
+
+	it("ignores a version message about a page the reader has moved on from", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+
+		page.workerSays({ type: READER_VERSION_MESSAGE_TYPE, path: "/queue/another/view", version: NEWER_READER_VERSION });
+		page.workerSays({ type: READER_VERSION_MESSAGE_TYPE, path: "/queue/another/view", version: "same" });
+
+		expect(page.newerVersion.classList.contains("newer-version-banner--visible")).toBe(false);
+		expect(page.banner.textContent).toBe(OFFLINE_BANNER_TEXT);
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+		expect(page.root.getAttribute(OFFLINE_COPY_PATH_ATTRIBUTE)).toBe(READER_PAGE_PATH);
+
+		page.dom.window.close();
+	});
+
+	it("lets the stored copy go and flashes 'Back online' when the worker says the copy on screen is the current version", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+
+		page.workerSays({ type: READER_VERSION_MESSAGE_TYPE, path: READER_PAGE_PATH, version: "same" });
+
+		expect(page.root.hasAttribute(OFFLINE_COPY_PATH_ATTRIBUTE)).toBe(false);
+		expect(page.root.hasAttribute(OFFLINE_COPY_SAVED_AT_ATTRIBUTE)).toBe(false);
+		expect(page.banner.textContent).toBe("Back online");
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+		expect(page.newerVersion.classList.contains("newer-version-banner--visible")).toBe(false);
+
+		page.dom.window.close();
+	});
+
+	it("leaves the 'Back online' flash the returning connection started running when the worker then says the copy is current", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+		page.dom.window.dispatchEvent(new page.dom.window.Event("online"));
+
+		page.workerSays({ type: READER_VERSION_MESSAGE_TYPE, path: READER_PAGE_PATH, version: "same" });
+
+		expect(page.root.hasAttribute(OFFLINE_COPY_PATH_ATTRIBUTE)).toBe(false);
+		expect(page.banner.textContent).toBe("Back online");
+		expect(page.banner.classList.contains("offline-banner--visible")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("asks the worker to revalidate the article when the connection returns over its stored copy, naming the version on screen", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+
+		page.dom.window.dispatchEvent(new page.dom.window.Event("online"));
+
+		expect(page.posted).toEqual([
+			{ type: REVALIDATE_READER_MESSAGE_TYPE, url: READER_PAGE_URL, version: STORED_COPY_VERSION },
+		]);
+
+		page.dom.window.close();
+	});
+
+	it("asks for no revalidation when the connection returns over a live page", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(LIVE_PAGE);
+
+		page.dom.window.dispatchEvent(new page.dom.window.Event("online"));
+
+		expect(page.posted).toEqual([]);
+
+		page.dom.window.close();
+	});
+
+	it("asks for no revalidation of a stored copy the reader has moved on from", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays({ ...STORED_COPY, path: "/queue/another/view" });
+
+		page.dom.window.dispatchEvent(new page.dom.window.Event("online"));
+
+		expect(page.posted).toEqual([]);
+
+		page.dom.window.close();
+	});
+
+	it("puts the newer-version bar away once the worker serves the next page", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+		page.workerSays({ type: READER_VERSION_MESSAGE_TYPE, path: READER_PAGE_PATH, version: NEWER_READER_VERSION });
+
+		page.workerSays(LIVE_PAGE);
+
+		expect(page.newerVersion.classList.contains("newer-version-banner--visible")).toBe(false);
+		expect(page.newerVersion.getAttribute("aria-hidden")).toBe("true");
+		expect(page.newerVersion.hasAttribute("inert")).toBe(true);
+
+		page.dom.window.close();
+	});
+
+	it("reloads the article when the reader presses Refresh", () => {
+		const page = renderUnderOfflineWorker();
+		page.workerSays(STORED_COPY);
+		page.workerSays({ type: READER_VERSION_MESSAGE_TYPE, path: READER_PAGE_PATH, version: NEWER_READER_VERSION });
+		const refresh = page.newerVersion.querySelector<HTMLElement>("[data-newer-version-refresh]");
+		assert(refresh, "the newer-version bar must carry its Refresh button");
+		expect(page.navigations).toEqual([]);
+
+		refresh.click();
+
+		expect(page.navigations).toEqual(["Not implemented: navigation (except hash changes)"]);
+
+		page.dom.window.close();
+	});
+
 	it("ships the shared banner bar rules ahead of every bar's own modifiers, so a modifier wins where they overlap", () => {
 		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window.document;
 		const css = Array.from(doc.head.querySelectorAll("style"))
@@ -523,6 +1072,7 @@ describe("Base component", () => {
 		for (const modifier of [
 			".changelog-banner--visible",
 			".offline-banner {",
+			".newer-version-banner {",
 			".verify-banner--visible",
 			".extension-suggestion-banner {",
 		]) {

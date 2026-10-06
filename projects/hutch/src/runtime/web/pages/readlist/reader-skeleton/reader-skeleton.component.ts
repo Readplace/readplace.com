@@ -9,6 +9,7 @@ import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-acti
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
 import { NEXT_READ_SCRIPT } from "../../../shared/next-read/next-read.component";
 import { SHARE_BALLOON_SCRIPT } from "../../../shared/share-balloon/share-balloon.component";
+import { OFFLINE_READER_SCRIPT } from "../../../shared/offline-reader/offline-reader-script";
 import { READER_OPEN_SCRIPT } from "../../../shared/reader-open/reader-open-script";
 import { READER_EXIT_CONFIRM_SCRIPT } from "../../reader/reader-exit-confirm.component";
 import { READER_ONLY_STYLES } from "../../reader/reader.styles";
@@ -31,7 +32,8 @@ export const READER_PAGE_SCRIPTS =
 	CRAWL_BOOKMARK_SCRIPT +
 	READLIST_PICKER_SCRIPT +
 	READER_EXIT_CONFIRM_SCRIPT +
-	READER_OPEN_SCRIPT;
+	READER_OPEN_SCRIPT +
+	OFFLINE_READER_SCRIPT;
 
 export function renderReaderSkeleton(options: { cspNonce: CspNonce }): string {
 	return render(TEMPLATE, {

@@ -83,6 +83,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		{{{navStyles}}}
 		{{{footerStyles}}}
 		{{{offlineBannerStyles}}}
+		{{{newerVersionBannerStyles}}}
 		{{{toastStyles}}}
 		{{{verifyBannerStyles}}}
 		{{{extensionSuggestionBannerStyles}}}
@@ -93,7 +94,13 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	<div class="banner-area">
 		{{{changelogBanner}}}
 		<div class="banner-bar offline-banner" role="alert" aria-live="polite" aria-hidden="true">
-			You're offline. Some features may be unavailable.
+			{{offlineBannerText}}
+		</div>
+		<div class="banner-bar newer-version-banner" role="status" aria-live="polite" aria-hidden="true" inert data-test-newer-version-banner>
+			<div class="newer-version-banner__content">
+				<p data-test-newer-version-message>{{newerVersionBannerText}}</p>
+				<button type="button" class="btn btn--secondary btn--s newer-version-banner__refresh" data-newer-version-refresh data-test-newer-version-refresh>Refresh</button>
+			</div>
 		</div>
 		{{{verifyBanner}}}
 		{{{extensionSuggestionBanner}}}

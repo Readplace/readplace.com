@@ -2,6 +2,7 @@ import request from "supertest";
 import { createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { useTestServer } from "../test-app";
 import { READER_PAINT_DELAY_MS } from "./shared/reader-open/reader-open-timing";
+import { OFFLINE_READER_WORKER_PATH } from "./static-asset-paths";
 
 const useApp = useTestServer();
 
@@ -58,5 +59,47 @@ describe("client-dist reader-open bundle", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.body.version).toBe(3);
+	});
+});
+
+describe("client-dist offline reader bundles", () => {
+	it("lets the offline worker control the readlist although its script lives under /client-dist", async () => {
+		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
+
+		const response = await request(harness.server).get(OFFLINE_READER_WORKER_PATH);
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/javascript; charset=utf-8");
+		expect(response.headers["service-worker-allowed"]).toBe("/");
+		expect(response.text).toContain("OfflineReaderWorker.initOfflineReaderWorker({");
+		expect(response.text).toContain("networkTimeoutMs: 3000");
+	});
+
+	it("widens the scope of the worker script only, never of another bundle", async () => {
+		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
+
+		const response = await request(harness.server).get("/client-dist/offline-reader.client.js");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["service-worker-allowed"]).toBeUndefined();
+	});
+
+	it("has the browser check the worker script with the server every time, while every other bundle keeps its five-minute cache", async () => {
+		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
+
+		const worker = await request(harness.server).get(OFFLINE_READER_WORKER_PATH);
+		const registration = await request(harness.server).get("/client-dist/offline-reader.client.js");
+
+		expect(worker.headers["cache-control"]).toBe("no-cache");
+		expect(registration.headers["cache-control"]).toBe("public, max-age=300");
+	});
+
+	it("registers the worker only in a browser that offers service workers, which the app's web view does not", async () => {
+		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
+
+		const response = await request(harness.server).get("/client-dist/offline-reader.client.js");
+
+		expect(response.text).toContain("if (window.navigator.serviceWorker) {");
+		expect(response.text).toContain("OfflineReader.initOfflineReader({");
 	});
 });

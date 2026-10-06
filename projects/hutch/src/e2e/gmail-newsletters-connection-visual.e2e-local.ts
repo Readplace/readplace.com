@@ -120,6 +120,7 @@ async function removeVolatileChrome(page: Page): Promise<void> {
 	await page.mouse.move(0, 0);
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
+		document.querySelector(".newer-version-banner")?.remove();
 	});
 }
 

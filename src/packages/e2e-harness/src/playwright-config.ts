@@ -68,6 +68,7 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
 			headless: options.headless,
 			screenshot: 'only-on-failure',
 			video: options.video,
+			serviceWorkers: 'block',
 		},
 		projects: [
 			{

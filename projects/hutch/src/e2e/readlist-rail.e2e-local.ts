@@ -60,6 +60,7 @@ const SEEDED_ARTICLES = [
 
 const VOLATILE_CHROME = [
 	".offline-banner",
+	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 ];

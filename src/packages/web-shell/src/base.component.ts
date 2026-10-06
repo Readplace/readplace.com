@@ -12,6 +12,7 @@ import {
 	FOOTER_STYLES,
 	HEADER_STYLES,
 	NAV_STYLES,
+	NEWER_VERSION_BANNER_STYLES,
 	OFFLINE_BANNER_STYLES,
 	VERIFY_BANNER_STYLES,
 	UTILITY_STYLES,
@@ -91,14 +92,32 @@ function externalCanonicalUrl(canonicalUrl: string): string {
  * inside an htmx-swapped <main>, which a page-scoped script would never see. */
 const TOAST_SCRIPT = `<script src="/client-dist/toast.client.js" defer></script>`;
 
+export const OFFLINE_BANNER_TEXT =
+	"Your internet is not working, your reading is offline. Readplace is read-only until you're back online.";
+
+export const NEWER_VERSION_BANNER_TEXT = "There's a newer version of this article reader, want to refresh?";
+
+export const READER_SOURCE_MESSAGE_TYPE = "readplace:reader-source";
+export const OFFLINE_COPY_READER_SOURCE = "offline-copy";
+export const READER_VERSION_MESSAGE_TYPE = "readplace:reader-version";
+export const NEWER_READER_VERSION = "newer";
+export const REVALIDATE_READER_MESSAGE_TYPE = "readplace:revalidate-reader";
+export const OFFLINE_COPY_PATH_ATTRIBUTE = "data-offline-copy-path";
+export const OFFLINE_COPY_SAVED_AT_ATTRIBUTE = "data-offline-copy-saved-at";
+export const OFFLINE_SAVED_AT_HEADER = "Readplace-Offline-Saved-At";
+
 const offlineIndicatorScript = (cspNonce: CspNonce) => `
 <script nonce="${cspNonce}">
 (function() {
 	var banner = document.querySelector('.offline-banner');
 	if (!banner) return;
+	var newerVersion = document.querySelector('.newer-version-banner');
+	var root = document.documentElement;
 
 	var wasOffline = false;
+	var networkUnreachable = false;
 	var hideTimeout = null;
+	var copyOnScreen = null;
 
 	function updateOnlineStatus() {
 		if (hideTimeout) {
@@ -106,7 +125,7 @@ const offlineIndicatorScript = (cspNonce: CspNonce) => `
 			hideTimeout = null;
 		}
 
-		if (navigator.onLine) {
+		if (navigator.onLine && !networkUnreachable) {
 			if (wasOffline) {
 				banner.textContent = 'Back online';
 				banner.classList.add('offline-banner--visible');
@@ -122,14 +141,83 @@ const offlineIndicatorScript = (cspNonce: CspNonce) => `
 			wasOffline = false;
 		} else {
 			wasOffline = true;
-			banner.textContent = "You're offline. Some features may be unavailable.";
+			banner.textContent = ${JSON.stringify(OFFLINE_BANNER_TEXT)};
 			banner.classList.add('offline-banner--visible');
 			banner.setAttribute('aria-hidden', 'false');
 		}
 	}
 
-	window.addEventListener('online', updateOnlineStatus);
+	function showNewerVersion(visible) {
+		newerVersion.classList.toggle('newer-version-banner--visible', visible);
+		newerVersion.setAttribute('aria-hidden', String(!visible));
+		newerVersion.toggleAttribute('inert', !visible);
+	}
+
+	function keepCopyOnScreen(copy) {
+		copyOnScreen = copy;
+		if (copy) {
+			root.setAttribute(${JSON.stringify(OFFLINE_COPY_PATH_ATTRIBUTE)}, copy.path);
+			root.setAttribute(${JSON.stringify(OFFLINE_COPY_SAVED_AT_ATTRIBUTE)}, copy.savedAt);
+		} else {
+			root.removeAttribute(${JSON.stringify(OFFLINE_COPY_PATH_ATTRIBUTE)});
+			root.removeAttribute(${JSON.stringify(OFFLINE_COPY_SAVED_AT_ATTRIBUTE)});
+		}
+	}
+
+	newerVersion.querySelector('[data-newer-version-refresh]').addEventListener('click', function() {
+		location.reload();
+	});
+
+	function cameBackOnline() {
+		networkUnreachable = false;
+		updateOnlineStatus();
+		if (copyOnScreen && copyOnScreen.path === location.pathname) {
+			navigator.serviceWorker.controller.postMessage({
+				type: ${JSON.stringify(REVALIDATE_READER_MESSAGE_TYPE)},
+				url: location.href,
+				version: copyOnScreen.version
+			});
+		}
+	}
+	window.addEventListener('online', cameBackOnline);
 	window.addEventListener('offline', updateOnlineStatus);
+	document.addEventListener('htmx:sendError', function(event) {
+		if (event.target.hasAttribute('data-background-request')) return;
+		networkUnreachable = true;
+		updateOnlineStatus();
+	});
+	document.addEventListener('htmx:afterRequest', function(event) {
+		var request = event.detail;
+		if (!networkUnreachable || request.requestConfig.elt.hasAttribute('data-background-request') || request.xhr.status === 0 || request.xhr.getResponseHeader(${JSON.stringify(OFFLINE_SAVED_AT_HEADER)}) !== null) return;
+		cameBackOnline();
+	});
+	if (navigator.serviceWorker) {
+		navigator.serviceWorker.addEventListener('message', function(event) {
+			var message = event.data;
+			if (message.type === ${JSON.stringify(READER_SOURCE_MESSAGE_TYPE)}) {
+				var servedOffline = message.source === ${JSON.stringify(OFFLINE_COPY_READER_SOURCE)};
+				keepCopyOnScreen(servedOffline ? message : null);
+				showNewerVersion(false);
+				if (servedOffline === networkUnreachable) return;
+				networkUnreachable = servedOffline;
+				updateOnlineStatus();
+				return;
+			}
+			if (message.type !== ${JSON.stringify(READER_VERSION_MESSAGE_TYPE)} || message.path !== location.pathname) return;
+			if (message.version === ${JSON.stringify(NEWER_READER_VERSION)}) {
+				networkUnreachable = false;
+				wasOffline = false;
+				updateOnlineStatus();
+				showNewerVersion(true);
+				return;
+			}
+			keepCopyOnScreen(null);
+			if (!networkUnreachable) return;
+			networkUnreachable = false;
+			updateOnlineStatus();
+		});
+		navigator.serviceWorker.startMessages();
+	}
 	updateOnlineStatus();
 })();
 </script>`;
@@ -283,6 +371,9 @@ export function initBase(config: BaseConfig): RenderBase {
 			navStyles: NAV_STYLES,
 			footerStyles: FOOTER_STYLES,
 			offlineBannerStyles: OFFLINE_BANNER_STYLES,
+			offlineBannerText: OFFLINE_BANNER_TEXT,
+			newerVersionBannerStyles: NEWER_VERSION_BANNER_STYLES,
+			newerVersionBannerText: NEWER_VERSION_BANNER_TEXT,
 			toastStyles: TOAST_STYLES,
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,

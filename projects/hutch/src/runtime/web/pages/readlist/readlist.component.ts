@@ -12,6 +12,9 @@ import type { CspNonce, PageBody } from "@packages/web-shell";
 import type { DeviceClass } from "@packages/web-analytics";
 
 import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
+import { OFFLINE_DOWNLOAD_SCRIPT } from "../../shared/offline-reader/offline-download-script";
+import { offlineCardOpenScript } from "../../shared/offline-reader/offline-card-open-script";
+import { offlineCopyRowScript } from "../../shared/article-body/crawl-bookmark/offline-copy-row-script";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import {
 	ONBOARDING_STYLES,
@@ -42,6 +45,7 @@ import type { ReadlistRailViewModel } from "./readlist-rail";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import { type TabId, tabQuery } from "./readlist.tabs";
 import {
+	type ReadlistUrlState,
 	buildReadlistUrl,
 	readlistDeletePath,
 	readlistReturnQuery,
@@ -70,12 +74,17 @@ const TEMPLATE = readFileSync(join(__dirname, "readlist.template.html"), "utf-8"
 
 export const READLIST_BODY_CLASS = "page-readlist";
 
-export const READLIST_PAGE_SCRIPTS = [
-	NAV_HIDE_SCRIPT,
-	SAVE_TIP_SCRIPT,
-	READLIST_RENAME_SCRIPT,
-	READER_PAGE_SCRIPTS,
-].join("\n");
+export function readlistPageScripts(cspNonce: CspNonce): string {
+	return [
+		NAV_HIDE_SCRIPT,
+		SAVE_TIP_SCRIPT,
+		READLIST_RENAME_SCRIPT,
+		READER_PAGE_SCRIPTS,
+		OFFLINE_DOWNLOAD_SCRIPT,
+		offlineCopyRowScript(cspNonce),
+		offlineCardOpenScript(cspNonce),
+	].join("\n");
+}
 
 interface ReadlistOnboarding {
 	context: OnboardingContext;
@@ -213,6 +222,22 @@ function installClientOf(context: OnboardingContext): DeviceClient {
 		: { platform: "other", installed: false };
 }
 
+interface OfflineDownloadControl {
+	href: string;
+	stateClass: string;
+}
+
+function offlineDownloadControl(input: { filters: ReadlistUrlState; isEmpty: boolean }): OfflineDownloadControl {
+	const offered = input.filters.tab === "queue" && !input.isEmpty;
+	return {
+		href: withInternalTracking(
+			buildReadlistUrl({ readlist: input.filters.readlist, tab: "queue", order: input.filters.order }),
+			{ source: "queue-listing", content: "download-offline" },
+		),
+		stateClass: offered ? "readlist-listing__offline--offered" : "readlist-listing__offline--withheld",
+	};
+}
+
 function firstByteTotal(vm: ReadlistViewModel): number | undefined {
 	const totalIsKnown = vm.currentPage === 1 && !vm.paginationUrls.next;
 	return totalIsKnown ? vm.articles.length : undefined;
@@ -295,6 +320,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		),
 		sortLabel: sort.label,
 		sortIconName: sort.iconName,
+		offlineDownload: offlineDownloadControl({ filters, isEmpty: vm.isEmpty }),
 		saveSkeletonHtml: renderReadlistSaveSkeleton(
 			toReadlistSaveSkeletonDisplayModel({ filters, accessIsReadOnly: vm.accessIsReadOnly }),
 		),
@@ -372,7 +398,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
 	});
 
-	const scripts = [READLIST_PAGE_SCRIPTS];
+	const scripts = [readlistPageScripts(options.cspNonce)];
 	if (options.saveUrl) scripts.push(autoSubmitScript(options.cspNonce));
 
 	return {

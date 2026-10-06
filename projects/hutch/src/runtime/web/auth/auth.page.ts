@@ -658,6 +658,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
 		res.clearCookie(LAST_VIEW_COOKIE_NAME, { path: "/" });
+		res.set("Clear-Site-Data", '"storage"');
 		res.redirect(303, "/");
 	});
 

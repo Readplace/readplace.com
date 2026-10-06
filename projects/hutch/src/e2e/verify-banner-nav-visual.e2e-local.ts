@@ -114,7 +114,7 @@ async function narrowSoTheBannerGrows(page: Page): Promise<void> {
 	await bannerAreaHeightSettled(page);
 }
 
-const VOLATILE_CHROME = [".offline-banner"];
+const VOLATILE_CHROME = [".offline-banner", ".newer-version-banner"];
 
 function initBannerNavSettled(keptUnderTest: readonly string[]) {
 	const stripped = VOLATILE_CHROME.filter((selector) => !keptUnderTest.includes(selector));

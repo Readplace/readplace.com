@@ -43,6 +43,7 @@ const NEW_READLIST = '[data-test-action="new-readlist"]';
 
 const VOLATILE_CHROME = [
 	".offline-banner",
+	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	"[data-test-reader-related]",

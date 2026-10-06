@@ -10,8 +10,9 @@ import { UserIdSchema } from "@packages/domain/user";
 import { JSDOM } from "jsdom";
 import {
 	READLIST_BODY_CLASS,
-	READLIST_PAGE_SCRIPTS,
+	readlistPageScripts,
 } from "./readlist.component";
+import { generateCspNonce } from "@packages/web-shell";
 import type { AlertContent } from "@packages/web-shell";
 import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import { readlistRenamePopoverId } from "./readlist-rename.component";
@@ -20,6 +21,7 @@ import { DEFAULT_READLIST } from "./readlist.nav";
 
 const WORK: ReadlistSlug = ReadlistSlugSchema.parse("a1b2c3d4");
 const LATER: ReadlistSlug = ReadlistSlugSchema.parse("e5f6a7b8");
+const NONCE = generateCspNonce();
 
 function page(overrides: {
 	purpose?: string;
@@ -46,6 +48,7 @@ function page(overrides: {
 		inboxAlert: overrides.inboxAlert,
 		preferencesEnabled: overrides.preferencesEnabled ?? true,
 		query: overrides.query ?? {},
+		cspNonce: NONCE,
 	});
 }
 
@@ -63,7 +66,7 @@ describe("ReadlistPreferencesPage", () => {
 	});
 
 	it("ships the readlist page's own scripts, so a boosted hop to the listing finds them loaded", () => {
-		expect(page({}).scripts).toBe(READLIST_PAGE_SCRIPTS);
+		expect(page({}).scripts).toBe(readlistPageScripts(NONCE));
 	});
 
 	it("carries the stylesheet of every part it renders", () => {

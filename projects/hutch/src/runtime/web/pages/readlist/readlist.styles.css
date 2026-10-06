@@ -315,6 +315,7 @@
 }
 
 .readlist-listing__header {
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -381,6 +382,54 @@
 .readlist-listing__sort svg {
   width: 1.25rem;
   height: 1.25rem;
+}
+
+.readlist-listing__offline {
+  display: none;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/**
+ * 1. The reveal lives on <html> because htmx swaps <main>: a per-control hidden
+ *    attribute returns with every boosted swap and the header jumps by the
+ *    control's row until htmx:afterSettle.
+ */
+:root[data-offline-download-ready] .readlist-listing__offline--offered {
+  display: flex; /* 1 */
+}
+
+.readlist-listing__offline-progress {
+  appearance: none;
+  width: 96px;
+  height: 6px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--progress-track);
+  overflow: hidden;
+}
+
+.readlist-listing__offline-progress::-webkit-progress-bar {
+  background: var(--progress-track);
+}
+
+.readlist-listing__offline-progress::-webkit-progress-value {
+  background: var(--progress-fill);
+  border-radius: var(--radius-pill);
+}
+
+.readlist-listing__offline-progress::-moz-progress-bar {
+  background: var(--progress-fill);
+  border-radius: var(--radius-pill);
+}
+
+.readlist-listing__offline-status {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
 }
 
 .readlist-list {
@@ -900,6 +949,11 @@
 @supports selector(:has(*)) {
   .readlist-listing:has(.readlist-save-skeleton--armed.htmx-request) .readlist-listing__header--hidden {
     display: flex;
+  }
+
+  :root[data-offline-download-ready] .readlist-listing:has(.readlist-save-skeleton--armed.htmx-request) .readlist-listing__offline--withheld {
+    display: flex;
+    visibility: hidden;
   }
 
   .confirm-popover__actions:has(.readlist-migrate__select option:not([value=""]):checked) .readlist-delete__cta-label--delete {

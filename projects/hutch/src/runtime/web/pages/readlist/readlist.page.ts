@@ -216,9 +216,14 @@ import { computeArticleContentVersion } from "../../shared/article-content-versi
 import { readerCachePolicy } from "./reader-cache-policy";
 import { VIEW_BACK_LINK } from "./reader-skeleton/reader-skeleton.component";
 import { etagMatches } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
 import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
+import { isPrefetchRequest } from "../../shared/prefetch-request";
+import { OFFLINE_READER_SCRIPT } from "../../shared/offline-reader/offline-reader-script";
+import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
+import { offlineCopyRowScript } from "../../shared/article-body/crawl-bookmark/offline-copy-row-script";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import { GMAIL_ONBOARDING_VERSION, NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingGmailStep, hasOutstandingStep, onboardingVersion } from "../../onboarding/onboarding.steps";
 import { gmailConnectionState, type GmailConnectionStore } from "@packages/domain/gmail";
@@ -684,6 +689,11 @@ const readerCaptureBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspN
  * still resolves to its chromeless reader. */
 const isAppPlatform = (req: Request): boolean => isNativeSurface(req);
 
+function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
+	assert(page.scripts, "the reader page always sets its scripts");
+	return { ...page, scripts: page.scripts + OFFLINE_READER_SCRIPT + offlineCopyRowScript(cspNonce) };
+}
+
 /** Whose install/save signals a device's platform reads: a native app's own
  * server-side pair, or `undefined` for the extension's same-browser cookies.
  * Every platform is answered explicitly, so a new content-capture client is a
@@ -1032,11 +1042,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		const ownedArticle = result.article;
 
-		await storeFor(readerReadlist).markArticleViewed({
-			userId: ownedArticle.userId,
-			url: ownedArticle.url,
-			at: deps.now(),
-		});
+		if (!isPrefetchRequest(req)) {
+			await storeFor(readerReadlist).markArticleViewed({
+				userId: ownedArticle.userId,
+				url: ownedArticle.url,
+				at: deps.now(),
+			});
+		}
 
 		const [related, previouslyRead, state, readlistFiling, provenance] = await Promise.all([
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
@@ -1172,7 +1184,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			currentVersion: contentVersion,
 			settled: readerSettled,
 		});
-		res.vary("Cookie");
 
 		if (isAppPlatform(req)) {
 			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
@@ -1230,6 +1241,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
+		res.vary("Cookie");
+		res.set(ARTICLE_VERSION_HEADER, contentVersion);
+
 		const showExtensionSuggestionBanner =
 			state.readerViewFailed && canOfferExtensionInstall(req);
 
@@ -1253,7 +1267,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		sendComponent(
 			req, res,
 			FreshForComponent(
-				Base(ReaderPage({ ...ownedArticle, content: state.content }, {
+				Base(withOfflineReading(ReaderPage({ ...ownedArticle, content: state.content }, {
 					appOrigin: deps.appOrigin,
 					summary: state.summary,
 					summaryPollUrl: state.summaryPollUrl,
@@ -1282,7 +1296,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					readerNotice: state.notice,
 					epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
 					issueLinks,
-				}), {
+				}), cspNonce), {
 					...(await deps.buildBannerState(req)),
 					showExtensionSuggestionBanner,
 					extensionInstalled: isExtensionInstalled(req),

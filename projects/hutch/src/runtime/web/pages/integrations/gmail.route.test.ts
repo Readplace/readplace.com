@@ -593,6 +593,7 @@ describe("GMail Newsletters page", () => {
 			poll: "1",
 		});
 		expect(results(doc).getAttribute("hx-trigger")).toBe("every 3s");
+		expect(results(doc).hasAttribute("data-background-request")).toBe(true);
 		expect(doc.querySelector("#gmail-sender-choice")?.textContent).toBe(TLDR);
 		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Tech");
 		const fragment = await agent.get(pollUrl).set("HX-Request", "true");
@@ -630,6 +631,7 @@ describe("GMail Newsletters page", () => {
 		await seedDiscovery({ gmail, userId, gatewayAddress, senders: [], generation: "budget", state: "running", scannedMessages: 25 });
 		const slow = load((await agent.get(`${GMAIL}/senders?discovery=started&poll=20`).set("HX-Request", "true")).text);
 		expect(results(slow).getAttribute("hx-trigger")).toBe("every 15s");
+		expect(results(slow).hasAttribute("data-background-request")).toBe(true);
 		const stopped = load((await agent.get(`${GMAIL}/senders?discovery=started&poll=260`).set("HX-Request", "true")).text);
 		expect(results(stopped).hasAttribute("hx-get")).toBe(false);
 		expect(stopped.querySelector("[data-test-gmail-discovery-status]")?.textContent).toBe("Still checking. Checked 25 messages so far…");

@@ -176,6 +176,7 @@ async function sectionSettled(page: Page): Promise<void> {
 	await page.waitForSelector(READY_SECTION);
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
+		document.querySelector(".newer-version-banner")?.remove();
 		document.querySelector("[data-test-reader-float-stack]")?.remove();
 	});
 }

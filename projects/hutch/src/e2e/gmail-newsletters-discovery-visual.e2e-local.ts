@@ -112,6 +112,7 @@ async function discoveryShown(
 	await page.mouse.move(0, 0);
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
+		document.querySelector(".newer-version-banner")?.remove();
 	});
 }
 
@@ -293,6 +294,7 @@ const SCENARIOS: readonly Scenario[] = [
 			await page.mouse.move(0, 0);
 			await page.evaluate(() => {
 				document.querySelector(".offline-banner")?.remove();
+				document.querySelector(".newer-version-banner")?.remove();
 			});
 		},
 	},

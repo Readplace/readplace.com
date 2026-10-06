@@ -194,6 +194,10 @@ describe("createPlaywrightConfig", () => {
 		expect(createPlaywrightConfig({ ...shared, workers: 2 }).workers).toBe(2);
 	});
 
+	it("keeps service workers out of every suite unless a spec opts in, so a worker can never answer a request a test meant for the server", () => {
+		expect(localConfig().use?.serviceWorkers).toBe("block");
+	});
+
 	it("writes the HTML report and the screenshot gallery to the folders the suite names, never opening a browser", () => {
 		const config = createPlaywrightConfig({
 			testMatch: "**/*.e2e-local.ts",

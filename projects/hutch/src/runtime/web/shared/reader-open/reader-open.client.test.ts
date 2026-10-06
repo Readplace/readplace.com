@@ -44,10 +44,7 @@ function readerResponse(bodyClass: string, options?: { banner?: string }): strin
 	return `<!DOCTYPE html><html><head><title>Article Title — Readplace Reader</title></head><body class="${bodyClass}">${options?.banner ?? ""}<main class="reader" hx-history="false"></main></body></html>`;
 }
 
-interface HistoryCall {
-	method: "pushState" | "replaceState";
-	url: string;
-}
+type HistoryCall = { method: "pushState" | "replaceState"; url: string } | { method: "back" };
 
 function setup(bodyHtml: string, options?: { bodyClass?: string; currentHref?: string }) {
 	const dom = new JSDOM(
@@ -60,9 +57,10 @@ function setup(bodyHtml: string, options?: { bodyClass?: string; currentHref?: s
 	const aborted: EventTarget[] = [];
 	const timers: Array<{ callback: () => void; ms: number }> = [];
 	const cleared: number[] = [];
+	const scrolledTo: number[] = [];
 	const listeners = new Map<HtmxHistoryEventName, (event: Event) => void>();
 	let reloadCount = 0;
-	let scrolls = 0;
+	let listScrollY = 0;
 	let registrations = 0;
 
 	function deps(): ReaderOpenDeps {
@@ -72,6 +70,7 @@ function setup(bodyHtml: string, options?: { bodyClass?: string; currentHref?: s
 				pushState: (_state, _title, url) => historyCalls.push({ method: "pushState", url: String(url) }),
 				replaceState: (_state, _title, url) =>
 					historyCalls.push({ method: "replaceState", url: String(url) }),
+				back: () => historyCalls.push({ method: "back" }),
 			},
 			currentHref: () => options?.currentHref ?? QUEUE_HREF,
 			currentPath: () => "/queue",
@@ -79,9 +78,8 @@ function setup(bodyHtml: string, options?: { bodyClass?: string; currentHref?: s
 			reload: () => {
 				reloadCount += 1;
 			},
-			scrollToTop: () => {
-				scrolls += 1;
-			},
+			scrollTo: (top) => scrolledTo.push(top),
+			scrollY: () => listScrollY,
 			setTimeoutFn: (callback, ms) => {
 				timers.push({ callback, ms });
 				return timers.length;
@@ -98,10 +96,17 @@ function setup(bodyHtml: string, options?: { bodyClass?: string; currentHref?: s
 
 	initReaderOpen(deps());
 
+	function changeReadyState(xhr: EventTarget, state: { readyState: number; status: number }): void {
+		Reflect.set(xhr, "readyState", state.readyState);
+		Reflect.set(xhr, "status", state.status);
+		xhr.dispatchEvent(new dom.window.Event("readystatechange"));
+	}
+
 	function makeXhr(response?: string): EventTarget {
 		const xhr = new dom.window.EventTarget();
 		Reflect.set(xhr, "abort", () => {
 			aborted.push(xhr);
+			changeReadyState(xhr, { readyState: 4, status: 0 });
 		});
 		if (response !== undefined) Reflect.set(xhr, "response", response);
 		return xhr;
@@ -171,8 +176,12 @@ function setup(bodyHtml: string, options?: { bodyClass?: string; currentHref?: s
 		banner,
 		initAgain: () => initReaderOpen(deps()),
 		dispatchLoadEnd: (xhr: EventTarget) => xhr.dispatchEvent(new dom.window.Event("loadend")),
+		changeReadyState,
 		reloadCount: () => reloadCount,
-		scrolls: () => scrolls,
+		scrolledTo,
+		scrollListTo: (offset: number) => {
+			listScrollY = offset;
+		},
 		registrations: () => registrations,
 	};
 }
@@ -194,7 +203,7 @@ describe("initReaderOpen", () => {
 		expect(app.timers[0]?.ms).toBe(INJECTED_PAINT_DELAY_MS);
 		expect(app.main()?.className).toBe("readlist");
 		expect(app.body.classList.contains("page-readlist")).toBe(true);
-		expect(app.scrolls()).toBe(0);
+		expect(app.scrolledTo).toEqual([]);
 	});
 
 	it("stamps the queue entry with its full address so a fragment survives Back", () => {
@@ -261,7 +270,7 @@ describe("initReaderOpen", () => {
 		expect(app.body.classList.contains("page-distraction-free")).toBe(true);
 		expect(app.body.classList.contains("page-readlist")).toBe(false);
 		expect(app.body.classList.contains("theme-dark")).toBe(true);
-		expect(app.scrolls()).toBe(1);
+		expect(app.scrolledTo).toEqual([0]);
 		expect(main.querySelectorAll("[id]").length).toBe(0);
 	});
 
@@ -292,7 +301,7 @@ describe("initReaderOpen", () => {
 		expect(app.cleared).toContain(1);
 		expect(historyUpdate.type).toBe("replace");
 		expect(app.body.className).toBe("page-reader theme-dark");
-		expect(app.scrolls()).toBe(1);
+		expect(app.scrolledTo).toEqual([0]);
 		expect(app.main()?.className).toBe("readlist");
 	});
 
@@ -302,7 +311,7 @@ describe("initReaderOpen", () => {
 		app.timers[0]?.callback();
 		Reflect.set(xhr, "response", readerResponse("page-reader theme-dark"));
 		app.fire("htmx:beforeHistoryUpdate", { xhr, history: { type: "push" } });
-		expect(app.scrolls()).toBe(1);
+		expect(app.scrolledTo).toEqual([0]);
 		expect(app.body.className).toBe("page-reader theme-dark");
 	});
 
@@ -313,7 +322,7 @@ describe("initReaderOpen", () => {
 		expect(app.body.classList.contains("page-reader")).toBe(true);
 		expect(app.body.classList.contains("page-distraction-free")).toBe(true);
 		expect(app.body.classList.contains("page-readlist")).toBe(false);
-		expect(app.scrolls()).toBe(1);
+		expect(app.scrolledTo).toEqual([0]);
 	});
 
 	it("replaces the shell banner with the response's so a failed article's suggestion shows after the fill", () => {
@@ -360,7 +369,7 @@ describe("initReaderOpen", () => {
 		app.fire("htmx:beforeHistoryUpdate", { xhr: app.makeXhr(), history: historyUpdate });
 		expect(historyUpdate.type).toBe("push");
 		expect(app.cleared).toEqual([]);
-		expect(app.scrolls()).toBe(0);
+		expect(app.scrolledTo).toEqual([]);
 		expect(app.body.className).toBe("page-readlist theme-dark");
 	});
 
@@ -375,7 +384,7 @@ describe("initReaderOpen", () => {
 		});
 		expect(app.body.className).toBe("page-readlist theme-dark");
 		expect(historyUpdate.type).toBe("push");
-		expect(app.scrolls()).toBe(0);
+		expect(app.scrolledTo).toEqual([]);
 	});
 
 	it("falls back to a plain navigation when the request ends without committing", () => {
@@ -384,6 +393,124 @@ describe("initReaderOpen", () => {
 		app.dispatchLoadEnd(xhr);
 		expect(app.navigated).toEqual([READER_HREF]);
 		expect(app.cleared).toContain(1);
+	});
+
+	it("keeps the list on screen when a tap fails to reach the network before the skeleton paints, taking the article off the history", () => {
+		const app = setup(queuePage(realCard()));
+		const xhr = app.arm();
+
+		app.changeReadyState(xhr, { readyState: 4, status: 0 });
+		app.dispatchLoadEnd(xhr);
+
+		expect(app.navigated).toEqual([]);
+		expect(app.historyCalls).toEqual([
+			{ method: "replaceState", url: QUEUE_HREF },
+			{ method: "pushState", url: READER_HREF },
+			{ method: "back" },
+		]);
+		expect(app.main()?.hasAttribute("hx-history")).toBe(false);
+		expect(app.main()?.className).toBe("readlist");
+		expect(app.body.className).toBe("page-readlist theme-dark");
+		expect(app.cleared).toContain(1);
+	});
+
+	it("cancels the one htmx restore its own step back sets off, so the list on screen is not swapped for a snapshot of itself", () => {
+		const app = setup(queuePage(realCard()));
+		const xhr = app.arm();
+		app.changeReadyState(xhr, { readyState: 4, status: 0 });
+		app.dispatchLoadEnd(xhr);
+
+		const stepBack = app.fire("htmx:historyCacheHit", {});
+		const later = app.fire("htmx:historyCacheHit", {});
+
+		expect(stepBack.defaultPrevented).toBe(true);
+		expect(later.defaultPrevented).toBe(false);
+		expect(app.reloadCount()).toBe(0);
+	});
+
+	it("cancels its own step back's restore when htmx holds no snapshot of the list, and only that one", () => {
+		const app = setup(queuePage(realCard()));
+		const xhr = app.arm();
+		app.changeReadyState(xhr, { readyState: 4, status: 0 });
+		app.dispatchLoadEnd(xhr);
+
+		const stepBack = app.fire("htmx:historyCacheMiss", { path: "/queue" });
+		const later = app.fire("htmx:historyCacheHit", {});
+
+		expect(stepBack.defaultPrevented).toBe(true);
+		expect(later.defaultPrevented).toBe(false);
+		expect(app.reloadCount()).toBe(0);
+	});
+
+	it("keeps the list in the document, hidden, while the skeleton shows, so its every-3s card polls keep running", () => {
+		const app = setup(queuePage(realCard()));
+		const opener = app.document.querySelector("[data-test-article-title]");
+		app.arm();
+
+		app.timers[0]?.callback();
+
+		expect(opener?.isConnected).toBe(true);
+		expect(opener?.closest("main > [hidden]")).not.toBeNull();
+		expect(app.main()?.querySelector("[data-test-reader-skeleton]")?.closest("[hidden]")).toBeNull();
+	});
+
+	it("puts the very list back, before htmx reports the failure, when a tap fails to reach the network after the skeleton painted", () => {
+		const app = setup(queuePage(realCard()));
+		const main = app.main();
+		assert(main, "the queue page must render its main");
+		const listNodes = Array.from(main.childNodes);
+		const xhr = app.arm();
+		app.timers[0]?.callback();
+
+		app.changeReadyState(xhr, { readyState: 4, status: 0 });
+
+		const restored = Array.from(main.childNodes);
+		expect(restored).toHaveLength(listNodes.length);
+		for (const [index, node] of restored.entries()) expect(node).toBe(listNodes[index]);
+		expect(main.className).toBe("readlist");
+		expect(main.hasAttribute("aria-busy")).toBe(false);
+		expect(main.hasAttribute("hx-history")).toBe(false);
+		expect(app.body.className).toBe("page-readlist theme-dark");
+		expect(app.historyCalls.at(-1)).toEqual({ method: "back" });
+		app.dispatchLoadEnd(xhr);
+		expect(app.navigated).toEqual([]);
+	});
+
+	it("brings the list back where the reader left it, scrolled to the same offset with the tapped link focused in place, when a tap fails after the skeleton painted", () => {
+		const app = setup(queuePage(realCard()));
+		const opener = app.document.querySelector("[data-test-article-title]");
+		assert(opener, "the card must render its title link");
+		const focusCalls: unknown[] = [];
+		Object.defineProperty(opener, "focus", { value: (options: unknown) => focusCalls.push(options) });
+		app.scrollListTo(840);
+		const xhr = app.arm();
+		app.timers[0]?.callback();
+
+		app.changeReadyState(xhr, { readyState: 4, status: 0 });
+
+		expect(app.scrolledTo).toEqual([0, 840]);
+		expect(focusCalls).toEqual([{ preventScroll: true }]);
+	});
+
+	it("still navigates to the article when the server answers with an error", () => {
+		const app = setup(queuePage(realCard()));
+		const xhr = app.arm();
+
+		app.changeReadyState(xhr, { readyState: 4, status: 500 });
+		app.dispatchLoadEnd(xhr);
+
+		expect(app.navigated).toEqual([READER_HREF]);
+		expect(app.historyCalls).toHaveLength(2);
+	});
+
+	it("waits for the request to finish before judging it", () => {
+		const app = setup(queuePage(realCard()));
+		const xhr = app.arm();
+
+		app.changeReadyState(xhr, { readyState: 2, status: 200 });
+
+		expect(app.historyCalls).toHaveLength(2);
+		expect(app.main()?.getAttribute("hx-history")).toBe("false");
 	});
 
 	it("does not navigate once the response has committed", () => {
@@ -411,6 +538,7 @@ describe("initReaderOpen", () => {
 		expect(app.aborted).toEqual([xhr]);
 		expect(app.cleared).toEqual([1]);
 		expect(app.reloadCount()).toBe(1);
+		expect(app.historyCalls).toHaveLength(2);
 		app.dispatchLoadEnd(xhr);
 		expect(app.navigated).toEqual([]);
 	});

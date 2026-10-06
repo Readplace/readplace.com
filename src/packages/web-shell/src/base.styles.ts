@@ -906,6 +906,40 @@ export const OFFLINE_BANNER_STYLES = `
 	}
 `;
 
+export const NEWER_VERSION_BANNER_STYLES = `
+	.newer-version-banner {
+		max-height: 0;
+		overflow: hidden;
+		transition: max-height 0.3s ease, padding 0.3s ease;
+		padding-block: 0;
+	}
+
+	.newer-version-banner--visible {
+		max-height: 320px;
+		padding-block: 16px;
+	}
+
+	.newer-version-banner__content {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 16px;
+		min-height: 32px;
+	}
+
+	@media (min-width: 768px) {
+		.newer-version-banner__content {
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.newer-version-banner__refresh {
+			flex: 0 0 auto;
+		}
+	}
+`;
+
 export const NAV_STYLES = `
 	.nav {
 		position: relative;

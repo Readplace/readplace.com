@@ -165,6 +165,7 @@ async function cardRevealed(page: Page): Promise<void> {
 	await page.mouse.move(5, 5);
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
+		document.querySelector(".newer-version-banner")?.remove();
 	});
 }
 

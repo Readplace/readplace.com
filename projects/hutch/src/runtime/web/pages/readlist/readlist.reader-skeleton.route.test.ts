@@ -14,6 +14,7 @@ const READER_PAGE_BUNDLES = [
 	"/client-dist/readlist-picker.client.js",
 	"/client-dist/reader-exit-confirm.client.js",
 	"/client-dist/reader-open.client.js",
+	"/client-dist/offline-reader.client.js",
 ];
 
 function bundleSrcs(doc: Document): string[] {

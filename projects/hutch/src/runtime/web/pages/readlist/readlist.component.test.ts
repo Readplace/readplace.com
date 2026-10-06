@@ -11,6 +11,7 @@ import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { READLIST_CREATE_PATH, type ReadlistUrlState } from "./readlist.url";
 import type { ReadlistArticleViewModel, ReadlistViewModel } from "./readlist.viewmodel";
 import { READLIST_RENAME_SCRIPT, readlistRenamePopoverId } from "./readlist-rename.component";
+import { OFFLINE_DOWNLOAD_SCRIPT } from "../../shared/offline-reader/offline-download-script";
 import { ReadlistPage, type ReadlistPageOptions } from "./readlist.component";
 
 const WORK: Readlist = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
@@ -159,6 +160,12 @@ function tabKeys(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-filter]"), (tab) =>
 		tab.getAttribute("data-test-filter"),
 	);
+}
+
+function offlineDownload(doc: Document): HTMLElement {
+	const control = doc.querySelector<HTMLElement>("[data-test-offline-download]");
+	assert(control, "the unread download control must always render");
+	return control;
 }
 
 function urlParams(href: string | null): URLSearchParams {
@@ -522,6 +529,73 @@ describe("ReadlistPage", () => {
 		expect(next.lastElementChild?.innerHTML).toBe(rightChevron.innerHTML);
 	});
 
+	it("names the enabled pagination links by their relation, so a client can follow the next page", () => {
+		const doc = pageDoc({
+			articles: [PLAIN_ARTICLE],
+			isEmpty: false,
+			currentPage: 2,
+			paginationUrls: { prev: "/queue?page=1", next: "/queue?page=3" },
+		});
+
+		const prev = doc.querySelector("[data-test-pagination-prev]");
+		const next = doc.querySelector("[data-test-pagination-next]");
+		assert(prev, "the previous-page control must render");
+		assert(next, "the next-page control must render");
+		expect(prev.getAttribute("rel")).toBe("prev");
+		expect(next.getAttribute("rel")).toBe("next");
+	});
+
+	it("offers the unread download beside the sort control", () => {
+		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false });
+
+		const control = offlineDownload(doc);
+		expect(control.classList.contains("readlist-listing__offline--offered")).toBe(true);
+		expect(control.previousElementSibling?.hasAttribute("data-test-sort")).toBe(true);
+		const start = control.querySelector("[data-test-offline-download-start]");
+		assert(start, "the control must hold its start button");
+		expect(start.tagName.toLowerCase()).toBe("button");
+		expect(start.getAttribute("type")).toBe("button");
+		expect(Array.from(start.classList)).toEqual(["btn", "btn--neutral", "btn--s"]);
+		const progress = control.querySelector("[data-test-offline-download-progress]");
+		assert(progress, "the control must hold its progress bar");
+		expect(progress.tagName.toLowerCase()).toBe("progress");
+		const status = control.querySelector("[data-test-offline-download-status]");
+		assert(status, "the control must hold its status line");
+		expect(status.getAttribute("aria-live")).toBe("polite");
+	});
+
+	it("points the unread download at the first page of the unread listing, in its current order and readlist, tracked as its own click", () => {
+		const doc = pageDoc({
+			articles: [PLAIN_ARTICLE],
+			isEmpty: false,
+			currentPage: 3,
+			filters: { readlist: WORK.slug, tab: "queue", order: "asc", page: 3 },
+		});
+
+		const href = offlineDownload(doc).getAttribute("data-offline-download");
+		const url = new URL(href ?? "", "https://internal.invalid");
+		expect(url.pathname).toBe("/queue");
+		expect(Object.fromEntries(url.searchParams)).toEqual({
+			queue: WORK.slug,
+			order: "asc",
+			utm_source: "queue-listing",
+			utm_medium: "internal",
+			utm_content: "download-offline",
+		});
+	});
+
+	it("withholds the unread download on the Read tab", () => {
+		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false, filters: { ...DEFAULT_FILTERS, tab: "done" } });
+
+		expect(offlineDownload(doc).classList.contains("readlist-listing__offline--withheld")).toBe(true);
+	});
+
+	it("withholds the unread download when there is nothing unread to download", () => {
+		const doc = pageDoc({ isEmpty: true });
+
+		expect(offlineDownload(doc).classList.contains("readlist-listing__offline--withheld")).toBe(true);
+	});
+
 	it("hides the pager on an empty list", () => {
 		const doc = pageDoc({ isEmpty: true });
 
@@ -627,5 +701,12 @@ describe("ReadlistPage", () => {
 		assert(body.scripts, "the page must ship its scripts");
 
 		expect(body.scripts.includes(READLIST_RENAME_SCRIPT)).toBe(true);
+	});
+
+	it("ships the client that drives the unread download", () => {
+		const body = buildPage();
+		assert(body.scripts, "the page must ship its scripts");
+
+		expect(body.scripts.includes(OFFLINE_DOWNLOAD_SCRIPT)).toBe(true);
 	});
 });

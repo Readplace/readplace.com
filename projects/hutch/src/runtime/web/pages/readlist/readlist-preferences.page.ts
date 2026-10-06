@@ -14,7 +14,7 @@ import type {
 	SetReadlistDefinitionPurpose,
 } from "@packages/provider-contracts/article-store";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
-import { sendComponent } from "@packages/web-shell";
+import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { AlertContent } from "@packages/web-shell";
 import express from "express";
 import type { Request, RequestHandler, Response, Router } from "express";
@@ -120,6 +120,7 @@ export function initReadlistPreferencesRoutes(deps: {
 					preferencesEnabled: readlistPreferencesEnabled(req.query),
 					query: req.query,
 					purposeError: error.purposeError,
+					cspNonce: requireCspNonce(req),
 				}),
 				await deps.buildBannerState(req, { preFetchedAccess: access }),
 			),

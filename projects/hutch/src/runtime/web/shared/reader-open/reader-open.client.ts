@@ -9,12 +9,13 @@ export type HtmxHistoryEventName =
 
 export interface ReaderOpenDeps {
 	document: Document;
-	history: Pick<History, "pushState" | "replaceState">;
+	history: Pick<History, "pushState" | "replaceState" | "back">;
 	currentHref: () => string;
 	currentPath: () => string;
 	navigate: (href: string) => void;
 	reload: () => void;
-	scrollToTop: () => void;
+	scrollTo: (top: number) => void;
+	scrollY: () => number;
 	setTimeoutFn: (callback: () => void, ms: number) => number;
 	clearTimeoutFn: (id: number) => void;
 	parseHtml: (html: string) => Document;
@@ -36,16 +37,26 @@ const TEXT_TARGET_ATTR = "data-reader-field-text";
 const HREF_TARGET_ATTR = "data-reader-field-href";
 const EMPTY_CLASS_ATTR = "data-reader-field-empty-class";
 const HISTORY_STATE = { htmx: true };
+const XHR_DONE = 4;
+
+interface ListOnScreen {
+	holder: Element;
+	mainClass: string;
+	bodyClass: string;
+	scrollY: number;
+}
 
 interface PendingOpen {
 	xhr: AbortableRequest;
 	href: string;
+	opener: HTMLElement;
 	card: Element;
-	target: Element;
+	target: HTMLElement;
 	timer: number;
-	painted: boolean;
+	paintedOver: ListOnScreen | undefined;
 	committed: boolean;
 	abandoned: boolean;
+	restored: boolean;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -56,8 +67,8 @@ function read(target: unknown, key: string): unknown {
 	return Reflect.get(Object(target), key);
 }
 
-function isElement(node: unknown): node is Element {
-	return typeof read(node, "closest") === "function";
+function isHtmlElement(node: unknown): node is HTMLElement {
+	return typeof read(node, "focus") === "function";
 }
 
 function isAbortableRequest(value: unknown): value is AbortableRequest {
@@ -75,6 +86,7 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 
 	let pending: PendingOpen | null = null;
 	let lastPath = deps.currentPath();
+	let steppingBack = false;
 
 	function skeletonTemplate(): HTMLTemplateElement {
 		const template = deps.document.querySelector<HTMLTemplateElement>(TEMPLATE_SELECTOR);
@@ -111,14 +123,23 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 	function paint(open: PendingOpen): void {
 		const template = skeletonTemplate();
 		const main = open.target;
+		const holder = deps.document.createElement("div");
+		holder.hidden = true;
+		const list: ListOnScreen = {
+			holder,
+			mainClass: main.className,
+			bodyClass: deps.document.body.className,
+			scrollY: deps.scrollY(),
+		};
+		holder.append(...main.childNodes);
 		main.className = requiredAttribute(template, "data-main-class");
 		main.setAttribute("aria-busy", "true");
-		main.replaceChildren(deps.document.importNode(template.content, true));
+		main.replaceChildren(deps.document.importNode(template.content, true), holder);
 		copyFields({ main, card: open.card });
 		deps.document.body.classList.remove(requiredAttribute(template, "data-body-class-from"));
 		deps.document.body.classList.add(...requiredAttribute(template, "data-body-class").split(" "));
-		deps.scrollToTop();
-		open.painted = true;
+		deps.scrollTo(0);
+		open.paintedOver = list;
 	}
 
 	function applyFinalBodyClass(response: Document): boolean {
@@ -143,10 +164,32 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 		live.replaceWith(deps.document.importNode(incoming, true));
 	}
 
+	function restoreList(open: PendingOpen): void {
+		open.restored = true;
+		const main = open.target;
+		main.removeAttribute("hx-history");
+		const list = open.paintedOver;
+		if (list !== undefined) {
+			main.className = list.mainClass;
+			main.removeAttribute("aria-busy");
+			main.replaceChildren(...list.holder.childNodes);
+			deps.document.body.className = list.bodyClass;
+			deps.scrollTo(list.scrollY);
+			open.opener.focus({ preventScroll: true });
+		}
+		steppingBack = true;
+		deps.history.back();
+	}
+
+	function onReadyStateChange(open: PendingOpen): void {
+		if (open.abandoned || read(open.xhr, "readyState") !== XHR_DONE || read(open.xhr, "status") !== 0) return;
+		restoreList(open);
+	}
+
 	function onLoadEnd(open: PendingOpen): void {
 		deps.clearTimeoutFn(open.timer);
 		if (pending === open) pending = null;
-		if (open.committed || open.abandoned) return;
+		if (open.committed || open.abandoned || open.restored) return;
 		deps.navigate(open.href);
 	}
 
@@ -162,7 +205,7 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 	deps.addHtmxListener("htmx:beforeRequest", (event) => {
 		const detail = read(event, "detail");
 		const opener = read(detail, "elt");
-		if (!isElement(opener) || !opener.hasAttribute(OPENER_ATTR)) return;
+		if (!isHtmlElement(opener) || !opener.hasAttribute(OPENER_ATTR)) return;
 		if (pending !== null) {
 			event.preventDefault();
 			return;
@@ -171,22 +214,25 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 		const xhr = read(detail, "xhr");
 		const target = read(detail, "target");
 		const card = opener.closest(CARD_SELECTOR);
-		if (href === undefined || !isAbortableRequest(xhr) || !isElement(target) || card === null) return;
+		if (href === undefined || !isAbortableRequest(xhr) || !isHtmlElement(target) || card === null) return;
 		target.setAttribute("hx-history", "false");
 		deps.history.replaceState(HISTORY_STATE, "", deps.currentHref());
 		deps.history.pushState(HISTORY_STATE, "", href);
 		const open: PendingOpen = {
 			xhr,
 			href,
+			opener,
 			card,
 			target,
 			timer: 0,
-			painted: false,
+			paintedOver: undefined,
 			committed: false,
 			abandoned: false,
+			restored: false,
 		};
 		open.timer = deps.setTimeoutFn(() => paint(open), deps.paintDelayMs);
 		pending = open;
+		xhr.addEventListener("readystatechange", () => onReadyStateChange(open));
 		xhr.addEventListener("loadend", () => onLoadEnd(open));
 	});
 
@@ -202,13 +248,21 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 		Reflect.set(Object(read(detail, "history")), "type", "replace");
 		const response = deps.parseHtml(stringValue(read(open.xhr, "response")) ?? "");
 		const applied = applyFinalBodyClass(response);
-		if (!applied && !open.painted) fallbackBodyClass();
+		if (!applied && open.paintedOver === undefined) fallbackBodyClass();
 		transplantShellBanner(response);
-		if (!open.painted) deps.scrollToTop();
+		if (open.paintedOver === undefined) deps.scrollTo(0);
 		open.committed = true;
 	});
 
+	function cancelledStepBack(event: Event): boolean {
+		if (!steppingBack) return false;
+		steppingBack = false;
+		event.preventDefault();
+		return true;
+	}
+
 	deps.addHtmxListener("htmx:historyCacheHit", (event) => {
+		if (cancelledStepBack(event)) return;
 		if (deps.document.querySelector('[hx-history="false" i]') === null) return;
 		event.preventDefault();
 		abandon();
@@ -216,6 +270,7 @@ export function initReaderOpen(deps: ReaderOpenDeps): void {
 	});
 
 	deps.addHtmxListener("htmx:historyCacheMiss", (event) => {
+		if (cancelledStepBack(event)) return;
 		event.preventDefault();
 		if (pending !== null) {
 			abandon();

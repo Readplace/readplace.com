@@ -191,19 +191,23 @@ const pendingPdfBucket = new HutchS3ReadWrite("pending-pdf-bucket", {
 
 // --- Content Images CDN ---
 
-const contentMediaCustomDomain = contentMediaCdnDomain
+const contentMedia = contentMediaCdnDomain
 	? (() => {
 		const parts = contentMediaCdnDomain.split(".");
 		assert(parts.length >= 2, `contentMediaCdnDomain ${contentMediaCdnDomain} must have a parent zone`);
 		const parent = parts.slice(1).join(".");
 		const zoneId = aws.route53.getZone({ name: parent }).then((z) => z.zoneId);
-		return { domain: contentMediaCdnDomain, zoneId };
+		return {
+			customDomain: { domain: contentMediaCdnDomain, zoneId },
+			corsAllowedOrigins: [`https://${parent}`],
+		};
 	})()
-	: undefined;
+	: { customDomain: undefined, corsAllowedOrigins: ["*"] };
 
 const contentMediaCdn = new HutchS3ContentMediaCDN("content-media", {
 	contentBucket,
-	customDomain: contentMediaCustomDomain,
+	customDomain: contentMedia.customDomain,
+	corsAllowedOrigins: contentMedia.corsAllowedOrigins,
 });
 
 new aws.s3.BucketObject("content-media-robots-txt", {

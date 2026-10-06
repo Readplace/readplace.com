@@ -83,6 +83,28 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 		expect(after?.viewedAt).toBeInstanceOf(Date);
 	});
 
+	it("does NOT stamp viewedAt when a Purpose: prefetch request fetches GET /queue/:id/view — a download for offline reading is not the reader opening the article", async () => {
+		const harness = buildHarness();
+		const url = "https://example.com/presence-purpose-prefetch";
+		const { agent, articleId, userId } = await saveAndResolve(harness, url);
+
+		const response = await agent.get(`/queue/${articleId}/view`).set("Purpose", "prefetch");
+
+		expect(response.status).toBe(200);
+		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
+	});
+
+	it("does NOT stamp viewedAt when a Sec-Purpose: prefetch request fetches GET /queue/:id/view", async () => {
+		const harness = buildHarness();
+		const url = "https://example.com/presence-sec-purpose-prefetch";
+		const { agent, articleId, userId } = await saveAndResolve(harness, url);
+
+		const response = await agent.get(`/queue/${articleId}/view`).set("Sec-Purpose", "prefetch");
+
+		expect(response.status).toBe(200);
+		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
+	});
+
 	it("stamps viewedAt on the in-reader poll GET /queue/:id/summary", async () => {
 		const harness = buildHarness();
 		const url = "https://example.com/presence-summary";

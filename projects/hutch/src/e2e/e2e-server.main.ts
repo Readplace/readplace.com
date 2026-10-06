@@ -1083,6 +1083,14 @@ server.get('/e2e/fixtures/large.pdf', (_req, res) => {
 	res.type('application/pdf').send(E2E_LARGE_PDF)
 })
 
+const E2E_ONE_PIXEL_PNG = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGPQtgoFAAFOALvvDzCqAAAAAElFTkSuQmCC',
+	'base64',
+)
+server.get('/e2e/fixtures/image/:name.png', (_req, res) => {
+	res.set('Access-Control-Allow-Origin', origin).type('image/png').send(E2E_ONE_PIXEL_PNG)
+})
+
 server.put(
 	'/e2e/s3/:key',
 	express.raw({ type: () => true, limit: 512 * 1024 * 1024 }),

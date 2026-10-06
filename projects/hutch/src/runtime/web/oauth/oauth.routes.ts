@@ -345,6 +345,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				// browser session", not "sign this user out of every device".
 				await deps.destroySession(sessionId);
 				res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+				res.set("Clear-Site-Data", '"storage"');
 
 				const authorizeParams = new URLSearchParams({
 					client_id,

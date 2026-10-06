@@ -2862,6 +2862,23 @@ describe("POST /account/delete", () => {
 		expect(response.headers["hx-redirect"]).toBe("/");
 	});
 
+	it.each([
+		["a plain form post", {}, 303],
+		["a boosted (HTMX) request", { "HX-Request": "true" }, 200],
+	])("tells the browser to clear the origin's storage on %s, so articles kept for offline reading do not outlive the account on a shared device", async (_name, headers, status) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "delete-offline@example.com");
+
+		const response = await agent
+			.post("/account/delete")
+			.set(headers)
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+
+		expect(response.status).toBe(status);
+		expect(response.headers["clear-site-data"]).toBe('"storage"');
+	});
+
 	it("rejects a delete without the confirmation phrase — session survives and the account page shows the notice", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await loginUser(harness, "delete-unconfirmed@example.com");

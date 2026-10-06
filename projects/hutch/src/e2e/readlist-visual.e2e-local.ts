@@ -104,6 +104,7 @@ const PAGE_READLIST = "body.page-readlist";
 
 const VOLATILE_CHROME = [
 	".offline-banner",
+	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 ];

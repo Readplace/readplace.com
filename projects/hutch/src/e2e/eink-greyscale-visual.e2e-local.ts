@@ -35,6 +35,7 @@ const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
 const VOLATILE_CHROME = [
 	".offline-banner",
+	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	".crawl-bookmark",

@@ -2163,6 +2163,23 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/");
 		});
+
+		it("should tell the browser to clear the origin's storage, so articles kept for offline reading do not stay on a shared device after signing out", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			await auth.createUser({ email: "test@example.com", password: "password123" });
+
+			const agent = request.agent(harness.server);
+			await agent
+				.post("/login")
+				.type("form")
+				.send({ email: "test@example.com", password: "password123" });
+
+			const response = await agent.post("/logout");
+
+			expect(response.status).toBe(303);
+			expect(response.headers["clear-site-data"]).toBe('"storage"');
+		});
 	});
 
 	describe("POST /auth/session", () => {

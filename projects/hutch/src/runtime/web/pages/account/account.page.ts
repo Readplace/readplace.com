@@ -551,6 +551,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		await deps.destroyUserSessions(userId);
 		await deps.revokeAllUserOAuthTokens(userId, "account-deletion");
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+		res.set("Clear-Site-Data", '"storage"');
 		await deps.publishDeleteAccountCommand({ userId });
 		// Deletion logs the user out, so the whole page (nav, banner) must reset to
 		// the guest view. A boosted form would only swap <main> and leave a stale

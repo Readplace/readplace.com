@@ -54,6 +54,7 @@ import type {
 	ReaderViewFailedOob,
 } from "../../shared/article-reader/article-reader.types";
 import { extensionSuggestionBannerOob } from "../../shared/article-reader/reader-view-failed-oob";
+import { isPrefetchRequest } from "../../shared/prefetch-request";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
@@ -172,18 +173,8 @@ function viewReaderViewFailedOob(input: {
 		);
 }
 
-/** A browser prefetch (`Sec-Purpose: prefetch`, its `prefetch;prerender` form,
- * or the legacy `Purpose: prefetch`) is not a reader deciding to open the
- * article, so it must not spend /view's first-visit crawl budget. `String(...)`
- * (not `?.`) folds the absent-header case into a plain `false` without a
- * nullish branch the coverage gate can't reach. */
-function isPrefetch(req: Request): boolean {
-	if (String(req.get("sec-purpose")).includes("prefetch")) return true;
-	return String(req.get("purpose")).includes("prefetch");
-}
-
 function isPrefetchOrBot(req: Request): boolean {
-	if (isPrefetch(req)) return true;
+	if (isPrefetchRequest(req)) return true;
 	return isBotUserAgent(req.get("user-agent"));
 }
 
@@ -267,7 +258,7 @@ function handleViewArticle(
 			return;
 		}
 		if (req.query.format === "epub") {
-			if (isPrefetch(req)) {
+			if (isPrefetchRequest(req)) {
 				res.status(204).end();
 				return;
 			}
@@ -311,7 +302,7 @@ function handleViewArticle(
 		// it came for. The per-IP budget below caps the first-visit cascade; a
 		// repeat visit only publishes a stale check, which the stale-check
 		// handler TTL-bounds per article.
-		if (!isPrefetch(req) && !gated) {
+		if (!isPrefetchRequest(req) && !gated) {
 			if (!existing) {
 				// First visit is the request that triggers the whole crawl cascade
 				// (stub save → crawl → summary → possibly OCR), each leg with real

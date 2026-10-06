@@ -15,7 +15,7 @@ const SCROLL_SETTLE_MS = 250;
 /** Chrome driven by host state rather than by the page: the offline banner
  * follows `navigator.onLine`. A Wi-Fi drop mid-run would otherwise read as the
  * page moving on its own. */
-const VOLATILE_CHROME = [".offline-banner"];
+const VOLATILE_CHROME = [".offline-banner", ".newer-version-banner"];
 
 const VIEWPORT = { width: 390, height: 844 };
 

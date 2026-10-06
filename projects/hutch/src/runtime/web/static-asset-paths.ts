@@ -1,5 +1,8 @@
 export const CLIENT_DIST_MOUNT_PATH = "/client-dist";
 
+export const OFFLINE_READER_WORKER_FILE = "offline-reader-worker.client.js";
+export const OFFLINE_READER_WORKER_PATH = `${CLIENT_DIST_MOUNT_PATH}/${OFFLINE_READER_WORKER_FILE}`;
+
 export const APPLE_TOUCH_ICON_PATH = /^\/apple-touch-icon(?:-\d+x\d+)?(?:-precomposed)?\.png$/;
 
 /** express.static responds terminally, so a client-dist asset's finish-time

@@ -24,6 +24,7 @@ type Variant = (typeof VARIANTS)[number];
 
 const VOLATILE_CHROME = [
 	".offline-banner",
+	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	"[data-test-verify-banner]",

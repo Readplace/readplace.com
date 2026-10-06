@@ -559,6 +559,35 @@ describe("OAuth routes", () => {
 			expect(followUp.headers.location).toContain("/login");
 		});
 
+		it("tells the browser to clear the origin's storage on a switch, so the next account never reads articles the last one kept offline", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const response = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					client_id: TEST_CLIENT_ID,
+					redirect_uri: TEST_REDIRECT_URI,
+					response_type: "code",
+					code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+					code_challenge_method: "S256",
+					action: "switch",
+				});
+
+			expect(response.status).toBe(303);
+			expect(response.headers["clear-site-data"]).toBe('"storage"');
+		});
+
 		it("returns 400 for switch with invalid redirect_uri and keeps the session (no grief-logout)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			await harness.auth.createUser({

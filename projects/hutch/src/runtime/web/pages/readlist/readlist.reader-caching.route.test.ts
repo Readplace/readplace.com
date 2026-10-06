@@ -232,6 +232,37 @@ describe("Reader view browser cache (GET /queue/:id/view)", () => {
 		expect(response.headers["cache-control"]).toBe("private, max-age=1800");
 	});
 
+	it("leaves Cookie out of Vary on the iOS chromeless render, so the app's cached copy still matches after it mints a new session cookie", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-ios-vary";
+		const { agent, userId } = await saveArticle(harness, url);
+		await settleRelated(fixture, userId, url);
+
+		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
+		const response = await agent.get(`/queue/${articleId}/view?platform=ios&v=${version}`);
+
+		expect(response.status).toBe(200);
+		expect(varyFields(response.headers.vary)).toEqual(["accept", "origin"]);
+	});
+
+	it("answers a prefetch with the same policy and ETag as the open that follows it, so the prefetched copy is the one a real open would get", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-prefetch";
+		const { agent, userId } = await saveArticle(harness, url);
+		await settleRelated(fixture, userId, url);
+
+		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
+		const prefetched = await agent.get(`/queue/${articleId}/view?v=${version}`).set("Purpose", "prefetch");
+		const opened = await agent.get(`/queue/${articleId}/view?v=${version}`);
+
+		expect(prefetched.status).toBe(200);
+		expect(prefetched.headers["cache-control"]).toBe("private, max-age=1800");
+		assert(opened.headers.etag?.startsWith('W/"'), "the opened reader must carry a weak ETag");
+		expect(prefetched.headers.etag).toBe(opened.headers.etag);
+	});
+
 	it("mints a new ETag when the read/unread label changes even though the version is unchanged", async () => {
 		const fixture = buildFixture({ summaryReady: true });
 		const harness = useApp(fixture);

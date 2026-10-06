@@ -4,7 +4,7 @@ import type { StarterReport } from "./domain/engagement/starter-report";
 import { refreshContext } from "./oauth-refresh/evidence";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -204,7 +204,7 @@ import { initSlideSession } from "./web/middleware/slide-session.middleware";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
-import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, isStaticAssetRequestPath } from "./web/static-asset-paths";
+import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, OFFLINE_READER_WORKER_FILE, isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { canonicalizeViewLandingPath } from "./web/pages/view/view-path";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
@@ -760,6 +760,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		express.static(resolve(__dirname, "web", "client-dist"), {
 			maxAge: "5m",
 			fallthrough: false,
+			setHeaders: (res, servedFile) => {
+				if (basename(servedFile) !== OFFLINE_READER_WORKER_FILE) return;
+				res.set({ "Service-Worker-Allowed": "/", "Cache-Control": "no-cache" });
+			},
 		}),
 	);
 

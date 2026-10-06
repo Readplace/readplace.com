@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { CONFIRM_POPOVER_STYLES, render, renderAlert, withInternalTracking } from "@packages/web-shell";
-import type { AlertContent, PageBody } from "@packages/web-shell";
+import type { AlertContent, CspNonce, PageBody } from "@packages/web-shell";
 
 import { WIZARD_STYLES, renderWizard } from "../../shared/wizard/wizard.component";
 import { readlistAlertFor } from "./readlist-alerts";
@@ -18,7 +18,7 @@ import {
 } from "./readlist-tabs.component";
 import {
 	READLIST_BODY_CLASS,
-	READLIST_PAGE_SCRIPTS,
+	readlistPageScripts,
 	readlistPanels,
 } from "./readlist.component";
 import { READLIST_STYLES } from "./readlist.styles";
@@ -54,6 +54,7 @@ export interface ReadlistPreferencesViewModel {
 	inboxAlert?: AlertContent;
 	preferencesEnabled: boolean;
 	query: Record<string, unknown>;
+	cspNonce: CspNonce;
 }
 
 export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageBody {
@@ -126,6 +127,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		styles: `${CONFIRM_POPOVER_STYLES}\n${READLIST_STYLES}\n${WIZARD_STYLES}\n${READLIST_PREFERENCES_STYLES}`,
 		bodyClass: READLIST_BODY_CLASS,
 		content: { html: content },
-		scripts: READLIST_PAGE_SCRIPTS,
+		scripts: readlistPageScripts(vm.cspNonce),
 	};
 }
