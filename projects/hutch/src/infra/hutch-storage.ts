@@ -21,6 +21,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly gmailDiscoveryTable: aws.dynamodb.Table;
 	public readonly gmailMonitoringTable: aws.dynamodb.Table;
 	public readonly gmailHistoryImportsTable: aws.dynamodb.Table;
+	public readonly gmailMappingsTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
@@ -42,6 +43,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		gmailDiscovery: string;
 		gmailMonitoring: string;
 		gmailHistoryImports: string;
+		gmailMappings: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
 
@@ -150,6 +152,16 @@ export class HutchStorage extends pulumi.ComponentResource {
 			hashKey: "userId",
 			rangeKey: "recordKey",
 			attributes: [{ name: "userId", type: "S" }, { name: "recordKey", type: "S" }],
+		}, { parent: this });
+
+		this.gmailMappingsTable = new aws.dynamodb.Table("hutch-gmail-mappings", {
+			name: args.tableNames.gmailMappings,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			rangeKey: "mappingKey",
+			attributes: [{ name: "userId", type: "S" }, { name: "mappingKey", type: "S" }],
 		}, { parent: this });
 
 		this.gmailMonitoringTable = new aws.dynamodb.Table("hutch-gmail-monitoring", {

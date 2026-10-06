@@ -24,6 +24,7 @@ const TABLES: DynamoTables = {
 	gmailCredentials: "hutch-gmail-credentials",
 	gmailConnections: "hutch-gmail-connections",
 	gmailSenders: "hutch-gmail-senders",
+	gmailMappings: "hutch-gmail-mappings",
 	gmailHistoryImports: "hutch-gmail-history-imports",
 };
 

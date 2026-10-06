@@ -20,6 +20,8 @@ config:
   inbox:dynamodbGmailHeldMailTable: hutch-inbox-gmail-held-mail-staging
   inbox:dynamodbInboxEmailIdentitiesTable: hutch-inbox-email-identities-staging
   inbox:dynamodbGmailHistoryImportsTable: hutch-gmail-history-imports-staging
+  inbox:dynamodbGmailConnectionsTable: hutch-gmail-connections-staging
+  inbox:dynamodbGmailMappingsTable: hutch-gmail-mappings-staging
   inbox:dynamodbSessionsTable: hutch-sessions-d17dbb3
   inbox:dynamodbUsersTable: hutch-users-f90c09e
   inbox:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-staging

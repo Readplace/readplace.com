@@ -41,6 +41,7 @@ config:
   hutch:dynamodbGmailMonitoringTable: hutch-gmail-monitoring-staging
   hutch:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-staging
   hutch:dynamodbGmailHistoryImportsTable: hutch-gmail-history-imports-staging
+  hutch:dynamodbGmailMappingsTable: hutch-gmail-mappings-staging
   hutch:dynamodbInboxEmailIdentitiesTable: hutch-inbox-email-identities-staging
   hutch:rateLimitViewCrawl: 10000/3600
   hutch:rateLimitLogin: 5000/900

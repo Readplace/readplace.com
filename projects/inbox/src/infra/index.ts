@@ -102,6 +102,8 @@ const tableNames = {
 	onboarding: config.require("dynamodbOnboardingTable"),
 	emailIdentities: config.require("dynamodbInboxEmailIdentitiesTable"),
 	gmailHistoryImports: config.require("dynamodbGmailHistoryImportsTable"),
+	gmailConnections: config.require("dynamodbGmailConnectionsTable"),
+	gmailMappings: config.require("dynamodbGmailMappingsTable"),
 };
 
 function tableArn(tableName: string): pulumi.Output<string> {
@@ -265,6 +267,14 @@ const receiveEmailDynamodb = new HutchDynamoDBAccess("inbox-receive-email-dynamo
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
+const receiveEmailGmailMappings = new HutchDynamoDBAccess("inbox-receive-email-gmail-mappings", {
+	tables: [
+		{ arn: tableArn(tableNames.gmailConnections), includeIndexes: false },
+		{ arn: tableArn(tableNames.gmailMappings), includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem"],
+});
+
 const receiveEmailIdentities = new HutchDynamoDBAccess("inbox-receive-email-identities", {
 	tables: [{ arn: inboxStorage.emailIdentitiesTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
@@ -293,6 +303,8 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 		DYNAMODB_INBOX_EMAILS_TABLE: inboxStorage.emailsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: tableNames.gmailConnections,
+		DYNAMODB_GMAIL_MAPPINGS_TABLE: tableNames.gmailMappings,
 		DYNAMODB_GMAIL_HELD_MAIL_TABLE: tableNames.gmailHeldMail,
 		DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE: inboxStorage.emailIdentitiesTable.name,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
@@ -304,6 +316,7 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 	},
 	policies: [
 		...receiveEmailDynamodb.policies,
+		...receiveEmailGmailMappings.policies,
 		...receiveEmailIdentities.policies,
 		...receiveEmailByMessageId.policies,
 		// Reads the raw bucket (the .eml) and only writes the content bucket (the

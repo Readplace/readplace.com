@@ -25,6 +25,7 @@ const DynamoTablesSchema = z.strictObject({
 	gmailCredentials: TableName,
 	gmailConnections: TableName,
 	gmailSenders: TableName,
+	gmailMappings: TableName,
 	gmailHistoryImports: TableName,
 });
 
