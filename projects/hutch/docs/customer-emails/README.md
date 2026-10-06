@@ -28,7 +28,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 | 6 | [Pre-charge reminder](#6-pre-charge-reminder) | `your Readplace membership starts on {chargeDate}` | 7 days before a trial subscriber's first charge, or 5 minutes after subscribing or reactivating when less than 7 days remain. | `readplace+charge_reminder@readplace.com` |
 | 7 | [Payment failed](#7-payment-failed) | `your Readplace payment didn't go through` | Within seconds of each failed renewal charge attempt that Stripe will retry; not on the final attempt and never during a trial. | `readplace+payment_failed@readplace.com` |
 | 8 | [Trial feedback request](#8-trial-feedback-request) | `you tried Readplace — what was missing?` | About 3 days after a trial ends without a membership, normally 17 days and 1 hour after signup. | `readplace+trial_feedback@readplace.com` |
-| 9 | [Inbox saves paused](#9-inbox-saves-paused) | `links sent to your Readplace inbox are waiting` | Immediately, the first time mail to a reader's Readplace inbox address brings article links while their subscription is read-only. Once per lapse. | `readplace+automation_saves_held@readplace.com` |
+| 9 | [Inbox saves paused](#9-inbox-saves-paused) | `links sent to your Readplace inbox are waiting` | Immediately, the first time mail to a reader's Readplace inbox address brings article links (or, for a Gmail sender mapped in "issue" or "both" mode, any issue) while their subscription is read-only. Once per lapse. | `readplace+automation_saves_held@readplace.com` |
 | 10 | [Readlist digest](#10-readlist-digest) | `Waiting in your readlist` | At most once every 7 days, for verified paying members (never founding members; trialists are checked, but a 14-day trial never holds a 30-day-old save), while saves at least 30 days old (unread, reader view and summary ready, never listed before) are waiting; checked every 6 hours. | none |
 | 11 | [First inbox email arrived](#11-first-inbox-email-arrived) | `Your first email landed in your Readplace inbox` | Seconds after the first email with a saveable article link is sent directly to one of the reader's Readplace addresses while the reader can save (a read-only reader gets Inbox saves paused instead, and this email waits for a later email after access returns); mail routed from Gmail never sends it; once per account, ever. | `readplace+first_inbox_email@readplace.com` |
 | 12 | [Gmail newsletter notice](#12-gmail-newsletter-notice) | `Choose readlists for {newsletterName}` | At the next 6-hourly check after an approved, unmapped newsletter mails a connected Gmail account or a seen sender becomes approved, once 3 days have passed since the reader's last notice email and the reader has a readlist besides All. | none |
@@ -2015,7 +2015,7 @@ Exact HTML body: [`html/trial-feedback--no-articles.html`](html/trial-feedback--
 
 ### When it is sent
 
-When a reader's subscription is read-only and mail with article links reaches one of their Readplace inbox addresses, Readplace keeps the email and its link previews in the inbox but does not save the articles to their readlist. The first time that happens in a lapse, the inbox link extractor asks the subscription email Lambda to send this notice, which re-checks that the reader is still read-only and has not had one already. The email names the address that received the mail and links to the held email in the inbox, to the account page to reactivate, and to the page that turns inbox addresses off. Later held emails stay silent until the reader starts a trial, subscribes or becomes active again, so each new lapse gets one new notice.
+When a reader's subscription is read-only and mail with article links reaches one of their Readplace inbox addresses, Readplace keeps the email and its link previews in the inbox but does not save the articles to their readlist. Gmail-forwarded or imported mail from a sender mapped in "issue" or "both" delivery mode requests the notice for the issue itself, whether or not it has any article links; in "issue" mode its links are not saved at all. The first time that happens in a lapse, the inbox link extractor asks the subscription email Lambda to send this notice, which re-checks that the reader is still read-only and has not had one already. The email names the address that received the mail and links to the held email in the inbox, to the account page to reactivate, and to the page that turns inbox addresses off. Later held emails stay silent until the reader starts a trial, subscribes or becomes active again, so each new lapse gets one new notice.
 
 Trigger chain:
 
@@ -2024,9 +2024,10 @@ Trigger chain:
 3. Alternatively, a running Gmail history import ingests a historical message with origin "gmail-import" `projects/inbox/src/runtime/domain/inbox/ingest-gmail-import-handler.ts:151`
 4. Ingest stores the inbox email row as "received" and publishes EmailReceivedEvent `projects/inbox/src/runtime/domain/inbox/ingest-parsed-email.ts:97`
 5. The inbox-extract-email-links Lambda re-parses the email, extracts and triages its links, and resolves the reader's write access from their subscription row `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:297`
-6. For the first saveable pending link under read-only access, it skips SubmitLinkCommand and calls publishSaveHeldNotice once for the email `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:446`
-7. publishSaveHeldNotice publishes SendTrialFeedbackEmailCommand {kind: "automation_saves_held", receivedAtMessageId, inboxAddress}, which EventBridge delivers to send-trial-feedback-email-q `projects/inbox/src/runtime/extract-email-links.main.ts:129`
-8. processAutomationSavesHeld re-checks access, the once-per-lapse marker and the login email, claims the marker, renders the email and sends it through Resend `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:248`
+6. For Gmail mail whose sender is mapped in "issue" or "both" delivery mode (`src/packages/domain/src/gmail/gmail-delivery-mode.ts:16`), under read-only access it skips the issue save and calls publishSaveHeldNotice before looking at any link `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:343`
+7. Otherwise, for mail to the reader's own Readplace addresses or Gmail mail in "links" mode, at the first saveable pending link under read-only access it skips SubmitLinkCommand and calls publishSaveHeldNotice once for the email `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:446`
+8. publishSaveHeldNotice publishes SendTrialFeedbackEmailCommand {kind: "automation_saves_held", receivedAtMessageId, inboxAddress}, which EventBridge delivers to send-trial-feedback-email-q `projects/inbox/src/runtime/extract-email-links.main.ts:129`
+9. processAutomationSavesHeld re-checks access, the once-per-lapse marker and the login email, claims the marker, renders the email and sends it through Resend `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:248`
 
 Sent only when:
 
@@ -2037,8 +2038,9 @@ Sent only when:
 - The mail arrived live or through a Gmail history import, not a backfill replay, and is attributed to a real reader `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:294`
 - The email is new for the reader: the same sender and Message-ID has not already been ingested for them `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:314`
 - The email body is not empty after sanitising `projects/inbox/src/runtime/domain/inbox/ingest-parsed-email.ts:83`
-- At least one link is not an action or unsubscribe link and was not judged non-article by the AI triage; if triage is unavailable, every such link counts `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:384`
-- That link is a saveable URL and its link row is still pending `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:420`
+- Gmail mail from a sender mapped in "issue" or "both" delivery mode: no link condition applies; the notice is requested for the email itself `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:330`
+- Mail to the reader's own Readplace addresses, or Gmail mail in "links" mode: at least one link is not an action or unsubscribe link and was not judged non-article by the AI triage; if triage is unavailable, every such link counts `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:384`
+- In that case, that link is also a saveable URL and its link row is still pending `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:420`
 - When the send Lambda runs, the reader is still read-only `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:194`
 - No notice has gone out in this lapse (automationSavesHeldEmailSentAt is unset) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:201`
 - The account has a login email on file; there is no email-verified or account-lock check `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:210`
@@ -2048,7 +2050,7 @@ Not sent when:
 
 - Once per lapse: a set automationSavesHeldEmailSentAt marker silences every later held email `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:201`
 - The marker is cleared only when the reader starts a trial (upsertTrialing), subscribes (upsertActive) or becomes active again (markActive); a pending cancellation or a cancellation keeps it `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:133`
-- At most one notice request per inbound email, however many links are held `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:444`
+- At most one notice request per inbound email, however many links are held: in "both" mode the issue path sets the shared noticePublished flag first, so the held links request nothing more `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:444`
 - Full access at extraction (no row, active, a trial or pending cancellation still in its window): the links are saved and no notice is requested `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:427`
 - Full access again at send time, for example after reactivating in between: nothing is sent `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:194`
 - No login email on file: nothing is sent, the request is not retried and the marker stays unset `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:210`
@@ -2060,7 +2062,7 @@ Not sent when:
 - A cancelled, superseded or re-selected Gmail import job ingests no new mail `projects/inbox/src/runtime/domain/inbox/ingest-gmail-import-handler.ts:117`
 - Oversize or unparseable mail is recorded as rejected or unparsed and never extracted `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:176`
 - A backfill replay never saves or notifies `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:50`
-- No link is held: every link is an action or unsubscribe link, judged non-article, unsaveable, or already terminal on a redelivery `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:406`
+- No link is held, for mail to a Readplace address or Gmail mail in "links" mode: every link is an action or unsubscribe link, judged non-article, unsaveable, or already terminal on a redelivery `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:406`
 
 **Timing:** Sent immediately with no configured delay: usually seconds to tens of seconds after the mail reaches the Readplace address, and up to about 2 minutes when the AI link triage needs both of its 60-second attempts. Retries add the queue visibility timeouts (receive 180s, extract 240s, send 60s), and for a Gmail history import it goes out when the import processes the message, which can be long after the mail first arrived.
 
@@ -2225,7 +2227,7 @@ Exact HTML body: [`html/automation-saves-held--no-inbox-address.html`](html/auto
 - `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:188` — processAutomationSavesHeld: guards, marker claim, tracked URLs and sendEmail call
 - `projects/hutch/src/runtime/send-trial-feedback-email.main.ts:45` — composition root: Resend wrapped by the reserved-domain skip, avatar URL, APP_ORIGIN
 - `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:167` — once-per-lapse marker claim
-- `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:426` — held-save decision that requests the notice
+- `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:426` — held-save decision that requests the notice; the issue-mode request is at :343
 - `projects/inbox/src/runtime/extract-email-links.main.ts:129` — publishSaveHeldNotice wired to SendTrialFeedbackEmailCommand
 - `projects/hutch/src/infra/index.ts:1227` — send-trial-feedback-email queue, Lambda, DLQ alarm and EventBridge subscription (:1264)
 
