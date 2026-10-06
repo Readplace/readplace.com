@@ -50,6 +50,7 @@ async function loginAs(page: Page, stamp: string): Promise<void> {
 async function openReadlistTip(page: Page, stamp: string): Promise<void> {
 	await loginAs(page, stamp);
 	await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
+	await page.waitForLoadState("domcontentloaded");
 	await page.locator(SAVE_INPUT).focus();
 	await expect(page.locator(`${PANEL}:popover-open`)).toBeVisible();
 }

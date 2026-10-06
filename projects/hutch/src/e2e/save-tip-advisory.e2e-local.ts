@@ -26,6 +26,7 @@ test.describe("The save tip meets a reader at the URL box", () => {
 
 		const form = page.locator('[data-test-form="save-article"]');
 		await expect(form).toHaveAttribute("data-save-tip", "due");
+		await page.waitForLoadState("domcontentloaded");
 
 		// A real press-release-click: a panel opened before the release would be
 		// light-dismissed by this very click, so a visible panel proves it waited.

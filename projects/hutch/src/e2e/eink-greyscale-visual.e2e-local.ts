@@ -357,6 +357,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 			await loginAs(page, email);
 			await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
+			await page.waitForLoadState("domcontentloaded");
 			await page.locator('[data-test-form="save-article"] input[name="url"]').focus();
 			const panel = page.locator('#save-tip:popover-open');
 			await expect(panel).toBeVisible();
