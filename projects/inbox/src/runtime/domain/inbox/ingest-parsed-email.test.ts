@@ -19,6 +19,7 @@ const ROW_ID = `${RECEIVED_AT}#<issue-42@tldr.tech>`;
 
 const tldrIssue: ParsedEmail = {
 	from: "dan@tldr.tech",
+	fromName: "TLDR",
 	subject: "TLDR 2026-09-20",
 	text: "",
 	html: "<p>https://example.com/story</p>",
@@ -126,7 +127,7 @@ describe("initIngestParsedEmail", () => {
 	});
 });
 
-it("reuses the first accepted Gmail destination snapshot after a mapping changes", async () => {
+it("reuses the first accepted Gmail destination and delivery snapshot after a mapping changes", async () => {
 	const { published, ingest } = makeIngest(
 		async () => "content/issue-42/content.html",
 	);
@@ -134,7 +135,7 @@ it("reuses the first accepted Gmail destination snapshot after a mapping changes
 		READLIST_ADDRESS,
 		InboxAddressSchema.parse("science-def456@read.place"),
 	];
-	const deliver = (secondary: string) =>
+	const deliver = (secondary: string, deliveryMode: "links" | "issue") =>
 		ingest({
 			userId: READER,
 			destination: READLIST_ADDRESS,
@@ -147,10 +148,11 @@ it("reuses the first accepted Gmail destination snapshot after a mapping changes
 			routing: {
 				kind: "gmail",
 				destinationAddresses: [READLIST_ADDRESS, secondary],
+				deliveryMode,
 			},
 		});
-	await deliver(original[1]);
-	await deliver("other-112233@read.place");
+	await deliver(original[1], "issue");
+	await deliver("other-112233@read.place", "links");
 	assert.deepEqual(
 		published.map(({ detail }) => detail),
 		[
@@ -159,14 +161,14 @@ it("reuses the first accepted Gmail destination snapshot after a mapping changes
 				receivedAtMessageId: ROW_ID,
 				recipientAddress: READLIST_ADDRESS,
 				origin: "gmail-import",
-				routing: { kind: "gmail", destinationAddresses: original },
+				routing: { kind: "gmail", destinationAddresses: original, deliveryMode: "issue" },
 			},
 			{
 				userId: READER,
 				receivedAtMessageId: ROW_ID,
 				recipientAddress: READLIST_ADDRESS,
 				origin: "gmail-import",
-				routing: { kind: "gmail", destinationAddresses: original },
+				routing: { kind: "gmail", destinationAddresses: original, deliveryMode: "issue" },
 			},
 		],
 	);

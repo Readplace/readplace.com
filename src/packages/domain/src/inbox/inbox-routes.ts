@@ -1,5 +1,9 @@
 export const INBOX_PATH = "/inbox";
 
+export function inboxEmailPath(receivedAtMessageId: string): string {
+	return `${INBOX_PATH}/${encodeURIComponent(receivedAtMessageId)}`;
+}
+
 export const CUSTOM_EMAILS_PATH = "/newsletters/custom-emails";
 
 export const NEWSLETTERS_PATH = "/newsletters";

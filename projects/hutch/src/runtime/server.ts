@@ -219,7 +219,7 @@ import {
 import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore } from "@packages/domain/inbox";
+import type { InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
@@ -416,6 +416,9 @@ interface AppDependencies {
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
+	listIssueLinks: InboxEmailLinkStore["listLinksByEmail"];
+	findIssueLink: InboxEmailLinkStore["getLink"];
+	findIssueLinkSaveStates: InboxSavedLinkStore["findSavedLinks"];
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -1373,6 +1376,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishComputeRelatedPastReads: deps.publishComputeRelatedPastReads,
 		findRelatedArticles: deps.findRelatedArticles,
 		findPastReads: deps.findPastReads,
+		listIssueLinks: deps.listIssueLinks,
+		findIssueLink: deps.findIssueLink,
+		findIssueLinkSaveStates: deps.findIssueLinkSaveStates,
 		resolveReaderProvenance: initResolveReaderProvenance({
 			detectNewsletters: initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog }),
 		}),

@@ -388,8 +388,8 @@ describe("initRewriteGmailFilter", () => {
 			purpose: "gmail-mapped",
 		});
 		await senders.addSenderToFilter({ userId: USER, senderEmail: BREW });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddresses: [tech.address] });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: BREW, mappedAddresses: [news.address] });
+		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddresses: [tech.address], deliveryMode: "links" });
+		await senders.mapSenderToAddress({ userId: USER, senderEmail: BREW, mappedAddresses: [news.address], deliveryMode: "links" });
 
 		const result = await rewrite({ userId: USER });
 
@@ -409,7 +409,7 @@ describe("initRewriteGmailFilter", () => {
 			name: AliasNameSchema.parse("tech"),
 			purpose: "gmail-mapped",
 		});
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddresses: [tech.address] });
+		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddresses: [tech.address], deliveryMode: "links" });
 		gmail.store.set("f-tech", {
 			id: "f-tech",
 			query: "from:(dan@tldr.tech)",

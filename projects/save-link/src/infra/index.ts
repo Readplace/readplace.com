@@ -19,6 +19,7 @@ import {
 } from "@packages/hutch-infra-components/infra";
 import {
 	SaveLinkCommand,
+	SaveEmailIssueCommand,
 	SubmitLinkCommand,
 	SaveAnonymousLinkCommand,
 	SaveLinkRawHtmlCommand,
@@ -485,6 +486,63 @@ const submitLinkLambdaWithSQS = new HutchSQSBackedLambda("submit-link", {
 });
 
 eventBus.subscribe(SubmitLinkCommand, submitLinkLambdaWithSQS);
+
+const saveEmailIssueQueue = new HutchSQS("save-email-issue-command", {
+	visibilityTimeoutSeconds: 120,
+});
+
+const saveEmailIssueArticlesDynamodb = new HutchDynamoDBAccess("save-email-issue-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: true }],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:PutItem",
+		"dynamodb:UpdateItem",
+		"dynamodb:Query",
+	],
+});
+
+const saveEmailIssueUserArticlesDynamodb = new HutchDynamoDBAccess("save-email-issue-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
+});
+
+const saveEmailIssueOnboardingDynamodb = new HutchDynamoDBAccess("save-email-issue-onboarding-dynamodb", {
+	tables: [{ arn: onboardingTableArn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
+const saveEmailIssueLambda = new HutchLambda("save-email-issue-command", {
+	entryPoint: "./src/runtime/save-email-issue-command.main.ts",
+	outputDir: ".lib/save-email-issue-command",
+	assetDir: "./src",
+	memorySize: 512,
+	timeout: 60,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [
+		...saveEmailIssueArticlesDynamodb.policies,
+		...saveEmailIssueUserArticlesDynamodb.policies,
+		...saveEmailIssueOnboardingDynamodb.policies,
+		...contentBucket.readPolicies("save-email-issue-content-read"),
+		...contentBucket.writePolicies("save-email-issue-s3"),
+	],
+});
+
+eventBus.grantPublish(saveEmailIssueLambda);
+
+const saveEmailIssueLambdaWithSQS = new HutchSQSBackedLambda("save-email-issue-command", {
+	lambda: saveEmailIssueLambda,
+	queue: saveEmailIssueQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SaveEmailIssueCommand, saveEmailIssueLambdaWithSQS);
 
 // --- SaveLinkRawHtmlCommand handler ---
 

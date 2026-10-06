@@ -31,6 +31,7 @@ function mapped(senderEmail: typeof TLDR): GmailSenderEntry {
 		userId: USER, senderEmail, addedToFilterAt: "2026-08-27T00:06:00.000Z",
 		firstSeenAt: undefined, lastSeenAt: undefined, seenCount: undefined,
 		lastSubject: undefined, mappedAddresses: [ALL_ADDRESS], mappedAt: "2026-08-27T00:06:00.000Z",
+		deliveryMode: "links",
 	};
 }
 

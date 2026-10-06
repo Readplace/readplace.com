@@ -84,12 +84,14 @@ describe("initDynamoDbGmailSender", () => {
 			userId: USER,
 			senderEmail: SENDER,
 			mappedAddresses: [ALIAS],
+			deliveryMode: "issue",
 		});
 
-		assert.equal(commands[0].input.UpdateExpression, "SET mappedAddress = :addr, mappedAt = :now REMOVE additionalMappedAddresses");
+		assert.equal(commands[0].input.UpdateExpression, "SET mappedAddress = :addr, mappedAt = :now, deliveryMode = :mode REMOVE additionalMappedAddresses");
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
 			":addr": ALIAS,
 			":now": NOW.toISOString(),
+			":mode": "issue",
 		});
 	});
 
@@ -97,14 +99,23 @@ describe("initDynamoDbGmailSender", () => {
 		const { store, commands } = harness();
 		const secondary = InboxAddressSchema.parse("travel-a7b2c9@read.place");
 
-		await store.mapSenderToAddress({ userId: USER, senderEmail: SENDER, mappedAddresses: [ALIAS, secondary] });
+		await store.mapSenderToAddress({ userId: USER, senderEmail: SENDER, mappedAddresses: [ALIAS, secondary], deliveryMode: "both" });
 
-		assert.equal(commands[0].input.UpdateExpression, "SET mappedAddress = :addr, mappedAt = :now, additionalMappedAddresses = :additional");
+		assert.equal(commands[0].input.UpdateExpression, "SET mappedAddress = :addr, mappedAt = :now, deliveryMode = :mode, additionalMappedAddresses = :additional");
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
 			":addr": ALIAS,
 			":now": NOW.toISOString(),
+			":mode": "both",
 			":additional": [secondary],
 		});
+	});
+
+	it("reads the stored delivery mode, and none for a mapping saved before the mode existed", async () => {
+		const chosen = harness(() => ({ Item: row({ mappedAddress: ALIAS, deliveryMode: "issue" }) }));
+		const legacy = harness(() => ({ Item: row({ mappedAddress: ALIAS }) }));
+
+		assert.equal((await chosen.store.findSender({ userId: USER, senderEmail: SENDER }))?.deliveryMode, "issue");
+		assert.equal((await legacy.store.findSender({ userId: USER, senderEmail: SENDER }))?.deliveryMode, undefined);
 	});
 
 	it("reads legacy scalar mappings and additional mappings as destination arrays", async () => {

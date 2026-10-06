@@ -3,11 +3,19 @@ import {
 	INBOX_PATH,
 	buildCustomEmailsUrl,
 	buildInboxHighlightUrl,
+	inboxEmailPath,
 	parseCustomEmailsOrigin,
 	parseInboxHighlight,
 } from "./inbox-routes";
 
 describe("inbox routes", () => {
+	it("keeps an email's id to one path segment of its inbox page", () => {
+		assert.equal(
+			inboxEmailPath("2026-06-24T09:00:00.000Z#<m@x>"),
+			"/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E",
+		);
+	});
+
 	it("builds a highlight link that survives an id carrying URL-significant characters", () => {
 		const url = buildInboxHighlightUrl({
 			receivedAtMessageId: "2026-06-24T09:00:00.000Z#<m@x>",

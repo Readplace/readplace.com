@@ -219,7 +219,7 @@ async function wiredHarness(options: { recordDiagnostic?: (now: () => Date) => R
 		await connections.createConnection({ userId: reader.userId, gatewayAddress: GATEWAY });
 		await connections.recordAccountEmail({ userId: reader.userId, accountEmail: SENTINEL_ACCOUNT });
 		await senders.addSenderToFilter({ userId: reader.userId, senderEmail: SENTINEL_SENDER });
-		await senders.mapSenderToAddress({ userId: reader.userId, senderEmail: SENTINEL_SENDER, mappedAddresses: [READLIST] });
+		await senders.mapSenderToAddress({ userId: reader.userId, senderEmail: SENTINEL_SENDER, mappedAddresses: [READLIST], deliveryMode: "links" });
 		await store.createJob({
 			...reader,
 			senderEmail: SENTINEL_SENDER,
@@ -463,6 +463,7 @@ describe("initGmailHistoryImportHandler", () => {
 				accountEmail: SENTINEL_ACCOUNT,
 				senderEmail: SENTINEL_SENDER,
 				destinationAddresses: [READLIST],
+				deliveryMode: "links",
 				rawEmailS3Key: `gmail-import/${USER}/${JOB}/SentinelMessageA1.eml`,
 				internalDate: new Date(NOW.getTime() - 60_000).toISOString(),
 			});

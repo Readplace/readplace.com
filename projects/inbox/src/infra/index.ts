@@ -480,6 +480,7 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 		INBOX_MAX_LINKS_PER_EMAIL: String(200),
 		EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL: truncationAlertQueue.url,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: tableNames.subscriptionProviders,
+		APP_ORIGIN: hutchApiUrl,
 	},
 	policies: [
 		...extractEmailLinksDynamodb.policies,

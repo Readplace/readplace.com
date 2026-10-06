@@ -2,6 +2,7 @@ import assert from "node:assert";
 import {
 	type InboxAddress,
 	InboxAddressSchema,
+	type InboxEmailEntry,
 	type InboxEmailStore,
 	type ParsedEmail,
 } from "@packages/domain/inbox";
@@ -12,6 +13,7 @@ import {
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { acceptedGmailRouting } from "./accepted-gmail-routing";
 import type { DownloadedEmailImage } from "./download-email-images";
 import type { StoreEmailBody } from "./store-email-body";
 
@@ -47,17 +49,18 @@ export function initIngestParsedEmail(deps: {
 		origin,
 		routing,
 	}) => {
-		const gmailDestinationAddresses:
-			| [InboxAddress, ...InboxAddress[]]
-			| undefined =
+		const gmailSnapshot: Pick<InboxEmailEntry, "gmailDestinationAddresses" | "gmailDeliveryMode"> =
 			routing.kind === "gmail"
-				? [
-						InboxAddressSchema.parse(routing.destinationAddresses[0]),
-						...routing.destinationAddresses
-							.slice(1)
-							.map((address) => InboxAddressSchema.parse(address)),
-					]
-				: undefined;
+				? {
+						gmailDestinationAddresses: [
+							InboxAddressSchema.parse(routing.destinationAddresses[0]),
+							...routing.destinationAddresses
+								.slice(1)
+								.map((address) => InboxAddressSchema.parse(address)),
+						],
+						gmailDeliveryMode: routing.deliveryMode,
+					}
+				: {};
 		const row = {
 			userId,
 			receivedAtMessageId,
@@ -68,9 +71,7 @@ export function initIngestParsedEmail(deps: {
 			receivedAt,
 			rawEmailS3Key,
 			linkCounts: undefined,
-			...(gmailDestinationAddresses === undefined
-				? {}
-				: { gmailDestinationAddresses }),
+			...gmailSnapshot,
 		};
 		const bodyS3Key = await storeBody({
 			userId,
@@ -92,13 +93,7 @@ export function initIngestParsedEmail(deps: {
 				? row
 				: await getEmail({ userId, receivedAtMessageId });
 		assert(accepted, "duplicate accepted email row is present");
-		const acceptedRouting: EmailReceivedDetail["routing"] =
-			accepted.gmailDestinationAddresses === undefined
-				? routing
-				: {
-						kind: "gmail",
-						destinationAddresses: accepted.gmailDestinationAddresses,
-					};
+		const acceptedRouting = acceptedGmailRouting(accepted) ?? routing;
 		await publishEvent(EmailReceivedEvent, {
 			userId,
 			receivedAtMessageId,

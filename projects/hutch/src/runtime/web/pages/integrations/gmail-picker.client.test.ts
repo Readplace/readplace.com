@@ -172,3 +172,31 @@ describe("Gmail custom readlist confirmation", () => {
 		assert.equal(dom.window.document.querySelectorAll("[data-gmail-readlist-checkbox]").length, 2);
 	});
 });
+
+describe("Gmail delivery choice", () => {
+	it("resubmits the selection form when a delivery option changes, without confirming its readlists", () => {
+		const dom = new JSDOM(`<form data-gmail-readlist-selection><input id="issue" type="radio" name="delivery" value="issue" checked data-gmail-delivery-option><input id="links" type="radio" name="delivery" value="links" data-gmail-delivery-option><button id="confirm" type="submit" name="confirm_readlists" value="dan@tldr.tech" data-gmail-confirm-readlists>Confirm readlists</button></form>`);
+		initGmailPicker({ document: dom.window.document });
+		let submitted = 0;
+		let confirmed = 0;
+		element(dom, "form").addEventListener("submit", (event) => {
+			event.preventDefault();
+			submitted++;
+		});
+		element(dom, "#confirm").addEventListener("click", () => { confirmed++; });
+
+		element(dom, "#links").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+		assert.deepEqual([submitted, confirmed], [1, 0]);
+	});
+
+	it("ignores a delivery option no longer inside a selection form", () => {
+		const dom = new JSDOM('<input id="orphan" type="radio" name="delivery" value="both" data-gmail-delivery-option><input id="other" type="text">');
+		initGmailPicker({ document: dom.window.document });
+
+		element(dom, "#orphan").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+		element(dom, "#other").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+		assert.equal(dom.window.document.querySelectorAll("[data-gmail-delivery-option]").length, 1);
+	});
+});

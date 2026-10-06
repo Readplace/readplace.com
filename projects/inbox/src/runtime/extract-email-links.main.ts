@@ -11,6 +11,7 @@ import {
 import {
 	CrawlEmailLinkPreview,
 	EmailLinksTriagedEvent,
+	SaveEmailIssueCommand,
 	SendFirstInboxEmailNoticeCommand,
 	SendTrialFeedbackEmailCommand,
 	SubmitLinkCommand,
@@ -46,6 +47,7 @@ const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const subscriptionProvidersTable = requireEnv(
 	"DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE",
 );
+const appOrigin = requireEnv("APP_ORIGIN");
 const maxLinks = Number.parseInt(requireEnv("INBOX_MAX_LINKS_PER_EMAIL"), 10);
 assert(
 	maxLinks <= EMAIL_LINK_ORDINAL_CAPACITY,
@@ -110,6 +112,7 @@ export const handler = initExtractEmailLinksHandler({
 	publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
 	publishEmailLinksTriaged: (input) =>
 		publishEvent(EmailLinksTriagedEvent, input),
+	publishSaveEmailIssue: (input) => publishEvent(SaveEmailIssueCommand, input),
 	alertTruncated: async (input) => {
 		// Dedicated alert queue, not the failure DLQ: truncation is a successful
 		// degradation, so its send-rate alarm is a distinct signal from genuine faults.
@@ -142,4 +145,5 @@ export const handler = initExtractEmailLinksHandler({
 	triageEmailLinks,
 	logger,
 	maxLinks,
+	appOrigin,
 });

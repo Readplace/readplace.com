@@ -4,11 +4,12 @@ import type {
 	GmailConfirmFailureReason,
 	GmailConnection,
 	GmailConnectionState,
+	GmailDeliveryMode,
 	GmailDiscovery,
 	GmailHistoryImportJob,
 	GmailSenderEntry,
 } from "@packages/domain/gmail";
-import { gmailConnectionState } from "@packages/domain/gmail";
+import { gmailConnectionState, pickerDeliveryMode } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { NewsletterDetection } from "@packages/domain/newsletter-catalog";
 import {
@@ -22,6 +23,7 @@ import type { UserId } from "@packages/domain/user";
 import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
+import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, type GmailFormAction, gmailGetFields, trackGmail } from "./gmail-form-fields";
 import { gmailMappingDestination, type GmailMappingsViewModel, toGmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import {
@@ -127,6 +129,17 @@ interface GmailSaveViewModel {
 	disabled: boolean;
 }
 
+interface GmailDeliveryOption {
+	value: GmailDeliveryMode;
+	label: string;
+	description: string;
+	checked: boolean;
+}
+
+interface GmailDeliveryChoiceViewModel {
+	options: GmailDeliveryOption[];
+}
+
 export interface GmailPageViewModel {
 	state: GmailConnectionState;
 	stateModifier: string;
@@ -157,6 +170,7 @@ export interface GmailPageViewModel {
 	senderChoiceLabel: string;
 	chooser: GmailChooserViewModel;
 	readlistPicker: GmailReadlistPickerViewModel;
+	delivery: GmailDeliveryChoiceViewModel;
 	save: GmailSaveViewModel | undefined;
 	mappings: GmailMappingsViewModel;
 	alerts: GmailBannerViewModel[];
@@ -312,7 +326,7 @@ function readlistPicker(input: {
 	selected: readonly ReadlistRef[];
 	pending: boolean;
 }): GmailReadlistPickerViewModel {
-	const { readlist: _readlist, import: _import, readlist_name: _name, ...fieldsState } = input.state;
+	const { readlist: _readlist, import: _import, readlist_name: _name, delivery: _delivery, ...fieldsState } = input.state;
 	return {
 		open: input.state.edit === "1" || (input.page.error !== undefined && READLIST_PICKER_ERRORS.has(input.page.error)),
 		choiceLabel: input.selected.map((readlist) => readlist.label).join(", "),
@@ -348,6 +362,20 @@ function saveFor(input: {
 		importChecked: input.state.import === "1",
 		variant: input.variant,
 		disabled: input.pending || input.invalid,
+	};
+}
+
+const DELIVERY_ORDER: readonly GmailDeliveryMode[] = ["issue", "links", "both"];
+
+function deliveryChoice(input: { state: GmailPickerState; sender: GmailSenderEntry | undefined }): GmailDeliveryChoiceViewModel {
+	const chosen = input.state.delivery ?? pickerDeliveryMode(input.sender);
+	return {
+		options: DELIVERY_ORDER.map((value) => ({
+			value,
+			label: GMAIL_DELIVERY_COPY[value].option,
+			description: GMAIL_DELIVERY_COPY[value].description,
+			checked: value === chosen,
+		})),
 	};
 }
 
@@ -448,6 +476,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			pagePath: GMAIL_PATH,
 		},
 		readlistPicker: readlistPicker({ page: input, state: pickerState, selected: selectedReadlists, pending }),
+		delivery: deliveryChoice({ state: pickerState, sender: selectedSenderEntry }),
 		save,
 		mappings: toGmailMappingsViewModel({
 			userId: input.userId,

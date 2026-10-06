@@ -27,6 +27,7 @@ import {
 	GmailHistoryImportMessageFetchedEvent,
 	GmailHistoryImportMessageIngestedEvent,
 	type HutchEvent,
+	SaveEmailIssueCommand,
 	SendFirstInboxEmailNoticeCommand,
 	SendTrialFeedbackEmailCommand,
 	SubmitLinkCommand,
@@ -169,6 +170,7 @@ function makePipeline() {
 		publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
 		publishEmailLinksTriaged: (input) =>
 			publishEvent(EmailLinksTriagedEvent, input),
+		publishSaveEmailIssue: (input) => publishEvent(SaveEmailIssueCommand, input),
 		alertTruncated: async () => {},
 		publishSaveHeldNotice: ({ userId, receivedAtMessageId, inboxAddress }) =>
 			publishEvent(SendTrialFeedbackEmailCommand, {
@@ -199,6 +201,7 @@ function makePipeline() {
 		}),
 		logger,
 		maxLinks: 200,
+		appOrigin: "https://readplace.com",
 	});
 
 	const run = async (
@@ -280,6 +283,7 @@ function makePipeline() {
 		destinationAddress: InboxAddress;
 		additionalAddresses?: InboxAddress[];
 		messageId: string;
+		deliveryMode?: "links" | "issue";
 	}) => {
 		const rawEmailS3Key = `gmail-import/${READER}/${JOB}/${GMAIL_MESSAGE_ID}.eml`;
 		rawObjects.set(rawEmailS3Key, tldrIssueEml(input.messageId));
@@ -294,6 +298,7 @@ function makePipeline() {
 				input.destinationAddress,
 				...(input.additionalAddresses ?? []),
 			],
+			deliveryMode: input.deliveryMode ?? "links",
 			rawEmailS3Key,
 			internalDate: INTERNAL_DATE,
 		});
@@ -346,6 +351,7 @@ function makePipeline() {
 			userId: READER,
 			senderEmail: TLDR,
 			mappedAddresses: [mappedAddress, ...additionalAddresses],
+			deliveryMode: "links",
 		});
 		await senders.addSenderToFilter({ userId: READER, senderEmail: TLDR });
 	};
@@ -427,6 +433,7 @@ describe("gmail history import chain (inbox half)", () => {
 					routing: {
 						kind: "gmail",
 						destinationAddresses: [destinationAddress],
+						deliveryMode: "links",
 					},
 				},
 			],
@@ -487,6 +494,25 @@ describe("gmail history import chain (inbox half)", () => {
 		assert.deepEqual(pipeline.publishedOf(EmailLinksTriagedEvent), []);
 	});
 
+	it("saves an imported issue whole, into its custom readlist, when the reader chose to keep the issue", async () => {
+		const pipeline = makePipeline();
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+
+		await pipeline.deliverFetched({
+			destinationAddress,
+			messageId: "<issue-42@tldr.tech>",
+			deliveryMode: "issue",
+		});
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+
+		assert.deepEqual(
+			pipeline.publishedOf(SaveEmailIssueCommand).map((entry) => SaveEmailIssueCommand.detailSchema.parse(entry.detail).readlists),
+			[[WORK]],
+		);
+		assert.deepEqual(pipeline.publishedOf(SubmitLinkCommand), []);
+	});
+
 	it("routes forwarded mail to the readlist the sender was remapped to", async () => {
 		const pipeline = makePipeline();
 		const gateway = await pipeline.gatewayAddress();
@@ -510,7 +536,7 @@ describe("gmail history import chain (inbox half)", () => {
 					receivedAtMessageId: `${FORWARDED_AT}#<issue-43@tldr.tech>`,
 					recipientAddress: remapped,
 					origin: "receive",
-					routing: { kind: "gmail", destinationAddresses: [remapped] },
+					routing: { kind: "gmail", destinationAddresses: [remapped], deliveryMode: "links" },
 				},
 			],
 		);

@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { GmailSenderStore } from "@packages/domain/gmail";
+import { type GmailSenderStore, resolveGmailDeliveryMode } from "@packages/domain/gmail";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -29,7 +29,12 @@ export function initMoveGmailMappingsOnReadlistDelete(deps: {
 				const primary = first === undefined
 					? (await deps.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG })).address
 					: first;
-				await deps.senders.mapSenderToAddress({ userId, senderEmail: sender.senderEmail, mappedAddresses: [primary, ...additional] });
+				await deps.senders.mapSenderToAddress({
+					userId,
+					senderEmail: sender.senderEmail,
+					mappedAddresses: [primary, ...additional],
+					deliveryMode: resolveGmailDeliveryMode(sender),
+				});
 				await deps.cancelGmailHistoryImports({ userId, senderEmail: sender.senderEmail, reason: "destination-changed" });
 			}
 			await deps.publishRewriteGmailFilter({ userId, reason: "readlist-deleted" });

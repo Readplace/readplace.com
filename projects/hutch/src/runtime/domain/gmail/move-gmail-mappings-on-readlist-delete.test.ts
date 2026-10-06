@@ -77,7 +77,7 @@ function harness() {
 	});
 	const mapSender = async (senderEmail: typeof TLDR, mappedAddress: InboxAddress) => {
 		await senders.addSenderToFilter({ userId: READER, senderEmail });
-		await senders.mapSenderToAddress({ userId: READER, senderEmail, mappedAddresses: [mappedAddress] });
+		await senders.mapSenderToAddress({ userId: READER, senderEmail, mappedAddresses: [mappedAddress], deliveryMode: "links" });
 	};
 	return { addresses, senders, imports, deleted, mappingsWhenRetired, rewrites, getOrCreateReadlistAddress, deleteReadlist, mapSender };
 }
@@ -110,17 +110,18 @@ describe("initMoveGmailMappingsOnReadlistDelete", () => {
 		assert.deepEqual(h.rewrites, [{ userId: READER, reason: "readlist-deleted" }]);
 	});
 
-	it("removes a secondary destination while preserving the remaining list and cancels that sender's import", async () => {
+	it("removes a secondary destination while preserving the remaining list and delivery mode, and cancels that sender's import", async () => {
 		const h = harness();
 		const work = await h.getOrCreateReadlistAddress({ userId: READER, readlist: WORK });
 		const travel = await h.getOrCreateReadlistAddress({ userId: READER, readlist: TRAVEL });
 		await h.mapSender(TLDR, travel.address);
-		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [travel.address, work.address] });
+		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [travel.address, work.address], deliveryMode: "issue" });
 		await h.imports.createJob({ ...queuedImport({ jobId: "a".repeat(32), senderEmail: TLDR, destinationAddress: travel.address }), destinationAddresses: [travel.address, work.address] });
 
 		await h.deleteReadlist({ userId: READER, slug: WORK });
 
-		assert.deepEqual((await h.senders.findSender({ userId: READER, senderEmail: TLDR }))?.mappedAddresses, [travel.address]);
+		const moved = await h.senders.findSender({ userId: READER, senderEmail: TLDR });
+		assert.deepEqual([moved?.mappedAddresses, moved?.deliveryMode], [[travel.address], "issue"]);
 		assert.deepEqual(h.mappingsWhenRetired, [[[travel.address]]]);
 		assert.deepEqual((await h.imports.listJobsByUserId(READER)).map((job) => [job.state, job.cancelReason]), [["cancelled", "destination-changed"]]);
 		assert.equal(await h.addresses.findReadlistAddress({ userId: READER, readlist: DEFAULT_READLIST_SLUG }), undefined);

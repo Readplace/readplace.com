@@ -65,7 +65,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
-		"The email itself isn't saved as an article. A newsletter whose writing lives only in the email body can be read on its inbox page but never reaches your readlist.",
+		"An address doesn't save the email itself as an article. To keep a newsletter's whole issue in your readlist, connect Gmail and choose the issue itself for that sender.",
 		"Attachments are dropped, so a PDF attached to an issue is not saved.",
 		"An address only receives what is sent to it. Past issues in your inbox have to be forwarded one at a time.",
 		`Up to ${INBOX_ADDRESS_MAX_PER_USER} live addresses per account.`,
@@ -81,7 +81,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to the email itself?",
 			answer:
-				"It stays on its inbox page, where you can read it. Only the article links in it are saved to your readlist.",
+				"It stays on its inbox page, where you can read it, and only the article links in it are saved to your readlist. A newsletter connected through Gmail can save the email itself as an article instead.",
 		},
 		{
 			question: "Will it click unsubscribe links?",

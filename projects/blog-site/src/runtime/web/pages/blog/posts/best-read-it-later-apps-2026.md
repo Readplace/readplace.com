@@ -3,7 +3,7 @@ title: "Best Read-It-Later Apps in 2026: 7 Compared, Pros and Cons"
 description: "7 read-it-later apps compared on AI, offline reading, platforms and price: Readwise Reader, Instapaper, Raindrop.io, Karakeep, Wallabag, Matter, Readplace."
 slug: "best-read-it-later-apps-2026"
 date: "2026-05-06"
-lastModified: "2026-10-01"
+lastModified: "2026-10-06"
 author: "Fayner Brack"
 keywords: "read it later apps, Pocket alternative, Omnivore alternative, best read it later 2026, Readwise Reader, Instapaper, Karakeep, Wallabag, Raindrop, Matter, Readplace"
 ---
@@ -47,7 +47,7 @@ The table above leaves out 3 things, shown here as each app documents them on Oc
 
 | App | PDFs | Newsletters | E-reader |
 |---|---|---|---|
-| **Readplace** | Every plan. Link, extension or iPhone share sheet, scans read by OCR | One address per newsletter, article links saved | EPUB download per article |
+| **Readplace** | Every plan. Link, extension or iPhone share sheet, scans read by OCR | One address per newsletter, article links saved. A Gmail sender can save the whole issue | EPUB download per article |
 | **Readwise Reader** | Upload, up to 500 MB | Dedicated email address | Sends documents to a Kindle |
 | **Instapaper** | Premium only | Save-by-email address that takes newsletters | Kobo sync free, Kindle digests Premium |
 | **Raindrop.io** | Upload | No email intake | No |

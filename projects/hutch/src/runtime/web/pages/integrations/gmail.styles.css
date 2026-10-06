@@ -446,6 +446,55 @@ form.htmx-request .gmail__submit-loader {
   accent-color: var(--primary);
 }
 
+.gmail__delivery {
+  min-width: 0;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+}
+
+.gmail__delivery-legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.gmail__delivery-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.gmail__delivery-option + .gmail__delivery-option {
+  margin-top: 10px;
+}
+
+.gmail__delivery-radio {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 2px 0 0;
+  accent-color: var(--primary);
+}
+
+.gmail__delivery-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.gmail__delivery-label {
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.gmail__delivery-description {
+  text-wrap: pretty;
+  color: var(--muted-foreground);
+}
+
 .gmail__readlist-option {
   flex-direction: row;
   align-items: center;

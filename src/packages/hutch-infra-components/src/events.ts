@@ -936,7 +936,11 @@ export const EmailReceivedEvent = defineEvent({
 		recipientAddress: z.string(),
 		routing: z.discriminatedUnion("kind", [
 			z.object({ kind: z.literal("inbox") }),
-			z.object({ kind: z.literal("gmail"), destinationAddresses: z.tuple([z.string()], z.string()) }),
+			z.object({
+				kind: z.literal("gmail"),
+				destinationAddresses: z.tuple([z.string()], z.string()),
+				deliveryMode: z.enum(["links", "issue", "both"]),
+			}),
 		]),
 		/** "receive" saves kept links to the reader's queue; a "backfill" replay
 		 * re-derives preview rows only — historical mail must never mass-save. */
@@ -978,6 +982,21 @@ export const EmailLinksTriagedEvent = defineEvent({
 	}),
 });
 export type EmailLinksTriagedDetail = z.infer<typeof EmailLinksTriagedEvent.detailSchema>;
+
+export const SaveEmailIssueCommand = defineEvent({
+	name: "save-email-issue-command",
+	source: "hutch.inbox",
+	detailType: "SaveEmailIssueCommand",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		subject: z.string(),
+		senderEmail: z.string(),
+		senderName: z.string(),
+		issueUrl: z.string(),
+		readlists: z.array(z.string()),
+	}),
+});
 
 export const EmailLinksFilteredEvent = defineEvent({
 	name: "email-links-filtered",
@@ -1205,6 +1224,7 @@ export const GmailHistoryImportMessageFetchedEvent = defineEvent({
 		accountEmail: z.string(),
 		senderEmail: z.string(),
 		destinationAddresses: z.tuple([z.string()], z.string()),
+		deliveryMode: z.enum(["links", "issue", "both"]),
 		rawEmailS3Key: z.string(),
 		internalDate: z.iso.datetime(),
 	}),

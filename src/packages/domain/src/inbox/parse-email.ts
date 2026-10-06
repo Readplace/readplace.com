@@ -15,6 +15,7 @@ export interface ParsedEmailInlineImage {
 export interface ParsedEmail {
 	/** Best-effort sender address for display; `""` when absent. */
 	from: string;
+	fromName: string;
 	subject: string;
 	text: string;
 	/** The renderable body as HTML. For a normal message this is the `text/html`
@@ -116,6 +117,7 @@ export async function parseEmail(input: {
 			ok: true,
 			email: {
 				from: parsed.from?.address ?? "",
+				fromName: parsed.from?.name ?? "",
 				subject: parsed.subject ?? "",
 				text,
 				html,

@@ -50,10 +50,12 @@ describe("initInMemoryGmailSender", () => {
 			userId: owner,
 			senderEmail: tldr,
 			mappedAddresses: [alias],
+			deliveryMode: "issue",
 		});
 
 		const sender = await senders.findSender({ userId: owner, senderEmail: tldr });
 		assert.deepEqual(sender?.mappedAddresses, [alias]);
+		assert.equal(sender?.deliveryMode, "issue");
 		assert.equal(sender?.mappedAt, "2026-08-27T00:00:00.000Z");
 		assert.equal(sender?.addedToFilterAt, "2026-08-27T00:00:00.000Z");
 	});
@@ -65,6 +67,7 @@ describe("initInMemoryGmailSender", () => {
 			userId: owner,
 			senderEmail: tldr,
 			mappedAddresses: [alias],
+			deliveryMode: "links",
 		});
 
 		const sender = await senders.findSender({ userId: owner, senderEmail: tldr });
@@ -78,11 +81,11 @@ describe("initInMemoryGmailSender", () => {
 		const secondary = InboxAddressSchema.parse("travel-a7b2c9@read.place");
 		await senders.addSenderToFilter({ userId: owner, senderEmail: tldr });
 		await senders.recordSenderSeen({ userId: owner, senderEmail: tldr, subject: "Latest issue" });
-		await senders.mapSenderToAddress({ userId: owner, senderEmail: tldr, mappedAddresses: [alias, secondary] });
+		await senders.mapSenderToAddress({ userId: owner, senderEmail: tldr, mappedAddresses: [alias, secondary], deliveryMode: "links" });
 		assert.deepEqual((await senders.findSender({ userId: owner, senderEmail: tldr }))?.mappedAddresses, [alias, secondary]);
 
 		clock = new Date("2026-08-28T00:00:00.000Z");
-		await senders.mapSenderToAddress({ userId: owner, senderEmail: tldr, mappedAddresses: [secondary] });
+		await senders.mapSenderToAddress({ userId: owner, senderEmail: tldr, mappedAddresses: [secondary], deliveryMode: "links" });
 
 		const sender = await senders.findSender({ userId: owner, senderEmail: tldr });
 		assert.deepEqual(sender?.mappedAddresses, [secondary]);
@@ -126,9 +129,9 @@ describe("initInMemoryGmailSender", () => {
 	it("deletes every sender a reader owns while leaving other readers alone", async () => {
 		const senders = store();
 		await senders.addSenderToFilter({ userId: owner, senderEmail: tldr });
-		await senders.mapSenderToAddress({ userId: owner, senderEmail: tldr, mappedAddresses: [alias, InboxAddressSchema.parse("travel-a7b2c9@read.place")] });
+		await senders.mapSenderToAddress({ userId: owner, senderEmail: tldr, mappedAddresses: [alias, InboxAddressSchema.parse("travel-a7b2c9@read.place")], deliveryMode: "links" });
 		await senders.addSenderToFilter({ userId: otherUser, senderEmail: brew });
-		await senders.mapSenderToAddress({ userId: otherUser, senderEmail: brew, mappedAddresses: [alias] });
+		await senders.mapSenderToAddress({ userId: otherUser, senderEmail: brew, mappedAddresses: [alias], deliveryMode: "links" });
 
 		await senders.deleteAllSendersByUserId(owner);
 

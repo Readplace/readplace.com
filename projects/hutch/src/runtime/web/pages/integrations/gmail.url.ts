@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GmailAccountEmail } from "@packages/domain/gmail";
+import { type GmailAccountEmail, type GmailDeliveryMode, GmailDeliveryModeSchema } from "@packages/domain/gmail";
 
 export const GMAIL_PATH = "/newsletters/gmail";
 export const GMAIL_STATUS_PATH = "/newsletters/gmail/status";
@@ -63,6 +63,7 @@ export interface GmailPickerState {
 	readlist?: string | readonly string[];
 	readlist_choice_for?: string;
 	readlist_name?: string;
+	delivery?: GmailDeliveryMode;
 	import?: "1";
 	edit?: "1";
 	discovery_after?: string;
@@ -83,6 +84,7 @@ const GMAIL_URL_PARAM_ORDER = [
 	"readlist",
 	"readlist_choice_for",
 	"readlist_name",
+	"delivery",
 	"import",
 	"edit",
 	"discovery",
@@ -110,6 +112,7 @@ export const GmailPickerStateSchema = z.object({
 	readlist: z.union([z.string(), z.array(z.string())]).transform((value) => [...new Set(typeof value === "string" ? [value] : value)]).optional().catch(undefined),
 	readlist_choice_for: optionalText,
 	readlist_name: optionalText,
+	delivery: GmailDeliveryModeSchema.optional().catch(undefined),
 	import: z.literal("1").optional().catch(undefined),
 	edit: z.literal("1").optional().catch(undefined),
 	discovery_after: optionalText,

@@ -17,6 +17,7 @@ const RECEIVED_AT = "2026-08-27T00:00:00.000Z";
 function forwardedEmail(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
 	return {
 		from: TLDR,
+		fromName: "TLDR",
 		subject: "TLDR 2026-08-27",
 		text: "today's links",
 		html: "<p>today's links</p>",
@@ -66,15 +67,16 @@ function harness() {
 }
 
 describe("initRouteGmailForwardedEmail", () => {
-	it("delivers to the alias the reader mapped the sender to", async () => {
+	it("delivers to the alias the reader mapped the sender to, with what the reader chose to save", async () => {
 		const { run, senders } = harness();
 		await senders.mapSenderToAddress({
 			userId: USER,
 			senderEmail: TLDR,
 			mappedAddresses: [ALIAS],
+			deliveryMode: "issue",
 		});
 
-		assert.deepEqual(await run(), [ALIAS]);
+		assert.deepEqual(await run(), { destinationAddresses: [ALIAS], deliveryMode: "issue" });
 	});
 
 	it("holds mail from a sender the reader has not mapped yet", async () => {
@@ -120,7 +122,7 @@ describe("initRouteGmailForwardedEmail", () => {
 
 		const delivered = await run(forwardedEmail({ from: "Dan <dan at tldr>" }));
 
-		assert.deepEqual(delivered, [GATEWAY]);
+		assert.deepEqual(delivered, { destinationAddresses: [GATEWAY], deliveryMode: "links" });
 		assert.deepEqual(
 			await heldMail.listHeldMailBySender({
 				userId: USER,
@@ -137,6 +139,7 @@ describe("initRouteGmailForwardedEmail", () => {
 			userId: USER,
 			senderEmail: TLDR,
 			mappedAddresses: [ALIAS],
+			deliveryMode: "links",
 		});
 
 		const delivered = await run(
@@ -147,7 +150,7 @@ describe("initRouteGmailForwardedEmail", () => {
 			},
 		);
 
-		assert.deepEqual(delivered, [ALIAS]);
+		assert.deepEqual(delivered, { destinationAddresses: [ALIAS], deliveryMode: "links" });
 		const sender = await senders.findSender({
 			userId: USER,
 			senderEmail: TLDR,
@@ -163,11 +166,23 @@ describe("initRouteGmailForwardedEmail", () => {
 			purpose: "gmail-mapped",
 		});
 
-		assert.deepEqual(delivered, [ALIAS]);
+		assert.deepEqual(delivered, { destinationAddresses: [ALIAS], deliveryMode: "links" });
 		assert.equal(
 			await senders.findSender({ userId: USER, senderEmail: TLDR }),
 			undefined,
 		);
+	});
+
+	it("delivers a named inbox's mail as addressed, saving links, when its sender was seen but never mapped", async () => {
+		const { run, senders } = harness();
+		await senders.recordSenderSeen({ userId: USER, senderEmail: TLDR, subject: "TLDR 2026-08-27" });
+
+		const delivered = await run(forwardedEmail(), {
+			recipientAddress: ALIAS,
+			purpose: "gmail-mapped",
+		});
+
+		assert.deepEqual(delivered, { destinationAddresses: [ALIAS], deliveryMode: "links" });
 	});
 
 	it("logs the held and unreadable paths by user id and never the sender or an inbox address", async () => {

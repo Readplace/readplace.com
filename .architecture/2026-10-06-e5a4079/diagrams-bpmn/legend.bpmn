@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_legend" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_legend" name="legend" isExecutable="false">
+    <bpmn:sendTask id="n_C" name="Command">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_S" name="System or aggregate">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_E" name="Event">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="n_P" name="Policy or reaction">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_R" name="Read model or store"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_Q" name="SQS queue">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="n_D" name="Dead letter queue">
+
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:startEvent id="n_U" name="Reader action">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:endEvent id="n_N" name="Changed behavior">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_C" targetRef="n_S" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_S" targetRef="n_E" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_E" targetRef="n_P" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_legend">
+    <bpmndi:BPMNPlane id="Plane_legend" bpmnElement="Process_legend">
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="43.32" y="28" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_S_di" bpmnElement="n_S">
+        <dc:Bounds x="220.64" y="267.75" width="159.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_E_di" bpmnElement="n_E">
+        <dc:Bounds x="438.14" y="262.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="566.19" y="262.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R_di" bpmnElement="n_R">
+        <dc:Bounds x="28" y="112" width="134.64" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="75.32" y="213.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="75.32" y="308" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_U_di" bpmnElement="n_U">
+        <dc:Bounds x="75.32" y="402.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_N_di" bpmnElement="n_N">
+        <dc:Bounds x="75.32" y="497" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="147.32" y="52" />
+        <di:waypoint x="183.98" y="52" />
+        <di:waypoint x="183.98" y="291.75" />
+        <di:waypoint x="220.64" y="291.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="380.14" y="291.75" />
+        <di:waypoint x="409.14" y="291.75" />
+        <di:waypoint x="409.14" y="282.5" />
+        <di:waypoint x="438.14" y="282.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="478.14" y="282.5" />
+        <di:waypoint x="566.19" y="282.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -58,6 +58,7 @@ export interface ArticleBodyInput {
 	 * summary and above the body. Owner-reader only — the public `/view` and the
 	 * admin recrawl leave it unset, so reading history never appears there. */
 	previouslyReadHtml?: string;
+	issueLinksHtml?: string;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -103,6 +104,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		readerSlotHtml,
 		summarySlotHtml,
 		previouslyReadHtml: input.previouslyReadHtml ?? "",
+		issueLinksHtml: input.issueLinksHtml ?? "",
 		progressBarHtml,
 		crawlBookmarkHtml,
 		bottomActionsHtml: input.bottomActionsHtml,

@@ -103,6 +103,7 @@ import { initInMemoryPendingUpload } from "@packages/test-fixtures/providers/pen
 import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
+import { initInMemoryInboxEmailLink, initInMemoryInboxSavedLink } from "@packages/test-fixtures/providers/inbox-email";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
@@ -187,6 +188,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 		}
 		: undefined;
 	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
+	const inboxEmailLinkStore = initInMemoryInboxEmailLink();
+	const inboxSavedLinkStore = initInMemoryInboxSavedLink();
 	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 	const gmailClientId = getEnv("GMAIL_INTEGRATION_CLIENT_ID");
 	const gmailClientSecret = getEnv("GMAIL_INTEGRATION_CLIENT_SECRET");
@@ -526,6 +529,9 @@ export function initDevProviders(input: { appOrigin: string }) {
 		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		setInboxAddressReadlist: inboxAddressStore.setAddressReadlist,
 		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
+		listIssueLinks: inboxEmailLinkStore.listLinksByEmail,
+		findIssueLink: inboxEmailLinkStore.getLink,
+		findIssueLinkSaveStates: inboxSavedLinkStore.findSavedLinks,
 		subscriptionProviders: devSubscriptionProviders,
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,

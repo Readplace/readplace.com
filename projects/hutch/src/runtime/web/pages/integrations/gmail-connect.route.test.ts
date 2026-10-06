@@ -889,7 +889,7 @@ describe("Gmail read permission for an import", () => {
 		await gmail.bundle.gmailDiscoveryStore.startDiscovery({ checkedMessageCount: 0, userId, accountEmail: READER, gatewayAddress, generation: "run-1", mode: "full", historyId: "100" });
 		const destination = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
 		const previous = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse("tech") });
-		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddresses: [destination.address] });
+		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddresses: [destination.address], deliveryMode: "links" });
 		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
 		const jobId = gmail.bundle.newGmailHistoryImportJobId();
 		await gmail.bundle.gmailHistoryImportStore.createJob({

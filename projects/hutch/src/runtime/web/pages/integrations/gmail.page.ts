@@ -7,6 +7,7 @@ import {
 	GMAIL_HISTORY_IMPORT_MAX_POLLS,
 	gmailConnectionState,
 	hasGmailScope,
+	pickerDeliveryMode,
 } from "@packages/domain/gmail";
 import type { ForwardableSender, GmailConnection, GmailDiscovery } from "@packages/domain/gmail";
 import { type InboxAddress, InboxAddressSchema, isLiveAddress } from "@packages/domain/inbox";
@@ -269,7 +270,12 @@ export function registerGmailPageRoutes(
 			return;
 		}
 		const selected = readlists.filter((entry) => entry.slug !== DEFAULT_READLIST_SLUG && choices.includes(entry.slug));
-		const { destinations } = await mapSenderToReadlist({ userId, sender: senderEmail, readlists: selected.map((entry) => entry.slug) });
+		const { destinations } = await mapSenderToReadlist({
+			userId,
+			sender: senderEmail,
+			readlists: selected.map((entry) => entry.slug),
+			deliveryMode: state.delivery ?? pickerDeliveryMode(existing),
+		});
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
 		const detection = await gmail.detectNewsletters([senderEmail]);
 		if (detection.status === "unavailable" || detection.recognized.get(senderEmail)?.match !== "exact") {

@@ -6,10 +6,13 @@ export {
 	INBOX_HIGHLIGHT_PARAM,
 	buildCustomEmailsUrl,
 	buildInboxHighlightUrl,
+	inboxEmailPath,
 	parseCustomEmailsOrigin,
 	parseInboxHighlight,
 	type CustomEmailsOrigin,
 } from "./inbox-routes";
+export { emailIssueArticleUrl, parseEmailIssueArticleUrl } from "./email-issue-url";
+export { deriveEmailIssueMetadata } from "./email-issue-metadata";
 export type {
 	InboxAddressEntry,
 	InboxAddressStore,

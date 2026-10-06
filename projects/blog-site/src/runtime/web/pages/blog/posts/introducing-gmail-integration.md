@@ -1,8 +1,9 @@
 ---
 title: "Introducing GMail integration"
-description: "A newsletter you chose arrives in Gmail between a receipt and a calendar invite, and gets cleared with the rest. Connect Gmail to Readplace, point a sender at a readlist, and each new issue lands there as saved articles, summarized and sorted out from the packaging. The subscription keeps its address, the mail stays unread, and connecting reads mail headers, not mail."
+description: "A newsletter you chose arrives in Gmail between a receipt and a calendar invite, and gets cleared with the rest. Connect Gmail to Readplace, point a sender at a readlist, and each new issue lands there summarized, either as the issue itself or as the articles it links to, sorted out from the packaging. The subscription keeps its address, the mail stays unread, and connecting reads mail headers, not mail."
 slug: "introducing-gmail-integration"
 date: "2026-10-03"
+lastModified: "2026-10-06"
 author: "Fayner Brack"
 keywords: "gmail integration, read gmail newsletters, gmail newsletter reader, save newsletters to read later, newsletter to read it later app, connect gmail to read it later, newsletter overload, gmail newsletters to readlist, readplace"
 tags: ["changelog"]
@@ -13,7 +14,7 @@ banner: "Introducing GMail integration"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Week after week, the newsletters you chose lose to the email you didn't. Readplace now connects to Gmail: pick a sender, point it at a readlist, and each new issue lands there as saved articles, sorted out from the sponsor slots and the unsubscribe footer. The subscription keeps its address, and the mail stays in Gmail, unread and unmoved. The connection comes with a paid Readplace subscription, reads mail headers, not the mail itself, and permission to read arrives only if you ask for the unread issues of the last 30 days, one sender at a time.
+Week after week, the newsletters you chose lose to the email you didn't. Readplace now connects to Gmail: pick a sender, point it at a readlist, and each new issue lands there as one article, with a Save button beside each article it links to. A sender can save the linked articles instead, sorted out from the sponsor slots and the unsubscribe footer, or both. The subscription keeps its address, and the mail stays in Gmail, unread and unmoved. The connection comes with a paid Readplace subscription, reads mail headers, not the mail itself, and permission to read arrives only if you ask for the unread issues of the last 30 days, one sender at a time.
 
 </div>
 </details>
@@ -32,7 +33,7 @@ Connecting lives under Newsletters, the nav item that now holds both ways in: Fr
 
 Gmail responds to a new forwarding address by emailing a confirmation to that address. The address belongs to Readplace, so the confirmation is handled the moment it arrives. In the page's own words: "Readplace confirms it for you — you never need the code Gmail mentions."
 
-After that, the rest of the feature is a menu with 2 pickers in it.
+After that, the rest of the feature is a menu with 2 pickers and a question in it.
 
 ## A sender becomes a readlist
 
@@ -40,7 +41,9 @@ Load senders, and Readplace builds the list from the mailbox itself, working bac
 
 Save, and Readplace writes the filter into Gmail. New mail from that sender forwards over, and the subscription is none the wiser.
 
-Each forwarded issue then goes through the same sorting the July addresses run. A link that would unsubscribe or confirm is set aside without being opened, a pass labels what remains, and only the articles reach the readlist, crawled for a clean copy and summarized. The sponsor slots and the section menus stay behind with the email.
+The same form asks what each issue should save, and a new mapping starts on "The issue itself". The issue lands as one article, read in the reader like any other save. Under it sits a list of the articles it links to, each with a Save button, so a link joins the readlist only when you pick it.
+
+"The articles it links to" keeps the July behaviour. Each forwarded issue goes through the same sorting the July addresses run. A link that would unsubscribe or confirm is set aside without being opened, a pass labels what remains, and only the articles reach the readlist, crawled for a clean copy and summarized. The sponsor slots and the section menus stay behind with the email. "Both" saves the issue and its articles.
 
 ## Headers now, reading only on request
 
@@ -58,6 +61,6 @@ Removing a mapping stops the forwarding for that sender and keeps what was alrea
 
 ## A month of backlog on day 1
 
-The 30-day import makes the first mapping a fair test instead of a week of waiting. Pick the sender whose issues stack up fastest and give it a readlist of its own. Tick the import. The backlog comes back as summarized articles, which is an easier thing to face than a month of unread mail from the same sender.
+The 30-day import makes the first mapping a fair test instead of a week of waiting. Pick the sender whose issues stack up fastest and give it a readlist of its own. Tick the import. The backlog comes back summarized, in whichever shape the mapping saves, which is an easier thing to face than a month of unread mail from the same sender.
 
 Connecting Gmail takes an active paid Readplace subscription, and the setup itself is a sign-in and one pasted address, under [Newsletters](/newsletters?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=newsletters) at [readplace.com](/?utm_source=blog-introducing-gmail-integration&utm_medium=internal&utm_content=home). The next issue is coming either way. Where it lands just became a choice.

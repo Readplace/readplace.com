@@ -2,6 +2,7 @@ import assert from "node:assert";
 import type {
 	ForwardableSender,
 	GmailConnection,
+	GmailDeliveryMode,
 	GmailFilterError,
 	GmailHistoryImportCounts,
 	GmailHistoryImportFailureReason,
@@ -9,11 +10,12 @@ import type {
 	GmailHistoryImportSummary,
 	GmailSenderEntry,
 } from "@packages/domain/gmail";
-import { GMAIL_HISTORY_IMPORT_MAX_POLLS, summarizeGmailHistoryImport } from "@packages/domain/gmail";
+import { GMAIL_HISTORY_IMPORT_MAX_POLLS, resolveGmailDeliveryMode, summarizeGmailHistoryImport } from "@packages/domain/gmail";
 import { type InboxAddressEntry, isLiveAddress } from "@packages/domain/inbox";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
+import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, type GmailFormAction, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
 import { importFollowsMapping, latestGmailImportsBySender } from "./gmail-import-actions";
 import type { GmailSenderCandidate } from "./gmail-sender-picker.viewmodel";
@@ -46,6 +48,8 @@ export interface GmailMappingRow {
 	destinationKind: GmailMappingDestination["kind"];
 	destinationLabel: string;
 	destinationNote: string | undefined;
+	deliveryMode: GmailDeliveryMode;
+	deliveryLabel: string;
 	forwarding: GmailForwardingState;
 	forwardingLabel: string;
 	importState: GmailImportState;
@@ -104,7 +108,7 @@ const UNRESOLVED_REASONS: Record<UnresolvedReason, string> = {
 };
 
 function unresolvedNote(input: { reason: UnresolvedReason; readlistChoiceShown: boolean }): string {
-	const remedy = input.readlistChoiceShown ? "Change the readlists to choose them." : "Reconnect Gmail to choose one.";
+	const remedy = input.readlistChoiceShown ? "Edit it to choose a readlist." : "Reconnect Gmail to choose one.";
 	return `${UNRESOLVED_REASONS[input.reason]} ${remedy}`;
 }
 
@@ -223,6 +227,7 @@ function rowActions(input: {
 		...listState,
 		sender: input.sender.senderEmail,
 		readlist: input.destination.kind === "readlist" ? input.destination.readlists.map((readlist) => readlist.slug) : undefined,
+		delivery: undefined,
 		edit: "1",
 	};
 	const actions: GmailFormAction[] = [];
@@ -231,7 +236,7 @@ function rowActions(input: {
 			key: "edit",
 			method: "GET",
 			action: buildGmailUrl(),
-			label: "Change readlists",
+			label: "Edit",
 			variant: "neutral",
 			fields: gmailGetFields(editState, "edit-mapping"),
 		});
@@ -276,12 +281,15 @@ function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: Gmai
 	const importState: GmailImportState = summary?.status ?? "none";
 	const forwarding = forwardingState({ connection: input.connection, destination, pending: forwardingPending(input.connection, input.sender) });
 	const importable = destination.kind === "readlist" && input.connection.revokedAt === undefined;
+	const deliveryMode = resolveGmailDeliveryMode(input.sender);
 	return {
 		sender: input.sender.senderEmail,
 		newsletterName: input.candidates.get(input.sender.senderEmail)?.newsletterName,
 		destinationKind: destination.kind,
 		destinationLabel: destination.kind === "readlist" ? destination.readlists.map((readlist) => readlist.label).join(", ") : "Choose a readlist",
 		destinationNote: destination.kind === "readlist" ? undefined : unresolvedNote({ reason: destination.reason, readlistChoiceShown: input.readlistChoiceShown }),
+		deliveryMode,
+		deliveryLabel: GMAIL_DELIVERY_COPY[deliveryMode].row,
 		forwarding,
 		forwardingLabel: FORWARDING_LABELS[forwarding],
 		importState,
