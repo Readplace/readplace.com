@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { AliasNameSchema, InboxAddressSchema } from "@packages/domain/inbox";
 import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
@@ -268,6 +269,42 @@ describe("GET /newsletters", () => {
 		assert(form, "the finish-setup action navigates via a form");
 		expect(form.getAttribute("method")?.toLowerCase()).toBe("get");
 		expect(form.getAttribute("action")).toBe("/newsletters/gmail?utm_source=integrations&utm_medium=internal&utm_content=finish-setup");
+	});
+
+	it("names the connected Gmail account on the Gmail row", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+			grant: { ok: true, grant: { refreshToken: "refresh-value", accessToken: "access-value", grantedScope: GMAIL_SETTINGS_SCOPE } },
+		});
+		const harness = useApp({
+			...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+			gmailIntegration: gmail.bundle,
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress: GATEWAY });
+		await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") });
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const account = doc.querySelector('[data-test-integration="gmail"] [data-test-integration-account]');
+		assert(account, "the Gmail row always renders its account line");
+		expect(account.getAttribute("data-integration-account-state")).toBe("shown");
+		expect(account.textContent).toBe("reader@gmail.com");
+	});
+
+	it("hides the account line on every row while Gmail is not set up", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const states = Array.from(doc.querySelectorAll("[data-test-integration]")).map((row) => [
+			row.getAttribute("data-test-integration"),
+			row.querySelector("[data-test-integration-account]")?.getAttribute("data-integration-account-state"),
+		]);
+		expect(states).toEqual([["gmail", "hidden"], ["custom-emails", "hidden"]]);
 	});
 
 	it("boosts the action form and loads the clipboard bundle so a boosted hop keeps copy working", async () => {

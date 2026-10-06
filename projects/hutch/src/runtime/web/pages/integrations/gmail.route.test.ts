@@ -283,6 +283,27 @@ describe("GMail Newsletters page", () => {
 		}
 	});
 
+	it("names the connected Gmail account", async () => {
+		const { agent } = await connectedAgent();
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const account = doc.querySelector("[data-test-gmail-account]");
+		assert(account, "the account line renders in every state");
+		expect(account.getAttribute("data-gmail-account-state")).toBe("shown");
+		expect(account.textContent).toBe("reader@gmail.com");
+	});
+
+	it("names no account before Google has told us which one is connected", async () => {
+		const { agent } = await connectedAgent({ accountEmail: false });
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const account = doc.querySelector("[data-test-gmail-account]");
+		assert(account, "the account line renders in every state");
+		expect(account.getAttribute("data-gmail-account-state")).toBe("hidden");
+	});
+
 	it("preserves the selected FROM and notification presentation through login", async () => {
 		const { harness } = harnessWithGmail();
 		const agent = request.agent(harness.server);

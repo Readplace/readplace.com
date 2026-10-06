@@ -84,6 +84,19 @@
   color: var(--muted-foreground);
 }
 
+.integrations__account--shown {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+}
+
+.integrations__account--hidden {
+  display: none;
+}
+
 .integrations__status {
   flex: none;
   padding: 4px 12px;

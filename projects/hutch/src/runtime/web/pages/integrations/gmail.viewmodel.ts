@@ -131,6 +131,7 @@ export interface GmailPageViewModel {
 	state: GmailConnectionState;
 	stateModifier: string;
 	statusLabel: string;
+	accountEmail: string | undefined;
 	pollState: GmailPollState | undefined;
 	integrationsPath: string;
 	gatewayAddress: string;
@@ -398,7 +399,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		: undefined;
 	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
 	return {
-		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state], pollState,
+		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state], accountEmail: input.connection.accountEmail, pollState,
 		integrationsPath: trackGmail(INTEGRATIONS_PATH, "back-to-newsletters"),
 		gatewayAddress: input.connection.gatewayAddress, mailboxUrl: buildGmailMailboxUrl(input.connection.accountEmail),
 		pickerState, pagePath: GMAIL_PATH, pageUrl: buildGmailUrl({ ...pickerState, discovery: "started" }), searchPath: GMAIL_SENDERS_PATH,

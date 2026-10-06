@@ -13,6 +13,7 @@
             <span class="integrations__body">
               <span class="integrations__name">{{name}}{{#if beta}} <span class="chip chip--badge chip--accent" data-test-integration-beta>Beta</span>{{/if}}</span>
               <span class="integrations__description">{{description}}</span>
+              <span class="{{accountClass}}" data-test-integration-account data-integration-account-state="{{accountState}}">{{accountEmail}}</span>
             </span>
             <span class="integrations__status {{statusModifier}}" data-test-integration-status="{{statusKey}}">{{statusLabel}}</span>
             {{#each actions}}

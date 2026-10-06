@@ -55,6 +55,11 @@ const FORWARDING_CLASSES: Record<GmailForwardingState, string> = {
 	"confirmation-required": "",
 };
 
+const ACCOUNT_CLASSES = {
+	shown: "gmail__account gmail__account--shown",
+	hidden: "gmail__account gmail__account--hidden",
+} as const;
+
 export function renderGmailPoll(vm: GmailPollViewModel): string {
 	return render(GMAIL_POLL_TEMPLATE, vm);
 }
@@ -108,6 +113,7 @@ function renderMappings(mappings: GmailMappingsViewModel, outOfBand: boolean): s
 }
 
 export function GmailPage(vm: GmailPageViewModel): PageBody {
+	const accountState = vm.accountEmail === undefined ? "hidden" : "shown";
 	return {
 		seo: {
 			title: "From Gmail — Readplace",
@@ -120,6 +126,8 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 		content: {
 			html: render(GMAIL_TEMPLATE, {
 				...vm,
+				accountState,
+				accountClass: ACCOUNT_CLASSES[accountState],
 				alertsHtml: vm.alerts.map(({ key, message }) => renderAlert({ key, content: { variant: "error", message: { text: message } } })).join(""),
 				noticesHtml: vm.notices.map(({ key, message, variant }) => renderAlert({ key, content: { variant, message: { text: message } } })).join(""),
 				settingsShot: SETTINGS_SHOT,

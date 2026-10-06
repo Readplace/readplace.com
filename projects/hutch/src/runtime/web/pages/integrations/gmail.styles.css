@@ -56,6 +56,20 @@
   white-space: nowrap;
 }
 
+.gmail__account--shown {
+  display: block;
+  margin-top: 8px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+}
+
+.gmail__account--hidden {
+  display: none;
+}
+
 /* purgecss-ignore-start: the state modifier is composed at runtime from the view model's state union, so purgecss cannot see the complete class name */
 .gmail__status--awaiting-confirmation {
   background: var(--card);

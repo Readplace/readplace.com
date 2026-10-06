@@ -47,6 +47,7 @@ export interface IntegrationRowViewModel {
 	description: string;
 	iconName: IconName;
 	beta: boolean;
+	accountEmail: string | undefined;
 	statusKey: GmailConnectionState | CustomEmailsState;
 	statusLabel: string;
 	statusModifier: string;
@@ -187,6 +188,7 @@ function gmailRow(connection: GmailConnection | undefined): IntegrationRowViewMo
 		description: "Send newsletters from Gmail to your readlists.",
 		iconName: "mail",
 		beta: true,
+		accountEmail: connection?.accountEmail,
 		statusKey: state,
 		statusLabel: STATUS_LABELS[state],
 		statusModifier: `integrations__status--${state}`,
@@ -224,6 +226,7 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 		description: "Sign up for newsletters with your own Readplace emails.",
 		iconName: "inbox",
 		beta: false,
+		accountEmail: undefined,
 		statusKey: state,
 		statusLabel: state === "active" ? `${activeCount} active` : "Not set up",
 		statusModifier: `integrations__status--${state}`,

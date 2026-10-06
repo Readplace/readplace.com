@@ -4,7 +4,7 @@ import { render, renderAlert, renderConfirmPopover } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import { INTEGRATIONS_INDEX_STYLES } from "./integrations-index.styles";
-import type { IntegrationActionViewModel, IntegrationsIndexViewModel } from "./integrations-index.viewmodel";
+import type { IntegrationActionViewModel, IntegrationRowViewModel, IntegrationsIndexViewModel } from "./integrations-index.viewmodel";
 
 const INTEGRATIONS_INDEX_TEMPLATE = readFileSync(
 	join(__dirname, "integrations-index.template.html"),
@@ -34,6 +34,16 @@ function hasConfirmPopover(
 	return action.confirmPopoverId !== undefined;
 }
 
+const ACCOUNT_CLASSES = {
+	shown: "integrations__account integrations__account--shown",
+	hidden: "integrations__account integrations__account--hidden",
+} as const;
+
+function withAccountState(service: IntegrationRowViewModel) {
+	const accountState = service.accountEmail === undefined ? "hidden" : "shown";
+	return { ...service, accountState, accountClass: ACCOUNT_CLASSES[accountState] };
+}
+
 const INTEGRATIONS_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
 
 export function IntegrationsIndexPage(vm: IntegrationsIndexViewModel): PageBody {
@@ -48,6 +58,7 @@ export function IntegrationsIndexPage(vm: IntegrationsIndexViewModel): PageBody 
 		bodyClass: "page-integrations",
 		content: { html: render(INTEGRATIONS_INDEX_TEMPLATE, {
 			...vm,
+			services: vm.services.map(withAccountState),
 			alertsHtml: vm.alerts.map(({ key, message }) => renderAlert({ key, content: { variant: "error", message: { text: message } } })).join(""),
 			disclaimersHtml: vm.services
 				.flatMap((service) => service.actions)
