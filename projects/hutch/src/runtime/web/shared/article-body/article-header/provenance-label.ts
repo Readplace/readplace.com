@@ -32,8 +32,6 @@ function labelForAssistant(registeredName: string): ProvenanceLabel {
 	return { label: `via ${assistant.displayName}`, iconSvg: CLIENT_ICON_SVG[assistant.name] };
 }
 
-/** The last arm is `default` so a sixth provenance kind fails to compile here
- * rather than falling through to the assistant label. */
 export function provenanceLabel(provenance: ReaderProvenance): ProvenanceLabel | undefined {
 	switch (provenance.kind) {
 		case "web":
