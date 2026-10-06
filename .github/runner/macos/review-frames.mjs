@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { spawn } from "node:child_process";
-import { appendFile, cp, readdir, rm } from "node:fs/promises";
+import { access, appendFile, cp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -65,6 +65,17 @@ async function listFlows(framesDir) {
     }
   }
   return flows;
+}
+
+function frameVersions(flows) {
+  return Promise.all(
+    flows
+      .flatMap((flow) => flow.frames)
+      .map(async (frame) => {
+        const { mtimeMs, size } = await stat(frame);
+        return { frame, mtimeMs, size };
+      }),
+  );
 }
 
 function freePort() {
@@ -228,14 +239,36 @@ async function publishSummary(markdown) {
   console.log(markdown);
 }
 
+async function cleanReviewOfFramesNoLongerOnDisk({ framesDir, cleanReviewRecord }) {
+  const framesDelivered = await access(framesDir).then(
+    () => true,
+    () => false,
+  );
+  if (framesDelivered) {
+    await rm(cleanReviewRecord, { force: true });
+    return undefined;
+  }
+  return readFile(cleanReviewRecord, "utf8").catch(() => undefined);
+}
+
 async function main() {
   const framesDir = requireEnv("FRAMES_DIR");
   const model = requireEnv("VLM_MODEL");
   const python = requireEnv("VLM_PYTHON");
+  const reviewRunUrl = requireEnv("REVIEW_RUN_URL");
+  const cleanReviewRecord = path.join(path.dirname(framesDir), "frames-reviewed-clean.md");
+  const earlierCleanReview = await cleanReviewOfFramesNoLongerOnDisk({ framesDir, cleanReviewRecord });
+  if (earlierCleanReview !== undefined) {
+    await publishSummary(
+      `This CI attempt delivered no new transition frames; the frames of this CI run were already reviewed clean.\n\n${earlierCleanReview}`,
+    );
+    return;
+  }
   const flows = await listFlows(framesDir);
   if (flows.length === 0) {
     throw new Error(`No transition frames reached ${framesDir}`);
   }
+  const reviewedFrames = await frameVersions(flows);
   const server = await startServer({ python, model });
   const reviews = [];
   try {
@@ -245,7 +278,8 @@ async function main() {
   } finally {
     await stopServer(server);
   }
-  await publishSummary(formatSummary(reviews));
+  const summary = formatSummary(reviews);
+  await publishSummary(summary);
   const defectCount = reviews.reduce((total, review) => total + review.findings.length, 0);
   if (process.env.GITHUB_OUTPUT) {
     await appendFile(process.env.GITHUB_OUTPUT, `defect-count=${defectCount}\n`);
@@ -258,6 +292,8 @@ async function main() {
   if (defectCount > 0) {
     await cp(framesDir, "flagged-frames", { recursive: true });
   }
+  const deliveredFrames = await frameVersions(await listFlows(framesDir));
+  const everyDeliveredFrameWasReviewed = JSON.stringify(deliveredFrames) === JSON.stringify(reviewedFrames);
   await rm(framesDir, { recursive: true, force: true });
   const unparsedFlows = reviews.filter((review) => review.parseFailed).map((review) => review.flow);
   if (unparsedFlows.length > 0) {
@@ -265,6 +301,9 @@ async function main() {
   }
   if (defectCount > 0) {
     throw new Error(`The model confirmed ${defectCount} defect(s) in the transition frames`);
+  }
+  if (everyDeliveredFrameWasReviewed) {
+    await writeFile(cleanReviewRecord, `Reviewed by ${reviewRunUrl}\n\n${summary}\n`);
   }
 }
 

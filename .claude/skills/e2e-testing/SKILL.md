@@ -139,7 +139,7 @@ A visual check — a screenshot comparison, a transition-frame capture, or the v
 | Reading an unparseable, empty or timed-out model answer as "no defects" | The review did not happen, so it verified nothing. |
 | Treating a defect the check confirmed as advisory | A finding nobody is made to look at is the same blindness as no review. |
 
-An nx cache replay is no exemption: a replayed run must deliver the frames its original run captured, so an absent frame set always means a broken hand-off, never "already checked".
+An nx cache replay is no exemption: a replayed run must deliver the frames its original run captured, so an absent frame set means a broken hand-off, never "already checked". The one exception is a CI re-run that did not re-execute the capturing job: its review passes only on the record a clean review of that same run's frames left behind.
 
 ## Debugging E2E Test Failures
 

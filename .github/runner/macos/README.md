@@ -9,7 +9,7 @@ Two shape constraints, both learned the hard way:
 
 That routing is also what lets the Playwright evidence be uploaded at all: it has to leave the ephemeral container, and adding an upload step to `ci.yml` is not available (see above).
 
-A review that does not verify its frames fails its run: a missing model, a timeout, an unparseable reply, absent frames, or a defect the model confirms on a single frame all end red, because a green review is read as "frames checked" (see the [e2e-testing skill](../../../.claude/skills/e2e-testing/SKILL.md#never-let-a-failed-or-unrun-visual-check-leave-ci-green)). It writes to the job summary, and its token can only post that verdict as a `Visual Review` commit status on the commit the CI run tested — the run itself attaches to the default branch, so without the status a pull request would never see it.
+A review that does not verify its frames fails its run: a missing model, a timeout, an unparseable reply, absent frames (bar the re-run exception under [Retention and cache replay](#retention-and-cache-replay)), or a defect the model confirms on a single frame all end red, because a green review is read as "frames checked" (see the [e2e-testing skill](../../../.claude/skills/e2e-testing/SKILL.md#never-let-a-failed-or-unrun-visual-check-leave-ci-green)). It writes to the job summary, and its token can only post that verdict as a `Visual Review` commit status on the commit the CI run tested — the run itself attaches to the default branch, so without the status a pull request would never see it.
 
 ## Host setup (one-time)
 
@@ -21,7 +21,9 @@ Creates `~/.readplace-ci/vlm-venv`, installs `mlx-vlm`, downloads the model (~18
 
 ## Retention and cache replay
 
-The reviewer deletes the frames directory once it has reported, keeping only what a model flagged. Cleanup lives in the script because an `rm -rf` in a `run:` block is exactly the kind of pattern that gets a workflow held. Per-run directories under `~/ci-frames` are otherwise left alone; a green run leaves an empty shell, and a failed one leaves its screenshots.
+The reviewer deletes the frames directory once it has reported, keeping only what a model flagged. Cleanup lives in the script because an `rm -rf` in a `run:` block is exactly the kind of pattern that gets a workflow held. Per-run directories under `~/ci-frames` are otherwise left alone; a green run leaves the record described next, and a failed one leaves its screenshots.
+
+A clean review leaves `frames-reviewed-clean.md` in the run directory, and a later review of the same run id that finds no `frames/` passes on it. Re-running a CI run's failed jobs without `web-tests` completes a new attempt that delivers nothing: review 37263003791 went red on `ENOENT` after review 37261610917 had passed and consumed the frames. Any `frames/` delivered since, even an empty one, discards the record and gets a full review, and frames that changed while a review ran leave no record, so the next review fails rather than passing on frames nobody read.
 
 A fully nx-cache-replayed `pnpm check` runs no e2e, so it has to deliver the frames its original run captured; a run that delivers none fails the review rather than being assumed already checked.
 
