@@ -1,12 +1,13 @@
 import type { DiscoveredGmailSender } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
-import type { GmailMonitoringCheckpoint, GmailMonitoringStore, GmailNewsletterNotice, GmailSenderObservation } from "@packages/provider-contracts/gmail-monitoring";
+import type { GmailMonitoringCheckpoint, GmailMonitoringStore, GmailNewsletterNotice, GmailNewsletterNoticeBatch, GmailSenderObservation } from "@packages/provider-contracts/gmail-monitoring";
 
 export function initInMemoryGmailMonitoring(deps: { now: () => Date }): GmailMonitoringStore {
 	const checkpoints = new Map<UserId, GmailMonitoringCheckpoint>();
 	const observations = new Map<string, Map<string, GmailSenderObservation>>();
 	const notices = new Map<UserId, Map<string, GmailNewsletterNotice>>();
 	const claims = new Map<UserId, number>();
+	const batches = new Map<UserId, GmailNewsletterNoticeBatch>();
 	const samePage = (checkpoint: GmailMonitoringCheckpoint) => {
 		const current = checkpoints.get(checkpoint.userId);
 		return current?.generation === checkpoint.generation && current.page === checkpoint.page;
@@ -82,14 +83,30 @@ export function initInMemoryGmailMonitoring(deps: { now: () => Date }): GmailMon
 		},
 		markNoticeSent: async ({ userId, senderEmail }) => {
 			const current = notices.get(userId)?.get(senderEmail);
-			if (current?.status === "sending") notices.get(userId)?.set(senderEmail, { ...current, status: "sent", claimUntil: undefined });
+			if (current?.status === "pending" || current?.status === "sending") notices.get(userId)?.set(senderEmail, { ...current, status: "sent", claimUntil: undefined });
 		},
 		cancelNotice: async ({ userId, senderEmail }) => {
 			const current = notices.get(userId)?.get(senderEmail);
 			if (current?.status === "pending") notices.get(userId)?.set(senderEmail, { ...current, status: "cancelled" });
 		},
+		findNoticeBatch: async (userId) => batches.get(userId),
+		claimNoticeBatch: async ({ userId, senders, message, lastSentBefore }) => {
+			const current = batches.get(userId);
+			const now = deps.now().getTime();
+			if (current?.status === "sending" && current.claimUntil > now) return undefined;
+			if (current?.status === "idle" && current.lastSentAt > lastSentBefore) return undefined;
+			const claimed = current?.status === "sending"
+				? { ...current, claimUntil: now + 120_000 }
+				: { userId, status: "sending" as const, senders, message, firstAttemptAt: now, claimUntil: now + 120_000 };
+			batches.set(userId, claimed);
+			return claimed;
+		},
+		finishNoticeBatch: async (userId) => {
+			if (batches.get(userId)?.status === "sending") batches.set(userId, { userId, status: "idle", lastSentAt: deps.now().getTime() });
+		},
 		deleteAllByUserId: async (userId) => {
 			checkpoints.delete(userId);
+			batches.delete(userId);
 			notices.delete(userId);
 			claims.delete(userId);
 			for (const key of observations.keys()) if (key.startsWith(`${userId}/`)) observations.delete(key);

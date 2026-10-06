@@ -190,7 +190,7 @@ export function initSendStarter(deps: {
 				},
 			});
 			const frozen: FrozenStarterMessage = {
-				from: "Fayner from Readplace <fayner@readplace.com>",
+				from: "Readplace <readplace@readplace.com>",
 				replyTo: "fayner@readplace.com",
 				to: contact.email,
 				subject: email.subject,

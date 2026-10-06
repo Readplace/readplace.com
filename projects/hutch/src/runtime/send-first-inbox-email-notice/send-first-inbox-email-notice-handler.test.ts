@@ -111,7 +111,7 @@ describe("send-first-inbox-email-notice handler", () => {
 		const sent = sentEmails[0];
 		assert(sent, "the notice must have been sent");
 		assert(sent.text, "the notice must carry a plain-text alternative");
-		assert.equal(sent.from, "Fayner from Readplace <fayner@readplace.com>");
+		assert.equal(sent.from, "Readplace <readplace@readplace.com>");
 		assert.equal(sent.to, "user@example.com");
 		assert.equal(sent.replyTo, "fayner@readplace.com");
 		assert.equal(sent.bcc, "readplace+first_inbox_email@readplace.com");

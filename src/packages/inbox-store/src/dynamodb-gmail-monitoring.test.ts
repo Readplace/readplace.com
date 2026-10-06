@@ -233,17 +233,56 @@ describe("initDynamoDbGmailMonitoring", () => {
 		assert.equal(await harness([{}, {}]).store.claimNotice({ notice: NOTICE, message: MESSAGE }), undefined);
 	});
 
-	it("marks only sending notices as sent, and cancels only pending notices", async () => {
+	it("marks pending or sending notices as sent, and cancels only pending notices", async () => {
 		const h = harness([{}, {}, conditionFailure(), conditionFailure()]);
 		await h.store.markNoticeSent({ userId: USER, senderEmail: SENDER });
 		await h.store.cancelNotice({ userId: USER, senderEmail: SENDER });
 		await h.store.markNoticeSent({ userId: USER, senderEmail: SENDER });
 		await h.store.cancelNotice({ userId: USER, senderEmail: SENDER });
-		assert.match(String(h.commands[0].ConditionExpression), /#status = :sending/);
+		assert.equal(h.commands[0].ConditionExpression, "#status = :pending OR #status = :sending");
 		assert.match(String(h.commands[0].UpdateExpression), /REMOVE claimUntil/);
-		assert.deepEqual(h.commands[0].ExpressionAttributeValues, { ":sending": "sending", ":sent": "sent" });
+		assert.deepEqual(h.commands[0].ExpressionAttributeValues, { ":pending": "pending", ":sending": "sending", ":sent": "sent" });
 		assert.match(String(h.commands[1].ConditionExpression), /#status = :pending/);
 		assert.deepEqual(h.commands[1].ExpressionAttributeValues, { ":pending": "pending", ":cancelled": "cancelled" });
+	});
+
+	it("reads the reader's grouped notice strongly and parses an idle or sending row", async () => {
+		const sending = { userId: USER, key: "NOTICE_BATCH", status: "sending", senders: [SENDER], message: MESSAGE, firstAttemptAt: NOW.getTime(), claimUntil: NOW.getTime() + 120_000, lastSentAt: 1 };
+		const h = harness([{ Item: { userId: USER, key: "NOTICE_BATCH", status: "idle", lastSentAt: NOW.getTime(), senders: null } }, { Item: sending }, {}]);
+		assert.deepEqual(await h.store.findNoticeBatch(USER), { userId: USER, status: "idle", lastSentAt: NOW.getTime() });
+		assert.deepEqual(await h.store.findNoticeBatch(USER), { userId: USER, status: "sending", senders: [SENDER], message: MESSAGE, firstAttemptAt: NOW.getTime(), claimUntil: NOW.getTime() + 120_000 });
+		assert.equal(await h.store.findNoticeBatch(USER), undefined);
+		assert.deepEqual(h.commands[0], { TableName: TABLE, Key: { userId: USER, key: "NOTICE_BATCH" }, ConsistentRead: true });
+	});
+
+	it("claims a grouped notice when none exists, the interval has passed, or a stale lease expired, keeping the stored email on a retry", async () => {
+		const stored = { userId: USER, key: "NOTICE_BATCH", status: "sending", senders: [SENDER], message: MESSAGE, firstAttemptAt: NOW.getTime() - 60_000, claimUntil: NOW.getTime() + 120_000 };
+		const replacement = { ...MESSAGE, subject: "Choose readlists for 2 newsletters" };
+		const h = harness([{}, { Item: stored }]);
+		assert.deepEqual(await h.store.claimNoticeBatch({ userId: USER, senders: [SENDER, ForwardableSenderSchema.parse("other@news.example")], message: replacement, lastSentBefore: 42 }), { userId: USER, status: "sending", senders: [SENDER], message: MESSAGE, firstAttemptAt: NOW.getTime() - 60_000, claimUntil: NOW.getTime() + 120_000 });
+		expect(h.commands[0]).toMatchObject({
+			Key: { userId: USER, key: "NOTICE_BATCH" },
+			UpdateExpression: "SET #status = :sending, senders = if_not_exists(senders, :senders), #message = if_not_exists(#message, :message), firstAttemptAt = if_not_exists(firstAttemptAt, :now), claimUntil = :until",
+			ConditionExpression: "attribute_not_exists(userId) OR (#status = :idle AND lastSentAt <= :lastSentBefore) OR (#status = :sending AND claimUntil <= :now)",
+			ExpressionAttributeValues: { ":idle": "idle", ":sending": "sending", ":senders": [SENDER, "other@news.example"], ":message": replacement, ":lastSentBefore": 42, ":now": NOW.getTime(), ":until": NOW.getTime() + 120_000 },
+		});
+		assert.deepEqual(h.commands[1], { TableName: TABLE, Key: { userId: USER, key: "NOTICE_BATCH" }, ConsistentRead: true });
+		const held = harness([conditionFailure()]);
+		assert.equal(await held.store.claimNoticeBatch({ userId: USER, senders: [SENDER], message: MESSAGE, lastSentBefore: 42 }), undefined);
+		assert.equal(held.commands.length, 1);
+	});
+
+	it("finishes only a sending grouped notice, recording when it was sent and dropping its email", async () => {
+		const h = harness([{}, conditionFailure()]);
+		await h.store.finishNoticeBatch(USER);
+		await h.store.finishNoticeBatch(USER);
+		expect(h.commands[0]).toMatchObject({
+			Key: { userId: USER, key: "NOTICE_BATCH" },
+			UpdateExpression: "SET #status = :idle, lastSentAt = :now REMOVE senders, #message, firstAttemptAt, claimUntil",
+			ConditionExpression: "#status = :sending",
+			ExpressionAttributeValues: { ":idle": "idle", ":sending": "sending", ":now": NOW.getTime() },
+		});
+		assert.equal(h.commands.length, 2);
 	});
 
 	it("erases all user state, mailbox observations and permanent receipts through paginated Query and Delete", async () => {

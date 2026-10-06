@@ -1,4 +1,5 @@
 import { S3Client } from "@aws-sdk/client-s3";
+import { initDynamoDbReadlistDefinitions } from "@packages/article-store";
 import { initCatalogNewsletterDetector } from "@packages/domain/newsletter-catalog";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -27,6 +28,7 @@ export const handler = initSendGmailNewsletterNoticeHandler({
 	connections,
 	senders,
 	detectNewsletters: initCatalogNewsletterDetector(catalog),
+	listReadlistDefinitions: initDynamoDbReadlistDefinitions({ client, userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE") }).listReadlistDefinitions,
 	findEmailByUserId: auth.findEmailByUserId,
 	sendEmail,
 	founderAvatarUrl: `${requireEnv("STATIC_BASE_URL")}/fayner-brack.jpg`,

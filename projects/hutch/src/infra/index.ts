@@ -1435,6 +1435,7 @@ const gmailNewsletterNoticeAccountRead = new HutchDynamoDBAccess("hutch-gmail-ne
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
 		{ arn: storage.usersTable.arn, includeIndexes: true },
+		{ arn: storage.userArticlesTable.arn, includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
@@ -1452,6 +1453,7 @@ const gmailNewsletterNoticeLambda = new HutchLambda("gmail-newsletter-notice", {
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 		STATIC_BASE_URL: staticAssets.baseUrl,

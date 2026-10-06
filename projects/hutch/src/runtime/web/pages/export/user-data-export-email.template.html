@@ -20,7 +20,7 @@
             <tr>
               <td class="email-card__body" style="padding:24px;">
                 <h1 style="margin:0 0 16px;font-size:24px;font-weight:600;line-height:1.3;color:{{colors.foreground}};">Your export is ready</h1>
-                <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">I've packaged {{articleCountLabel}} as a single JSON file. Click the button below to download it. The link expires in {{ttlDays}} days.</p>
+                <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">Readplace packaged {{articleCountLabel}} as a single JSON file. Click the button below to download it. The link expires in {{ttlDays}} days.</p>
                 <table role="presentation" cellpadding="0" cellspacing="0">
                   <tr>
                     <td style="border-radius:6px;background-color:{{colors.primary}};">
@@ -28,7 +28,7 @@
                     </td>
                   </tr>
                 </table>
-                <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:{{colors.mutedForeground}};">If the button above doesn't work, copy and paste this URL into your browser:<br><span style="word-break:break-all;">{{downloadUrl}}</span></p>
+                <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:{{colors.mutedForeground}};">If the button above doesn't work, <a href="{{downloadUrl}}" style="color:{{colors.primaryText}};text-decoration:underline;">use this download link</a>.</p>
               </td>
             </tr>
           </table>

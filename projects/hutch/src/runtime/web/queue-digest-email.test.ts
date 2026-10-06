@@ -6,14 +6,25 @@ import { QueueDigestEmail, type QueueDigestEmailItem } from "./queue-digest-emai
 const ORIGIN = "https://readplace.com";
 const SEND_ID = "3f1d2c4b-8a7e-4c61-9b0d-5e2f6a7c8d90";
 const UNSUBSCRIBE_TOKEN = "user-7.5d41402abc4b2a76b9719d911017c592";
-const LINKS = { appOrigin: ORIGIN, sendId: SEND_ID, unsubscribeToken: UNSUBSCRIBE_TOKEN };
+const MARK_READ_TOKEN = "eyJ1c2VySWQiOiJ1c2VyLTcifQ.7d793037a0760186574b0282f2f435e7";
+const LINKS = {
+	appOrigin: ORIGIN,
+	sendId: SEND_ID,
+	unsubscribeToken: UNSUBSCRIBE_TOKEN,
+};
 const ARTICLE_ID = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const SECOND_ARTICLE_ID = ReaderArticleHashIdSchema.parse("fedcba9876543210fedcba9876543210");
 const TRIAL_ENDS_AT = "2026-10-05T03:00:00.000Z";
 const PAY_TERMS =
 	"Choose a plan before Oct 3, 2026, 02:55 UTC and nothing is charged until Oct 5, 2026. After that, choosing a plan starts it the same day.";
 const POSTAL_ADDRESS = "Suite 349/585 Little Collins St, Melbourne VIC 3000";
+const REGULAR_FOOTER_REASON =
+	"You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for 30 days.";
+const PAY_FOOTER_REASON = "You're getting this because you save articles to Readplace.";
 const AMBER_FILL = "rgb(173, 98, 37)";
+const CARD_FILL = "rgb(255, 255, 255)";
+const FOREGROUND_INK = "rgb(26, 32, 44)";
+const BORDER_EDGE = "rgb(226, 229, 234)";
 
 const item = (overrides: Partial<QueueDigestEmailItem> = {}): QueueDigestEmailItem => ({
 	articleId: ARTICLE_ID,
@@ -24,12 +35,12 @@ const item = (overrides: Partial<QueueDigestEmailItem> = {}): QueueDigestEmailIt
 });
 
 const regularDigest = (items: QueueDigestEmailItem[]) =>
-	QueueDigestEmail({ kind: "regular", items, links: LINKS });
+	QueueDigestEmail({ kind: "regular", items, links: LINKS, markReadToken: MARK_READ_TOKEN });
 const payDigest = (items: QueueDigestEmailItem[]) =>
 	QueueDigestEmail({ kind: "pay", items, links: LINKS, pay: { trialEndsAt: TRIAL_ENDS_AT } });
 
 const documentOf = (html: string) => new JSDOM(html).window.document;
-const anchorsOf = (html: string) => [...documentOf(html).querySelectorAll("a[href]")];
+const anchorsOf = (html: string) => [...documentOf(html).querySelectorAll<HTMLAnchorElement>("a[href]")];
 const urlOf = (anchor: Element) => new URL(anchor.getAttribute("href") ?? "");
 const linksTo = (html: string, pathname: string) =>
 	anchorsOf(html)
@@ -40,6 +51,19 @@ const amberButtonPathsOf = (html: string) =>
 	anchorsOf(html)
 		.filter((anchor) => anchor.parentElement?.style.backgroundColor === AMBER_FILL)
 		.map((anchor) => urlOf(anchor).pathname);
+const buttonsOf = (html: string) =>
+	anchorsOf(html).filter((anchor) => anchor.parentElement?.style.backgroundColor !== "");
+const buttonPathsOf = (html: string) => buttonsOf(html).map((anchor) => urlOf(anchor).pathname);
+function markAllReadButtonOf(html: string) {
+	const button = buttonsOf(html).find((anchor) => urlOf(anchor).pathname === "/email/queue-digest/mark-read");
+	assert(button, "a regular digest must carry the mark-all-read button");
+	return button;
+}
+function buttonRowSlotOf(button: Element) {
+	const slot = button.closest("table[align]");
+	assert(slot, "every digest button must sit in its own slot of the button row");
+	return slot;
+}
 
 describe("QueueDigestEmail", () => {
 	describe("subject", () => {
@@ -66,12 +90,21 @@ describe("QueueDigestEmail", () => {
 			expect(doc.querySelector("h1")?.textContent).toBe("Waiting in your readlist");
 		});
 
-		it("counts the articles listed, pluralising from the count", () => {
+		it("tells a regular-digest reader the articles are ready, unread saves from some time ago, and that this is a one-time reminder about them, pluralising from the count", () => {
 			expect(readableTextOf(regularDigest([item()]).to("text/html"))).toContain(
-				"1 article you saved is ready to read.",
+				"This article is ready and has been in your readlist for some time but is still unread. This is a one-time reminder about it.",
 			);
 			expect(
 				readableTextOf(regularDigest([item(), item({ articleId: SECOND_ARTICLE_ID })]).to("text/html")),
+			).toContain(
+				"These 2 articles are ready and have been in your readlist for some time but are still unread. This is a one-time reminder about them.",
+			);
+		});
+
+		it("counts the articles listed in a pay digest, pluralising from the count", () => {
+			expect(readableTextOf(payDigest([item()]).to("text/html"))).toContain("1 article you saved is ready to read.");
+			expect(
+				readableTextOf(payDigest([item(), item({ articleId: SECOND_ARTICLE_ID })]).to("text/html")),
 			).toContain("2 articles you saved are ready to read.");
 		});
 
@@ -204,10 +237,56 @@ describe("QueueDigestEmail", () => {
 			expect(amberButtonPathsOf(payDigest([item()]).to("text/html"))).toEqual(["/account/plans"]);
 		});
 
+		it("follows a regular digest's continue-reading button with a mark-all-read button, and leaves a pay digest's buttons as they were", () => {
+			expect(buttonPathsOf(regularDigest([item()]).to("text/html"))).toEqual([
+				"/queue",
+				"/email/queue-digest/mark-read",
+			]);
+			expect(buttonPathsOf(payDigest([item()]).to("text/html"))).toEqual(["/queue", "/account/plans"]);
+		});
+
+		it("links the mark-all-read button to the mark-read confirmation with this email's token, tagged with the digest's click tags", () => {
+			const button = markAllReadButtonOf(regularDigest([item()]).to("text/html"));
+
+			expect(button.textContent).toBe("Mark all as read");
+			expect(Object.fromEntries(urlOf(button).searchParams)).toEqual({
+				t: MARK_READ_TOKEN,
+				utm_source: "queue-digest",
+				utm_medium: "email",
+				utm_campaign: "regular",
+				utm_content: "mark-all-read",
+				utm_term: SEND_ID,
+			});
+		});
+
+		it("paints the mark-all-read button neutral: card fill, foreground ink, border edge", () => {
+			const button = markAllReadButtonOf(regularDigest([item()]).to("text/html"));
+			const cell = button.parentElement;
+			assert(cell, "the mark-all-read link must sit in its button cell");
+
+			expect({
+				fill: cell.style.backgroundColor,
+				edge: cell.style.borderColor,
+				ink: button.style.color,
+			}).toEqual({ fill: CARD_FILL, edge: BORDER_EDGE, ink: FOREGROUND_INK });
+		});
+
+		it("sets the regular digest's two buttons side by side in one row that wraps them onto two lines on a narrow screen, spaced apart either way", () => {
+			const html = regularDigest([item()]).to("text/html");
+			const [continueReading, markAllRead] = buttonsOf(html).map(buttonRowSlotOf);
+			assert(continueReading && markAllRead, "a regular digest must carry both buttons");
+
+			expect(continueReading.parentElement).toBe(markAllRead.parentElement);
+			expect([continueReading.getAttribute("align"), markAllRead.getAttribute("align")]).toEqual(["left", "left"]);
+			expect(
+				[continueReading, markAllRead].map((slot) => slot.querySelector("td")?.style.padding),
+			).toEqual(["0px 12px 12px 0px", "0px"]);
+		});
+
 		it.each([
-			["regular", regularDigest],
-			["pay", payDigest],
-		])("closes a %s digest with why it arrived, its unsubscribe link and the postal address", (kind, buildDigest) => {
+			["regular", regularDigest, REGULAR_FOOTER_REASON],
+			["pay", payDigest, PAY_FOOTER_REASON],
+		])("closes a %s digest with why it arrived, its unsubscribe link and the postal address", (kind, buildDigest, footerReason) => {
 			const html = buildDigest([item()]).to("text/html");
 
 			const unsubscribeLinks = linksTo(html, "/email/queue-digest/unsubscribe");
@@ -221,7 +300,7 @@ describe("QueueDigestEmail", () => {
 				utm_term: SEND_ID,
 			});
 			const text = readableTextOf(html);
-			expect(text).toContain("You're getting this because you save articles to Readplace. Stop these emails.");
+			expect(text).toContain(`${footerReason} Stop these emails.`);
 			expect(text).toContain(POSTAL_ADDRESS);
 		});
 
@@ -253,20 +332,35 @@ describe("QueueDigestEmail", () => {
 			expect(text).not.toContain("dataintensive.net");
 		});
 
-		it("opens with the subject and the count, and offers the readlist link", () => {
+		it("opens with the subject and why these articles were sent, and offers the readlist link", () => {
 			const text = regularDigest([item()]).to("text/plain");
 
-			expect(text.startsWith("Waiting in your readlist\n\n1 article you saved is ready to read.\n\n")).toBe(
-				true,
-			);
+			expect(
+				text.startsWith(
+					"Waiting in your readlist\n\nThis article is ready and has been in your readlist for some time but is still unread. This is a one-time reminder about it.\n\nDistributed systems\n",
+				),
+			).toBe(true);
 			expect(text).toContain(
 				`Continue reading: https://readplace.com/queue?utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=continue-reading&utm_term=${SEND_ID}`,
 			);
 		});
 
-		it("carries the charge terms, right after the readlist link, and the keep-Readplace link in a pay digest", () => {
+		it("offers the mark-all-read link right after the readlist link in a regular digest", () => {
+			const text = regularDigest([item()]).to("text/plain");
+
+			expect(text).toContain(
+				[
+					`Continue reading: https://readplace.com/queue?utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=continue-reading&utm_term=${SEND_ID}`,
+					`Mark all as read: https://readplace.com/email/queue-digest/mark-read?t=${MARK_READ_TOKEN}&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=mark-all-read&utm_term=${SEND_ID}`,
+					"If you have any questions, please reply to this email",
+				].join("\n\n"),
+			);
+		});
+
+		it("opens a pay digest with the article count, then carries the charge terms, right after the readlist link, and the keep-Readplace link", () => {
 			const text = payDigest([item()]).to("text/plain");
 
+			expect(text.startsWith("Waiting in your readlist\n\n1 article you saved is ready to read.\n\nDistributed systems\n")).toBe(true);
 			expect(text).toContain(
 				`utm_content=continue-reading&utm_term=${SEND_ID}\n\n${PAY_TERMS}\n\nKeep Readplace: https://readplace.com/account/plans?utm_source=queue-digest&utm_medium=email&utm_campaign=pay&utm_content=keep-readplace&utm_term=${SEND_ID}`,
 			);
@@ -286,7 +380,7 @@ describe("QueueDigestEmail", () => {
 				text.endsWith(
 					[
 						"If you have any questions, please reply to this email",
-						`You're getting this because you save articles to Readplace. Stop these emails: https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=unsubscribe&utm_term=${SEND_ID}`,
+						`${REGULAR_FOOTER_REASON} Stop these emails: https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=unsubscribe&utm_term=${SEND_ID}`,
 						POSTAL_ADDRESS,
 					].join("\n\n"),
 				),

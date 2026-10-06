@@ -603,6 +603,8 @@ describe("starter delivery", () => {
 		expect(await app.send(app.id)).toBe(true);
 		const message = app.sent[0];
 		assert(message);
+		expect(message.from).toBe("Readplace <readplace@readplace.com>");
+		expect(message.replyTo).toBe("fayner@readplace.com");
 		expect(message.subject).toBe("Your Hacker News picks are ready");
 		expect(message.text).toContain("9 picks are still unread");
 		expect(message.text).toContain("A useful summary");

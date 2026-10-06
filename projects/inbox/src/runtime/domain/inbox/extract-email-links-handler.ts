@@ -431,7 +431,7 @@ export function initExtractEmailLinksHandler(deps: {
 								provenance: { kind: "email", senderEmail: email.senderEmail },
 								readlist: DEFAULT_READLIST_SLUG,
 							});
-							if (!firstInboxNoticePublished) {
+							if (routing.kind === "inbox" && !firstInboxNoticePublished) {
 								firstInboxNoticePublished = true;
 								await publishFirstInboxEmailNotice({
 									userId,
@@ -492,7 +492,7 @@ export function initExtractEmailLinksHandler(deps: {
 							links: triagedLinks,
 						});
 					}
-					if (triagedLinks.length > 0 && decidingReadlists.length > 0 && !firstInboxNoticePublished) {
+					if (routing.kind === "inbox" && triagedLinks.length > 0 && decidingReadlists.length > 0 && !firstInboxNoticePublished) {
 						await publishFirstInboxEmailNotice({
 							userId,
 							receivedAtMessageId,

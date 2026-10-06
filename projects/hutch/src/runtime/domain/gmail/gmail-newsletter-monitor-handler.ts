@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, MonitorGmailNewslettersCommand, GmailNewsletterMonitoringProgressedEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -26,7 +25,7 @@ export function initGmailNewsletterMonitorHandler(deps: {
 	listConnectedAccounts: ListConnectedGmailAccounts;
 	dispatchCheck: (input: { accountsPageToken?: string }) => Promise<void>;
 	dispatchMonitor: (input: { userId: UserId; continuation?: { generation: string; page: number } }) => Promise<void>;
-	dispatchNotice: (input: { userId: UserId; senderEmail: z.infer<typeof ForwardableSenderSchema> }) => Promise<void>;
+	dispatchNotice: (input: { userId: UserId }) => Promise<void>;
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -51,7 +50,7 @@ export function initGmailNewsletterMonitorHandler(deps: {
 				} else {
 					const detail = GmailNewsletterMonitoringProgressedEvent.detailSchema.parse(envelope.detail);
 					const userId = UserIdSchema.parse(detail.userId);
-					for (const sender of detail.notices) await deps.dispatchNotice({ userId, senderEmail: ForwardableSenderSchema.parse(sender) });
+					if (detail.notices.length > 0) await deps.dispatchNotice({ userId });
 					if (detail.nextPage !== undefined) await deps.dispatchMonitor({ userId, continuation: detail.nextPage });
 				}
 			} catch (error) {

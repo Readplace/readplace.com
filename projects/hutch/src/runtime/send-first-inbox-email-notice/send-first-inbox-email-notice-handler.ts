@@ -19,7 +19,7 @@ import {
 	INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT,
 } from "../web/auth/inbox-first-arrival-email";
 
-const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
+const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
 const EMAIL_BCC = "readplace+first_inbox_email@readplace.com";
 

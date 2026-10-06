@@ -76,8 +76,6 @@ describe("initInMemoryGmailMonitoring", () => {
 		await store.observeSender({ checkpoint: CHECKPOINT, observation: { email: SENDER, name: "Newsletter", approved: true }, notify: true });
 		const pending = await store.findNotice({ userId: USER, senderEmail: SENDER });
 		assert(pending);
-		await store.markNoticeSent({ userId: USER, senderEmail: SENDER });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "pending");
 		assert.equal(await store.claimNotice({ notice: { ...pending, mailboxId: "old-mailbox" }, message: MESSAGE }), undefined);
 		assert.equal(await store.claimNotice({ notice: { ...pending, senderEmail: ForwardableSenderSchema.parse("missing@example.com") }, message: MESSAGE }), undefined);
 		const first = await store.claimNotice({ notice: pending, message: MESSAGE });
@@ -105,6 +103,32 @@ describe("initInMemoryGmailMonitoring", () => {
 		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "sent");
 		await store.markNoticeSent({ userId: OTHER, senderEmail: SENDER });
 		await store.cancelNotice({ userId: OTHER, senderEmail: SENDER });
+	});
+
+	it("marks a pending notice sent when a grouped email announced it without claiming it", async () => {
+		const { store } = fixture();
+		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });
+		await store.observeSender({ checkpoint: CHECKPOINT, observation: { email: SENDER, name: undefined, approved: true }, notify: true });
+		await store.markNoticeSent({ userId: USER, senderEmail: SENDER });
+		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "sent");
+	});
+
+	it("claims one grouped notice per reader at a time, keeps its email across retries and spaces sends by the caller's interval", async () => {
+		const { store, advance } = fixture();
+		const other = ForwardableSenderSchema.parse("other@example.com");
+		assert.equal(await store.findNoticeBatch(USER), undefined);
+		const first = await store.claimNoticeBatch({ userId: USER, senders: [SENDER], message: MESSAGE, lastSentBefore: 0 });
+		assert.deepEqual(first, { userId: USER, status: "sending", senders: [SENDER], message: MESSAGE, firstAttemptAt: NOW.getTime(), claimUntil: NOW.getTime() + 120_000 });
+		assert.equal(await store.claimNoticeBatch({ userId: USER, senders: [SENDER], message: MESSAGE, lastSentBefore: 0 }), undefined);
+		advance(120_000);
+		assert.deepEqual(await store.claimNoticeBatch({ userId: USER, senders: [other], message: { ...MESSAGE, subject: "Changed" }, lastSentBefore: 0 }), { ...first, claimUntil: NOW.getTime() + 240_000 });
+		await store.finishNoticeBatch(USER);
+		await store.finishNoticeBatch(USER);
+		await store.finishNoticeBatch(OTHER);
+		assert.deepEqual(await store.findNoticeBatch(USER), { userId: USER, status: "idle", lastSentAt: NOW.getTime() + 120_000 });
+		assert.equal(await store.findNoticeBatch(OTHER), undefined);
+		assert.equal(await store.claimNoticeBatch({ userId: USER, senders: [other], message: MESSAGE, lastSentBefore: NOW.getTime() + 119_999 }), undefined);
+		assert.deepEqual(await store.claimNoticeBatch({ userId: USER, senders: [other], message: MESSAGE, lastSentBefore: NOW.getTime() + 120_000 }), { userId: USER, status: "sending", senders: [other], message: MESSAGE, firstAttemptAt: NOW.getTime() + 120_000, claimUntil: NOW.getTime() + 240_000 });
 	});
 
 	it("reopens only unsent cancelled notices when a sender qualifies again", async () => {
@@ -210,9 +234,13 @@ describe("initInMemoryGmailMonitoring", () => {
 		assert(previous);
 		await store.startRun({ checkpoint: { ...previous, mailboxId: "mailbox-2", generation: "second" }, previous });
 		await store.observeSender({ checkpoint: { ...previous, mailboxId: "mailbox-2", generation: "second" }, observation: { email: SENDER, name: undefined, approved: false }, notify: false });
+		await store.claimNoticeBatch({ userId: USER, senders: [SENDER], message: MESSAGE, lastSentBefore: 0 });
+		await store.claimNoticeBatch({ userId: OTHER, senders: [SENDER], message: MESSAGE, lastSentBefore: 0 });
 		await store.deleteAllByUserId(USER);
 		await store.deleteAllByUserId(USER);
 		assert.equal(await store.findCheckpoint(USER), undefined);
+		assert.equal(await store.findNoticeBatch(USER), undefined);
+		assert.equal((await store.findNoticeBatch(OTHER))?.status, "sending");
 		assert.deepEqual((await store.listObservations({ userId: USER, mailboxId: CHECKPOINT.mailboxId })).observations, []);
 		assert.deepEqual((await store.listObservations({ userId: USER, mailboxId: "mailbox-2" })).observations, []);
 		assert.deepEqual((await store.listNotices({ userId: USER })).notices, []);
