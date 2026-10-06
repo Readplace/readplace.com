@@ -72,6 +72,7 @@ describe("initRouteGmailForwardedEmail", () => {
 			userId: USER,
 			senderEmail: TLDR,
 			mappedAddresses: [ALIAS],
+			deliveryMode: "links",
 		});
 
 		assert.deepEqual(await run(), [ALIAS]);
@@ -137,6 +138,7 @@ describe("initRouteGmailForwardedEmail", () => {
 			userId: USER,
 			senderEmail: TLDR,
 			mappedAddresses: [ALIAS],
+			deliveryMode: "links",
 		});
 
 		const delivered = await run(

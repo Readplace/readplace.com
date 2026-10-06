@@ -24,6 +24,7 @@ export function initInMemoryGmailSender(deps: { now: () => Date }): GmailSenderS
 			lastSubject: undefined,
 			mappedAddresses: undefined,
 			mappedAt: undefined,
+			deliveryMode: undefined,
 		};
 		rows.set(key, patch(existing));
 	};
@@ -45,11 +46,12 @@ export function initInMemoryGmailSender(deps: { now: () => Date }): GmailSenderS
 				lastSubject: subject,
 			}));
 		},
-		mapSenderToAddress: async ({ userId, senderEmail, mappedAddresses }) => {
+		mapSenderToAddress: async ({ userId, senderEmail, mappedAddresses, deliveryMode }) => {
 			upsert(userId, senderEmail, (existing) => ({
 				...existing,
 				mappedAddresses,
 				mappedAt: deps.now().toISOString(),
+				deliveryMode,
 			}));
 		},
 		findSender: async ({ userId, senderEmail }) => rows.get(rowKey(userId, senderEmail)),

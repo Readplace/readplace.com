@@ -867,7 +867,7 @@ async function seedLegacyGmailSenders(input: { userId: UserId; senders: SeedGmai
 				name: entry.name,
 				purpose: 'gmail-mapped',
 			})
-			await gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddresses: [inbox.address] })
+			await gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddresses: [inbox.address], deliveryMode: 'links' })
 		}
 		await gmailSenderStore.addSenderToFilter({ userId, senderEmail })
 	}
@@ -886,7 +886,7 @@ async function seedGmailMappings(input: {
 		const additional = mapping.destination === 'readlist'
 			? await Promise.all(mapping.additionalReadlists.map((label) => seedMappingDestination({ userId, mapping: { ...mapping, readlist: label } })))
 			: []
-		await gmailSenderStore.mapSenderToAddress({ userId, senderEmail: mapping.email, mappedAddresses: [mappedAddress, ...additional] })
+		await gmailSenderStore.mapSenderToAddress({ userId, senderEmail: mapping.email, mappedAddresses: [mappedAddress, ...additional], deliveryMode: 'links' })
 		await gmailSenderStore.addSenderToFilter({ userId, senderEmail: mapping.email })
 		destinations.push(mappedAddress)
 		destinations.push(...additional)

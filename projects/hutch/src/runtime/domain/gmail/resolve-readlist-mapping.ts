@@ -1,8 +1,10 @@
-import type {
-	ForwardableSender,
-	GmailHistoryImportCancelReason,
-	GmailHistoryImportJob,
-	GmailSenderStore,
+import {
+	type ForwardableSender,
+	type GmailDeliveryMode,
+	type GmailHistoryImportCancelReason,
+	type GmailHistoryImportJob,
+	type GmailSenderStore,
+	pickerDeliveryMode,
 } from "@packages/domain/gmail";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
@@ -12,6 +14,7 @@ export type MapSenderToReadlist = (input: {
 	userId: UserId;
 	sender: ForwardableSender;
 	readlists: ReadlistSlug[];
+	deliveryMode: GmailDeliveryMode;
 }) => Promise<{ destinations: [InboxAddress, ...InboxAddress[]] }>;
 
 export function initMapSenderToReadlist(deps: {
@@ -23,7 +26,7 @@ export function initMapSenderToReadlist(deps: {
 		reason: GmailHistoryImportCancelReason;
 	}) => Promise<GmailHistoryImportJob[]>;
 }): MapSenderToReadlist {
-	return async ({ userId, sender, readlists }) => {
+	return async ({ userId, sender, readlists, deliveryMode }) => {
 		const customReadlists = [...new Set(readlists)].filter((readlist) => readlist !== DEFAULT_READLIST_SLUG);
 		const [first = DEFAULT_READLIST_SLUG, ...remaining] = customReadlists;
 		const [existing, primary, additional] = await Promise.all([
@@ -33,10 +36,11 @@ export function initMapSenderToReadlist(deps: {
 		]);
 		const destinations: [InboxAddress, ...InboxAddress[]] = [primary.address, ...additional.map((entry) => entry.address)];
 		const previous = existing?.mappedAddresses;
-		const unchanged = previous !== undefined && previous.length === destinations.length &&
+		const sameDestinations = previous !== undefined && previous.length === destinations.length &&
 			previous.every((address) => destinations.includes(address));
+		const unchanged = sameDestinations && pickerDeliveryMode(existing) === deliveryMode;
 		if (!unchanged) {
-			await deps.senders.mapSenderToAddress({ userId, senderEmail: sender, mappedAddresses: destinations });
+			await deps.senders.mapSenderToAddress({ userId, senderEmail: sender, mappedAddresses: destinations, deliveryMode });
 		}
 		await deps.senders.addSenderToFilter({ userId, senderEmail: sender });
 		if (previous !== undefined && !unchanged) {

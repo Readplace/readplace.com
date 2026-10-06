@@ -357,6 +357,7 @@ describe("gmail forwarding chain (inbox half)", () => {
 			userId,
 			senderEmail,
 			mappedAddresses: [mapped],
+			deliveryMode: "links",
 		});
 		await senders.addSenderToFilter({ userId, senderEmail });
 

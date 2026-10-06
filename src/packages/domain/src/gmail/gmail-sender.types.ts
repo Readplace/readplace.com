@@ -1,6 +1,7 @@
 import type { InboxAddress } from "../inbox/inbox-address.schema";
 import type { UserId } from "../user";
 import type { ForwardableSender } from "./build-forwarding-filter-query";
+import type { GmailDeliveryMode } from "./gmail-delivery-mode";
 
 export interface GmailSenderEntry {
 	userId: UserId;
@@ -12,6 +13,7 @@ export interface GmailSenderEntry {
 	lastSubject: string | undefined;
 	mappedAddresses: [InboxAddress, ...InboxAddress[]] | undefined;
 	mappedAt: string | undefined;
+	deliveryMode: GmailDeliveryMode | undefined;
 }
 
 export interface GmailSenderStore {
@@ -28,6 +30,7 @@ export interface GmailSenderStore {
 		userId: UserId;
 		senderEmail: ForwardableSender;
 		mappedAddresses: [InboxAddress, ...InboxAddress[]];
+		deliveryMode: GmailDeliveryMode;
 	}) => Promise<void>;
 	findSender: (input: {
 		userId: UserId;

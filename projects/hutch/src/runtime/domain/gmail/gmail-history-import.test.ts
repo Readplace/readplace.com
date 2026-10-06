@@ -94,7 +94,7 @@ async function harness(overrides: {
 	await connections.createConnection({ userId: READER, gatewayAddress: GATEWAY });
 	await connections.recordAccountEmail({ userId: READER, accountEmail: ACCOUNT });
 	await senders.addSenderToFilter({ userId: READER, senderEmail: TLDR });
-	await senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST] });
+	await senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "links" });
 	await store.createJob({ ...awaitingPermissionJob(), destinationAddresses: overrides.destinationAddresses ?? [WORK_READLIST] });
 
 	const observed = initGmailHistoryImport({
@@ -187,7 +187,7 @@ describe("initGmailHistoryImport", () => {
 	it("snapshots every selected destination and accepts mapping reordering", async () => {
 		const second = InboxAddressSchema.parse("gmail-bbb222@read.place");
 		const h = await harness({ destinationAddresses: [WORK_READLIST, second] });
-		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [second, WORK_READLIST] });
+		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [second, WORK_READLIST], deliveryMode: "links" });
 		await h.startJob("generation-1");
 		h.addUnread("multiple", "2026-08-31T00:00:00.000Z");
 
@@ -200,7 +200,7 @@ describe("initGmailHistoryImport", () => {
 	it("cancels before fetching when a secondary destination changes", async () => {
 		const second = InboxAddressSchema.parse("gmail-bbb222@read.place");
 		const h = await harness({ destinationAddresses: [WORK_READLIST, second] });
-		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST] });
+		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "links" });
 		await h.startJob("generation-1");
 		h.addUnread("changed", "2026-08-31T00:00:00.000Z");
 
@@ -495,7 +495,7 @@ describe("initGmailHistoryImport", () => {
 
 	it("cancels the import when the sender now goes to another readlist or is no longer mapped", async () => {
 		const remapped = await harness();
-		await remapped.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [ALL_READLIST] });
+		await remapped.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [ALL_READLIST], deliveryMode: "links" });
 		await remapped.startJob("generation-1");
 		const removed = await harness();
 		await removed.senders.removeSender({ userId: READER, senderEmail: TLDR });

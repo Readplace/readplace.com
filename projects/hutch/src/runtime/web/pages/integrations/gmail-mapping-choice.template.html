@@ -5,6 +5,15 @@
                 {{/each}}
                 <input type="hidden" name="readlist" value="default">
                 {{{readlistPickerHtml}}}
+                <fieldset class="gmail__delivery" data-test-gmail-delivery>
+                  <legend class="form-field__label gmail__delivery-legend">What to save</legend>
+                  {{#each delivery.options}}
+                  <label class="gmail__delivery-option">
+                    <input class="gmail__delivery-radio" type="radio" name="delivery" value="{{value}}"{{#if checked}} checked{{/if}} data-gmail-delivery-option data-test-gmail-delivery-option="{{value}}">
+                    <span class="gmail__delivery-text"><span class="gmail__delivery-label">{{label}}</span><span class="gmail__delivery-description">{{description}}</span></span>
+                  </label>
+                  {{/each}}
+                </fieldset>
                 {{#if save}}
                 <div class="gmail__save">
                   {{#if save.offerImport}}

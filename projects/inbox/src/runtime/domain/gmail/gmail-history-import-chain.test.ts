@@ -346,6 +346,7 @@ function makePipeline() {
 			userId: READER,
 			senderEmail: TLDR,
 			mappedAddresses: [mappedAddress, ...additionalAddresses],
+			deliveryMode: "links",
 		});
 		await senders.addSenderToFilter({ userId: READER, senderEmail: TLDR });
 	};

@@ -5,6 +5,7 @@
                 <p class="gmail-mappings__destination {{destinationClass}}" data-test-gmail-mapping-destination data-destination-kind="{{destinationKind}}"><span class="sr-only">Saved to </span>{{destinationLabel}}</p>
               </div>
               {{#if destinationNote}}<p class="gmail-mappings__note">{{destinationNote}}</p>{{/if}}
+              <p class="gmail-mappings__delivery" data-test-gmail-mapping-delivery="{{deliveryMode}}">{{deliveryLabel}}</p>
               <p class="gmail-mappings__forwarding {{forwardingClass}}" data-test-gmail-forwarding-state="{{forwarding}}">{{forwardingLabel}}</p>
               <div class="gmail-mappings__import" data-test-gmail-import-state="{{importState}}">
                 {{#if importMessage}}<p class="gmail-mappings__import-message" role="status">{{importMessage}}</p>{{/if}}

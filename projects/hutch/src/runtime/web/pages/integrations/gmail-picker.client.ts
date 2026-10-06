@@ -60,6 +60,10 @@ export function initGmailPicker({ document }: GmailPickerDeps): void {
 		const confirm = form?.querySelector<HTMLButtonElement>("[data-gmail-confirm-readlists]");
 		confirm?.click();
 	});
+	document.addEventListener("change", (event) => {
+		const target = [...document.querySelectorAll<HTMLInputElement>("[data-gmail-delivery-option]")].find((radio) => radio === event.target);
+		target?.closest<HTMLFormElement>("[data-gmail-readlist-selection]")?.requestSubmit();
+	});
 	document.addEventListener("toggle", (event) => {
 		for (const picker of pickers()) {
 			if (picker !== event.target || !picker.open) continue;

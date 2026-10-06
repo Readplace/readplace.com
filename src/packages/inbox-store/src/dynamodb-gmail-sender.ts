@@ -5,7 +5,7 @@ import {
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailDeliveryModeSchema } from "@packages/domain/gmail";
 import type { GmailSenderEntry, GmailSenderStore } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
@@ -21,6 +21,7 @@ const GmailSenderRow = z.object({
 	mappedAddress: dynamoField(InboxAddressSchema),
 	additionalMappedAddresses: dynamoField(z.array(InboxAddressSchema)),
 	mappedAt: dynamoField(z.string()),
+	deliveryMode: dynamoField(GmailDeliveryModeSchema),
 });
 
 function toSender(row: z.infer<typeof GmailSenderRow>): GmailSenderEntry {
@@ -64,15 +65,16 @@ export function initDynamoDbGmailSender(deps: {
 				ExpressionAttributeValues: { ":now": now, ":subject": subject, ":one": 1 },
 			});
 		},
-		mapSenderToAddress: async ({ userId, senderEmail, mappedAddresses: [mappedAddress, ...additionalMappedAddresses] }) => {
+		mapSenderToAddress: async ({ userId, senderEmail, mappedAddresses: [mappedAddress, ...additionalMappedAddresses], deliveryMode }) => {
 			await table.update({
 				Key: { userId, senderEmail },
 				UpdateExpression: additionalMappedAddresses.length === 0
-					? "SET mappedAddress = :addr, mappedAt = :now REMOVE additionalMappedAddresses"
-					: "SET mappedAddress = :addr, mappedAt = :now, additionalMappedAddresses = :additional",
+					? "SET mappedAddress = :addr, mappedAt = :now, deliveryMode = :mode REMOVE additionalMappedAddresses"
+					: "SET mappedAddress = :addr, mappedAt = :now, deliveryMode = :mode, additionalMappedAddresses = :additional",
 				ExpressionAttributeValues: {
 					":addr": mappedAddress,
 					":now": deps.now().toISOString(),
+					":mode": deliveryMode,
 					...(additionalMappedAddresses.length === 0 ? {} : { ":additional": additionalMappedAddresses }),
 				},
 			});
