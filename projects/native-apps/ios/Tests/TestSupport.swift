@@ -72,6 +72,32 @@ enum TestSupport {
 		return config
 	}
 
+	static func httpDate(_ date: Date) -> String {
+		httpDateFormatter.string(from: date)
+	}
+
+	private static let httpDateFormatter: DateFormatter = {
+		let formatter = DateFormatter()
+		formatter.locale = Locale(identifier: "en_US_POSIX")
+		formatter.timeZone = TimeZone(secondsFromGMT: 0)
+		formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+		return formatter
+	}()
+
+	static func stubbedConfiguration(storing body: String, at url: URL, dated date: Date = Date()) -> URLSessionConfiguration {
+		let config = stubbedConfiguration()
+		let cache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+		let response = HTTPURLResponse(
+			url: url,
+			statusCode: 200,
+			httpVersion: "HTTP/1.1",
+			headerFields: ["Content-Type": AppConfig.sirenMediaType, "Date": httpDate(date)]
+		)!
+		cache.storeCachedResponse(CachedURLResponse(response: response, data: Data(body.utf8)), for: URLRequest(url: url))
+		config.urlCache = cache
+		return config
+	}
+
 	/// A session cookie scoped to the server host, for seeding a cookie jar before
 	/// asserting sign-out clears it. The name is arbitrary — the client no longer
 	/// selects the session cookie by name — so this uses a representative literal.

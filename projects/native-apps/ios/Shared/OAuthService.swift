@@ -3,6 +3,7 @@ import Foundation
 enum OAuthError: LocalizedError {
 	case tokenExchangeFailed(status: Int)
 	case refreshFailed
+	case refreshUnreachable(Error)
 	case malformedResponse
 	case noRefreshToken
 	case sessionChanged
@@ -10,7 +11,7 @@ enum OAuthError: LocalizedError {
 	var errorDescription: String? {
 		switch self {
 		case .tokenExchangeFailed(let status): return "Token exchange failed (HTTP \(status))."
-		case .refreshFailed: return "Could not refresh the session. Please try again."
+		case .refreshFailed, .refreshUnreachable: return "Could not refresh the session. Please try again."
 		case .malformedResponse: return "The server returned an unexpected token response."
 		case .sessionChanged: return "The session changed. Please try again."
 		case .noRefreshToken: return "No refresh token is stored. Please sign in again."
@@ -36,6 +37,7 @@ actor OAuthService {
 	private let session: URLSession
 	private var generation = UUID()
 	private var pending: (id: UUID, task: Task<RefreshResult, Error>)?
+	private static let refreshTimeout: TimeInterval = 10
 
 	struct Snapshot: Equatable {
 		let tokens: OAuthTokens
@@ -172,14 +174,16 @@ actor OAuthService {
 			"refresh_token": failed.tokens.refreshToken,
 			"client_id": AppConfig.clientId,
 		])
+		var request = tokenRequest(body)
+		request.timeoutInterval = Self.refreshTimeout
 		let data: Data
 		let response: URLResponse
-		do { (data, response) = try await session.data(for: tokenRequest(body)) }
+		do { (data, response) = try await session.data(for: request) }
 		catch {
 			guard generation == failed.generation else { throw OAuthError.sessionChanged }
 			let current = try snapshot()
 			if current.tokens != failed.tokens { return RefreshResult(snapshot: current, recoveryProof: nil) }
-			throw OAuthError.refreshFailed
+			throw OAuthError.refreshUnreachable(error)
 		}
 		guard generation == failed.generation else { throw OAuthError.sessionChanged }
 		let http = response as? HTTPURLResponse

@@ -33,6 +33,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var readlists: [Readlist] = []
 	@Published private(set) var selectedReadlistHref: String?
 	@Published private(set) var appearance: String?
+	@Published private(set) var offlineDownload: OfflineDownloadProgress?
 
 	private var nextHref: String?
 	private var rootHref: String?
@@ -49,6 +50,7 @@ final class ReadingListViewModel: ObservableObject {
 	private var sessionAction: SirenAction?
 	private var isLoadingMore = false
 	private var isDrainingUploads = false
+	private var offlineDownloadTask: Task<Void, Never>?
 	private var pagesHeld = 0
 	/// Whether a collection has ever been applied. Gates the foreground refresh so
 	/// it never races the initial `.task` load with a second fetch at launch.
@@ -167,13 +169,14 @@ final class ReadingListViewModel: ObservableObject {
 
 	private func openRememberedReadlist() async {
 		guard let href = lastViewed.href else { return await fetchFirstPage() }
+		let landing = lastViewed.landingTabHref ?? href
 		selectedReadlistHref = href
-		restart(at: href)
+		restart(at: landing)
 		let generation = tabGeneration
 		let read = beginRead()
 		defer { endRead() }
 		do {
-			let page = try await api.loadReadlist(path: href)
+			let page = try await loadList(path: landing, orStored: landing == href ? nil : href)
 			guard tabUnchanged(since: generation) else { return }
 			replace(with: page, deeperPages: [], read: read)
 		} catch {
@@ -191,6 +194,16 @@ final class ReadingListViewModel: ObservableObject {
 
 	private func tabUnchanged(since generation: Int) -> Bool {
 		generation == tabGeneration
+	}
+
+	private func loadList(path: String?, orStored alternative: String? = nil) async throws -> ReadlistPage {
+		do {
+			return try await api.loadReadlist(path: path)
+		} catch let error where OfflineReading.isTransportFailure(error) {
+			if let stored = try? await api.loadStoredReadlist(path: path) { return stored }
+			guard let alternative, let stored = try? await api.loadStoredReadlist(path: alternative) else { throw error }
+			return stored
+		}
 	}
 
 	private func beginRead() -> Int {
@@ -213,7 +226,7 @@ final class ReadingListViewModel: ObservableObject {
 		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
 		messages = []
 		do {
-			let page = try await api.loadReadlist(path: currentTabHref)
+			let page = try await loadList(path: currentTabHref)
 			guard tabUnchanged(since: generation) else { return }
 			replace(with: page, deeperPages: [], read: read)
 		} catch {
@@ -228,7 +241,7 @@ final class ReadingListViewModel: ObservableObject {
 		let listVersion = readApplied
 		isLoadingMore = true
 		do {
-			let page = try await api.loadReadlist(path: next)
+			let page = try await loadList(path: next)
 			if tabUnchanged(since: generation), listVersion == readApplied { apply(page, replacing: false) }
 		} catch {
 			if tabUnchanged(since: generation) { handle(error) }
@@ -316,7 +329,7 @@ final class ReadingListViewModel: ObservableObject {
 		var hopFailure: Error?
 		while deeperPages.count + 1 < pagesHeld, let next = (deeperPages.last ?? firstPage).nextHref {
 			do {
-				let page = try await api.loadReadlist(path: next)
+				let page = try await loadList(path: next)
 				guard tabUnchanged(since: generation) else { return }
 				deeperPages.append(page)
 			} catch {
@@ -343,7 +356,7 @@ final class ReadingListViewModel: ObservableObject {
 		let read = beginRead()
 		defer { endRead() }
 		do {
-			let page = try await api.loadReadlist(path: currentTabHref)
+			let page = try await loadList(path: currentTabHref)
 			guard tabUnchanged(since: generation) else { return }
 			await adopt(firstPage: page, read: read)
 		} catch {
@@ -361,10 +374,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// WKWebView, where the native list is the chrome. An href the client can't
 	/// resolve or re-encode with the parameter is treated as absent (read-only row).
 	func openReader(for article: Article) {
-		guard let href = article.readHref,
-			let url = Href.resolve(href, baseURL: api.baseURL),
-			let readerURL = Href.appending(AppConfig.readerPlatformQueryItem, to: url)
-		else { return }
+		guard let readerURL = ReaderRequest.url(readHref: article.readHref, baseURL: api.baseURL) else { return }
 		readerPresentation = ReaderPresentation(readerURL: readerURL, articleId: article.id)
 	}
 
@@ -409,12 +419,47 @@ final class ReadingListViewModel: ObservableObject {
 		await DrainUploadJobs(api: api, captor: captor, jobs: jobs).run()
 	}
 
+	var offlineDownloadHref: String? { tabs.first?.href }
+
+	@discardableResult
+	func downloadUnreadOffline(with prefetcher: ReaderPrefetching) -> Task<Void, Never>? {
+		guard offlineDownload == nil, let href = offlineDownloadHref else { return nil }
+		offlineDownload = OfflineDownloadProgress(completed: 0, total: 0, failed: 0)
+		let download = DownloadUnreadOffline(api: api, prefetcher: prefetcher, sessionAction: sessionAction)
+		let task = Task {
+			defer {
+				offlineDownload = nil
+				offlineDownloadTask = nil
+			}
+			do {
+				let outcome = try await download.run(from: href) { offlineDownload = $0 }
+				if let failureText = outcome.failureText { errorText = failureText }
+			} catch {
+				handle(error)
+			}
+		}
+		offlineDownloadTask = task
+		return task
+	}
+
+	func cancelOfflineDownload() {
+		offlineDownloadTask?.cancel()
+	}
+
+	func stopOfflineDownload() async {
+		let running = offlineDownloadTask
+		running?.cancel()
+		await running?.value
+	}
+
 	/// Mints the cookie session the reader webview needs from the current bearer.
 	func mintReaderSession() async -> ReaderSessionMint {
 		do {
 			return .minted(try await api.bootstrapSession(action: sessionAction))
 		} catch where Task.isCancelled {
 			return .superseded
+		} catch let error where OfflineReading.isTransportFailure(error) {
+			return .offline
 		} catch {
 			handle(error)
 			return .failed
@@ -436,12 +481,13 @@ final class ReadingListViewModel: ObservableObject {
 			// The list now holds first-page server truth, so any share-sheet save
 			// recorded up to this point has been shown — including one saved before
 			// a cold launch, which the launch load itself surfaces.
-			unseenSave?.clear()
+			if !page.isStoredCopy { unseenSave?.clear() }
 		} else {
 			let existing = Set(articles.map(\.id))
 			articles += page.articles.filter { !existing.contains($0.id) }
 			pagesHeld += 1
 		}
+		if page.isStoredCopy { errorText = OfflineReading.bannerText }
 		hasLoadedOnce = true
 		nextHref = page.nextHref
 		hasMore = page.nextHref != nil
@@ -463,6 +509,7 @@ final class ReadingListViewModel: ObservableObject {
 			if let current = page.currentReadlistHref {
 				selectedReadlistHref = current
 				lastViewed.remember(href: current)
+				lastViewed.remember(landingTabHref: page.tabs.first?.href)
 			}
 		}
 		warningText = page.warning?.message
@@ -488,9 +535,12 @@ final class ReadingListViewModel: ObservableObject {
 	private func handle(_ error: Error) {
 		switch error {
 		case APIError.unauthorized, APIError.noToken:
+			cancelOfflineDownload()
 			onSessionExpired()
 		case let APIError.refused(messages) where !messages.isEmpty:
 			self.messages = messages
+		case _ where OfflineReading.isTransportFailure(error):
+			errorText = OfflineReading.bannerText
 		default:
 			errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 		}

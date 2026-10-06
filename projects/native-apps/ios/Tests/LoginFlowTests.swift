@@ -24,12 +24,49 @@ final class LoginFlowTests: XCTestCase {
 		)
 	}
 
-	func testTheAppsDefaultSessionConfigurationCachesNoResponses() {
-		let configuration = AppSession.uncachedEphemeralConfiguration()
+	func testTheAppsSessionRevalidatesOnlineAndKeepsACopyForOffline() async throws {
+		let container = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let configuration = ReadlistHTTPCache.configuration(in: container)
+		configuration.protocolClasses = [StubURLProtocol.self]
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.collection(entitiesJSON: [])) }
+		let session = AppSession(
+			store: TestSupport.loggedInStore(),
+			nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: configuration,
+			wipeReaderWebStore: {}
+		)
 
-		XCTAssertNil(
-			configuration.urlCache,
-			"the app's list views must always revalidate; only the share extension opts into the discovery cache"
+		_ = try await session.makeAPI().loadReadlist(path: "/queue")
+
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData],
+			"the app's list views always ask the origin, so a stored copy never paints over a save the reader just made"
+		)
+		XCTAssertEqual(
+			configuration.urlCache?.diskCapacity, 10 * 1024 * 1024,
+			"but they keep a copy on disk, so a cold launch with no network still has a list to tap"
+		)
+		XCTAssertEqual(
+			FileManager.default.fileExists(atPath: ReadlistHTTPCache.directory(in: container).path), true,
+			"kept in the app's own App Group directory, apart from the share extension's discovery cache"
+		)
+		XCTAssertEqual(
+			ReadlistHTTPCache.directory(in: container).pathComponents.suffix(3).joined(separator: "/"),
+			"Library/Caches/readlist-http-cache"
+		)
+	}
+
+	func testTheAppsSessionKeepsItsCookieJarOutOfTheProcessWideStore() throws {
+		let sharedCookies = HTTPCookieStorage.shared.cookies?.count ?? 0
+		let configuration = ReadlistHTTPCache.configuration(in: AppGroupContainer(url: TestSupport.temporaryContainer()))
+		let jar = try XCTUnwrap(configuration.httpCookieStorage)
+
+		jar.setCookie(TestSupport.sessionCookie(value: "readlist-1"))
+
+		XCTAssertEqual(jar.cookies?.map(\.value), ["readlist-1"])
+		XCTAssertEqual(
+			HTTPCookieStorage.shared.cookies?.count ?? 0, sharedCookies,
+			"the minted reader session cookie must not linger in the shared jar, where it would outlive a sign-out"
 		)
 	}
 

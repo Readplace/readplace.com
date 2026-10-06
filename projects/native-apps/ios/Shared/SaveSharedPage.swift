@@ -80,7 +80,7 @@ struct SaveSharedPage {
 		defer { content.cancel() }
 
 		do {
-			var page = try await api.loadReadlist()
+			var page = try await api.discoverReadlist()
 			let queues = await tickedReadlists(on: page)
 			onNotice(page.noticeMessages)
 			guard let action = page.action(named: "save-article") else { return .noSaveAction }

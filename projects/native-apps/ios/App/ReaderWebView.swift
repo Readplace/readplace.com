@@ -17,6 +17,10 @@ private let downloadLogger = Logger(subsystem: "com.readplace.app", category: "r
 struct ReaderWebView: UIViewControllerRepresentable {
 	let url: URL
 	let cookies: [HTTPCookie]
+	let cachePolicy: URLRequest.CachePolicy
+	let onOffline: () -> Void
+	let onReopenFromCache: () -> Void
+	let logger: Logger
 	let onMarkedRead: () -> Void
 	let onStatusChanged: () -> Void
 	let onCaptureBlocked: (HTMLCapturing) async -> Void
@@ -35,6 +39,11 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 	func makeCoordinator() -> Coordinator {
 		Coordinator(
+			url: url,
+			cachePolicy: cachePolicy,
+			onOffline: onOffline,
+			onReopenFromCache: onReopenFromCache,
+			logger: logger,
 			onMarkedRead: onMarkedRead,
 			onStatusChanged: onStatusChanged,
 			onCaptureBlocked: onCaptureBlocked,
@@ -90,7 +99,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			for cookie in cookies {
 				await cookieStore.setCookie(cookie)
 			}
-			webView.load(URLRequest(url: url))
+			context.coordinator.load(in: webView)
 		}
 		return controller
 	}
@@ -102,6 +111,11 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	}
 
 	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+		private let url: URL
+		private var cachePolicy: URLRequest.CachePolicy
+		private let onOffline: () -> Void
+		private let onReopenFromCache: () -> Void
+		private let logger: Logger
 		private let onMarkedRead: () -> Void
 		private let onStatusChanged: () -> Void
 		private let onCaptureBlocked: (HTMLCapturing) async -> Void
@@ -129,6 +143,11 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		private weak var downloadHost: WKWebView?
 
 		init(
+			url: URL,
+			cachePolicy: URLRequest.CachePolicy,
+			onOffline: @escaping () -> Void,
+			onReopenFromCache: @escaping () -> Void,
+			logger: Logger,
 			onMarkedRead: @escaping () -> Void,
 			onStatusChanged: @escaping () -> Void,
 			onCaptureBlocked: @escaping (HTMLCapturing) async -> Void,
@@ -137,6 +156,11 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			externalBrowser: ExternalBrowser,
 			onLoadPhaseChange: @escaping (ReaderLoadPhase) -> Void
 		) {
+			self.url = url
+			self.cachePolicy = cachePolicy
+			self.onOffline = onOffline
+			self.onReopenFromCache = onReopenFromCache
+			self.logger = logger
 			self.onMarkedRead = onMarkedRead
 			self.onStatusChanged = onStatusChanged
 			self.onCaptureBlocked = onCaptureBlocked
@@ -188,7 +212,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		}
 
 		func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-			handleFailure(error)
+			handleFailure(error, stage: .committed, in: webView)
 		}
 
 		func webView(
@@ -196,17 +220,44 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			didFailProvisionalNavigation navigation: WKNavigation!,
 			withError error: Error
 		) {
-			handleFailure(error)
+			handleFailure(error, stage: .provisional, in: webView)
+		}
+
+		func load(in webView: WKWebView) {
+			for script in OfflineReading.userScripts(for: cachePolicy) {
+				webView.configuration.userContentController.addUserScript(script)
+			}
+			webView.load(ReaderRequest.open(url: url, cachePolicy: cachePolicy))
 		}
 
 		/// A cancellation the reader provokes (a redirect superseding the first
 		/// navigation, an external link opened in Chrome) is not a page-load
 		/// failure, so it neither settles the load nor shows the error view — the
 		/// redirected navigation's commit/finish still resolves it.
-		private func handleFailure(_ error: Error) {
+		private func handleFailure(_ error: Error, stage: ReaderLoadStage, in webView: WKWebView) {
 			guard !terminal, ReaderLoad.isRealFailure(error: error) else { return }
-			terminal = true
-			onLoadPhaseChange(.failed)
+			let failure = error as NSError
+			switch ReaderLoad.recovery(error: error, stage: stage, policy: cachePolicy) {
+			case .reloadFromCacheInPlace:
+				logger.info(
+					"reader load failed (\(failure.domain, privacy: .public) \(failure.code, privacy: .public)), reopening the stored copy of \(self.url.absoluteString, privacy: .private)"
+				)
+				cachePolicy = OfflineReading.cachePolicy(offline: true)
+				onOffline()
+				load(in: webView)
+			case .reopenFromCache: // A load that fails after the page committed is reopened in a new web view: WebKit sends a cache-first reload of a URL the same view already displayed back to the network, so only a fresh view serves the stored copy.
+				logger.info(
+					"reader load failed after the page committed (\(failure.domain, privacy: .public) \(failure.code, privacy: .public)), reopening the stored copy of \(self.url.absoluteString, privacy: .private) in a new web view"
+				)
+				terminal = true
+				onReopenFromCache()
+			case .fail:
+				logger.error(
+					"reader load failed (\(failure.domain, privacy: .public) \(failure.code, privacy: .public)) for \(self.url.absoluteString, privacy: .private)"
+				)
+				terminal = true
+				onLoadPhaseChange(.failed)
+			}
 		}
 
 		func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -285,6 +336,29 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				// someone else's site is opened untouched — see `chromeURLFor`.
 				openURLChromeFirst(target, browser: externalBrowser)
 			}
+		}
+
+		func webView(
+			_ webView: WKWebView,
+			decidePolicyFor navigationResponse: WKNavigationResponse,
+			decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+		) {
+			let dateHeader = (navigationResponse.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Date")
+			guard terminal || ReaderLoad.showsResponse(
+				dated: dateHeader,
+				policy: cachePolicy,
+				isForMainFrame: navigationResponse.isForMainFrame,
+				now: Date()
+			) else {
+				logger.info(
+					"reader stored copy of \(self.url.absoluteString, privacy: .private) dated \(dateHeader ?? "nothing", privacy: .public) is past the offline limit, showing the unavailable view"
+				)
+				decisionHandler(.cancel)
+				terminal = true
+				onLoadPhaseChange(.failed)
+				return
+			}
+			decisionHandler(navigationResponse.canShowMIMEType ? .allow : .cancel)
 		}
 
 		func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {

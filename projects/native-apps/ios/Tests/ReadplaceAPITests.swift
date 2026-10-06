@@ -134,7 +134,7 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 		let api = makeAPI(store: store)
 
-		_ = try await api.loadReadlist()
+		_ = try await api.discoverReadlist()
 		XCTAssertEqual(
 			StubURLProtocol.records.map { $0.request.cachePolicy }, [.useProtocolCachePolicy, .useProtocolCachePolicy],
 			"an ordinary discovery read lets the server-declared cache lifetime answer"
@@ -152,6 +152,117 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(
 			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData, .reloadIgnoringLocalCacheData],
 			"and both legs bypass the cache, so a moved href is never re-read from the stale copy"
+		)
+	}
+
+	func testLoadReadlistAsksTheOriginOnTheEntryPointAndTheRedirectItFollows() async throws {
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, Fixtures.collection(entitiesJSON: []))
+		}
+
+		let page = try await makeAPI(store: TestSupport.loggedInStore()).loadReadlist()
+
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.url?.path }, ["/", "/queue"])
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .reloadRevalidatingCacheData],
+			"a list read always asks the origin, so a copy kept for offline never stands in for a reachable server"
+		)
+		XCTAssertEqual(page.isStoredCopy, false)
+	}
+
+	func testEveryLegOfAListReadGivesUpAfterTenSilentSeconds() async throws {
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path == "/oauth/token" { return .json(200, Fixtures.tokenResponse(access: "fresh", refresh: "fresh-r")) }
+			if request.value(forHTTPHeaderField: "Authorization") == "Bearer access-1" { return .json(401, "{}") }
+			return .json(200, Fixtures.collection(entitiesJSON: []))
+		}
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).loadReadlist(path: "/queue?status=unread")
+
+		XCTAssertEqual(
+			StubURLProtocol.records.map { "\($0.request.url?.path ?? "") \($0.request.timeoutInterval)" },
+			["/queue 10.0", "/oauth/token 10.0", "/queue 10.0"],
+			"a list read stalled on a flaky connection falls back to the stored list after ten silent seconds, not a minute"
+		)
+	}
+
+	func testLoadStoredReadlistAnswersFromTheStoredCopyAlone() async throws {
+		let href = "/queue?readlist=main"
+		let url = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)\(href)"))
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(), nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration(
+				storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "stored-1")]), at: url
+			)
+		)
+
+		let page = try await api.loadStoredReadlist(path: href)
+
+		XCTAssertEqual(page.articles.map(\.id), ["stored-1"])
+		XCTAssertEqual(page.isStoredCopy, true, "the list must know it is showing a copy, not the server's answer")
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.cachePolicy }, [.returnCacheDataDontLoad])
+	}
+
+	func testAStoredListTheServerDatedMoreThanThirtyDaysAgoIsNotShown() async throws {
+		let href = "/queue?readlist=main"
+		let url = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)\(href)"))
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(), nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration(
+				storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "stored-1")]), at: url,
+				dated: Date(timeIntervalSinceNow: -31 * 24 * 60 * 60)
+			)
+		)
+
+		do {
+			_ = try await api.loadStoredReadlist(path: href)
+			XCTFail("a list kept more than thirty days ago must not be shown")
+		} catch {
+			XCTAssertEqual((error as? URLError)?.code, .resourceUnavailable, "an expired copy reads exactly like no copy at all")
+		}
+	}
+
+	func testAListReadOnlineKeepsACopyARefreshedBearerCanStillRead() async throws {
+		var online = true
+		let served = TestSupport.httpDate(Date())
+		StubURLProtocol.setHandler { _, _ in
+			guard online else { throw URLError(.notConnectedToInternet) }
+			return StubURLProtocol.Stub(
+				status: 200,
+				headers: [
+					"Content-Type": AppConfig.sirenMediaType,
+					"Cache-Control": "private, max-age=3600",
+					"Vary": "Accept, Authorization, X-Readplace-Client, X-Readplace-Save-Continuity",
+					"Date": served,
+				],
+				body: Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "kept")]).utf8)
+			).storable()
+		}
+		let configuration = TestSupport.stubbedConfiguration()
+		configuration.urlCache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+		let store = TestSupport.loggedInStore(access: "before-refresh")
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: configuration
+		)
+		_ = try await api.loadReadlist(path: "/queue?status=unread")
+
+		let listURL = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/queue?status=unread"))
+		let kept = try XCTUnwrap(configuration.urlCache?.cachedResponse(for: URLRequest(url: listURL))?.response as? HTTPURLResponse)
+		XCTAssertEqual(
+			kept.allHeaderFields as? [String: String],
+			["Content-Type": AppConfig.sirenMediaType, "Cache-Control": "private, max-age=3600", "Date": served],
+			"URLSession matches a kept copy's Vary against each request, and the bearer changes on every refresh, so the copy varies on nothing"
+		)
+		online = false
+		store.save(OAuthTokens(accessToken: "after-refresh", refreshToken: "refresh-2"))
+		let page = try await api.loadStoredReadlist(path: "/queue?status=unread")
+
+		XCTAssertEqual(
+			page.articles.map(\.id), ["kept"],
+			"a bearer refreshed after the list was read must not make the copy kept for offline unreachable"
 		)
 	}
 
@@ -403,6 +514,38 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertNil(
 			record.request.value(forHTTPHeaderField: "X-Readplace-Client"),
 			"the external fetch must not advertise the Readplace client to a third-party origin"
+		)
+	}
+
+	func testFetchExternalContentKeepsNothingAmongTheCopiesKeptForTheList() async throws {
+		let control = try XCTUnwrap(URL(string: "https://example.com/control.pdf"))
+		let paper = try XCTUnwrap(URL(string: "https://example.com/paper.pdf"))
+		let configuration = TestSupport.stubbedConfiguration()
+		let cache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+		configuration.urlCache = cache
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(
+				status: 200,
+				headers: ["Content-Type": "application/pdf", "Cache-Control": "max-age=3600"],
+				body: Data("%PDF-1.7 body".utf8)
+			).storable()
+		}
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(), nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: configuration
+		)
+		_ = try await URLSession(configuration: configuration).data(from: control)
+		XCTAssertNotNil(
+			cache.cachedResponse(for: URLRequest(url: control)),
+			"precondition: a session on the app's configuration keeps what it fetches"
+		)
+
+		let fetched = await api.fetchExternalContent(paper)
+
+		XCTAssertEqual(fetched, Data("%PDF-1.7 body".utf8))
+		XCTAssertNil(
+			cache.cachedResponse(for: URLRequest(url: paper)),
+			"a third-party file never lands among the copies kept for the reading list"
 		)
 	}
 
@@ -791,6 +934,53 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
+	func testInvokingAGetActionAsksTheOrigin() async throws {
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.collection(entitiesJSON: [])) }
+		let search = SirenAction(name: "search", href: "/queue", method: "GET", title: nil, type: nil, fields: nil)
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).invoke(action: search)
+
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData],
+			"a search answers from the server, never from a list copy the app kept for offline"
+		)
+	}
+
+	func testTheListAFormActionLandsOnComesFromTheOrigin() async throws {
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/queue/a1/status"
+				? .redirect(to: "/queue?status_changed=read&status_article=a1")
+				: .json(200, Fixtures.collection(entitiesJSON: []))
+		}
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).invoke(action: updateStatusAction(statusValue: "read"))
+
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.url?.path }, ["/queue/a1/status", "/queue"])
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .reloadRevalidatingCacheData],
+			"the same mark-as-read lands on the same URL each time, so the list it lands on must never be a copy kept from last time"
+		)
+	}
+
+	func testTheListAJSONActionLandsOnComesFromTheOrigin() async throws {
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/queue/a1/status"
+				? .redirect(to: "/queue?status_changed=read&status_article=a1")
+				: .json(200, Fixtures.collection(entitiesJSON: []))
+		}
+		let action = SirenAction(
+			name: "update-status", href: "/queue/a1/status", method: "POST", title: nil, type: "application/json",
+			fields: [SirenField(name: "status", type: "text", value: "read")]
+		)
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).invoke(action: action)
+
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.url?.path }, ["/queue/a1/status", "/queue"])
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
+		)
+	}
+
 	func testInvokeJSONTypedActionSendsAJSONBodyMatchingTheDeclaredType() async throws {
 		// An action whose declared type is application/json must post a JSON body —
 		// not a form-encoded body under a JSON Content-Type. The body encoding follows
@@ -855,6 +1045,16 @@ final class ReadplaceAPITests: XCTestCase {
 
 		XCTAssertEqual(cookies.count, 1)
 		XCTAssertEqual(cookies.first?.value, "sess-abc")
+	}
+
+	func testBootstrapSessionGivesUpAfterEightSecondsSoAFlakyConnectionFallsBackToTheStoredCopy() async throws {
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=sess-abc; Path=/; HttpOnly"])
+		}
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).bootstrapSession()
+
+		XCTAssertEqual(StubURLProtocol.records(path: "/auth/session").map(\.request.timeoutInterval), [8])
 	}
 
 	func testBootstrapSessionRefreshesOnceWhenBearerExpired() async throws {

@@ -25,6 +25,14 @@ final class HTMLCaptorTests: XCTestCase {
 		)
 	}
 
+	func testADocumentStillArrivingAtTheTimeoutHasNotLoaded() {
+		XCTAssertEqual(
+			["loading", "interactive", "complete", nil].map(HTMLCaptor.hasParsedDocument(readyState:)),
+			[false, true, true, false],
+			"only a document the parser finished was received in full; a page whose images are slow still counts"
+		)
+	}
+
 	func testMainFrameWithoutAMediaTypeIsAllowed() {
 		XCTAssertEqual(
 			HTMLCaptor.navigationResponseDecision(mimeType: nil, isMainFrame: true),

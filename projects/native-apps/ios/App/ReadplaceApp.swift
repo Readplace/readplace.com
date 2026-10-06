@@ -4,13 +4,24 @@ import UIKit
 @main
 struct ReadplaceApp: App {
 	@UIApplicationDelegateAdaptor(BackgroundSessionAppDelegate.self) private var backgroundSessions
-	@StateObject private var session = AppSession(nativeUserAgent: AppSession.processNativeUserAgent())
+	@StateObject private var session = AppSession(
+		nativeUserAgent: AppSession.processNativeUserAgent(),
+		sessionConfiguration: ReadplaceApp.readlistCachingConfiguration()
+	)
 
 	var body: some Scene {
 		WindowGroup {
 			RootView()
 				.environmentObject(session)
 		}
+	}
+
+	private static func readlistCachingConfiguration() -> URLSessionConfiguration {
+		let group = TokenStore.resolvedAppGroupId
+		guard let container = AppGroupContainer.entitled(appGroupId: group) else {
+			preconditionFailure("App Group \(group) is required for the reading list's offline copy")
+		}
+		return ReadlistHTTPCache.configuration(in: container)
 	}
 }
 

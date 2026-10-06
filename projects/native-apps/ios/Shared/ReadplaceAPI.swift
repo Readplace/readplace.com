@@ -68,8 +68,9 @@ struct ReadlistPage {
 	let tabs: [ReadlistTab]
 	let readlists: [Readlist]
 	let appearance: String?
+	let isStoredCopy: Bool
 
-	init(collection: SirenCollection) {
+	init(collection: SirenCollection, isStoredCopy: Bool = false) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
 		let links = collection.links ?? []
 		nextHref = links.first { $0.rel.contains("next") }?.href
@@ -82,6 +83,7 @@ struct ReadlistPage {
 		tabs = (collection.properties?.tabs ?? []).map(ReadlistTab.init(tab:))
 		readlists = (collection.properties?.readlists ?? []).map(Readlist.init(entry:))
 		appearance = collection.properties?.appearance
+		self.isStoredCopy = isStoredCopy
 	}
 
 	var currentTabHref: String? { tabs.first(where: \.isCurrent)?.href }
@@ -127,6 +129,10 @@ final class ReadplaceAPI {
 
 	static let defaultMaxExternalContentBytes = 25 * 1024 * 1024
 
+	private static let sessionMintTimeout: TimeInterval = 8
+
+	private static let listReadTimeout: TimeInterval = 10
+
 	// Defaults to an ephemeral configuration so the session's cookie jar is its
 	// own isolated, in-memory store rather than process-wide `HTTPCookieStorage.shared`:
 	// the session cookie minted by `bootstrapSession` must not linger in the shared
@@ -148,7 +154,9 @@ final class ReadplaceAPI {
 			delegate: RedirectHeaderPreservingDelegate(),
 			delegateQueue: nil
 		)
-		self.externalSession = URLSession(configuration: sessionConfiguration)
+		let externalConfiguration = session.configuration
+		externalConfiguration.urlCache = nil
+		self.externalSession = URLSession(configuration: externalConfiguration)
 		self.maxExternalContentBytes = maxExternalContentBytes
 	}
 
@@ -159,11 +167,19 @@ final class ReadplaceAPI {
 	/// otherwise it follows a link href the server already handed back (e.g. the
 	/// `next` link).
 	func loadReadlist(path: String? = nil) async throws -> ReadlistPage {
-		try await loadReadlist(path: path, cachePolicy: .useProtocolCachePolicy)
+		try await loadReadlist(path: path, cachePolicy: .reloadRevalidatingCacheData)
+	}
+
+	func discoverReadlist() async throws -> ReadlistPage {
+		try await loadReadlist(path: nil, cachePolicy: .useProtocolCachePolicy)
 	}
 
 	func rediscoverReadlist(path: String? = nil) async throws -> ReadlistPage {
 		try await loadReadlist(path: path, cachePolicy: .reloadIgnoringLocalCacheData)
+	}
+
+	func loadStoredReadlist(path: String?) async throws -> ReadlistPage {
+		try await loadReadlist(path: path, cachePolicy: .returnCacheDataDontLoad)
 	}
 
 	private func loadReadlist(path: String?, cachePolicy: URLRequest.CachePolicy) async throws -> ReadlistPage {
@@ -177,9 +193,30 @@ final class ReadplaceAPI {
 		var request = URLRequest(url: url)
 		request.httpMethod = "GET"
 		request.cachePolicy = cachePolicy
+		if cachePolicy == .reloadRevalidatingCacheData { request.timeoutInterval = Self.listReadTimeout }
 		let (data, http) = try await send(request)
 		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
-		return ReadlistPage(collection: try decodeSiren(SirenCollection.self, data: data, response: http))
+		let isStoredCopy = cachePolicy == .returnCacheDataDontLoad
+		if isStoredCopy, !OfflineCopy.isShowable(dateHeader: http.value(forHTTPHeaderField: "Date"), now: Date()) {
+			throw URLError(.resourceUnavailable)
+		}
+		let page = ReadlistPage(
+			collection: try decodeSiren(SirenCollection.self, data: data, response: http),
+			isStoredCopy: isStoredCopy
+		)
+		if cachePolicy == .reloadRevalidatingCacheData { keepForAnyBearer(data, response: http) }
+		return page
+	}
+
+	private func keepForAnyBearer(_ data: Data, response: HTTPURLResponse) { // The server varies the list on Authorization and the access token changes on every refresh, so a copy kept under one token never answers the next one offline. Kept without Vary, any later bearer can read it; sign-out purges the cache.
+		var headers: [String: String] = [:]
+		for case let (name as String, value as String) in response.allHeaderFields where name.caseInsensitiveCompare("Vary") != .orderedSame {
+			headers[name] = value
+		}
+		guard let url = response.url,
+			let unvaried = HTTPURLResponse(url: url, statusCode: response.statusCode, httpVersion: nil, headerFields: headers)
+		else { return }
+		session.configuration.urlCache?.storeCachedResponse(CachedURLResponse(response: unvaried, data: data), for: URLRequest(url: url))
 	}
 
 	/// Invokes a simple entity action via its own server-declared href, method and
@@ -200,7 +237,8 @@ final class ReadplaceAPI {
 		for declared in action.fields ?? [] where fields[declared.name] == nil {
 			if let value = declared.value { fields[declared.name] = value }
 		}
-		let request = try invocationRequest(for: action, fields: fields)
+		var request = try invocationRequest(for: action, fields: fields)
+		request.cachePolicy = .reloadRevalidatingCacheData
 		let (data, http) = try await send(request)
 		guard (200...399).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
@@ -250,6 +288,7 @@ final class ReadplaceAPI {
 		}
 		var request = URLRequest(url: url)
 		request.httpMethod = method
+		request.timeoutInterval = Self.sessionMintTimeout
 		// Snapshot the jar before the request so `sessionCookies` can tell a cookie
 		// this mint sets apart from one an earlier request already left behind.
 		let priorCookies = Set(

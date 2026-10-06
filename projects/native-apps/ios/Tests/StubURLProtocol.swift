@@ -11,6 +11,7 @@ final class StubURLProtocol: URLProtocol {
 		let body: Data
 		private(set) var heldUntil: DispatchSemaphore?
 		private(set) var releases: DispatchSemaphore?
+		private(set) var storagePolicy: URLCache.StoragePolicy = .notAllowed
 
 		init(status: Int, headers: [String: String] = ["Content-Type": "application/vnd.siren+json"], body: Data = Data()) {
 			self.status = status
@@ -27,6 +28,12 @@ final class StubURLProtocol: URLProtocol {
 		func releasing(_ gate: DispatchSemaphore) -> Stub {
 			var copy = self
 			copy.releases = gate
+			return copy
+		}
+
+		func storable() -> Stub {
+			var copy = self
+			copy.storagePolicy = .allowedInMemoryOnly
 			return copy
 		}
 
@@ -82,6 +89,12 @@ final class StubURLProtocol: URLProtocol {
 		let handler = StubURLProtocol.handler
 		StubURLProtocol.lock.unlock()
 
+		if request.cachePolicy == .returnCacheDataDontLoad, let storedCopy = cachedResponse {
+			client?.urlProtocol(self, didReceive: storedCopy.response, cacheStoragePolicy: .notAllowed)
+			client?.urlProtocol(self, didLoad: storedCopy.data)
+			client?.urlProtocolDidFinishLoading(self)
+			return
+		}
 		guard let handler, let url = request.url else {
 			client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
 			return
@@ -117,7 +130,7 @@ final class StubURLProtocol: URLProtocol {
 			client?.urlProtocolDidFinishLoading(self)
 			return
 		}
-		client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+		client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: stub.storagePolicy)
 		if !stub.body.isEmpty { client?.urlProtocol(self, didLoad: stub.body) }
 		client?.urlProtocolDidFinishLoading(self)
 	}

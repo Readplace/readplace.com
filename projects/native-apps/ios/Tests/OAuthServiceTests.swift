@@ -306,6 +306,53 @@ extension OAuthServiceTests {
 		catch { XCTAssertEqual(store.tokens, tokens) }
 	}
 
+	func testARefreshThatCannotReachTheServerCarriesTheConnectionFailure() async {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+
+		do {
+			_ = try await makeService(store: TestSupport.loggedInStore()).refresh()
+			XCTFail("expected the refresh to fail")
+		} catch {
+			guard case OAuthError.refreshUnreachable(let underlying) = error else {
+				return XCTFail("expected .refreshUnreachable, got \(error)")
+			}
+			XCTAssertEqual((underlying as? URLError)?.code, .notConnectedToInternet, "the caller can tell a dead connection from a refusal")
+			XCTAssertEqual(
+				(error as? OAuthError)?.errorDescription, OAuthError.refreshFailed.errorDescription,
+				"a screen that shows the error still says the session could not be refreshed"
+			)
+		}
+	}
+
+	func testARefreshGivesUpAfterTenSilentSeconds() async throws {
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.tokenResponse(access: "a2", refresh: nil)) }
+
+		_ = try await makeService(store: TestSupport.loggedInStore()).refresh()
+
+		XCTAssertEqual(
+			StubURLProtocol.records(path: "/oauth/token").map(\.request.timeoutInterval), [10],
+			"a refresh stalled on a flaky connection hands the list and the reader to their stored copies after ten silent seconds, not a minute"
+		)
+	}
+
+	func testARefreshThatTimedOutIsAConnectionFailure() async {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.timedOut) }
+
+		do {
+			_ = try await makeService(store: TestSupport.loggedInStore()).refresh()
+			XCTFail("expected the refresh to fail")
+		} catch {
+			guard case OAuthError.refreshUnreachable(let underlying) = error else {
+				return XCTFail("expected .refreshUnreachable, got \(error)")
+			}
+			XCTAssertEqual((underlying as? URLError)?.code, .timedOut)
+			XCTAssertEqual(
+				OfflineReading.isTransportFailure(error), true,
+				"so the list and the reader fall back to their stored copies exactly as for a dropped connection"
+			)
+		}
+	}
+
 	func testRecoveryProofCannotFollowACrossOriginRedirect() {
 		var original = URLRequest(url: URL(string: "https://readplace.com/")!)
 		original.setValue("proof", forHTTPHeaderField: "X-Readplace-Refresh-Recovery")

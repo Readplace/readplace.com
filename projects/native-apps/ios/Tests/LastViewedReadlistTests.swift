@@ -32,6 +32,36 @@ final class LastViewedReadlistTests: XCTestCase {
 		)
 	}
 
+	func testTheLandingTabIsRememberedBesideTheReadlist() {
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(landingTabHref: "/queue?queue=work&status=unread")
+
+		XCTAssertEqual(
+			LastViewedReadlist(defaults: defaults).landingTabHref, "/queue?queue=work&status=unread",
+			"the next launch opens on the tab whose stored copy every later read refreshed"
+		)
+	}
+
+	func testAReadlistWithoutTabsLeavesNoLandingTabBehind() {
+		let defaults = TestSupport.ephemeralDefaults()
+		let lastViewed = LastViewedReadlist(defaults: defaults)
+		lastViewed.remember(landingTabHref: "/queue?status=unread")
+
+		lastViewed.remember(landingTabHref: nil)
+
+		XCTAssertNil(LastViewedReadlist(defaults: defaults).landingTabHref, "a landing tab from another readlist is never reused")
+	}
+
+	func testForgettingClearsTheLandingTab() {
+		let defaults = TestSupport.ephemeralDefaults()
+		let lastViewed = LastViewedReadlist(defaults: defaults)
+		lastViewed.remember(landingTabHref: "/queue?queue=work&status=unread")
+
+		lastViewed.forget()
+
+		XCTAssertNil(LastViewedReadlist(defaults: defaults).landingTabHref)
+	}
+
 	func testForgettingClearsTheReadlist() {
 		let defaults = TestSupport.ephemeralDefaults()
 		let lastViewed = LastViewedReadlist(defaults: defaults)

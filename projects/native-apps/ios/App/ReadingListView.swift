@@ -61,6 +61,9 @@ struct ReadingListView: View {
 					.padding(.horizontal)
 					.padding(.bottom, 8)
 				}
+				if let progress = viewModel.offlineDownload {
+					offlineDownloadRow(progress)
+				}
 				if let drop = viewModel.sharedArticlesDrop {
 					sharedArticlesDropRow(drop)
 				}
@@ -85,6 +88,16 @@ struct ReadingListView: View {
 								Image(systemName: "line.3.horizontal")
 							}
 							.accessibilityLabel("Readlists")
+						}
+						if viewModel.offlineDownloadHref != nil {
+							Button {
+								viewModel.downloadUnreadOffline(with: WindowReaderPrefetcher(anchor: captureAnchor))
+							} label: {
+								Image(systemName: "arrow.down.circle")
+							}
+							.disabled(viewModel.offlineDownload != nil)
+							.tint(OfflineReading.downloadControlTint)
+							.accessibilityLabel("Download unread for offline reading")
 						}
 						ForEach(viewModel.collectionAffordances) { affordance in
 							Button {
@@ -145,6 +158,7 @@ struct ReadingListView: View {
 						// session and funnels into this same sign-out.
 						onLogout: {
 							viewModel.readerPresentation = nil
+							viewModel.cancelOfflineDownload()
 							session.forceLogout()
 						}
 					)
@@ -201,6 +215,28 @@ struct ReadingListView: View {
 		)
 	}
 
+	private func offlineDownloadRow(_ progress: OfflineDownloadProgress) -> some View {
+		HStack(spacing: 12) {
+			ProgressView(value: progress.fraction) {
+				Text(progress.label)
+					.font(.footnote)
+					.foregroundStyle(Color.brandTextSecondary)
+			}
+			.progressViewStyle(.linear)
+			Button {
+				viewModel.cancelOfflineDownload()
+			} label: {
+				Image(systemName: "xmark.circle.fill")
+					.foregroundStyle(Color.brandTextSecondary)
+					.frame(minWidth: 44, minHeight: 44)
+					.contentShape(Rectangle())
+			}
+			.accessibilityLabel("Cancel download")
+		}
+		.padding(.horizontal)
+		.padding(.bottom, 8)
+	}
+
 	private func sharedArticlesDropRow(_ drop: SharedArticlesDrop) -> some View {
 		Button {
 			if let readlist = drop.choice {
@@ -249,6 +285,7 @@ struct ReadingListView: View {
 
 	@MainActor
 	func signOut() async {
+		await viewModel.stopOfflineDownload()
 		await session.logout()
 		onSignedOut()
 	}
@@ -302,16 +339,16 @@ struct ReadingListView: View {
 		}
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
 		.background(Color.brandSurface.ignoresSafeArea())
-		.overlay(alignment: .bottom) {
+		.safeAreaInset(edge: .bottom) {
 			if !viewModel.messages.isEmpty {
 				banner(
 					viewModel.messages.map(\.plainText).joined(separator: "\n"),
-					color: viewModel.messages.contains { $0.kind == .error } ? .brandError : .brandWarning
+					tone: viewModel.messages.contains { $0.kind == .error } ? .error : .warning
 				) { viewModel.messages = [] }
 			} else if let errorText = viewModel.errorText {
-				banner(errorText, color: .brandError) { viewModel.errorText = nil }
+				banner(errorText, tone: BannerTone(errorText: errorText)) { viewModel.errorText = nil }
 			} else if let warningText = viewModel.warningText {
-				banner(warningText, color: .brandWarning) { viewModel.warningText = nil }
+				banner(warningText, tone: .warning) { viewModel.warningText = nil }
 			}
 		}
 	}
@@ -401,14 +438,15 @@ struct ReadingListView: View {
 		.padding(40)
 	}
 
-	private func banner(_ text: String, color: Color, onDismiss: @escaping () -> Void) -> some View {
+	private func banner(_ text: String, tone: BannerTone, onDismiss: @escaping () -> Void) -> some View {
 		HStack {
-			Text(text).font(.footnote).foregroundStyle(.white)
+			Text(text).font(.footnote).foregroundStyle(tone.ink)
 			Spacer()
-			Button(action: onDismiss) { Image(systemName: "xmark.circle.fill").foregroundStyle(.white) }
+			Button(action: onDismiss) { Image(systemName: "xmark.circle.fill").foregroundStyle(tone.ink) }
 		}
 		.padding(12)
-		.background(color, in: RoundedRectangle(cornerRadius: 10))
+		.background(tone.fill, in: RoundedRectangle(cornerRadius: 10))
 		.padding()
+		.background(tone.backdrop.ignoresSafeArea())
 	}
 }

@@ -33,17 +33,12 @@ final class AppSession: ObservableObject {
 	private let purgeShareArtifacts: () -> Void
 	private let forgetReaderChoices: () -> Void
 
-	// Defaults to an ephemeral configuration so the API/OAuth sessions keep their
-	// cookie jar in an isolated, in-memory store rather than process-wide
-	// `HTTPCookieStorage.shared` — the minted reader session cookie must not linger
-	// in the shared jar where it would outlive a sign-out.
-	//
 	// `wipeReaderWebStore` defaults to the real WebKit deletion; it's the
 	// OS-boundary seam tests replace with a spy.
 	init(
 		store: TokenStore = TokenStore(),
 		nativeUserAgent: String,
-		sessionConfiguration: URLSessionConfiguration = AppSession.uncachedEphemeralConfiguration(),
+		sessionConfiguration: URLSessionConfiguration,
 		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData,
 		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts,
 		forgetReaderChoices: @escaping () -> Void = AppSession.removeReaderChoices
@@ -99,6 +94,7 @@ final class AppSession: ObservableObject {
 		refreshLoginState()
 		guard !isLoggedIn else { return }
 		clearSessionCookie()
+		purgeStoredReadlists()
 		purgeShareArtifacts()
 		forgetReaderChoices()
 		isLoggedIn = false
@@ -113,6 +109,7 @@ final class AppSession: ObservableObject {
 		let rejected = store.tokens
 		let invalidate = Task { await oauth.clear(ifUnchanged: rejected) }
 		clearSessionCookie()
+		purgeStoredReadlists()
 		purgeShareArtifacts()
 		let readerWipe = Task { await invalidate.value; await self.wipeReaderWebStore() }
 		isLoggedIn = false
@@ -129,6 +126,10 @@ final class AppSession: ObservableObject {
 		for cookie in storage?.cookies ?? [] {
 			storage?.deleteCookie(cookie)
 		}
+	}
+
+	private func purgeStoredReadlists() {
+		sessionConfiguration.urlCache?.removeAllCachedResponses()
 	}
 
 	/// Removes the reader's authenticated traces from the process-wide WebKit
@@ -168,12 +169,6 @@ final class AppSession: ObservableObject {
 		return AppConfig.nativeUserAgent(product: product, build: build, osVersion: osVersion)
 	}
 
-	nonisolated static func uncachedEphemeralConfiguration() -> URLSessionConfiguration {
-		let configuration = URLSessionConfiguration.ephemeral
-		configuration.urlCache = nil
-		return configuration
-	}
-
 	func makeAPI() -> ReadplaceAPI {
 		ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL,
@@ -189,6 +184,7 @@ final class AppSession: ObservableObject {
 		refreshLoginState()
 		guard !isLoggedIn else { return }
 		clearSessionCookie()
+		purgeStoredReadlists()
 		purgeShareArtifacts()
 		Task { await self.wipeReaderWebStore() }
 	}

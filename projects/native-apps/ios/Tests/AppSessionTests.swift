@@ -37,6 +37,63 @@ final class AppSessionTests: XCTestCase {
 }
 
 extension AppSessionTests {
+	private var storedList: URL { URL(string: "\(AppConfig.serverBaseURL)/queue?readlist=main")! }
+
+	@MainActor
+	private func sessionHoldingAStoredList(store: TokenStore) -> (AppSession, URLSessionConfiguration) {
+		let configuration = TestSupport.stubbedConfiguration(
+			storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]), at: storedList
+		)
+		let session = AppSession(store: store, nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: configuration, wipeReaderWebStore: {},
+			purgeShareArtifacts: {}, forgetReaderChoices: {})
+		XCTAssertEqual(
+			configuration.urlCache?.cachedResponse(for: URLRequest(url: storedList))?.data,
+			Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]).utf8),
+			"precondition: the session holds a stored list"
+		)
+		return (session, configuration)
+	}
+
+	@MainActor
+	func testSigningOutDropsTheStoredList() async {
+		StubURLProtocol.reset()
+		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
+		let (session, configuration) = sessionHoldingAStoredList(store: TestSupport.loggedInStore())
+
+		await session.logout()
+
+		XCTAssertNil(
+			configuration.urlCache?.cachedResponse(for: URLRequest(url: storedList)),
+			"the signed-out account's reading list must not stay on the device"
+		)
+	}
+
+	@MainActor
+	func testAnExpiredSessionDropsTheStoredList() async {
+		let (session, configuration) = sessionHoldingAStoredList(store: TestSupport.loggedInStore())
+
+		let readerWipe = session.forceLogout()
+
+		XCTAssertNil(
+			configuration.urlCache?.cachedResponse(for: URLRequest(url: storedList)),
+			"a session invalidated behind the reader's back leaves no list behind either"
+		)
+		await readerWipe.value
+	}
+
+	@MainActor
+	func testReconcilingASignedOutSessionDropsTheStoredList() {
+		let (session, configuration) = sessionHoldingAStoredList(store: TokenStore(defaults: TestSupport.ephemeralDefaults()))
+
+		session.reconcileSession()
+
+		XCTAssertNil(
+			configuration.urlCache?.cachedResponse(for: URLRequest(url: storedList)),
+			"a sign-out noticed on reconcile clears the stored list like any other"
+		)
+	}
+
 	@MainActor
 	func testForegroundReadingAndUploadDrainingShareOneRefresh() async throws {
 		StubURLProtocol.reset()

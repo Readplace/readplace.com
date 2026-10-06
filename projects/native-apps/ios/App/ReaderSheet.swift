@@ -1,4 +1,7 @@
+import OSLog
 import SwiftUI
+
+private let readerLogger = Logger(subsystem: "com.readplace.app", category: "reader")
 
 /// The reader sheet's content. It opens immediately on tap and shows a skeleton
 /// of the article while the cookie session is minted from the bearer, then swaps
@@ -16,12 +19,16 @@ struct ReaderSheet: View {
 
 	@State private var bootstrap = ReaderBootstrap.loading
 	@State private var loadPhase: ReaderLoadPhase = .loading
+	@State private var fellBackToCache = false
+	@State private var reopenedFromCache = false
 
 	var body: some View {
 		Group {
 			switch bootstrap {
 			case .ready(let cookies):
 				reader(cookies: cookies)
+			case .offline:
+				reader(cookies: [])
 			case .unavailable:
 				ReaderUnavailableView(onClose: onClose)
 			case .loading:
@@ -45,36 +52,50 @@ struct ReaderSheet: View {
 	@ViewBuilder
 	private func reader(cookies: [HTTPCookie]) -> some View {
 		let overlay = ReaderLoad.overlay(for: loadPhase)
-		ZStack(alignment: .top) {
-			ReaderWebView(
-				url: presentation.readerURL,
-				cookies: cookies,
-				onMarkedRead: onMarkedRead,
-				onStatusChanged: onStatusChanged,
-				onCaptureBlocked: onCaptureBlocked,
-				onClose: onClose,
-				onLogout: onLogout,
-				externalBrowser: .system,
-				onLoadPhaseChange: { loadPhase = $0 }
-			)
-			.ignoresSafeArea()
+		VStack(spacing: 0) {
+			if bootstrap.showsOfflineBanner(fellBackToCache: fellBackToCache) {
+				ReaderOfflineBanner()
+			}
+			ZStack(alignment: .top) {
+				ReaderWebView(
+					url: presentation.readerURL,
+					cookies: cookies,
+					cachePolicy: bootstrap.cachePolicy(reopenedFromCache: reopenedFromCache),
+					onOffline: { fellBackToCache = true },
+					onReopenFromCache: {
+						fellBackToCache = true
+						loadPhase = .loading
+						reopenedFromCache = true
+					},
+					logger: readerLogger,
+					onMarkedRead: onMarkedRead,
+					onStatusChanged: onStatusChanged,
+					onCaptureBlocked: onCaptureBlocked,
+					onClose: onClose,
+					onLogout: onLogout,
+					externalBrowser: .system,
+					onLoadPhaseChange: { loadPhase = $0 }
+				)
+				.id(reopenedFromCache)
+				.ignoresSafeArea()
 
-			if loadPhase == .failed {
-				ReaderUnavailableView(onClose: onClose)
-					.transition(.opacity)
+				if loadPhase == .failed {
+					ReaderUnavailableView(onClose: onClose)
+						.transition(.opacity)
+				}
+				if overlay.showsSkeleton {
+					ReaderSkeletonView()
+						.transition(.opacity)
+				}
+				if overlay.showsProgressBar {
+					ReaderLoadingBar(progress: overlay.progress)
+						.transition(.opacity)
+				}
 			}
-			if overlay.showsSkeleton {
-				ReaderSkeletonView()
-					.transition(.opacity)
-			}
-			if overlay.showsProgressBar {
-				ReaderLoadingBar(progress: overlay.progress)
-					.transition(.opacity)
-			}
+			.animation(.easeOut(duration: 0.3), value: overlay.showsSkeleton)
+			.animation(.easeOut(duration: 0.35), value: overlay.showsProgressBar)
+			.animation(.easeOut(duration: 0.3), value: loadPhase == .failed)
 		}
-		.animation(.easeOut(duration: 0.3), value: overlay.showsSkeleton)
-		.animation(.easeOut(duration: 0.35), value: overlay.showsProgressBar)
-		.animation(.easeOut(duration: 0.3), value: loadPhase == .failed)
 	}
 }
 
@@ -92,6 +113,18 @@ private struct ReaderLoadingBar: View {
 		ProgressView(value: min(max(progress, 0), 1))
 			.progressViewStyle(.linear)
 			.accessibilityHidden(true)
+	}
+}
+
+private struct ReaderOfflineBanner: View {
+	var body: some View {
+		HStack {
+			Text(OfflineReading.bannerText).font(.footnote).foregroundStyle(BannerTone.offline.ink)
+			Spacer()
+		}
+		.padding(12)
+		.background(BannerTone.offline.fill, in: RoundedRectangle(cornerRadius: 10))
+		.padding()
 	}
 }
 

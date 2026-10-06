@@ -68,6 +68,27 @@ enum ReaderLoad {
 		return true
 	}
 
+	static func recovery(error: Error, stage: ReaderLoadStage, policy: URLRequest.CachePolicy) -> ReaderFailureRecovery {
+		guard policy != OfflineReading.cachePolicy(offline: true), OfflineReading.isTransportFailure(error) else { return .fail }
+		return stage == .provisional ? .reloadFromCacheInPlace : .reopenFromCache
+	}
+
+	static func showsResponse(dated dateHeader: String?, policy: URLRequest.CachePolicy, isForMainFrame: Bool, now: Date) -> Bool {
+		guard policy == OfflineReading.cachePolicy(offline: true), isForMainFrame else { return true }
+		return OfflineCopy.isShowable(dateHeader: dateHeader, now: now)
+	}
+
 	private static let webKitErrorDomain = "WebKitErrorDomain"
 	private static let frameLoadInterruptedByPolicyChange = 102
+}
+
+enum ReaderLoadStage: Equatable {
+	case provisional
+	case committed
+}
+
+enum ReaderFailureRecovery: Equatable {
+	case reloadFromCacheInPlace
+	case reopenFromCache
+	case fail
 }

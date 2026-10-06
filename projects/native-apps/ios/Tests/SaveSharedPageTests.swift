@@ -629,6 +629,23 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertTrue(UnseenSave(containerURL: container).exists, "the retried save landed, so the app owes the list a refresh")
 	}
 
+	func testTheShareSheetReadsTheListThroughItsDiscoveryCache() async {
+		serveReadlistAndSave()
+		let saver = makeSaver(
+			store: TestSupport.loggedInStore(),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			container: TestSupport.temporaryContainer()
+		)
+
+		_ = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(discoveryReads().map { $0.request.url?.path }, ["/", "/queue"])
+		XCTAssertEqual(
+			discoveryReads().map { $0.request.cachePolicy }, [.useProtocolCachePolicy, .useProtocolCachePolicy],
+			"the share sheet keeps its cached discovery; only the app's list always asks the server"
+		)
+	}
+
 	func testRetriesTheSaveOnlyOnce() async throws {
 		let store = TestSupport.loggedInStore()
 		let container = TestSupport.temporaryContainer()

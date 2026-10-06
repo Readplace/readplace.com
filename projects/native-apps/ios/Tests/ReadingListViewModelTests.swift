@@ -15,13 +15,14 @@ final class ReadingListViewModelTests: XCTestCase {
 		unseenSave: UnseenSave? = nil,
 		defaults: UserDefaults = TestSupport.ephemeralDefaults(),
 		shareContainer: AppGroupContainer? = AppGroupContainer(url: TestSupport.temporaryContainer()),
+		sessionConfiguration: URLSessionConfiguration = TestSupport.stubbedConfiguration(),
 		onSessionExpired: @escaping () -> Void = {}
 	) -> ReadingListViewModel {
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL,
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration()
+			sessionConfiguration: sessionConfiguration
 		)
 		return ReadingListViewModel(
 			api: api,
@@ -2637,6 +2638,52 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
+	func testAStoredListShownOfflineLeavesThePendingSaveForTheReturnOnline() async throws {
+		let firstPage = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/queue?readlist=main"))
+		let secondPage = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/queue?readlist=main&page=2"))
+		let configuration = TestSupport.stubbedConfiguration(
+			storing: Fixtures.collection(
+				entitiesJSON: [Fixtures.article(id: "a1")],
+				extraLinks: ",{ \"rel\": [\"next\"], \"href\": \"/queue?readlist=main&page=2\" }"
+			),
+			at: firstPage
+		)
+		let storedSecondPage = try XCTUnwrap(HTTPURLResponse(
+			url: secondPage, statusCode: 200, httpVersion: "HTTP/1.1",
+			headerFields: ["Content-Type": AppConfig.sirenMediaType, "Date": TestSupport.httpDate(Date())]
+		))
+		configuration.urlCache?.storeCachedResponse(
+			CachedURLResponse(
+				response: storedSecondPage,
+				data: Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a2")], page: 2).utf8)
+			),
+			for: URLRequest(url: secondPage)
+		)
+		var online = false
+		StubURLProtocol.setHandler { _, _ in
+			guard online else { throw URLError(.notConnectedToInternet) }
+			return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "shared"), Fixtures.article(id: "a1")]))
+		}
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?readlist=main")
+		let unseenSave = UnseenSave(containerURL: TestSupport.temporaryContainer())
+		unseenSave.record()
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(), unseenSave: unseenSave, defaults: defaults, sessionConfiguration: configuration
+		)
+		await viewModel.loadIfNeeded()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"], "precondition: two stored pages are on screen offline")
+		XCTAssertTrue(unseenSave.exists, "a stored copy predates the save, so the save is still owed a refresh")
+
+		online = true
+		await viewModel.handleForeground()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["shared", "a1"], "the return online shows the save")
+		XCTAssertNil(viewModel.errorText, "and the list is back on server truth")
+		XCTAssertFalse(unseenSave.exists)
+	}
+
 	// MARK: - Web sheet dismissal
 
 	/// A two-page readlist behind a flippable "account deleted" switch: once flipped,
@@ -2803,6 +2850,19 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.readerPresentation, "an href the client can't act on is treated as absent")
 	}
 
+	func testTheReaderOpensTheExactURLADownloadForOfflineStores() throws {
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		viewModel.openReader(for: article(readHref: "/queue/a1/view?readlist=work"))
+
+		let opened = try XCTUnwrap(viewModel.readerPresentation?.readerURL)
+		let prefetched = try XCTUnwrap(
+			ReaderRequest.prefetch(readHref: "/queue/a1/view?readlist=work", baseURL: AppConfig.serverBaseURL)?.url
+		)
+		XCTAssertEqual(opened.absoluteString, "\(AppConfig.serverBaseURL)/queue/a1/view?readlist=work&platform=ios")
+		XCTAssertEqual(opened, prefetched, "WebKit keys its stored copy by URL, so the open must ask for the URL the download stored")
+	}
+
 	func testMintReaderSessionReturnsCookieOnSuccess() async {
 		StubURLProtocol.setHandler { _, _ in
 			StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=sess-xyz; Path=/; HttpOnly"])
@@ -2848,6 +2908,341 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(mint, .superseded, "a cancelled mint belongs to an open the user already left")
 		XCTAssertNil(viewModel.errorText, "a superseded open is not a failure to surface")
+	}
+
+	func testMintReaderSessionOpensTheReaderOfflineWhenThereIsNoConnection() async {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		let mint = await viewModel.mintReaderSession()
+
+		XCTAssertEqual(mint, .offline, "with no connection the reader opens on the copy WebKit already stored")
+		XCTAssertNil(viewModel.errorText, "the reader sheet shows the offline banner itself; the list banner waits for the list's own read")
+	}
+
+	func testMintReaderSessionOpensTheReaderOfflineWhenTheServerTakesTooLong() async {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.timedOut) }
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		let mint = await viewModel.mintReaderSession()
+
+		XCTAssertEqual(mint, .offline, "a flaky connection falls back to the stored copy the same way a dead one does")
+		XCTAssertNil(viewModel.errorText)
+	}
+
+	func testMintReaderSessionOpensTheReaderOfflineWhenTheSessionRefreshCannotReachTheServer() async {
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path == "/oauth/token" { throw URLError(.timedOut) }
+			return .json(401, "{}")
+		}
+		var expired = false
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), onSessionExpired: { expired = true })
+
+		let mint = await viewModel.mintReaderSession()
+
+		XCTAssertEqual(mint, .offline, "an expired bearer on a flaky connection still opens the stored copy")
+		XCTAssertNil(viewModel.errorText)
+		XCTAssertFalse(expired, "a refresh that never reached the server is not a rejected session")
+	}
+
+	func testAListReadWhoseSessionRefreshCannotReachTheServerShowsTheStoredList() async {
+		var bearerExpired = false
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path == "/oauth/token" { throw URLError(.notConnectedToInternet) }
+			if bearerExpired { return .json(401, "{}") }
+			return StubURLProtocol.Stub(
+				status: 200,
+				headers: [
+					"Content-Type": AppConfig.sirenMediaType, "Cache-Control": "private, max-age=3600",
+					"Date": TestSupport.httpDate(Date()),
+				],
+				body: Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "kept")]).utf8)
+			).storable()
+		}
+		let configuration = TestSupport.stubbedConfiguration()
+		configuration.urlCache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?readlist=main")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, sessionConfiguration: configuration)
+		await viewModel.loadIfNeeded()
+		XCTAssertNil(viewModel.errorText, "precondition: the launch read the list online")
+
+		bearerExpired = true
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["kept"], "the stored list stays on screen")
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText, "under the offline banner, not a session error")
+	}
+
+	func testAListReadThatCannotReachTheServerShowsTheOfflineBanner() async {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
+	}
+
+	func testTheFirstListReadThatReachesTheServerClearsTheOfflineBanner() async {
+		var online = false
+		StubURLProtocol.setHandler { request, _ in
+			guard online else { throw URLError(.notConnectedToInternet) }
+			if request.url?.path == "/" { return .redirect(to: "/queue") }
+			return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText, "precondition: the offline read set the banner")
+
+		online = true
+		await viewModel.refresh()
+
+		XCTAssertNil(viewModel.errorText, "the list is back on server truth, so the offline banner goes")
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"])
+	}
+
+	private var storedMainReadlist: URL { URL(string: "\(AppConfig.serverBaseURL)/queue?readlist=main")! }
+
+	private func launchRemembering(
+		_ href: String,
+		storedArticleIds: [String]? = nil
+	) -> (ReadingListViewModel, UserDefaults) {
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: href)
+		let configuration = storedArticleIds.map {
+			TestSupport.stubbedConfiguration(
+				storing: Fixtures.collection(entitiesJSON: $0.map { Fixtures.article(id: $0) }), at: storedMainReadlist
+			)
+		} ?? TestSupport.stubbedConfiguration()
+		return (
+			makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, sessionConfiguration: configuration),
+			defaults
+		)
+	}
+
+	func testALaunchThatCannotReachTheServerShowsTheStoredListUnderTheOfflineBanner() async throws {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let (viewModel, _) = launchRemembering("/queue?readlist=main", storedArticleIds: ["a1", "a2"])
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"], "the list kept from the last online read is what the reader sees offline")
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText, "and the reader is told it may be out of date")
+		XCTAssertEqual(requestedHrefs(), ["/queue?readlist=main", "/queue?readlist=main"])
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .returnCacheDataDontLoad],
+			"the server is always asked first; the stored copy answers only once the server cannot be reached"
+		)
+
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+		let mint = await viewModel.mintReaderSession()
+
+		XCTAssertEqual(
+			viewModel.readerPresentation?.readerURL,
+			ReaderRequest.url(readHref: "/queue/a1/view", baseURL: AppConfig.serverBaseURL),
+			"a stored row opens the same reader URL an online row does"
+		)
+		XCTAssertEqual(mint, .offline, "so the reader opens on the copy WebKit stored for that article")
+	}
+
+	func testTheListReadOnlineIsWhatAnOfflineRefreshShows() async {
+		var online = true
+		StubURLProtocol.setHandler { _, _ in
+			guard online else { throw URLError(.notConnectedToInternet) }
+			return StubURLProtocol.Stub(
+				status: 200,
+				headers: [
+					"Content-Type": AppConfig.sirenMediaType, "Cache-Control": "private, max-age=3600",
+					"Date": TestSupport.httpDate(Date()),
+				],
+				body: Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "kept")]).utf8)
+			).storable()
+		}
+		let configuration = TestSupport.stubbedConfiguration()
+		configuration.urlCache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?readlist=main")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, sessionConfiguration: configuration)
+		await viewModel.loadIfNeeded()
+		XCTAssertNil(viewModel.errorText, "precondition: the launch read the list online")
+
+		online = false
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["kept"], "the copy the online read left behind is what the reader keeps")
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy },
+			[.reloadRevalidatingCacheData, .reloadRevalidatingCacheData, .returnCacheDataDontLoad]
+		)
+	}
+
+	func testAListReadThatTimedOutShowsTheStoredListUnderTheOfflineBanner() async {
+		var stalled = false
+		StubURLProtocol.setHandler { _, _ in
+			if stalled { throw URLError(.timedOut) }
+			return StubURLProtocol.Stub(
+				status: 200,
+				headers: [
+					"Content-Type": AppConfig.sirenMediaType, "Cache-Control": "private, max-age=3600",
+					"Date": TestSupport.httpDate(Date()),
+				],
+				body: Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "kept")]).utf8)
+			).storable()
+		}
+		let configuration = TestSupport.stubbedConfiguration()
+		configuration.urlCache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?readlist=main")
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, sessionConfiguration: configuration)
+		await viewModel.loadIfNeeded()
+		XCTAssertNil(viewModel.errorText, "precondition: the launch read the list online")
+
+		stalled = true
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["kept"], "a read that gave up after ten silent seconds keeps the stored list on screen")
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText, "under the offline banner, exactly as for a dropped connection")
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy },
+			[.reloadRevalidatingCacheData, .reloadRevalidatingCacheData, .returnCacheDataDontLoad]
+		)
+		XCTAssertEqual(StubURLProtocol.records.prefix(2).map(\.request.timeoutInterval), [10, 10])
+	}
+
+	func testAnOfflineLaunchDoesNotShowAListStoredMoreThanThirtyDaysAgo() async {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue?readlist=main")
+		let configuration = TestSupport.stubbedConfiguration(
+			storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]),
+			at: storedMainReadlist,
+			dated: Date(timeIntervalSinceNow: -31 * 24 * 60 * 60)
+		)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, sessionConfiguration: configuration)
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), [], "a list the server has not confirmed for thirty days is not shown, so no stored copy is permanent")
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
+	}
+
+	nonisolated private static func storableList(_ articleId: String) -> StubURLProtocol.Stub {
+		StubURLProtocol.Stub(
+			status: 200,
+			headers: [
+				"Content-Type": AppConfig.sirenMediaType, "Cache-Control": "private, max-age=3600",
+				"Date": TestSupport.httpDate(Date()),
+			],
+			body: Data(Fixtures.collection(
+				entitiesJSON: [Fixtures.article(id: articleId)],
+				tabsJSON: Fixtures.tabs(current: "unread"),
+				readlistsJSON: Fixtures.readlists(current: "/queue")
+			).utf8)
+		).storable()
+	}
+
+	func testAnOfflineLaunchShowsTheCopyTheLastReadOfTheLandingTabKept() async {
+		var listVersion = "seen-at-launch"
+		StubURLProtocol.setHandler { _, _ in Self.storableList(listVersion) }
+		let configuration = TestSupport.stubbedConfiguration()
+		configuration.urlCache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue")
+		let first = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, sessionConfiguration: configuration)
+		await first.loadIfNeeded()
+		listVersion = "seen-at-refresh"
+		await first.refresh()
+		XCTAssertEqual(first.articles.map(\.id), ["seen-at-refresh"], "precondition: a later read refreshed the list")
+
+		StubURLProtocol.reset()
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let relaunched = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, sessionConfiguration: configuration)
+		await relaunched.loadIfNeeded()
+
+		XCTAssertEqual(
+			relaunched.articles.map(\.id), ["seen-at-refresh"],
+			"the launch opens on the landing tab every later read kept fresh, not on the copy the previous launch left"
+		)
+		XCTAssertEqual(relaunched.errorText, OfflineReading.bannerText)
+		XCTAssertEqual(requestedHrefs(), ["/queue?status=unread", "/queue?status=unread"])
+	}
+
+	func testAnOfflineLaunchWhoseLandingTabWasNeverStoredShowsTheReadlistsCopy() async throws {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue")
+		LastViewedReadlist(defaults: defaults).remember(landingTabHref: "/queue?status=unread")
+		let configuration = TestSupport.stubbedConfiguration(
+			storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]),
+			at: try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/queue"))
+		)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, sessionConfiguration: configuration)
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"], "a first session read only the readlist, and that copy is still shown")
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
+		XCTAssertEqual(requestedHrefs(), ["/queue?status=unread", "/queue"])
+	}
+
+	func testAnOnlineReadRemembersTheReadlistsLandingTab() async {
+		StubURLProtocol.setHandler { _, _ in Self.storableList("a1") }
+		let defaults = TestSupport.ephemeralDefaults()
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(LastViewedReadlist(defaults: defaults).href, "/queue")
+		XCTAssertEqual(LastViewedReadlist(defaults: defaults).landingTabHref, "/queue?status=unread")
+	}
+
+	func testALaunchWithNothingStoredStillShowsTheOfflineBanner() async {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let (viewModel, defaults) = launchRemembering("/queue?readlist=main")
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
+		XCTAssertEqual(viewModel.articles.map(\.id), [])
+		XCTAssertEqual(
+			requestedHrefs(), ["/queue?readlist=main", "/"],
+			"a stored copy that is not there asks nobody, so only the two server reads were sent"
+		)
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
+		)
+		XCTAssertEqual(LastViewedReadlist(defaults: defaults).href, "/queue?readlist=main", "the next launch still opens on it")
+	}
+
+	func testAServerErrorIsShownRatherThanTheStoredList() async {
+		StubURLProtocol.setHandler { _, _ in .json(500, "{}") }
+		let (viewModel, _) = launchRemembering("/queue?readlist=main", storedArticleIds: ["a1"])
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.errorText, "Server error 500.", "a server that answered is not an offline device")
+		XCTAssertEqual(viewModel.articles.map(\.id), [], "so the stored copy is not passed off as the server's answer")
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
+		)
+	}
+
+	func testTheFirstListReadBackOnlineReplacesTheStoredList() async {
+		var online = false
+		StubURLProtocol.setHandler { _, _ in
+			guard online else { throw URLError(.notConnectedToInternet) }
+			return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "fresh")]))
+		}
+		let (viewModel, _) = launchRemembering("/queue?readlist=main", storedArticleIds: ["a1"])
+		await viewModel.loadIfNeeded()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"], "precondition: the launch showed the stored list")
+
+		online = true
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["fresh"])
+		XCTAssertNil(viewModel.errorText, "the list is back on server truth, so the offline banner goes")
 	}
 
 	func testRapidlySwitchingArticlesLeavesTheSecondArticleOpenable() async {
@@ -3128,6 +3523,231 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertTrue(
 			StubURLProtocol.records.contains { $0.request.url?.path == "/custom/session" },
 			"the reader session mint follows the discovered create-session action, not a hard-coded route"
+		)
+	}
+
+	private func offlineDownloadHandler(
+		actionsJSON: String = Fixtures.collectionActions
+	) -> (URLRequest, Data) throws -> StubURLProtocol.Stub {
+		let tabs = Fixtures.tabs(current: "unread")
+		let secondPage = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }"
+		return { request, _ in
+			switch (request.url?.path, request.url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue?status=unread")
+			case ("/queue", "status=unread&page=2"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a2")], page: 2, actionsJSON: actionsJSON, tabsJSON: tabs
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")], extraLinks: secondPage, actionsJSON: actionsJSON, tabsJSON: tabs
+				))
+			case ("/auth/session", _), ("/custom/session", _):
+				return StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=sess-offline; Path=/; HttpOnly"])
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	private func offlineProgress(_ completed: Int, of total: Int, failed: Int) -> OfflineDownloadProgress {
+		OfflineDownloadProgress(completed: completed, total: total, failed: failed)
+	}
+
+	func testTheOfflineDownloadStartsFromTheListsLandingTab() async {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.offlineDownloadHref, "/queue?status=unread")
+	}
+
+	func testThereIsNoOfflineDownloadBeforeTheListAdvertisedItsTabs() {
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		let prefetcher = FakeReaderPrefetcher()
+
+		let task = viewModel.downloadUnreadOffline(with: prefetcher)
+
+		XCTAssertEqual(viewModel.offlineDownloadHref, nil)
+		XCTAssertNil(task, "with no landing tab there is no list to download from")
+		XCTAssertEqual(viewModel.offlineDownload, nil)
+		XCTAssertEqual(prefetcher.events, [])
+	}
+
+	func testTheOfflineDownloadPublishesItsProgressAndClearsItWhenDone() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		var published: [OfflineDownloadProgress?] = []
+		let subscription = viewModel.$offlineDownload.sink { published.append($0) }
+
+		let task = try XCTUnwrap(viewModel.downloadUnreadOffline(with: FakeReaderPrefetcher()))
+		await task.value
+		subscription.cancel()
+
+		XCTAssertEqual(published, [
+			nil,
+			offlineProgress(0, of: 0, failed: 0),
+			offlineProgress(0, of: 2, failed: 0),
+			offlineProgress(1, of: 2, failed: 0),
+			offlineProgress(2, of: 2, failed: 0),
+			nil,
+		])
+		XCTAssertNil(viewModel.errorText, "a download that stored every article has nothing to report")
+	}
+
+	func testAnOfflineDownloadThatMissedSomeArticlesSaysHowMany() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		let task = try XCTUnwrap(viewModel.downloadUnreadOffline(with: FakeReaderPrefetcher(results: [true, false])))
+		await task.value
+
+		XCTAssertEqual(viewModel.errorText, "1 of 2 articles couldn't be downloaded for offline reading")
+		XCTAssertEqual(viewModel.offlineDownload, nil)
+	}
+
+	func testAnOfflineDownloadWithoutAConnectionShowsTheOfflineBanner() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+
+		let task = try XCTUnwrap(viewModel.downloadUnreadOffline(with: FakeReaderPrefetcher()))
+		await task.value
+
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
+		XCTAssertEqual(viewModel.offlineDownload, nil)
+	}
+
+	func testAnOfflineDownloadOnAnExpiredSessionSignsOut() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		var expired = false
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), onSessionExpired: { expired = true })
+		await viewModel.refresh()
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
+		}
+
+		let task = try XCTUnwrap(viewModel.downloadUnreadOffline(with: FakeReaderPrefetcher()))
+		await task.value
+
+		XCTAssertTrue(expired, "a 401 whose refresh also fails logs the user out")
+		XCTAssertNil(viewModel.errorText, "a session-expiry logout is not shown as an error banner")
+	}
+
+	func testAnOfflineDownloadAlreadyRunningIgnoresASecondStart() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let prefetcher = FakeReaderPrefetcher()
+
+		let first = try XCTUnwrap(viewModel.downloadUnreadOffline(with: prefetcher))
+		let second = viewModel.downloadUnreadOffline(with: prefetcher)
+		await first.value
+
+		XCTAssertNil(second, "the button is disabled while a download runs, and a second start is ignored")
+		XCTAssertEqual(StubURLProtocol.records(path: "/auth/session").count, 1)
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/a1/view", "/queue/a2/view"])
+	}
+
+	func testCancellingTheOfflineDownloadStopsItQuietly() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let prefetcher = FakeReaderPrefetcher()
+		let task = try XCTUnwrap(viewModel.downloadUnreadOffline(with: prefetcher))
+		prefetcher.onPrefetch = { viewModel.cancelOfflineDownload() }
+
+		await task.value
+
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/a1/view"])
+		XCTAssertEqual(viewModel.offlineDownload, nil)
+		XCTAssertNil(viewModel.errorText, "cancelling is the reader's choice, not a failure to report")
+	}
+
+	private func holdingTheFirstArticle(_ prefetcher: FakeReaderPrefetcher) -> XCTestExpectation {
+		let inFlight = expectation(description: "the first article is being fetched")
+		inFlight.assertForOverFulfill = false
+		prefetcher.holdsUntilCancelled = true
+		prefetcher.onPrefetch = { inFlight.fulfill() }
+		return inFlight
+	}
+
+	func testStoppingTheOfflineDownloadReturnsOnceItHasStopped() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let prefetcher = FakeReaderPrefetcher()
+		let inFlight = holdingTheFirstArticle(prefetcher)
+		viewModel.downloadUnreadOffline(with: prefetcher)
+		await fulfillment(of: [inFlight], timeout: 5)
+
+		await viewModel.stopOfflineDownload()
+
+		XCTAssertEqual(
+			viewModel.offlineDownload, nil,
+			"the download has ended by the time the stop returns, so signing out wipes the store after its last write"
+		)
+		XCTAssertEqual(prefetcher.events, ["prefetch /queue/a1/view"], "no further article is fetched with the session")
+		XCTAssertNil(viewModel.errorText, "stopping is not a failure to report")
+	}
+
+	func testASessionThatEndsDuringTheOfflineDownloadStopsIt() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		var expired = false
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), onSessionExpired: { expired = true })
+		await viewModel.refresh()
+		let prefetcher = FakeReaderPrefetcher()
+		let inFlight = holdingTheFirstArticle(prefetcher)
+		let download = try XCTUnwrap(viewModel.downloadUnreadOffline(with: prefetcher))
+		await fulfillment(of: [inFlight], timeout: 5)
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
+		}
+
+		await viewModel.refresh()
+		await download.value
+
+		XCTAssertTrue(expired, "precondition: the rejected refresh signs the user out")
+		XCTAssertEqual(
+			prefetcher.events, ["prefetch /queue/a1/view"],
+			"the signed-out account's session is never injected for another article"
+		)
+		XCTAssertEqual(viewModel.offlineDownload, nil)
+	}
+
+	func testTheOfflineDownloadMintsItsSessionThroughTheAdvertisedAction() async throws {
+		let createSession = #"{ "name": "create-session", "href": "/custom/session", "method": "POST" }"#
+		StubURLProtocol.setHandler(offlineDownloadHandler(actionsJSON: Fixtures.collectionActions + "," + createSession))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		let task = try XCTUnwrap(viewModel.downloadUnreadOffline(with: FakeReaderPrefetcher()))
+		await task.value
+
+		XCTAssertEqual(StubURLProtocol.records(path: "/custom/session").count, 1)
+		XCTAssertEqual(StubURLProtocol.records(path: "/auth/session").count, 0)
+	}
+
+	func testTheOfflineDownloadStoresTheExactURLTheReaderLaterOpens() async throws {
+		StubURLProtocol.setHandler(offlineDownloadHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let prefetcher = FakeReaderPrefetcher()
+		let task = try XCTUnwrap(viewModel.downloadUnreadOffline(with: prefetcher))
+		await task.value
+
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+
+		let opened = try XCTUnwrap(viewModel.readerPresentation?.readerURL)
+		XCTAssertEqual(opened.absoluteString, "\(AppConfig.serverBaseURL)/queue/a1/view?platform=ios")
+		XCTAssertEqual(
+			prefetcher.prefetched.first?.request.url, opened,
+			"WebKit keys its stored copy by URL, so the download must store the URL the reader opens"
 		)
 	}
 }

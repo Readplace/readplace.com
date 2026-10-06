@@ -30,6 +30,9 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 	private var timeoutTask: Task<Void, Never>?
 	private var settleSeconds: Double = 0.4
 	private var detectedMediaType: String?
+	private(set) var mainFrameStatus: Int?
+	private(set) var mainDocumentLoaded = false
+	private var committed = false
 
 	override init() {
 		let configuration = WKWebViewConfiguration()
@@ -44,14 +47,22 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 	}
 
 	func capture(url: URL, timeout: TimeInterval) async -> CapturedPage {
+		await capture(request: URLRequest(url: url), timeout: timeout)
+	}
+
+	func capture(request: URLRequest, timeout: TimeInterval) async -> CapturedPage {
 		await withCheckedContinuation { continuation in
 			self.continuation = continuation
 			self.timeoutTask = Task { [weak self] in
 				try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-				await self?.finish(extractContent: true)
+				await self?.finishAfterTimeout()
 			}
-			webView.load(URLRequest(url: url))
+			webView.load(request)
 		}
+	}
+
+	func cancel() async {
+		await finish(extractContent: false)
 	}
 
 	// Records the main-frame resource's media type before deciding whether to
@@ -66,12 +77,13 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 		decidePolicyFor navigationResponse: WKNavigationResponse,
 		decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
 	) {
-		let decision = Self.navigationResponseDecision(
-			mimeType: navigationResponse.response.mimeType,
-			isMainFrame: navigationResponse.isForMainFrame
-		)
+		let response = navigationResponse.response
+		let isMainFrame = navigationResponse.isForMainFrame
+		let decision = Self.navigationResponseDecision(mimeType: response.mimeType, isMainFrame: isMainFrame)
+		let mainFrameStatus = isMainFrame ? (response as? HTTPURLResponse)?.statusCode : nil
 		Task { @MainActor [weak self] in
 			guard let self else { return decisionHandler(.allow) }
+			if let mainFrameStatus { self.mainFrameStatus = mainFrameStatus }
 			switch decision {
 			case .allow(let detectedMediaType):
 				if let detectedMediaType { self.detectedMediaType = detectedMediaType }
@@ -95,11 +107,20 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 		return .allow(detectedMediaType: mimeType)
 	}
 
+	nonisolated static func hasParsedDocument(readyState: String?) -> Bool {
+		readyState == "interactive" || readyState == "complete"
+	}
+
 	// WKNavigationDelegate's requirements are nonisolated; these hop to the main
 	// actor (where WebKit already calls them) to touch the actor-isolated state.
+	nonisolated func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+		Task { @MainActor [weak self] in self?.committed = true }
+	}
+
 	nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
 		Task { @MainActor [weak self] in
 			guard let self else { return }
+			self.mainDocumentLoaded = true
 			try? await Task.sleep(nanoseconds: UInt64(self.settleSeconds * 1_000_000_000))
 			await self.finish(extractContent: true)
 		}
@@ -115,6 +136,14 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 		withError error: Error
 	) {
 		Task { @MainActor [weak self] in await self?.finish(extractContent: false) }
+	}
+
+	private func finishAfterTimeout() async {
+		if committed, continuation != nil {
+			let readyState = (try? await webView.evaluateJavaScript("document.readyState")) as? String
+			if continuation != nil { mainDocumentLoaded = Self.hasParsedDocument(readyState: readyState) }
+		}
+		await finish(extractContent: true)
 	}
 
 	private func finish(extractContent: Bool) async {
