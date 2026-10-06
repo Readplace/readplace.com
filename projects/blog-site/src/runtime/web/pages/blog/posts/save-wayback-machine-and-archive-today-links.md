@@ -36,13 +36,17 @@ That filing is the point. The entry lands with the article's own title and its o
 
 Pinning the capture as the only source was the old mistake, so the new behaviour is built not to repeat it. A save of an archive link crawls 2 things: the live page, as any save does, and the capture, as a copy in its own right. The judge that already weighs a browser extension's capture against the crawl weighs this copy too, and the most complete one is what the reader shows.
 
-The rules lean against the capture on purpose. A tie doesn't promote it, and it can't win on its images alone. A snapshot from 2019 has to beat today's page on text before it shadows anything. When it does, that says something about today's page: the body went thin, or moved behind a paywall.
+The rules lean against the capture on purpose. A tie doesn't promote it, and it can't win on its images alone.
+
+A snapshot from 2019 has to beat today's page on text before it shadows anything. When it does, that says something about today's page: the body went thin, or moved behind a paywall.
 
 ## When the original stops answering
 
 Then there is the page with nothing live left to crawl. When the live fetch comes back failed, not found, or blocked, the save builds the article from the recorded capture instead, and a recrawl months later falls back the same way. A piece that survives only on [web.archive.org](/view/web.archive.org?utm_source=blog-save-wayback-machine-and-archive-today-links&utm_medium=internal&utm_content=read-web-archive-org) still turns into a clean, summarized article in the readlist.
 
-Saved copies outliving their pages is old ground here, argued in [Read It Later, Even After the Original Page Is Gone](/blog/saved-articles-outlast-the-original-page?utm_source=blog-save-wayback-machine-and-archive-today-links&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page). That protection starts at the save, though, so the page that died first sat outside it. The archive kept the only copy of those. Now that copy has a way in.
+Saved copies outliving their pages is old ground here, argued in [Read It Later, Even After the Original Page Is Gone](/blog/saved-articles-outlast-the-original-page?utm_source=blog-save-wayback-machine-and-archive-today-links&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page). That protection starts at the save, though, so the page that died first sat outside it.
+
+The archive kept the only copy of those. Now that copy has a way in.
 
 ## Paste the capture you settled for
 
