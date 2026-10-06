@@ -6,7 +6,7 @@ date: "2026-10-03"
 author: "Fayner Brack"
 keywords: "gmail integration, read gmail newsletters, gmail newsletter reader, save newsletters to read later, newsletter to read it later app, connect gmail to read it later, newsletter overload, gmail newsletters to readlist, readplace"
 tags: ["changelog"]
-banner: "The newsletters in your Gmail can fill a readlist"
+banner: "Introducing GMail integration"
 ---
 
 <details class="blog-tldr">
