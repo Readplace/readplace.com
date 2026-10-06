@@ -26,7 +26,7 @@
       <span class="readlist-article__read-time{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{icon "eye"}}<span>{{readTimeLabel}}</span></span>
     </div>
     {{#each statusActions}}
-    <form method="{{method}}" action="{{url}}" class="readlist-article__status-form{{fallbackClass}}" hx-boost="true" hx-target="closest .readlist-article" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button">
+    <form method="{{method}}" action="{{url}}" class="readlist-article__status-form{{fallbackClass}}" hx-boost="true" hx-target="closest .readlist-article" hx-swap="outerHTML show:none" hx-push-url="false" hx-disabled-elt="find button">
       {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
       <button class="btn btn--secondary btn--m readlist-article__status-btn" type="submit"{{#if buttonId}} id="{{buttonId}}"{{/if}} title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}><span class="readlist-article__action-btn-label">{{text}}</span>{{{loaderHtml}}}</button>
     </form>

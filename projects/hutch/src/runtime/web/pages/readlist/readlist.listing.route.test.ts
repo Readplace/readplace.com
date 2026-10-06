@@ -325,7 +325,7 @@ describe("Readlist routes", () => {
 
 			expect(readForm?.getAttribute("hx-boost")).toBe("true");
 			expect(readForm?.getAttribute("hx-target")).toBe("closest .readlist-article");
-			expect(readForm?.getAttribute("hx-swap")).toBe("outerHTML");
+			expect(readForm?.getAttribute("hx-swap")).toBe("outerHTML show:none");
 			expect(readForm?.hasAttribute("hx-select")).toBe(false);
 			expect(readForm?.getAttribute("hx-push-url")).toBe("false");
 			expect(readForm?.getAttribute("hx-disabled-elt")).toBe("find button");
