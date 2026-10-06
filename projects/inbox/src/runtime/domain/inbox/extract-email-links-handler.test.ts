@@ -1367,7 +1367,7 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 
 		await harness.run(eventBody({ routing: issueRouting("both") }));
 
-		expect(harness.publishOrder).toEqual(["issue", "submit", "first-notice", "preview", "triaged"]);
+		expect(harness.publishOrder).toEqual(["issue", "submit", "preview", "triaged"]);
 		expect(harness.submitted).toEqual([
 			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
 		]);
@@ -1558,7 +1558,7 @@ it("counts eligible articles for Gmail All-only mappings without custom filterin
 
 it("never announces a first inbox save for mail forwarded from Gmail", async () => {
 	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
-	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["all-abc123@read.place"] } }));
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["all-abc123@read.place"], deliveryMode: "links" } }));
 	expect(harness.submitted.map(({ readlist }) => readlist)).toEqual([DEFAULT_READLIST_SLUG]);
 	expect(harness.firstInboxNotices).toEqual([]);
 });
