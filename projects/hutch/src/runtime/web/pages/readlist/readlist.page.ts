@@ -10,6 +10,7 @@ import express from "express";
 import { z } from "zod";
 import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import type { InboxAddressStore } from "@packages/domain/inbox";
+import type { ResolveReaderProvenance } from "../../shared/article-body/article-header/resolve-reader-provenance";
 import type { UserId } from "@packages/domain/user";
 import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, prepareNewSaveUrl } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
@@ -382,6 +383,7 @@ interface ReadlistDependencies {
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
+	resolveReaderProvenance: ResolveReaderProvenance;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -944,6 +946,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				previouslyRead: PastReads;
 				previouslyReadPollUrl: string | undefined;
 				readlistFiling: ReaderReadlistFiling;
+				provenance: Awaited<ReturnType<ResolveReaderProvenance>>;
 				contentVersion: string;
 			};
 
@@ -978,7 +981,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			at: deps.now(),
 		});
 
-		const [related, previouslyRead, state, readlistFiling] = await Promise.all([
+		const [related, previouslyRead, state, readlistFiling, provenance] = await Promise.all([
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
 			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, deps.logError),
 			reader.resolveReaderState({
@@ -995,6 +998,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				article: ownedArticle,
 				returnTo: readerReturnPath(req, ownedArticle.id.value),
 			}),
+			deps.resolveReaderProvenance(ownedArticle.provenance),
 		]);
 		const relatedPollUrl =
 			ownedArticle.relatedDismissedAt === undefined
@@ -1032,6 +1036,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				previouslyRead: { status: "ready", items: [] },
 				previouslyReadPollUrl: undefined,
 				readlistFiling,
+				provenance,
 				contentVersion,
 			};
 		}
@@ -1045,6 +1050,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			previouslyRead,
 			previouslyReadPollUrl,
 			readlistFiling,
+			provenance,
 			contentVersion,
 		};
 	};
@@ -1076,6 +1082,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			previouslyRead,
 			previouslyReadPollUrl,
 			readlistFiling,
+			provenance,
 			contentVersion,
 		} = resolved;
 		const pastReadsOptions = {
@@ -1119,6 +1126,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				backLink: APP_BACK_LINK,
 				renderActions: deps.chromelessReader,
 				readlistFiling,
+				provenance,
 				exitConfirmScopes: [EXIT_CONFIRM_SCOPE.nextReadCard],
 				readerPathFor: readerPathFor(req),
 				markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,
@@ -1197,6 +1205,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					backLink: VIEW_BACK_LINK,
 					renderActions: deps.stickyReader,
 					readlistFiling,
+					provenance,
 					markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,
 					crawlVersions: state.crawlVersions,
 					crawlBookmarkRemoval,
@@ -2409,7 +2418,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			capturing: parseCapturingFlag(req.query.capturing),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
-			provenance: article.provenance,
+			provenance: await deps.resolveReaderProvenance(article.provenance),
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) }),
@@ -2445,7 +2454,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			capturing: parseCapturingFlag(req.query.capturing),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
-			provenance: article.provenance,
+			provenance: await deps.resolveReaderProvenance(article.provenance),
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) }),

@@ -16,7 +16,8 @@ import type {
 	FindArticleFreshness,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
-import type { ProgressTick, SaveProvenance } from "@packages/domain/article";
+import type { ProgressTick } from "@packages/domain/article";
+import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ReaderReadlistTags } from "../article-body/article-header/article-header.component";
@@ -139,7 +140,7 @@ export interface HandlePollParams {
 	 * optional) so each poll path makes the decision explicit, mirroring
 	 * `extensionInstallUrl`.
 	 */
-	provenance: SaveProvenance | undefined;
+	provenance: ReaderProvenance | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
 	readerViewFailedOob: ReaderViewFailedOob;
 	renderDownloadsOob: ((articleUrl: string) => string) | undefined;

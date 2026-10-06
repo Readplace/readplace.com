@@ -16,6 +16,7 @@ import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
+import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import {
 	type MarkReadAction,
 	READLIST_PICKER_SCRIPT,
@@ -121,6 +122,7 @@ export function ReaderPage(
 		markStatusConfirmReadlists?: readonly ReadlistRef[];
 		readerNotice?: ReaderFailedVariant;
 		epubDownloadHref?: string;
+		provenance: ReaderProvenance | undefined;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -177,7 +179,7 @@ export function ReaderPage(
 		siteName: article.metadata.siteName,
 		readTime: displayableReadTime(article),
 		url: article.destinationUrl,
-		provenance: article.provenance,
+		provenance: options.provenance,
 		readlistTags: options.readlistFiling.tags,
 		content: article.content,
 		crawl: options.crawl,

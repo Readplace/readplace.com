@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Handlebars from "handlebars";
-import type { ArticleDestinationUrl, DisplayableReadTime, SaveProvenance, SiteLabel } from "@packages/domain/article";
+import type { ArticleDestinationUrl, DisplayableReadTime, SiteLabel } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { render } from "@packages/web-shell";
-import { provenanceLabel } from "./provenance-label";
+import { type ReaderProvenance, provenanceLabel } from "./provenance-label";
 
 const TEMPLATE = readFileSync(join(__dirname, "article-header.template.html"), "utf-8");
 
@@ -22,7 +22,7 @@ export interface ArticleHeaderInput {
 	/** Required-undefined rather than optional: the header is re-rendered on every
 	 * poll, so every call site has to decide whether it can supply the tag instead
 	 * of dropping it by omission. */
-	provenance: SaveProvenance | undefined;
+	provenance: ReaderProvenance | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
 }
 

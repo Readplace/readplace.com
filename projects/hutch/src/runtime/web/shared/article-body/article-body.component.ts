@@ -8,7 +8,8 @@ import { render } from "@packages/web-shell";
 import { renderArticleHeader, type ReaderReadlistTags } from "./article-header/article-header.component";
 import { renderCrawlBookmark, type CrawlBookmarkRemoval } from "./crawl-bookmark/crawl-bookmark.component";
 import { renderProgressBar } from "./progress-bar.component";
-import type { ProgressTick, SaveProvenance } from "@packages/domain/article";
+import type { ProgressTick } from "@packages/domain/article";
+import type { ReaderProvenance } from "./article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
 import { renderSummarySlot } from "./summary-slot/summary-slot.component";
@@ -50,7 +51,7 @@ export interface ArticleBodyInput {
 	crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 	/** Where the owner's save came from. Per-user, so only the owner reader
 	 * passes it; the public `/view` and the admin recrawl omit it. */
-	provenance?: SaveProvenance;
+	provenance?: ReaderProvenance;
 	readlistTags?: ReaderReadlistTags;
 	readerNotice?: ReaderFailedVariant;
 	/** Pre-rendered "Previously read on this topic" section, sitting below the

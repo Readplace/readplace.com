@@ -20,6 +20,7 @@ import {
 	renderArticleHeaderOob,
 	renderDocumentTitleOob,
 } from "../article-body/article-header/article-header.component";
+import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import { renderProgressBarOob } from "../article-body/progress-bar.component";
 import {
 	CRAWL_STAGE_TO_PCT,
@@ -27,7 +28,6 @@ import {
 	DEFAULT_CRAWL_STAGE,
 	DEFAULT_SUMMARY_STAGE,
 	type ProgressTick,
-	type SaveProvenance,
 	SUMMARY_STAGE_TO_PCT,
 	type SummaryStage,
 } from "@packages/domain/article";
@@ -398,7 +398,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	function buildMetadataOob(
 		article: GlobalArticleData | null,
 		destinationUrl: ArticleDestinationUrl,
-		provenance: SaveProvenance | undefined,
+		provenance: ReaderProvenance | undefined,
 		readlistTags: ReaderReadlistTags | undefined,
 	): string {
 		if (!article) return "";

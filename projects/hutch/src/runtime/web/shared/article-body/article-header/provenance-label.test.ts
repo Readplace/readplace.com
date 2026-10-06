@@ -30,6 +30,13 @@ describe("provenanceLabel", () => {
 		});
 	});
 
+	it("names the newsletter a recognised sender publishes, in place of its address", () => {
+		expect(provenanceLabel({ kind: "newsletter", name: "TLDR" })).toEqual({
+			label: "via TLDR",
+			iconSvg: iconSvg("mail"),
+		});
+	});
+
 	it("matches an assistant however it cased the name it registered under", () => {
 		expect(provenanceLabel({ kind: "mcp", registeredName: "  chatgpt  " })).toEqual({
 			label: "via ChatGPT",

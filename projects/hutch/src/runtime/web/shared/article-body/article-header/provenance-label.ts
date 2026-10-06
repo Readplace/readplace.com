@@ -3,6 +3,8 @@ import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import { iconSvg } from "@packages/ui-icons";
 import { CLIENT_ICON_SVG } from "../../client-icons";
 
+export type ReaderProvenance = SaveProvenance | { kind: "newsletter"; name: string };
+
 export interface ProvenanceLabel {
 	label: string;
 	iconSvg?: string;
@@ -32,7 +34,7 @@ function labelForAssistant(registeredName: string): ProvenanceLabel {
 
 /** The last arm is `default` so a sixth provenance kind fails to compile here
  * rather than falling through to the assistant label. */
-export function provenanceLabel(provenance: SaveProvenance): ProvenanceLabel | undefined {
+export function provenanceLabel(provenance: ReaderProvenance): ProvenanceLabel | undefined {
 	switch (provenance.kind) {
 		case "web":
 			return { label: "via Web" };
@@ -44,6 +46,8 @@ export function provenanceLabel(provenance: SaveProvenance): ProvenanceLabel | u
 			const sender = provenance.senderEmail.trim();
 			return { label: `via ${sender === "" ? "Email" : sender}`, iconSvg: iconSvg("mail") };
 		}
+		case "newsletter":
+			return { label: `via ${provenance.name}`, iconSvg: iconSvg("mail") };
 		default:
 			return labelForAssistant(provenance.registeredName);
 	}

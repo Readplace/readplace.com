@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { MinutesSchema } from "@packages/domain/article";
+import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -53,5 +57,62 @@ describe("Reader save-provenance tag", () => {
 		expect(
 			header.querySelector("[data-test-reader-provenance]")?.textContent?.trim(),
 		).toBe("via Web");
+	});
+
+	describe("for a link saved from an email", () => {
+		const AT = "2026-09-30T00:00:00.000Z";
+
+		async function savedFromEmail(senderEmail: string): Promise<{
+			agent: Awaited<ReturnType<typeof loginAgent>>;
+			articleId: string;
+		}> {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const catalog = initInMemoryNewsletterCatalog({
+				version: 1,
+				records: [
+					{ from: ForwardableSenderSchema.parse("dan@tldr.tech"), name: NewsletterNameSchema.parse("TLDR"), status: "approved", evidence: [], createdAt: AT, updatedAt: AT },
+				],
+			});
+			const harness = useApp({
+				...fixture,
+				newsletterCatalog: { ...fixture.newsletterCatalog, readNewsletterCatalog: catalog.readCatalog },
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "the seeded login user must exist");
+			const { saved } = await harness.articleStore.saveArticle({
+				userId,
+				url: "https://example.com/from-a-newsletter",
+				metadata: { title: "From a newsletter", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(0),
+				provenance: { kind: "email", senderEmail },
+				savedAt: new Date(),
+			});
+			return { agent, articleId: saved.id.value };
+		}
+
+		function provenanceTag(html: string): string | undefined {
+			return new JSDOM(html).window.document.querySelector("[data-test-reader-provenance]")?.textContent?.trim();
+		}
+
+		it("names the newsletter the catalog records for the sender, on the page and on each header a poll swaps in", async () => {
+			const { agent, articleId } = await savedFromEmail("dan@tldr.tech");
+
+			const [view, reader, summary] = await Promise.all([
+				agent.get(`/queue/${articleId}/view`),
+				agent.get(`/queue/${articleId}/reader?poll=1`),
+				agent.get(`/queue/${articleId}/summary?poll=1`),
+			]);
+
+			expect([view, reader, summary].map((response) => provenanceTag(response.text))).toEqual(["via TLDR", "via TLDR", "via TLDR"]);
+		});
+
+		it("falls back to the sender address when the catalog does not know the sender", async () => {
+			const { agent, articleId } = await savedFromEmail("stranger@example.com");
+
+			const response = await agent.get(`/queue/${articleId}/view`);
+
+			expect(provenanceTag(response.text)).toBe("via stranger@example.com");
+		});
 	});
 });

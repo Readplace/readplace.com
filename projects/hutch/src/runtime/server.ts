@@ -286,6 +286,7 @@ import { HelpAddLinksPage } from "./web/pages/help";
 import { isAppShell, nativeSurfaceOf } from "./web/onboarding/native-client";
 import { APP_BACK_LINK } from "./web/shared/native-app-links";
 import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
+import { initResolveReaderProvenance } from "./web/shared/article-body/article-header/resolve-reader-provenance";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
@@ -1336,6 +1337,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishComputeRelatedPastReads: deps.publishComputeRelatedPastReads,
 		findRelatedArticles: deps.findRelatedArticles,
 		findPastReads: deps.findPastReads,
+		resolveReaderProvenance: initResolveReaderProvenance({
+			detectNewsletters: initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog }),
+		}),
 		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
