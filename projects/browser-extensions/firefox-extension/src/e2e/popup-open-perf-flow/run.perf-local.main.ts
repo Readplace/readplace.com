@@ -55,6 +55,7 @@ type SkeletonDimensions = {
 };
 type PopupState = {
 	visible: boolean;
+	viewportWidth: number;
 	shellVisible: boolean;
 	skeletonVisible: boolean;
 	skeletonDimensions?: SkeletonDimensions;
@@ -229,7 +230,7 @@ function popupFrameScript(holdApplicationAssets: boolean): string {
 			const terminalView = ['login-view', 'list-view'].find(id => { const element = document.getElementById(id); return element && !element.hidden; });
 			const applicationLoadStarted = content.performance.getEntriesByName('popup-first-frame')[0];
 			const runtimeLoadStarted = content.performance.getEntriesByName('popup-runtime-load-started')[0];
-			return { visible, shellVisible: document.body?.classList.contains('popup-shell') ?? false, skeletonVisible, skeletonDimensions, terminalView, documentLoadMs: content.performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 0, applicationLoadStartedAt: applicationLoadStarted === undefined ? undefined : content.performance.timeOrigin + applicationLoadStarted.startTime, runtimeLoadStartedAt: runtimeLoadStarted === undefined ? undefined : content.performance.timeOrigin + runtimeLoadStarted.startTime };
+			return { visible, viewportWidth: content.innerWidth, shellVisible: document.body?.classList.contains('popup-shell') ?? false, skeletonVisible, skeletonDimensions, terminalView, documentLoadMs: content.performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 0, applicationLoadStartedAt: applicationLoadStarted === undefined ? undefined : content.performance.timeOrigin + applicationLoadStarted.startTime, runtimeLoadStartedAt: runtimeLoadStarted === undefined ? undefined : content.performance.timeOrigin + runtimeLoadStarted.startTime };
 		};
 		const listener = {
 			QueryInterface: ChromeUtils.generateQI(['nsIWebProgressListener', 'nsISupportsWeakReference']),
@@ -286,7 +287,7 @@ async function installProbe(
 			const rect = panel.getBoundingClientRect();
 			const style = getComputedStyle(panel);
 			probe.panelVisible = ['showing', 'open'].includes(panel.state) && rect.width > 0 && rect.height > 0 && style.visibility === 'visible' && Number(style.opacity) > 0;
-			if (data.type === 'paint' && data.state.visible && probe.panelVisible && data.firstPaintAt >= window.__readplacePanelShowingAt && probe.firstPaintAt === undefined) {
+			if (data.type === 'paint' && data.state.visible && data.state.viewportWidth >= 800 && probe.panelVisible && data.firstPaintAt >= window.__readplacePanelShowingAt && probe.firstPaintAt === undefined) {
 				probe.firstPaintAt = data.firstPaintAt;
 				probe.firstPaintState = data.state;
 			}
