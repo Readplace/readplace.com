@@ -108,6 +108,19 @@ describe("resolveReaderPermalink", () => {
 		expect(result).toEqual({ kind: "not-found" });
 	});
 
+	it("returns not-found for someone else's newsletter issue, so a private email never reaches the public /view", async () => {
+		const issueUrl = "email://inbox/owner-user/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E";
+		const issueId = ReaderArticleHashId.from(issueUrl);
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async () => null,
+			findArticleUrlById: async (id) => (id.value === issueId.value ? issueUrl : null),
+		}));
+
+		const result = await resolve({ rawId: issueId.value, requesterId: undefined, query: {} });
+
+		expect(result).toEqual({ kind: "not-found" });
+	});
+
 	it("redirects a logged-in non-owner to the public /view permalink", async () => {
 		const resolve = initReaderPermalink(createDeps({
 			findArticleById: async () => null,

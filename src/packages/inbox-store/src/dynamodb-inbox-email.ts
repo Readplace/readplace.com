@@ -7,6 +7,7 @@ import {
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { GmailDeliveryModeSchema } from "@packages/domain/gmail";
 import {
 	InboxAddressSchema,
 	type InboxEmailEntry,
@@ -23,6 +24,7 @@ const InboxEmailRow = z.object({
 	messageId: MessageIdSchema,
 	recipientAddress: InboxAddressSchema,
 	gmailDestinationAddresses: dynamoField(z.tuple([InboxAddressSchema], InboxAddressSchema)),
+	gmailDeliveryMode: dynamoField(GmailDeliveryModeSchema),
 	senderEmail: z.string(),
 	subject: z.string(),
 	status: InboxEmailStatusSchema,

@@ -89,6 +89,7 @@ export {
 	type CrawlEmailLinkPreviewDetail,
 	EmailLinksTriagedEvent,
 	type EmailLinksTriagedDetail,
+	SaveEmailIssueCommand,
 	EmailLinksFilteredEvent,
 	type EmailLinksFilteredDetail,
 	EmailLinksFilterFailedEvent,

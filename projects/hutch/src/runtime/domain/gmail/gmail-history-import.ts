@@ -9,6 +9,7 @@ import {
 	type GmailHistoryImportStore,
 	type GmailSenderStore,
 	gmailHistoryImportRawKey,
+	resolveGmailDeliveryMode,
 } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { GmailHistoryImportMessageFetchedDetail } from "@packages/hutch-infra-components";
@@ -179,6 +180,7 @@ export function initGmailHistoryImport(deps: {
 					accountEmail: job.connection.accountEmail,
 					senderEmail: job.senderEmail,
 					destinationAddresses: job.destinationAddresses,
+					deliveryMode: resolveGmailDeliveryMode(sender),
 					rawEmailS3Key,
 					internalDate: message.value.internalDate,
 				});

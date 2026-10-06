@@ -1,11 +1,19 @@
-import type {
-	GmailHeldMailStore,
-	GmailSenderStore,
+import {
+	type GmailDeliveryMode,
+	type GmailHeldMailStore,
+	type GmailSenderStore,
+	LEGACY_DELIVERY_MODE,
+	parseForwardableSender,
+	resolveGmailDeliveryMode,
 } from "@packages/domain/gmail";
-import { parseForwardableSender } from "@packages/domain/gmail";
 import type { InboxAddress, ParsedEmail } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
+
+export interface GmailDelivery {
+	destinationAddresses: [InboxAddress, ...InboxAddress[]];
+	deliveryMode: GmailDeliveryMode;
+}
 
 export type RouteGmailForwardedEmail = (input: {
 	userId: UserId;
@@ -15,7 +23,7 @@ export type RouteGmailForwardedEmail = (input: {
 	receivedAtMessageId: string;
 	receivedAt: string;
 	rawEmailS3Key: string;
-}) => Promise<[InboxAddress, ...InboxAddress[]] | undefined>;
+}) => Promise<GmailDelivery | undefined>;
 
 export function initRouteGmailForwardedEmail(deps: {
 	senders: GmailSenderStore;
@@ -41,19 +49,23 @@ export function initRouteGmailForwardedEmail(deps: {
 					userId,
 				},
 			);
-			return [recipientAddress];
+			return { destinationAddresses: [recipientAddress], deliveryMode: LEGACY_DELIVERY_MODE };
 		}
 
 		if (purpose === "gmail-mapped") {
 			const existing = await senders.findSender({ userId, senderEmail });
-			if (existing !== undefined) {
-				await senders.recordSenderSeen({
-					userId,
-					senderEmail,
-					subject: email.subject,
-				});
+			if (existing === undefined) {
+				return { destinationAddresses: [recipientAddress], deliveryMode: LEGACY_DELIVERY_MODE };
 			}
-			return existing?.mappedAddresses ?? [recipientAddress];
+			await senders.recordSenderSeen({
+				userId,
+				senderEmail,
+				subject: email.subject,
+			});
+			return {
+				destinationAddresses: existing.mappedAddresses ?? [recipientAddress],
+				deliveryMode: resolveGmailDeliveryMode(existing),
+			};
 		}
 
 		await senders.recordSenderSeen({
@@ -62,8 +74,9 @@ export function initRouteGmailForwardedEmail(deps: {
 			subject: email.subject,
 		});
 		const sender = await senders.findSender({ userId, senderEmail });
-		const mappedAddresses = sender?.mappedAddresses;
-		if (mappedAddresses !== undefined) return mappedAddresses;
+		if (sender?.mappedAddresses !== undefined) {
+			return { destinationAddresses: sender.mappedAddresses, deliveryMode: resolveGmailDeliveryMode(sender) };
+		}
 
 		await heldMail.holdMail({
 			userId,

@@ -22,6 +22,7 @@ const VERIFY_PATH = "/mail/vf-%5BANGjdJ_redacted%5D-M8fzAOTZ";
 function confirmationEmail(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
 	return {
 		from: GOOGLE_FORWARDING_SENDER,
+		fromName: "Gmail Team",
 		subject: "(Gmail Forwarding Confirmation - Receive Mail from reader@gmail.com",
 		text: `please confirm:\n\nhttps://mail-settings.google.com${VERIFY_PATH}\n`,
 		html: `<pre>https://mail-settings.google.com${VERIFY_PATH}</pre>`,

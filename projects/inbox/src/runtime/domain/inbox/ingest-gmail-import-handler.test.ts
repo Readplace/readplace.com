@@ -223,6 +223,7 @@ function fetchedDetail(input: {
 		accountEmail: "reader@gmail.com",
 		senderEmail: "dan@tldr.tech",
 		destinationAddresses: [input.destinationAddress],
+		deliveryMode: "links",
 		rawEmailS3Key: `gmail-import/${READER}/${input.jobId}/${GMAIL_MESSAGE_ID}.eml`,
 		internalDate: INTERNAL_DATE,
 	};
@@ -300,6 +301,7 @@ describe("initIngestGmailImportHandler", () => {
 					routing: {
 						kind: "gmail",
 						destinationAddresses: [destinationAddress],
+						deliveryMode: "links",
 					},
 				},
 			},
@@ -723,7 +725,7 @@ it("finishes an accepted Gmail import retry after cancellation and destination r
 	await imports.cancelJobs({ userId: READER, senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"), reason: "destination-changed", now: NOW });
 	await addresses.retireReadlistAddress({ userId: READER, readlist: ReadlistSlugSchema.parse("a1b2c3d4") });
 	assert.deepEqual(await deliver([detail]), { batchItemFailures: [] });
-	assert.deepEqual(published, [{ event: EmailReceivedEvent, detail: { userId: READER, receivedAtMessageId: IMPORTED_ROW, recipientAddress: detail.destinationAddresses[0], origin: "gmail-import", routing: { kind: "gmail", destinationAddresses: detail.destinationAddresses } } }, ingested({ jobId: FIRST_JOB, outcome: "imported", receivedAtMessageId: IMPORTED_ROW })]);
+	assert.deepEqual(published, [{ event: EmailReceivedEvent, detail: { userId: READER, receivedAtMessageId: IMPORTED_ROW, recipientAddress: detail.destinationAddresses[0], origin: "gmail-import", routing: { kind: "gmail", destinationAddresses: detail.destinationAddresses, deliveryMode: "links" } } }, ingested({ jobId: FIRST_JOB, outcome: "imported", receivedAtMessageId: IMPORTED_ROW })]);
 	assert.equal((await emails.listEmailsByUserId({ userId: READER, cursor: undefined, pageSize: 10 })).emails.length, 1);
 });
 

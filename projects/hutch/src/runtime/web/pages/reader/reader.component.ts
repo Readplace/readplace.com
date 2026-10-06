@@ -38,6 +38,7 @@ import {
 	renderNextRead,
 } from "../../shared/next-read/next-read.component";
 import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
+import { type IssueLinksSectionInput, renderIssueLinksSection } from "../../shared/issue-links/issue-links.component";
 import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
@@ -50,6 +51,7 @@ import {
 } from "./reader-exit-confirm.component";
 import { READER_STYLES } from "./reader.styles";
 import { displayableReadTime } from "@packages/domain/article";
+import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 
@@ -123,6 +125,7 @@ export function ReaderPage(
 		readerNotice?: ReaderFailedVariant;
 		epubDownloadHref?: string;
 		provenance: ReaderProvenance | undefined;
+		issueLinks?: IssueLinksSectionInput;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -198,13 +201,17 @@ export function ReaderPage(
 		extensionInstallUrl: options.extensionInstallUrl,
 		readerNotice: options.readerNotice,
 		previouslyReadHtml,
+		issueLinksHtml: renderIssueLinksSection(options.issueLinks),
 	});
-	const shareBalloon = renderShareBalloon({
-		shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,
-		shareTitle: article.metadata.title,
-		shareHint: "Click here to share this post!",
-		shareSource: "reader-internal",
-	});
+	const isPrivateIssue = parseEmailIssueArticleUrl(article.url) !== undefined;
+	const shareBalloon = isPrivateIssue
+		? ""
+		: renderShareBalloon({
+				shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,
+				shareTitle: article.metadata.title,
+				shareHint: "Click here to share this post!",
+				shareSource: "reader-internal",
+			});
 	const nextRead = renderNextRead({
 		related: options.related
 			? {
@@ -231,6 +238,7 @@ export function ReaderPage(
 	const content = render(READER_TEMPLATE, {
 		innerContent,
 		shareBalloon,
+		shareState: isPrivateIssue ? "withheld" : "offered",
 		nextRead,
 		exitConfirmHtml,
 		markStatusConfirmHtml,

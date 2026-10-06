@@ -1,4 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { emailIssueArticleUrl } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
 /**
@@ -17,9 +18,5 @@ export function emailContentResourceId(input: {
 	userId: UserId;
 	receivedAtMessageId: string;
 }): ArticleResourceUniqueId {
-	return ArticleResourceUniqueId.parse(
-		`email://inbox/${encodeURIComponent(input.userId)}/${encodeURIComponent(
-			input.receivedAtMessageId,
-		)}`,
-	);
+	return ArticleResourceUniqueId.parse(emailIssueArticleUrl(input));
 }

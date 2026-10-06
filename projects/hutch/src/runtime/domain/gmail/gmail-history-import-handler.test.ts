@@ -463,6 +463,7 @@ describe("initGmailHistoryImportHandler", () => {
 				accountEmail: SENTINEL_ACCOUNT,
 				senderEmail: SENTINEL_SENDER,
 				destinationAddresses: [READLIST],
+				deliveryMode: "links",
 				rawEmailS3Key: `gmail-import/${USER}/${JOB}/SentinelMessageA1.eml`,
 				internalDate: new Date(NOW.getTime() - 60_000).toISOString(),
 			});

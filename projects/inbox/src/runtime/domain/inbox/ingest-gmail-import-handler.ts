@@ -160,6 +160,7 @@ export function initIngestGmailImportHandler(deps: {
 			routing: {
 				kind: "gmail",
 				destinationAddresses: [destinationAddress, ...additionalAddresses],
+				deliveryMode: detail.deliveryMode,
 			},
 		});
 		return {

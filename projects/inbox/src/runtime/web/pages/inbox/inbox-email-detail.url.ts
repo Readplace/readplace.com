@@ -1,6 +1,6 @@
+import { inboxEmailPath } from "@packages/domain/inbox";
 import { z } from "zod";
 import { ARTICLES_PAGE_SIZE } from "./inbox-articles-more.url";
-import { INBOX_PATH } from "./inbox-emails.url";
 
 export const MAIL_TAB_KEYS = ["view", "articles", "excluded"] as const;
 
@@ -27,6 +27,6 @@ export function buildInboxEmailDetailUrl(state: {
 		params.set("shown", String(state.shown));
 	}
 	const query = params.toString();
-	const path = `${INBOX_PATH}/${encodeURIComponent(state.emailId)}`;
+	const path = inboxEmailPath(state.emailId);
 	return query === "" ? path : `${path}?${query}`;
 }

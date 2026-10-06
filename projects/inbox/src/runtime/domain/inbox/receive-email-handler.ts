@@ -269,7 +269,7 @@ export function initReceiveEmailHandler(deps: {
 						resolved.purpose === "gmail-forwarding" ||
 						resolved.purpose === "gmail-mapped";
 					if (isGmail && await resumeAcceptedGmailEmail({ userId, receivedAtMessageId, rawEmailS3Key: s3Key, origin: "receive" })) continue;
-					const deliveryAddresses =
+					const gmailDelivery =
 						resolved.purpose === "gmail-forwarding" ||
 						resolved.purpose === "gmail-mapped"
 							? await routeGmailForwardedEmail({
@@ -281,8 +281,9 @@ export function initReceiveEmailHandler(deps: {
 									receivedAt,
 									rawEmailS3Key: s3Key,
 								})
-							: [recipientAddress];
-					if (deliveryAddresses === undefined) continue;
+							: undefined;
+					if (isGmail && gmailDelivery === undefined) continue;
+					const deliveryAddresses = gmailDelivery?.destinationAddresses ?? [recipientAddress];
 					const [deliveryAddress, ...additionalAddresses] = deliveryAddresses;
 					assert(deliveryAddress, "Gmail destinations are nonempty");
 					let invalidDestination = false;
@@ -327,15 +328,16 @@ export function initReceiveEmailHandler(deps: {
 						receivedAtMessageId: resolution.receivedAtMessageId,
 						downloadedImages: await downloadedImages,
 						origin: "receive",
-						routing: isGmail
-							? {
+						routing: gmailDelivery === undefined
+							? { kind: "inbox" }
+							: {
 									kind: "gmail",
 									destinationAddresses: [
 										deliveryAddress,
 										...additionalAddresses,
 									],
-								}
-							: { kind: "inbox" },
+									deliveryMode: gmailDelivery.deliveryMode,
+								},
 					});
 				}
 			} catch (error) {

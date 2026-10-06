@@ -3,7 +3,7 @@ title: "Readplace vs Readwise Reader: Which Read-It-Later App Is Right for You?"
 description: "A fair look at two read-it-later apps with AI. Where Readwise wins, where Readplace wins, and how to pick the right one for you."
 slug: "readplace-vs-readwise-reader"
 date: "2026-04-06"
-lastModified: "2026-10-01"
+lastModified: "2026-10-06"
 author: "Fayner Brack"
 keywords: "readplace vs readwise, read it later app, read it later AI"
 ---
@@ -33,7 +33,7 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 | **AI summaries** | Global TL;DR (included) | Ghostreader (inline AI, Q&A, more advanced) |
 | **Highlights** | No | Full highlighting with sync to Obsidian, Notion, Logseq |
 | **RSS reader** | No | Yes, built in |
-| **Newsletter inbox** | A forwarding address per newsletter, article links saved | Dedicated email address |
+| **Newsletter inbox** | A forwarding address per newsletter, article links saved. A Gmail sender can save the whole issue | Dedicated email address |
 | **PDFs** | Link, extension or iPhone share sheet, scans read by OCR | Upload, up to 500 MB |
 | **EPUB** | Download any article as an EPUB | Upload EPUB books |
 | **Video** | No | YouTube with a highlightable transcript |
@@ -93,9 +93,9 @@ Readwise gives you a dedicated email address for newsletters. Subscribe to anyth
 
 Readplace takes a different route.
 
-Readplace gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, and an account holds up to 25 of them. When an issue arrives, Readplace pulls out the article links, sets aside unsubscribe and confirm links without opening them, and saves the articles to your readlist with a summary. The email itself isn't saved as an article, so a newsletter whose writing lives only in the email body can be read on its inbox page but never reaches the readlist. [How an issue gets sorted](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist).
+Readplace gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, and an account holds up to 25 of them. When an issue arrives, Readplace pulls out the article links, sets aside unsubscribe and confirm links without opening them, and saves the articles to your readlist with a summary. An address doesn't save the email itself. A newsletter [connected through Gmail](/blog/introducing-gmail-integration?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=post-introducing-gmail-integration) can, and each mapped sender saves the issue as one article, the articles it links to, or both. [How an issue gets sorted](/blog/save-newsletter-links-to-your-readlist?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=post-save-newsletter-links-to-your-readlist).
 
-So the split is simple. Readwise keeps the whole issue, and Readplace keeps the articles the issue points to.
+So the split is narrower than it looks. Readwise keeps the whole issue. Readplace keeps the articles an issue points to, and through Gmail it can keep the whole issue too.
 
 ## Reader View
 

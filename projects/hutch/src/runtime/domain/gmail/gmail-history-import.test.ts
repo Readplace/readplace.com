@@ -261,12 +261,24 @@ describe("initGmailHistoryImport", () => {
 			accountEmail: ACCOUNT,
 			senderEmail: TLDR,
 			destinationAddresses: [WORK_READLIST],
+			deliveryMode: "links",
 			rawEmailS3Key: `gmail-import/${READER}/${JOB}/m00.eml`,
 			internalDate: "2026-09-01T11:59:00.000Z",
 		});
 		const job = await h.job();
 		assert.equal(job.counts.listed, 60);
 		assert.equal(job.listingCompletedAt, CREATED_AT.toISOString());
+	});
+
+	it("carries what the reader chose the sender to save onto every fetched message", async () => {
+		const h = await harness();
+		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "issue" });
+		await h.startJob("generation-1");
+		h.addUnread("m00", new Date(CREATED_AT.getTime() - 60_000).toISOString());
+
+		await h.runAllPages("generation-1");
+
+		assert.deepEqual(h.published.map(({ deliveryMode }) => deliveryMode), ["issue"]);
 	});
 
 	it("completes at once as no-unread when the sender left nothing unread in the window", async () => {

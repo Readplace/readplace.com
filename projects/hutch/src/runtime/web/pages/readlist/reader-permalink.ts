@@ -3,6 +3,7 @@ import type { SavedArticle } from "@packages/domain/article";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
+import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
 import type {
 	FindArticleById,
 	FindArticleByUrl,
@@ -124,6 +125,7 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 		 * row — so an owner's own reader never wrongly 404s. */
 		const global = await deps.findArticleByUrl(articleUrl);
 		if (global?.purgedAt) return { kind: "not-found" };
+		if (parseEmailIssueArticleUrl(articleUrl) !== undefined) return { kind: "not-found" };
 
 		/** 302 (not 301) because the redirect is conditional on
 		 * auth/ownership — the same URL renders differently for the

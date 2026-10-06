@@ -42,6 +42,7 @@ describe("parseEmail", () => {
 
 		assert(result.ok);
 		expect(result.email.from).toBe("news@example.com");
+		expect(result.email.fromName).toBe("News");
 		expect(result.email.subject).toBe("Weekly digest");
 		expect(result.email.text).toContain("Plain version here");
 		expect(result.email.html).toContain("HTML version here");
@@ -125,6 +126,7 @@ describe("parseEmail", () => {
 		expect(result.email.subject).toBe("café");
 		expect(result.email.text).toContain("Café time, softwrapped.");
 		expect(result.email.from).toBe("");
+		expect(result.email.fromName).toBe("");
 	});
 
 	it("decodes an RFC-2047 base64 subject containing an emoji", async () => {

@@ -112,7 +112,7 @@ import { initDynamoDbSubscriptionWrites } from "./subscription-providers/dynamod
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { requireEnv } from "@packages/require-env";
-import { initDynamoDbInboxAddress } from "@packages/inbox-store";
+import { initDynamoDbInboxAddress, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink } from "@packages/inbox-store";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ReadlistSlug } from "@packages/domain/readlist";
@@ -157,6 +157,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 	const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 	const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
+	const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
+	const inboxSavedLinksTable = requireEnv("DYNAMODB_INBOX_SAVED_LINKS_TABLE");
 	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 	const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 	const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
@@ -359,6 +361,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		tableName: inboxAddressesTable,
 		now: () => new Date(),
 	});
+	const inboxEmailLinkStore = initDynamoDbInboxEmailLink({ client, tableName: inboxEmailLinksTable });
+	const inboxSavedLinkStore = initDynamoDbInboxSavedLink({ client, tableName: inboxSavedLinksTable, now: () => new Date() });
 
 	const gmailCredentialsStore = initDynamoDbGmailCredentials({
 		client,
@@ -504,6 +508,9 @@ export function initProdProviders(input: { appOrigin: string }) {
 		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		setInboxAddressReadlist: inboxAddressStore.setAddressReadlist,
 		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
+		listIssueLinks: inboxEmailLinkStore.listLinksByEmail,
+		findIssueLink: inboxEmailLinkStore.getLink,
+		findIssueLinkSaveStates: inboxSavedLinkStore.findSavedLinks,
 		subscriptionProviders,
 		trialScheduler,
 		createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,

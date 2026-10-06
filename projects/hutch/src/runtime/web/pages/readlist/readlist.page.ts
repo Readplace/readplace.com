@@ -10,7 +10,16 @@ import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
-import type { InboxAddressStore } from "@packages/domain/inbox";
+import {
+	type EmailLinkOrdinal,
+	EmailLinkOrdinalSchema,
+	type InboxAddressStore,
+	type InboxEmailLinkStore,
+	type InboxSavedLinkStore,
+	inboxEmailPath,
+	parseEmailIssueArticleUrl,
+} from "@packages/domain/inbox";
+import type { IssueLinksSectionInput } from "../../shared/issue-links/issue-links.component";
 import type { ResolveReaderProvenance } from "../../shared/article-body/article-header/resolve-reader-provenance";
 import type { UserId } from "@packages/domain/user";
 import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, prepareNewSaveUrl } from "@packages/domain/article";
@@ -386,6 +395,9 @@ interface ReadlistDependencies {
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
+	listIssueLinks: InboxEmailLinkStore["listLinksByEmail"];
+	findIssueLink: InboxEmailLinkStore["getLink"];
+	findIssueLinkSaveStates: InboxSavedLinkStore["findSavedLinks"];
 	resolveReaderProvenance: ResolveReaderProvenance;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
@@ -686,6 +698,8 @@ const NATIVE_APP_SIGNAL_PLATFORM = {
 	other: undefined,
 } as const satisfies Record<Platform, NativeAppPlatform | undefined>;
 
+const ISSUE_LINK_SAVED_PARAM = "issue_link_saved";
+
 export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	const router = express.Router();
 	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
@@ -898,6 +912,40 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	const readerReturnPath = (req: Request, articleId: string): string =>
 		readerPathFor(req)(articleId);
+
+	const issueLinksFor = async (req: Request, article: SavedArticle): Promise<IssueLinksSectionInput | undefined> => {
+		const issue = parseEmailIssueArticleUrl(article.url);
+		if (issue === undefined) return undefined;
+		const { links, meta } = await deps.listIssueLinks({
+			userId: article.userId,
+			receivedAtMessageId: issue.receivedAtMessageId,
+		});
+		return {
+			links,
+			extraction: meta === undefined ? "pending" : meta.extractionFailed ? "failed" : "finished",
+			saveStates: await deps.findIssueLinkSaveStates({ userId: article.userId, urls: links.map((link) => link.url) }),
+			justSaved: EmailLinkOrdinalSchema.safeParse(req.query[ISSUE_LINK_SAVED_PARAM]).data,
+			saveUrl: withInternalTracking(`${READLIST_PATH}/${article.id.value}/issue-links`, {
+				source: "reader",
+				content: "save-issue-link",
+			}),
+			returnTo: readerReturnPath(req, article.id.value),
+			inboxHref: withInternalTracking(`${inboxEmailPath(issue.receivedAtMessageId)}?tab=articles`, {
+				source: "reader",
+				content: "open-issue-in-inbox",
+			}),
+		};
+	};
+
+	const epubHrefFor = (req: Request, article: SavedArticle, content: string | undefined): string | undefined =>
+		content === undefined || parseEmailIssueArticleUrl(article.url) !== undefined
+			? undefined
+			: articleEpubHref({ articleUrl: article.url, utmSource: "reader", appClient: appClientOf(req) });
+
+	const downloadsOobFor = (req: Request, article: SavedArticle): ((articleUrl: string) => string) | undefined =>
+		parseEmailIssueArticleUrl(article.url) === undefined
+			? (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) })
+			: undefined;
 
 	const parseCapturingFlag = (raw: unknown): boolean =>
 		z.literal("1").safeParse(raw).success;
@@ -1114,6 +1162,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		};
 
 		const cspNonce = requireCspNonce(req);
+		const issueLinks = await issueLinksFor(req, ownedArticle);
 		const readerSettled =
 			state.readerPollUrl === undefined &&
 			state.summaryPollUrl === undefined &&
@@ -1149,10 +1198,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				readerPathFor: readerPathFor(req),
 				markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,
 				readerNotice: state.notice,
-				epubDownloadHref:
-					state.content === undefined
-						? undefined
-						: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader", appClient: appClientOf(req) }),
+				epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
+				issueLinks,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -1233,10 +1280,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					],
 					readerPathFor: readerPathFor(req),
 					readerNotice: state.notice,
-					epubDownloadHref:
-						state.content === undefined
-							? undefined
-							: articleEpubHref({ articleUrl: ownedArticle.url, utmSource: "reader", appClient: appClientOf(req) }),
+					epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
+					issueLinks,
 				}), {
 					...(await deps.buildBannerState(req)),
 					showExtensionSuggestionBanner,
@@ -2442,7 +2487,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			provenance: await deps.resolveReaderProvenance(article.provenance),
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
-			renderDownloadsOob: (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) }),
+			renderDownloadsOob: downloadsOobFor(req, article),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -2478,7 +2523,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			provenance: await deps.resolveReaderProvenance(article.provenance),
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
-			renderDownloadsOob: (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) }),
+			renderDownloadsOob: downloadsOobFor(req, article),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -2543,6 +2588,43 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 
 		res.redirect(303, safeReturnPath(req.body.returnTo));
+	});
+
+	const resolveIssueLinkSave = async (
+		req: Request<{ id: string }>,
+		userId: UserId,
+	): Promise<{ article: SavedArticle; ordinal: EmailLinkOrdinal; url: SaveableUrl } | undefined> => {
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const ordinal = EmailLinkOrdinalSchema.safeParse(req.body.ordinal);
+		if (!parsedId.success || !ordinal.success) return undefined;
+		const article = await deps.findArticleById(parsedId.data, userId);
+		if (article === null) return undefined;
+		const issue = parseEmailIssueArticleUrl(article.url);
+		if (issue === undefined) return undefined;
+		const link = await deps.findIssueLink({ userId, receivedAtMessageId: issue.receivedAtMessageId, ordinal: ordinal.data });
+		if (link === undefined) return undefined;
+		const validation = deps.validateNewSaveUrl(link.url);
+		return validation.status === "SUCCESS" ? { article, ordinal: ordinal.data, url: validation.url } : undefined;
+	};
+
+	router.post("/:id/issue-links", requireNotLocked, deps.requireWriteAccess, async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const target = await resolveIssueLinkSave(req, userId);
+		if (target === undefined) {
+			res.status(404).type("html").send("");
+			return;
+		}
+		assert(target.article.provenance, "an issue is saved with its newsletter's provenance");
+		await saveArticleAtReadlistTop({
+			userId,
+			url: target.url,
+			freshness: await deps.refreshArticleIfStale({ url: target.url }),
+			provenance: target.article.provenance,
+		});
+		const returnTo = new URL(safeReturnPath(req.body.returnTo), deps.appOrigin);
+		returnTo.searchParams.set(ISSUE_LINK_SAVED_PARAM, target.ordinal);
+		res.redirect(303, `${returnTo.pathname}${returnTo.search}#issue-links`);
 	});
 
 	// Poll fragment for the "Previously read on this topic" section. A pure read,

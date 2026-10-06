@@ -1,0 +1,24 @@
+<section id="issue-links" class="issue-links {{stateClass}}" data-test-reader-issue-links data-issue-links-state="{{state}}">
+  {{#if visible}}
+  <h2 class="issue-links__title">Links in this issue</h2>
+  <p class="issue-links__lede" data-test-issue-links-lede>{{lede}}</p>
+  {{#if rows.length}}
+  <ul class="issue-links__list">
+    {{#each rows}}
+    <li class="issue-links__row" data-test-issue-link="{{ordinal}}">
+      <a class="issue-links__link" href="{{href}}" rel="noopener noreferrer">
+        <span class="issue-links__link-title">{{title}}</span>
+        <span class="issue-links__host">{{icon "globe"}}<span class="issue-links__host-name">{{host}}</span></span>
+      </a>
+      <form class="issue-links__save" method="POST" action="{{@root.saveUrl}}" hx-boost="true" hx-target="#issue-links" hx-select="#issue-links" hx-swap="outerHTML show:none" hx-push-url="false">
+        <input type="hidden" name="ordinal" value="{{ordinal}}">
+        <input type="hidden" name="returnTo" value="{{@root.returnTo}}">
+        <button type="submit" class="btn btn--secondary btn--s" aria-label="{{ariaLabel}}" data-test-issue-link-save-state="{{saveState}}">{{#if iconName}}{{icon iconName}}{{/if}}{{label}}</button>
+      </form>
+    </li>
+    {{/each}}
+  </ul>
+  {{/if}}
+  <a class="issue-links__inbox" href="{{inboxHref}}" data-test-issue-links-inbox>Open this email in your inbox</a>
+  {{/if}}
+</section>

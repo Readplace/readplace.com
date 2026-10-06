@@ -400,7 +400,7 @@ describe("gmail forwarding chain (inbox half)", () => {
 			receivedAtMessageId: `${RECEIVED_AT}#<tldr-2@mail.tldr.tech>`,
 			recipientAddress: mapped,
 			origin: "receive",
-			routing: { kind: "gmail", destinationAddresses: [mapped] },
+			routing: { kind: "gmail", destinationAddresses: [mapped], deliveryMode: "links" },
 		});
 	});
 });

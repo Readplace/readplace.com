@@ -14,6 +14,7 @@ const FETCHED = {
 	accountEmail: "reader@gmail.com",
 	senderEmail: "dan@tldr.tech",
 	destinationAddresses: ["gmail-abc123@read.place"],
+	deliveryMode: "links",
 	rawEmailS3Key: "gmail-import/reader/job/18c2f0a1b2c3d4e5.eml",
 	internalDate: "2026-09-20T07:30:00.000Z",
 };

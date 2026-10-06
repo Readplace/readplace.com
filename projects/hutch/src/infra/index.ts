@@ -282,6 +282,14 @@ const webUsersScan = new HutchDynamoDBAccess("hutch-web-users-scan", {
 	actions: ["dynamodb:Scan"],
 });
 
+const webIssueLinksRead = new HutchDynamoDBAccess("hutch-web-issue-links-read", {
+	tables: [
+		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query"],
+});
+
 const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
 	name: "hutch-api-gateway",
 	protocolType: "HTTP",
@@ -400,6 +408,8 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
 		DYNAMODB_IMPORT_SESSIONS_TABLE: storage.importSessionsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+		DYNAMODB_INBOX_SAVED_LINKS_TABLE: tableNames.inboxSavedLinks,
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
@@ -451,6 +461,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		...dynamodb.policies,
 		...oauthOutcomesWrite.policies,
 		...webUsersScan.policies,
+		...webIssueLinksRead.policies,
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),

@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_message_ingress" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_message_ingress" name="message-ingress" isExecutable="false">
+    <bpmn:startEvent id="n_Mail" name="Gmail forwarded mail">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="n_ReceiveQ" name="Existing inbox-receive-email queue">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_Receive" name="Receive Lambda resolve recipients and parse">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="n_Accepted" name="Same raw object already accepted?">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_Resume" name="Republish the accepted row's routing destinations and delivery mode">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_Route" name="Resolve sender destinations and delivery mode">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:dataStoreReference id="n_Senders" name="Existing Gmail sender table"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Held" name="Existing held-mail table"></bpmn:dataStoreReference>
+    <bpmn:task id="n_Addressed" name="Delivered as addressed delivery mode links">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_Snapshot" name="Routing kind gmail destinationAddresses and deliveryMode">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_Ingest" name="Existing identity claim and ingestion email row stores gmailDeliveryMode">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:incoming>f_17</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Emails" name="Existing inbox email table and content S3"></bpmn:dataStoreReference>
+    <bpmn:intermediateThrowEvent id="n_Received" name="EmailReceivedEvent gmail routing carries deliveryMode">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:outgoing>f_18</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="n_Worker" name="Existing Gmail history import page worker reads the sender's current mode">
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_Fetched" name="GmailHistoryImportMessageFetchedEvent carries deliveryMode">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="n_ImportQ" name="Existing inbox-ingest-gmail-import queue">
+      <bpmn:incoming>f_15</bpmn:incoming>
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="n_ImportIngest" name="Existing import ingestion routing takes the event's mode">
+      <bpmn:incoming>f_16</bpmn:incoming>
+      <bpmn:outgoing>f_17</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateCatchEvent id="n_ExtractQ" name="Existing inbox-extract-email-links queue">
+      <bpmn:incoming>f_18</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Mail" targetRef="n_ReceiveQ" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_ReceiveQ" targetRef="n_Receive" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Receive" targetRef="n_Accepted" />
+    <bpmn:sequenceFlow id="f_3" name="yes" sourceRef="n_Accepted" targetRef="n_Resume" />
+    <bpmn:sequenceFlow id="f_4" name="no" sourceRef="n_Accepted" targetRef="n_Route" />
+    <bpmn:sequenceFlow id="f_7" name="unreadable sender or unknown alias sender" sourceRef="n_Route" targetRef="n_Addressed" />
+    <bpmn:sequenceFlow id="f_8" name="mapped sender" sourceRef="n_Route" targetRef="n_Snapshot" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_Addressed" targetRef="n_Snapshot" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_Snapshot" targetRef="n_Ingest" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_Ingest" targetRef="n_Received" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_Resume" targetRef="n_Received" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_Worker" targetRef="n_Fetched" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_Fetched" targetRef="n_ImportQ" />
+    <bpmn:sequenceFlow id="f_16" name="" sourceRef="n_ImportQ" targetRef="n_ImportIngest" />
+    <bpmn:sequenceFlow id="f_17" name="" sourceRef="n_ImportIngest" targetRef="n_Ingest" />
+    <bpmn:sequenceFlow id="f_18" name="" sourceRef="n_Received" targetRef="n_ExtractQ" />
+    <bpmn:association id="f_5" sourceRef="n_Route" targetRef="n_Senders" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_Route" targetRef="n_Held" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_Ingest" targetRef="n_Emails" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_message_ingress">
+    <bpmndi:BPMNPlane id="Plane_message_ingress" bpmnElement="Process_message_ingress">
+      <bpmndi:BPMNShape id="n_Mail_di" bpmnElement="n_Mail">
+        <dc:Bounds x="411.41" y="40.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ReceiveQ_di" bpmnElement="n_ReceiveQ">
+        <dc:Bounds x="384.96" y="176.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Receive_di" bpmnElement="n_Receive">
+        <dc:Bounds x="324.69" y="322.25" width="166.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Accepted_di" bpmnElement="n_Accepted">
+        <dc:Bounds x="383.79" y="457" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Resume_di" bpmnElement="n_Resume">
+        <dc:Bounds x="342.04" y="633" width="184.5" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Route_di" bpmnElement="n_Route">
+        <dc:Bounds x="103.28" y="649" width="202.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Senders_di" bpmnElement="n_Senders">
+        <dc:Bounds x="28" y="775" width="175.56" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Held_di" bpmnElement="n_Held">
+        <dc:Bounds x="446.06" y="775" width="155.76" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Addressed_di" bpmnElement="n_Addressed">
+        <dc:Bounds x="239.56" y="781.75" width="170.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Snapshot_di" bpmnElement="n_Snapshot">
+        <dc:Bounds x="221.28" y="898.5" width="187.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Ingest_di" bpmnElement="n_Ingest">
+        <dc:Bounds x="216.78" y="1024.5" width="196.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Emails_di" bpmnElement="n_Emails">
+        <dc:Bounds x="143.57" y="1169.75" width="187.88" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Received_di" bpmnElement="n_Received">
+        <dc:Bounds x="406.85" y="1166.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Worker_di" bpmnElement="n_Worker">
+        <dc:Bounds x="137.47" y="28" width="197" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Fetched_di" bpmnElement="n_Fetched">
+        <dc:Bounds x="203.98" y="170" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ImportQ_di" bpmnElement="n_ImportQ">
+        <dc:Bounds x="193.78" y="313.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ImportIngest_di" bpmnElement="n_ImportIngest">
+        <dc:Bounds x="130.47" y="482" width="187.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ExtractQ_di" bpmnElement="n_ExtractQ">
+        <dc:Bounds x="294.91" y="1310" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="431.41" y="80.75" />
+        <di:waypoint x="431.41" y="128.75" />
+        <di:waypoint x="404.96" y="128.75" />
+        <di:waypoint x="404.96" y="176.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="404.96" y="216.75" />
+        <di:waypoint x="404.96" y="269.5" />
+        <di:waypoint x="407.82" y="269.5" />
+        <di:waypoint x="407.82" y="322.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="407.82" y="390.25" />
+        <di:waypoint x="407.82" y="423.63" />
+        <di:waypoint x="426.79" y="423.63" />
+        <di:waypoint x="426.79" y="457" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="426.79" y="543" />
+        <di:waypoint x="426.79" y="588" />
+        <di:waypoint x="434.29" y="588" />
+        <di:waypoint x="434.29" y="633" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="426.79" y="543" />
+        <di:waypoint x="426.79" y="596" />
+        <di:waypoint x="204.66" y="596" />
+        <di:waypoint x="204.66" y="649" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="204.66" y="701" />
+        <di:waypoint x="204.66" y="741.38" />
+        <di:waypoint x="324.81" y="741.38" />
+        <di:waypoint x="324.81" y="781.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="204.66" y="701" />
+        <di:waypoint x="204.66" y="799.75" />
+        <di:waypoint x="314.91" y="799.75" />
+        <di:waypoint x="314.91" y="898.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="324.81" y="833.75" />
+        <di:waypoint x="324.81" y="866.13" />
+        <di:waypoint x="314.91" y="866.13" />
+        <di:waypoint x="314.91" y="898.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="314.91" y="966.5" />
+        <di:waypoint x="314.91" y="1024.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="314.91" y="1108.5" />
+        <di:waypoint x="314.91" y="1137.5" />
+        <di:waypoint x="426.85" y="1137.5" />
+        <di:waypoint x="426.85" y="1166.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="434.29" y="717" />
+        <di:waypoint x="434.29" y="941.75" />
+        <di:waypoint x="426.85" y="941.75" />
+        <di:waypoint x="426.85" y="1166.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="235.97" y="112" />
+        <di:waypoint x="235.97" y="141" />
+        <di:waypoint x="223.98" y="141" />
+        <di:waypoint x="223.98" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="223.98" y="210" />
+        <di:waypoint x="223.98" y="261.75" />
+        <di:waypoint x="213.78" y="261.75" />
+        <di:waypoint x="213.78" y="313.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="213.78" y="353.5" />
+        <di:waypoint x="213.78" y="417.75" />
+        <di:waypoint x="224.34" y="417.75" />
+        <di:waypoint x="224.34" y="482" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="224.34" y="550" />
+        <di:waypoint x="224.34" y="787.25" />
+        <di:waypoint x="314.91" y="787.25" />
+        <di:waypoint x="314.91" y="1024.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="426.85" y="1206.5" />
+        <di:waypoint x="426.85" y="1258.25" />
+        <di:waypoint x="314.91" y="1258.25" />
+        <di:waypoint x="314.91" y="1310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="204.66" y="701" />
+        <di:waypoint x="204.66" y="738" />
+        <di:waypoint x="115.78" y="738" />
+        <di:waypoint x="115.78" y="775" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="204.66" y="701" />
+        <di:waypoint x="204.66" y="738" />
+        <di:waypoint x="523.94" y="738" />
+        <di:waypoint x="523.94" y="775" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="314.91" y="1108.5" />
+        <di:waypoint x="314.91" y="1139.13" />
+        <di:waypoint x="237.51" y="1139.13" />
+        <di:waypoint x="237.51" y="1169.75" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_delivery_choice" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_delivery_choice" name="delivery-choice" isExecutable="false">
+    <bpmn:startEvent id="n_Entry" name="Reader opens the Gmail newsletter picker for a new sender or with Edit on a mapping row">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="n_Picker" name="Picker state carries delivery issue, links or both">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="n_Mapped" name="Sender already mapped?">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_Issue" name="Preselect the issue itself">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Current" name="Preselect the sender's delivery mode">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Legacy" name="Preselect links what that mapping has been delivering">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_Save" name="POST /gmail/senders/add destinations plus delivery mode">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:task id="n_Resolve" name="Resolve destinations compare saved destinations and mode">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:dataStoreReference id="n_Senders" name="Existing Gmail sender table deliveryMode beside mappedAddresses"></bpmn:dataStoreReference>
+    <bpmn:exclusiveGateway id="n_Changed" name="Destinations or mode changed?">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="n_Cancel" name="Cancel unfinished sender imports destination-changed">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sendTask id="n_Filter" name="RewriteGmailFilterCommand">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:intermediateCatchEvent id="n_FilterQ" name="Existing rewrite-gmail-filter queue">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="n_Row" name="Mapping row names what the sender saves Edit reopens the picker on it">
+      <bpmn:incoming>f_15</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sendTask id="n_Delete" name="Delete a selected readlist">
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:task id="n_Move" name="Existing deletion decorator keeps the sender's delivery mode">
+      <bpmn:incoming>f_16</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Entry" targetRef="n_Picker" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_Picker" targetRef="n_Mapped" />
+    <bpmn:sequenceFlow id="f_2" name="no" sourceRef="n_Mapped" targetRef="n_Issue" />
+    <bpmn:sequenceFlow id="f_3" name="yes, with a chosen mode" sourceRef="n_Mapped" targetRef="n_Current" />
+    <bpmn:sequenceFlow id="f_4" name="yes, mapped before modes existed" sourceRef="n_Mapped" targetRef="n_Legacy" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_Issue" targetRef="n_Save" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_Current" targetRef="n_Save" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_Legacy" targetRef="n_Save" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_Save" targetRef="n_Resolve" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_Resolve" targetRef="n_Changed" />
+    <bpmn:sequenceFlow id="f_11" name="yes" sourceRef="n_Changed" targetRef="n_Cancel" />
+    <bpmn:sequenceFlow id="f_12" name="no or first mapping" sourceRef="n_Changed" targetRef="n_Filter" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_Cancel" targetRef="n_Filter" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_Filter" targetRef="n_FilterQ" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_Resolve" targetRef="n_Row" />
+    <bpmn:sequenceFlow id="f_16" name="" sourceRef="n_Delete" targetRef="n_Move" />
+    <bpmn:association id="f_9" sourceRef="n_Resolve" targetRef="n_Senders" associationDirection="One" />
+    <bpmn:association id="f_17" sourceRef="n_Move" targetRef="n_Senders" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_delivery_choice">
+    <bpmndi:BPMNPlane id="Plane_delivery_choice" bpmnElement="Process_delivery_choice">
+      <bpmndi:BPMNShape id="n_Entry_di" bpmnElement="n_Entry">
+        <dc:Bounds x="212.88" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Picker_di" bpmnElement="n_Picker">
+        <dc:Bounds x="149.75" y="185" width="156.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Mapped_di" bpmnElement="n_Mapped">
+        <dc:Bounds x="303" y="311" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Issue_di" bpmnElement="n_Issue">
+        <dc:Bounds x="28" y="483" width="190.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Current_di" bpmnElement="n_Current">
+        <dc:Bounds x="254.25" y="481" width="170.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Legacy_di" bpmnElement="n_Legacy">
+        <dc:Bounds x="460.75" y="473" width="203.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Save_di" bpmnElement="n_Save">
+        <dc:Bounds x="251.38" y="599" width="189.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Resolve_di" bpmnElement="n_Resolve">
+        <dc:Bounds x="245.25" y="725" width="201.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Senders_di" bpmnElement="n_Senders">
+        <dc:Bounds x="452.82" y="863.75" width="175.56" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Changed_di" bpmnElement="n_Changed">
+        <dc:Bounds x="82.72" y="851" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Cancel_di" bpmnElement="n_Cancel">
+        <dc:Bounds x="255.13" y="1027" width="181.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Filter_di" bpmnElement="n_Filter">
+        <dc:Bounds x="247.38" y="1153" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FilterQ_di" bpmnElement="n_FilterQ">
+        <dc:Bounds x="326" y="1263" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Row_di" bpmnElement="n_Row">
+        <dc:Bounds x="223.82" y="868" width="193" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Delete_di" bpmnElement="n_Delete">
+        <dc:Bounds x="339.5" y="53.5" width="190.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Move_di" bpmnElement="n_Move">
+        <dc:Bounds x="342.25" y="185" width="200" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="232.88" y="68" />
+        <di:waypoint x="232.88" y="126.5" />
+        <di:waypoint x="228" y="126.5" />
+        <di:waypoint x="228" y="185" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="228" y="253" />
+        <di:waypoint x="228" y="282" />
+        <di:waypoint x="346" y="282" />
+        <di:waypoint x="346" y="311" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="346" y="397" />
+        <di:waypoint x="346" y="440" />
+        <di:waypoint x="123.13" y="440" />
+        <di:waypoint x="123.13" y="483" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="346" y="397" />
+        <di:waypoint x="346" y="439" />
+        <di:waypoint x="339.5" y="439" />
+        <di:waypoint x="339.5" y="481" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="346" y="397" />
+        <di:waypoint x="346" y="435" />
+        <di:waypoint x="562.38" y="435" />
+        <di:waypoint x="562.38" y="473" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="123.13" y="531" />
+        <di:waypoint x="123.13" y="565" />
+        <di:waypoint x="346" y="565" />
+        <di:waypoint x="346" y="599" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="339.5" y="533" />
+        <di:waypoint x="339.5" y="566" />
+        <di:waypoint x="346" y="566" />
+        <di:waypoint x="346" y="599" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="562.38" y="541" />
+        <di:waypoint x="562.38" y="570" />
+        <di:waypoint x="346" y="570" />
+        <di:waypoint x="346" y="599" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="346" y="667" />
+        <di:waypoint x="346" y="725" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="346" y="793" />
+        <di:waypoint x="346" y="822" />
+        <di:waypoint x="125.72" y="822" />
+        <di:waypoint x="125.72" y="851" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="125.72" y="937" />
+        <di:waypoint x="125.72" y="982" />
+        <di:waypoint x="346" y="982" />
+        <di:waypoint x="346" y="1027" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="125.72" y="937" />
+        <di:waypoint x="125.72" y="1045" />
+        <di:waypoint x="346" y="1045" />
+        <di:waypoint x="346" y="1153" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="346" y="1095" />
+        <di:waypoint x="346" y="1153" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="346" y="1205" />
+        <di:waypoint x="346" y="1263" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="346" y="793" />
+        <di:waypoint x="346" y="830.5" />
+        <di:waypoint x="320.32" y="830.5" />
+        <di:waypoint x="320.32" y="868" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="434.62" y="101.5" />
+        <di:waypoint x="434.62" y="143.25" />
+        <di:waypoint x="442.25" y="143.25" />
+        <di:waypoint x="442.25" y="185" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="346" y="793" />
+        <di:waypoint x="346" y="828.38" />
+        <di:waypoint x="540.6" y="828.38" />
+        <di:waypoint x="540.6" y="863.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="442.25" y="253" />
+        <di:waypoint x="442.25" y="558.38" />
+        <di:waypoint x="540.6" y="558.38" />
+        <di:waypoint x="540.6" y="863.75" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

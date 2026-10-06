@@ -1,3 +1,4 @@
+import type { GmailDeliveryMode } from "../gmail/gmail-delivery-mode";
 import type { UserId } from "../user";
 import type { InboxAddress } from "./inbox-address.schema";
 import type { InboxEmailStatus, MessageId } from "./inbox-email.schema";
@@ -15,6 +16,7 @@ export interface InboxEmailEntry {
 	messageId: MessageId;
 	recipientAddress: InboxAddress;
 	gmailDestinationAddresses?: [InboxAddress, ...InboxAddress[]];
+	gmailDeliveryMode?: GmailDeliveryMode;
 	senderEmail: string;
 	subject: string;
 	status: InboxEmailStatus;

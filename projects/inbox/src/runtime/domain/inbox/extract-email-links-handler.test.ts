@@ -88,6 +88,7 @@ function parsedOk(
 		ok: true,
 		email: {
 			from: "news@example.com",
+			fromName: "Example News",
 			subject: "Digest",
 			text: "",
 			html,
@@ -145,6 +146,11 @@ function makeHarness(opts?: {
 			typeof initExtractEmailLinksHandler
 		>[0]["publishEmailLinksTriaged"]
 	>[0][] = [];
+	const issues: Parameters<
+		Parameters<
+			typeof initExtractEmailLinksHandler
+		>[0]["publishSaveEmailIssue"]
+	>[0][] = [];
 	const addressReads: string[] = [];
 	const alerts: { found: number }[] = [];
 	const heldNotices: {
@@ -163,6 +169,7 @@ function makeHarness(opts?: {
 		| "preview"
 		| "submit"
 		| "triaged"
+		| "issue"
 	)[] = [];
 	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
 	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
@@ -211,6 +218,10 @@ function makeHarness(opts?: {
 			triaged.push(input);
 			if (opts?.failCustomPublish) throw new Error("custom publication failed");
 		},
+		publishSaveEmailIssue: async (input) => {
+			publishOrder.push("issue");
+			issues.push(input);
+		},
 		alertTruncated: async ({ found }) => {
 			alerts.push({ found });
 		},
@@ -244,6 +255,7 @@ function makeHarness(opts?: {
 		triageEmailLinks: opts?.triageEmailLinks ?? everythingIsAnArticle,
 		logger: HutchLogger.from(noopLogger),
 		maxLinks: opts?.maxLinks ?? 200,
+		appOrigin: "https://readplace.com",
 	});
 
 	const run = (body: string) =>
@@ -258,6 +270,7 @@ function makeHarness(opts?: {
 		published,
 		submitted,
 		triaged,
+		issues,
 		addressReads,
 		alerts,
 		heldNotices,
@@ -1299,10 +1312,95 @@ describe("initExtractEmailLinksHandler", () => {
 	});
 });
 
+describe("a Gmail newsletter whose reader keeps the issue", () => {
+	const issueRouting = (deliveryMode: "issue" | "both"): EmailReceivedDetail["routing"] => ({
+		kind: "gmail",
+		destinationAddresses: ["work-abc123@read.place"],
+		deliveryMode,
+	});
+
+	it("saves the issue itself, filed into its mapped readlists, instead of any of its links", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+		});
+
+		const result = await harness.run(eventBody({ routing: issueRouting("issue") }));
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(harness.issues).toEqual([
+			{
+				userId: USER,
+				receivedAtMessageId: RAM,
+				subject: "Digest",
+				senderEmail: "news@example.com",
+				senderName: "Example News",
+				issueUrl: "https://readplace.com/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E",
+				readlists: [WORK],
+			},
+		]);
+		expect([harness.submitted, harness.triaged]).toEqual([[], []]);
+	});
+
+	it("still previews the issue's links for saving by hand, and asks no readlist to choose among them", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+		});
+
+		await harness.run(eventBody({ routing: issueRouting("issue") }));
+
+		expect(harness.publishOrder).toEqual(["issue", "preview", "preview"]);
+		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(links.map(({ url, status }) => ({ url, status }))).toEqual([
+			{ url: "https://a.test/x", status: "pending" },
+			{ url: "https://b.test/y", status: "pending" },
+		]);
+		expect(meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined });
+	});
+
+	it("saves both the issue and its articles when the reader asked for both", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+		});
+
+		await harness.run(eventBody({ routing: issueRouting("both") }));
+
+		expect(harness.publishOrder).toEqual(["issue", "submit", "first-notice", "preview", "triaged"]);
+		expect(harness.submitted).toEqual([
+			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+		]);
+		expect(harness.triaged.map(({ readlist }) => readlist)).toEqual([WORK]);
+	});
+
+	it("holds the issue for a read-only reader and tells them once", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+			subscription: READ_ONLY_SUBSCRIPTION,
+		});
+
+		await harness.run(eventBody({ routing: issueRouting("both") }));
+
+		expect(harness.issues).toEqual([]);
+		expect(harness.heldNotices).toEqual([
+			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
+		]);
+	});
+
+	it("saves no issue for mail a backfill replays", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x" });
+
+		await harness.run(eventBody({ origin: "backfill", routing: issueRouting("issue") }));
+
+		expect([harness.issues, harness.heldNotices, harness.firstInboxNotices]).toEqual([[], [], []]);
+	});
+});
+
 describe("Gmail destination snapshots", () => {
 	it("publishes no custom outcomes when metadata fails and extraction reaches its dead-letter queue", async () => {
 		const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), failMeta: true });
-		const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } });
+		const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } });
 		for (let attempt = 0; attempt < 3; attempt += 1) {
 			expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 		}
@@ -1317,7 +1415,7 @@ describe("Gmail destination snapshots", () => {
 
 	it("preserves the Gmail snapshot and All article after custom publication fails, extraction reaches its dead-letter queue, and a rejection arrives", async () => {
 		const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), failCustomPublish: true });
-		const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } });
+		const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } });
 		expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 		const dlq = initExtractEmailLinksDlqHandler({ markLinksExtractionFailed: harness.linkStore.markLinksExtractionFailed, logger: noopLogger });
 		await dlq(buildSqsEvent([{ messageId: "extraction-dlq", body }]), buildLambdaContext(), () => {});
@@ -1348,6 +1446,7 @@ describe("Gmail destination snapshots", () => {
 				routing: {
 					kind: "gmail",
 					destinationAddresses: [workAddress, secondAddress, workAddress],
+					deliveryMode: "links",
 				},
 			}),
 		);
@@ -1390,6 +1489,7 @@ describe("Gmail destination snapshots", () => {
 				routing: {
 					kind: "gmail",
 					destinationAddresses: ["work-abc123@read.place"],
+					deliveryMode: "links",
 				},
 			}),
 		);
@@ -1416,6 +1516,7 @@ it("snapshots a retired custom list without exposing its internal slug", async (
 			routing: {
 				kind: "gmail",
 				destinationAddresses: ["old-abc123@read.place"],
+				deliveryMode: "links",
 			},
 		}),
 	);
@@ -1431,18 +1532,18 @@ it("snapshots a retired custom list without exposing its internal slug", async (
 
 it("snapshots every Gmail selection and settles empty custom inputs without sending a first-save notice", async () => {
 	const harness = makeHarness({ derivedHtml: "https://example.com/unsubscribe", inboxAddress: makeInboxAddress({ readlist: WORK }) });
-	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } }));
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } }));
 	expect(harness.triaged.map(({ readlist, links }) => ({ readlist, links }))).toEqual([{ readlist: WORK, links: [] }]);
 	expect(harness.firstInboxNotices).toEqual([]);
 	const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
 	expect(meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [] });
-	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } }));
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } }));
 	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual(meta);
 });
 
 it("captures Gmail custom selections for a read-only reader while holding both All and custom saves", async () => {
 	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), subscription: READ_ONLY_SUBSCRIPTION });
-	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } }));
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } }));
 	expect(harness.triaged).toEqual([]);
 	expect(harness.submitted).toEqual([]);
 	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true, readlistOutcomes: [] });
@@ -1450,7 +1551,7 @@ it("captures Gmail custom selections for a read-only reader while holding both A
 
 it("counts eligible articles for Gmail All-only mappings without custom filtering", async () => {
 	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
-	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["all-abc123@read.place"] } }));
+	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["all-abc123@read.place"], deliveryMode: "links" } }));
 	expect(harness.submitted.map(({ readlist }) => readlist)).toEqual([DEFAULT_READLIST_SLUG]);
 	expect(harness.triaged).toEqual([]);
 	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] });
@@ -1459,7 +1560,7 @@ it("counts eligible articles for Gmail All-only mappings without custom filterin
 it("keeps the full custom snapshot when a retry changes triage from noise to article", async () => {
 	let category: EmailLinkTriageCategory = "noise";
 	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), triageEmailLinks: async ({ links }) => ({ status: "triaged", categories: new Map(links.map(({ ordinal }) => [ordinal, category])) }) });
-	const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } });
+	const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } });
 	await harness.run(body);
 	category = "article";
 	await harness.run(body);
@@ -1471,7 +1572,7 @@ it("keeps the full custom snapshot when a retry changes triage from noise to art
 it("preserves a Gmail article's first eligibility when custom publication retries after triage changes to noise", async () => {
 	let category: EmailLinkTriageCategory = "article";
 	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), failCustomPublish: true, triageEmailLinks: async ({ links }) => ({ status: "triaged", categories: new Map(links.map(({ ordinal }) => [ordinal, category])) }) });
-	const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"] } });
+	const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } });
 	expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 	await harness.linkStore.setLinkOutcome({ userId: USER, receivedAtMessageId: RAM, ordinal: EmailLinkOrdinalSchema.parse("0000"), outcome: { status: "failed", failureReason: "Preview unavailable" } });
 	category = "noise";

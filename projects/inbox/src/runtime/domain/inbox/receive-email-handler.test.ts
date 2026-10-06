@@ -71,6 +71,7 @@ function parsedOk(): ParseEmailResult {
 		ok: true,
 		email: {
 			from: "news@example.com",
+			fromName: "Example News",
 			subject: "Digest",
 			text: "text",
 			html: "<p>hi</p>",
@@ -150,7 +151,7 @@ function makeHarness(opts?: {
 			opts?.routeGmailForwardedEmail ??
 			(async ({ recipientAddress, purpose }) => {
 				routings.push({ recipientAddress, purpose });
-				return [recipientAddress];
+				return { destinationAddresses: [recipientAddress], deliveryMode: "links" };
 			}),
 		logger: HutchLogger.from(noopLogger),
 		maxEmailBytes: opts?.maxEmailBytes ?? 20 * 1024 * 1024,
@@ -594,7 +595,7 @@ describe("initReceiveEmailHandler", () => {
 		let mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
 		const { addressStore, emailStore, rawMap, published, routings, run } =
 			makeHarness({
-				routeGmailForwardedEmail: async () => [mappedAddress],
+				routeGmailForwardedEmail: async () => ({ destinationAddresses: [mappedAddress], deliveryMode: "links" }),
 			});
 		const gateway = await mintGatewayAddress(addressStore);
 		const mapped = await addressStore.createAddress({
@@ -615,10 +616,43 @@ describe("initReceiveEmailHandler", () => {
 		assert.deepEqual(routings, []);
 	});
 
+	it("accepts gateway mail with what the reader chose its sender to save", async () => {
+		let mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
+		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
+			routeGmailForwardedEmail: async () => ({ destinationAddresses: [mappedAddress], deliveryMode: "issue" }),
+		});
+		const gateway = await mintGatewayAddress(addressStore);
+		const mapped = await addressStore.createAddress({
+			userId: OWNER,
+			domain: "read.place",
+			name: AliasNameSchema.parse("tldr"),
+			purpose: "gmail-mapped",
+		});
+		mappedAddress = mapped.address;
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(gateway);
+
+		const [email] = await listEmails(emailStore, OWNER);
+		assert.equal(email.gmailDeliveryMode, "issue");
+		assert.deepEqual(
+			published.map(({ detail }) => detail),
+			[
+				{
+					userId: OWNER,
+					receivedAtMessageId: `${RECEIVED_AT}#<real@x>`,
+					recipientAddress: mapped.address,
+					origin: "receive",
+					routing: { kind: "gmail", destinationAddresses: [mapped.address], deliveryMode: "issue" },
+				},
+			],
+		);
+	});
+
 	it("rejects gateway mail mapped to a disabled inbox and resumes delivery when it is enabled", async () => {
 		let mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
 		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
-			routeGmailForwardedEmail: async () => [mappedAddress],
+			routeGmailForwardedEmail: async () => ({ destinationAddresses: [mappedAddress], deliveryMode: "links" }),
 		});
 		const gateway = await mintGatewayAddress(addressStore);
 		const mapped = await addressStore.createAddress({
@@ -658,7 +692,7 @@ describe("initReceiveEmailHandler", () => {
 	it("audits gateway mail whose mapped inbox no longer resolves", async () => {
 		const mappedAddress = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
 		const { addressStore, emailStore, rawMap, run } = makeHarness({
-			routeGmailForwardedEmail: async () => [mappedAddress],
+			routeGmailForwardedEmail: async () => ({ destinationAddresses: [mappedAddress], deliveryMode: "links" }),
 		});
 		const gateway = await mintGatewayAddress(addressStore);
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
@@ -888,13 +922,13 @@ for (const change of ["removed", "retired"] as const) {
 		const gateway = await mintGatewayAddress(addressStore);
 		const readlist = ReadlistSlugSchema.parse("work");
 		const address = (await addressStore.getOrCreateReadlistAddress({ userId: OWNER, domain: "read.place", readlist })).address;
-		destinations = [address];
+		destinations = { destinationAddresses: [address], deliveryMode: "links" };
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 		expect((await run(gateway))?.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
 		if (change === "removed") destinations = undefined;
 		else await addressStore.retireReadlistAddress({ userId: OWNER, readlist });
 		expect((await run(gateway))?.batchItemFailures).toEqual([]);
-		expect(published.map(({ detail }) => detail)).toEqual([{ userId: OWNER, receivedAtMessageId: `${RECEIVED_AT}#<real@x>`, recipientAddress: address, origin: "receive", routing: { kind: "gmail", destinationAddresses: [address] } }]);
+		expect(published.map(({ detail }) => detail)).toEqual([{ userId: OWNER, receivedAtMessageId: `${RECEIVED_AT}#<real@x>`, recipientAddress: address, origin: "receive", routing: { kind: "gmail", destinationAddresses: [address], deliveryMode: "links" } }]);
 		expect(await listEmails(emailStore, OWNER)).toHaveLength(1);
 	});
 }

@@ -15,6 +15,7 @@ import {
 	type InboxEmailLinkEntry,
 	type InboxEmailLinkStore,
 	type InboxEmailStore,
+	inboxEmailPath,
 	type ParsedEmailInlineImage,
 	type ParseEmailResult,
 	UNROUTED_USER_ID,
@@ -39,6 +40,7 @@ import type {
 	SQSEvent,
 } from "aws-lambda";
 import { collectEmailAnchors } from "./collect-email-anchors";
+import { resolveEmailFanOut } from "./email-fan-out";
 import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
 
 const TRIAGED_ANCHOR_TEXT_MAX_CHARS = 120;
@@ -101,6 +103,15 @@ export function initExtractEmailLinksHandler(deps: {
 		subject: string;
 		links: { ordinal: EmailLinkOrdinal; url: string; anchorText: string }[];
 	}) => Promise<void>;
+	publishSaveEmailIssue: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		subject: string;
+		senderEmail: string;
+		senderName: string;
+		issueUrl: string;
+		readlists: ReadlistSlug[];
+	}) => Promise<void>;
 	alertTruncated: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
@@ -123,6 +134,7 @@ export function initExtractEmailLinksHandler(deps: {
 	triageEmailLinks: TriageEmailLinks;
 	logger: HutchLogger;
 	maxLinks: number;
+	appOrigin: string;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		getEmail,
@@ -136,6 +148,7 @@ export function initExtractEmailLinksHandler(deps: {
 		publishCrawlPreview,
 		publishSubmitLink,
 		publishEmailLinksTriaged,
+		publishSaveEmailIssue,
 		alertTruncated,
 		publishSaveHeldNotice,
 		publishFirstInboxEmailNotice,
@@ -146,6 +159,7 @@ export function initExtractEmailLinksHandler(deps: {
 		triageEmailLinks,
 		logger,
 		maxLinks,
+		appOrigin,
 	} = deps;
 
 	const findRoutedReadlist = async (input: {
@@ -279,6 +293,7 @@ export function initExtractEmailLinksHandler(deps: {
 
 				const canSubmit =
 					SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
+				const fanOut = resolveEmailFanOut(routing);
 				const writeAccess = canSubmit
 					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
 					: undefined;
@@ -312,6 +327,26 @@ export function initExtractEmailLinksHandler(deps: {
 				let held = 0;
 				let noticePublished = false;
 				let firstInboxNoticePublished = false;
+				if (canSubmit && fanOut.issue) {
+					if (writeAccess === "full") {
+						await publishSaveEmailIssue({
+							userId,
+							receivedAtMessageId,
+							subject: email.subject,
+							senderEmail: email.senderEmail,
+							senderName: parsedEmail.email.fromName,
+							issueUrl: `${appOrigin}${inboxEmailPath(receivedAtMessageId)}`,
+							readlists: [...customReadlists],
+						});
+					} else {
+						noticePublished = true;
+						await publishSaveHeldNotice({
+							userId,
+							receivedAtMessageId,
+							inboxAddress: recipientAddress,
+						});
+					}
+				}
 				const countStored = (status: EmailLinkStatus) => {
 					if (status === "skipped") skipped += 1;
 					else kept += 1;
@@ -368,7 +403,7 @@ export function initExtractEmailLinksHandler(deps: {
 					});
 					countStored(status);
 					const saveable =
-						canSubmit && validateSaveableUrl(url).status === "SUCCESS";
+						canSubmit && fanOut.links && validateSaveableUrl(url).status === "SUCCESS";
 					if ((routing.kind === "gmail" || customReadlists.size > 0) && saveable && status !== "skipped") {
 						triagedLinks.push({
 							ordinal,
@@ -435,7 +470,7 @@ export function initExtractEmailLinksHandler(deps: {
 					);
 				}
 
-				const decidingReadlists = writeAccess === "full" && (routing.kind === "gmail" || triagedLinks.length > 0) ? [...customReadlists] : [];
+				const decidingReadlists = writeAccess === "full" && fanOut.links && (routing.kind === "gmail" || triagedLinks.length > 0) ? [...customReadlists] : [];
 				const definitions =
 					routing.kind === "gmail" && customReadlists.size > 0
 						? await listReadlistDefinitions(userId)
@@ -486,7 +521,7 @@ export function initExtractEmailLinksHandler(deps: {
 							routedReadlist === undefined || triagedLinks.length === 0
 								? undefined
 								: { readlist: routedReadlist },
-						...(routing.kind === "gmail" && canSubmit
+						...(routing.kind === "gmail" && canSubmit && fanOut.links
 							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
 							: {}),
 					},
