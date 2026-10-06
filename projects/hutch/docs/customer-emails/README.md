@@ -1,20 +1,20 @@
 # Customer emails
 
-Every automated email Readplace sends to customers: who gets it, exactly when, and what it looks like. There are 13 emails. Twelve have their own template, and the readlist digest template has two sending modes with different rules, so it appears twice (the readlist digest and the trial-ending digest).
+Every automated email Readplace sends to customers: who gets it, exactly when, and what it looks like. There are 14 emails. Twelve have their own template, and the readlist digest template has three sending modes with different rules, so it appears three times (the readlist digest, the trial-ending digest and the Hacker News starter email).
 
 Each example was produced by running the real sending code (the route, Lambda handler or sender function that calls `sendEmail`) with in-memory fakes and example inputs, using the production origins `https://readplace.com` and `https://static.readplace.com`. The capture records the exact message handed to the mail provider. The HTML files in [`html/`](html/) are those bodies, byte for byte. The screenshots are Chromium renders of the same HTML at 800px and 390px wide, with the brand font Inter installed. Mail clients without Inter fall back to the system fonts in the template's font stack.
 
-Each email's conditions were traced through the code with `path:line` citations, then checked against the code by two independent reviews. The inventory reflects the code as of 2026-10-05. When an email's template, copy or trigger changes, update its section.
+Each email's conditions were traced through the code with `path:line` citations, then checked against the code by two independent reviews. The inventory reflects the code as of 2026-10-06. When an email's template, copy or trigger changes, update its section.
 
 ## How every email is delivered
 
 - All of these emails are sent by the `hutch` project through Resend (`projects/hutch/src/runtime/providers/email/resend-email.ts:8`). Resend authenticates on the `send.readplace.com` envelope subdomain; its SPF, MX and DKIM records are managed in Resend, outside Pulumi (`projects/hutch/src/infra/outbound-mail-auth.ts:15`).
 - Every production entry point wraps Resend in a filter that silently drops any message whose To address is at example.com, example.net or example.org, or under a .test, .example, .invalid or .localhost domain. The Bcc copy is dropped with it (`projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`).
-- With `PERSISTENCE=development` the local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:533`); with `PERSISTENCE=prod` it uses the production providers and sends through Resend (`projects/hutch/src/runtime/dev-app.ts:15`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
+- With `PERSISTENCE=development` the local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:538`); with `PERSISTENCE=prod` it uses the production providers and sends through Resend (`projects/hutch/src/runtime/dev-app.ts:15`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
 - The account emails (email verification, welcome, password reset) come from `Fayner from Readplace <fayner@readplace.com>`; every other email comes from `Readplace <readplace@readplace.com>`, the support address. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: through Reply-To on every email that sets one, which is every email except email verification and password reset, and through the From address on those two.
-- Nine emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the data export email and the Gmail newsletter notice have no Bcc.
-- Only the two digests carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that turning off their inbox addresses stops it.
-- Only the Gmail newsletter notice sets a Resend idempotency key. The rest rely on their own once-only markers, or on none.
+- Nine emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
+- Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link, and they share one opt-out. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that turning off their inbox addresses stops it.
+- Only the Gmail newsletter notice and the Hacker News starter email set a Resend idempotency key. The rest rely on their own once-only markers, or on none.
 
 ## At a glance
 
@@ -33,6 +33,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 | 11 | [First inbox email arrived](#11-first-inbox-email-arrived) | `Your first email landed in your Readplace inbox` | Seconds after the first email with a saveable article link is sent directly to one of the reader's Readplace addresses while the reader can save (a read-only reader gets Inbox saves paused instead, and this email waits for a later email after access returns); mail routed from Gmail never sends it; once per account, ever. | `readplace+first_inbox_email@readplace.com` |
 | 12 | [Gmail newsletter notice](#12-gmail-newsletter-notice) | `Choose readlists for {newsletterName}` | At the next 6-hourly check after an approved, unmapped newsletter mails a connected Gmail account or a seen sender becomes approved, once 3 days have passed since the reader's last notice email and the reader has a readlist besides All. | none |
 | 13 | [Data export ready](#13-data-export-ready) | `Your Readplace export is ready` | Seconds to minutes after a signed-in customer clicks Email Me My Data on /export; one email per click. | none |
+| 14 | [Hacker News starter email](#14-hacker-news-starter-email) | `Your Hacker News picks are ready` | Once per account, on a 6-hourly digest check after Readplace added ten Hacker News picks to an inactive reader's library, while at least one pick is still unread and 47.5h have passed since the reader's last digest. | none |
 
 ## 1. Email verification
 
@@ -40,7 +41,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 
 ### When it is sent
 
-A visitor creates a Readplace account by submitting the email and password signup form. They reach that form from the website, from the sign-up screen that the iOS app, browser extensions and AI assistants open (`projects/hutch/src/runtime/web/oauth/oauth.routes.ts:255`), or from the logged-out import review when they commit their links (`projects/hutch/src/runtime/web/pages/import/import.page.ts:125`). The email goes out straight away on that same request, with a "Verify email" button that works once and expires after 7 days; clicking it marks the email verified and sends the separate welcome email. Nothing re-sends it, and if the customer never verifies, the account is locked for new saves 7 days after signup.
+A visitor creates a Readplace account by submitting the email and password signup form. They reach that form from the website, from the sign-up screen that the iOS app, browser extensions and AI assistants open (`projects/hutch/src/runtime/web/oauth/oauth.routes.ts:253`), or from the logged-out import review when they commit their links (`projects/hutch/src/runtime/web/pages/import/import.page.ts:127`). The email goes out straight away on that same request, with a "Verify email" button that works once and expires after 7 days; clicking it marks the email verified and sends the separate welcome email. Nothing re-sends it, and if the customer never verifies, the account is locked for new saves 7 days after signup.
 
 Trigger chain:
 
@@ -48,7 +49,7 @@ Trigger chain:
 2. The visitor submits the form to POST /signup, which first passes the per-IP signup rate limit `projects/hutch/src/runtime/web/auth/auth.page.ts:278`
 3. The route runs the bot checks, the email and password rules and the existing-account lookup `projects/hutch/src/runtime/web/auth/auth.page.ts:327`
 4. It reads the user count and picks the founding-member (free) branch under 50 users or the 14-day trial branch at 50 or more `projects/hutch/src/runtime/web/auth/auth.page.ts:372`
-5. It creates the unverified account and provisions its Readplace inbox address `projects/hutch/src/runtime/server.ts:1158`
+5. It creates the unverified account and provisions its Readplace inbox address `projects/hutch/src/runtime/server.ts:1195`
 6. On the trial branch it starts the 14-day trial before creating the unverified session and hutch_sid cookie `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
 7. It calls sendVerificationEmail without waiting for it and redirects with a 303 (founding-member branch here, trial branch at line 427) `projects/hutch/src/runtime/web/auth/auth.page.ts:381`
 8. sendVerificationEmail stores a single-use 7-day token, builds the link with UTM tags and sends the message through Resend `projects/hutch/src/runtime/web/auth/auth.page.ts:167`
@@ -93,14 +94,14 @@ Not sent when:
 - The reserved-domain filter checks only the `to` address, and only the exact apex domains and the last label, so an address at mail.example.com is still sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
 - If counting users fails, the count is treated as 0, so the signup takes the founding-member (free) branch and the email is still sent `projects/hutch/src/runtime/web/auth/fetch-user-count.ts:14`
 - The user count behind the branch choice is cached for 60 seconds in production `projects/hutch/src/runtime/app.ts:76`
-- Requests on hutch-app.com are redirected with a 301 to readplace.com before the signup route runs `projects/hutch/src/runtime/server.ts:539`
+- Requests on hutch-app.com are redirected with a 301 to readplace.com before the signup route runs `projects/hutch/src/runtime/server.ts:577`
 - Any utm_* query value with characters outside [A-Za-z0-9._~-] gets a 400 before the route runs; the verification link's own UTM values pass this check `src/packages/web-analytics/src/utm-validation.middleware.ts:22`
 - If the rate-limit store errors, the request goes to the error handler as a 500 and no email is sent `projects/hutch/src/runtime/web/middleware/rate-limit.ts:44`
 - On the existing-account path, the per-account login limit (20 per 900 seconds in production) can also return a 429 `projects/hutch/src/runtime/web/auth/auth.page.ts:312`
 - The link's expiry is checked when it is used, so it stops working at exactly 7 days rather than whenever DynamoDB's TTL removes the row `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:74`
 - Account creation asserts the address does not start with the internal canonical# prefix, but the signup email validator already rejects '#', so this cannot stop a signup `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:223`
 - The deployed SSR Lambda always builds production providers, so it always sends through Resend whatever PERSISTENCE says `projects/hutch/src/runtime/app.ts:99`
-- The local server picks providers from PERSISTENCE; with development it only logs the message and keeps tokens in memory `projects/hutch/src/runtime/providers/dev-providers.ts:533`
+- The local server picks providers from PERSISTENCE; with development it only logs the message and keeps tokens in memory `projects/hutch/src/runtime/providers/dev-providers.ts:538`
 - The staging stack runs the same code with links to https://readplace-staging.com and a Resend key from the deploy environment, so staging signups attempt real sends (delivery unverified) `projects/hutch/Pulumi.staging.yaml:9`
 - The signup's return address or pending save never reaches the email: the link carries only the token and UTM tags, and the return address only shapes the redirect after signup `projects/hutch/src/runtime/web/auth/auth.page.ts:170`
 
@@ -192,8 +193,8 @@ Exact HTML body: [`html/email-verification--default.html`](html/email-verificati
 - `projects/hutch/src/runtime/web/auth/verification-email.ts:19` — renderer; adds the UTM tags to the link
 - `projects/hutch/src/runtime/web/auth/verification-email.template.html:1` — HTML template
 - `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:52` — token store: 64-hex token, 7-day expiry, single use
-- `projects/hutch/src/runtime/providers/prod-providers.ts:486` — production sender: reserved-domain filter wrapping Resend
-- `projects/hutch/src/runtime/server.ts:1174` — composition: wires the auth routes and sendEmail (line 1186)
+- `projects/hutch/src/runtime/providers/prod-providers.ts:516` — production sender: reserved-domain filter wrapping Resend
+- `projects/hutch/src/runtime/server.ts:1211` — composition: wires the auth routes and sendEmail (line 1186)
 - `projects/hutch/src/runtime/web/auth/auth.page.ts:578` — GET /verify-email: consumes the token, marks the email verified, sends the welcome email
 
 ## 2. Welcome email
@@ -213,7 +214,7 @@ Trigger chain:
 5. Alternatively, a Google sign-in for an email with no Readplace account creates the account and session and sends the welcome before redirecting; a trial account sends from the same callback after its trial starts `projects/hutch/src/runtime/web/auth/google-auth.page.ts:225`
 6. Apple sign-in does the same for a new account, founding member or trial `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:301`
 7. The sender builds the message (install link tagged utm_source=welcome-email, Fayner's avatar) and hands it to the mailer without waiting for the result `projects/hutch/src/runtime/web/auth/send-welcome-email.ts:24`
-8. In production the mailer drops reserved test domains, then sends through Resend `projects/hutch/src/runtime/providers/prod-providers.ts:486`
+8. In production the mailer drops reserved test domains, then sends through Resend `projects/hutch/src/runtime/providers/prod-providers.ts:516`
 
 Sent only when:
 
@@ -236,7 +237,7 @@ Not sent when:
 - More than 10 email+password signups from one IP in an hour get a 429 before any account exists `projects/hutch/Pulumi.prod.yaml:56`
 - A banned IP gets a 403 before any signup, verification or sign-in route runs `projects/hutch/src/runtime/web/middleware/ban.ts:28`
 - A Google or Apple sign-in that fails (state mismatch, started more than 5 minutes ago, failed code exchange, unverified provider email) or an Apple cancel creates no account and sends nothing `projects/hutch/src/runtime/web/auth/google-auth.page.ts:165`
-- Once the account-deletion worker has run for a deleted account, its verification link no longer works and sends nothing `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:197`
+- Once the account-deletion worker has run for a deleted account, its verification link no longer works and sends nothing `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:200`
 - In production, a recipient at example.com, example.net or example.org, or at a .test, .example, .invalid or .localhost domain, has the whole message dropped, bcc copy included, with the log '[email] reserved recipient domain — not sent' `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:33`
 
 **Timing:** Immediate, during the HTTP request, with nothing scheduled: email+password accounts get it when the verification link is first opened, from seconds up to 7 days (168 hours) after signup. Google and Apple accounts get it during the sign-in callback that creates the account, before the redirect.
@@ -254,7 +255,7 @@ Not sent when:
 - Errors after the send (marking the browser session verified, building the page banner) can return a 500 on the verify page even though the welcome already went out `projects/hutch/src/runtime/web/auth/auth.page.ts:611`
 - Reserved-domain matching is exact for example.com, example.net and example.org, so subdomains such as mail.example.com are still sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
 - Environments: the local dev server with PERSISTENCE=development logs the full message instead of sending it; with PERSISTENCE=prod it uses the production providers and sends real mail through Resend `projects/hutch/src/runtime/dev-app.ts:15`
-- Native apps: the iOS and Android Sign up and Login screens open /oauth/authorize, which sends a signed-out user to /signup or /login, so app signups follow the same web paths `projects/hutch/src/runtime/web/oauth/oauth.routes.ts:255`
+- Native apps: the iOS and Android Sign up and Login screens open /oauth/authorize, which sends a signed-out user to /signup or /login, so app signups follow the same web paths `projects/hutch/src/runtime/web/oauth/oauth.routes.ts:253`
 - Production picks the founding member or trial branch from a user count cached for 60 seconds, falling back to 0 (founding member) if counting fails; the welcome is identical either way `projects/hutch/src/runtime/app.ts:76`
 
 </details>
@@ -362,8 +363,8 @@ Exact HTML body: [`html/welcome--default.html`](html/welcome--default.html)
 - `projects/hutch/src/runtime/web/auth/auth.page.ts:578` — GET /verify-email handler, sends at line 607
 - `projects/hutch/src/runtime/web/auth/google-auth.page.ts:129` — Google callback, sends at lines 225 (founding member) and 284 (trial)
 - `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:165` — Apple callback, sends at lines 301 (founding member) and 363 (trial)
-- `projects/hutch/src/runtime/server.ts:1174` — composition root wiring the auth, Google and Apple routers to the mailer
-- `projects/hutch/src/runtime/providers/prod-providers.ts:486` — production mailer: reserved-domain filter around Resend
+- `projects/hutch/src/runtime/server.ts:1211` — composition root wiring the auth, Google and Apple routers to the mailer
+- `projects/hutch/src/runtime/providers/prod-providers.ts:516` — production mailer: reserved-domain filter around Resend
 
 ## 3. Password reset
 
@@ -382,7 +383,7 @@ Trigger chain:
 5. In the background, the users table is checked for a row keyed by the lower-cased address `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:413`
 6. A new single-use token (64 hex characters, expiring 3600 s later) is stored in the password-reset-tokens table `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:49`
 7. The email HTML is rendered with the reset link plus utm_source=password-reset-email, utm_medium=email and utm_content=reset-password `projects/hutch/src/runtime/web/auth/password-reset-email.ts:19`
-8. The message goes to the production sender, which skips reserved test domains and otherwise sends through Resend `projects/hutch/src/runtime/providers/prod-providers.ts:486`
+8. The message goes to the production sender, which skips reserved test domains and otherwise sends through Resend `projects/hutch/src/runtime/providers/prod-providers.ts:516`
 
 Sent only when:
 
@@ -399,7 +400,7 @@ Not sent when:
 - Rate limited: from the 6th request from one IP in the same UTC clock hour, the visitor gets a 429 "Too many requests from your network" response; every allowed request counts, including invalid and unknown addresses `projects/hutch/src/runtime/web/middleware/rate-limit.ts:36`
 - Banned visitor: a request from an IP on the ban list gets a 403 and never reaches the form handler `projects/hutch/src/runtime/web/middleware/ban.ts:28`
 - Reserved recipient domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address): the send is skipped with a logged warning, and the BCC copy is skipped too `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
-- Account purged: once the delete-account worker has removed the account's users row, the lookup finds nothing and no email is sent `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:205`
+- Account purged: once the delete-account worker has removed the account's users row, the lookup finds nothing and no email is sent `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:208`
 
 **Timing:** Sent immediately, in the same web request, right after the "Check your email" page is returned; there is no queue, schedule or delay. The link expires 3600 s (1 hour) after the token is created, and the per-IP rate-limit window resets at the top of every UTC hour.
 
@@ -411,16 +412,16 @@ Not sent when:
 - Mixed case: typing Sam.Reader@Gmail.com matches the account sam.reader@gmail.com, and the email is addressed to Sam.Reader@Gmail.com as typed, not to the stored address `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:86`
 - A whitespace-padded address or a repeated email field fails validation with a 422 before any lookup `projects/hutch/src/runtime/web/auth/auth.schema.ts:21`
 - Apple "Hide my email" accounts are stored under the address Apple returns, which is the private-relay address, so typing the customer's real address finds no account and sends nothing (unverified, from code reading) `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:259`
-- Legacy host: a POST on hutch-app.com gets a 301 to https://readplace.com before the route runs, the browser re-requests the page as a GET and shows the form again, and no email is sent and no rate-limit unit is used `projects/hutch/src/runtime/server.ts:539`
+- Legacy host: a POST on hutch-app.com gets a 301 to https://readplace.com before the route runs, the browser re-requests the page as a GET and shows the form again, and no email is sent and no rate-limit unit is used `projects/hutch/src/runtime/server.ts:577`
 - A malformed utm_* query value gets a 400 before the route runs `src/packages/web-analytics/src/utm-validation.middleware.ts:22`
 - If the rate-limit store fails, the visitor gets a 500 JSON error and no email is sent `projects/hutch/src/runtime/web/middleware/rate-limit.ts:44`
 - Requests with no resolvable client IP all share one "unknown" rate-limit bucket `projects/hutch/src/runtime/web/middleware/rate-limit.ts:12`
 - Requests that are denied by the rate limit do not add to the count, because the counter update is conditional `projects/hutch/src/runtime/providers/rate-limit/dynamodb-rate-limit.ts:43`
 - When a reserved domain skips the send, the token has already been written and stays until the DynamoDB TTL removes it `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:81`
 - A DynamoDB error, a Resend 4xx (EmailRejectedError) or a Resend 5xx or network failure in the background chain loses the email after one log line `projects/hutch/src/runtime/providers/email/resend-email.ts:27`
-- Account deletion race: the delete-account worker scrubs reset tokens before it deletes the users row, so a request in between still sends an email and leaves a fresh token that outlives the account until the TTL removes it `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:186`
+- Account deletion race: the delete-account worker scrubs reset tokens before it deletes the users row, so a request in between still sends an email and leaves a fresh token that outlives the account until the TTL removes it `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:189`
 - Staging runs the same code and sends real email through Resend, with links on https://readplace-staging.com and a limit of 5000 requests per IP per hour `projects/hutch/Pulumi.staging.yaml:49`
-- Local development with PERSISTENCE=development only logs the message, HTML included, and never sends, and its in-memory tokens never expire; the production web Lambda always runs with PERSISTENCE=prod `projects/hutch/src/runtime/providers/dev-providers.ts:533`
+- Local development with PERSISTENCE=development only logs the message, HTML included, and never sends, and its in-memory tokens never expire; the production web Lambda always runs with PERSISTENCE=prod `projects/hutch/src/runtime/providers/dev-providers.ts:538`
 
 </details>
 
@@ -428,7 +429,7 @@ Not sent when:
 >
 > - Every reset email is BCC'd to readplace+password_resets@readplace.com with the live single-use link, so anyone who can read that mailbox can reset any customer's password within the hour, and the reset signs the customer out of every session `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:87`
 > - Earlier links are not revoked: each request writes a new token, and a successful reset deletes only the token it used, so several reset links for one account work at once until each expires `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:57`
-> - Accounts that sign in only with Google or Apple get the email, and using the link gives them a password for the first time, although the copy says "set a new password" `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:532`
+> - Accounts that sign in only with Google or Apple get the email, and using the link gives them a password for the first time, although the copy says "set a new password" `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:534`
 > - Soft-deleted accounts still get the email between deletion and the purge, because the existence check ignores deletedAt, but the link always fails with "This reset link is invalid or has already been used." since the reset step skips deleted accounts `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:141`
 > - The only throttle is per IP: there is no per-recipient limit, no bot defence and no opt-out, so requests from many IPs could send repeated reset emails to one address `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:52`
 > - The send chain runs after the response, and the web Lambda handler returns as soon as the response finishes without waiting for it, so Lambda may freeze or reclaim the environment before the Resend call completes; no delay or loss has been observed in production (unverified) `projects/hutch/src/runtime/lambda.main.ts:63`
@@ -500,7 +501,7 @@ Exact HTML body: [`html/password-reset--default.html`](html/password-reset--defa
 - `projects/hutch/src/runtime/web/auth/password-reset-email.ts:19` — renderer: adds UTM tags to the reset URL and renders the template
 - `projects/hutch/src/runtime/web/auth/password-reset-email.template.html:22` — template: heading, one-hour expiry copy and Reset password button
 - `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:49` — token creation with 1-hour expiry
-- `projects/hutch/src/runtime/providers/prod-providers.ts:486` — composition root: wraps the Resend sender in the reserved-domain guard
+- `projects/hutch/src/runtime/providers/prod-providers.ts:516` — composition root: wraps the Resend sender in the reserved-domain guard
 - `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:30` — reserved-domain guard on the recipient
 - `projects/hutch/src/runtime/providers/email/resend-email.ts:8` — sender: Resend API call and 4xx/5xx error mapping
 
@@ -514,13 +515,13 @@ When a trialist reaches 96 hours before their trial ends, the next 6-hourly dige
 
 Trigger chain:
 
-1. EventBridge Scheduler `hutch-digest-flush` puts a trigger message on the digest-scan queue every 6 hours `projects/hutch/src/infra/index.ts:881`
-2. digest-scan lists trialing, active and pending_cancellation users and sends one SendUserDigestCommand per user `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:46`
-3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:143`
-4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:157`
+1. EventBridge Scheduler `hutch-digest-flush` puts a trigger message on the digest-scan queue every 6 hours `projects/hutch/src/infra/index.ts:933`
+2. digest-scan lists trialing, active and pending_cancellation users and sends one SendUserDigestCommand per user `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:52`
+3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:145`
+4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
 5. isPayDigestDue finds a trialing row inside [trialEndsAt − 96h, trialEndsAt − 60h) with no trial-ending digest yet, so the pay plan replaces the regular one `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:44`
 6. It picks up to 10 ready unread saves of any age and claims the pay marker (payDigestEmailSentAt) on the subscription row `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:189`
-7. It sends through Resend with the pay block, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:197`
+7. It sends through Resend with the pay block, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:200`
 8. When the trial reminder fires 48h before trial end, it sees the pay marker and skips `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
 
 Sent only when:
@@ -529,24 +530,24 @@ Sent only when:
 - The check runs at or after trialEndsAt − 96h `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:55`
 - The check runs before trialEndsAt − 60h `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:56`
 - No trial-ending digest has been sent in this trial window yet `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:58`
-- The user row exists and its email is verified `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:157`
-- The user has not unsubscribed from the readlist digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:158`
-- At least one save qualifies: it is in the All readlist and unread, at any age, including saves already listed in an earlier digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:297`
-- Its reader view has loaded, its content has not been purged, and it is not the consent-seed article `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:360`
-- Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:371`
-- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:29`
+- The user row exists and its email is verified `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
+- The user has not unsubscribed from the readlist digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:167`
+- At least one save qualifies: it is in the All readlist and unread, at any age, including saves already listed in an earlier digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:306`
+- Its reader view has loaded, its content has not been purged, and it is not the consent-seed article `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:369`
+- Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:382`
+- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:44`
 - The claim on the subscription row succeeds: the row is still trialing with the same trialEndsAt and no pay marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:196`
 
 Not sent when:
 
-- No user row or an unverified email: skipped with reason no-verified-email, and the trial reminder goes out 48h before trial end instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:157`
-- Unsubscribed from the readlist digest: this version is never sent either, and the trial reminder goes out instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:158`
+- No user row or an unverified email: skipped with reason no-verified-email, and the trial reminder goes out 48h before trial end instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
+- Unsubscribed from the readlist digest: this version is never sent either, and the trial reminder goes out instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:167`
 - The trialist pressed cancel (pending_cancellation): never sent `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:50`, and since the regular readlist digest only lists saves at least 30 days old `projects/hutch/src/runtime/domain/email/queue-digest-cadence.ts:7`, on a standard 14-day trial they get no readlist digest before access ends either
 - The trialist already chose a plan: their row is active, so they count as a paying member and get regular readlist digests only `src/packages/subscription-access/src/effective-access.ts:45`
 - Already sent in this trial window: not sent again `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:58`
 - Re-opening the trial window clears the once-only marker, so a trialist who cancels and then reactivates, or gets an admin trial extension, can receive it again `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:58`
-- No ready unread save on a check: skipped with reason pay-no-ready-saves and retried on the next check; if none of the window's 6 checks finds one, it never goes out and the trial reminder is sent instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:170`
-- Deleting an account does not stop it right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:180`
+- No ready unread save on a check: skipped with reason pay-no-ready-saves and retried on the next check; if none of the window's 6 checks finds one, it never goes out and the trial reminder is sent instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:179`
+- Deleting an account does not stop it right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:182`
 
 **Timing:** Sent on the first 6-hourly check at or after trialEndsAt − 96h that finds a ready unread save, and never at or after trialEndsAt − 60h; on a standard 14-day trial that is 10.0 to 11.5 days after signup, normally the first check of the window, 90 to 96h before the trial ends. On a standard trial no regular readlist digest comes before it, since none of the trialist's saves is 30 days old yet (after an admin extension one can, as little as 6h earlier); the next regular digest waits at least 7 days less 30 minutes (167.5h) after it, and the deadline it shows is trialEndsAt − 48h05m in UTC.
 
@@ -555,13 +556,13 @@ Not sent when:
 <details><summary>Edge cases</summary>
 
 - The pay claim requires the row to still be trialing with the same trialEndsAt; an admin extension or a cancel landing between the read and the claim makes that check log '[SendQueueDigest] pay-already-claimed' and send nothing `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:196`
-- A redelivered message that already holds the pay marker only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:252`
+- A redelivered message that already holds the pay marker only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:255`
 - The window is measured from the current trialEndsAt, so after an admin extension it moves with the new end date `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:52`
-- Saves are picked by the same reader as the readlist digest apart from the age floor and the emailed filter: All readlist only, 10-item cap, 50-candidate read budget, consent-seed URL match, and saves with no shared article row dropped `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:334`
+- Saves are picked by the same reader as the readlist digest apart from the age floor and the emailed filter: All readlist only, 10-item cap, 50-candidate read budget, consent-seed URL match, and saves with no shared article row dropped `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:343`
 - Recipients at reserved test domains are dropped by a wrapper that reports success, so the pay marker is still set and the trial reminder is then skipped for that account `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
-- queue_digest_sent records kind pay with hours_to_trial_end rounded down `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:296`
-- The deadline and end date are always formatted in UTC, whatever the reader's timezone `projects/hutch/src/runtime/web/queue-digest-email.ts:137`
-- Every deployed stack, staging included, sends it through Resend with that stack's APP_ORIGIN in the links `projects/hutch/src/infra/index.ts:781`
+- queue_digest_sent records kind pay with hours_to_trial_end rounded down `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:305`
+- The deadline and end date are always formatted in UTC, whatever the reader's timezone `projects/hutch/src/runtime/web/queue-digest-email.ts:158`
+- Every deployed stack, staging included, sends it through Resend with that stack's APP_ORIGIN in the links `projects/hutch/src/infra/index.ts:798`
 
 </details>
 
@@ -574,7 +575,7 @@ Not sent when:
 > - A trialist who pressed cancel gets neither this email nor the trial reminder, which also requires status trialing `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:276`.
 > - It shares the readlist digest's template, so the developer HTML comment in every card `projects/hutch/src/runtime/web/queue-digest-email.template.html:28` and the reply line without a closing period `projects/hutch/src/runtime/web/email-copy.ts:2` appear here too.
 > - On a standard 14-day trial `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:4` no save reaches the readlist digest's 30-day age floor `projects/hutch/src/runtime/domain/email/queue-digest-cadence.ts:7`, so a trialist gets no regular readlist digest: this email is the first and only readlist digest of the trial, and in the trial's first window none of the saves it lists has been emailed before.
-> - After an admin extension that leaves a trialist with saves at least 30 days old (the extension accepts any future end date `projects/hutch/src/runtime/domain/trial/resolve-trial-extension.ts:62`), they can get a regular readlist digest that says 'This is a one-time reminder about them.' `projects/hutch/src/runtime/web/queue-digest-email.ts:131`, and this email can then list the same saves again, because it ignores whether a save was already emailed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:297`.
+> - After an admin extension that leaves a trialist with saves at least 30 days old (the extension accepts any future end date `projects/hutch/src/runtime/domain/trial/resolve-trial-extension.ts:62`), they can get a regular readlist digest that says 'This is a one-time reminder about them.' `projects/hutch/src/runtime/web/queue-digest-email.ts:131`, and this email can then list the same saves again, because it ignores whether a save was already emailed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:306`.
 
 ### Message
 
@@ -707,13 +708,13 @@ Exact HTML body: [`html/trial-ending-digest--pay.html`](html/trial-ending-digest
 ### Source
 
 - `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:44` — isPayDigestDue: trialing, window, once per window
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:288` — pay plan: no age floor, any emailed state, pay claim and release
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:132` — pay intro '{n} articles you saved are ready to read.' (pay footer reason at :25)
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:135` — charge-terms paragraph, Keep Readplace link at :175, and at :95 the neutral Continue reading button with no Mark all as read
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:297` — pay plan: no age floor, any emailed state, pay claim and release
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:132` — pay intro '{n} articles you saved are ready to read.' (pay footer reason at :27)
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:161` — charge-terms paragraph, Keep Readplace link at :203, and at :151 the neutral Continue reading button with no Mark all as read
 - `projects/hutch/src/runtime/web/queue-digest-email.template.html:63` — pay block template
 - `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:189` — pay marker claim (release at :223)
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:197` — sender (sendEmail call)
-- `projects/hutch/src/runtime/send-user-digest.main.ts:88` — composition root
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:200` — sender (sendEmail call)
+- `projects/hutch/src/runtime/send-user-digest.main.ts:175` — composition root
 - `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297` — trial reminder skipped once this is sent
 
 ## 5. Trial pre-expiry reminder
@@ -731,7 +732,7 @@ Trigger chain:
 3. startTrial sets the fire time to the trial end minus 48 hours and creates the schedule only if that time is still ahead `projects/hutch/src/runtime/domain/trial/start-trial.ts:108`
 4. The scheduler creates trial-reminder-<userId>, a one-shot UTC schedule that deletes itself after it runs. When it fires, it puts SendTrialFeedbackEmailCommand {userId, kind: "reminder"} on the hutch event bus `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:226`
 5. startTrial writes the trialing row last. That write clears trialReminderEmailSentAt and the pay-digest marker, so a reopened trial gets its own reminder `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:58`
-6. When the schedule fires, the rule send-trial-feedback-email-command-rule forwards the command to send-trial-feedback-email-q, which invokes the send-trial-feedback-email-handler Lambda one message at a time `projects/hutch/src/infra/index.ts:1204`
+6. When the schedule fires, the rule send-trial-feedback-email-command-rule forwards the command to send-trial-feedback-email-q, which invokes the send-trial-feedback-email-handler Lambda one message at a time `projects/hutch/src/infra/index.ts:1256`
 7. The handler sends kind "reminder" to processReminder, which reads the subscription row and the email address again and runs the guards `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:82`
 8. processReminder counts the reader's saves, renders the email and sends it through Resend behind the reserved-domain filter. It then sets trialReminderEmailSentAt `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:327`
 
@@ -751,7 +752,7 @@ Not sent when:
 - Founding members never get it. Their signup returns before startTrial, so they have no trial and no subscription row `projects/hutch/src/runtime/web/auth/auth.page.ts:372`
 - Subscribing during the trial stops it. Landing on the checkout success page makes the reader active and deletes the reminder schedule, and the status guard drops any fire that still arrives `projects/hutch/src/runtime/web/auth/auth.page.ts:551`
 - Cancelling the trial stops it. The cancel job deletes the reminder schedule and the row moves to pending_cancellation `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:94`
-- Deleting the account stops it once the deletion job deletes the reminder schedule `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:134`
+- Deleting the account stops it once the deletion job deletes the reminder schedule `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:136`
 - A reader gets one reminder per trial window. Once trialReminderEmailSentAt is set, later fires are skipped until a reopened trial clears it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:290`
 - The trial-ending digest replaces it. If this trial's trial-ending digest has been claimed, the reminder is skipped. The trial-ending digest goes out 96 to 60 hours before the trial ends, and only to trialists with a verified email, no readlist-digest opt-out and at least one ready save `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
 - A trial that is reactivated or extended by an admin with 48 hours or less left gets no reminder, because the fire time has already passed `projects/hutch/src/runtime/domain/trial/start-trial.ts:110`
@@ -771,9 +772,9 @@ Not sent when:
 - A reserved-domain drop returns normally, so the handler still sets trialReminderEmailSentAt `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:338`
 - The recipient is the stored login email, lowercased and trimmed when the account was created, not exactly as the reader typed it `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:200`
 - Sign in with Apple accounts get it at whatever address Apple returned, which can be a @privaterelay.appleid.com relay address `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:325`
-- The save count is a COUNT over all of the reader's saves, read and unread, with no status filter `src/packages/article-store/src/dynamodb-saved-article-store.ts:513`
+- The save count is a COUNT over all of the reader's saves, read and unread, with no status filter `src/packages/article-store/src/dynamodb-saved-article-store.ts:533`
 - The charge reminder uses the same trialReminderEmailSentAt marker and is skipped when the marker is set, and becoming active does not clear it. They do conflict: the 48 hours 5 minutes check runs only when Checkout starts, so a reader who starts Checkout with at least that much left and finishes it after this reminder went out keeps the trial and gets a charge-reminder schedule, but that charge reminder is skipped and the reader is charged at trial end with no pre-charge notice (see the Pre-charge reminder's observations) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:380`
-- Local dev uses an in-memory scheduler that records schedules and never fires them, so the email is never sent locally `projects/hutch/src/runtime/providers/dev-providers.ts:166`
+- Local dev uses an in-memory scheduler that records schedules and never fires them, so the email is never sent locally `projects/hutch/src/runtime/providers/dev-providers.ts:170`
 
 </details>
 
@@ -787,7 +788,7 @@ Not sent when:
 > - There is no way to opt out. It ignores the queue-digest opt-out and has no List-Unsubscribe header or unsubscribe link, even though it is a nudge to subscribe `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:327`
 > - The copy always says the trial ends in 2 days, but the handler only checks that the end is still ahead. A late delivery, such as an SQS redrive or EventBridge Scheduler's default retries for up to 24 hours (from AWS docs, unverified in code), overstates the time left `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:283`
 > - A permanent Resend rejection (a 4xx, such as an invalid address) is retried like any other error. After 3 receives it lands in the DLQ and emails the alert address `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:99`
-> - The trial-ending digest's claim (payDigestEmailSentAt) is set before that digest is sent and is released only on a Resend 4xx. After a 5xx or network failure, the reminder is skipped even if the trial-ending digest never arrived `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:199`
+> - The trial-ending digest's claim (payDigestEmailSentAt) is set before that digest is sent and is released only on a Resend 4xx. After a 5xx or network failure, the reminder is skipped even if the trial-ending digest never arrived `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:210`
 > - The wording for the same email varies. The subject says "ends in 2 days", the HTML title says "Your Readplace trial ends soon", the button reads "Keep using Readplace", and the text part labels the same link "Subscribe:" `projects/hutch/src/runtime/web/auth/trial-reminder-email.template.html:36`
 > - Staging deploys the same Lambda and its own scheduler group, hutch-trial-end-staging, so staging trialists with real addresses may also get it through Resend (unverified: depends on staging's RESEND_API_KEY) `projects/hutch/Pulumi.staging.yaml:56`
 
@@ -1057,7 +1058,7 @@ Exact HTML body: [`html/trial-reminder--no-saved-articles.html`](html/trial-remi
 - `projects/hutch/src/runtime/domain/trial/start-trial.ts:70` — startTrial: opens the trial and creates the reminder schedule
 - `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:217` — creates and deletes the trial-reminder-<userId> schedule
 - `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:15` — fire time: trial end minus 2 days
-- `projects/hutch/src/infra/index.ts:1167` — queue, Lambda and event-bus subscription
+- `projects/hutch/src/infra/index.ts:1219` — queue, Lambda and event-bus subscription
 
 ## 6. Pre-charge reminder
 
@@ -1075,7 +1076,7 @@ Trigger chain:
 4. Stripe sends the browser back to /auth/checkout/success, which marks the membership active with the chosen plan and deletes the trial-end and trial pre-expiry reminder schedules `projects/hutch/src/runtime/web/auth/auth.page.ts:527`
 5. Because the pending signup carries a trial end, the route creates the one-shot schedule charge-reminder-{userId} for max(chargeAt − 7 days, now + 5 minutes) `projects/hutch/src/runtime/web/auth/auth.page.ts:560`
 6. Alternatively, a paid member reactivating a cancelled membership re-creates the same schedule when Stripe reports the subscription still on trial `projects/hutch/src/runtime/web/pages/account/account.page.ts:594`
-7. At that time EventBridge Scheduler puts SendTrialFeedbackEmailCommand {userId, kind: "charge_reminder", chargeAt} on the hutch event bus, and a rule routes it through the send-trial-feedback-email queue to its Lambda `projects/hutch/src/infra/index.ts:1204`
+7. At that time EventBridge Scheduler puts SendTrialFeedbackEmailCommand {userId, kind: "charge_reminder", chargeAt} on the hutch event bus, and a rule routes it through the send-trial-feedback-email queue to its Lambda `projects/hutch/src/infra/index.ts:1256`
 8. The Lambda re-reads the subscription row, runs its guards, sends through Resend and then stamps trialReminderEmailSentAt `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:404`
 
 Sent only when:
@@ -1098,7 +1099,7 @@ Not sent when:
 - The reader cancels first: processing the cancellation deletes the schedule, and reactivating re-creates it `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:68`
 - The membership is no longer active when the schedule fires, for example because the cancellation has been processed `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:366`
 - Once per trial window: a trial pre-expiry reminder or charge reminder already sent in this trial stops it, so a member who cancels and reactivates after the notice gets no second one, and a reader who finishes Checkout after the trial pre-expiry reminder went out gets none `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:380`
-- The reader deletes their account: the deletion job removes the schedule and then the subscription row `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:135`
+- The reader deletes their account: the deletion job removes the schedule and then the subscription row `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:137`
 - The charge instant has already passed, which happens when a member reactivates less than 5 minutes before the charge `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:373`
 - No email address is on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:389`
 - Recipients on example.com, example.net or example.org, or on a .test, .example, .invalid or .localhost domain, are dropped `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
@@ -1125,7 +1126,7 @@ Not sent when:
 - A command without chargeAt is logged as a warning and skipped; the only producer always sets it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:351`
 - If the row is deleted between the send and the marker write, the conditional write fails, the record is retried and the retry stops on "no subscription row" `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:159`
 - The at() expression drops milliseconds, so the schedule can fire up to 999 ms before the computed time `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:24`
-- Local and dev wiring use an in-memory trial scheduler, so this email never fires outside AWS `projects/hutch/src/runtime/providers/dev-providers.ts:166`
+- Local and dev wiring use an in-memory trial scheduler, so this email never fires outside AWS `projects/hutch/src/runtime/providers/dev-providers.ts:170`
 
 </details>
 
@@ -1135,7 +1136,7 @@ Not sent when:
 > - The amount is the list price from PRICING_PLANS, but Checkout accepts promotion codes, so readers with a discount, tax or credit are told a different first charge than Stripe takes; the /account page uses the invoice amount_due for this reason `projects/hutch/src/runtime/web/auth/charge-reminder-email.ts:42`, `projects/hutch/src/runtime/providers/stripe-subscriptions/stripe-subscriptions.ts:69`
 > - The charge date is a UTC calendar date with no time, so for readers west of UTC the charge can land the evening before the printed date while the copy says "Cancel any time before {chargeDate}" `projects/hutch/src/runtime/web/auth/charge-reminder-email.ts:33`
 > - Only the browser's return from Checkout arms the reminder, and there is no checkout.session.completed webhook, so a reader who closes the tab after paying is charged at trial end with no notice `projects/hutch/src/runtime/stripe-webhook-receiver.main.ts:33`
-> - Schedule-creation failures raise no alarm: none of the LogMetricFilters in the hutch stack (the first is at `projects/hutch/src/infra/index.ts:970`) match the log line, and the Scheduler target has no DeadLetterConfig `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:281`
+> - Schedule-creation failures raise no alarm: none of the LogMetricFilters in the hutch stack (the first is at `projects/hutch/src/infra/index.ts:1022`) match the log line, and the Scheduler target has no DeadLetterConfig `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:281`
 > - Duplicates are possible but not observed: the send happens before the marker write, there is no Resend idempotency key, and the marker is an unconditional SET rather than a claim like automation-saves-held, so a marker-write failure after a successful send, or two overlapping deliveries, can send twice `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:404`, `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:176`
 > - The reactivate path has no 48-hour floor: a member who reactivates hours before the charge gets the notice 5 minutes later, and one who reactivates under 5 minutes before gets none `projects/hutch/src/runtime/web/pages/account/account.page.ts:594`
 > - The 7-day lead follows a code comment saying Visa requires at least 7 days' notice and Mastercard caps it at 7 days (network rules unverified) `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:61`
@@ -1455,7 +1456,7 @@ Exact HTML body: [`html/charge-reminder--plan-unknown.html`](html/charge-reminde
 - `projects/hutch/src/runtime/web/auth/auth.page.ts:558` — trigger: Checkout return creates the schedule
 - `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:71` — chargeReminderFiresAt (7-day lead, 5-minute floor)
 - `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:263` — EventBridge Scheduler one-shot charge-reminder-{userId}
-- `projects/hutch/src/infra/index.ts:1194` — trigger infra: queue, SQS-backed Lambda, bus subscription
+- `projects/hutch/src/infra/index.ts:1246` — trigger infra: queue, SQS-backed Lambda, bus subscription
 
 ## 7. Payment failed
 
@@ -1467,12 +1468,12 @@ A member's card is declined when Stripe tries to collect a membership renewal. S
 
 Trigger chain:
 
-1. Stripe fails to collect a membership renewal and POSTs invoice.payment_failed to POST /webhooks/stripe `projects/hutch/src/infra/index.ts:1062`
+1. Stripe fails to collect a membership renewal and POSTs invoice.payment_failed to POST /webhooks/stripe `projects/hutch/src/infra/index.ts:1114`
 2. The stripe-webhook-receiver Lambda verifies the Stripe signature `projects/hutch/src/runtime/stripe-webhook-receiver/stripe-webhook-receiver-handler.ts:41`
 3. It dispatches the event to the invoice.payment_failed handler `projects/hutch/src/runtime/stripe-webhook-receiver.main.ts:38`
 4. The handler keeps only renewal invoices (billing_reason subscription_cycle) that have another retry scheduled `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:44`
 5. It finds the member's subscription row by Stripe subscription id, requires status active, and publishes SendTrialFeedbackEmailCommand {userId, kind: payment_failed} to EventBridge `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:83`
-6. An EventBridge rule routes the command to the send-trial-feedback-email-q SQS queue `projects/hutch/src/infra/index.ts:1204`
+6. An EventBridge rule routes the command to the send-trial-feedback-email-q SQS queue `projects/hutch/src/infra/index.ts:1256`
 7. The send-trial-feedback-email Lambda routes kind payment_failed to processPaymentFailed, which re-checks the membership is active and loads the account email `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:86`
 8. It renders the email and sends it through Resend behind the reserved-domain filter `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:457`
 
@@ -1531,7 +1532,7 @@ Not sent when:
 > - No dedup: there is no idempotency key or sent marker, so a member gets an identical copy for every qualifying failed attempt (the first failure, each non-final Stripe retry, any manual Dashboard or API retry) plus any duplicate Stripe delivery or SQS retry after an ambiguous Resend failure; the test names per-attempt sending as deliberate `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.test.ts:893`
 > - The copy promises "If every retry fails, the subscription cancels and your account goes read-only" `projects/hutch/src/runtime/web/auth/payment-failed-email.ts:27`; that holds only if Stripe's 'after all retries fail' setting cancels the subscription (Dashboard setting, unverified), because Readplace ends the membership only on customer.subscription.deleted `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/customer-subscription-deleted.ts:48`
 > - If Stripe automatic retries are turned off, next_payment_attempt is empty on the first failure and no member ever gets this email (Stripe behaviour, unverified) `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:53`
-> - A logged-out reader who clicks 'Update your card' is sent to /login with no return URL and lands on /queue after signing in, not on the account page, and the utm parameters are lost `projects/hutch/src/runtime/server.ts:514`
+> - A logged-out reader who clicks 'Update your card' is sent to /login with no return URL and lands on /queue after signing in, not on the account page, and the utm parameters are lost `projects/hutch/src/runtime/server.ts:522`
 > - A just-deleted account can still get the email: the email lookup does not skip soft-deleted users, so a webhook that lands between POST /account/delete and the async delete job (which deletes the Stripe customer and the subscription row) still sends `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
 > - There is no opt-out, unsubscribe header, email-verification or account-lock check at either stage, so every member who meets the conditions gets it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:423`
 > - When the reserved-domain filter drops a recipient, the handler still logs 'payment-failed email sent' `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:467`
@@ -1685,8 +1686,8 @@ Exact HTML body: [`html/payment-failed--default.html`](html/payment-failed--defa
 - `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:29` — webhook handler: invoice guards and command publish
 - `projects/hutch/src/runtime/stripe-webhook-receiver.main.ts:38` — webhook composition root wiring invoice.payment_failed
 - `projects/hutch/src/runtime/send-trial-feedback-email.main.ts:45` — email composition root: Resend wrapped in the reserved-domain filter
-- `projects/hutch/src/infra/index.ts:1059` — webhook infra: POST /webhooks/stripe route and receiver Lambda
-- `projects/hutch/src/infra/index.ts:1204` — EventBridge rule routing the command to send-trial-feedback-email-q
+- `projects/hutch/src/infra/index.ts:1111` — webhook infra: POST /webhooks/stripe route and receiver Lambda
+- `projects/hutch/src/infra/index.ts:1256` — EventBridge rule routing the command to send-trial-feedback-email-q
 
 ## 8. Trial feedback request
 
@@ -1727,7 +1728,7 @@ Not sent when:
 - A reader who starts a membership through checkout within the 3 days has an active row, so the send is skipped `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:124`
 - An admin extending a cancelled ex-trialist's trial deletes the pending trial-feedback schedule and puts the row back to trialing `projects/hutch/src/runtime/domain/trial/start-trial.ts:100`
 - A trialist who cancelled early and clicks Reactivate before the trial end date never reaches a final cancellation, so no schedule is created `projects/hutch/src/runtime/web/pages/account/account.page.ts:622`
-- Deleting the account removes the trial-feedback schedule during the asynchronous deletion scrub `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:133`
+- Deleting the account removes the trial-feedback schedule during the asynchronous deletion scrub `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:135`
 - No subscription row at send time, for example after account deletion, skips the send `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:117`
 - No email address on file skips the send `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:140`
 - A reserved test-domain recipient is dropped with a warning log, and the sent marker is still stamped `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:33`
@@ -1738,12 +1739,12 @@ Not sent when:
 
 <details><summary>Edge cases</summary>
 
-- The saved-article count is taken at send time, 3 days after the cancellation, over the reader's whole library (read and unread) with a paginated COUNT, and prints without a thousands separator, e.g. "saved 1500 articles" `projects/hutch/src/runtime/web/auth/trial-feedback-email.ts:32`, `src/packages/article-store/src/dynamodb-saved-article-store.ts:507`
+- The saved-article count is taken at send time, 3 days after the cancellation, over the reader's whole library (read and unread) with a paginated COUNT, and prints without a thousands separator, e.g. "saved 1500 articles" `projects/hutch/src/runtime/web/auth/trial-feedback-email.ts:32`, `src/packages/article-store/src/dynamodb-saved-article-store.ts:527`
 - The cancel reason never changes the content; every trial reason produces the same email `projects/hutch/src/runtime/web/auth/trial-feedback-email.ts:46`
 - The recipient is the address stored at signup, lowercased and trimmed with plus-tags kept `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:200`; Gmail uniqueness-claim rows carry ownerUserId instead of userId, so the userId-index lookup never returns a claim key `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:84`
 - The address is not checked for verification before sending `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
 - Staging deploys the same Lambda with its own Resend wiring and a founding allocation of 5 accounts, so staging trial accounts receive this email too `projects/hutch/Pulumi.staging.yaml:80` (prod is 50 at `projects/hutch/Pulumi.prod.yaml:87`)
-- Local dev never sends it: the handler is wired only in the Lambda composition root, and dev uses an in-memory trial scheduler that records schedules but never fires them `projects/hutch/src/runtime/providers/dev-providers.ts:166`
+- Local dev never sends it: the handler is wired only in the Lambda composition root, and dev uses an in-memory trial scheduler that records schedules but never fires them `projects/hutch/src/runtime/providers/dev-providers.ts:170`
 - The command must carry no kind; kind "feedback" is accepted for backward compatibility but no producer emits it, and every other kind selects a different email from the same Lambda `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:97`, `src/packages/hutch-infra-components/src/events.ts:836`
 - Any CancelSubscriptionCommand processed while the row is pending_cancellation makes the cancellation final at once: a second POST /account/cancel, a duplicate delivery of the trial_expired_no_card command, or a retry after a cancel-<userId> name conflict; the email then goes out 3 days after that instead of at trialEndsAt + 1 hour + 3 days `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:109`
 - A redelivered SubscriptionCancelled deletes and recreates the schedule, which pushes the send time later `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:59`
@@ -1759,7 +1760,7 @@ Not sent when:
 >
 > - A stale schedule can email a churned paying member: checkout success deletes only the trial-end and trial-reminder schedules `projects/hutch/src/runtime/web/auth/auth.page.ts:550`, and the send step checks only status === cancelled `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:124`, so a cancelled trialist who starts a membership within the 3 days and is cancelled again (for example Stripe-side) before the schedule fires gets this trial email.
 > - Duplicate risk: the send happens before the marker write with no idempotency key `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:160`, while the automation-saves-held email in the same file claims its marker first `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:219`.
-> - A reader who deleted their account can still get it: findEmailByUserId ignores the deletedAt soft-delete marker `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`, so a schedule that fires between POST /account/delete `projects/hutch/src/runtime/web/pages/account/account.page.ts:550` and the scrub removing it `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:133`, or after the scrub lands in the DLQ, still sends.
+> - A reader who deleted their account can still get it: findEmailByUserId ignores the deletedAt soft-delete marker `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`, so a schedule that fires between POST /account/delete `projects/hutch/src/runtime/web/pages/account/account.page.ts:550` and the scrub removing it `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:135`, or after the scrub lands in the DLQ, still sends.
 > - Trialists see only Subscribe on the account page, never Cancel `projects/hutch/src/runtime/web/pages/account/account.view-model.ts:505`, so nearly every recipient's trial simply ran out, yet the copy says they "decided not to continue" `projects/hutch/src/runtime/web/auth/trial-feedback-email.ts:37`.
 > - trial_expired_charge_failed is in the accepted reasons but cannot occur: upsertTrialing removes customerId and only upsertActive, which sets status active, writes it, so a trialing row always takes the no-card branch `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:58`.
 > - The HTML <title> differs from the subject and has typos: "Hii Fayner here! So you tried Readplace.. what was missing?" `projects/hutch/src/runtime/web/auth/trial-feedback-email.template.html:6`.
@@ -2006,7 +2007,7 @@ Exact HTML body: [`html/trial-feedback--no-articles.html`](html/trial-feedback--
 - `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:44` — handler: keeps trial reasons and arms the 3-day schedule
 - `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:166` — trigger infra: trial-feedback-<userId> one-shot EventBridge Scheduler
 - `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:84` — handler: trial cancel at trialEndsAt + 1 hour and the SubscriptionCancelled reason
-- `projects/hutch/src/infra/index.ts:1167` — trigger infra: send-trial-feedback-email queue, Lambda and event-bus subscription
+- `projects/hutch/src/infra/index.ts:1219` — trigger infra: send-trial-feedback-email queue, Lambda and event-bus subscription
 
 ## 9. Inbox saves paused
 
@@ -2089,13 +2090,13 @@ Not sent when:
 > **Observations**
 >
 > - The marker is claimed before rendering and sending, so delivery is at-most-once: a Resend rejection, Resend outage or render error loses the notice for the whole lapse, never reaches the DLQ alarm and leaves only an error log `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:219`
-> - The reassurance says the held email and articles "go back to saving automatically once your subscription is active again", but nothing resubmits held links on reactivation: only new mail saves automatically, and held links must be saved one at a time from the inbox, a route that needs write access `projects/inbox/src/runtime/web/pages/inbox/inbox.page.ts:493`
+> - The reassurance says the held email and articles "go back to saving automatically once your subscription is active again", but nothing resubmits held links on reactivation: only new mail saves automatically, and held links must be saved one at a time from the inbox, a route that needs write access `projects/inbox/src/runtime/web/pages/inbox/inbox.page.ts:495`
 > - Starting or retrying a Gmail history import needs write access, but the import worker and ingest never re-check it, so an import still running after the lapse triggers this notice on old mail while the copy says the email "just arrived" `projects/hutch/src/runtime/web/auth/automation-saves-held-email.ts:32`
 > - Turning inbox addresses off is the only opt-out the email offers; no unsubscribe header or email preference is consulted `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:248`
 > - Because AI triage fails open, an email with no real articles (only menu or ad links) can trigger the notice when DeepSeek is unavailable `projects/inbox/src/runtime/domain/inbox/triage-email-links.ts:133`
 > - Unverified and locked accounts receive the notice, since the send handler checks neither `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:209`
 > - The no-address and plain-/inbox branches cannot be reached from the only publisher, which always sends both fields `projects/inbox/src/runtime/extract-email-links.main.ts:126`
-> - The infra comment for this Lambda names only the Scheduler and stripe-webhook-receiver as callers and lists four kinds, omitting the inbox extractor and automation_saves_held `projects/hutch/src/infra/index.ts:1136`
+> - The infra comment for this Lambda names only the Scheduler and stripe-webhook-receiver as callers and lists four kinds, omitting the inbox extractor and automation_saves_held `projects/hutch/src/infra/index.ts:1188`
 > - Cosmetic: the HTML <title> is capitalised while the subject is lowercase, the opening uses " - " as a dash, the reply line has no closing period, and the reactivate link goes out with raw & while the other links are entity-escaped; all render correctly `projects/hutch/src/runtime/web/auth/automation-saves-held-email.template.html:6`
 
 ### Message
@@ -2226,7 +2227,7 @@ Exact HTML body: [`html/automation-saves-held--no-inbox-address.html`](html/auto
 - `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:167` — once-per-lapse marker claim
 - `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:391` — held-save decision that requests the notice
 - `projects/inbox/src/runtime/extract-email-links.main.ts:126` — publishSaveHeldNotice wired to SendTrialFeedbackEmailCommand
-- `projects/hutch/src/infra/index.ts:1167` — send-trial-feedback-email queue, Lambda, DLQ alarm and EventBridge subscription (:1204)
+- `projects/hutch/src/infra/index.ts:1219` — send-trial-feedback-email queue, Lambda, DLQ alarm and EventBridge subscription (:1204)
 
 ## 10. Readlist digest
 
@@ -2238,43 +2239,43 @@ Every 6 hours Readplace checks every trialist and paying member. If at least 7 d
 
 Trigger chain:
 
-1. EventBridge Scheduler `hutch-digest-flush` puts a trigger message on the digest-scan queue every 6 hours `projects/hutch/src/infra/index.ts:881`
-2. digest-scan lists every user whose subscription is trialing, active or pending_cancellation and sends one SendUserDigestCommand per user to the send-user-digest queue `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:46`
-3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:143`
-4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:157`
+1. EventBridge Scheduler `hutch-digest-flush` puts a trigger message on the digest-scan queue every 6 hours `projects/hutch/src/infra/index.ts:933`
+2. digest-scan lists every user whose subscription is trialing, active or pending_cancellation and sends one SendUserDigestCommand per user to the send-user-digest queue `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:52`
+3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:145`
+4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
 5. The trial-ending digest is not due, so the regular plan applies `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:164`
-6. The regular plan holds if under 7 days less 30 minutes (167.5h) have passed since the last regular or trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:281`
-7. It picks up to 10 qualifying saves and claims the user's digest slot on the reader-ready-notifications row `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
-8. It signs a mark-read token over the user id and the ids of the listed saves for the Mark all as read button `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:193`
-9. It sends through Resend, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:197`
+6. The regular plan holds if under 7 days less 30 minutes (167.5h) have passed since the last regular or trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:284`
+7. It picks up to 10 qualifying saves and claims the user's digest slot on the reader-ready-notifications row `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:181`
+8. It signs a mark-read token over the user id and the ids of the listed saves for the Mark all as read button `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:292`
+9. It sends through Resend, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:200`
 
 Sent only when:
 
 - The user's subscription status is trialing, active or pending_cancellation, so the 6-hourly scan includes them `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:15`
-- The user row exists and its email is verified `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:157`
-- The user has not unsubscribed from this digest; it is on by default `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:158`
-- Access is trial (trialing before trialEndsAt, or a cancelled trial before its end date) or paid (an active membership, including a trialist who already chose a plan, or a cancelled membership before its end date) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:159`
+- The user row exists and its email is verified `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
+- The user has not unsubscribed from this digest; it is on by default `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:167`
+- Access is trial (trialing before trialEndsAt, or a cancelled trial before its end date) or paid (an active membership, including a trialist who already chose a plan, or a cancelled membership before its end date) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:168`
 - The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:164`
-- At least 7 days less 30 minutes (167.5h) have passed since the later of the last regular digest and the trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:281`
-- At least one save qualifies: it is in the All readlist, unread, and was saved at least 30 days before this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:278`
-- The save was never listed in an earlier regular or trial-ending digest `src/packages/article-store/src/dynamodb-saved-article-store.ts:615`
-- Its reader view has loaded, its content has not been purged, and it is not the consent-seed article (the one saved automatically when a user with no saves first authorizes an external app or AI assistant) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:360`
-- Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:371`
-- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:29`
+- At least 7 days less 30 minutes (167.5h) have passed since the later of the last regular digest and the trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:284`
+- At least one save qualifies: it is in the All readlist, unread, and was saved at least 30 days before this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:281`
+- The save was never listed in an earlier regular or trial-ending digest `src/packages/article-store/src/dynamodb-saved-article-store.ts:635`
+- Its reader view has loaded, its content has not been purged, and it is not the consent-seed article (the one saved automatically when a user with no saves first authorizes an external app or AI assistant) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:369`
+- Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:382`
+- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:44`
 - No other message claimed this user's digest slot in the last 5.5h `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:60`
 
 Not sent when:
 
-- No user row or an unverified email: skipped, and queue_digest_skipped is recorded with reason no-verified-email `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:157`
+- No user row or an unverified email: skipped, and queue_digest_skipped is recorded with reason no-verified-email `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
 - Unsubscribed, either by confirming on the page behind the email's Stop these emails link or through the mail client's one-click unsubscribe: skipped for good with reason unsubscribed `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page.ts:68`
-- Founding members (no subscription row), expired trials, cancelled memberships and cancellations past their end date: never sent, logged only with no analytics event `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:159`
-- Under 7 days less 30 minutes (167.5h) since the last regular or trial-ending digest: held and logged as cadence `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:281`
+- Founding members (no subscription row), expired trials, cancelled memberships and cancellations past their end date: never sent, logged only with no analytics event `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:168`
+- Under 7 days less 30 minutes (167.5h) since the last regular or trial-ending digest: held and logged as cadence `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:284`
 - A trialist inside [trialEndsAt − 96h, trialEndsAt − 60h) who has not had the trial-ending digest gets that version instead on every check until it is sent `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:164`
-- No qualifying save: skipped with reason no-eligible-items; nothing is recorded, so a later check can still send `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:170`
-- Saves under 30 days old are not listed yet; because a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33`, a trialist whose trial was not extended holds no qualifying save and is skipped with reason no-eligible-items on every check outside the trial-ending window `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:278`
-- A save listed in any earlier digest, regular or trial-ending, is stamped once and never listed in a regular digest again, so a user whose waiting saves were all listed gets nothing `src/packages/article-store/src/dynamodb-saved-article-store.ts:1214`
-- Saves whose summary was skipped or failed, or whose reader view never loads, are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:371`
-- Deleting an account does not stop the digest right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:180`
+- No qualifying save: skipped with reason no-eligible-items; nothing is recorded, so a later check can still send `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:179`
+- Saves under 30 days old are not listed yet; because a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33`, a trialist whose trial was not extended holds no qualifying save and is skipped with reason no-eligible-items on every check outside the trial-ending window `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:281`
+- A save listed in any earlier digest, regular or trial-ending, is stamped once and never listed in a regular digest again, so a user whose waiting saves were all listed gets nothing `src/packages/article-store/src/dynamodb-saved-article-store.ts:1270`
+- Saves whose summary was skipped or failed, or whose reader view never loads, are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:382`
+- Deleting an account does not stop the digest right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:182`
 
 **Timing:** Checked every 6 hours by an EventBridge Scheduler rate(6 hours) schedule whose clock times depend on when it was created (the examples assume 03:12, 09:12, 15:12 and 21:12 UTC). A user gets it at most once per 7 days less 30 minutes (167.5h) after their last regular or trial-ending digest, which is every 7 days (every 28th check) while unlisted saves keep turning 30 days old; the 30 minutes stop a few minutes of processing delay from holding the 28th check. A save first qualifies on the first check at least 30 days after it was saved.
 
@@ -2282,38 +2283,38 @@ Not sent when:
 
 <details><summary>Edge cases</summary>
 
-- A save that exists only in a named readlist (removed from All) is never read, because the query covers only the All readlist partition `src/packages/article-store/src/dynamodb-saved-article-store.ts:622`
-- Re-saving an article moves its savedAt forward, which restarts the 30-day wait, but keeps its read status and its emailSentAt stamp `src/packages/article-store/src/dynamodb-saved-article-store.ts:410`
-- A save whose shared article row is missing is dropped without notice `src/packages/article-store/src/dynamodb-saved-article-store.ts:598`
-- Each check reads at most 50 candidate saves, newest first; unready saves are never stamped and are re-read every check, so a user whose 50 newest unread saves are all unready never sees older ready ones `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:350`
-- The consent-seed exclusion matches by URL, so a user who saves that fagnerbrack.com article themselves never sees it in a digest either `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:360`
-- The query also accepts saves whose emailSentAt equals this run's instant, but that never matches: each receive takes a fresh time and a redelivery finishes from the URLs stored with its claim `src/packages/article-store/src/dynamodb-saved-article-store.ts:615`
+- A save that exists only in a named readlist (removed from All) is never read, because the query covers only the All readlist partition `src/packages/article-store/src/dynamodb-saved-article-store.ts:642`
+- Re-saving an article moves its savedAt forward, which restarts the 30-day wait, but keeps its read status and its emailSentAt stamp `src/packages/article-store/src/dynamodb-saved-article-store.ts:423`
+- A save whose shared article row is missing is dropped without notice `src/packages/article-store/src/dynamodb-saved-article-store.ts:618`
+- Each check reads at most 50 candidate saves, newest first; unready saves are never stamped and are re-read every check, so a user whose 50 newest unread saves are all unready never sees older ready ones `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:353`
+- The consent-seed exclusion matches by URL, so a user who saves that fagnerbrack.com article themselves never sees it in a digest either `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:369`
+- The query also accepts saves whose emailSentAt equals this run's instant, but that never matches: each receive takes a fresh time and a redelivery finishes from the URLs stored with its claim `src/packages/article-store/src/dynamodb-saved-article-store.ts:635`
 - The 7-day gap check uses eventually consistent reads; the 5.5h conditional claim is the only atomic guard against a duplicate `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:119`
-- Another message for the same user already holds the slot (for example after a scan tick is redelivered): this one logs '[SendQueueDigest] rate-limited' and sends nothing `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:326`
-- A redelivered message that already holds the claim only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:239`
-- If stamping a save fails after the send, the error is logged and that save can be listed again in a later digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:406`
+- Another message for the same user already holds the slot (for example after a scan tick is redelivered): this one logs '[SendQueueDigest] rate-limited' and sends nothing `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:335`
+- A redelivered message that already holds the claim only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:242`
+- If stamping a save fails after the send, the error is logged and that save can be listed again in a later digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:417`
 - Recipients at example.com, example.net or example.org, or under .test, .example, .invalid or .localhost, are dropped by a wrapper that reports success, so the handler still claims, stamps the saves and records queue_digest_sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
-- Every deployed stack, staging included, runs this Lambda and sends through Resend with that stack's APP_ORIGIN in the links; the local dev server has no wiring for this email `projects/hutch/src/infra/index.ts:781`
-- A failed per-user dispatch in the scan is logged and that user waits for the next 6h check; if the scan itself fails, the whole tick is retried after 120s and the cadence check and claim prevent duplicates `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:45`
-- An unverified or unsubscribed user whose access has ended still records queue_digest_skipped with tier inactive, because those gates run before the tier gate `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:153`
+- Every deployed stack, staging included, runs this Lambda and sends through Resend with that stack's APP_ORIGIN in the links; the local dev server has no wiring for this email `projects/hutch/src/infra/index.ts:798`
+- A failed per-user dispatch in the scan is logged and that user waits for the next 6h check; if the scan itself fails, the whole tick is retried after 120s and the cadence check and claim prevent duplicates `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:51`
+- An unverified or unsubscribed user whose access has ended still records queue_digest_skipped with tier inactive, because those gates run before the tier gate `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
 - Opening the Mark all as read link only shows a confirm page ('Mark these articles as read?'); nothing is marked until the reader presses that page's Mark all as read button, which posts the form, so a mail scanner that opens every link marks nothing `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:51` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:70`
-- Confirming marks each listed save read in the first readlist that still holds it (All first, then the reader's other readlists) and in every other readlist that holds the same save, so a save moved out of All since the email is still marked read. Only a save the reader deleted from every readlist is skipped, but the done page still says all {N} articles were marked as read, because it counts the ids in the link `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:43` `src/packages/article-store/src/dynamodb-saved-article-store.ts:962` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:80` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:57`
+- Confirming marks each listed save read in the first readlist that still holds it (All first, then the reader's other readlists) and in every other readlist that holds the same save, so a save moved out of All since the email is still marked read. Only a save the reader deleted from every readlist is skipped, but the done page still says all {N} articles were marked as read, because it counts the ids in the link `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:43` `src/packages/article-store/src/dynamodb-saved-article-store.ts:1002` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:80` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:57`
 - A changed or cut-off Mark all as read link shows 'Couldn't read this mark-as-read link' with status 400 and marks nothing `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.component.ts:59`
 
 </details>
 
 > **Observations**
 >
-> - In practice the readlist digest reaches only paying members and pending cancellations: a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33` and every save is stamped with the time it was made, imports included `projects/hutch/src/runtime/web/pages/import/import.page.ts:361`, so a trialist never holds a 30-day-old save unless an operator extends or re-opens the trial at /admin/extend-trial `projects/hutch/src/runtime/web/pages/admin/extend-trial.page.ts:169`. The trial-ending digest is the only digest a trialist gets.
-> - The readlist digest calls itself 'a one-time reminder' about the articles it lists `projects/hutch/src/runtime/web/queue-digest-email.ts:130` `projects/hutch/src/runtime/web/queue-digest-email.ts:24`, but a save whose emailSentAt stamp fails after the send can be listed again `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:406`, and so can a save the reader deletes and saves again, because deleting removes the stamped row `src/packages/article-store/src/dynamodb-saved-article-store.ts:815`.
-> - Each weekly digest lists at most 10 saves, newest first `projects/hutch/src/runtime/send-user-digest.main.ts:29`, so when more than 10 unlisted saves turn 30 days old in a week, the rest are listed only in a later week when fewer than 10 newer ones qualify; a reader who keeps leaving more than 10 saves a week unread is never reminded about the older ones `src/packages/article-store/src/dynamodb-saved-article-store.ts:631`.
+> - In practice the readlist digest reaches only paying members and pending cancellations: a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33` and every save is stamped with the time it was made, imports included `projects/hutch/src/runtime/web/pages/import/import.page.ts:364`, so a trialist never holds a 30-day-old save unless an operator extends or re-opens the trial at /admin/extend-trial `projects/hutch/src/runtime/web/pages/admin/extend-trial.page.ts:169`. The trial-ending digest is the only digest a trialist gets.
+> - The readlist digest calls itself 'a one-time reminder' about the articles it lists `projects/hutch/src/runtime/web/queue-digest-email.ts:130` `projects/hutch/src/runtime/web/queue-digest-email.ts:26`, but a save whose emailSentAt stamp fails after the send can be listed again `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:417`, and so can a save the reader deletes and saves again, because deleting removes the stamped row `src/packages/article-store/src/dynamodb-saved-article-store.ts:868`.
+> - Each weekly digest lists at most 10 saves, newest first `projects/hutch/src/runtime/send-user-digest.main.ts:44`, so when more than 10 unlisted saves turn 30 days old in a week, the rest are listed only in a later week when fewer than 10 newer ones qualify; a reader who keeps leaving more than 10 saves a week unread is never reminded about the older ones `src/packages/article-store/src/dynamodb-saved-article-store.ts:653`.
 > - Accounts pending deletion keep getting the digest: deleting an account only stamps deletedAt `projects/hutch/src/runtime/web/pages/account/account.page.ts:550` and the contact lookup does not check it `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:468`, so mail continues until the deletion job removes the saves, and longer if that job is stuck in its DLQ.
-> - There is no way to opt back in: the opt-out's clear branch has no caller `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:516`, and the done page says Readplace won't send this email again `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.component.ts:38`.
-> - Unsubscribe tokens (an HMAC of the userId) and Mark all as read tokens (an HMAC of the userId and the listed article ids) are keyed by ANALYTICS_SALT and never expire, so rotating the analytics salt breaks every unsubscribe and Mark all as read link already sent `projects/hutch/src/runtime/send-user-digest.main.ts:105` `projects/hutch/src/runtime/send-user-digest.main.ts:106`.
-> - The Mark all as read link works without signing in: the page is mounted without the sign-in gate `projects/hutch/src/runtime/server.ts:1547` and marks the saves of the userId inside the token, whoever is signed in `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:76`, so anyone the email is forwarded to can mark those articles read, and an old email's button marks them read again after the reader marked them unread.
-> - Articles marked read from the email record no article_read analytics event, unlike marking one read in the readlist `projects/hutch/src/runtime/web/pages/readlist/readlist.page.ts:2724`; the mark-read page has no analytics dependency `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:21`.
+> - There is no way to opt back in: the opt-out's clear branch has no caller `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:518`, and the done page says Readplace won't send this email again `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.component.ts:38`.
+> - Unsubscribe tokens (an HMAC of the userId) and Mark all as read tokens (an HMAC of the userId and the listed article ids) are keyed by ANALYTICS_SALT and never expire, so rotating the analytics salt breaks every unsubscribe and Mark all as read link already sent `projects/hutch/src/runtime/send-user-digest.main.ts:194` `projects/hutch/src/runtime/send-user-digest.main.ts:195`.
+> - The Mark all as read link works without signing in: the page is mounted without the sign-in gate `projects/hutch/src/runtime/server.ts:1589` and marks the saves of the userId inside the token, whoever is signed in `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:76`, so anyone the email is forwarded to can mark those articles read, and an old email's button marks them read again after the reader marked them unread.
+> - Articles marked read from the email record no article_read analytics event, unlike marking one read in the readlist `projects/hutch/src/runtime/web/pages/readlist/readlist.page.ts:2771`; the mark-read page has no analytics dependency `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:21`.
 > - A Resend 4xx removes the user's last-digest time along with the claim `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:104`, so an address Resend keeps refusing is retried on every 6h check (3 receives each) and every check ends in the DLQ alarm.
-> - Delivery is at most once: after a 5xx or network error the claim is kept and the retry only stamps the saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:207`, so if Resend never accepted the message that digest is lost and its saves never appear in a later regular digest; the comment at `projects/hutch/src/runtime/send-user-digest.main.ts:19` says this is deliberate.
+> - Delivery is at most once: after a 5xx or network error the claim is kept and the retry only stamps the saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:210`, so if Resend never accepted the message that digest is lost and its saves never appear in a later regular digest; the comment at `projects/hutch/src/runtime/send-user-digest.main.ts:34` says this is deliberate.
 > - Sends dropped for reserved test domains still count in queue_digest_sent analytics `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:37`.
 > - The template's developer HTML comment ships inside every article card of the real email `projects/hutch/src/runtime/web/queue-digest-email.template.html:28`.
 > - The shared reply line 'If you have any questions, please reply to this email' has no closing period in both the HTML and text parts `projects/hutch/src/runtime/web/email-copy.ts:2`.
@@ -2585,20 +2586,20 @@ Exact HTML body: [`html/queue-digest--single-article.html`](html/queue-digest--s
 
 ### Source
 
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:143` — renderer: subject, unsubscribe headers, tracked links, HTML and text parts
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:165` — renderer: subject, unsubscribe headers, tracked links, HTML and text parts
 - `projects/hutch/src/runtime/web/queue-digest-email.ts:127` — intro paragraph: one for the readlist digest, one for the trial-ending digest
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:90` — buttons: amber Continue reading and white Mark all as read for the readlist digest, a white Continue reading alone for the trial-ending digest
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:23` — footer reason for each kind
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:137` — buttons: amber Continue reading and white Mark all as read for the readlist digest, a white Continue reading alone for the trial-ending digest
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:25` — footer reason for each kind
 - `projects/hutch/src/runtime/web/queue-digest-email.template.html:1` — HTML template
 - `projects/hutch/src/runtime/web/digest-preview.ts:17` — card preview (excerpt or summary fallback)
 - `projects/hutch/src/runtime/domain/email/queue-digest-cadence.ts:1` — 7-day gap less 30 minutes and 30-day minimum save age for the sender; the email copy uses only the 30 days, in the readlist digest's footer
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:266` — regular plan: 7-day gap less 30 minutes, 30-day floor, not-emailed filter, slot claim
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:197` — sender (sendEmail call)
-- `projects/hutch/src/runtime/send-user-digest.main.ts:88` — composition root: constants, unsubscribe and mark-read token signers, Resend wrapped in the reserved-domain skip
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:269` — regular plan: 7-day gap less 30 minutes, 30-day floor, not-emailed filter, slot claim
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:200` — sender (sendEmail call)
+- `projects/hutch/src/runtime/send-user-digest.main.ts:175` — composition root: constants, unsubscribe and mark-read token signers, Resend wrapped in the reserved-domain skip
 - `projects/hutch/src/runtime/domain/email/queue-digest-mark-read-token.ts:18` — Mark all as read token: the userId and the listed article ids, HMAC-signed
 - `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:51` — Mark all as read page: the GET shows a confirm form, the POST marks each listed save read in the readlist that still holds it
-- `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:29` — 6-hourly fan-out to every trialist and member
-- `projects/hutch/src/infra/index.ts:881` — rate(6 hours) schedule, queues and Lambdas
+- `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:30` — 6-hourly fan-out to every trialist and member
+- `projects/hutch/src/infra/index.ts:933` — rate(6 hours) schedule, queues and Lambdas
 
 ## 11. First inbox email arrived
 
@@ -2615,7 +2616,7 @@ Trigger chain:
 3. Ingest writes a 'received' inbox row and publishes EmailReceivedEvent, which EventBridge routes to the extract-email-links Lambda `projects/inbox/src/runtime/domain/inbox/ingest-parsed-email.ts:102`
 4. extract-email-links re-parses the email, drops unsubscribe and action links and LLM-judged non-articles, and checks the reader's write access `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:282`
 5. Right after the email's first SubmitLinkCommand to All (or after EmailLinksTriaged on an alias routed to a custom readlist) it publishes SendFirstInboxEmailNoticeCommand once for that email, only when the email is routed as inbox mail `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:399`
-6. EventBridge routes the command to the send-first-inbox-email-notice-q SQS queue and Lambda `projects/hutch/src/infra/index.ts:1249`
+6. EventBridge routes the command to the send-first-inbox-email-notice-q SQS queue and Lambda `projects/hutch/src/infra/index.ts:1301`
 7. The handler re-checks write access, looks up the login email, claims the once-only marker, renders the email and sends it through Resend behind the reserved-domain filter `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:101`
 
 Sent only when:
@@ -2636,7 +2637,7 @@ Sent only when:
 
 Not sent when:
 
-- Once per account, ever: every later trigger finds the firstInboxEmailNoticeSentAt marker set and is skipped; only deleting the account removes the marker `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:183`
+- Once per account, ever: every later trigger finds the firstInboxEmailNoticeSentAt marker set and is skipped; only deleting the account removes the marker `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:186`
 - A reader who is read-only when the links are extracted (trial ended, membership cancelled or past its end date) does not get it for that email; the inbox Lambda requests the separate Inbox saves paused email instead, and since no marker is set, a later email after access returns can still trigger this one `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:411`
 - A reader who is read-only when the send Lambda runs is skipped without setting the marker, so a later email can still trigger it once access returns `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - An account with no login email on file is skipped without setting the marker `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:72`
@@ -2904,7 +2905,7 @@ Exact HTML body: [`html/inbox-first-arrival--custom-readlist-alias.html`](html/i
 - `projects/hutch/src/runtime/providers/email/resend-email.ts:9` — sender: Resend API call
 - `src/packages/onboarding-signals/src/dynamodb-onboarding-signals.ts:175` — once-only marker firstInboxEmailNoticeSentAt
 - `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:399` — publisher of SendFirstInboxEmailNoticeCommand
-- `projects/hutch/src/infra/index.ts:1220` — trigger infra: SQS queue, Lambda and EventBridge subscription
+- `projects/hutch/src/infra/index.ts:1272` — trigger infra: SQS queue, Lambda and EventBridge subscription
 
 ## 12. Gmail newsletter notice
 
@@ -2916,7 +2917,7 @@ Every 6 hours Readplace checks each connected Gmail account using message metada
 
 Trigger chain:
 
-1. EventBridge Scheduler sends CheckGmailNewsletters to the gmail-newsletter-monitor queue every 6 hours `projects/hutch/src/infra/index.ts:1475`
+1. EventBridge Scheduler sends CheckGmailNewsletters to the gmail-newsletter-monitor queue every 6 hours `projects/hutch/src/infra/index.ts:1527`
 2. The monitor Lambda lists connected Gmail accounts 25 per page and dispatches one MonitorGmailNewsletters command per user `projects/hutch/src/runtime/domain/gmail/gmail-newsletter-monitor-handler.ts:43`
 3. start() opens a new run, or resumes an unfinished one; a Gmail account not seen before starts an initializing (silent) run `projects/hutch/src/runtime/domain/gmail/monitor-gmail-newsletters.ts:118`
 4. The run pages through its modes; the arrivals page reads Gmail history messageAdded since the stored cursor `projects/hutch/src/runtime/domain/gmail/monitor-gmail-newsletters.ts:89`
@@ -2973,8 +2974,8 @@ Not sent when:
 - When another worker holds the reader's 120-second batch lease, or finished a batch within 3 days after this worker read the row, the claim is refused, the record fails and SQS retries it `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:78`
 - A catalog read error other than a missing object fails the record in both the monitor and the notice worker, and the notice stays pending for retry `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:85`
 - Gmail errors: re-authorisation required marks the connection revoked, a missing metadata permission or other rejection ends the page without saving, and only HTTP 429 or 5xx throws for an SQS retry; the next 6-hourly check resumes the unfinished run while the connection is active `projects/hutch/src/runtime/domain/gmail/monitor-gmail-newsletters.ts:39`
-- Only the deployed gmail-newsletter-notice Lambda sends this email; there is no local or dev path, and staging and production both send through Resend with that stage's RESEND_API_KEY `projects/hutch/src/infra/index.ts:1398`
-- The rate(6 hours) schedule runs at times set by when it was created, not at fixed clock hours (AWS behaviour, unverified from the repo) `projects/hutch/src/infra/index.ts:1475`
+- Only the deployed gmail-newsletter-notice Lambda sends this email; there is no local or dev path, and staging and production both send through Resend with that stage's RESEND_API_KEY `projects/hutch/src/infra/index.ts:1435`
+- The rate(6 hours) schedule runs at times set by when it was created, not at fixed clock hours (AWS behaviour, unverified from the repo) `projects/hutch/src/infra/index.ts:1527`
 - The recipient is the Readplace account email, which can differ from the connected Gmail address; for a Sign in with Apple user it may be an Apple private-relay address (unverified) `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:431`
 - Newsletter names appear raw in the subject and plain text but HTML-escaped everywhere in the HTML, including the title, opening, list and footer ("Energy & Capital" becomes Energy &amp; Capital in the HTML source) `projects/hutch/src/runtime/web/auth/gmail-newsletter-notice-email.template.html:6`, `projects/hutch/src/runtime/web/auth/gmail-newsletter-notice-email.template.html:31`
 - The 3-day interval belongs to the Readplace reader and survives disconnecting, reconnecting or switching Gmail accounts; only account deletion removes the NOTICE_BATCH row `src/packages/inbox-store/src/dynamodb-gmail-monitoring.ts:143`
@@ -2986,15 +2987,15 @@ Not sent when:
 > **Observations**
 >
 > - Reconnecting the same Gmail account is not silent: disconnect deletes the mappings but keeps the monitoring cursor, so the next check resumes from the old cursor and notifies every approved sender that mailed while disconnected, including senders the user had mapped before; a probe of the real chain confirmed it, and whether notifying formerly mapped senders is intended needs confirming `projects/hutch/src/runtime/domain/gmail/disconnect-gmail.ts:42`, `projects/hutch/src/runtime/domain/gmail/monitor-gmail-newsletters.ts:124`
-> - Re-authorising a revoked connection keeps the Readplace inbox address and resumes the halted run, so a backlog of mail since the old cursor can notify at once `projects/hutch/src/runtime/web/pages/integrations/gmail-connect.page.ts:205`
+> - Re-authorising a revoked connection keeps the Readplace inbox address and resumes the halted run, so a backlog of mail since the old cursor can notify at once `projects/hutch/src/runtime/web/pages/integrations/gmail-connect.page.ts:269`
 > - Notices claimed one by one before grouping are resent with no eligibility re-check, so one whose reader has since mapped the sender, disconnected Gmail or lost catalog approval still goes out within 23h55m of its first attempt, possibly in the same run as a grouped email (inferred from code) `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:150`
 > - A NOTICE_BATCH row still sending with a listed notice still pending 23h55m after its first attempt fails every later command for that reader into the DLQ again, a repeating DLQ alarm on every 6-hourly check, and blocks every further notice email to that reader, not just one sender, until someone fixes the row (a batch whose listed notices were all marked sent is settled instead); a claim made before grouping that passes the window also fails every command for that reader, after the grouped pass; the SQS budget (about 36 minutes) is far shorter than that window (inferred from code) `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:127`, `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:153`
 > - A missing catalog object is read as an empty catalog, which cancels pending notices and records every sender as unapproved; restoring it turns every approved, unmapped observed sender without a receipt into an approval notice at once, contrary to the design doc (inferred, not observed) `projects/hutch/src/runtime/providers/newsletter-catalog/s3-newsletter-catalog.ts:35`, `.architecture/2026-10-04-f532f07f0/gmail-newsletter-notifications.md:96`
 > - Reserved-domain recipients are marked sent, publish outcome sent and start the 3-day interval although nothing was sent, so receipts and metrics overcount `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:70`
 > - The email has no unsubscribe link, no List-Unsubscribe header and no opt-out preference (the footer only says why it was sent), and the handler does not check membership or trial status, email verification, account lock or pending deletion; confirm this suits a non-transactional product notice `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:115`
-> - Account deletion erases monitoring before Gmail teardown; if teardown fails and the job redrives, a fresh check could email a user who asked for deletion (inferred, low probability) `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:156`
+> - Account deletion erases monitoring before Gmail teardown; if teardown fails and the job redrives, a fresh check could email a user who asked for deletion (inferred, low probability) `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:158`
 > - A notice claimed by build 508b6d7 would be resent with the old subject "Choose a readlist for ..." and a link without readlist_choice_for, and any notice claimed one by one before grouping is resent with its build's From and copy and no footer; whether that build was deployed is unverified `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.test.ts:215`
-> - An EventBridge rule routes SendGmailNewsletterNotice to the notice queue but nothing publishes that command on the bus, and GmailNewsletterNoticeProcessedEvent has no subscriber `projects/hutch/src/infra/index.ts:1415`
+> - An EventBridge rule routes SendGmailNewsletterNotice to the notice queue but nothing publishes that command on the bus, and GmailNewsletterNoticeProcessedEvent has no subscriber `projects/hutch/src/infra/index.ts:1467`
 > - Cosmetic: the shared reply invitation has no trailing period, and the CTA and newsletter-list hrefs show '=' as &#x3D;, which email clients decode `projects/hutch/src/runtime/web/email-copy.ts:2`
 
 ### Message
@@ -3237,7 +3238,7 @@ Exact HTML body: [`html/gmail-newsletter-notice--grouped.html`](html/gmail-newsl
 - `projects/hutch/src/runtime/domain/gmail/monitor-gmail-newsletters.ts:57` — monitoring decides when a notice is created
 - `projects/hutch/src/runtime/domain/gmail/gmail-newsletter-monitor-handler.ts:53` — one notice command per monitoring page with waiting notices
 - `src/packages/inbox-store/src/dynamodb-gmail-monitoring.ts:104` — notice claim, sent receipt and cancel in DynamoDB; NOTICE_BATCH find, claim and finish at :123-142
-- `projects/hutch/src/infra/index.ts:1474` — 6-hourly schedule; notice queue and Lambda at :1382; readlist-definitions read grant at :1378
+- `projects/hutch/src/infra/index.ts:1527` — 6-hourly schedule; notice queue and Lambda at :1434; readlist-definitions read grant at :1430
 
 ## 13. Data export ready
 
@@ -3250,36 +3251,36 @@ A signed-in customer opens Export Your Data (/export) from Export my data on the
 Trigger chain:
 
 1. The customer opens /export from the Account page or the Privacy page and clicks Email Me My Data, which posts to /export/start `projects/hutch/src/runtime/web/pages/export/export.template.html:29`
-2. requireAuth lets the request through only when it carries a signed-in cookie session `projects/hutch/src/runtime/server.ts:1534`
+2. requireAuth lets the request through only when it carries a signed-in cookie session `projects/hutch/src/runtime/server.ts:1576`
 3. The route reads the account's email address from the users table `projects/hutch/src/runtime/web/pages/export/export.page.ts:30`
 4. The route publishes ExportUserDataCommand { userId, email, requestedAt } to EventBridge and redirects to /export?status=preparing `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
-5. The rule export-user-data-command-rule delivers the command to SQS user-data-jobs-q, and the user-data-jobs Lambda picks it up with batch size 1 `projects/hutch/src/infra/index.ts:749`
-6. The Lambda routes the command to the export handler, which reads every saved article across the customer's readlists, 500 per page, until a page comes back empty `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:72`
+5. The rule export-user-data-command-rule delivers the command to SQS user-data-jobs-q, and the user-data-jobs Lambda picks it up with batch size 1 `projects/hutch/src/infra/index.ts:757`
+6. The Lambda routes the command to the export handler, which reads every saved article across the customer's readlists, 500 per page, until a page comes back empty `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:77`
 7. The handler writes the JSON file to s3://hutch-user-exports-prod/exports/<userId>/<timestamp>.json and presigns a GET link with X-Amz-Expires=604800 `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:38`
-8. The handler emails the link to the address carried in the command, then publishes UserDataExported `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:110`
+8. The handler emails the link to the address carried in the command, then publishes UserDataExported `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117`
 
 Sent only when:
 
-- The customer is signed in on the website with a session cookie `projects/hutch/src/runtime/server.ts:1534`
+- The customer is signed in on the website with a session cookie `projects/hutch/src/runtime/server.ts:1576`
 - The customer clicks Email Me My Data on /export, and each click queues its own email `projects/hutch/src/runtime/web/pages/export/export.template.html:29`
 - Account status does not matter: trial, membership, lapsed, read-only and locked (unverified past the 7-day window) accounts all qualify, because the route checks only sign-in and exporting is deliberately left open to locked accounts `projects/hutch/src/runtime/web/middleware/require-not-locked.middleware.ts:13`
 - The account has an email address in the users table at the moment of the click `projects/hutch/src/runtime/web/pages/export/export.page.ts:31`
 - The command publishes to EventBridge without error `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
-- The worker reads every saved article across the customer's readlists without error; a customer with no saved articles still gets the email `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:88`
-- Reading the articles, uploading the file and sending all finish inside the 900 s Lambda timeout `projects/hutch/src/infra/index.ts:687`
+- The worker reads every saved article across the customer's readlists without error; a customer with no saved articles still gets the email `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:92`
+- Reading the articles, uploading the file and sending all finish inside the 900 s Lambda timeout `projects/hutch/src/infra/index.ts:695`
 - The JSON file uploads to S3 and the download link is signed `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:28`
 - The address is not on a reserved test domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
 - Resend accepts the message `projects/hutch/src/runtime/providers/email/resend-email.ts:19`
 
 Not sent when:
 
-- Not signed in: the click redirects to /login and nothing is queued. This includes a phone browser, opened from the iOS or Android app, that has no Readplace session `projects/hutch/src/runtime/server.ts:516`
+- Not signed in: the click redirects to /login and nothing is queued. This includes a phone browser, opened from the iOS or Android app, that has no Readplace session `projects/hutch/src/runtime/server.ts:522`
 - Banned IP address: the request gets a 403 before the app runs `projects/hutch/src/runtime/web/middleware/ban.ts:29`
 - No email address found for the account: the customer lands back on /export with no error message and nothing is queued `projects/hutch/src/runtime/web/pages/export/export.page.ts:33`
 - Reserved test domain: the send is skipped with the warning "[email] reserved recipient domain — not sent" `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:33`
-- A failure that repeats on every attempt, such as a saved article with no matching global article row, fails all 12 tries, so the command ends in the dead-letter queue and the customer never gets the email `src/packages/article-store/src/dynamodb-saved-article-store.ts:758`
+- A failure that repeats on every attempt, such as a saved article with no matching global article row, fails all 12 tries, so the command ends in the dead-letter queue and the customer never gets the email `src/packages/article-store/src/dynamodb-saved-article-store.ts:780`
 - Repeat requests are never held back: there is no once-only marker, rate limit, unsubscribe or opt-out, so every click sends another email `projects/hutch/src/runtime/web/pages/export/export.page.ts:27`
-- Deleting the account does not stop an export that is already queued, because the worker mails the address carried in the command without checking that the account still exists `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:113`
+- Deleting the account does not stop an export that is already queued, because the worker mails the address carried in the command without checking that the account still exists `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:120`
 
 **Timing:** No deliberate delay: the worker runs as soon as SQS delivers the command, so the email normally lands seconds to a few minutes after the click, and the run must finish within the 900 s Lambda timeout. A failed attempt is retried every 900 s (15 min) for up to 12 receives, so the last try is about 2 h 45 min after the click; the link nominally lasts 604,800 s (7 days), and the S3 lifecycle rule deletes the file 7 days after it is written.
 
@@ -3287,32 +3288,32 @@ Not sent when:
 
 <details><summary>Edge cases</summary>
 
-- Only a cookie session counts: the session is read from the Cookie header, so the browser extension, MCP and the apps' bearer-token API calls cannot request an export `projects/hutch/src/runtime/server.ts:741`
+- Only a cookie session counts: the session is read from the Cookie header, so the browser extension, MCP and the apps' bearer-token API calls cannot request an export `projects/hutch/src/runtime/server.ts:776`
 - The iOS and Android apps show the Account page in an in-app sheet with the session cookie injected, but tapping Export my data there opens /export outside the app (Chrome first on iOS, the default browser on Android), so the export works only if that browser is signed in to Readplace `projects/native-apps/ios/App/ReaderNavigation.swift:43`, `projects/native-apps/android/app/src/main/kotlin/com/readplace/android/app/ReaderNavigation.kt:57`
 - The session cookie is SameSite=Lax, so a form posted from another site arrives without it and is redirected to /login `src/packages/web-analytics/src/cookie-options.ts:6`
-- Requests on the old hutch-app.com host get a 301 to readplace.com before any route runs, so a POST there never reaches /export/start `projects/hutch/src/runtime/server.ts:542`
+- Requests on the old hutch-app.com host get a 301 to readplace.com before any route runs, so a POST there never reaches /export/start `projects/hutch/src/runtime/server.ts:577`
 - A malformed utm_* query value gets a 400 before the route runs; the page's own form always sends valid values `src/packages/web-analytics/src/utm-validation.middleware.ts:23`
 - The recipient is the stored account address, lowercased and trimmed, with Gmail dots and +tags kept and never the Gmail canonical identity key: a signup as " Sam.Reader@Gmail.com" is mailed at "sam.reader@gmail.com" `src/packages/domain/src/user/email.ts:8`
 - If the address lookup or the EventBridge publish throws, the customer sees the JSON body {"error":"Internal Server Error","statusCode":500} instead of the preparing page, and nothing retries `projects/hutch/src/runtime/web/middleware/error-handler.ts:33`
 - If EventBridge cannot deliver the command to the queue, it applies its default retry policy and then sends the event to the target's dead-letter queue, user-data-jobs-dlq `src/packages/hutch-infra-components/src/infra/event-bus.ts:89`
-- The worker runs only if its whole composition root initialises: about 40 required environment variables, including unrelated Stripe, Apple and Gmail secrets, plus an assert that the Apple key decodes to a PKCS#8 PEM. Any failure there fails every export `projects/hutch/src/runtime/user-data-jobs.main.ts:184`
+- The worker runs only if its whole composition root initialises: about 40 required environment variables, including unrelated Stripe, Apple and Gmail secrets, plus an assert that the Apple key decodes to a PKCS#8 PEM. Any failure there fails every export `projects/hutch/src/runtime/user-data-jobs.main.ts:199`
 - A malformed message body, a detail that fails the schema, or an unknown detail-type is retried until the dead-letter queue and never emailed `projects/hutch/src/runtime/handle-by-detail-type.ts:24`
-- A retry after a successful send reruns the whole export and sends a second email with a new file and link. This happens when publishing UserDataExported fails, or when Resend returns an ambiguous 5xx after accepting the message, because no idempotency key is passed `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:126`
-- Export and account deletion share the unordered user-data-jobs-q queue. If deletion runs first, the export still emails the deleted account's address, typically reporting 0 articles; if the export runs first, deletion removes the file and the emailed link stops working `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:184`
+- A retry after a successful send reruns the whole export and sends a second email with a new file and link. This happens when publishing UserDataExported fails, or when Resend returns an ambiguous 5xx after accepting the message, because no idempotency key is passed `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117`
+- Export and account deletion share the unordered user-data-jobs-q queue. If deletion runs first, the export still emails the deleted account's address, typically reporting 0 articles; if the export runs first, deletion removes the file and the emailed link stops working `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:187`
 - Local dev with PERSISTENCE=development and the e2e server use an in-memory publisher that only logs, so no email goes out; a dev server with PERSISTENCE=prod publishes to the real event bus, and whichever stack's worker consumes it sends a real email `projects/hutch/src/runtime/dev-app.ts:15`
 
 </details>
 
 > **Observations**
 >
-> - The "7 days" promise may not hold (unverified): the worker presigns the link with the Lambda role's temporary credentials, so the URL carries X-Amz-Security-Token, and AWS stops honouring such a URL when those credentials expire, likely within hours. The email, the /export page, the preparing page and the Privacy page all promise 7 days `projects/hutch/src/runtime/user-data-jobs.main.ts:52`
+> - The "7 days" promise may not hold (unverified): the worker presigns the link with the Lambda role's temporary credentials, so the URL carries X-Amz-Security-Token, and AWS stops honouring such a URL when those credentials expire, likely within hours. The email, the /export page, the preparing page and the Privacy page all promise 7 days `projects/hutch/src/runtime/user-data-jobs.main.ts:56`
 > - A failed export is invisible to the customer. They have already seen "I'm preparing your export. Check your inbox shortly.", and when every retry fails only ops hear about it, through the dead-letter alarm email `projects/hutch/src/runtime/web/pages/export/export-preparing.template.html:5`
 > - Duplicate emails are possible: /export/start has no rate limit or dedupe, and the worker passes no idempotency key to Resend, so repeat clicks and retries after a successful send each deliver another email with a different link `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
-> - On a reserved test domain the worker still logs "[ExportUserData] sent email" and publishes UserDataExported although nothing was sent, so logs and events overstate deliveries `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:121`
-> - The worker logs the recipient address alongside the userId on every send `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:123`
+> - On a reserved test domain the worker still logs "[ExportUserData] sent email" and publishes UserDataExported although nothing was sent, so logs and events overstate deliveries `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:128`
+> - The worker logs the recipient address alongside the userId on every send `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:130`
 > - The download link is a raw presigned S3 URL of about 1.6 KB on hutch-user-exports-prod.s3.ap-southeast-2.amazonaws.com, not a readplace.com address. The email no longer prints it: the fallback line reads "If the button above doesn't work, use this download link." and links the same URL as the button, so the customer cannot see or copy the address from the text, and the fallback helps only when the button fails to render, not when the link itself fails `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:31`
-> - The message is HTML only, with no plain-text part `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:110`
-> - An empty export still emails "Readplace packaged 0 articles"; the handler test asserts this, so it appears intended `projects/hutch/src/runtime/export-user-data/export-user-data-handler.test.ts:240`
+> - The message is HTML only, with no plain-text part `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117`
+> - An empty export still emails "Readplace packaged 0 articles"; the handler test asserts this, so it appears intended `projects/hutch/src/runtime/export-user-data/export-user-data-handler.test.ts:308`
 > - The worker never reads the command's requestedAt, and no rule subscribes to UserDataExported, so the event triggers nothing `src/packages/hutch-infra-components/src/events.ts:636`
 
 ### Message
@@ -3332,7 +3333,7 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| default | articleCount is 2 or more: "Readplace packaged {n} articles as a single JSON file. Click the button below to download it. The link expires in 7 days." The count is distinct URLs across all the customer's readlists, so a link saved to several readlists counts once (`projects/hutch/src/runtime/web/pages/export/user-data-export-email.ts:19`, `src/packages/article-store/src/dynamodb-saved-article-store.ts:709`). |
+| default | articleCount is 2 or more: "Readplace packaged {n} articles as a single JSON file. Click the button below to download it. The link expires in 7 days." The count is distinct URLs across all the customer's readlists, so a link saved to several readlists counts once (`projects/hutch/src/runtime/web/pages/export/user-data-export-email.ts:19`, `src/packages/article-store/src/dynamodb-saved-article-store.ts:723`). |
 | single-article | articleCount is exactly 1: the sentence reads "1 article". |
 | no-articles | articleCount is 0: the plural branch reads "0 articles", and the link opens a file whose articles list is empty. |
 
@@ -3639,14 +3640,98 @@ Exact HTML body: [`html/user-data-export--no-articles.html`](html/user-data-expo
 
 ### Source
 
-- `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:110` — sender: builds from, reply-to, to, subject and HTML and calls sendEmail
+- `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117` — sender: builds from, reply-to, to, subject and HTML and calls sendEmail
 - `projects/hutch/src/runtime/web/pages/export/user-data-export-email.ts:11` — renderer: picks "1 article" or "{n} articles" and renders the template
 - `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:22` — template: heading, count sentence, Download my data button and fallback download link
 - `projects/hutch/src/runtime/web/pages/export/export.page.ts:27` — web handler for POST /export/start: reads the address and publishes ExportUserDataCommand
-- `projects/hutch/src/runtime/user-data-jobs.main.ts:302` — worker composition root: routes ExportUserDataCommand to the export handler
+- `projects/hutch/src/runtime/user-data-jobs.main.ts:318` — worker composition root: routes ExportUserDataCommand to the export handler
 - `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:23` — writes the JSON file to S3 and presigns the 7-day link
-- `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:30` — reserved-domain filter in front of Resend, wired at user-data-jobs.main.ts:161
-- `projects/hutch/src/infra/index.ts:749` — trigger infra: EventBridge rule to user-data-jobs-q and the user-data-jobs Lambda
+- `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:30` — reserved-domain filter in front of Resend, wired at user-data-jobs.main.ts:176
+- `projects/hutch/src/infra/index.ts:757` — trigger infra: EventBridge rule to user-data-jobs-q and the user-data-jobs Lambda
+
+## 14. Hacker News starter email
+
+**Reading** · Verified trialists and paying members in the starter campaign's treatment arm (80% of accounts, by a hash of the userId) who have saved fewer than 5 articles of their own and been inactive for 72 hours. Founding members, unsubscribed readers, read-only accounts and the comparison arm never get it.
+
+### When it is sent
+
+On the readlist digest's 6-hourly check, Readplace first tries to enroll the reader in the Hacker News starter campaign. An enrolled reader who has been inactive for 72 hours and has fewer than 5 personal saves gets ten fresh Hacker News articles saved into All and into a new "Hacker News picks" readlist. On that check or a later one, if at least one of those picks is still unread and has a ready reader view and summary, and 47.5 hours have passed since the reader's last readlist or trial-ending digest, Readplace emails the unread picks once. It is the same template as the readlist digest, with its own intro, subject and button. Whatever the check decides about the starter email, a check that handles it sends no readlist digest.
+
+Trigger chain:
+
+1. EventBridge Scheduler `hutch-digest-flush` puts a trigger message on the digest-scan queue every 6 hours `projects/hutch/src/infra/index.ts:933`
+2. digest-scan sends one SendUserDigestCommand per trialist and member to the send-user-digest queue `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:46`
+3. send-user-digest tries to enroll the reader; a failure is logged and the check continues `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:152`
+4. Enrollment saves ten fresh Hacker News picks into All and a new "Hacker News picks" readlist `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:181`
+5. Unless the trial-ending digest is due, the check hands the reader to the starter sender, and stops there when the sender handled them `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:165`
+6. The sender re-checks the reader, the 47.5h gap and the unread picks, and freezes the message on the starter pack row `projects/hutch/src/runtime/domain/engagement/send-starter.ts:202`
+7. It sends the frozen message through Resend and marks the pack sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:215`
+
+Sent only when:
+
+- A starter rollout record exists in the content bucket and the reader is not on its excluded list `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:57`
+- The reader is registered, not pending deletion, verified, has not unsubscribed from the digest and has a deliverable address `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:66`
+- The reader has full trial or paid access and can save `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:75`
+- The reader is in the treatment arm (80 of 100 hash buckets) `projects/hutch/src/runtime/domain/engagement/starter-policy.ts:32`
+- 72 hours have passed since the later of signup, the start of observation and the reader's last activity `projects/hutch/src/runtime/domain/engagement/starter-policy.ts:48`
+- The reader has fewer than 5 personal saves and room for another readlist `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:95`
+- Ten snapshot picks no more than 24 hours old are available that the reader has not saved `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:105`
+- The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:165`
+- When the message is built, the reader is still verified, subscribed to the digest, not pending deletion, at a deliverable address and on a trial or paid tier `projects/hutch/src/runtime/domain/engagement/send-starter.ts:100`
+- At least 47.5 hours have passed since the later of the last readlist digest and the trial-ending digest, and the trial-ending digest window does not open within those 47.5 hours `projects/hutch/src/runtime/domain/engagement/send-starter.ts:123`
+- At least one pick has a ready reader view and summary, has not been purged, and is still unread in a readlist that holds it as this campaign's suggestion `projects/hutch/src/runtime/domain/engagement/send-starter.ts:133`
+
+Not sent when:
+
+- The pack was already sent, suppressed or set aside for review `projects/hutch/src/runtime/domain/engagement/send-starter.ts:68`
+- The reader became ineligible before the message was built: the email is suppressed for good with reason recipient-ineligible `projects/hutch/src/runtime/domain/engagement/send-starter.ts:107`
+- Every pick was read, filed away from the campaign or dropped: suppressed for good with reason no-unread-picks `projects/hutch/src/runtime/domain/engagement/send-starter.ts:168`
+- Under 47.5 hours since the last digest, or the trial-ending window opens soon: held, and that check sends no readlist digest either `projects/hutch/src/runtime/domain/engagement/send-starter.ts:123`
+- The first attempt is 23 hours 55 minutes old (Resend's idempotency window less 5 minutes): set aside for review with reason provider-window-expired and never sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:80`
+- The reader is in the comparison arm: they get the picks neither in their library nor by email `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:78`
+
+**Timing:** Checked every 6 hours with the readlist digest. The picks are saved on the first check after 72 hours of inactivity, and the email goes out on that check or the first later one that is 47.5 hours after the reader's last digest (`projects/hutch/src/runtime/domain/engagement/starter-policy.ts:12`). Once per account.
+
+**If sending fails:** A Resend error throws, which fails the SQS record of the send-user-digest queue for a retry. The retry resends the message frozen on the starter pack row with the same idempotency key `starter/{sha256 of userId and campaign}` (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:181`), so Resend delivers it once. A failure marking the pack sent after Resend accepted it also throws, and the retry is answered by Resend's idempotency key.
+
+### Message
+
+| Field | Value |
+|---|---|
+| From | `Readplace <readplace@readplace.com>` |
+| To | The user's account email |
+| Bcc | none |
+| Reply-To | `fayner@readplace.com` |
+| Subject | Your Hacker News picks are ready |
+| Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
+| Plain-text part | Yes: the same copy as plain text, with each pick's title, preview and reader link. |
+| Idempotency key | `starter/{sha256Hex}` |
+
+Content variants:
+
+| Variant | Shown when |
+|---|---|
+| default | The intro 'Readplace selected ten articles from Hacker News for you once. {n} picks are still unread. They're in All and Hacker News picks; you can read, file, or delete them.', one card per unread pick linking to its reader view inside the Hacker News picks readlist, an amber Read your Hacker News picks button to /queue?queue={readlist}, the footer 'You're getting this because you save articles to Readplace. Stop these emails.', and every link tagged utm_campaign=hn-starter-v1. |
+| single-pick | One unread pick: the intro reads '1 pick is still unread'. Not captured. |
+
+### Example
+
+#### `default` — A reader with three of the ten picks still unread.
+
+Subject: **Your Hacker News picks are ready** · To: `sam.reader@gmail.com`
+
+This body was captured by calling the renderer (`QueueDigestEmail` with `kind: "starter"`) with three example picks and the production origin, not by running the full handler. No screenshot exists: the environment that added this entry had no browser to render one.
+
+Exact HTML body: [`html/hacker-news-starter--default.html`](html/hacker-news-starter--default.html)
+
+### Source
+
+- `projects/hutch/src/runtime/domain/engagement/send-starter.ts:65` — sender: eligibility, gap, unread picks, frozen message, Resend call
+- `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:55` — enrollment: rollout, eligibility, arm, inactivity, picks saved into the library
+- `projects/hutch/src/runtime/domain/engagement/starter-policy.ts:9` — campaign id, 72h inactivity, 24h snapshot age, 47.5h gap, retry window
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:133` — starter intro paragraph
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:168` — starter subject
+- `projects/hutch/src/runtime/send-user-digest.main.ts:158` — composition root wiring for the starter sender
 
 ## Not in this inventory
 
