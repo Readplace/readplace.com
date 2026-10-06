@@ -36,16 +36,16 @@ That filing is the point. The entry lands with the article's own title and its o
 
 Pinning the capture as the only source was the old mistake, so the new behaviour is built not to repeat it. A save of an archive link crawls 2 things: the live page, as any save does, and the capture, as a copy in its own right. The judge that already weighs a browser extension's capture against the crawl weighs this copy too, and the most complete one is what the reader shows.
 
-The rules lean toward the living page on purpose. A tie keeps the live crawl, and a capture can't win on its images alone. A snapshot from 2019 has to beat today's page on text before it shadows anything. When it does, that says something about today's page: the body went thin, or moved behind a paywall.
+The rules lean against the capture on purpose. A tie doesn't promote it, and it can't win on its images alone. A snapshot from 2019 has to beat today's page on text before it shadows anything. When it does, that says something about today's page: the body went thin, or moved behind a paywall.
 
 ## When the original stops answering
 
-The strongest case is the page with nothing live left to crawl. When the live fetch comes back failed, not found, or blocked, the save builds the article from the recorded capture instead, and a recrawl months later falls back the same way. A piece that survives only on [web.archive.org](/view/web.archive.org?utm_source=blog-save-wayback-machine-and-archive-today-links&utm_medium=internal&utm_content=read-web-archive-org) still turns into a clean, summarized article in the readlist.
+Then there is the page with nothing live left to crawl. When the live fetch comes back failed, not found, or blocked, the save builds the article from the recorded capture instead, and a recrawl months later falls back the same way. A piece that survives only on [web.archive.org](/view/web.archive.org?utm_source=blog-save-wayback-machine-and-archive-today-links&utm_medium=internal&utm_content=read-web-archive-org) still turns into a clean, summarized article in the readlist.
 
 Saved copies outliving their pages is old ground here, argued in [Read It Later, Even After the Original Page Is Gone](/blog/saved-articles-outlast-the-original-page?utm_source=blog-save-wayback-machine-and-archive-today-links&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page). That protection starts at the save, though, so the page that died first sat outside it. The archive kept the only copy of those. Now that copy has a way in.
 
 ## Paste the capture you settled for
 
-A reference chase tends to end on a tab like this: the piece a thread swore by, 404 at its own address, alive only because someone captured it in time. That link used to be the awkward one in a readlist. Save it now from [the browser extension](https://readplace.com/install), the save bar, an import file or a connected assistant, and the entry that appears carries the article's name, not the archive's.
+A reference chase tends to end on a tab like this: the piece a thread swore by, 404 at its own address, alive only because someone captured it in time. That link used to be the awkward one in a readlist. Save it now from [the browser extension](https://readplace.com/install), the save bar, an import file or a connected assistant.
 
 When a trail dead-ends at a 404 and the detour goes through the Wayback Machine, what the detour finds can come straight back to [readplace.com](/?utm_source=blog-save-wayback-machine-and-archive-today-links&utm_medium=internal&utm_content=home), summarized and filed as though it had been reachable all along.
