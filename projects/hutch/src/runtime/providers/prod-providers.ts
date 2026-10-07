@@ -13,6 +13,7 @@ import { initDynamoRefreshOutcomes } from "../oauth-refresh/dynamodb-outcomes";
 import { defineDynamoTable } from "@packages/hutch-storage-client";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
+import { parseDynamoTables } from "./dynamodb-tables";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import {
 	initDynamoDbEngagementStarter,
@@ -129,14 +130,15 @@ export function initProdProviders(input: { appOrigin: string }) {
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress, logInfo, proxyUrl: undefined });
 
-	const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-	const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-	const usersTable = requireEnv("DYNAMODB_USERS_TABLE");
-	const sessionsTable = requireEnv("DYNAMODB_SESSIONS_TABLE");
-	const oauthTable = requireEnv("DYNAMODB_OAUTH_TABLE");
-	const verificationTokensTable = requireEnv("DYNAMODB_VERIFICATION_TOKENS_TABLE");
-	const passwordResetTokensTable = requireEnv("DYNAMODB_PASSWORD_RESET_TOKENS_TABLE");
-	const pendingSignupsTable = requireEnv("DYNAMODB_PENDING_SIGNUPS_TABLE");
+	const tables = parseDynamoTables(requireEnv("DYNAMODB_TABLES"));
+	const articlesTable = tables.articles;
+	const userArticlesTable = tables.userArticles;
+	const usersTable = tables.users;
+	const sessionsTable = tables.sessions;
+	const oauthTable = tables.oauth;
+	const verificationTokensTable = tables.verificationTokens;
+	const passwordResetTokensTable = tables.passwordResetTokens;
+	const pendingSignupsTable = tables.pendingSignups;
 	const googleClientId = requireEnv("GOOGLE_LOGIN_CLIENT_ID");
 	const googleClientSecret = requireEnv("GOOGLE_LOGIN_CLIENT_SECRET");
 	const gmailClientId = requireEnv("GMAIL_INTEGRATION_CLIENT_ID");
@@ -155,14 +157,14 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 	const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 	const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
-	const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
-	const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
-	const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
-	const inboxSavedLinksTable = requireEnv("DYNAMODB_INBOX_SAVED_LINKS_TABLE");
+	const importSessionsTable = tables.importSessions;
+	const inboxAddressesTable = tables.inboxAddresses;
+	const inboxEmailLinksTable = tables.inboxEmailLinks;
+	const inboxSavedLinksTable = tables.inboxSavedLinks;
 	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
-	const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
-	const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
-	const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
+	const subscriptionProvidersTable = tables.subscriptionProviders;
+	const onboardingTable = tables.onboarding;
+	const rateLimitsTable = tables.rateLimits;
 	const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
 	const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
 	const eventBusArn = requireEnv("EVENT_BUS_ARN");
@@ -174,7 +176,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const engagementStarter = initDynamoDbEngagementStarter({
 		client,
 		onboardingTableName: onboardingTable,
-		notificationsTableName: requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE"),
+		notificationsTableName: tables.readerReadyNotifications,
 		userArticlesTableName: userArticlesTable,
 	});
 	const onboardingSignals = initOnboardingSignals({ client, onboardingTableName: onboardingTable, now: () => new Date() });
@@ -219,7 +221,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		secret: requireEnv("ANALYTICS_SALT"),
 	});
 	const credentialHistory = defineDynamoTable({ client, tableName: oauthTable, schema: CredentialHistory });
-	const outcomes = initDynamoRefreshOutcomes({ client, tableName: requireEnv("DYNAMODB_OAUTH_OUTCOMES_TABLE") });
+	const outcomes = initDynamoRefreshOutcomes({ client, tableName: tables.oauthOutcomes });
 	const verifyRecovery = initVerifyRefreshRecovery({
 		secret: requireEnv("ANALYTICS_SALT"),
 		findHistory: fingerprint => credentialHistory.get({ pk: `credential#${fingerprint}` }, { consistentRead: true }),
@@ -366,13 +368,13 @@ export function initProdProviders(input: { appOrigin: string }) {
 
 	const gmailCredentialsStore = initDynamoDbGmailCredentials({
 		client,
-		tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"),
+		tableName: tables.gmailCredentials,
 		now: () => new Date(),
 	});
 
 	const gmailHistoryImportStore = initDynamoDbGmailHistoryImport({
 		client,
-		tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE"),
+		tableName: tables.gmailHistoryImports,
 	});
 	const newsletterCatalog = initS3NewsletterCatalog({
 		client: s3Client,
@@ -396,22 +398,22 @@ export function initProdProviders(input: { appOrigin: string }) {
 		gmailCredentialsStore,
 		gmailConnectionStore: initDynamoDbGmailConnection({
 			client,
-			tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"),
+			tableName: tables.gmailConnections,
 			now: () => new Date(),
 		}),
 		gmailSenderStore: initDynamoDbGmailSender({
 			client,
-			tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"),
+			tableName: tables.gmailSenders,
 			now: () => new Date(),
 		}),
 		gmailDiscoveryStore: initDynamoDbGmailDiscovery({
 			client,
-			tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"),
+			tableName: tables.gmailDiscovery,
 			now: () => new Date(),
 		}),
 		gmailMonitoringStore: initDynamoDbGmailMonitoring({
 			client,
-			tableName: requireEnv("DYNAMODB_GMAIL_MONITORING_TABLE"),
+			tableName: tables.gmailMonitoring,
 			now: () => new Date(),
 		}),
 		publishStartGmailSenderDiscovery: async (detail: { userId: UserId }) => {
