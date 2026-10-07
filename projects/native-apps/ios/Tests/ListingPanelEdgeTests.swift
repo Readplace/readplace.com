@@ -15,6 +15,7 @@ final class ListingPanelEdgeTests: XCTestCase {
 			readTimeLabel: "~6 min read",
 			isRead: false,
 			savedAt: nil,
+			contentVersion: nil,
 			actions: [],
 			links: [],
 			readHref: nil

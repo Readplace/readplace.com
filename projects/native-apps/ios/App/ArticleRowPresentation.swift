@@ -8,6 +8,8 @@ struct ArticleRowPresentation: Equatable {
 
 	static let thumbnailSize = CGSize(width: 72, height: 54)
 	static let thumbnailCornerRadius: CGFloat = 8
+	static let offlineBadgeLabel = "Offline"
+	static let offlineBadgeAccessibilityLabel = "Available offline"
 
 	let marker: Marker
 	let markerColor: Color
@@ -15,8 +17,9 @@ struct ArticleRowPresentation: Equatable {
 	let titleColor: Color
 	let fill: Color
 	let metaText: String?
+	let showsOfflineBadge: Bool
 
-	init(isRead: Bool, readTimeLabel: String?, savedLabel: String?) {
+	init(isRead: Bool, readTimeLabel: String?, savedLabel: String?, isAvailableOffline: Bool) {
 		marker = isRead ? .readCheck : .unreadDot
 		markerColor = isRead ? .brandSuccessText : .brandPrimaryText
 		statusLabel = isRead ? "Read" : "Unread"
@@ -24,5 +27,6 @@ struct ArticleRowPresentation: Equatable {
 		fill = isRead ? .brandCard : .brandSecondary
 		let parts = [readTimeLabel, savedLabel].compactMap { $0 }.filter { !$0.isEmpty }
 		metaText = parts.isEmpty ? nil : parts.joined(separator: " · ")
+		showsOfflineBadge = isAvailableOffline
 	}
 }

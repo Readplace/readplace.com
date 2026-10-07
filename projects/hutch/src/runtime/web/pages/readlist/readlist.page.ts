@@ -1215,6 +1215,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			settled: readerSettled,
 		});
 
+		res.set(ARTICLE_VERSION_HEADER, contentVersion);
+
 		if (isAppPlatform(req)) {
 			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
 			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
@@ -1272,7 +1274,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 
 		res.vary("Cookie");
-		res.set(ARTICLE_VERSION_HEADER, contentVersion);
 
 		const showExtensionSuggestionBanner =
 			state.readerViewFailed && canOfferExtensionInstall(req);
@@ -1704,11 +1705,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const filtered = filterUrl
 				? { ...result, articles: filteredArticles, total: filteredArticles.length }
 				: result;
-			const crawlByUrl = await loadCrawls(
-				deps.findArticleCrawlStatuses,
-				filtered.articles,
-				deps.logError,
-			);
+			const [crawlByUrl, summaryByUrl] = await Promise.all([
+				loadCrawls(deps.findArticleCrawlStatuses, filtered.articles, deps.logError),
+				loadSummaries(deps.findGeneratedSummaries, filtered.articles, deps.logError),
+			]);
 
 			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
 			setSirenCollectionCaching(req, res);
@@ -1729,6 +1729,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
 						appearance,
 						crawlByUrl,
+						summaryByUrl,
 					},
 				),
 			);
@@ -1853,11 +1854,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				pageSize: readlistPageSizeForClient(req.oauthClientId),
 				excludeContent: true,
 			});
-			const crawlByUrl = await loadCrawls(
-				deps.findArticleCrawlStatuses,
-				collection.articles,
-				deps.logError,
-			);
+			const [crawlByUrl, summaryByUrl] = await Promise.all([
+				loadCrawls(deps.findArticleCrawlStatuses, collection.articles, deps.logError),
+				loadSummaries(deps.findGeneratedSummaries, collection.articles, deps.logError),
+			]);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
 					collection,
@@ -1868,6 +1868,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						warning: { code: validation.error.code, message: validation.error.message },
 						surfacePlatform: nativeSurfaceOf(req),
 						crawlByUrl,
+						summaryByUrl,
 					},
 				),
 			);

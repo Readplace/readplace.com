@@ -69,8 +69,9 @@ struct ReadlistPage {
 	let readlists: [Readlist]
 	let appearance: String?
 	let isStoredCopy: Bool
+	let sirenBody: Data?
 
-	init(collection: SirenCollection, isStoredCopy: Bool = false) {
+	init(collection: SirenCollection, sirenBody: Data? = nil, isStoredCopy: Bool = false) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
 		let links = collection.links ?? []
 		nextHref = links.first { $0.rel.contains("next") }?.href
@@ -84,6 +85,7 @@ struct ReadlistPage {
 		readlists = (collection.properties?.readlists ?? []).map(Readlist.init(entry:))
 		appearance = collection.properties?.appearance
 		self.isStoredCopy = isStoredCopy
+		self.sirenBody = sirenBody
 	}
 
 	var currentTabHref: String? { tabs.first(where: \.isCurrent)?.href }
@@ -178,10 +180,6 @@ final class ReadplaceAPI {
 		try await loadReadlist(path: path, cachePolicy: .reloadIgnoringLocalCacheData)
 	}
 
-	func loadStoredReadlist(path: String?) async throws -> ReadlistPage {
-		try await loadReadlist(path: path, cachePolicy: .returnCacheDataDontLoad)
-	}
-
 	private func loadReadlist(path: String?, cachePolicy: URLRequest.CachePolicy) async throws -> ReadlistPage {
 		let url: URL
 		if let path {
@@ -196,27 +194,7 @@ final class ReadplaceAPI {
 		if cachePolicy == .reloadRevalidatingCacheData { request.timeoutInterval = Self.listReadTimeout }
 		let (data, http) = try await send(request)
 		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
-		let isStoredCopy = cachePolicy == .returnCacheDataDontLoad
-		if isStoredCopy, !OfflineCopy.isShowable(dateHeader: http.value(forHTTPHeaderField: "Date"), now: Date()) {
-			throw URLError(.resourceUnavailable)
-		}
-		let page = ReadlistPage(
-			collection: try decodeSiren(SirenCollection.self, data: data, response: http),
-			isStoredCopy: isStoredCopy
-		)
-		if cachePolicy == .reloadRevalidatingCacheData { keepForAnyBearer(data, response: http) }
-		return page
-	}
-
-	private func keepForAnyBearer(_ data: Data, response: HTTPURLResponse) { // The server varies the list on Authorization and the access token changes on every refresh, so a copy kept under one token never answers the next one offline. Kept without Vary, any later bearer can read it; sign-out purges the cache.
-		var headers: [String: String] = [:]
-		for case let (name as String, value as String) in response.allHeaderFields where name.caseInsensitiveCompare("Vary") != .orderedSame {
-			headers[name] = value
-		}
-		guard let url = response.url,
-			let unvaried = HTTPURLResponse(url: url, statusCode: response.statusCode, httpVersion: nil, headerFields: headers)
-		else { return }
-		session.configuration.urlCache?.storeCachedResponse(CachedURLResponse(response: unvaried, data: data), for: URLRequest(url: url))
+		return ReadlistPage(collection: try decodeSiren(SirenCollection.self, data: data, response: http), sirenBody: data)
 	}
 
 	/// Invokes a simple entity action via its own server-declared href, method and

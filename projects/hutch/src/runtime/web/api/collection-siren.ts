@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { AppearancePreference } from "@packages/domain/user";
@@ -31,6 +32,7 @@ export function toArticleCollectionEntity(
 		showSaveInProgressNotice?: boolean;
 		appearance?: AppearancePreference;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
+		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 	},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
@@ -107,6 +109,7 @@ export function toArticleCollectionEntity(
 		entities: articles.map((article) =>
 			toArticleSubEntity(article, {
 				crawl: options.crawlByUrl?.get(article.url),
+				summary: options.summaryByUrl?.get(article.url),
 				collectionQuery: { readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },
 			}),
 		),

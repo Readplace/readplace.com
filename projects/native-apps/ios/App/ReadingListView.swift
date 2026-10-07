@@ -27,13 +27,18 @@ struct ReadingListView: View {
 		guard let defaults = UserDefaults(suiteName: group) else {
 			preconditionFailure("App Group \(group) is required for the reading list's readlist preferences")
 		}
+		guard let container = AppGroupContainer.entitled(appGroupId: group) else {
+			preconditionFailure("App Group \(group) is required for the reading list's offline copies")
+		}
 		_viewModel = StateObject(wrappedValue: ReadingListViewModel(
 			api: api,
 			jobs: UploadJobStore.inSharedContainer(appGroupId: group),
 			unseenSave: UnseenSave.inSharedContainer(appGroupId: group),
-			shareTarget: AppGroupContainer.entitled(appGroupId: group)
-				.map { ShareTarget.inSharedContainer($0, appGroupId: group) },
+			shareTarget: ShareTarget.inSharedContainer(container, appGroupId: group),
 			lastViewed: LastViewedReadlist(defaults: defaults),
+			snapshot: OfflineReadlistSnapshot(container: container),
+			manifest: OfflineDownloadManifest(container: container),
+			backgroundTime: ApplicationBackgroundTime(application: .shared),
 			onSessionExpired: { [weak session] in session?.reconcileSession() }
 		))
 	}
@@ -62,7 +67,17 @@ struct ReadingListView: View {
 					.padding(.bottom, 8)
 				}
 				if let progress = viewModel.offlineDownload {
-					offlineDownloadRow(progress)
+					OfflineDownloadRow(
+						state: .running(progress),
+						onContinue: startOfflineDownload,
+						onDismiss: { viewModel.cancelOfflineDownload() }
+					)
+				} else if let resume = viewModel.offlineDownloadResume {
+					OfflineDownloadRow(
+						state: .resumable(resume),
+						onContinue: startOfflineDownload,
+						onDismiss: { viewModel.dismissOfflineDownloadResume() }
+					)
 				}
 				if let drop = viewModel.sharedArticlesDrop {
 					sharedArticlesDropRow(drop)
@@ -91,7 +106,7 @@ struct ReadingListView: View {
 						}
 						if viewModel.offlineDownloadHref != nil {
 							Button {
-								viewModel.downloadUnreadOffline(with: WindowReaderPrefetcher(anchor: captureAnchor))
+								startOfflineDownload()
 							} label: {
 								Image(systemName: "arrow.down.circle")
 							}
@@ -215,26 +230,10 @@ struct ReadingListView: View {
 		)
 	}
 
-	private func offlineDownloadRow(_ progress: OfflineDownloadProgress) -> some View {
-		HStack(spacing: 12) {
-			ProgressView(value: progress.fraction) {
-				Text(progress.label)
-					.font(.footnote)
-					.foregroundStyle(Color.brandTextSecondary)
-			}
-			.progressViewStyle(.linear)
-			Button {
-				viewModel.cancelOfflineDownload()
-			} label: {
-				Image(systemName: "xmark.circle.fill")
-					.foregroundStyle(Color.brandTextSecondary)
-					.frame(minWidth: 44, minHeight: 44)
-					.contentShape(Rectangle())
-			}
-			.accessibilityLabel("Cancel download")
-		}
-		.padding(.horizontal)
-		.padding(.bottom, 8)
+	private func startOfflineDownload() {
+		viewModel.downloadUnreadOffline(
+			with: (0..<DownloadUnreadOffline.concurrentArticles).map { _ in WindowReaderPrefetcher(anchor: captureAnchor) }
+		)
 	}
 
 	private func sharedArticlesDropRow(_ drop: SharedArticlesDrop) -> some View {
@@ -332,7 +331,7 @@ struct ReadingListView: View {
 			if viewModel.isLoading && viewModel.articles.isEmpty {
 				ProgressView()
 			} else if viewModel.articles.isEmpty {
-				emptyState
+				ReadingListEmptyState(isOffline: viewModel.isOffline)
 			} else {
 				list
 			}
@@ -341,14 +340,14 @@ struct ReadingListView: View {
 		.background(Color.brandSurface.ignoresSafeArea())
 		.safeAreaInset(edge: .bottom) {
 			if !viewModel.messages.isEmpty {
-				banner(
-					viewModel.messages.map(\.plainText).joined(separator: "\n"),
+				ListBanner(
+					text: viewModel.messages.map(\.plainText).joined(separator: "\n"),
 					tone: viewModel.messages.contains { $0.kind == .error } ? .error : .warning
 				) { viewModel.messages = [] }
 			} else if let errorText = viewModel.errorText {
-				banner(errorText, tone: BannerTone(errorText: errorText)) { viewModel.errorText = nil }
+				ListBanner(text: errorText, tone: BannerTone(errorText: errorText)) { viewModel.errorText = nil }
 			} else if let warningText = viewModel.warningText {
-				banner(warningText, tone: .warning) { viewModel.warningText = nil }
+				ListBanner(text: warningText, tone: .warning) { viewModel.warningText = nil }
 			}
 		}
 	}
@@ -356,7 +355,11 @@ struct ReadingListView: View {
 	private var list: some View {
 		List {
 			ForEach(viewModel.articles) { article in
-				ArticleRow(article: article, edge: ListingPanelEdge(of: article, in: viewModel.articles))
+				ArticleRow(
+					article: article,
+					edge: ListingPanelEdge(of: article, in: viewModel.articles),
+					isAvailableOffline: viewModel.isAvailableOffline(article)
+				)
 					.contentShape(Rectangle())
 					.onTapGesture {
 						viewModel.openReader(for: article)
@@ -422,23 +425,41 @@ struct ReadingListView: View {
 		}
 	}
 
-	private var emptyState: some View {
+}
+
+struct ReadingListEmptyState: View {
+	let isOffline: Bool
+
+	var body: some View {
 		VStack(spacing: 12) {
-			Image(systemName: "tray")
+			Image(systemName: isOffline ? "wifi.slash" : "tray")
 				.font(.system(size: 44))
 				.foregroundStyle(Color.brandTextSecondary)
-			Text("Nothing saved yet")
-				.font(.headline)
-				.foregroundStyle(Color.brandTextPrimary)
-			Text("Open a link in any app, tap Share, and choose Readplace. Tap + for help.")
-				.font(.subheadline)
-				.foregroundStyle(Color.brandTextSecondary)
-				.multilineTextAlignment(.center)
+			if isOffline {
+				Text(OfflineReading.emptyListText)
+					.font(.headline)
+					.foregroundStyle(Color.brandTextPrimary)
+					.multilineTextAlignment(.center)
+			} else {
+				Text("Nothing saved yet")
+					.font(.headline)
+					.foregroundStyle(Color.brandTextPrimary)
+				Text("Open a link in any app, tap Share, and choose Readplace. Tap + for help.")
+					.font(.subheadline)
+					.foregroundStyle(Color.brandTextSecondary)
+					.multilineTextAlignment(.center)
+			}
 		}
 		.padding(40)
 	}
+}
 
-	private func banner(_ text: String, tone: BannerTone, onDismiss: @escaping () -> Void) -> some View {
+struct ListBanner: View {
+	let text: String
+	let tone: BannerTone
+	let onDismiss: () -> Void
+
+	var body: some View {
 		HStack {
 			Text(text).font(.footnote).foregroundStyle(tone.ink)
 			Spacer()
@@ -448,5 +469,63 @@ struct ReadingListView: View {
 		.background(tone.fill, in: RoundedRectangle(cornerRadius: 10))
 		.padding()
 		.background(tone.backdrop.ignoresSafeArea())
+	}
+}
+
+struct OfflineDownloadRow: View {
+	enum State {
+		case running(OfflineDownloadProgress)
+		case resumable(OfflineDownloadRun)
+	}
+
+	let state: State
+	let onContinue: () -> Void
+	let onDismiss: () -> Void
+
+	var body: some View {
+		HStack(spacing: 12) {
+			ProgressView(value: fraction) {
+				Text(label)
+					.font(.footnote)
+					.foregroundStyle(Color.brandTextSecondary)
+			}
+			.progressViewStyle(.linear)
+			if case .resumable = state {
+				Button("Continue", action: onContinue)
+					.font(.footnote.weight(.semibold))
+					.buttonStyle(.borderless)
+					.frame(minHeight: 44)
+			}
+			Button(action: onDismiss) {
+				Image(systemName: "xmark.circle.fill")
+					.foregroundStyle(Color.brandTextSecondary)
+					.frame(minWidth: 44, minHeight: 44)
+					.contentShape(Rectangle())
+			}
+			.accessibilityLabel(dismissLabel)
+		}
+		.padding(.horizontal)
+		.padding(.bottom, 8)
+	}
+
+	private var label: String {
+		switch state {
+		case .running(let progress): return progress.label
+		case .resumable(let run): return run.resumeLabel
+		}
+	}
+
+	private var fraction: Double {
+		switch state {
+		case .running(let progress): return progress.fraction
+		case .resumable(let run): return run.fraction
+		}
+	}
+
+	private var dismissLabel: String {
+		switch state {
+		case .running: return "Cancel download"
+		case .resumable: return "Dismiss download"
+		}
 	}
 }

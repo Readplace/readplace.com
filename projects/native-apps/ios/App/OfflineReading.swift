@@ -5,6 +5,8 @@ import WebKit
 enum OfflineReading {
 	static let bannerText = "Your internet is not working, your reading is offline. Readplace is read-only until you're back online."
 
+	static let emptyListText = "You're offline. Your reading list will appear once you're back online."
+
 	static let downloadControlTint: Color? = nil
 
 	static func isTransportFailure(_ error: Error) -> Bool {

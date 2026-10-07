@@ -3,6 +3,8 @@ import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
 import { displayableReadTime, type SavedArticle } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
+import { computeArticleContentVersion } from "../shared/article-content-version";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import type { ReadlistOption } from "./readlist-list";
@@ -17,7 +19,7 @@ function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 
 export function toArticleSubEntity(
 	article: SavedArticle,
-	options: { crawl?: ArticleCrawl; collectionQuery?: CollectionQueryParams } = {},
+	options: { crawl?: ArticleCrawl; summary?: GeneratedSummary; collectionQuery?: CollectionQueryParams } = {},
 ): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
@@ -50,6 +52,11 @@ export function toArticleSubEntity(
 			// from the `status` vocabulary it would otherwise have to hard-code.
 			isRead,
 			needsBrowserCapture: needsBrowserCapture(options.crawl),
+			contentVersion: computeArticleContentVersion({
+				article,
+				crawl: options.crawl,
+				summary: options.summary,
+			}),
 		},
 		links,
 		actions: [

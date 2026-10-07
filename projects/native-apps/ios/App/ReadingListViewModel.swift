@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 @MainActor
@@ -34,6 +35,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var selectedReadlistHref: String?
 	@Published private(set) var appearance: String?
 	@Published private(set) var offlineDownload: OfflineDownloadProgress?
+	@Published private(set) var isOffline = false
 
 	private var nextHref: String?
 	private var rootHref: String?
@@ -61,7 +63,11 @@ final class ReadingListViewModel: ObservableObject {
 	private let unseenSave: UnseenSave?
 	private let shareTarget: ShareTarget?
 	private let lastViewed: LastViewedReadlist
+	private let snapshot: OfflineReadlistSnapshot
+	private let manifest: OfflineDownloadManifest
+	private let backgroundTime: BackgroundTimeKeeping
 	private let onSessionExpired: () -> Void
+	private var manifestChanges: AnyCancellable?
 
 	/// The reading list's client-side add (+) control: a navigable `add-links-help`
 	/// affordance the client injects itself rather than discovering from the server.
@@ -83,6 +89,9 @@ final class ReadingListViewModel: ObservableObject {
 		unseenSave: UnseenSave?,
 		shareTarget: ShareTarget?,
 		lastViewed: LastViewedReadlist,
+		snapshot: OfflineReadlistSnapshot,
+		manifest: OfflineDownloadManifest,
+		backgroundTime: BackgroundTimeKeeping,
 		onSessionExpired: @escaping () -> Void
 	) {
 		self.api = api
@@ -90,6 +99,9 @@ final class ReadingListViewModel: ObservableObject {
 		self.unseenSave = unseenSave
 		self.shareTarget = shareTarget
 		self.lastViewed = lastViewed
+		self.snapshot = snapshot
+		self.manifest = manifest
+		self.backgroundTime = backgroundTime
 		self.onSessionExpired = onSessionExpired
 		// Append the same app-shell marker `open(link:)` puts on the account href, so
 		// the help page is served chromeless with a deep-link back to the native list.
@@ -97,6 +109,7 @@ final class ReadingListViewModel: ObservableObject {
 		// its native fallback rather than opening a marker-less page.
 		addLinksHelpURL = Href.resolve(AppConfig.addLinksHelpPath, baseURL: api.baseURL)
 			.flatMap { Href.appending(AppConfig.appShellQueryItem, to: $0) }
+		manifestChanges = manifest.objectWillChange.sink { [objectWillChange] in objectWillChange.send() }
 	}
 
 	func loadIfNeeded() async {
@@ -198,10 +211,13 @@ final class ReadingListViewModel: ObservableObject {
 
 	private func loadList(path: String?, orStored alternative: String? = nil) async throws -> ReadlistPage {
 		do {
-			return try await api.loadReadlist(path: path)
+			let page = try await api.loadReadlist(path: path)
+			snapshot.save(page, href: path, savedAt: Date())
+			return page
 		} catch let error where OfflineReading.isTransportFailure(error) {
-			if let stored = try? await api.loadStoredReadlist(path: path) { return stored }
-			guard let alternative, let stored = try? await api.loadStoredReadlist(path: alternative) else { throw error }
+			let now = Date()
+			if let stored = snapshot.page(href: path, now: now) { return stored }
+			guard let alternative, let stored = snapshot.page(href: alternative, now: now) else { throw error }
 			return stored
 		}
 	}
@@ -421,18 +437,35 @@ final class ReadingListViewModel: ObservableObject {
 
 	var offlineDownloadHref: String? { tabs.first?.href }
 
+	var offlineDownloadResume: OfflineDownloadRun? {
+		offlineDownload == nil ? manifest.incompleteRun : nil
+	}
+
+	func isAvailableOffline(_ article: Article) -> Bool {
+		manifest.isAvailableOffline(article)
+	}
+
+	func dismissOfflineDownloadResume() {
+		manifest.forgetRun()
+	}
+
 	@discardableResult
-	func downloadUnreadOffline(with prefetcher: ReaderPrefetching) -> Task<Void, Never>? {
+	func downloadUnreadOffline(with prefetchers: [ReaderPrefetching]) -> Task<Void, Never>? {
 		guard offlineDownload == nil, let href = offlineDownloadHref else { return nil }
-		offlineDownload = OfflineDownloadProgress(completed: 0, total: 0, failed: 0)
-		let download = DownloadUnreadOffline(api: api, prefetcher: prefetcher, sessionAction: sessionAction)
+		let expectedTotal = manifest.run?.total ?? 0
+		offlineDownload = OfflineDownloadProgress(completed: 0, total: expectedTotal, failed: 0)
+		let download = DownloadUnreadOffline(
+			api: api, prefetchers: prefetchers, sessionAction: sessionAction, manifest: manifest, snapshot: snapshot
+		)
+		backgroundTime.begin()
 		let task = Task {
 			defer {
 				offlineDownload = nil
 				offlineDownloadTask = nil
+				backgroundTime.end()
 			}
 			do {
-				let outcome = try await download.run(from: href) { offlineDownload = $0 }
+				let outcome = try await download.run(from: href, expectedTotal: expectedTotal) { self.offlineDownload = $0 }
 				if let failureText = outcome.failureText { errorText = failureText }
 			} catch {
 				handle(error)
@@ -488,6 +521,7 @@ final class ReadingListViewModel: ObservableObject {
 			pagesHeld += 1
 		}
 		if page.isStoredCopy { errorText = OfflineReading.bannerText }
+		if replacing { isOffline = page.isStoredCopy }
 		hasLoadedOnce = true
 		nextHref = page.nextHref
 		hasMore = page.nextHref != nil
@@ -540,6 +574,7 @@ final class ReadingListViewModel: ObservableObject {
 		case let APIError.refused(messages) where !messages.isEmpty:
 			self.messages = messages
 		case _ where OfflineReading.isTransportFailure(error):
+			isOffline = true
 			errorText = OfflineReading.bannerText
 		default:
 			errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

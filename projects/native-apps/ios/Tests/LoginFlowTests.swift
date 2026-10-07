@@ -312,6 +312,9 @@ final class LoginFlowTests: XCTestCase {
 			unseenSave: nil,
 			shareTarget: ShareTarget(container: shareContainer),
 			lastViewed: LastViewedReadlist(defaults: defaults),
+			snapshot: OfflineReadlistSnapshot(container: shareContainer),
+			manifest: OfflineDownloadManifest(container: shareContainer),
+			backgroundTime: FakeBackgroundTime(),
 			onSessionExpired: {}
 		)
 		await viewModel.loadIfNeeded()

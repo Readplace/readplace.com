@@ -218,7 +218,8 @@ enum Fixtures {
 		status: String = "unread",
 		savedAt: String = "2026-05-30T10:00:00.000Z",
 		readAt: String? = nil,
-		isRead: Bool? = nil
+		isRead: Bool? = nil,
+		contentVersion: String? = nil
 	) -> String {
 		func field(_ key: String, _ value: String?) -> String {
 			value.map { "\"\(key)\": \"\($0)\"" } ?? "\"\(key)\": null"
@@ -250,7 +251,7 @@ enum Fixtures {
 				\(readTimeField(readTime)),
 				"status": "\(status)",
 				"savedAt": "\(savedAt)",
-				\(field("readAt", readAt))\(boolField("isRead", isRead))
+				\(field("readAt", readAt))\(boolField("isRead", isRead))\(contentVersion.map { ", \"contentVersion\": \"\($0)\"" } ?? "")
 			},
 			"links": [{ "rel": ["read"], "href": "/queue/\(id)/view" }],
 			"actions": [

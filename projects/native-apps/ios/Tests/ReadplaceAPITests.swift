@@ -168,6 +168,10 @@ final class ReadplaceAPITests: XCTestCase {
 			"a list read always asks the origin, so a copy kept for offline never stands in for a reachable server"
 		)
 		XCTAssertEqual(page.isStoredCopy, false)
+		XCTAssertEqual(
+			page.sirenBody, Data(Fixtures.collection(entitiesJSON: []).utf8),
+			"the page carries the body it was read from, so the list can keep it for offline"
+		)
 	}
 
 	func testEveryLegOfAListReadGivesUpAfterTenSilentSeconds() async throws {
@@ -186,85 +190,6 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
-	func testLoadStoredReadlistAnswersFromTheStoredCopyAlone() async throws {
-		let href = "/queue?readlist=main"
-		let url = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)\(href)"))
-		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
-		let api = ReadplaceAPI(
-			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(), nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration(
-				storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "stored-1")]), at: url
-			)
-		)
-
-		let page = try await api.loadStoredReadlist(path: href)
-
-		XCTAssertEqual(page.articles.map(\.id), ["stored-1"])
-		XCTAssertEqual(page.isStoredCopy, true, "the list must know it is showing a copy, not the server's answer")
-		XCTAssertEqual(StubURLProtocol.records.map { $0.request.cachePolicy }, [.returnCacheDataDontLoad])
-	}
-
-	func testAStoredListTheServerDatedMoreThanThirtyDaysAgoIsNotShown() async throws {
-		let href = "/queue?readlist=main"
-		let url = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)\(href)"))
-		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
-		let api = ReadplaceAPI(
-			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(), nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration(
-				storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "stored-1")]), at: url,
-				dated: Date(timeIntervalSinceNow: -31 * 24 * 60 * 60)
-			)
-		)
-
-		do {
-			_ = try await api.loadStoredReadlist(path: href)
-			XCTFail("a list kept more than thirty days ago must not be shown")
-		} catch {
-			XCTAssertEqual((error as? URLError)?.code, .resourceUnavailable, "an expired copy reads exactly like no copy at all")
-		}
-	}
-
-	func testAListReadOnlineKeepsACopyARefreshedBearerCanStillRead() async throws {
-		var online = true
-		let served = TestSupport.httpDate(Date())
-		StubURLProtocol.setHandler { _, _ in
-			guard online else { throw URLError(.notConnectedToInternet) }
-			return StubURLProtocol.Stub(
-				status: 200,
-				headers: [
-					"Content-Type": AppConfig.sirenMediaType,
-					"Cache-Control": "private, max-age=3600",
-					"Vary": "Accept, Authorization, X-Readplace-Client, X-Readplace-Save-Continuity",
-					"Date": served,
-				],
-				body: Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "kept")]).utf8)
-			).storable()
-		}
-		let configuration = TestSupport.stubbedConfiguration()
-		configuration.urlCache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
-		let store = TestSupport.loggedInStore(access: "before-refresh")
-		let api = ReadplaceAPI(
-			baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: configuration
-		)
-		_ = try await api.loadReadlist(path: "/queue?status=unread")
-
-		let listURL = try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/queue?status=unread"))
-		let kept = try XCTUnwrap(configuration.urlCache?.cachedResponse(for: URLRequest(url: listURL))?.response as? HTTPURLResponse)
-		XCTAssertEqual(
-			kept.allHeaderFields as? [String: String],
-			["Content-Type": AppConfig.sirenMediaType, "Cache-Control": "private, max-age=3600", "Date": served],
-			"URLSession matches a kept copy's Vary against each request, and the bearer changes on every refresh, so the copy varies on nothing"
-		)
-		online = false
-		store.save(OAuthTokens(accessToken: "after-refresh", refreshToken: "refresh-2"))
-		let page = try await api.loadStoredReadlist(path: "/queue?status=unread")
-
-		XCTAssertEqual(
-			page.articles.map(\.id), ["kept"],
-			"a bearer refreshed after the list was read must not make the copy kept for offline unreachable"
-		)
-	}
 
 	func testRediscoverReadlistAtAPathRereadsThatCollectionAloneBypassingTheCache() async throws {
 		let store = TestSupport.loggedInStore()

@@ -242,6 +242,7 @@ describe("toArticleCollectionEntity", () => {
 			"readAt",
 			"isRead",
 			"needsBrowserCapture",
+			"contentVersion",
 		]);
 	});
 

@@ -40,13 +40,16 @@ extension AppSessionTests {
 	private var storedList: URL { URL(string: "\(AppConfig.serverBaseURL)/queue?readlist=main")! }
 
 	@MainActor
-	private func sessionHoldingAStoredList(store: TokenStore) -> (AppSession, URLSessionConfiguration) {
+	private func sessionHoldingAStoredList(
+		store: TokenStore,
+		forgetOfflineCopies: @escaping () -> Void = {}
+	) -> (AppSession, URLSessionConfiguration) {
 		let configuration = TestSupport.stubbedConfiguration(
 			storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]), at: storedList
 		)
 		let session = AppSession(store: store, nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: configuration, wipeReaderWebStore: {},
-			purgeShareArtifacts: {}, forgetReaderChoices: {})
+			purgeShareArtifacts: {}, forgetReaderChoices: {}, forgetOfflineCopies: forgetOfflineCopies)
 		XCTAssertEqual(
 			configuration.urlCache?.cachedResponse(for: URLRequest(url: storedList))?.data,
 			Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]).utf8),
@@ -92,6 +95,43 @@ extension AppSessionTests {
 			configuration.urlCache?.cachedResponse(for: URLRequest(url: storedList)),
 			"a sign-out noticed on reconcile clears the stored list like any other"
 		)
+	}
+
+	@MainActor
+	func testEverySignOutPathForgetsTheOfflineCopies() async {
+		StubURLProtocol.reset()
+		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
+		var forgotten = 0
+		let (signingOut, _) = sessionHoldingAStoredList(store: TestSupport.loggedInStore()) { forgotten += 1 }
+		await signingOut.logout()
+		XCTAssertEqual(forgotten, 1, "the downloaded list and its manifest belong to the account that signed out")
+
+		let (expiring, _) = sessionHoldingAStoredList(store: TestSupport.loggedInStore()) { forgotten += 1 }
+		let readerWipe = expiring.forceLogout()
+		XCTAssertEqual(forgotten, 2, "an expired session leaves no offline copies behind either")
+		await readerWipe.value
+
+		let (reconciled, _) = sessionHoldingAStoredList(store: TokenStore(defaults: TestSupport.ephemeralDefaults())) {
+			forgotten += 1
+		}
+		reconciled.reconcileSession()
+		XCTAssertEqual(forgotten, 3, "nor does a sign-out noticed on reconcile")
+	}
+
+	@MainActor
+	func testTheRealSignOutRemovesTheOfflineCopiesFromTheAppGroup() async throws {
+		StubURLProtocol.reset()
+		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
+		let container = try XCTUnwrap(AppGroupContainer.entitled(appGroupId: TokenStore.resolvedAppGroupId))
+		OfflineDownloadManifest(container: container).record(run: OfflineDownloadRun(total: 2, completed: 1))
+		let session = AppSession(store: TestSupport.loggedInStore(), nativeUserAgent: TestSupport.nativeUserAgent,
+			sessionConfiguration: TestSupport.stubbedConfiguration(), wipeReaderWebStore: {},
+			purgeShareArtifacts: {}, forgetReaderChoices: {})
+
+		await session.logout()
+
+		XCTAssertNil(OfflineDownloadManifest(container: container).run)
+		XCTAssertFalse(FileManager.default.fileExists(atPath: OfflineReadingFiles.directory(in: container).path))
 	}
 
 	@MainActor

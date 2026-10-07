@@ -32,6 +32,7 @@ final class AppSession: ObservableObject {
 	private let wipeReaderWebStore: () async -> Void
 	private let purgeShareArtifacts: () -> Void
 	private let forgetReaderChoices: () -> Void
+	private let forgetOfflineCopies: () -> Void
 
 	// `wipeReaderWebStore` defaults to the real WebKit deletion; it's the
 	// OS-boundary seam tests replace with a spy.
@@ -41,7 +42,8 @@ final class AppSession: ObservableObject {
 		sessionConfiguration: URLSessionConfiguration,
 		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData,
 		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts,
-		forgetReaderChoices: @escaping () -> Void = AppSession.removeReaderChoices
+		forgetReaderChoices: @escaping () -> Void = AppSession.removeReaderChoices,
+		forgetOfflineCopies: @escaping () -> Void = AppSession.removeOfflineCopies
 	) {
 		self.oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store,
 			nativeUserAgent: nativeUserAgent, sessionConfiguration: sessionConfiguration)
@@ -51,6 +53,7 @@ final class AppSession: ObservableObject {
 		self.wipeReaderWebStore = wipeReaderWebStore
 		self.purgeShareArtifacts = purgeShareArtifacts
 		self.forgetReaderChoices = forgetReaderChoices
+		self.forgetOfflineCopies = forgetOfflineCopies
 		self.isLoggedIn = store.isLoggedIn
 	}
 
@@ -95,6 +98,7 @@ final class AppSession: ObservableObject {
 		guard !isLoggedIn else { return }
 		clearSessionCookie()
 		purgeStoredReadlists()
+		forgetOfflineCopies()
 		purgeShareArtifacts()
 		forgetReaderChoices()
 		isLoggedIn = false
@@ -110,6 +114,7 @@ final class AppSession: ObservableObject {
 		let invalidate = Task { await oauth.clear(ifUnchanged: rejected) }
 		clearSessionCookie()
 		purgeStoredReadlists()
+		forgetOfflineCopies()
 		purgeShareArtifacts()
 		let readerWipe = Task { await invalidate.value; await self.wipeReaderWebStore() }
 		isLoggedIn = false
@@ -149,6 +154,10 @@ final class AppSession: ObservableObject {
 		await store.removeData(ofTypes: nonCookieTypes, modifiedSince: .distantPast)
 	}
 
+	private static func removeOfflineCopies() {
+		AppGroupContainer.entitled(appGroupId: TokenStore.resolvedAppGroupId).map(OfflineReadingFiles.purge(in:))
+	}
+
 	private static func removeShareArtifacts() {
 		ShareArtifacts.purge(appGroupId: TokenStore.resolvedAppGroupId)
 	}
@@ -185,6 +194,7 @@ final class AppSession: ObservableObject {
 		guard !isLoggedIn else { return }
 		clearSessionCookie()
 		purgeStoredReadlists()
+		forgetOfflineCopies()
 		purgeShareArtifacts()
 		Task { await self.wipeReaderWebStore() }
 	}

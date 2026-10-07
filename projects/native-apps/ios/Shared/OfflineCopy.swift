@@ -3,7 +3,11 @@ import Foundation
 enum OfflineCopy {
 	static func isShowable(dateHeader: String?, now: Date) -> Bool {
 		guard let dateHeader, let dated = httpDate.date(from: dateHeader) else { return false }
-		return now.timeIntervalSince(dated) <= maximumAge
+		return isShowable(savedAt: dated, now: now)
+	}
+
+	static func isShowable(savedAt: Date, now: Date) -> Bool {
+		now.timeIntervalSince(savedAt) <= maximumAge
 	}
 
 	private static let maximumAge: TimeInterval = 30 * 24 * 60 * 60

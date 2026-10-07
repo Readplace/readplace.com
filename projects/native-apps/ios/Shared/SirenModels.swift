@@ -147,6 +147,7 @@ struct ArticleProperties: Decodable {
 	/// that doesn't emit it still decodes; the client falls back to deriving read
 	/// state from `status`/`readAt` only then.
 	let isRead: Bool?
+	let contentVersion: String?
 	/// What the server asked the client to tell the reader about this response
 	/// (e.g. a save confirmation). Optional so an older server still decodes.
 	let messages: [ServerMessage]?
@@ -155,7 +156,7 @@ struct ArticleProperties: Decodable {
 extension ArticleProperties {
 	private enum CodingKeys: String, CodingKey {
 		case id, url, title, siteName, excerpt, wordCount, imageUrl, estimatedReadTimeMinutes
-		case readTime, status, savedAt, readAt, isRead, messages
+		case readTime, status, savedAt, readAt, isRead, contentVersion, messages
 	}
 
 	init(from decoder: Decoder) throws {
@@ -173,6 +174,7 @@ extension ArticleProperties {
 		savedAt = try container.decodeIfPresent(String.self, forKey: .savedAt)
 		readAt = try container.decodeIfPresent(String.self, forKey: .readAt)
 		isRead = try container.decodeIfPresent(Bool.self, forKey: .isRead)
+		contentVersion = try container.decodeIfPresent(String.self, forKey: .contentVersion)
 		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
 	}
 }
@@ -416,6 +418,7 @@ struct Article: Identifiable, Hashable {
 	let readTimeLabel: String?
 	let isRead: Bool
 	let savedAt: Date?
+	let contentVersion: String?
 	/// Every action the server advertised on this item (e.g. `update-status`),
 	/// in the order the server listed them. The row renders one control
 	/// per actionable entry by iterating this — it never cherry-picks an action by
@@ -461,6 +464,7 @@ extension Article {
 		// status vocabulary only for an older server that doesn't emit `isRead`.
 		isRead = props.isRead ?? (props.status == "read" || props.readAt != nil)
 		savedAt = props.savedAt.flatMap(SirenDate.parse)
+		contentVersion = props.contentVersion
 		actions = entity.actions ?? []
 		links = entity.links ?? []
 		readHref = links.first { $0.rel.contains("read") }?.href

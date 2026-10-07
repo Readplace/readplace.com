@@ -8,6 +8,7 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import type { UserId } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
+import { computeArticleContentVersion } from "../shared/article-content-version";
 import { toArticleSubEntity, toArticleEntity, toSavedArticleEntity } from "./article-siren";
 
 const ARTICLE_URL = "https://example.com/article";
@@ -36,6 +37,23 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 }
 
 describe("toArticleSubEntity", () => {
+	it("advertises the content version the web reader link carries, from the article, its crawl and its summary", () => {
+		const article = makeArticle({ contentFetchedAt: new Date("2026-03-05T10:00:00.000Z") });
+		const crawl: ArticleCrawl = { status: "ready" };
+		const summary = { status: "ready" as const, summary: "A summary." };
+
+		expect(toArticleSubEntity(article, { crawl, summary }).properties?.contentVersion).toBe(
+			computeArticleContentVersion({ article, crawl, summary }),
+		);
+	});
+
+	it("changes the content version when the article is crawled again, so a client's stored copy stops counting as current", () => {
+		const before = toArticleSubEntity(makeArticle({ contentFetchedAt: new Date("2026-03-05T10:00:00.000Z") }));
+		const after = toArticleSubEntity(makeArticle({ contentFetchedAt: new Date("2026-03-06T10:00:00.000Z") }));
+
+		expect(after.properties?.contentVersion).not.toBe(before.properties?.contentVersion);
+	});
+
 	it("maps sub-entity with exact properties (no content) and structure", () => {
 		const article = makeArticle({ content: "<p>Full text</p>" });
 		const subEntity = toArticleSubEntity(article);
@@ -57,6 +75,7 @@ describe("toArticleSubEntity", () => {
 				readAt: null,
 				isRead: false,
 				needsBrowserCapture: false,
+				contentVersion: computeArticleContentVersion({ article, crawl: undefined, summary: undefined }),
 			},
 			links: [
 				{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },

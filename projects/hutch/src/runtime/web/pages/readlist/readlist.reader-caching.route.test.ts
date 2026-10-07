@@ -13,6 +13,10 @@ import type { TestAppFixture } from "@packages/test-fixtures";
 import type { UserId } from "@packages/domain/user";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { loginAgent, useTestServer } from "../../../test-app";
+import request from "supertest";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
+import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
 
 const useApp = useTestServer();
 
@@ -280,5 +284,39 @@ describe("Reader view browser cache (GET /queue/:id/view)", () => {
 		const after = await agent.get(`/queue/${articleId}/view?v=${version}`).set("If-None-Match", staleEtag);
 		expect(after.status).toBe(200);
 		expect(after.headers.etag).not.toBe(staleEtag);
+	});
+
+	it("tells the iOS reader which content version it rendered, the same one the card links to", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-ios-version";
+		const { agent, userId } = await saveArticle(harness, url);
+		await settleRelated(fixture, userId, url);
+
+		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
+		const response = await agent.get(`/queue/${articleId}/view?platform=ios`);
+
+		expect(response.status).toBe(200);
+		expect(response.headers[ARTICLE_VERSION_HEADER.toLowerCase()]).toBe(version);
+	});
+
+	it("advertises each Siren article's content version, the same one the card links to and the iOS reader reports", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-siren-version";
+		const { agent, userId } = await saveArticle(harness, url);
+		await settleRelated(fixture, userId, url);
+
+		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
+		const accessToken = await saveAccessTokenForUser(harness, userId);
+		const collection = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(collection.status).toBe(200);
+		expect(collection.body.entities.map((entity: { properties: { id: string; contentVersion: string } }) => entity.properties)).toEqual([
+			expect.objectContaining({ id: articleId, contentVersion: version }),
+		]);
 	});
 });

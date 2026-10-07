@@ -23,7 +23,7 @@ final class BannerToneTests: XCTestCase {
 	}
 
 	func testTheOfflineNoticeSitsOnTheListSurfaceBecauseItsTintIsTheUnreadRowFill() {
-		let unreadRow = ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedLabel: nil)
+		let unreadRow = ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: false)
 
 		XCTAssertEqual(BannerTone.offline.fill, unreadRow.fill)
 		XCTAssertEqual(BannerTone.offline.backdrop, .brandSurface)

@@ -3,13 +3,15 @@ import SwiftUI
 struct ArticleRow: View {
 	let article: Article
 	let edge: ListingPanelEdge
+	let isAvailableOffline: Bool
 	@ScaledMetric(relativeTo: .caption) private var dotSize: CGFloat = 8
 
 	var body: some View {
 		let presentation = ArticleRowPresentation(
 			isRead: article.isRead,
 			readTimeLabel: article.readTimeLabel,
-			savedLabel: article.savedAt.map { Self.relative.localizedString(for: $0, relativeTo: Date()) }
+			savedLabel: article.savedAt.map { Self.relative.localizedString(for: $0, relativeTo: Date()) },
+			isAvailableOffline: isAvailableOffline
 		)
 		VStack(alignment: .leading, spacing: 8) {
 			HStack(spacing: 8) {
@@ -20,6 +22,16 @@ struct ArticleRow: View {
 						.font(.caption)
 						.foregroundStyle(Color.brandTextSecondary)
 						.lineLimit(1)
+				}
+
+				if presentation.showsOfflineBadge {
+					Text(ArticleRowPresentation.offlineBadgeLabel)
+						.font(.caption2.weight(.semibold))
+						.foregroundStyle(Color.brandPrimaryText)
+						.padding(.horizontal, 8)
+						.padding(.vertical, 2)
+						.background(Color.brandPrimaryText.opacity(0.12), in: Capsule())
+						.accessibilityLabel(ArticleRowPresentation.offlineBadgeAccessibilityLabel)
 				}
 			}
 
