@@ -2226,3 +2226,161 @@ test.describe("Readlist subscription chip at the reflow minimum", () => {
 		});
 	}
 });
+
+const OFFLINE_DOWNLOAD_STATUS = "[data-test-offline-download-status]";
+const OFFLINE_DOWNLOAD_START = "[data-test-offline-download-start]";
+const OFFLINE_TAG = "[data-offline-tag]";
+const OFFLINE_LISTING_FETCH = /\/queue\?.*utm_content=download-offline/;
+
+function offlineDownloadCheckpoint(input: {
+	name: string;
+	status: string;
+	tags: number;
+	geometry: (page: Page) => Promise<void>;
+}): VisualCheckpoint {
+	return {
+		name: input.name,
+		settled: async (page) => {
+			await articlesPageSettled(page);
+			await expect(page.locator(OFFLINE_DOWNLOAD_STATUS)).toHaveText(input.status);
+			await expect(page.locator(OFFLINE_TAG)).toHaveCount(input.tags);
+			await page.mouse.move(0, 0);
+		},
+		geometry: input.geometry,
+		target: LISTING,
+		capture: "element",
+		pinnedText: [
+			{ selector: `${FIRST_CARD} ${CARD_TIME}`, text: "3 days ago" },
+			{ selector: `.readlist-list > .readlist-article:nth-of-type(2) ${CARD_TIME}`, text: "2 days ago" },
+		],
+	};
+}
+
+const OFFLINE_DOWNLOAD_STARTING = offlineDownloadCheckpoint({
+	name: "readlist-offline-download-starting",
+	status: "Downloading 0 of 2",
+	tags: 0,
+	geometry: railBesideMainBesideSide,
+});
+
+const OFFLINE_DOWNLOAD_RESUME = offlineDownloadCheckpoint({
+	name: "readlist-offline-download-resume",
+	status: "1 of 2 downloaded. Press to continue.",
+	tags: 0,
+	geometry: railBesideMainBesideSide,
+});
+
+const OFFLINE_DOWNLOAD_SIGNED_OUT = offlineDownloadCheckpoint({
+	name: "readlist-offline-download-signed-out",
+	status: "You were signed out. Sign in and press again to continue.",
+	tags: 0,
+	geometry: railBesideMainBesideSide,
+});
+
+const OFFLINE_DOWNLOAD_FINISHED = offlineDownloadCheckpoint({
+	name: "readlist-offline-download-finished",
+	status: "2 available offline",
+	tags: 2,
+	geometry: railBesideMainBesideSide,
+});
+
+const OFFLINE_DOWNLOAD_FINISHED_PHONE = offlineDownloadCheckpoint({
+	name: "readlist-offline-download-finished-phone",
+	status: "2 available offline",
+	tags: 2,
+	geometry: phonePageGeometry,
+});
+
+async function openSeededReadlist(page: Page, input: { label: string; theme: string; workerIndex: number }): Promise<void> {
+	const email = `readlist-offline-${input.label}-${input.theme}-${input.workerIndex}-${Date.now()}@example.com`;
+	const userId = await createVerifiedUser(page, email);
+	await seedTwoArticles(page, userId, email);
+	await loginAs(page, email);
+	await gotoReadlistQueue(page, "");
+	await page.waitForSelector(`${PAGINATION_PAGES} ${PAGINATION_PAGE}`);
+}
+
+async function storeCurrentCopiesOfEveryCard(page: Page): Promise<void> {
+	await page.evaluate(async () => {
+		const cache = await window.caches.open("readplace-offline-v1");
+		for (const link of document.querySelectorAll<HTMLAnchorElement>(".readlist-article__title[href]")) {
+			const article = new URL(link.href);
+			for (const name of Array.from(article.searchParams.keys())) {
+				if (name.startsWith("utm_")) article.searchParams.delete(name);
+			}
+			const headers = new Headers({
+				"Content-Type": "text/html",
+				"Readplace-Offline-Saved-At": new Date().toISOString(),
+				"Readplace-Offline-Source": article.href,
+			});
+			await cache.put(
+				`${article.origin}${article.pathname}`,
+				new Response("<main><div data-article-body><p>Kept</p></div></main>", { headers }),
+			);
+		}
+	});
+}
+
+test.describe("Readlist offline download", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
+
+	for (const theme of THEMES) {
+		test(`shows the progress bar and 0 of the total the moment it is pressed (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openSeededReadlist(page, { label: "starting", theme, workerIndex: testInfo.workerIndex });
+			await page.route(OFFLINE_LISTING_FETCH, () => {});
+
+			await page.locator(OFFLINE_DOWNLOAD_START).click();
+
+			await captureCheckpoint(page, withTheme(OFFLINE_DOWNLOAD_STARTING, theme));
+		});
+
+		test(`offers to continue an unfinished download on the next visit (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.addInitScript((origin) => {
+				window.localStorage.setItem(
+					"readplace:offline-download-run",
+					JSON.stringify({ listing: `${origin}/queue`, kept: 1, total: 2 }),
+				);
+			}, BASE_URL);
+			await openSeededReadlist(page, { label: "resume", theme, workerIndex: testInfo.workerIndex });
+
+			await captureCheckpoint(page, withTheme(OFFLINE_DOWNLOAD_RESUME, theme));
+		});
+
+		test(`says the reader was signed out when the listing sends them to log in (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openSeededReadlist(page, { label: "signed-out", theme, workerIndex: testInfo.workerIndex });
+			await page.route(OFFLINE_LISTING_FETCH, (route) =>
+				route.fulfill({ status: 303, headers: { Location: "/login" } }),
+			);
+
+			await page.locator(OFFLINE_DOWNLOAD_START).click();
+
+			await captureCheckpoint(page, withTheme(OFFLINE_DOWNLOAD_SIGNED_OUT, theme));
+		});
+
+		test(`tags every card available offline once the download finishes (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openSeededReadlist(page, { label: "finished", theme, workerIndex: testInfo.workerIndex });
+			await storeCurrentCopiesOfEveryCard(page);
+
+			await page.locator(OFFLINE_DOWNLOAD_START).click();
+
+			await captureCheckpoint(page, withTheme(OFFLINE_DOWNLOAD_FINISHED, theme));
+		});
+	}
+});
+
+test.describe("Readlist offline download on a phone", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE_TALL });
+
+	test("tags every card available offline once the download finishes", async ({ page }, testInfo) => {
+		await openSeededReadlist(page, { label: "finished-phone", theme: "light", workerIndex: testInfo.workerIndex });
+		await storeCurrentCopiesOfEveryCard(page);
+
+		await page.locator(OFFLINE_DOWNLOAD_START).click();
+
+		await captureCheckpoint(page, OFFLINE_DOWNLOAD_FINISHED_PHONE);
+	});
+});

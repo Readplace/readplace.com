@@ -372,6 +372,40 @@ test.describe("Offline reading", () => {
 		await expect(page.locator("[data-test-listing-count-number]")).toHaveText(String(total));
 	});
 
+	test("offers to continue a download a reload cut short, and continues from the articles it already holds", async ({
+		page,
+		context,
+	}, testInfo) => {
+		const total = 3;
+		await signedInWithUnreadArticles(page, { run: `resume-${testInfo.workerIndex}-${Date.now()}`, count: total });
+		await page.waitForFunction(workerControlsPage);
+		const listingUrl = page.url();
+		const held = await page.locator(CARD_TITLE).first().getAttribute("href");
+		assert.ok(held, "the newest card must link to its reader");
+		const heldPath = new URL(held, BASE_URL).pathname;
+		const heldArticle = (url: URL) => url.pathname === heldPath;
+		await context.route(heldArticle, () => {});
+
+		await page.locator(DOWNLOAD_START).click();
+		await expect(page.locator(DOWNLOAD_STATUS)).toHaveText(`Downloading ${total - 1} of ${total}`, {
+			timeout: DOWNLOAD_TIMEOUT_MS,
+		});
+		await context.unroute(heldArticle);
+		await page.goto(listingUrl, { waitUntil: "domcontentloaded" });
+
+		await expect(page.locator(DOWNLOAD_STATUS)).toHaveText(`${total - 1} of ${total} downloaded. Press to continue.`);
+		await expect(page.locator(DOWNLOAD_PROGRESS)).toHaveJSProperty("value", total - 1);
+		const readerRequests: string[] = [];
+		page.on("request", (request) => {
+			if (offlinePageKind(new URL(request.url())) === "reader") readerRequests.push(new URL(request.url()).pathname);
+		});
+
+		await downloadUnread(page, total);
+
+		expect(readerRequests).toEqual([heldPath]);
+		await expect(page.locator("[data-offline-tag]")).toHaveCount(total);
+	});
+
 	test("forgets the downloaded articles when the reader signs out", async ({ page }, testInfo) => {
 		const [article] = await signedInWithUnreadArticles(page, {
 			run: `download-sign-out-${testInfo.workerIndex}-${Date.now()}`,

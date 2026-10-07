@@ -59,6 +59,14 @@ function controlMarkup(input: { href?: string; stateClass?: string } = {}): stri
 	</header>`;
 }
 
+function tabTotal(total: number): string {
+	return `<span class="readlist__count" id="readlist-count"><span class="readlist__count-number"><span class="readlist__count-value readlist__count-value--known">${total}</span></span> <span class="readlist__count-noun">Saved Articles</span></span>`;
+}
+
+function cardMarkup(href: string): string {
+	return `<article class="readlist-article"><a class="readlist-article__title" href="${href}&${CARD_TRACKING}">Title</a><div class="readlist-article__foot"><div class="readlist-article__meta"><span class="readlist-article__saved">Today</span></div></div></article>`;
+}
+
 function listingPage(input: { cards: string[]; next?: string; prev?: string }): string {
 	const cards = input.cards
 		.map(
@@ -101,6 +109,8 @@ function startDownload(options: {
 	cached?: Record<string, StoredEntry>;
 	withoutCacheApi?: boolean;
 	body?: string;
+	runRecord?: string | null;
+	cacheUnavailable?: boolean;
 }) {
 	const dom = new JSDOM(`<!DOCTYPE html><html><body><main>${options.body ?? controlMarkup()}</main></body></html>`, {
 		url: `${ORIGIN}/queue?utm_source=header-nav&utm_medium=internal&utm_content=readlist`,
@@ -114,6 +124,8 @@ function startDownload(options: {
 	const consumed = new WeakSet<DownloadResponse>();
 	const deleted: string[] = [];
 	const settleListeners: Array<() => void> = [];
+	const pageHideListeners: Array<() => void> = [];
+	const record = { value: options.runRecord ?? null, writes: 0 };
 
 	function fakeResponse(input: {
 		entry: StoredEntry;
@@ -180,6 +192,7 @@ function startDownload(options: {
 				: {
 						async open(name) {
 							opened.push(name);
+							if (options.cacheUnavailable) throw new DOMException("The operation is insecure.", "SecurityError");
 							return {
 								async match(key, matchOptions) {
 									assert.deepEqual(matchOptions, { ignoreVary: true });
@@ -204,8 +217,21 @@ function startDownload(options: {
 			addSettleListener: (listener) => {
 				settleListeners.push(listener);
 			},
+			addPageHideListener: (listener) => {
+				pageHideListeners.push(listener);
+			},
 			now: () => NOW,
 			stampCopy: datedCopy,
+			runRecord: {
+				read: () => record.value,
+				write: (value) => {
+					record.value = value;
+					record.writes += 1;
+				},
+				clear: () => {
+					record.value = null;
+				},
+			},
 		};
 	}
 
@@ -252,9 +278,17 @@ function startDownload(options: {
 		press,
 		revealed: () => document.documentElement.hasAttribute("data-offline-download-ready"),
 		deleted,
+		record,
+		offlineTags: () =>
+			Array.from(document.querySelectorAll("[data-offline-tag]"), (tag) =>
+				tag.closest(".readlist-article")?.querySelector(".readlist-article__title")?.getAttribute("href"),
+			),
 		stored: () => Object.fromEntries(Array.from(store, ([key, entry]) => [key, entry.source])),
 		savedAt: () => Object.fromEntries(Array.from(store, ([key, entry]) => [key, entry.savedAt])),
 		sentTo: (init: unknown) => sent.filter((call) => isDeepStrictEqual(call.init, init)).map((call) => call.url),
+		leave: () => {
+			for (const listener of pageHideListeners) listener();
+		},
 		settle: () => {
 			for (const listener of settleListeners) listener();
 		},
@@ -297,7 +331,7 @@ describe("initOfflineDownload", () => {
 		page.press();
 		await flush();
 
-		expect(page.opened).toEqual([CACHE_NAME]);
+		expect(new Set(page.opened)).toEqual(new Set([CACHE_NAME]));
 		expect(page.sentTo(LISTING_REQUEST)).toEqual([
 			`${ORIGIN}${TRACKED_LISTING}`,
 			`${ORIGIN}/queue?page=2`,
@@ -423,9 +457,8 @@ describe("initOfflineDownload", () => {
 		expect(page.status()).toBe("1 available offline");
 	});
 
-	it("counts an article as not ready, keeping nothing of it, when the server redirects, fails, is still reading or summarising it, or never answers", async () => {
+	it("counts an article as not ready, keeping nothing of it, when the server fails, is still reading or summarising it, or never answers", async () => {
 		const cards = [
-			"/queue/r1/view?v=a",
 			"/queue/f2/view?v=b",
 			"/queue/u3/view?v=c",
 			"/queue/s4/view?v=d",
@@ -445,7 +478,6 @@ describe("initOfflineDownload", () => {
 		const page = startDownload({
 			routes: {
 				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards }) },
-				[`${ORIGIN}/queue/r1/view?v=a`]: { redirected: true, body: readerPage("<p>Log in</p>") },
 				[`${ORIGIN}/queue/f2/view?v=b`]: { status: 500 },
 				[`${ORIGIN}/queue/u3/view?v=c`]: { body: readerPage(stillReading) },
 				[`${ORIGIN}/queue/s4/view?v=d`]: { body: readerPage(stillSummarising) },
@@ -461,9 +493,9 @@ describe("initOfflineDownload", () => {
 			[`${ORIGIN}/queue`]: `${ORIGIN}${TRACKED_LISTING}`,
 			[`${ORIGIN}/queue/k6/view`]: `${ORIGIN}/queue/k6/view?v=f`,
 		});
-		expect(page.status()).toBe("1 available offline, 5 not ready");
-		expect(page.progress().value).toBe(6);
-		expect(page.progress().max).toBe(6);
+		expect(page.status()).toBe("1 available offline, 4 not ready");
+		expect(page.progress().value).toBe(5);
+		expect(page.progress().max).toBe(5);
 	});
 
 	it("keeps an article whose text and summary are done while its Next-read slot still loads, as an imported article's always does", async () => {
@@ -681,7 +713,7 @@ describe("initOfflineDownload", () => {
 		expect(page.progress().hidden).toBe(false);
 		expect(page.progress().max).toBe(2);
 		expect(page.progress().value).toBe(1);
-		expect(page.status()).toBe("Downloading 2 of 2");
+		expect(page.status()).toBe("Downloading 1 of 2");
 
 		second.resolve({ body: readerPage("<p>Two</p>") });
 		await flush();
@@ -691,31 +723,320 @@ describe("initOfflineDownload", () => {
 		expect(page.status()).toBe("2 available offline");
 	});
 
-	it("hides the last run's progress while a new run walks the listing again", async () => {
+	it("shows the progress bar and 0 of the tab's total the moment the button is pressed, before any listing page answers", () => {
 		const listing = deferredRoute();
-		const routes: Record<string, Route> = {
-			[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards: ["/queue/a1/view?v=one"] }) },
-			[`${ORIGIN}/queue/a1/view?v=one`]: { body: readerPage("<p>One</p>") },
-		};
-		const page = startDownload({ routes });
-		page.press();
-		await flush();
-		expect(page.progress().hidden).toBe(false);
+		const page = startDownload({
+			routes: { [`${ORIGIN}${TRACKED_LISTING}`]: listing.promise },
+			body: tabTotal(1296) + controlMarkup(),
+		});
 
-		routes[`${ORIGIN}${TRACKED_LISTING}`] = listing.promise;
+		page.press();
+
+		expect(page.button().disabled).toBe(true);
+		expect(page.progress().hidden).toBe(false);
+		expect(page.progress().max).toBe(1296);
+		expect(page.progress().value).toBe(0);
+		expect(page.status()).toBe("Downloading 0 of 1,296");
+	});
+
+	it("shows a sweeping progress bar while preparing when the tab's total has not arrived, then counts once the listing is walked", async () => {
+		const article = deferredRoute();
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: {
+					body: listingPage({ cards: ["/queue/a1/view?v=one", "/queue/b2/view?v=two"] }),
+				},
+				[`${ORIGIN}/queue/a1/view?v=one`]: article.promise,
+				[`${ORIGIN}/queue/b2/view?v=two`]: article.promise,
+			},
+		});
+
+		page.press();
+
+		expect(page.progress().hidden).toBe(false);
+		expect(page.progress().hasAttribute("value")).toBe(false);
+		expect(page.status()).toBe("Preparing download…");
+		await flush();
+		expect(page.status()).toBe("Downloading 0 of 2");
+		expect(page.progress().max).toBe(2);
+		article.resolve({ body: readerPage("<p>Either</p>") });
+		await flush();
+		expect(page.status()).toBe("2 available offline");
+	});
+
+	it("raises the total past the tab's count when the listing holds more unread articles than it said", async () => {
+		const article = deferredRoute();
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: {
+					body: listingPage({ cards: ["/queue/a1/view?v=one", "/queue/b2/view?v=two"] }),
+					},
+				[`${ORIGIN}/queue/a1/view?v=one`]: article.promise,
+				[`${ORIGIN}/queue/b2/view?v=two`]: article.promise,
+			},
+			body: tabTotal(1) + controlMarkup(),
+		});
+
 		page.press();
 		await flush();
+
+		expect(page.status()).toBe("Downloading 0 of 2");
+		expect(page.progress().max).toBe(2);
+	});
+
+	it("downloads six articles at a time, starting the next as each one finishes", async () => {
+		const cards = Array.from({ length: 8 }, (_, index) => `/queue/a${index}/view?v=${index}`);
+		const answers = cards.map(() => deferredRoute());
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards }) },
+				...Object.fromEntries(cards.map((card, index) => [`${ORIGIN}${card}`, answers[index].promise])),
+			},
+		});
+
+		page.press();
+		await flush();
+		expect(page.sentTo(ARTICLE_REQUEST)).toEqual(cards.slice(0, 6).map((card) => `${ORIGIN}${card}`));
+
+		answers[3].resolve({ body: readerPage("<p>Four</p>") });
+		await flush();
+		expect(page.sentTo(ARTICLE_REQUEST)).toHaveLength(7);
+		expect(page.status()).toBe("Downloading 1 of 8");
+
+		for (const answer of answers) answer.resolve({ body: readerPage("<p>Any</p>") });
+		await flush();
+		expect(page.sentTo(ARTICLE_REQUEST)).toHaveLength(8);
+		expect(page.status()).toBe("8 available offline");
+	});
+
+	it("starts downloading the first page's articles while the next listing page is still loading", async () => {
+		const secondPage = deferredRoute();
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: {
+					body: listingPage({ cards: ["/queue/a1/view?v=one"], next: "/queue?page=2" }),
+				},
+				[`${ORIGIN}/queue?page=2`]: secondPage.promise,
+				[`${ORIGIN}/queue/a1/view?v=one`]: { body: readerPage("<p>One</p>") },
+				[`${ORIGIN}/queue/b2/view?v=two`]: { body: readerPage("<p>Two</p>") },
+			},
+		});
+
+		page.press();
+		await flush();
+		expect(page.sentTo(ARTICLE_REQUEST)).toEqual([`${ORIGIN}/queue/a1/view?v=one`]);
+
+		secondPage.resolve({ body: listingPage({ cards: ["/queue/b2/view?v=two"] }) });
+		await flush();
+		expect(page.sentTo(ARTICLE_REQUEST)).toEqual([
+			`${ORIGIN}/queue/a1/view?v=one`,
+			`${ORIGIN}/queue/b2/view?v=two`,
+		]);
+		expect(page.status()).toBe("2 available offline");
+	});
+
+	it("says the reader was signed out when the listing sends them to log in", async () => {
+		const page = startDownload({
+			routes: { [`${ORIGIN}${TRACKED_LISTING}`]: { redirected: true, body: '<main class="login"></main>' } },
+		});
+
+		page.press();
+		await flush();
+
+		expect(page.stored()).toEqual({});
+		expect(page.status()).toBe("You were signed out. Sign in and press again to continue.");
+		expect(page.button().disabled).toBe(false);
+	});
+
+	it("stops the whole run, instead of carrying on as a guest, once an article answers with a redirect, and says how far it got", async () => {
+		const cards = Array.from({ length: 9 }, (_, index) => `/queue/a${index}/view?v=${index}`);
+		const lost = deferredRoute();
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards: cards.slice(0, 8), next: "/queue?page=2" }) },
+				[`${ORIGIN}/queue?page=2`]: lost.promise,
+				[`${ORIGIN}${cards[0]}`]: { body: readerPage("<p>Kept</p>") },
+				...Object.fromEntries(
+					cards.slice(1).map((card) => [`${ORIGIN}${card}`, { redirected: true, body: readerPage("<p>Public view</p>") }]),
+				),
+			},
+			body: tabTotal(9) + controlMarkup(),
+		});
+
+		page.press();
+		await flush();
+		lost.resolve({ body: listingPage({ cards: cards.slice(8) }) });
+		await flush();
+
+		expect(page.sentTo(ARTICLE_REQUEST)).toEqual(cards.slice(0, 6).map((card) => `${ORIGIN}${card}`));
+		expect(page.sentTo(LISTING_REQUEST)).toEqual([`${ORIGIN}${TRACKED_LISTING}`, `${ORIGIN}/queue?page=2`]);
+		expect(page.status()).toBe("You were signed out. Sign in and press again to continue from 1.");
+		expect(JSON.parse(String(page.record.value))).toEqual({ listing: `${ORIGIN}/queue`, kept: 1, total: 9 });
+		expect(page.button().disabled).toBe(false);
+	});
+
+	it("keeps a record of how far the run got after each article and drops it once the run finishes", async () => {
+		const article = deferredRoute();
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: {
+					body: listingPage({ cards: ["/queue/a1/view?v=one", "/queue/b2/view?v=two"] }),
+				},
+				[`${ORIGIN}/queue/a1/view?v=one`]: { body: readerPage("<p>One</p>") },
+				[`${ORIGIN}/queue/b2/view?v=two`]: article.promise,
+			},
+			body: tabTotal(2) + controlMarkup(),
+		});
+
+		page.press();
+		await flush();
+		expect(JSON.parse(String(page.record.value))).toEqual({ listing: `${ORIGIN}/queue`, kept: 1, total: 2 });
+
+		article.resolve({ status: 500 });
+		await flush();
+		expect(page.record.writes).toBe(2);
+		expect(page.record.value).toBeNull();
+	});
+
+	it("keeps the record of a run whose listing stops answering part-way, so the next visit offers to continue", async () => {
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards: ["/queue/a1/view?v=one"], next: "/queue?page=2" }) },
+				[`${ORIGIN}/queue?page=2`]: { status: 502 },
+				[`${ORIGIN}/queue/a1/view?v=one`]: { body: readerPage("<p>One</p>") },
+			},
+			body: tabTotal(40) + controlMarkup(),
+		});
+
+		page.press();
+		await flush();
+
+		expect(page.status()).toBe("Couldn't load your unread articles");
+		expect(JSON.parse(String(page.record.value))).toEqual({ listing: `${ORIGIN}/queue`, kept: 1, total: 40 });
+	});
+
+	it("keeps the record of how far it got when the reader leaves the page and the browser aborts the downloads still in flight", async () => {
+		const held = deferredRoute();
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: {
+					body: listingPage({ cards: ["/queue/a1/view?v=one", "/queue/b2/view?v=two"] }),
+				},
+				[`${ORIGIN}/queue/a1/view?v=one`]: { body: readerPage("<p>One</p>") },
+				[`${ORIGIN}/queue/b2/view?v=two`]: held.promise,
+			},
+			body: tabTotal(2) + controlMarkup(),
+		});
+		page.press();
+		await flush();
+
+		page.leave();
+		held.resolve({ status: 0 });
+		await flush();
+
+		expect(JSON.parse(String(page.record.value))).toEqual({ listing: `${ORIGIN}/queue`, kept: 1, total: 2 });
+		expect(page.record.writes).toBe(1);
+	});
+
+	it("shows an unfinished run of this listing on load, so the reader knows pressing again continues from there", () => {
+		const page = startDownload({
+			routes: {},
+			runRecord: JSON.stringify({ listing: `${ORIGIN}/queue`, kept: 312, total: 1296 }),
+		});
+
+		expect(page.progress().hidden).toBe(false);
+		expect(page.progress().value).toBe(312);
+		expect(page.progress().max).toBe(1296);
+		expect(page.status()).toBe("312 of 1,296 downloaded. Press to continue.");
+		expect(page.button().disabled).toBe(false);
+	});
+
+	it.each([
+		["another listing's run", JSON.stringify({ listing: `${ORIGIN}/queue?queue=work`, kept: 3, total: 9 })],
+		["a record it cannot read", "{not json"],
+		["a record missing its counts", JSON.stringify({ listing: `${ORIGIN}/queue` })],
+	])("shows nothing on load for %s", (_case, runRecord) => {
+		const page = startDownload({ routes: {}, runRecord });
 
 		expect(page.progress().hidden).toBe(true);
 		expect(page.status()).toBe("");
-		listing.resolve({ body: listingPage({ cards: ["/queue/a1/view?v=one"] }) });
+	});
+
+	it("says the unread articles couldn't load when the browser refuses to open its offline storage", async () => {
+		const page = startDownload({ routes: {}, cacheUnavailable: true });
+
+		page.press();
 		await flush();
-		expect(page.status()).toBe("1 available offline");
+
+		expect(page.sent).toEqual([]);
+		expect(page.status()).toBe("Couldn't load your unread articles");
+		expect(page.button().disabled).toBe(false);
+	});
+
+	it("tags each card on the page whose stored copy is fresh and still its current version, and no other", async () => {
+		const page = startDownload({
+			routes: {},
+			body:
+				controlMarkup() +
+				cardMarkup("/queue/a1/view?v=one") +
+				cardMarkup("/queue/b2/view?v=recrawled") +
+				cardMarkup("/queue/c3/view?v=three") +
+				cardMarkup("/queue/d4/view?v=four"),
+			cached: {
+				[`${ORIGIN}/queue/a1/view`]: { source: `${ORIGIN}/queue/a1/view?v=one&${CARD_TRACKING}`, savedAt: SAVED_YESTERDAY },
+				[`${ORIGIN}/queue/b2/view`]: { source: `${ORIGIN}/queue/b2/view?v=original`, savedAt: SAVED_YESTERDAY },
+				[`${ORIGIN}/queue/c3/view`]: { source: `${ORIGIN}/queue/c3/view?v=three`, savedAt: SAVED_31_DAYS_AGO },
+			},
+		});
+
+		await flush();
+
+		expect(page.offlineTags()).toEqual([`/queue/a1/view?v=one&${CARD_TRACKING}`]);
+		expect(page.document.querySelector("[data-offline-tag]")?.textContent).toBe("Available offline");
+		expect(page.deleted).toEqual([]);
+	});
+
+	it("tags a card as soon as its article is downloaded, and keeps one tag through later settles", async () => {
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards: ["/queue/a1/view?v=one"] }) },
+				[`${ORIGIN}/queue/a1/view?v=one`]: { body: readerPage("<p>One</p>") },
+			},
+			body: controlMarkup() + cardMarkup("/queue/a1/view?v=one") + cardMarkup("/queue/b2/view?v=two"),
+		});
+		await flush();
+		expect(page.offlineTags()).toEqual([]);
+
+		page.press();
+		await flush();
+		page.settle();
+		await flush();
+
+		expect(page.offlineTags()).toEqual([`/queue/a1/view?v=one&${CARD_TRACKING}`]);
+	});
+
+	it("drops a card's tag after a swap brings it back with a newer crawl than the stored copy", async () => {
+		const page = startDownload({
+			routes: {},
+			body: controlMarkup() + cardMarkup("/queue/a1/view?v=one"),
+			cached: {
+				[`${ORIGIN}/queue/a1/view`]: { source: `${ORIGIN}/queue/a1/view?v=one`, savedAt: SAVED_YESTERDAY },
+			},
+		});
+		await flush();
+		expect(page.offlineTags()).toHaveLength(1);
+
+		const title = page.document.querySelector(".readlist-article__title");
+		assert(title, "the card must be on the page");
+		title.setAttribute("href", `/queue/a1/view?v=recrawled&${CARD_TRACKING}`);
+		page.settle();
+		await flush();
+
+		expect(page.offlineTags()).toEqual([]);
 	});
 
 	it.each<[string, Route]>([
 		["fails", { status: 503 }],
-		["sends the reader to log in", { redirected: true, body: "<main class=\"login\"></main>" }],
 		["never answers", "network-down"],
 	])("says the unread articles couldn't load and frees the button when the listing %s", async (_case, listing) => {
 		const page = startDownload({ routes: { [`${ORIGIN}${TRACKED_LISTING}`]: listing } });
@@ -749,7 +1070,7 @@ describe("initOfflineDownload", () => {
 		page.settle();
 
 		expect(page.button().disabled).toBe(true);
-		expect(page.status()).toBe("Downloading 1 of 1");
+		expect(page.status()).toBe("Downloading 0 of 1");
 		article.resolve({ body: readerPage("<p>One</p>") });
 		await flush();
 		expect(page.status()).toBe("1 available offline");

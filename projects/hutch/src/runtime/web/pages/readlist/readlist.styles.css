@@ -425,6 +425,27 @@
   border-radius: var(--radius-pill);
 }
 
+.readlist-listing__offline-progress:indeterminate {
+  background: linear-gradient(90deg, var(--progress-track) 0%, var(--progress-fill) 50%, var(--progress-track) 100%) 0 0 / 200% 100%;
+  animation: readlist-offline-sweep 1.2s linear infinite;
+}
+
+.readlist-listing__offline-progress:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+
+@keyframes readlist-offline-sweep {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .readlist-listing__offline-progress:indeterminate {
+    animation: none;
+  }
+}
+
 .readlist-listing__offline-status {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
