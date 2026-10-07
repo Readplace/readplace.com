@@ -201,6 +201,7 @@ import {
 import { viewerOf } from "@packages/viewer-identity";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import { initSlideSession } from "./web/middleware/slide-session.middleware";
+import { stampOfflineOwner } from "./web/middleware/stamp-offline-owner.middleware";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
@@ -1453,7 +1454,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * stay publicly reachable. Shared reader permalinks (people copy them from
 	 * the browser URL bar) redirect non-owners and anonymous visitors to
 	 * `/view/<url>` instead of bouncing them to /login. */
-	app.use(READLIST_PATH, extensionCors, queueRouter);
+	app.use(READLIST_PATH, stampOfflineOwner, extensionCors, queueRouter);
 
 	const importRouter = initImportSessionRoutes({
 		validateNewSaveUrl,

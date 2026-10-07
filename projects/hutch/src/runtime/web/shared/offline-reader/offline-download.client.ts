@@ -6,8 +6,9 @@ import {
 	offlineCacheKey,
 	withoutCampaignParams,
 } from "./offline-cache";
+import { initOfflineOwnership } from "./offline-owner";
 
-export { stampOfflineCopy } from "./offline-cache";
+export { offlineOwnerMarker, stampOfflineCopy } from "./offline-cache";
 
 export interface DownloadResponse {
 	status: number;
@@ -22,6 +23,7 @@ interface DownloadCache {
 	match(key: string, options: { ignoreVary: true }): Promise<DownloadResponse | undefined>;
 	put(key: string, response: DownloadResponse): Promise<void>;
 	delete(key: string): Promise<boolean>;
+	keys(): Promise<ReadonlyArray<{ url: string }>>;
 }
 
 const LISTING_REQUEST = { credentials: "same-origin", headers: { Accept: "text/html" } } as const;
@@ -48,6 +50,7 @@ export interface OfflineDownloadDeps {
 	addPageHideListener: (listener: () => void) => void;
 	now: () => number;
 	stampCopy: (response: DownloadResponse, savedAt: number) => DownloadResponse;
+	markOwner: (answer: DownloadResponse, savedAt: number) => DownloadResponse;
 	runRecord: DownloadRunRecord;
 }
 
@@ -182,6 +185,11 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 
 	const state: DownloadState = { running: false, started: false, done: 0, total: 1, status: "" };
 	const page = { leaving: false };
+	const ownership = initOfflineOwnership<DownloadResponse>({
+		origin: new URL(deps.document.baseURI).origin,
+		now: deps.now,
+		markOwner: deps.markOwner,
+	});
 
 	function listingKeyOf(href: string): string {
 		return offlineCacheKey(new URL(href, deps.document.baseURI));
@@ -274,6 +282,7 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		while (page && !input.stopped()) {
 			const response = await deps.fetchFn(page.href, LISTING_REQUEST);
 			if (response.redirected) throw new SignedOut();
+			await ownership.adopt(input.cache, response);
 			if (!isWholePage(response)) throw new Error(`the unread listing at ${page.href} answered ${response.status}`);
 			await keep(input.cache, offlineCacheKey(page), response.clone());
 			const listingPage = deps.parseHtml(await response.text());
@@ -306,6 +315,7 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 	async function freshCopy(cache: DownloadCache, article: URL): Promise<Document | undefined> {
 		const response = await deps.fetchFn(article.href, ARTICLE_REQUEST);
 		if (response.redirected) throw new SignedOut();
+		await ownership.adopt(cache, response);
 		if (!isWholePage(response)) return undefined;
 		const copy = response.clone();
 		const readerPage = deps.parseHtml(await response.text());

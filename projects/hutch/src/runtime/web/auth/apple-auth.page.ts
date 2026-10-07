@@ -100,6 +100,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 	const signIn = (res: Response, sessionId: string): void => {
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		res.set("Clear-Site-Data", '"storage"');
 		setLastAuthProvider({ res, secure: deps.secureCookies }, "apple");
 	};
 	// The state cookie must survive the cross-site form_post callback, where a

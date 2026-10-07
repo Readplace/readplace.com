@@ -53,6 +53,8 @@ const NEWER_VERSION_BAR = "[data-test-newer-version-banner]";
 const READER_TIME_ZONE = "Australia/Sydney";
 const FIXTURE_IMAGE_PATH = "/e2e/fixtures/image/";
 const EARLIER_LISTING_PATH = "/queue?order=asc";
+const SLOWER_THAN_THE_OLD_FALLBACK_MS = 4_000;
+const PAGE_OUTSIDE_THE_READLIST = "/account";
 
 test.use({ serviceWorkers: "allow", timezoneId: READER_TIME_ZONE });
 
@@ -189,21 +191,6 @@ async function holdAnswers(context: BrowserContext, kind: OfflinePageKind): Prom
 			network.emit("answer");
 		},
 	};
-}
-
-async function openFromListWhileNetworkHeld(
-	page: Page,
-	input: { context: BrowserContext; readerUrl: string },
-): Promise<{ answer(): void }> {
-	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
-	await page.waitForFunction(workerControlsPage);
-	const savedAt = await storedCopySavedAt(page, input.readerUrl);
-	const network = await holdAnswers(input.context, "reader");
-	await page.locator(CARD_TITLE).first().click();
-	await expect(page.locator(READER_BODY)).toContainText(BODY_TEXT);
-	await expect(page.locator(".offline-banner")).toHaveText(OFFLINE_BANNER_TEXT);
-	await expectOfflineRow(page, { savedAt, timeZone: READER_TIME_ZONE });
-	return network;
 }
 
 async function openStoredCopyOffline(
@@ -425,6 +412,78 @@ test.describe("Offline reading", () => {
 		await expect.poll(() => page.evaluate(offlineCachesNamed, OFFLINE_CACHE_PREFIX)).toEqual([]);
 	});
 
+	test("waits for a slow network to bring the article instead of showing the device's copy", async ({
+		page,
+		context,
+	}, testInfo) => {
+		const article = await signedInReaderWithImage(page, `slow-${testInfo.workerIndex}-${Date.now()}`);
+		await readOnline(page, article);
+		await changeArticleBody(page, article);
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await page.waitForFunction(workerControlsPage);
+		const network = await holdAnswers(context, "reader");
+
+		await page.locator(CARD_TITLE).first().click();
+		await page.waitForTimeout(SLOWER_THAN_THE_OLD_FALLBACK_MS);
+
+		await expect(page.locator("[data-test-reader-skeleton]")).toHaveCount(1);
+		await expect(page.locator(".offline-banner")).toHaveAttribute("aria-hidden", "true");
+
+		network.answer();
+
+		await expect(page.locator(READER_BODY)).toContainText(UPDATED_BODY_TEXT);
+		await expectDrawerRows(page, ["canonical"]);
+		await expect(page.locator(".offline-banner")).toHaveAttribute("aria-hidden", "true");
+	});
+
+	test("shows the next reader on a shared browser nothing the previous reader stored, once they sign in", async ({
+		page,
+		context,
+	}, testInfo) => {
+		const run = `shared-${testInfo.workerIndex}-${Date.now()}`;
+		const article = await signedInReaderWithImage(page, `${run}-first`);
+		await readOnline(page, article);
+		const nextReader = `offline-${run}-next@example.com`;
+		await context.clearCookies();
+		await createOwner(page, nextReader);
+
+		await page.goto(`${BASE_URL}/login?return=${encodeURIComponent(PAGE_OUTSIDE_THE_READLIST)}`, {
+			waitUntil: "domcontentloaded",
+		});
+		await page.locator("#email").fill(nextReader);
+		await page.locator("#password").fill(PASSWORD);
+		await page.locator('[data-test-form="login"] button[type="submit"]').click();
+		await page.waitForURL(`${BASE_URL}${PAGE_OUTSIDE_THE_READLIST}`);
+
+		const keys = [offlineCacheKey(new URL(article.readerUrl)), article.imageUrl];
+		await expect
+			.poll(() => page.evaluate(offlineCacheHolds, { cacheName: OFFLINE_CACHE_NAME, keys }))
+			.toEqual([false, false]);
+		await cutNetwork(context);
+		await expect(page.goto(article.readerUrl, { waitUntil: "domcontentloaded" })).rejects.toThrow(/net::ERR_/);
+		await expect(page.locator("[data-article-body]")).toHaveCount(0);
+	});
+
+	test("forgets every offline copy once the readlist sends a reader whose session is gone to sign in", async ({
+		page,
+		context,
+	}, testInfo) => {
+		const article = await signedInReaderWithImage(page, `session-gone-${testInfo.workerIndex}-${Date.now()}`);
+		await readOnline(page, article);
+		await context.clearCookies();
+
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("#email");
+
+		const keys = [offlineCacheKey(new URL(article.readerUrl)), article.imageUrl];
+		await expect
+			.poll(() => page.evaluate(offlineCacheHolds, { cacheName: OFFLINE_CACHE_NAME, keys }))
+			.toEqual([false, false]);
+		await cutNetwork(context);
+		await expect(page.goto(article.readerUrl, { waitUntil: "domcontentloaded" })).rejects.toThrow(/net::ERR_/);
+		await expect(page.locator("[data-article-body]")).toHaveCount(0);
+	});
+
 	test("has nothing to show offline for an article that was never opened", async ({ page, context }, testInfo) => {
 		const article = await signedInReaderWithImage(page, `never-opened-${testInfo.workerIndex}-${Date.now()}`);
 
@@ -511,60 +570,6 @@ test.describe("Offline reading", () => {
 		await expectOfflineRow(page, { savedAt, timeZone: SERVER_TIME_ZONE });
 	});
 
-	test("offers the newer article over the copy a slow network left on screen, and Refresh brings the online article in", async ({
-		page,
-		context,
-	}, testInfo) => {
-		const article = await signedInReaderWithImage(page, `newer-${testInfo.workerIndex}-${Date.now()}`);
-		await readOnline(page, article);
-		await changeArticleBody(page, article);
-		const network = await openFromListWhileNetworkHeld(page, { context, readerUrl: article.readerUrl });
-
-		network.answer();
-
-		const bar = page.locator(NEWER_VERSION_BAR);
-		await expect(bar).toHaveAttribute("aria-hidden", "false");
-		await expect(bar.locator("[data-test-newer-version-message]")).toHaveText(NEWER_VERSION_BANNER_TEXT);
-		await expect(page.locator(".offline-banner")).toHaveAttribute("aria-hidden", "true");
-		await expect(page.locator(READER_BODY)).toContainText(BODY_TEXT);
-
-		await bar.locator("[data-test-newer-version-refresh]").click();
-
-		await expect(page.locator(READER_BODY)).toContainText(UPDATED_BODY_TEXT);
-		await expectDrawerRows(page, ["canonical"]);
-		await expect(bar).toHaveAttribute("aria-hidden", "true");
-	});
-
-	test("lets the copy go with a 'Back online' flash and no newer-version bar when the slow network brings the same article", async ({
-		page,
-		context,
-	}, testInfo) => {
-		const article = await signedInReaderWithImage(page, `same-${testInfo.workerIndex}-${Date.now()}`);
-		await readOnline(page, article);
-		const network = await openFromListWhileNetworkHeld(page, { context, readerUrl: article.readerUrl });
-
-		network.answer();
-
-		await expect(page.locator(".offline-banner")).toHaveText("Back online");
-		await expectDrawerRows(page, ["canonical"]);
-		await expect(page.locator(NEWER_VERSION_BAR)).toHaveAttribute("aria-hidden", "true");
-	});
-
-	test("lets a downloaded copy go with a 'Back online' flash and no newer-version bar when a card opens the same article over a slow network", async ({
-		page,
-		context,
-	}, testInfo) => {
-		const article = await signedInReaderWithImage(page, `download-same-${testInfo.workerIndex}-${Date.now()}`);
-		await downloadUnread(page, 1);
-		const network = await openFromListWhileNetworkHeld(page, { context, readerUrl: article.readerUrl });
-
-		network.answer();
-
-		await expect(page.locator(".offline-banner")).toHaveText("Back online");
-		await expectDrawerRows(page, ["canonical"]);
-		await expect(page.locator(NEWER_VERSION_BAR)).toHaveAttribute("aria-hidden", "true");
-	});
-
 	test("asks the worker for the article again when the connection returns over the device's copy, and offers the newer one", async ({
 		page,
 		context,
@@ -612,45 +617,6 @@ test.describe("Offline reading", () => {
 
 		expect(await failed).toBe(true);
 		await expect(page.locator(".offline-banner")).toHaveAttribute("aria-hidden", "true");
-	});
-
-	test("lets the list the device kept go with a 'Back online' flash when the slow network brings the list, keeping it on screen until the next page", async ({
-		page,
-		context,
-	}, testInfo) => {
-		const run = `slow-list-${testInfo.workerIndex}-${Date.now()}`;
-		const email = `offline-${run}@example.com`;
-		const userId = await createOwner(page, email);
-		const article = (index: number) => ({
-			url: `https://example.com/offline-${run}-${index}`,
-			userId,
-			imageUrl: `${IMAGE_ORIGIN}${FIXTURE_IMAGE_PATH}${run}-${index}.png`,
-			title: `Offline Listing Post ${index}`,
-			bodyText: BODY_TEXT,
-		});
-		await seedSettledArticle(page, article(0));
-		await loginAs(page, email);
-		await page.waitForFunction(workerControlsPage);
-		await visitStoredListing(page, EARLIER_LISTING_PATH);
-		await visitStoredListing(page, "/queue");
-		await seedSettledArticle(page, article(1));
-		const network = await holdAnswers(context, "listing");
-
-		await page.locator(SORT_LINK).click();
-
-		const banner = page.locator(".offline-banner");
-		await expect(banner).toHaveText(OFFLINE_BANNER_TEXT);
-		await expect(banner).toHaveAttribute("aria-hidden", "false");
-		await expect(page.locator(`body.page-readlist ${CARD_TITLE}`)).toHaveCount(1);
-
-		network.answer();
-
-		await expect(banner).toHaveText("Back online");
-		await expect(page.locator(`body.page-readlist ${CARD_TITLE}`)).toHaveCount(1);
-
-		await page.locator(SORT_LINK).click();
-
-		await expect(page.locator(`body.page-readlist ${CARD_TITLE}`)).toHaveCount(2);
 	});
 
 	test("clears the offline banner with 'Back online' once the reader's next request reaches the server, on a page the worker does not serve", async ({

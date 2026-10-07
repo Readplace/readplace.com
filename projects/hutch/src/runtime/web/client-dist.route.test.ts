@@ -72,7 +72,7 @@ describe("client-dist offline reader bundles", () => {
 		expect(response.headers["content-type"]).toBe("text/javascript; charset=utf-8");
 		expect(response.headers["service-worker-allowed"]).toBe("/");
 		expect(response.text).toContain("OfflineReaderWorker.initOfflineReaderWorker({");
-		expect(response.text).toContain("networkTimeoutMs: 3000");
+		expect(response.text).toContain("markOwner: OfflineReaderWorker.offlineOwnerMarker");
 	});
 
 	it("widens the scope of the worker script only, never of another bundle", async () => {

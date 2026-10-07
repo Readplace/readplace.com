@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
-import { ARTICLE_VERSION_HEADER, OFFLINE_SAVED_AT_HEADER, stampOfflineCopy as contractStamp } from "./offline-cache";
+import {
+	ARTICLE_VERSION_HEADER,
+	OFFLINE_OWNER_EXPIRES_HEADER,
+	OFFLINE_OWNER_HEADER,
+	OFFLINE_SAVED_AT_HEADER,
+	offlineOwnerMarker as contractMarker,
+	stampOfflineCopy as contractStamp,
+} from "./offline-cache";
 import {
 	type OfflineReaderWorkerDeps,
 	initOfflineReaderWorker,
+	offlineOwnerMarker,
 	stampOfflineCopy,
 } from "./offline-reader-worker.client";
 
@@ -22,6 +30,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SAVED_NOW = new Date(NOW).toISOString();
 const SAVED_YESTERDAY = new Date(NOW - DAY_MS).toISOString();
 const SAVED_31_DAYS_AGO = new Date(NOW - 31 * DAY_MS).toISOString();
+const OWNER_KEY = `${ORIGIN}/queue/offline-owner`;
+const OWNER = "5e55a0d1";
+const OTHER_OWNER = "0th3r5e5";
+const SESSION_EXPIRES = String((NOW + DAY_MS) / 1000);
+const SESSION_EXPIRED = String((NOW - 1000) / 1000);
+const signedIn = { owner: OWNER, ownerExpires: SESSION_EXPIRES };
 
 type WorkerResponse = Awaited<ReturnType<OfflineReaderWorkerDeps["fetchFn"]>>;
 
@@ -36,6 +50,8 @@ function fakeResponse(
 		savedAt?: string;
 		etag?: string | null;
 		version?: string | null;
+		owner?: string | null;
+		ownerExpires?: string | null;
 	} = {},
 ): WorkerResponse {
 	const status = options.status ?? 200;
@@ -45,6 +61,8 @@ function fakeResponse(
 		[OFFLINE_SAVED_AT_HEADER.toLowerCase(), options.savedAt ?? null],
 		["etag", options.etag ?? null],
 		[ARTICLE_VERSION_HEADER.toLowerCase(), options.version ?? null],
+		[OFFLINE_OWNER_HEADER.toLowerCase(), options.owner ?? null],
+		[OFFLINE_OWNER_EXPIRES_HEADER.toLowerCase(), options.ownerExpires ?? null],
 	]);
 	const response: WorkerResponse = {
 		ok: status >= 200 && status < 300,
@@ -67,8 +85,29 @@ function datedCopy(response: WorkerResponse, savedAt: number): WorkerResponse {
 		savedAt: new Date(savedAt).toISOString(),
 		etag: response.headers.get("ETag"),
 		version: response.headers.get(ARTICLE_VERSION_HEADER),
+		owner: response.headers.get(OFFLINE_OWNER_HEADER),
+		ownerExpires: response.headers.get(OFFLINE_OWNER_EXPIRES_HEADER),
 	});
 }
+
+function ownerMarker(input: { owner: string; ownerExpires: string; savedAt: string }): WorkerResponse {
+	return fakeResponse("owner marker", { contentType: null, ...input });
+}
+
+function markedOwner(answer: WorkerResponse, savedAt: number): WorkerResponse {
+	return ownerMarker({
+		owner: String(answer.headers.get(OFFLINE_OWNER_HEADER)),
+		ownerExpires: String(answer.headers.get(OFFLINE_OWNER_EXPIRES_HEADER)),
+		savedAt: new Date(savedAt).toISOString(),
+	});
+}
+
+const confirmedSession = {
+	[OWNER_KEY]: ownerMarker({ owner: OWNER, ownerExpires: SESSION_EXPIRES, savedAt: SAVED_YESTERDAY }),
+};
+const expiredSession = {
+	[OWNER_KEY]: ownerMarker({ owner: OWNER, ownerExpires: SESSION_EXPIRED, savedAt: SAVED_YESTERDAY }),
+};
 
 function fakeRequest(input: {
 	url: string;
@@ -128,7 +167,6 @@ function startWorker(options: {
 	const storedWhenTold: Array<Record<string, string | undefined>> = [];
 	const fetched: Array<{ input: unknown; init: unknown }> = [];
 	const matchedWith: unknown[] = [];
-	const timeouts: Array<{ fire: () => void; ms: number }> = [];
 	const stores = new Map(
 		Object.entries(options.cached ?? {}).map(([name, entries]) => [name, new Map(Object.entries(entries))]),
 	);
@@ -205,12 +243,9 @@ function startWorker(options: {
 			fetched.push({ input, init });
 			return options.fetch(input, init);
 		},
-		setTimeoutFn: (fire, ms) => {
-			timeouts.push({ fire, ms });
-		},
-		networkTimeoutMs: 3000,
 		now: () => NOW,
 		stampCopy: datedCopy,
+		markOwner: markedOwner,
 	});
 
 	function storedLabels(): Record<string, string | undefined> {
@@ -275,7 +310,6 @@ function startWorker(options: {
 		storedWhenTold,
 		fetched,
 		matchedWith,
-		timeouts,
 		cacheNames: () => Array.from(stores.keys()),
 		storedLabels,
 		storedSavedAt,
@@ -332,6 +366,23 @@ describe("offline reader worker lifecycle", () => {
 
 		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "fresh reader" });
 		expect(worker.calls).toEqual(["claim"]);
+	});
+
+	it("forgets every stored copy once the session they were stored for has expired, when it activates", async () => {
+		const worker = startWorker({
+			fetch: neverFetched,
+			cached: {
+				[CACHE_NAME]: {
+					...expiredSession,
+					[READER_KEY]: fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+					[IMAGE_URL]: fakeResponse("stored image", { contentType: "image/png", savedAt: SAVED_YESTERDAY }),
+				},
+			},
+		});
+
+		await worker.lifecycle("activate");
+
+		expect(worker.storedLabels()).toEqual({});
 	});
 
 	it("still claims the open pages in a browser without navigation preload", async () => {
@@ -404,7 +455,7 @@ describe("offline reader worker requests it leaves alone", () => {
 
 describe("offline reader worker pages", () => {
 	it("serves a reader navigation from the network, keeps a copy and tells the new page it is live", async () => {
-		const live = fakeResponse("live reader");
+		const live = fakeResponse("live reader", signedIn);
 		const worker = startWorker({ fetch: async () => live });
 		const request = fakeRequest({ url: READER_URL });
 
@@ -416,7 +467,7 @@ describe("offline reader worker pages", () => {
 		expect(await event.response()).toBe(live);
 		await event.settled();
 		expect(worker.fetched).toEqual([{ input: request, init: undefined }]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "copy of live reader" });
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "copy of live reader" });
 		expect(worker.told).toEqual([
 			{
 				clientId: "new-document",
@@ -426,7 +477,7 @@ describe("offline reader worker pages", () => {
 	});
 
 	it("serves a boosted listing request the same way, telling the page that asked", async () => {
-		const live = fakeResponse("live listing");
+		const live = fakeResponse("live listing", signedIn);
 		const worker = startWorker({ fetch: async () => live });
 
 		const event = worker.dispatchFetch(
@@ -441,14 +492,17 @@ describe("offline reader worker pages", () => {
 
 		expect(await event.response()).toBe(live);
 		await event.settled();
-		expect(worker.storedLabels()).toEqual({ [`${ORIGIN}/queue?page=2&tab=done`]: "copy of live listing" });
+		expect(worker.storedLabels()).toEqual({
+			[OWNER_KEY]: "owner marker",
+			[`${ORIGIN}/queue?page=2&tab=done`]: "copy of live listing",
+		});
 		expect(worker.told).toEqual([
 			{ clientId: "open-tab", message: { type: "readplace:reader-source", source: "network", path: "/queue" } },
 		]);
 	});
 
 	it("uses the response the browser preloaded while the worker was starting", async () => {
-		const preloaded = fakeResponse("preloaded reader");
+		const preloaded = fakeResponse("preloaded reader", signedIn);
 		const worker = startWorker({ fetch: neverFetched });
 
 		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
@@ -459,14 +513,19 @@ describe("offline reader worker pages", () => {
 		expect(await event.response()).toBe(preloaded);
 		await event.settled();
 		expect(worker.fetched).toEqual([]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "copy of preloaded reader" });
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "copy of preloaded reader" });
 	});
 
 	it("falls back to the stored copy when the network is unreachable, telling the page it is an offline copy, when it was saved and which article version it is", async () => {
-		const stored = fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, etag: STORED_ETAG, version: STORED_VERSION });
+		const stored = fakeResponse("stored reader", {
+			savedAt: SAVED_YESTERDAY,
+			etag: STORED_ETAG,
+			version: STORED_VERSION,
+			...signedIn,
+		});
 		const worker = startWorker({
 			fetch: () => Promise.reject(NETWORK_DOWN),
-			cached: { [CACHE_NAME]: { [READER_KEY]: stored } },
+			cached: { [CACHE_NAME]: { ...confirmedSession, [READER_KEY]: stored } },
 		});
 
 		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
@@ -476,7 +535,7 @@ describe("offline reader worker pages", () => {
 
 		expect(await event.response()).toBe(stored);
 		await event.settled();
-		expect(worker.matchedWith).toEqual([{ ignoreVary: true }]);
+		expect(worker.matchedWith).toEqual([{ ignoreVary: true }, { ignoreVary: true }]);
 		expect(worker.told).toEqual([
 			{
 				clientId: "new-document",
@@ -489,14 +548,19 @@ describe("offline reader worker pages", () => {
 				},
 			},
 		]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "stored reader" });
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "stored reader" });
 	});
 
 	it("falls back to the stored copy when the preload itself fails", async () => {
-		const stored = fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, etag: STORED_ETAG, version: STORED_VERSION });
+		const stored = fakeResponse("stored reader", {
+			savedAt: SAVED_YESTERDAY,
+			etag: STORED_ETAG,
+			version: STORED_VERSION,
+			...signedIn,
+		});
 		const worker = startWorker({
 			fetch: neverFetched,
-			cached: { [CACHE_NAME]: { [READER_KEY]: stored } },
+			cached: { [CACHE_NAME]: { ...confirmedSession, [READER_KEY]: stored } },
 		});
 
 		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
@@ -521,7 +585,10 @@ describe("offline reader worker pages", () => {
 	});
 
 	it("lets the browser show its own error page when the network is unreachable and nothing was stored", async () => {
-		const worker = startWorker({ fetch: () => Promise.reject(NETWORK_DOWN) });
+		const worker = startWorker({
+			fetch: () => Promise.reject(NETWORK_DOWN),
+			cached: { [CACHE_NAME]: confirmedSession },
+		});
 
 		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
 			resultingClientId: "new-document",
@@ -530,14 +597,19 @@ describe("offline reader worker pages", () => {
 		await expect(event.response()).rejects.toBe(NETWORK_DOWN);
 		await event.settled();
 		expect(worker.told).toEqual([]);
-		expect(worker.storedLabels()).toEqual({});
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker" });
 	});
 
 	it("dates the page it keeps with the time it saved it, replacing the copy stored before", async () => {
-		const live = fakeResponse("live reader");
+		const live = fakeResponse("live reader", signedIn);
 		const worker = startWorker({
 			fetch: async () => live,
-			cached: { [CACHE_NAME]: { [READER_KEY]: fakeResponse("older reader", { savedAt: SAVED_YESTERDAY }) } },
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("older reader", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+				},
+			},
 		});
 
 		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
@@ -546,14 +618,19 @@ describe("offline reader worker pages", () => {
 
 		expect(await event.response()).toBe(live);
 		await event.settled();
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "copy of live reader" });
-		expect(worker.storedSavedAt()).toEqual({ [READER_KEY]: SAVED_NOW });
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "copy of live reader" });
+		expect(worker.storedSavedAt()).toEqual({ [OWNER_KEY]: SAVED_NOW, [READER_KEY]: SAVED_NOW });
 	});
 
 	it("never serves a stored page saved more than 30 days ago, and deletes it", async () => {
 		const worker = startWorker({
 			fetch: () => Promise.reject(NETWORK_DOWN),
-			cached: { [CACHE_NAME]: { [READER_KEY]: fakeResponse("expired reader", { savedAt: SAVED_31_DAYS_AGO }) } },
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("expired reader", { savedAt: SAVED_31_DAYS_AGO, ...signedIn }),
+				},
+			},
 		});
 
 		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
@@ -563,146 +640,26 @@ describe("offline reader worker pages", () => {
 		await expect(event.response()).rejects.toBe(NETWORK_DOWN);
 		await event.settled();
 		expect(worker.told).toEqual([]);
-		expect(worker.storedLabels()).toEqual({});
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker" });
 	});
 
-	it("stops waiting for a slow network after three seconds and serves the stored copy, then keeps the late page and tells the page a newer version is online when the article version moved", async () => {
-		const stored = fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, etag: STORED_ETAG, version: STORED_VERSION });
+	it("waits for a slow network however long it takes, never serving the stored copy while the server can still answer", async () => {
 		const slow = deferred();
-		const worker = startWorker({
-			fetch: () => slow.promise,
-			cached: { [CACHE_NAME]: { [READER_KEY]: stored } },
-		});
-
-		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
-			resultingClientId: "new-document",
-		});
-		expect(worker.timeouts.map((timeout) => timeout.ms)).toEqual([3000]);
-		worker.timeouts[0].fire();
-
-		expect(await event.response()).toBe(stored);
-		slow.resolve(fakeResponse("late reader", { etag: ONLINE_ETAG, version: ONLINE_VERSION }));
-		await event.settled();
-		expect(worker.told).toEqual([
-			{
-				clientId: "new-document",
-				message: {
-					type: "readplace:reader-source",
-					source: "offline-copy",
-					path: READER_PATH,
-					savedAt: SAVED_YESTERDAY,
-					version: STORED_VERSION,
-				},
-			},
-			{
-				clientId: "new-document",
-				message: { type: "readplace:reader-version", path: READER_PATH, version: "newer" },
-			},
-		]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "copy of late reader" });
-		expect(worker.storedWhenTold[1]).toEqual({ [READER_KEY]: "copy of late reader" });
-	});
-
-	it("tells the page the stored copy on screen is current when the late page carries the same article version, even as a page with another ETag", async () => {
-		const slow = deferred();
+		const late = fakeResponse("late reader", signedIn);
 		const worker = startWorker({
 			fetch: () => slow.promise,
 			cached: {
 				[CACHE_NAME]: {
-					[READER_KEY]: fakeResponse("stored reader", {
-						savedAt: SAVED_YESTERDAY,
-						etag: STORED_ETAG,
-						version: STORED_VERSION,
-					}),
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, ...signedIn }),
 				},
 			},
 		});
-
-		const event = worker.dispatchFetch(
-			fakeRequest({ url: READER_URL, mode: "cors", destination: "", headers: { "HX-Boosted": "true" } }),
-			{ clientId: "open-tab" },
-		);
-		worker.timeouts[0].fire();
-		await event.response();
-		slow.resolve(fakeResponse("late reader", { etag: ONLINE_ETAG, version: STORED_VERSION }));
-		await event.settled();
-
-		expect(worker.told.map((told) => told.message)).toEqual([
-			expect.objectContaining({ source: "offline-copy", version: STORED_VERSION }),
-			{ type: "readplace:reader-version", path: READER_PATH, version: "same" },
-		]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "copy of late reader" });
-	});
-
-	it.each([
-		["an error page", fakeResponse("late error", { status: 500, version: ONLINE_VERSION })],
-		["a redirect to sign in", fakeResponse("late login", { redirected: true, version: ONLINE_VERSION })],
-	])("says nothing more about the stored copy on screen when the late answer is %s", async (_name, late) => {
-		const slow = deferred();
-		const worker = startWorker({
-			fetch: () => slow.promise,
-			cached: {
-				[CACHE_NAME]: { [READER_KEY]: fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, version: STORED_VERSION }) },
-			},
-		});
-
-		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), { resultingClientId: "new-document" });
-		worker.timeouts[0].fire();
-		await event.response();
-		slow.resolve(late);
-		await event.settled();
-
-		expect(worker.told.map((told) => told.message)).toEqual([
-			expect.objectContaining({ source: "offline-copy" }),
-		]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "stored reader" });
-	});
-
-	it("keeps a listing's late page and tells the list on screen the network is back, a listing carrying no article version that could be newer", async () => {
-		const listingKey = `${ORIGIN}/queue`;
-		const slow = deferred();
-		const worker = startWorker({
-			fetch: () => slow.promise,
-			cached: {
-				[CACHE_NAME]: { [listingKey]: fakeResponse("stored listing", { savedAt: SAVED_YESTERDAY, etag: STORED_ETAG }) },
-			},
-		});
-
-		const event = worker.dispatchFetch(fakeRequest({ url: listingKey }), { resultingClientId: "new-document" });
-		worker.timeouts[0].fire();
-		await event.response();
-		slow.resolve(fakeResponse("late listing", { etag: ONLINE_ETAG }));
-		await event.settled();
-
-		expect(worker.told).toEqual([
-			{
-				clientId: "new-document",
-				message: {
-					type: "readplace:reader-source",
-					source: "offline-copy",
-					path: "/queue",
-					savedAt: SAVED_YESTERDAY,
-					version: null,
-				},
-			},
-			{
-				clientId: "new-document",
-				message: { type: "readplace:reader-version", path: "/queue", version: "same" },
-			},
-		]);
-		expect(worker.storedLabels()).toEqual({ [listingKey]: "copy of late listing" });
-		expect(worker.storedWhenTold[1]).toEqual({ [listingKey]: "copy of late listing" });
-	});
-
-	it("keeps waiting for a slow network when nothing was stored", async () => {
-		const slow = deferred();
-		const late = fakeResponse("late reader");
-		const worker = startWorker({ fetch: () => slow.promise });
 
 		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
 			resultingClientId: "new-document",
 		});
-		worker.timeouts[0].fire();
+		await flush();
 		slow.resolve(late);
 
 		expect(await event.response()).toBe(late);
@@ -713,14 +670,13 @@ describe("offline reader worker pages", () => {
 				message: { type: "readplace:reader-source", source: "network", path: READER_PATH },
 			},
 		]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "copy of late reader" });
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "copy of late reader" });
 	});
 
 	it.each([
-		["a not-found page", fakeResponse("not found", { status: 404 })],
-		["a page reached through a redirect", fakeResponse("login", { redirected: true })],
-		["a Siren document", fakeResponse("siren", { contentType: "application/vnd.siren+json" })],
-		["a response without a content type", fakeResponse("untyped", { contentType: null })],
+		["a not-found page", fakeResponse("not found", { status: 404, ...signedIn })],
+		["a Siren document", fakeResponse("siren", { contentType: "application/vnd.siren+json", ...signedIn })],
+		["a response without a content type", fakeResponse("untyped", { contentType: null, ...signedIn })],
 	])("hands %s through without keeping it or calling it a live page", async (_name, response) => {
 		const worker = startWorker({ fetch: async () => response });
 
@@ -730,12 +686,12 @@ describe("offline reader worker pages", () => {
 
 		expect(await event.response()).toBe(response);
 		await event.settled();
-		expect(worker.storedLabels()).toEqual({});
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker" });
 		expect(worker.told).toEqual([]);
 	});
 
 	it("serves the page even when the tab that asked for it is gone before it can be told", async () => {
-		const live = fakeResponse("live reader");
+		const live = fakeResponse("live reader", signedIn);
 		const worker = startWorker({ fetch: async () => live, goneClients: ["new-document"] });
 
 		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), {
@@ -745,7 +701,144 @@ describe("offline reader worker pages", () => {
 		expect(await event.response()).toBe(live);
 		await event.settled();
 		expect(worker.told).toEqual([]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "copy of live reader" });
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "copy of live reader" });
+	});
+});
+
+describe("offline reader worker session ownership", () => {
+	const listingKey = `${ORIGIN}/queue`;
+
+	it("forgets every copy another session stored as soon as the network answers for a new one, and remembers the new session", async () => {
+		const live = fakeResponse("live reader", signedIn);
+		const worker = startWorker({
+			fetch: async () => live,
+			cached: {
+				[CACHE_NAME]: {
+					[OWNER_KEY]: ownerMarker({ owner: OTHER_OWNER, ownerExpires: SESSION_EXPIRES, savedAt: SAVED_YESTERDAY }),
+					[READER_KEY]: fakeResponse("their reader", { savedAt: SAVED_YESTERDAY, owner: OTHER_OWNER }),
+					[listingKey]: fakeResponse("their listing", { savedAt: SAVED_YESTERDAY, owner: OTHER_OWNER }),
+					[IMAGE_URL]: fakeResponse("their image", { contentType: "image/png", savedAt: SAVED_YESTERDAY }),
+				},
+			},
+		});
+
+		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), { resultingClientId: "new-document" });
+
+		expect(await event.response()).toBe(live);
+		await event.settled();
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "copy of live reader" });
+	});
+
+	it("keeps the copies the same session stored when it answers again", async () => {
+		const worker = startWorker({
+			fetch: async () => fakeResponse("live reader", signedIn),
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[listingKey]: fakeResponse("stored listing", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+				},
+			},
+		});
+
+		await worker.dispatchFetch(fakeRequest({ url: READER_URL }), { resultingClientId: "new-document" }).settled();
+
+		expect(worker.storedLabels()).toEqual({
+			[OWNER_KEY]: "owner marker",
+			[listingKey]: "stored listing",
+			[READER_KEY]: "copy of live reader",
+		});
+	});
+
+	it("forgets every copy once the network answers without a session, as a redirect to sign in does", async () => {
+		const signIn = fakeResponse("sign in", { redirected: true });
+		const worker = startWorker({
+			fetch: async () => signIn,
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+					[IMAGE_URL]: fakeResponse("stored image", { contentType: "image/png", savedAt: SAVED_YESTERDAY }),
+				},
+			},
+		});
+
+		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), { resultingClientId: "new-document" });
+
+		expect(await event.response()).toBe(signIn);
+		await event.settled();
+		expect(worker.storedLabels()).toEqual({});
+		expect(worker.told).toEqual([]);
+	});
+
+	it("serves no stored copy offline when no session was ever confirmed on this device", async () => {
+		const worker = startWorker({
+			fetch: () => Promise.reject(NETWORK_DOWN),
+			cached: {
+				[CACHE_NAME]: { [READER_KEY]: fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, ...signedIn }) },
+			},
+		});
+
+		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), { resultingClientId: "new-document" });
+
+		await expect(event.response()).rejects.toBe(NETWORK_DOWN);
+		await event.settled();
+		expect(worker.told).toEqual([]);
+	});
+
+	it("serves no stored copy offline once the confirmed session has expired, and forgets every copy", async () => {
+		const worker = startWorker({
+			fetch: () => Promise.reject(NETWORK_DOWN),
+			cached: {
+				[CACHE_NAME]: {
+					...expiredSession,
+					[READER_KEY]: fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+					[IMAGE_URL]: fakeResponse("stored image", { contentType: "image/png", savedAt: SAVED_YESTERDAY }),
+				},
+			},
+		});
+
+		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), { resultingClientId: "new-document" });
+
+		await expect(event.response()).rejects.toBe(NETWORK_DOWN);
+		await event.settled();
+		expect(worker.told).toEqual([]);
+		expect(worker.storedLabels()).toEqual({});
+	});
+
+	it("forgets every copy once the confirmed session's own record is more than 30 days old", async () => {
+		const worker = startWorker({
+			fetch: () => Promise.reject(NETWORK_DOWN),
+			cached: {
+				[CACHE_NAME]: {
+					[OWNER_KEY]: ownerMarker({ owner: OWNER, ownerExpires: SESSION_EXPIRES, savedAt: SAVED_31_DAYS_AGO }),
+					[READER_KEY]: fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+				},
+			},
+		});
+
+		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), { resultingClientId: "new-document" });
+
+		await expect(event.response()).rejects.toBe(NETWORK_DOWN);
+		await event.settled();
+		expect(worker.storedLabels()).toEqual({});
+	});
+
+	it("serves no stored copy offline that another session stored", async () => {
+		const worker = startWorker({
+			fetch: () => Promise.reject(NETWORK_DOWN),
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("their reader", { savedAt: SAVED_YESTERDAY, owner: OTHER_OWNER }),
+				},
+			},
+		});
+
+		const event = worker.dispatchFetch(fakeRequest({ url: READER_URL }), { resultingClientId: "new-document" });
+
+		await expect(event.response()).rejects.toBe(NETWORK_DOWN);
+		await event.settled();
+		expect(worker.told).toEqual([]);
 	});
 });
 
@@ -754,26 +847,26 @@ describe("offline reader worker revalidation", () => {
 
 	it("fetches the reader the page asks about past the browser's HTTP cache, keeps it, then answers that a newer version is online when its article version differs from the copy on screen", async () => {
 		const worker = startWorker({
-			fetch: async () => fakeResponse("online reader", { etag: ONLINE_ETAG, version: ONLINE_VERSION }),
+			fetch: async () => fakeResponse("online reader", { etag: ONLINE_ETAG, version: ONLINE_VERSION, ...signedIn }),
 		});
 
 		await worker.dispatchMessage(revalidation).settled();
 
 		expect(worker.fetched).toEqual([{ input: READER_URL, init: { cache: "no-cache" } }]);
-		expect(worker.storedLabels()).toEqual({ [READER_KEY]: "copy of online reader" });
-		expect(worker.storedSavedAt()).toEqual({ [READER_KEY]: SAVED_NOW });
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "copy of online reader" });
+		expect(worker.storedSavedAt()).toEqual({ [OWNER_KEY]: SAVED_NOW, [READER_KEY]: SAVED_NOW });
 		expect(worker.told).toEqual([
 			{
 				clientId: "asking-tab",
 				message: { type: "readplace:reader-version", path: READER_PATH, version: "newer" },
 			},
 		]);
-		expect(worker.storedWhenTold).toEqual([{ [READER_KEY]: "copy of online reader" }]);
+		expect(worker.storedWhenTold).toEqual([{ [OWNER_KEY]: "owner marker", [READER_KEY]: "copy of online reader" }]);
 	});
 
 	it("answers that the copy on screen is current when the online reader carries the same article version, even as a page with another ETag", async () => {
 		const worker = startWorker({
-			fetch: async () => fakeResponse("online reader", { etag: ONLINE_ETAG, version: STORED_VERSION }),
+			fetch: async () => fakeResponse("online reader", { etag: ONLINE_ETAG, version: STORED_VERSION, ...signedIn }),
 		});
 
 		await worker.dispatchMessage(revalidation).settled();
@@ -786,11 +879,28 @@ describe("offline reader worker revalidation", () => {
 		]);
 	});
 
-	it.each([
-		["a not-found page", fakeResponse("not found", { status: 404, version: ONLINE_VERSION })],
-		["a redirect to sign in", fakeResponse("login", { redirected: true, version: ONLINE_VERSION })],
-	])("answers nothing and keeps nothing when the reader comes back as %s", async (_name, response) => {
-		const worker = startWorker({ fetch: async () => response });
+	it("answers nothing and keeps nothing new when the reader comes back as a not-found page", async () => {
+		const worker = startWorker({
+			fetch: async () => fakeResponse("not found", { status: 404, version: ONLINE_VERSION, ...signedIn }),
+			cached: { [CACHE_NAME]: confirmedSession },
+		});
+
+		await worker.dispatchMessage(revalidation).settled();
+
+		expect(worker.told).toEqual([]);
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker" });
+	});
+
+	it("answers nothing and forgets every copy when the reader comes back as a redirect to sign in", async () => {
+		const worker = startWorker({
+			fetch: async () => fakeResponse("login", { redirected: true, version: ONLINE_VERSION }),
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("stored reader", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+				},
+			},
+		});
 
 		await worker.dispatchMessage(revalidation).settled();
 
@@ -841,71 +951,57 @@ describe("offline reader worker images", () => {
 		const stored = fakeResponse("stored image", { contentType: "image/png", savedAt: SAVED_YESTERDAY });
 		const worker = startWorker({
 			fetch: () => Promise.reject(NETWORK_DOWN),
-			cached: { [CACHE_NAME]: { [IMAGE_URL]: stored } },
+			cached: { [CACHE_NAME]: { ...confirmedSession, [IMAGE_URL]: stored } },
 		});
 
 		const event = worker.dispatchFetch(imageRequest(), { clientId: "open-tab" });
 
 		expect(await event.response()).toBe(stored);
 		await event.settled();
-		expect(worker.matchedWith).toEqual([{ ignoreVary: true }]);
+		expect(worker.matchedWith).toEqual([{ ignoreVary: true }, { ignoreVary: true }]);
 		expect(worker.fetched).toHaveLength(1);
 	});
 
-	it("stops waiting for a slow image after three seconds and serves the stored one, refreshing it once the network answers", async () => {
-		const stored = fakeResponse("stored image", { contentType: "image/png", savedAt: SAVED_YESTERDAY });
+	it("waits for a slow image rather than serving the stored one, fetching it only once", async () => {
 		const slow = deferred();
+		const late = fakeResponse("late image", { contentType: "image/png" });
 		const worker = startWorker({
 			fetch: () => slow.promise,
-			cached: { [CACHE_NAME]: { [IMAGE_URL]: stored } },
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[IMAGE_URL]: fakeResponse("stored image", { contentType: "image/png", savedAt: SAVED_YESTERDAY }),
+				},
+			},
 		});
 
 		const event = worker.dispatchFetch(imageRequest(), { clientId: "open-tab" });
-		expect(worker.timeouts.map((timeout) => timeout.ms)).toEqual([3000]);
-		worker.timeouts[0].fire();
-
-		expect(await event.response()).toBe(stored);
-		slow.resolve(fakeResponse("late image", { contentType: "image/png" }));
-		await event.settled();
-		expect(worker.storedLabels()).toEqual({ [IMAGE_URL]: "copy of late image" });
-	});
-
-	it("keeps waiting for a slow image when nothing was stored, fetching it only once", async () => {
-		const slow = deferred();
-		const late = fakeResponse("late image", { contentType: "image/png" });
-		const worker = startWorker({ fetch: () => slow.promise });
-
-		const event = worker.dispatchFetch(imageRequest(), { clientId: "open-tab" });
-		worker.timeouts[0].fire();
 		await flush();
 		slow.resolve(late);
 
 		expect(await event.response()).toBe(late);
 		await event.settled();
 		expect(worker.fetched).toEqual([{ input: IMAGE_URL, init: { mode: "cors", credentials: "omit" } }]);
-		expect(worker.storedLabels()).toEqual({ [IMAGE_URL]: "copy of late image" });
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [IMAGE_URL]: "copy of late image" });
 	});
 
-	it("asks again the way the page did only once a slow image's credential-less fetch fails", async () => {
-		const slow = deferred();
+	it("serves no stored image offline once the confirmed session has expired, asking again the way the page did", async () => {
 		const original = fakeResponse("original image", { contentType: "image/png" });
 		const request = imageRequest();
 		const worker = startWorker({
-			fetch: (input) => (input === request ? Promise.resolve(original) : slow.promise),
+			fetch: (input) => (input === request ? Promise.resolve(original) : Promise.reject(NETWORK_DOWN)),
+			cached: {
+				[CACHE_NAME]: {
+					...expiredSession,
+					[IMAGE_URL]: fakeResponse("stored image", { contentType: "image/png", savedAt: SAVED_YESTERDAY }),
+				},
+			},
 		});
 
 		const event = worker.dispatchFetch(request, { clientId: "open-tab" });
-		worker.timeouts[0].fire();
-		await flush();
-		expect(worker.fetched).toHaveLength(1);
-		slow.reject(NETWORK_DOWN);
 
 		expect(await event.response()).toBe(original);
 		await event.settled();
-		expect(worker.fetched).toEqual([
-			{ input: IMAGE_URL, init: { mode: "cors", credentials: "omit" } },
-			{ input: request, init: undefined },
-		]);
 		expect(worker.storedLabels()).toEqual({});
 	});
 
@@ -935,6 +1031,7 @@ describe("offline reader worker images", () => {
 			fetch: (input) => (input === request ? Promise.resolve(original) : Promise.reject(NETWORK_DOWN)),
 			cached: {
 				[CACHE_NAME]: {
+					...confirmedSession,
 					[IMAGE_URL]: fakeResponse("expired image", { contentType: "image/png", savedAt: SAVED_31_DAYS_AGO }),
 				},
 			},
@@ -944,7 +1041,7 @@ describe("offline reader worker images", () => {
 
 		expect(await event.response()).toBe(original);
 		await event.settled();
-		expect(worker.storedLabels()).toEqual({});
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker" });
 	});
 
 	it("loads an image from a host that refuses cross-origin reads the way the page asked for it, keeping nothing", async () => {
@@ -989,5 +1086,9 @@ describe("offline reader worker images", () => {
 describe("offline reader worker bundle", () => {
 	it("hands its bundle the contract's stamp, so the worker dates its copies the way the download does", () => {
 		expect(stampOfflineCopy).toBe(contractStamp);
+	});
+
+	it("hands its bundle the contract's owner marker, so the worker records a session the way the download does", () => {
+		expect(offlineOwnerMarker).toBe(contractMarker);
 	});
 });

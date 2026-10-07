@@ -5,12 +5,20 @@ import { destinationUrl } from "../../test-helpers/article-fixtures";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
 import { renderNextRead } from "../next-read/next-read.component";
-import { OFFLINE_SAVED_AT_HEADER, OFFLINE_SOURCE_HEADER, stampOfflineCopy as contractStamp } from "./offline-cache";
+import {
+	OFFLINE_OWNER_EXPIRES_HEADER,
+	OFFLINE_OWNER_HEADER,
+	OFFLINE_SAVED_AT_HEADER,
+	OFFLINE_SOURCE_HEADER,
+	offlineOwnerMarker as contractMarker,
+	stampOfflineCopy as contractStamp,
+} from "./offline-cache";
 import {
 	type DownloadRequest,
 	type DownloadResponse,
 	type OfflineDownloadDeps,
 	initOfflineDownload,
+	offlineOwnerMarker,
 	stampOfflineCopy,
 } from "./offline-download.client";
 
@@ -28,6 +36,10 @@ const SAVED_NOW = new Date(NOW).toISOString();
 const SAVED_YESTERDAY = new Date(NOW - DAY_MS).toISOString();
 const SAVED_29_DAYS_AGO = new Date(NOW - 29 * DAY_MS).toISOString();
 const SAVED_31_DAYS_AGO = new Date(NOW - 31 * DAY_MS).toISOString();
+const OWNER_KEY = `${ORIGIN}/queue/offline-owner`;
+const OWNER = "5e55a0d1";
+const OTHER_OWNER = "0th3r5e5";
+const SESSION_EXPIRES = String((NOW + DAY_MS) / 1000);
 
 interface ResponseSpec {
 	status?: number;
@@ -39,6 +51,7 @@ interface StoredEntry {
 	source: string;
 	savedAt?: string;
 	body?: string;
+	owner?: string;
 }
 
 type Route = ResponseSpec | "network-down" | Promise<ResponseSpec>;
@@ -111,6 +124,7 @@ function startDownload(options: {
 	body?: string;
 	runRecord?: string | null;
 	cacheUnavailable?: boolean;
+	confirmedOwner?: string;
 }) {
 	const dom = new JSDOM(`<!DOCTYPE html><html><body><main>${options.body ?? controlMarkup()}</main></body></html>`, {
 		url: `${ORIGIN}/queue?utm_source=header-nav&utm_medium=internal&utm_content=readlist`,
@@ -118,7 +132,12 @@ function startDownload(options: {
 	const document = dom.window.document;
 	const sent: Sent[] = [];
 	const opened: string[] = [];
-	const store = new Map<string, StoredEntry>(Object.entries(options.cached ?? {}));
+	const store = new Map<string, StoredEntry>(
+		Object.entries(options.cached ?? {}).map(([key, entry]) => [key, { owner: OWNER, ...entry }]),
+	);
+	if (options.cached !== undefined) {
+		store.set(OWNER_KEY, { source: "owner marker", savedAt: SAVED_YESTERDAY, owner: options.confirmedOwner ?? OWNER });
+	}
 	const copyOf = new WeakMap<DownloadResponse, StoredEntry>();
 	const dated = new WeakSet<DownloadResponse>();
 	const consumed = new WeakSet<DownloadResponse>();
@@ -152,8 +171,16 @@ function startDownload(options: {
 		return response;
 	}
 
+	function ownerHeaders(entry: StoredEntry): Array<[string, string | undefined]> {
+		return [
+			[OFFLINE_OWNER_HEADER.toLowerCase(), entry.owner],
+			[OFFLINE_OWNER_EXPIRES_HEADER.toLowerCase(), entry.owner === undefined ? undefined : SESSION_EXPIRES],
+		];
+	}
+
 	function fetched(input: { url: string; spec: ResponseSpec }): DownloadResponse {
-		return fakeResponse({ entry: { source: input.url, body: input.spec.body }, spec: input.spec, headers: new Map() });
+		const entry = { source: input.url, body: input.spec.body, owner: input.spec.redirected ? undefined : OWNER };
+		return fakeResponse({ entry, spec: input.spec, headers: new Map(ownerHeaders(entry)) });
 	}
 
 	function storedCopy(entry: StoredEntry): DownloadResponse {
@@ -163,8 +190,19 @@ function startDownload(options: {
 			headers: new Map([
 				[OFFLINE_SOURCE_HEADER.toLowerCase(), entry.source],
 				[OFFLINE_SAVED_AT_HEADER.toLowerCase(), entry.savedAt],
+				...ownerHeaders(entry),
 			]),
 		});
+	}
+
+	function markedOwner(answer: DownloadResponse, savedAt: number): DownloadResponse {
+		const marker = storedCopy({
+			source: "owner marker",
+			savedAt: new Date(savedAt).toISOString(),
+			owner: String(answer.headers.get(OFFLINE_OWNER_HEADER)),
+		});
+		dated.add(marker);
+		return marker;
 	}
 
 	function datedCopy(response: DownloadResponse, savedAt: number): DownloadResponse {
@@ -210,6 +248,9 @@ function startDownload(options: {
 									deleted.push(key);
 									return store.delete(key);
 								},
+								async keys() {
+									return Array.from(store.keys(), (url) => ({ url }));
+								},
 							};
 						},
 					},
@@ -222,6 +263,7 @@ function startDownload(options: {
 			},
 			now: () => NOW,
 			stampCopy: datedCopy,
+			markOwner: markedOwner,
 			runRecord: {
 				read: () => record.value,
 				write: (value) => {
@@ -265,6 +307,10 @@ function startDownload(options: {
 		target.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
 	}
 
+	function storedCopies(): Array<[string, StoredEntry]> {
+		return Array.from(store).filter(([key]) => key !== OWNER_KEY);
+	}
+
 	return {
 		dom,
 		document,
@@ -283,8 +329,9 @@ function startDownload(options: {
 			Array.from(document.querySelectorAll("[data-offline-tag]"), (tag) =>
 				tag.closest(".readlist-article")?.querySelector(".readlist-article__title")?.getAttribute("href"),
 			),
-		stored: () => Object.fromEntries(Array.from(store, ([key, entry]) => [key, entry.source])),
-		savedAt: () => Object.fromEntries(Array.from(store, ([key, entry]) => [key, entry.savedAt])),
+		stored: () => Object.fromEntries(storedCopies().map(([key, entry]) => [key, entry.source])),
+		savedAt: () => Object.fromEntries(storedCopies().map(([key, entry]) => [key, entry.savedAt])),
+		confirmedOwner: () => store.get(OWNER_KEY)?.owner,
 		sentTo: (init: unknown) => sent.filter((call) => isDeepStrictEqual(call.init, init)).map((call) => call.url),
 		leave: () => {
 			for (const listener of pageHideListeners) listener();
@@ -692,6 +739,52 @@ describe("initOfflineDownload", () => {
 
 	it("hands its bundle the contract's stamp, so the download dates its copies the way the worker does", () => {
 		expect(stampOfflineCopy).toBe(contractStamp);
+	});
+
+	it("hands its bundle the contract's owner marker, so the download records a session the way the worker does", () => {
+		expect(offlineOwnerMarker).toBe(contractMarker);
+	});
+
+	it("records the session the listing answered for, the only one the worker will serve the copies to offline", async () => {
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards: ["/queue/a1/view?v=one"] }) },
+				[`${ORIGIN}/queue/a1/view?v=one`]: { body: readerPage("<p>One</p>") },
+			},
+		});
+
+		page.press();
+		await flush();
+
+		expect(page.confirmedOwner()).toBe(OWNER);
+		expect(page.stored()).toEqual({
+			[`${ORIGIN}/queue`]: `${ORIGIN}${TRACKED_LISTING}`,
+			[`${ORIGIN}/queue/a1/view`]: `${ORIGIN}/queue/a1/view?v=one`,
+		});
+	});
+
+	it("forgets every copy another session stored before keeping this session's", async () => {
+		const page = startDownload({
+			routes: {
+				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards: ["/queue/a1/view?v=one"] }) },
+				[`${ORIGIN}/queue/a1/view?v=one`]: { body: readerPage("<p>One</p>") },
+			},
+			cached: {
+				[`${ORIGIN}/queue/z9/view`]: { source: `${ORIGIN}/queue/z9/view?v=theirs`, savedAt: SAVED_YESTERDAY, owner: OTHER_OWNER },
+				[`${ORIGIN}/queue/a1/view`]: { source: `${ORIGIN}/queue/a1/view?v=one`, savedAt: SAVED_YESTERDAY, owner: OTHER_OWNER },
+			},
+			confirmedOwner: OTHER_OWNER,
+		});
+
+		page.press();
+		await flush();
+
+		expect(page.confirmedOwner()).toBe(OWNER);
+		expect(page.sentTo(ARTICLE_REQUEST)).toEqual([`${ORIGIN}/queue/a1/view?v=one`]);
+		expect(page.stored()).toEqual({
+			[`${ORIGIN}/queue`]: `${ORIGIN}${TRACKED_LISTING}`,
+			[`${ORIGIN}/queue/a1/view`]: `${ORIGIN}/queue/a1/view?v=one`,
+		});
 	});
 
 	it("shows how far the download has got and holds the button until it finishes", async () => {

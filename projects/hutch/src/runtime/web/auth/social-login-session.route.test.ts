@@ -135,6 +135,14 @@ describe.each(SOCIAL_LOGIN_PROVIDERS)(
 			expect(cookie).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
 		});
 
+		it("clears what an earlier reader left in this browser's storage, their offline copies included", async () => {
+			const harness = useApp(provider.withProvider(createDefaultTestAppFixture(TEST_APP_ORIGIN)));
+
+			const callback = await provider.signIn({ harness, returnUrl: IOS_AUTHORIZE_RETURN });
+
+			expect(callback.headers["clear-site-data"]).toBe('"storage"');
+		});
+
 		it("records itself as the provider this browser last signed in with", async () => {
 			const harness = useApp(provider.withProvider(createDefaultTestAppFixture(TEST_APP_ORIGIN)));
 

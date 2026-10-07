@@ -265,6 +265,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/oauth/authorize?client_id=test");
+			expect(response.headers["clear-site-data"]).toBe('"storage"');
 		});
 
 		it("should ignore protocol-relative return URLs", async () => {
@@ -561,6 +562,7 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue");
 			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
+			expect(response.headers["clear-site-data"]).toBe('"storage"');
 
 			const lookup = await auth.findUserByEmail("free@example.com");
 			assert(lookup, "free signup must persist a user");
@@ -988,6 +990,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue");
+			expect(response.headers["clear-site-data"]).toBe('"storage"');
 			const sent = email.getSentEmails();
 			const verification = sent.find((m) => m.to === "verify-trial@example.com");
 			assert(verification, "trial signup must trigger a verification email");
@@ -1079,6 +1082,7 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue");
 			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
+			expect(response.headers["clear-site-data"]).toBe('"storage"');
 			expect(await auth.countUsers()).toBe(1);
 			expect(email.getSentEmails()).toHaveLength(0);
 			expect(conversions.events).toEqual([]);

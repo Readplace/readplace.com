@@ -42,6 +42,9 @@ export const OFFLINE_SAVED_AT_HEADER = "Readplace-Offline-Saved-At";
 export const OFFLINE_SOURCE_HEADER = "Readplace-Offline-Source";
 export const ARTICLE_VERSION_HEADER = "Readplace-Article-Version";
 export const OFFLINE_COPY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+export const OFFLINE_OWNER_HEADER = "Readplace-Offline-Owner";
+export const OFFLINE_OWNER_EXPIRES_HEADER = "Readplace-Offline-Owner-Expires";
+export const OFFLINE_OWNER_MARKER_PATH = `${OFFLINE_READER_SCOPE}/offline-owner`;
 
 interface OfflineCopyHeaders {
 	get(name: string): string | null;
@@ -56,6 +59,16 @@ export function stampOfflineCopy(response: Response, savedAt: number): Response 
 	headers.set(OFFLINE_SAVED_AT_HEADER, new Date(savedAt).toISOString());
 	if (response.url !== "") headers.set(OFFLINE_SOURCE_HEADER, response.url);
 	return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+export function offlineOwnerMarker(answer: { headers: OfflineCopyHeaders }, savedAt: number): Response {
+	return new Response(null, {
+		headers: {
+			[OFFLINE_OWNER_HEADER]: String(answer.headers.get(OFFLINE_OWNER_HEADER)),
+			[OFFLINE_OWNER_EXPIRES_HEADER]: String(answer.headers.get(OFFLINE_OWNER_EXPIRES_HEADER)),
+			[OFFLINE_SAVED_AT_HEADER]: new Date(savedAt).toISOString(),
+		},
+	});
 }
 
 export type OfflinePageKind = "listing" | "reader";

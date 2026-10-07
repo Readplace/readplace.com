@@ -85,6 +85,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 	const signIn = (res: Response, sessionId: string): void => {
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		res.set("Clear-Site-Data", '"storage"');
 		setLastAuthProvider({ res, secure: deps.secureCookies }, "google");
 	};
 	const redirectUri = `${deps.appOrigin}/auth/google/callback`;

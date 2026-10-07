@@ -14,6 +14,8 @@ import {
 	OFFLINE_CACHE_PREFIX,
 	OFFLINE_COPY_PATH_ATTRIBUTE,
 	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
+	OFFLINE_OWNER_EXPIRES_HEADER,
+	OFFLINE_OWNER_HEADER,
 	OFFLINE_READER_SCOPE,
 	OFFLINE_SAVED_AT_HEADER,
 	OFFLINE_SOURCE_HEADER,
@@ -24,6 +26,7 @@ import {
 	REVALIDATE_READER_MESSAGE_TYPE,
 	isFreshOfflineCopy,
 	offlineCacheKey,
+	offlineOwnerMarker,
 	offlinePageKind,
 	stampOfflineCopy,
 	withoutCampaignParams,
@@ -241,5 +244,24 @@ describe("stampOfflineCopy", () => {
 		expect(refreshed.headers.get(OFFLINE_SOURCE_HEADER)).toBe(`${ORIGIN}/queue/abc123/view?v=token`);
 		expect(refreshed.headers.get(OFFLINE_SAVED_AT_HEADER)).toBe("2026-10-05T12:00:00.000Z");
 		expect(await refreshed.text()).toBe("<main>Article</main>");
+	});
+});
+
+describe("offlineOwnerMarker", () => {
+	it("records the session a page answered for and when that session expires, dated with the time it was recorded", async () => {
+		const answer = networkAnswer({
+			url: `${ORIGIN}/queue`,
+			body: "<main>Listing</main>",
+			headers: { [OFFLINE_OWNER_HEADER]: "5e55a0d1", [OFFLINE_OWNER_EXPIRES_HEADER]: "1791374400" },
+		});
+
+		const marker = offlineOwnerMarker(answer, NOW);
+
+		expect(Object.fromEntries(marker.headers)).toEqual({
+			"readplace-offline-owner": "5e55a0d1",
+			"readplace-offline-owner-expires": "1791374400",
+			"readplace-offline-saved-at": "2026-10-05T12:00:00.000Z",
+		});
+		expect(await marker.text()).toBe("");
 	});
 });

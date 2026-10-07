@@ -16,8 +16,9 @@ import {
 	offlineCacheKey,
 	offlinePageKind,
 } from "./offline-cache";
+import { initOfflineOwnership } from "./offline-owner";
 
-export { stampOfflineCopy } from "./offline-cache";
+export { offlineOwnerMarker, stampOfflineCopy } from "./offline-cache";
 
 interface WorkerHeaders {
 	get(name: string): string | null;
@@ -86,10 +87,9 @@ export interface OfflineReaderWorkerDeps {
 		input: WorkerRequest | string,
 		init?: { mode: "cors"; credentials: "omit" } | { cache: "no-cache" },
 	) => Promise<WorkerResponse>;
-	setTimeoutFn: (callback: () => void, ms: number) => unknown;
-	networkTimeoutMs: number;
 	now: () => number;
 	stampCopy: (response: WorkerResponse, savedAt: number) => WorkerResponse;
+	markOwner: (answer: WorkerResponse, savedAt: number) => WorkerResponse;
 }
 
 interface ServedPage {
@@ -108,20 +108,31 @@ function read(value: unknown, name: string): unknown {
 
 export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 	const { caches } = deps;
+	const ownership = initOfflineOwnership<WorkerResponse>({
+		origin: deps.origin,
+		now: deps.now,
+		markOwner: deps.markOwner,
+	});
 
-	function withinTimeout(network: Promise<WorkerResponse>): Promise<WorkerResponse | undefined> {
-		return new Promise((resolve) => {
-			deps.setTimeoutFn(() => resolve(undefined), deps.networkTimeoutMs);
-			network.then(resolve, () => resolve(undefined));
-		});
-	}
-
-	async function cachedCopy(key: string): Promise<WorkerResponse | undefined> {
-		const cache = await caches.open(OFFLINE_CACHE_NAME);
+	async function freshCopy(cache: WorkerCache, key: string): Promise<WorkerResponse | undefined> {
 		const copy = await cache.match(key, { ignoreVary: true });
 		if (copy === undefined || isFreshOfflineCopy(copy, deps.now())) return copy;
 		await cache.delete(key);
 		return undefined;
+	}
+
+	async function storedPage(key: string): Promise<WorkerResponse | undefined> {
+		const cache = await caches.open(OFFLINE_CACHE_NAME);
+		const owner = await ownership.confirmedOwner(cache);
+		if (owner === undefined) return undefined;
+		const copy = await freshCopy(cache, key);
+		return copy !== undefined && ownership.isOwnedBy(copy, owner) ? copy : undefined;
+	}
+
+	async function storedImage(key: string): Promise<WorkerResponse | undefined> {
+		const cache = await caches.open(OFFLINE_CACHE_NAME);
+		if ((await ownership.confirmedOwner(cache)) === undefined) return undefined;
+		return freshCopy(cache, key);
 	}
 
 	async function keep(key: string, copy: WorkerResponse): Promise<void> {
@@ -129,9 +140,19 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 		await cache.put(key, deps.stampCopy(copy, deps.now()));
 	}
 
+	async function keepAnswer(input: {
+		key: string;
+		answer: WorkerResponse;
+		copy: WorkerResponse | undefined;
+	}): Promise<void> {
+		await ownership.adopt(await caches.open(OFFLINE_CACHE_NAME), input.answer);
+		if (input.copy !== undefined) await keep(input.key, input.copy);
+	}
+
 	async function sweepExpiredCopies(): Promise<void> {
 		const cache = await caches.open(OFFLINE_CACHE_NAME);
-		for (const entry of await cache.keys()) await cachedCopy(entry.url);
+		await ownership.confirmedOwner(cache);
+		for (const entry of await cache.keys()) await freshCopy(cache, entry.url);
 	}
 
 	function isFullPage(response: WorkerResponse): boolean {
@@ -147,11 +168,13 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 	}
 
 	async function servePage(key: string, network: Promise<WorkerResponse>): Promise<ServedPage> {
-		const prompt = await withinTimeout(network);
-		if (prompt) return fromNetwork(prompt);
-		const cached = await cachedCopy(key);
-		if (cached) return { response: cached, source: READER_SOURCE.offlineCopy };
-		return fromNetwork(await network);
+		try {
+			return fromNetwork(await network);
+		} catch (unreachable) {
+			const stored = await storedPage(key);
+			if (stored === undefined) throw unreachable;
+			return { response: stored, source: READER_SOURCE.offlineCopy };
+		}
 	}
 
 	function versionMessage(input: {
@@ -173,8 +196,6 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 		event: WorkerFetchEvent;
 		requested: RequestedPage;
 		served: ServedPage;
-		network: Promise<WorkerResponse>;
-		stored: Promise<unknown>;
 	}): Promise<void> {
 		const { requested, served } = input;
 		if (served.source === undefined) return;
@@ -184,41 +205,34 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 			client.postMessage({ type: READER_SOURCE_MESSAGE_TYPE, source: served.source, path: requested.path });
 			return;
 		}
-		const onScreen = served.response.headers.get(ARTICLE_VERSION_HEADER);
 		client.postMessage({
 			type: READER_SOURCE_MESSAGE_TYPE,
 			source: served.source,
 			path: requested.path,
 			savedAt: String(served.response.headers.get(OFFLINE_SAVED_AT_HEADER)),
-			version: onScreen,
+			version: served.response.headers.get(ARTICLE_VERSION_HEADER),
 		});
-		const online = await input.network;
-		if (!isFullPage(online)) return;
-		await input.stored;
-		client.postMessage(versionMessage({ path: requested.path, onScreen, online }));
 	}
 
 	function respondWithPage(event: WorkerFetchEvent, requested: RequestedPage): void {
 		const network = Promise.resolve(event.preloadResponse).then(
 			(preloaded) => preloaded ?? deps.fetchFn(event.request),
 		);
-		const stored = network.then((response) =>
-			isFullPage(response) ? keep(requested.key, response.clone()) : undefined,
+		const stored = network.then((answer) =>
+			keepAnswer({ key: requested.key, answer, copy: isFullPage(answer) ? answer.clone() : undefined }),
 		);
 		const served = servePage(requested.key, network);
 		event.respondWith(served.then((page) => page.response));
 		event.waitUntil(
-			Promise.allSettled([
-				stored,
-				served.then((page) => tellClient({ event, requested, served: page, network, stored })),
-			]),
+			Promise.allSettled([stored, served.then((page) => tellClient({ event, requested, served: page }))]),
 		);
 	}
 
 	async function revalidate(input: { client: ReaderTab; url: URL; onScreen: unknown }): Promise<void> {
 		const online = await deps.fetchFn(input.url.href, { cache: "no-cache" });
-		if (!isFullPage(online)) return;
-		await keep(offlineCacheKey(input.url), online.clone());
+		const copy = isFullPage(online) ? online.clone() : undefined;
+		await keepAnswer({ key: offlineCacheKey(input.url), answer: online, copy });
+		if (copy === undefined) return;
 		input.client.postMessage(versionMessage({ path: input.url.pathname, onScreen: input.onScreen, online }));
 	}
 
@@ -226,11 +240,9 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 		request: WorkerRequest,
 		network: Promise<WorkerResponse>,
 	): Promise<WorkerResponse> {
-		const prompt = await withinTimeout(network);
-		if (prompt?.ok) return prompt;
-		if (prompt !== undefined) return deps.fetchFn(request);
-		const cached = await cachedCopy(request.url);
-		return cached ?? network.catch(() => deps.fetchFn(request));
+		const answer = await network.catch(() => undefined);
+		if (answer === undefined) return (await storedImage(request.url)) ?? deps.fetchFn(request);
+		return answer.ok ? answer : deps.fetchFn(request);
 	}
 
 	function respondWithImage(event: WorkerFetchEvent): void {

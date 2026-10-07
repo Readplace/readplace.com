@@ -255,6 +255,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		res.cookie(SESSION_COOKIE_NAME, signIn.sessionId, sessionCookieOptions);
+		res.set("Clear-Site-Data", '"storage"');
 		res.redirect(303, parseReturnUrl(req.query));
 	});
 
@@ -320,6 +321,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				return;
 			}
 			res.cookie(SESSION_COOKIE_NAME, signIn.sessionId, sessionCookieOptions);
+			res.set("Clear-Site-Data", '"storage"');
 			logSignupAttempt(SIGNUP_OUTCOMES.signedIn);
 			res.redirect(303, parseReturnUrl(req.query));
 		};
@@ -378,6 +380,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+			res.set("Clear-Site-Data", '"storage"');
 			sendVerificationEmail(created.userId, email);
 			logSignupAttempt(SIGNUP_OUTCOMES.created);
 			deps.recordConversionEvent(
@@ -424,6 +427,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		res.set("Clear-Site-Data", '"storage"');
 		sendVerificationEmail(created.userId, email);
 		logSignupAttempt(SIGNUP_OUTCOMES.created);
 		deps.recordConversionEvent(
