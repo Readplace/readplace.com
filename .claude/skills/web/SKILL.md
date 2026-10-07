@@ -223,7 +223,37 @@ No custom `*.client.ts` is needed when htmx covers the interaction. Reserve `*.c
 
 IMPORTANT: Ask for human intervention whenever a deviation from htmx is needed away from this basic pattern for SPA navigation.
 
-**Sanctioned deviation — card-scoped list mutations.** A mutation whose only visible effect is that one list row changes may swap the row instead of re-shipping the whole `<main>`, when re-rendering `<main>` is the measured cost. The queue's card mark-read/unread do this: the form targets the row (`hx-target` set to `closest` plus the card's block class, `hx-swap="outerHTML show:none"` — without `show:none` a boosted form scrolls the page to the first element the response swaps in, which for an emptied row is the out-of-band toast); a `swap=card` marker on the action href — a response-representation hint the server never trusts as state, consistent with the URL-as-state rule above — routes an htmx submit to a small card-removal fragment plus out-of-band toast/counts; and the **server**, never the client, decides when the DOM has drifted (page emptied, page beyond the last, the pagination controls changed, or the change didn't apply) and answers with the full listing via `HX-Retarget: main`. The no-JS, Undo, reader and API callers keep the byte-identical `<main>`/303 path, and delete keeps its full-`<main>` confirm-popover flow. This is already decided — follow it for equivalent list-row mutations instead of re-asking. See the queue page's card status-swap handler — the one that answers with the `HX-Retarget` header when the DOM has drifted (grep for `HX-Retarget` in the web pages of the project that serves `/queue` — the single hit there is it; the repo-wide second hit is the newsletter inbox's lock-check middleware) — and the mutation-fragments module it imports, which renders the card-removal fragment plus the out-of-band toast and counts.
+**Sanctioned deviation — card-scoped list mutations.** A mutation whose only visible effect is that one list row changes may swap the row instead of re-shipping the whole `<main>`, when re-rendering `<main>` is the measured cost. The queue's card mark-read/unread do this: the form targets the row (`hx-target` set to `closest` plus the card's block class, `hx-swap="outerHTML show:none"` — see [Every Swap Declares Where the Page Ends Up](#every-swap-declares-where-the-page-ends-up)); a `swap=card` marker on the action href — a response-representation hint the server never trusts as state, consistent with the URL-as-state rule above — routes an htmx submit to a small card-removal fragment plus out-of-band toast/counts; and the **server**, never the client, decides when the DOM has drifted (page emptied, page beyond the last, the pagination controls changed, or the change didn't apply) and answers with the full listing via `HX-Retarget: main`. The no-JS, Undo, reader and API callers keep the byte-identical `<main>`/303 path, and delete keeps its full-`<main>` confirm-popover flow. This is already decided — follow it for equivalent list-row mutations instead of re-asking. See the queue page's card status-swap handler — the one that answers with the `HX-Retarget` header when the DOM has drifted (grep for `HX-Retarget` in the web pages of the project that serves `/queue` — the single hit there is it; the repo-wide second hit is the newsletter inbox's lock-check middleware) — and the mutation-fragments module it imports, which renders the card-removal fragment plus the out-of-band toast and counts.
+
+### Every Swap Declares Where the Page Ends Up
+
+Every swap has one intended scroll outcome, and the swap spec states it:
+
+| Intent | Typical use | Write |
+|---|---|---|
+| Stay put | tabs, sort, pagination, row mutations, confirm dialogs, Undo | `show:none` |
+| Go to the top, like a page load | moving to a different document (the next article) | `show:none scroll:html:top` — `show:none` cancels the default scroll to the swapped content, `scroll:` resets the page instantly where `show:` would animate |
+| Reveal a named element | the row a save just added | `show:#<id>:top` |
+
+Three things override the declared intent without any attribute changing, which is why three scroll bugs got past review:
+
+| Override | Symptom | What to write |
+|---|---|---|
+| htmx's boost default: a boosted element with no `show:` modifier scrolls to the first element the response swaps in | the page lands on whatever came first — an out-of-band toast at the end of `<main>` sends it to the bottom | a `show:` modifier on every boosted element, row-scoped ones included |
+| The response's shape: an `HX-Reswap` header replaces the element's whole swap spec, and an `HX-Retarget` or out-of-band piece changes what is swapped in first | an error or retargeted answer scrolls even though the element says `show:none` | any `HX-Reswap` restates the intent (`outerHTML show:none`); check the retargeted answer in a browser, not only the normal one |
+| Browser scroll anchoring: `outerHTML` inserts the new region before removing the old one, anchoring follows the old content down by the new region's height, and the removal clamps the page to the bottom | the page lands at the bottom although `show:none` is set | nothing per element for `<main>` — the shell's reset turns anchoring off while `<main>` carries htmx's swapping class (grep the workspace packages for `overflow-anchor`; the single hit is it). A different region replaced the same way needs the same treatment |
+
+A unit or route test that compares the `hx-swap` string proves none of this: all three overrides happen in the browser. A new swap shape — a new target, a header that changes the swap, an out-of-band piece — ships with a browser test that scrolls the control into view, clicks it with a real pointer click (one that does not auto-scroll), waits for the destination, and asserts `scrollY` once the page has stopped moving. `scrollBehavior` is smooth, so a wrong scroll has barely started at `htmx:afterSettle`; read it too early and the test passes on a page that is about to jump. The queue listing's scroll-stability suite does this — grep the E2E sources for `htmx:afterSettle` and reuse the browser helper there that waits for `scrollY` to hold still before stamping it.
+
+```html
+<!-- ❌ BAD — boosted, no show: modifier; htmx scrolls to the first swapped-in element -->
+<form method="POST" action="/bookings/42/seat" hx-boost="true"
+      hx-target="closest .booking-row" hx-swap="outerHTML">
+
+<!-- ✅ GOOD — the intent is declared: the page stays where the reader is -->
+<form method="POST" action="/bookings/42/seat" hx-boost="true"
+      hx-target="closest .booking-row" hx-swap="outerHTML show:none">
+```
 
 ### No Side Effects on GET
 
@@ -247,6 +277,7 @@ Alternatively use the POST - Redirect - GET pattern.
 | Redundant JSON APIs for web UI | Use HTML responses |
 | Hidden form fields for state | State in URL |
 | JavaScript-only interactions with no HTML fallback | Semantic forms/links first, htmx second |
+| A boosted element with no `show:` modifier, or a test that only compares the `hx-swap` string | Declare the scroll intent and prove it with a real click in a browser — see [Every Swap Declares Where the Page Ends Up](#every-swap-declares-where-the-page-ends-up) |
 
 ## CSS and Styling Conventions
 
@@ -466,5 +497,6 @@ When staged changes include `.css`, `.html`, or `.client.ts` files:
 - [ ] Every same-origin CTA carries `utm_source`/`utm_content` (hidden inputs for a GET form, action query for POST)
 - [ ] URL/query string represents page state
 - [ ] Interactive features work without JavaScript
+- [ ] Every boosted swap declares its scroll intent with a `show:` modifier, and a new swap shape has a browser test asserting `scrollY` after a real click
 - [ ] Browser JS is bundled and referenced via a same-origin `<script src>`, not inlined via `Function.toString()` or served through the static asset CDN base URL
 - [ ] Web app manifest is served same-origin (not the static-asset CDN); icon `src` values are absolute CDN URLs
