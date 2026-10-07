@@ -10,7 +10,17 @@ import {
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 } from "../forward-analytics-lambda";
 import { buildObservabilityFilterPattern } from "../observability-filter";
-import { assertLambdaEnvironmentFits } from "./lambda-environment-size";
+import { assertLambdaEnvironmentFits, LAMBDA_ENVIRONMENT_SIZE_QUOTA_CODE } from "./lambda-environment-size";
+
+let environmentQuotaKilobytes: pulumi.Output<number> | undefined;
+
+function lambdaEnvironmentQuotaKilobytes(): pulumi.Output<number> {
+	environmentQuotaKilobytes ??= aws.servicequotas.getServiceQuotaOutput({
+		serviceCode: "lambda",
+		quotaCode: LAMBDA_ENVIRONMENT_SIZE_QUOTA_CODE,
+	}).value;
+	return environmentQuotaKilobytes;
+}
 
 const esbuildLoaders: Record<string, Loader> = { ".ts": "ts" };
 const bundledExtensions = Object.keys(esbuildLoaders);
@@ -306,10 +316,12 @@ export class HutchLambda extends pulumi.ComponentResource {
 		const environmentArg = hasEnvironment
 			? {
 					environment: {
-						variables: pulumi.output(args.environment).apply((variables) => {
-							assertLambdaEnvironmentFits({ lambdaName, variables });
-							return variables;
-						}),
+						variables: pulumi
+							.all([pulumi.output(args.environment), lambdaEnvironmentQuotaKilobytes()])
+							.apply(([variables, quotaKilobytes]) => {
+								assertLambdaEnvironmentFits({ lambdaName, variables, quotaKilobytes });
+								return variables;
+							}),
 					},
 				}
 			: {};
