@@ -588,18 +588,10 @@ jobs:
         if: runner.environment == 'github-hosted'
         run: brew install xcodegen
 
-      - name: Run the tests on a discovered iPhone simulator
-        run: |
-          # Match by UDID, not name: simctl ends each device line with trailing
-          # whitespace after the state column, so EOL-anchored name parsing
-          # silently keeps the "(UDID) (State)" suffix and xcodebuild matches
-          # no device. The UDID is the only stable token on the line.
-          UDID=$(xcrun simctl list devices available \
-            | grep -E '^[[:space:]]+iPhone' | head -n1 \
-            | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' || true)
-          test -n "$UDID" || { echo "::error::No iPhone simulator available on the runner"; exit 1; }
-          xcrun simctl list devices | grep -F -- "$UDID" || true
-          make test SIM="platform=iOS Simulator,id=$UDID"
+      # No SIM override: the Makefile owns device selection (newest iPhone runtime),
+      # so CI verifies the same baselines the pre-commit hook records and checks.
+      - name: Run the tests on the Makefile's iPhone simulator
+        run: make test
 
       - name: Upload the test result bundle
         if: always()

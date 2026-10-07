@@ -23,11 +23,12 @@ open: generate
 # xcodebuild inherits nix's LD/CC/SDKROOT and every link dies (see xc.sh).
 #
 # Match the device by UDID, not name: xcodebuild resolves no device from a name
-# here, and the UDID is the only stable token on a simctl line (CI matches the
-# same way). Override for a specific device, e.g.
-# `make test SIM='platform=iOS Simulator,id=<UDID>'`. CI runs `make test`, which
-# runs the production suite and then the staging smoke pass below, so the
-# `#if STAGING` build path is compiled on every run — not only when someone
+# here, and the UDID is the only stable token on a simctl line. This is the only
+# place a device is chosen: CI runs plain `make test` with no SIM override, so a
+# snapshot baseline is recorded and verified on the same runtime. Override for a
+# specific device, e.g. `make test SIM='platform=iOS Simulator,id=<UDID>'`.
+# `make test` runs the production suite and then the staging smoke pass below, so
+# the `#if STAGING` build path is compiled on every run — not only when someone
 # builds `make ipa-staging` by hand.
 #
 # `tail -n1`, not `head -n1`: simctl lists runtimes oldest-first, so the *first*
