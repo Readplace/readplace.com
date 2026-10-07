@@ -4,22 +4,32 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { requireEnv } from "@packages/require-env";
-import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
+import {
+	type Browser,
+	type BrowserContext,
+	type Page,
+	type Response,
+	expect,
+	test,
+} from "@playwright/test";
 import { splitWarmup } from "../article-open-perf/article-open-latency";
 import { deletePerfUser, dismissOnboarding, perfUserFor, signUpPerfUser } from "./perf-user";
 import {
 	type ControlProbe,
+	type MeasuredScreenResponse,
 	type OpResult,
+	type ResponseSource,
 	type ScreenResponseBudgets,
-	type ScreenResponseSample,
 	budgetVerdict,
 	controlProbeOf,
 	formatResultsTable,
 	missingOpResults,
 	navigationKindOf,
 	readBudgets,
+	responseSourceOf,
 	screenResponseReportPaths,
 	summarizePhases,
+	summarizeProvenance,
 	summarizeScreenResponse,
 } from "./screen-response-latency";
 import {
@@ -60,6 +70,7 @@ const SAMPLE_TIMEOUT_MS = 60_000;
 const OP_TIMEOUT_MS = 12 * 60 * 1000;
 const SETUP_TIMEOUT_MS = 20 * 60 * 1000;
 const CONTROL_PROBE_PATH = "/embed/icon.svg";
+const PROVENANCE_GRACE_MS = 5_000;
 
 const RUN_ID = randomUUID();
 const BASE_URL = requireEnv("STAGING_URL");
@@ -73,7 +84,7 @@ let controlAtStartMs: number[] = [];
 let controlAtEndMs: number[] = [];
 let remeasuresUsed = 0;
 const results: OpResult[] = [];
-const collectedSamples: Record<string, ScreenResponseSample[]> = {};
+const collectedSamples: Record<string, MeasuredScreenResponse[]> = {};
 
 function say(message: string): void {
 	process.stdout.write(`${message}\n`);
@@ -109,9 +120,84 @@ async function openListing(input: { page: Page; url: string }): Promise<void> {
 	});
 }
 
-async function measure(input: { page: Page; op: ScreenResponseOp }): Promise<ScreenResponseSample> {
+interface ReceivedResponse {
+	url: string;
+	fromDiskCache?: boolean;
+	serviceWorkerResponseSource?: Exclude<ResponseSource, "unknown">;
+}
+
+interface ResponsesSeen {
+	describe(url: string): Promise<ReceivedResponse | undefined>;
+	clear(): void;
+}
+
+const responsesSeenByPage = new WeakMap<Page, Promise<ResponsesSeen>>();
+
+async function watchResponses(page: Page): Promise<ResponsesSeen> {
+	const session = await page.context().newCDPSession(page);
+	const seen: ReceivedResponse[] = [];
+	const waiting = new Set<() => void>();
+	session.on("Network.responseReceived", (event) => {
+		seen.push(event.response);
+		for (const wake of waiting) wake();
+	});
+	await session.send("Network.enable");
+	return {
+		clear: () => {
+			seen.length = 0;
+		},
+		describe: (url) =>
+			new Promise((resolve) => {
+				const settle = () => {
+					const found = [...seen].reverse().find((response) => response.url === url);
+					if (found === undefined) return;
+					waiting.delete(settle);
+					clearTimeout(timer);
+					resolve(found);
+				};
+				const timer = setTimeout(() => {
+					waiting.delete(settle);
+					resolve(undefined);
+				}, PROVENANCE_GRACE_MS);
+				waiting.add(settle);
+				settle();
+			}),
+	};
+}
+
+function responsesSeen(page: Page): Promise<ResponsesSeen> {
+	const existing = responsesSeenByPage.get(page);
+	if (existing !== undefined) return existing;
+	const created = watchResponses(page);
+	responsesSeenByPage.set(page, created);
+	return created;
+}
+
+function isRedirect(response: Response): boolean {
+	return response.status() >= 300 && response.status() < 400;
+}
+
+function screenResponseOf(input: { page: Page; op: ScreenResponseOp }): Promise<Response> {
+	const { page, op } = input;
+	return page.waitForResponse(
+		(response) => {
+			if (isRedirect(response)) return false;
+			const request = response.request();
+			if (op.navigation === "new-document") {
+				return request.isNavigationRequest() && request.frame() === page.mainFrame();
+			}
+			return request.headers()["hx-boosted"] === "true";
+		},
+		{ timeout: SAMPLE_TIMEOUT_MS },
+	);
+}
+
+async function measure(input: { page: Page; op: ScreenResponseOp }): Promise<MeasuredScreenResponse> {
 	const { page, op } = input;
 	await page.waitForFunction(() => "htmx" in window, undefined, { timeout: SAMPLE_TIMEOUT_MS });
+	const seen = await responsesSeen(page);
+	seen.clear();
+	const screenResponse = screenResponseOf({ page, op });
 	await page.evaluate(
 		(armed) => {
 			window.readplaceScreenResponse = undefined;
@@ -123,6 +209,7 @@ async function measure(input: { page: Page; op: ScreenResponseOp }): Promise<Scr
 		},
 	);
 	await page.locator(op.trigger).click();
+	const response = await screenResponse;
 	await page.waitForFunction(() => window.readplaceScreenResponse !== undefined, undefined, {
 		timeout: SAMPLE_TIMEOUT_MS,
 	});
@@ -142,13 +229,17 @@ async function measure(input: { page: Page; op: ScreenResponseOp }): Promise<Scr
 		Number.isFinite(sample.elapsedMs) && sample.elapsedMs > 0,
 		`${op.id}: the probe reported an unusable elapsed time of ${sample.elapsedMs}`,
 	);
-	return sample;
+	return {
+		...sample,
+		fromServiceWorker: response.fromServiceWorker(),
+		responseSource: responseSourceOf(await seen.describe(response.url())),
+	};
 }
 
 async function measureListing(input: {
 	page: Page;
 	op: ScreenResponseOp;
-}): Promise<ScreenResponseSample> {
+}): Promise<MeasuredScreenResponse> {
 	const counts = countsSettled(input.page);
 	const sample = await measure(input);
 	await counts;
@@ -205,12 +296,12 @@ async function gate(input: {
 	opId: ScreenResponseOpId;
 	navigation: NavigationKind;
 	warmups: number;
-	samples: ScreenResponseSample[];
-	recollect: () => Promise<ScreenResponseSample[]>;
+	samples: MeasuredScreenResponse[];
+	recollect: () => Promise<MeasuredScreenResponse[]>;
 }): Promise<void> {
 	const budget = budgets.ops[input.opId];
 
-	const judge = (samples: ScreenResponseSample[], attempt: string) => {
+	const judge = (samples: MeasuredScreenResponse[], attempt: string) => {
 		collectedSamples[`${input.opId}:${attempt}`] = samples;
 		const { warmup, measured } = splitWarmup({ samples, warmups: input.warmups });
 		const navigation = navigationKindOf(measured);
@@ -224,6 +315,7 @@ async function gate(input: {
 			navigation,
 			stats,
 			phases: summarizePhases(measured),
+			provenance: summarizeProvenance(measured),
 			warmupMs: warmup.map((sample) => Math.round(sample.elapsedMs)),
 			verdict: budgetVerdict({ opId: input.opId, budget, stats }),
 		};
@@ -232,6 +324,10 @@ async function gate(input: {
 	let outcome = judge(input.samples, "measured");
 	say(outcome.verdict.message);
 	say(`${input.opId}: warm-ups discarded — ${outcome.warmupMs.join("ms, ")}ms`);
+	say(
+		`${input.opId}: ${outcome.provenance.throughWorker} of ${outcome.provenance.of} through the worker, ` +
+			`${outcome.provenance.fromHttpCache} of ${outcome.provenance.of} from the HTTP cache`,
+	);
 
 	let remeasured = false;
 	if (
@@ -253,6 +349,7 @@ async function gate(input: {
 		navigation: outcome.navigation,
 		stats: outcome.stats,
 		phases: outcome.phases,
+		provenance: outcome.provenance,
 		verdict: outcome.verdict,
 		warmupMs: outcome.warmupMs,
 		remeasured,
@@ -265,12 +362,12 @@ async function gate(input: {
 }
 
 async function collectFirsts(browser: Browser): Promise<{
-	readlistSwitch: ScreenResponseSample[];
-	tabSwitch: ScreenResponseSample[];
+	readlistSwitch: MeasuredScreenResponse[];
+	tabSwitch: MeasuredScreenResponse[];
 }> {
 	const perContext = budgets.meta.samples.freshContexts;
-	const readlistSwitch: ScreenResponseSample[] = [];
-	const tabSwitch: ScreenResponseSample[] = [];
+	const readlistSwitch: MeasuredScreenResponse[] = [];
+	const tabSwitch: MeasuredScreenResponse[] = [];
 	for (let index = 0; index < perContext.warmups + perContext.measured; index += 1) {
 		const context = await newPerfContext(browser);
 		try {
@@ -295,13 +392,13 @@ async function collectFirsts(browser: Browser): Promise<{
 	return { readlistSwitch, tabSwitch };
 }
 
-async function collectReadlistSwitchSubsequent(browser: Browser): Promise<ScreenResponseSample[]> {
+async function collectReadlistSwitchSubsequent(browser: Browser): Promise<MeasuredScreenResponse[]> {
 	const counts = budgets.meta.samples.longLivedContext;
 	const context = await newPerfContext(browser);
 	try {
 		const page = await context.newPage();
 		await openListing({ page, url: readlistUrl({ baseURL: BASE_URL, readlist: dataset.alphaSlug }) });
-		const samples: ScreenResponseSample[] = [];
+		const samples: MeasuredScreenResponse[] = [];
 		for (let index = 0; index < counts.warmups + counts.measured; index += 1) {
 			const slug = index % 2 === 0 ? dataset.bravoSlug : dataset.alphaSlug;
 			await expect(page.locator(readlistNavLink(slug))).toHaveCount(1);
@@ -318,13 +415,13 @@ async function collectReadlistSwitchSubsequent(browser: Browser): Promise<Screen
 	}
 }
 
-async function collectTabSwitchSubsequent(browser: Browser): Promise<ScreenResponseSample[]> {
+async function collectTabSwitchSubsequent(browser: Browser): Promise<MeasuredScreenResponse[]> {
 	const counts = budgets.meta.samples.longLivedContext;
 	const context = await newPerfContext(browser);
 	try {
 		const page = await context.newPage();
 		await openListing({ page, url: readlistUrl({ baseURL: BASE_URL, readlist: dataset.alphaSlug }) });
-		const samples: ScreenResponseSample[] = [];
+		const samples: MeasuredScreenResponse[] = [];
 		for (let index = 0; index < counts.warmups + counts.measured; index += 1) {
 			samples.push(
 				await measureListing({
@@ -342,7 +439,7 @@ async function collectTabSwitchSubsequent(browser: Browser): Promise<ScreenRespo
 	}
 }
 
-async function collectAssign(browser: Browser): Promise<ScreenResponseSample[]> {
+async function collectAssign(browser: Browser): Promise<MeasuredScreenResponse[]> {
 	const counts = budgets.meta.samples.longLivedContext;
 	const context = await newPerfContext(browser);
 	try {
@@ -351,7 +448,7 @@ async function collectAssign(browser: Browser): Promise<ScreenResponseSample[]> 
 			waitUntil: "load",
 		});
 		await assertNoRepeatingPollers({ page, where: "the reader the assign is measured on" });
-		const samples: ScreenResponseSample[] = [];
+		const samples: MeasuredScreenResponse[] = [];
 		for (let index = 0; index < counts.warmups + counts.measured; index += 1) {
 			await page.locator(READLISTS_TRIGGER).click();
 			await expect(page.locator(assignButton(dataset.assignSlug))).toBeVisible();
@@ -366,13 +463,13 @@ async function collectAssign(browser: Browser): Promise<ScreenResponseSample[]> 
 }
 
 async function collectOpenAndBack(browser: Browser): Promise<{
-	opens: ScreenResponseSample[];
-	backs: ScreenResponseSample[];
+	opens: MeasuredScreenResponse[];
+	backs: MeasuredScreenResponse[];
 }> {
 	const counts = budgets.meta.samples.longLivedContext;
 	const context = await newPerfContext(browser);
-	const opens: ScreenResponseSample[] = [];
-	const backs: ScreenResponseSample[] = [];
+	const opens: MeasuredScreenResponse[] = [];
+	const backs: MeasuredScreenResponse[] = [];
 	try {
 		const page = await context.newPage();
 		await openListing({ page, url: `${BASE_URL}/queue` });

@@ -22,6 +22,7 @@ export default defineConfig({
 		trace: 'off',
 		video: 'off',
 		screenshot: 'only-on-failure',
+		serviceWorkers: 'allow',
 	},
 	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 	webServer: undefined,

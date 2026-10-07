@@ -11,9 +11,11 @@ import {
 	navigationKindOf,
 	parseBudgets,
 	readBudgets,
+	responseSourceOf,
 	screenResponseReportPaths,
 	summarizeMs,
 	summarizePhases,
+	summarizeProvenance,
 	summarizeScreenResponse,
 } from "./screen-response-latency";
 
@@ -208,6 +210,57 @@ describe("budget verdicts", () => {
 	});
 });
 
+describe("provenance", () => {
+	it("counts the samples the worker answered and the ones the HTTP cache served", () => {
+		const summary = summarizeProvenance([
+			{ fromServiceWorker: true, responseSource: "http-cache" },
+			{ fromServiceWorker: true, responseSource: "network" },
+			{ fromServiceWorker: false, responseSource: "http-cache" },
+			{ fromServiceWorker: false, responseSource: "unknown" },
+		]);
+
+		assert.deepEqual(summary, { throughWorker: 2, fromHttpCache: 2, of: 4 });
+	});
+
+	it("leaves the verdict to the timings alone, whichever path the samples took", () => {
+		const stats = summarizeMs([200, 501]);
+		const allNetwork = summarizeProvenance([
+			{ fromServiceWorker: false, responseSource: "network" },
+			{ fromServiceWorker: false, responseSource: "network" },
+		]);
+		const allCached = summarizeProvenance([
+			{ fromServiceWorker: true, responseSource: "http-cache" },
+			{ fromServiceWorker: true, responseSource: "http-cache" },
+		]);
+
+		const verdicts = [allNetwork, allCached].map((provenance) => ({
+			provenance,
+			verdict: budgetVerdict({ opId: "open-article", budget: lockedBudget, stats }),
+		}));
+
+		assert.notDeepEqual(verdicts[0]?.provenance, verdicts[1]?.provenance);
+		assert.deepEqual(verdicts[0]?.verdict, verdicts[1]?.verdict);
+		assert.equal(verdicts[0]?.verdict.outcome, "breached");
+	});
+
+	it("takes the source the worker's response came from when the worker answered", () => {
+		assert.equal(
+			responseSourceOf({ serviceWorkerResponseSource: "http-cache", fromDiskCache: false }),
+			"http-cache",
+		);
+	});
+
+	it("falls back to the disk-cache flag when no worker answered", () => {
+		assert.equal(responseSourceOf({ fromDiskCache: true }), "http-cache");
+		assert.equal(responseSourceOf({ fromDiskCache: false }), "network");
+		assert.equal(responseSourceOf({}), "network");
+	});
+
+	it("reports an unknown source when the browser never described the response", () => {
+		assert.equal(responseSourceOf(undefined), "unknown");
+	});
+});
+
 describe("budgets file", () => {
 	it("parses the checked-in budgets that gate every deploy", () => {
 		const budgets = readBudgets(__dirname);
@@ -268,6 +321,7 @@ describe("report", () => {
 		navigation: "same-document",
 		stats: summarizeMs([180, 220]),
 		phases: { beforeRequestMs: 12, afterSwapMs: 190, afterSettleMs: 205 },
+		provenance: { throughWorker: 2, fromHttpCache: 1, of: 2 },
 		verdict: budgetVerdict({
 			opId: "readlist-switch-subsequent",
 			budget: lockedBudget,
@@ -281,6 +335,12 @@ describe("report", () => {
 		const table = formatResultsTable([result]);
 
 		assert.match(table, /\| readlist-switch-subsequent \| same-document \| 2 \| 220\.0 \| 500 \| within \|/);
+	});
+
+	it("says how many samples went through the worker and how many the HTTP cache served", () => {
+		const table = formatResultsTable([result]);
+
+		assert.match(table, /\| within \| 2\/2 · 1\/2 \|/);
 	});
 
 	it("dashes the budget column while the operation is still report-only", () => {

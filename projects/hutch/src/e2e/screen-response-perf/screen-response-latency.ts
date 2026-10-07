@@ -39,6 +39,51 @@ export interface NewDocumentResponse extends ResponseCommon {
 
 export type ScreenResponseSample = SameDocumentResponse | NewDocumentResponse;
 
+export type ResponseSource =
+	| "http-cache"
+	| "network"
+	| "cache-storage"
+	| "fallback-code"
+	| "unknown";
+
+export interface ScreenResponseProvenance {
+	fromServiceWorker: boolean;
+	responseSource: ResponseSource;
+}
+
+export type MeasuredScreenResponse = ScreenResponseSample & ScreenResponseProvenance;
+
+export function responseSourceOf(
+	received:
+		| {
+				serviceWorkerResponseSource?: Exclude<ResponseSource, "unknown">;
+				fromDiskCache?: boolean;
+			}
+		| undefined,
+): ResponseSource {
+	if (received === undefined) return "unknown";
+	if (received.serviceWorkerResponseSource !== undefined) {
+		return received.serviceWorkerResponseSource;
+	}
+	return received.fromDiskCache === true ? "http-cache" : "network";
+}
+
+export interface ProvenanceSummary {
+	throughWorker: number;
+	fromHttpCache: number;
+	of: number;
+}
+
+export function summarizeProvenance(
+	samples: readonly ScreenResponseProvenance[],
+): ProvenanceSummary {
+	return {
+		throughWorker: samples.filter((sample) => sample.fromServiceWorker).length,
+		fromHttpCache: samples.filter((sample) => sample.responseSource === "http-cache").length,
+		of: samples.length,
+	};
+}
+
 export interface ScreenResponseStats {
 	count: number;
 	maxMs: number;
@@ -241,6 +286,7 @@ export interface OpResult {
 	navigation: NavigationKind;
 	stats: ScreenResponseStats;
 	phases: PhaseMeans;
+	provenance: ProvenanceSummary;
 	verdict: BudgetVerdict;
 	warmupMs: number[];
 	remeasured: boolean;
@@ -268,14 +314,16 @@ function optionalCell(value: number | undefined): string {
 export function formatResultsTable(results: readonly OpResult[]): string {
 	assert(results.length > 0, "a results table needs at least one operation");
 	return [
-		"| Operation | Reaches screen | n | max (ms) | budget (ms) | outcome | p50 (ms) | p95 (ms) | mean (ms) | beforeRequest (ms) | afterSwap (ms) | afterSettle (ms) | responseStart (ms) | FCP (ms) |",
-		"| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+		"| Operation | Reaches screen | n | max (ms) | budget (ms) | outcome | worker · HTTP cache | p50 (ms) | p95 (ms) | mean (ms) | beforeRequest (ms) | afterSwap (ms) | afterSettle (ms) | responseStart (ms) | FCP (ms) |",
+		"| --- | --- | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
 		...results.map(
 			(result) =>
 				`| ${result.opId} | ${result.navigation} | ${result.stats.count}` +
 				` | ${toTenth(result.stats.maxMs)}` +
 				` | ${result.verdict.budgetMs === null ? "—" : result.verdict.budgetMs}` +
 				` | ${result.verdict.outcome}` +
+				` | ${result.provenance.throughWorker}/${result.provenance.of}` +
+				` · ${result.provenance.fromHttpCache}/${result.provenance.of}` +
 				` | ${toTenth(result.stats.p50Ms)} | ${toTenth(result.stats.p95Ms)}` +
 				` | ${toTenth(result.stats.meanMs)}` +
 				` | ${optionalCell(result.phases.beforeRequestMs)}` +
