@@ -8,6 +8,7 @@ import {
 	type Browser,
 	type BrowserContext,
 	type Page,
+	type Request,
 	type Response,
 	expect,
 	test,
@@ -177,6 +178,11 @@ function isRedirect(response: Response): boolean {
 	return response.status() >= 300 && response.status() < 400;
 }
 
+function chainStartOf(request: Request): Request {
+	const previous = request.redirectedFrom();
+	return previous === null ? request : chainStartOf(previous);
+}
+
 function screenResponseOf(input: { page: Page; op: ScreenResponseOp }): Promise<Response> {
 	const { page, op } = input;
 	return page.waitForResponse(
@@ -186,7 +192,7 @@ function screenResponseOf(input: { page: Page; op: ScreenResponseOp }): Promise<
 			if (op.navigation === "new-document") {
 				return request.isNavigationRequest() && request.frame() === page.mainFrame();
 			}
-			return request.headers()["hx-boosted"] === "true";
+			return chainStartOf(request).headers()["hx-boosted"] === "true";
 		},
 		{ timeout: SAMPLE_TIMEOUT_MS },
 	);
