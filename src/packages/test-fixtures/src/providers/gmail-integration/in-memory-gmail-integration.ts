@@ -9,6 +9,7 @@ import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth"
 import { initInMemoryGmailConnection } from "../gmail-connection";
 import { initInMemoryGmailCredentials } from "../gmail-credentials";
 import { initInMemoryGmailSender } from "../gmail-sender";
+import { initInMemoryGmailMapping } from "../gmail-mapping";
 import { initInMemoryGmailDiscovery } from "../gmail-discovery";
 import { initInMemoryGmailMonitoring } from "../gmail-monitoring";
 import { initInMemoryGmailHistoryImport } from "../gmail-history-import";
@@ -73,6 +74,7 @@ export function initInMemoryGmailIntegration(input: {
 			gmailCredentialsStore: initInMemoryGmailCredentials({ now }),
 			gmailConnectionStore: initInMemoryGmailConnection({ now }),
 			gmailSenderStore: initInMemoryGmailSender({ now }),
+			gmailMappingStore: initInMemoryGmailMapping({ now }),
 			gmailDiscoveryStore: initInMemoryGmailDiscovery({ now }),
 			gmailMonitoringStore: initInMemoryGmailMonitoring({ now }),
 			publishStartGmailSenderDiscovery: async (detail) => {

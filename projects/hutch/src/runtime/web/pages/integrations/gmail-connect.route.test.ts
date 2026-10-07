@@ -4,6 +4,7 @@ import request from "supertest";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { GmailAccountEmail, GmailHistoryImportJob } from "@packages/domain/gmail";
+import { UserIdSchema } from "@packages/domain/user";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
@@ -11,6 +12,9 @@ import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { initConfirmOnConnectGmailConnection } from "../../../domain/gmail/confirm-on-connect-gmail-connection";
+import { initDisconnectGmail } from "../../../domain/gmail/disconnect-gmail";
 import { signState } from "../../auth/oauth-state";
 import { loginAgent, useTestServer } from "../../../test-app";
 
@@ -428,14 +432,14 @@ describe("GET /integrations/gmail/callback", () => {
 			grantedScope: GMAIL_SETTINGS_SCOPE,
 		});
 		const senderEmail = ForwardableSenderSchema.parse("sender@example.com");
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail });
 
 		const response = await connectAndCallback(agent);
 
 		expect(response.headers.location).toBe("/newsletters/gmail?notice=connected");
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
 		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail }))?.addedToFilterAt).toBeDefined();
 	});
 
 	it.each(["discovery reset", "command publication"])("keeps a failed reconnect %s retryable through a fresh OAuth attempt", async (failedStep) => {
@@ -461,7 +465,7 @@ describe("GET /integrations/gmail/callback", () => {
 		await gmailConnectionStore.markForwardingConfirmed({ userId });
 		await gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
 		const senderEmail = ForwardableSenderSchema.parse("sender@example.com");
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail });
 
 		const failed = await connectAndCallback(agent);
 
@@ -476,7 +480,7 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(recovered.headers.location).toBe("/newsletters/gmail?notice=connected");
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
 		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.revokedAt).toBeUndefined();
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail }))?.addedToFilterAt).toBeDefined();
 	});
 
 	it("does not mark a scope upgrade revoked when resetting discovery fails", async () => {
@@ -538,7 +542,7 @@ describe("GET /integrations/gmail/callback", () => {
 		await gmailConnectionStore.markForwardingConfirmed({ userId });
 		await gmailCredentialsStore.saveCredentials({ userId, refreshToken: "prior-grant", grantedScope: GMAIL_SETTINGS_SCOPE });
 		const senderEmail = ForwardableSenderSchema.parse("sender@example.com");
-		await fixture.gmailIntegration.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
+		await fixture.gmailIntegration.gmailMappingStore.addSenderToFilter({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail });
 		const original = await gmailConnectionStore.findConnectionByUserId(userId);
 
 		const response = await connectAndCallback(agent);
@@ -546,7 +550,7 @@ describe("GET /integrations/gmail/callback", () => {
 		expect(response.headers.location).toBe("/newsletters?error=oauth_account_changed");
 		expect(await gmailCredentialsStore.findRefreshTokenByUserId(userId)).toBe("prior-grant");
 		expect(await gmailConnectionStore.findConnectionByUserId(userId)).toEqual(original);
-		expect((await fixture.gmailIntegration.gmailSenderStore.findSender({ userId, senderEmail }))?.addedToFilterAt).toBeDefined();
+		expect((await fixture.gmailIntegration.gmailMappingStore.findMapping({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail }))?.addedToFilterAt).toBeDefined();
 	});
 
 	it("does not persist an unidentified grant when the mailbox lookup fails", async () => {
@@ -889,8 +893,8 @@ describe("Gmail read permission for an import", () => {
 		await gmail.bundle.gmailDiscoveryStore.startDiscovery({ checkedMessageCount: 0, userId, accountEmail: READER, gatewayAddress, generation: "run-1", mode: "full", historyId: "100" });
 		const destination = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
 		const previous = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse("tech") });
-		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddresses: [destination.address], deliveryMode: "links" });
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail: TLDR, mappedAddresses: [destination.address], deliveryMode: "links" });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail: TLDR });
 		const jobId = gmail.bundle.newGmailHistoryImportJobId();
 		await gmail.bundle.gmailHistoryImportStore.createJob({
 			userId,
@@ -1024,5 +1028,154 @@ describe("Gmail read permission for an import", () => {
 		const url = await askForPermission();
 		await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
 		expect((await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId))?.requiresReconnect).toBe(false);
+	});
+});
+
+describe("Gmail mappings across a disconnect and reconnect", () => {
+	const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
+	const PERSONAL = GmailAccountEmailSchema.parse("reader@gmail.com");
+	const WORK = GmailAccountEmailSchema.parse("reader@work.example");
+	const TECH = ReadlistSlugSchema.parse("tech");
+
+	async function mailbox(options: { confirmOnConnect?: boolean } = {}) {
+		let now = new Date("2026-10-01T09:00:00.000Z");
+		let account = PERSONAL;
+		const gmail = initInMemoryGmailIntegration({
+			grant: grantOk(),
+			addresses: initInMemoryInboxAddress({ now: () => now }),
+			now: () => now,
+		});
+		gmail.bundle.findGmailAccountEmail = async () => ({ ok: true, value: account });
+		if (options.confirmOnConnect === true) {
+			gmail.bundle.gmailConnectionStore = initConfirmOnConnectGmailConnection({ connections: gmail.bundle.gmailConnectionStore });
+		}
+		const mappings = gmail.bundle.gmailMappingStore;
+		const disconnectGmail = initDisconnectGmail({
+			connections: gmail.bundle.gmailConnectionStore,
+			credentials: gmail.bundle.gmailCredentialsStore,
+			senders: gmail.bundle.gmailSenderStore,
+			discovery: gmail.bundle.gmailDiscoveryStore,
+			addresses: gmail.addresses,
+			removeGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
+			revokeGmailGrant: async () => ({ ok: true }),
+			cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
+			logger: HutchLogger.from(noopLogger),
+		});
+		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const mapToTech = async () => {
+			const tech = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: TECH });
+			await mappings.mapSenderToAddress({ userId, accountEmail: account, senderEmail: TLDR, mappedAddresses: [tech.address], deliveryMode: "links" });
+			await mappings.addSenderToFilter({ userId, accountEmail: account, senderEmail: TLDR });
+			return tech.address;
+		};
+		const mappedSenders = async () => {
+			const page = new JSDOM((await agent.get("/newsletters/gmail")).text).window.document;
+			return [...page.querySelectorAll("[data-test-gmail-mapping-row]")].map((row) => row.getAttribute("data-test-gmail-mapping-row"));
+		};
+		return {
+			gmail,
+			agent,
+			userId,
+			mappings,
+			mapToTech,
+			mappedSenders,
+			disconnect: () => disconnectGmail({ userId }),
+			signInAs: (next: GmailAccountEmail) => {
+				account = next;
+			},
+			at: (iso: string) => {
+				now = new Date(iso);
+			},
+		};
+	}
+
+	it("shows a mailbox's newsletters again when the same Gmail account reconnects, without asking Gmail for anything before forwarding is confirmed", async () => {
+		const { gmail, agent, mapToTech, mappedSenders, disconnect } = await mailbox();
+		await connectAndCallback(agent);
+		await mapToTech();
+		await disconnect();
+
+		await connectAndCallback(agent);
+
+		expect(await mappedSenders()).toEqual([TLDR]);
+		expect(gmail.rewriteRequests).toEqual([]);
+	});
+
+	it("shows no newsletters for a different Gmail account and the first account's again when it reconnects", async () => {
+		const { agent, mapToTech, mappedSenders, disconnect, signInAs } = await mailbox();
+		await connectAndCallback(agent);
+		await mapToTech();
+		await disconnect();
+
+		signInAs(WORK);
+		await connectAndCallback(agent);
+
+		expect(await mappedSenders()).toEqual([]);
+
+		await disconnect();
+		signInAs(PERSONAL);
+		await connectAndCallback(agent);
+
+		expect(await mappedSenders()).toEqual([TLDR]);
+	});
+
+	it("starts another Readplace account clean when it connects a Gmail account someone else mapped", async () => {
+		const { agent, userId, mappings, mappedSenders } = await mailbox();
+		await mappings.addSenderToFilter({ userId: UserIdSchema.parse("another-readplace-account"), accountEmail: PERSONAL, senderEmail: TLDR });
+
+		await connectAndCallback(agent);
+
+		expect(await mappedSenders()).toEqual([]);
+		expect(await mappings.listMappingsByUserId(userId)).toEqual([]);
+	});
+
+	it("puts the kept newsletters back into the Gmail filter when the new connection is already confirmed", async () => {
+		const { gmail, agent, mappings, userId } = await mailbox({ confirmOnConnect: true });
+		await mappings.addSenderToFilter({ userId, accountEmail: PERSONAL, senderEmail: TLDR });
+
+		await connectAndCallback(agent);
+
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "reconnected" }]);
+	});
+
+	it("shows no import on a kept newsletter whose import finished before the disconnect", async () => {
+		const { gmail, agent, userId, mapToTech, disconnect, at } = await mailbox();
+		await connectAndCallback(agent);
+		const tech = await mapToTech();
+		const connection = await gmail.bundle.gmailConnectionStore.findConnectionByUserId(userId);
+		assert(connection, "the first connect must leave a connection");
+		at("2026-10-01T09:05:00.000Z");
+		await gmail.bundle.gmailHistoryImportStore.createJob({
+			userId,
+			jobId: gmail.bundle.newGmailHistoryImportJobId(),
+			senderEmail: TLDR,
+			destinationAddresses: [tech],
+			connection: { gatewayAddress: connection.gatewayAddress, accountEmail: PERSONAL },
+			window: undefined,
+			generation: "finished",
+			page: 0,
+			pageToken: undefined,
+			listingCompletedAt: undefined,
+			state: "complete",
+			counts: { listed: 1, imported: 1, alreadyImported: 0, skippedNoMessageId: 0, skippedSenderMismatch: 0, failed: 0, cancelled: 0 },
+			failureReason: undefined,
+			cancelReason: undefined,
+			createdAt: "2026-10-01T09:05:00.000Z",
+			updatedAt: "2026-10-01T09:05:00.000Z",
+			completedAt: "2026-10-01T09:05:00.000Z",
+		});
+		at("2026-10-01T09:10:00.000Z");
+		await disconnect();
+
+		at("2026-10-06T09:00:00.000Z");
+		await connectAndCallback(agent);
+
+		const page = new JSDOM((await agent.get("/newsletters/gmail")).text).window.document;
+		const row = page.querySelector(`[data-test-gmail-mapping-row="${TLDR}"]`);
+		assert(row, "the kept newsletter must render its mapping row");
+		expect(row.querySelector("[data-test-gmail-import-state]")?.getAttribute("data-test-gmail-import-state")).toBe("none");
 	});
 });

@@ -7,7 +7,7 @@ import type {
 	GmailDeliveryMode,
 	GmailDiscovery,
 	GmailHistoryImportJob,
-	GmailSenderEntry,
+	GmailMapping,
 } from "@packages/domain/gmail";
 import { gmailConnectionState, pickerDeliveryMode } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
@@ -60,7 +60,7 @@ export interface GmailPageInput {
 	userId: UserId;
 	canConnectGmail: boolean;
 	connection: GmailConnection;
-	senders: readonly GmailSenderEntry[];
+	senders: readonly GmailMapping[];
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
 	readlists: readonly ReadlistRef[];
 	readlistLimitReached: boolean;
@@ -350,7 +350,7 @@ function readlistPicker(input: {
 
 function saveFor(input: {
 	state: GmailPickerState;
-	sender: GmailSenderEntry | undefined;
+	sender: GmailMapping | undefined;
 	variant: "primary" | "neutral";
 	pending: boolean;
 	invalid: boolean;
@@ -367,7 +367,7 @@ function saveFor(input: {
 
 const DELIVERY_ORDER: readonly GmailDeliveryMode[] = ["issue", "links", "both"];
 
-function deliveryChoice(input: { state: GmailPickerState; sender: GmailSenderEntry | undefined }): GmailDeliveryChoiceViewModel {
+function deliveryChoice(input: { state: GmailPickerState; sender: GmailMapping | undefined }): GmailDeliveryChoiceViewModel {
 	const chosen = input.state.delivery ?? pickerDeliveryMode(input.sender);
 	return {
 		options: DELIVERY_ORDER.map((value) => ({
@@ -379,7 +379,7 @@ function deliveryChoice(input: { state: GmailPickerState; sender: GmailSenderEnt
 	};
 }
 
-function readlistChoice(input: GmailPageInput, sender: GmailSenderEntry | undefined): readonly ReadlistRef[] {
+function readlistChoice(input: GmailPageInput, sender: GmailMapping | undefined): readonly ReadlistRef[] {
 	if (input.state.readlist !== undefined) {
 		const selected = new Set(gmailSelectedReadlists(input.state));
 		return [DEFAULT_READLIST, ...input.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG && selected.has(readlist.slug))];

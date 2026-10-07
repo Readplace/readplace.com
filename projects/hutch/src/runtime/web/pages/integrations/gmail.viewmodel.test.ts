@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { GmailConnection, GmailSenderEntry } from "@packages/domain/gmail";
+import type { GmailConnection, GmailMapping } from "@packages/domain/gmail";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { AliasNameSchema, type InboxAddressEntry, InboxAddressSchema, InboxTokenSchema } from "@packages/domain/inbox";
 import { NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
@@ -26,11 +26,10 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 	};
 }
 
-function mapped(senderEmail: typeof TLDR): GmailSenderEntry {
+function mapped(senderEmail: typeof TLDR): GmailMapping {
 	return {
-		userId: USER, senderEmail, addedToFilterAt: "2026-08-27T00:06:00.000Z",
-		firstSeenAt: undefined, lastSeenAt: undefined, seenCount: undefined,
-		lastSubject: undefined, mappedAddresses: [ALL_ADDRESS], mappedAt: "2026-08-27T00:06:00.000Z",
+		accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail,
+		addedToFilterAt: "2026-08-27T00:06:00.000Z", mappedAddresses: [ALL_ADDRESS], mappedAt: "2026-08-27T00:06:00.000Z",
 		deliveryMode: "links",
 	};
 }

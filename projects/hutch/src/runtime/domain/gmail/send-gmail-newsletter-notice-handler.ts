@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import type { ForwardableSender, GmailConnectionStore, GmailSenderStore } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailConnectionStore, GmailMappingStore } from "@packages/domain/gmail";
 import type { DetectNewsletters } from "@packages/domain/newsletter-catalog";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "@packages/hutch-infra-components";
@@ -25,7 +25,7 @@ type EligibleNewsletter = { senderEmail: ForwardableSender; newsletterName: stri
 export function initSendGmailNewsletterNoticeHandler(deps: {
 	monitoring: GmailMonitoringStore;
 	connections: GmailConnectionStore;
-	senders: GmailSenderStore;
+	mappings: Pick<GmailMappingStore, "findMapping">;
 	detectNewsletters: DetectNewsletters;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	findEmailByUserId: FindEmailByUserId;
@@ -88,7 +88,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		]);
 		const eligible: EligibleNewsletter[] = [];
 		for (const notice of pending) {
-			const mapping = await deps.senders.findSender({ userId, senderEmail: notice.senderEmail });
+			const mapping = await deps.mappings.findMapping({ userId, accountEmail: notice.accountEmail, senderEmail: notice.senderEmail });
 			const matching = connection !== undefined && connection.revokedAt === undefined && connection.disconnectRequestedAt === undefined && connection.gatewayAddress === notice.gatewayAddress && connection.accountEmail?.toLowerCase() === notice.accountEmail.toLowerCase() && checkpoint?.mailboxId === notice.mailboxId;
 			const recognition = detection.recognized.get(notice.senderEmail);
 			if (!matching || mapping?.addedToFilterAt !== undefined || recognition === undefined || email === null) {

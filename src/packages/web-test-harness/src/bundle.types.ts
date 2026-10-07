@@ -17,6 +17,7 @@ import type {
 	GmailHistoryImportJob,
 	GmailHistoryImportJobId,
 	GmailHistoryImportStore,
+	GmailMappingStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import type { NewsletterCatalogSeed } from "@packages/domain/newsletter-catalog";
@@ -564,6 +565,7 @@ export interface GmailIntegrationBundle {
 	gmailCredentialsStore: GmailCredentialsStore;
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
+	gmailMappingStore: GmailMappingStore;
 	gmailDiscoveryStore: GmailDiscoveryStore;
 	gmailMonitoringStore: GmailMonitoringStore;
 	publishStartGmailSenderDiscovery: (input: { userId: UserId }) => Promise<void>;

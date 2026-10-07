@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
-import { ForwardableSenderSchema, GMAIL_FILTER_QUERY_MAX_LENGTH } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GMAIL_FILTER_QUERY_MAX_LENGTH, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger } from "@packages/hutch-logger";
 import type { GmailFilter, GmailFilters } from "@packages/provider-contracts/gmail-filters";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailFilters } from "@packages/test-fixtures/providers/gmail-filters";
-import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { AliasNameSchema } from "@packages/domain/inbox";
 import { initRewriteGmailFilter } from "./rewrite-gmail-filter";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
+const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const BREW = ForwardableSenderSchema.parse("crew@morningbrew.com");
 const NOW = new Date("2026-08-27T00:00:00.000Z");
@@ -23,11 +24,12 @@ async function makeHarness(options: {
 	connected?: boolean;
 	confirmed?: boolean;
 	revoked?: boolean;
+	accountKnown?: boolean;
 	onFilter?: readonly (typeof TLDR)[];
 } = {}) {
 	const gmail = initInMemoryGmailFilters(options.seedFilters);
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
-	const senders = initInMemoryGmailSender({ now: () => NOW });
+	const mappings = initInMemoryGmailMapping({ now: () => NOW });
 	const addresses = initInMemoryInboxAddress({ now: () => NOW });
 
 	if (options.connected !== false) {
@@ -35,13 +37,14 @@ async function makeHarness(options: {
 			userId: USER,
 			gatewayAddress: GATEWAY,
 		});
+		if (options.accountKnown !== false) await connections.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT });
 		if (options.confirmed !== false) await connections.markForwardingConfirmed({ userId: USER });
 		if (options.revoked === true) {
 			await connections.markRevoked({ userId: USER, reason: "invalid-grant" });
 		}
 	}
 	for (const sender of options.onFilter ?? [TLDR]) {
-		await senders.addSenderToFilter({ userId: USER, senderEmail: sender });
+		await mappings.addSenderToFilter({ userId: USER, accountEmail: ACCOUNT, senderEmail: sender });
 	}
 
 	const logs: { message: string; data: unknown }[] = [];
@@ -51,13 +54,13 @@ async function makeHarness(options: {
 	const rewrite = initRewriteGmailFilter({
 		filters: options.gmail ?? gmail.api,
 		connections,
-		senders,
+		mappings,
 		addresses,
 		now: () => NOW,
 		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 
-	return { rewrite, gmail, connections, senders, addresses, logs };
+	return { rewrite, gmail, connections, mappings, addresses, logs };
 }
 
 function overCapSender(index: number) {
@@ -161,10 +164,10 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("removes the filter entirely once the last sender is gone", async () => {
-		const { rewrite, gmail, connections, senders } = await makeHarness({
+		const { rewrite, gmail, connections, mappings } = await makeHarness({
 			seedFilters: [{ id: "f-live", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }],
 		});
-		await senders.removeSender({ userId: USER, senderEmail: TLDR });
+		await mappings.removeMapping({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR });
 
 		const result = await rewrite({ userId: USER });
 
@@ -174,9 +177,25 @@ describe("initRewriteGmailFilter", () => {
 		assert.equal(connection?.filterCount, undefined);
 	});
 
-	it("does not write a filter for a sender only discovered in Gmail", async () => {
-		const { rewrite, gmail, senders } = await makeHarness({ onFilter: [] });
-		await senders.recordSenderSeen({ userId: USER, senderEmail: TLDR, subject: "Issue 1" });
+	it("does not write a filter for a sender given a destination but never added to the filter", async () => {
+		const { rewrite, gmail, mappings } = await makeHarness({ onFilter: [] });
+		await mappings.mapSenderToAddress({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [GATEWAY], deliveryMode: "links" });
+
+		assert.deepEqual(await rewrite({ userId: USER }), { ok: true, filterCount: 0, senderCount: 0 });
+		assert.deepEqual(gmail.created, []);
+	});
+
+	it("forwards only the connected Gmail account's senders, leaving another account's kept mappings out", async () => {
+		const { rewrite, gmail, mappings } = await makeHarness({ onFilter: [TLDR] });
+		await mappings.addSenderToFilter({ userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@work.example"), senderEmail: BREW });
+
+		await rewrite({ userId: USER });
+
+		assert.deepEqual(gmail.created, [{ query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }]);
+	});
+
+	it("forwards nothing for a connection whose Gmail account was never recorded", async () => {
+		const { rewrite, gmail } = await makeHarness({ accountKnown: false, onFilter: [TLDR] });
 
 		assert.deepEqual(await rewrite({ userId: USER }), { ok: true, filterCount: 0, senderCount: 0 });
 		assert.deepEqual(gmail.created, []);
@@ -358,13 +377,13 @@ describe("initRewriteGmailFilter", () => {
 		const gmail = initInMemoryGmailFilters([
 			{ id: "f-live", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY },
 		]);
-		const { rewrite, senders } = await makeHarness({
+		const { rewrite, mappings } = await makeHarness({
 			gmail: {
 				...gmail.api,
 				deleteFilter: async () => ({ ok: false, reason: "unavailable", status: 500 }),
 			},
 		});
-		await senders.removeSender({ userId: USER, senderEmail: TLDR });
+		await mappings.removeMapping({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR });
 
 		assert.deepEqual(await rewrite({ userId: USER }), {
 			ok: false,
@@ -374,7 +393,7 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("forwards every mapped sender through the gateway", async () => {
-		const { rewrite, gmail, addresses, senders } = await makeHarness({ onFilter: [TLDR] });
+		const { rewrite, gmail, addresses, mappings } = await makeHarness({ onFilter: [TLDR] });
 		const tech = await addresses.createAddress({
 			userId: USER,
 			domain: "read.place",
@@ -387,9 +406,9 @@ describe("initRewriteGmailFilter", () => {
 			name: AliasNameSchema.parse("news"),
 			purpose: "gmail-mapped",
 		});
-		await senders.addSenderToFilter({ userId: USER, senderEmail: BREW });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddresses: [tech.address], deliveryMode: "links" });
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: BREW, mappedAddresses: [news.address], deliveryMode: "links" });
+		await mappings.addSenderToFilter({ userId: USER, accountEmail: ACCOUNT, senderEmail: BREW });
+		await mappings.mapSenderToAddress({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [tech.address], deliveryMode: "links" });
+		await mappings.mapSenderToAddress({ userId: USER, accountEmail: ACCOUNT, senderEmail: BREW, mappedAddresses: [news.address], deliveryMode: "links" });
 
 		const result = await rewrite({ userId: USER });
 
@@ -402,14 +421,14 @@ describe("initRewriteGmailFilter", () => {
 	});
 
 	it("replaces a stale filter that forwards to an owned inbox", async () => {
-		const { rewrite, gmail, addresses, senders } = await makeHarness({ onFilter: [TLDR] });
+		const { rewrite, gmail, addresses, mappings } = await makeHarness({ onFilter: [TLDR] });
 		const tech = await addresses.createAddress({
 			userId: USER,
 			domain: "read.place",
 			name: AliasNameSchema.parse("tech"),
 			purpose: "gmail-mapped",
 		});
-		await senders.mapSenderToAddress({ userId: USER, senderEmail: TLDR, mappedAddresses: [tech.address], deliveryMode: "links" });
+		await mappings.mapSenderToAddress({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [tech.address], deliveryMode: "links" });
 		gmail.store.set("f-tech", {
 			id: "f-tech",
 			query: "from:(dan@tldr.tech)",

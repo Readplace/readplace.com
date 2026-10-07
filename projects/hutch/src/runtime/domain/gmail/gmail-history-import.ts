@@ -7,7 +7,7 @@ import {
 	type GmailHistoryImportJob,
 	type GmailHistoryImportJobId,
 	type GmailHistoryImportStore,
-	type GmailSenderStore,
+	type GmailMappingStore,
 	gmailHistoryImportRawKey,
 	resolveGmailDeliveryMode,
 } from "@packages/domain/gmail";
@@ -78,12 +78,12 @@ export function initGmailHistoryImport(deps: {
 	history: GmailHistory;
 	imports: GmailHistoryImportStore;
 	connections: GmailConnectionStore;
-	senders: GmailSenderStore;
+	mappings: Pick<GmailMappingStore, "findMapping">;
 	putRaw: PutGmailImportRaw;
 	publishFetched: (detail: GmailHistoryImportMessageFetchedDetail) => Promise<void>;
 	now: () => Date;
 }): GmailHistoryImport {
-	const { history, imports, connections, senders, now } = deps;
+	const { history, imports, connections, mappings, now } = deps;
 
 	async function cancel(input: { job: GmailHistoryImportJob; reason: GmailHistoryImportCancelReason; observe: ObserveGmailHistoryImport }): Promise<GmailHistoryImportStep> {
 		const { job, reason } = input;
@@ -136,9 +136,9 @@ export function initGmailHistoryImport(deps: {
 		const connectionChange = connectionCancelReason(job, connection);
 		if (connectionChange !== undefined) return cancel({ job, reason: connectionChange, observe });
 		assert(connection, "an unchanged connection exists");
-		const sender = await senders.findSender({ userId: input.userId, senderEmail: job.senderEmail });
-		if (sender?.mappedAddresses === undefined) return cancel({ job, reason: "mapping-removed", observe });
-		const destinations = new Set(sender.mappedAddresses);
+		const mapping = await mappings.findMapping({ userId: input.userId, accountEmail: job.connection.accountEmail, senderEmail: job.senderEmail });
+		if (mapping?.mappedAddresses === undefined) return cancel({ job, reason: "mapping-removed", observe });
+		const destinations = new Set(mapping.mappedAddresses);
 		if (destinations.size !== new Set(job.destinationAddresses).size || job.destinationAddresses.some((address) => !destinations.has(address))) {
 			return cancel({ job, reason: "destination-changed", observe });
 		}
@@ -180,7 +180,7 @@ export function initGmailHistoryImport(deps: {
 					accountEmail: job.connection.accountEmail,
 					senderEmail: job.senderEmail,
 					destinationAddresses: job.destinationAddresses,
-					deliveryMode: resolveGmailDeliveryMode(sender),
+					deliveryMode: resolveGmailDeliveryMode(mapping),
 					rawEmailS3Key,
 					internalDate: message.value.internalDate,
 				});

@@ -17,7 +17,9 @@ import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import {
 	initDynamoDbEmailIdentity,
+	initDynamoDbGmailConnection,
 	initDynamoDbGmailHeldMail,
+	initDynamoDbGmailMapping,
 	initDynamoDbGmailSender,
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
@@ -37,6 +39,8 @@ import { initS3PutImageObject } from "./providers/article-image/s3-put-image-obj
 const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
 const gmailSendersTable = requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE");
+const gmailConnectionsTable = requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE");
+const gmailMappingsTable = requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE");
 const gmailHeldMailTable = requireEnv("DYNAMODB_GMAIL_HELD_MAIL_TABLE");
 const emailIdentitiesTable = requireEnv(
 	"DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE",
@@ -127,6 +131,16 @@ export const handler = initReceiveEmailHandler({
 		logger,
 	}),
 	routeGmailForwardedEmail: initRouteGmailForwardedEmail({
+		connections: initDynamoDbGmailConnection({
+			client: dynamoClient,
+			tableName: gmailConnectionsTable,
+			now: () => new Date(),
+		}),
+		mappings: initDynamoDbGmailMapping({
+			client: dynamoClient,
+			tableName: gmailMappingsTable,
+			now: () => new Date(),
+		}),
 		senders: initDynamoDbGmailSender({
 			client: dynamoClient,
 			tableName: gmailSendersTable,

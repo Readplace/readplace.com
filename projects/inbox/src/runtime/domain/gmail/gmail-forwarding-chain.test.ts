@@ -1,6 +1,9 @@
 import { initResumeAcceptedGmailEmail } from "../inbox/resume-accepted-gmail-email";
 import assert from "node:assert/strict";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import {
+	ForwardableSenderSchema,
+	GmailAccountEmailSchema,
+} from "@packages/domain/gmail";
 import {
 	AliasNameSchema,
 	GMAIL_FORWARDING_ALIAS,
@@ -18,7 +21,9 @@ import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
+import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gmail-held-mail";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
@@ -49,6 +54,8 @@ function makeInbox() {
 	const now = () => new Date(RECEIVED_AT);
 	const addresses = initInMemoryInboxAddress({ now });
 	const emails = initInMemoryInboxEmail();
+	const connections = initInMemoryGmailConnection({ now });
+	const mappings = initInMemoryGmailMapping({ now });
 	const senders = initInMemoryGmailSender({ now });
 	const heldMail = initInMemoryGmailHeldMail();
 	const rawMap = new Map<string, Buffer>();
@@ -104,6 +111,8 @@ function makeInbox() {
 			logger,
 		}),
 		routeGmailForwardedEmail: initRouteGmailForwardedEmail({
+			connections,
+			mappings,
 			senders,
 			heldMail,
 			logger,
@@ -125,6 +134,8 @@ function makeInbox() {
 	return {
 		addresses,
 		emails,
+		connections,
+		mappings,
 		senders,
 		heldMail,
 		rawMap,
@@ -286,8 +297,17 @@ describe("gmail forwarding chain (inbox half)", () => {
 	});
 
 	it("holds a forwarded newsletter until the sender is mapped, then delivers it as the mapped inbox", async () => {
-		const { addresses, emails, senders, heldMail, published, rawMap, receive } =
-			makeInbox();
+		const {
+			addresses,
+			emails,
+			connections,
+			mappings,
+			senders,
+			heldMail,
+			published,
+			rawMap,
+			receive,
+		} = makeInbox();
 		const userId = UserIdSchema.parse("00000000000000000000000000000001");
 		const senderEmail = ForwardableSenderSchema.parse("dan@tldr.tech");
 		const gateway = (
@@ -298,6 +318,9 @@ describe("gmail forwarding chain (inbox half)", () => {
 				purpose: "gmail-forwarding",
 			})
 		).address;
+		const accountEmail = GmailAccountEmailSchema.parse("reader@gmail.com");
+		await connections.createConnection({ userId, gatewayAddress: gateway });
+		await connections.recordAccountEmail({ userId, accountEmail });
 
 		const firstKey = "inbound/newsletter-1";
 		rawMap.set(
@@ -353,13 +376,14 @@ describe("gmail forwarding chain (inbox half)", () => {
 				purpose: "gmail-mapped",
 			})
 		).address;
-		await senders.mapSenderToAddress({
+		await mappings.mapSenderToAddress({
 			userId,
+			accountEmail,
 			senderEmail,
 			mappedAddresses: [mapped],
 			deliveryMode: "links",
 		});
-		await senders.addSenderToFilter({ userId, senderEmail });
+		await mappings.addSenderToFilter({ userId, accountEmail, senderEmail });
 
 		const secondKey = "inbound/newsletter-2";
 		rawMap.set(

@@ -1,11 +1,12 @@
 import assert from "node:assert";
 import type {
 	ForwardableSender,
+	GmailAccountEmail,
 	GmailConnection,
 	GmailHistoryImportJob,
 	GmailHistoryImportJobId,
 	GmailHistoryImportState,
-	GmailSenderEntry,
+	GmailMapping,
 } from "@packages/domain/gmail";
 import { hasGmailScope } from "@packages/domain/gmail";
 import type { InboxAddress } from "@packages/domain/inbox";
@@ -15,7 +16,7 @@ import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 
 export type StartGmailImportOutcome =
 	| { ok: true; notice: "import_started" | "import_permission_needed" }
-	| { ok: false; error: "import_reconnect_required" | "import_revoked" | "import_in_progress" };
+	| { ok: false; error: "import_revoked" | "import_in_progress" };
 
 export const UNFINISHED_IMPORT_STATES: ReadonlySet<GmailHistoryImportState> = new Set([
 	"awaiting-permission",
@@ -34,9 +35,9 @@ export function latestGmailImportsBySender(
 	return latest;
 }
 
-export function importFollowsMapping(input: { job: GmailHistoryImportJob; mapping: GmailSenderEntry | undefined }): boolean {
-	const { job, mapping } = input;
-	if (mapping?.addedToFilterAt === undefined || mapping.mappedAddresses === undefined || mapping.mappedAddresses.length !== job.destinationAddresses.length || mapping.mappedAddresses.some((address) => !job.destinationAddresses.includes(address))) return false;
+export function importFollowsMapping(input: { job: GmailHistoryImportJob; mapping: GmailMapping | undefined; connection: GmailConnection }): boolean {
+	const { job, mapping, connection } = input;
+	if (job.connection.gatewayAddress !== connection.gatewayAddress || mapping?.addedToFilterAt === undefined || mapping.mappedAddresses === undefined || mapping.mappedAddresses.length !== job.destinationAddresses.length || mapping.mappedAddresses.some((address) => !job.destinationAddresses.includes(address))) return false;
 	assert(mapping.mappedAt, "a sender mapped to an address records when it was mapped");
 	return job.createdAt >= mapping.mappedAt;
 }
@@ -48,7 +49,7 @@ export interface GmailImportActions {
 		userId: UserId;
 		sender: ForwardableSender;
 		destinations: [InboxAddress, ...InboxAddress[]];
-		connection: GmailConnection;
+		connection: GmailConnection & { accountEmail: GmailAccountEmail };
 	}) => Promise<StartGmailImportOutcome>;
 }
 
@@ -79,8 +80,6 @@ export function initGmailImportActions(deps: {
 
 	const start: GmailImportActions["start"] = async ({ userId, sender, destinations, connection }) => {
 		if (connection.revokedAt !== undefined) return { ok: false, error: "import_revoked" };
-		const accountEmail = connection.accountEmail;
-		if (accountEmail === undefined) return { ok: false, error: "import_reconnect_required" };
 		const jobs = await imports.listJobsByUserId(userId);
 		if (jobs.some((job) => job.senderEmail === sender && UNFINISHED_IMPORT_STATES.has(job.state))) {
 			return { ok: false, error: "import_in_progress" };
@@ -91,7 +90,7 @@ export function initGmailImportActions(deps: {
 			jobId: gmail.newGmailHistoryImportJobId(),
 			senderEmail: sender,
 			destinationAddresses: destinations,
-			connection: { gatewayAddress: connection.gatewayAddress, accountEmail },
+			connection: { gatewayAddress: connection.gatewayAddress, accountEmail: connection.accountEmail },
 			window: undefined,
 			generation: gmail.newGmailHistoryImportGeneration(),
 			page: 0,

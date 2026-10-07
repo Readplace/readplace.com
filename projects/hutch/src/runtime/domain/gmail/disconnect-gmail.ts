@@ -24,12 +24,12 @@ export function initDisconnectGmail(deps: {
 	senders: GmailSenderStore;
 	discovery: GmailDiscoveryStore;
 	addresses: InboxAddressStore;
-	rewriteGmailFilter: RewriteGmailFilter;
+	removeGmailFilter: RewriteGmailFilter;
 	revokeGmailGrant: RevokeGmailGrant;
 	cancelGmailHistoryImports: CancelGmailHistoryImports;
 	logger: HutchLogger;
 }): DisconnectGmail {
-	const { connections, credentials, senders, addresses, rewriteGmailFilter, revokeGmailGrant, logger } = deps;
+	const { connections, credentials, senders, addresses, removeGmailFilter, revokeGmailGrant, logger } = deps;
 
 	return async ({ userId }) => {
 		const connection = await connections.findConnectionByUserId(userId);
@@ -40,7 +40,7 @@ export function initDisconnectGmail(deps: {
 
 		await deps.cancelGmailHistoryImports({ userId, senderEmail: undefined, reason: "disconnected" });
 		await senders.deleteAllSendersByUserId(userId);
-		const rewritten = await rewriteGmailFilter({ userId });
+		const rewritten = await removeGmailFilter({ userId });
 		if (!rewritten.ok && rewritten.reason === "unavailable") {
 			return { ok: false, reason: "unavailable" };
 		}

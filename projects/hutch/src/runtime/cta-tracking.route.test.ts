@@ -192,8 +192,8 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		});
 		const destination = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
 		for (const senderEmail of [waiting, idle]) {
-			await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail, mappedAddresses: [destination.address], deliveryMode: "links" });
-			await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail });
+			await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: accountEmail, senderEmail, mappedAddresses: [destination.address], deliveryMode: "links" });
+			await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: accountEmail, senderEmail });
 		}
 		await gmail.bundle.gmailHistoryImportStore.createJob({
 			userId,

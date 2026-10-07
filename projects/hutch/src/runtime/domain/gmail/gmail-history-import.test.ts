@@ -18,7 +18,7 @@ import type { GmailHistory, GmailHttpAttempt, GmailHttpClassification, GmailHttp
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailHistory, initInMemoryRawEmailBucket } from "@packages/test-fixtures/providers/gmail-history";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
-import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { type GmailHistoryImportPage, type GmailHistoryImportStep, initGmailHistoryImport } from "./gmail-history-import";
 import type { GmailHistoryImportObservation } from "./gmail-history-import-observation.types";
 
@@ -83,7 +83,7 @@ async function harness(overrides: {
 	const bucket = initInMemoryRawEmailBucket();
 	const store = initInMemoryGmailHistoryImport();
 	const connections = initInMemoryGmailConnection({ now });
-	const senders = initInMemoryGmailSender({ now });
+	const mappings = initInMemoryGmailMapping({ now });
 	const published: GmailHistoryImportMessageFetchedDetail[] = [];
 	const observations: GmailHistoryImportObservation[] = [];
 	const context: HarnessContext = { store, connections, advance, now };
@@ -93,15 +93,15 @@ async function harness(overrides: {
 
 	await connections.createConnection({ userId: READER, gatewayAddress: GATEWAY });
 	await connections.recordAccountEmail({ userId: READER, accountEmail: ACCOUNT });
-	await senders.addSenderToFilter({ userId: READER, senderEmail: TLDR });
-	await senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "links" });
+	await mappings.addSenderToFilter({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR });
+	await mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "links" });
 	await store.createJob({ ...awaitingPermissionJob(), destinationAddresses: overrides.destinationAddresses ?? [WORK_READLIST] });
 
 	const observed = initGmailHistoryImport({
 		history: wrapHistory(gmail.history, context),
 		imports: wrapImports(store),
 		connections,
-		senders,
+		mappings,
 		putRaw: wrapPutRaw(bucket.put, context),
 		publishFetched: overrides.publishFetched ?? (async (detail) => {
 			published.push(detail);
@@ -151,7 +151,7 @@ async function harness(overrides: {
 		return found;
 	};
 
-	return { gmail, bucket, store, connections, senders, published, importer, takeObservations, advance, now, startJob, addUnread, runAllPages, settle, job };
+	return { gmail, bucket, store, connections, mappings, published, importer, takeObservations, advance, now, startJob, addUnread, runAllPages, settle, job };
 }
 
 function publishedIds(published: GmailHistoryImportMessageFetchedDetail[]): string[] {
@@ -187,7 +187,7 @@ describe("initGmailHistoryImport", () => {
 	it("snapshots every selected destination and accepts mapping reordering", async () => {
 		const second = InboxAddressSchema.parse("gmail-bbb222@read.place");
 		const h = await harness({ destinationAddresses: [WORK_READLIST, second] });
-		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [second, WORK_READLIST], deliveryMode: "links" });
+		await h.mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [second, WORK_READLIST], deliveryMode: "links" });
 		await h.startJob("generation-1");
 		h.addUnread("multiple", "2026-08-31T00:00:00.000Z");
 
@@ -200,7 +200,7 @@ describe("initGmailHistoryImport", () => {
 	it("cancels before fetching when a secondary destination changes", async () => {
 		const second = InboxAddressSchema.parse("gmail-bbb222@read.place");
 		const h = await harness({ destinationAddresses: [WORK_READLIST, second] });
-		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "links" });
+		await h.mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "links" });
 		await h.startJob("generation-1");
 		h.addUnread("changed", "2026-08-31T00:00:00.000Z");
 
@@ -272,7 +272,7 @@ describe("initGmailHistoryImport", () => {
 
 	it("carries what the reader chose the sender to save onto every fetched message", async () => {
 		const h = await harness();
-		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "issue" });
+		await h.mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "issue" });
 		await h.startJob("generation-1");
 		h.addUnread("m00", new Date(CREATED_AT.getTime() - 60_000).toISOString());
 
@@ -507,10 +507,10 @@ describe("initGmailHistoryImport", () => {
 
 	it("cancels the import when the sender now goes to another readlist or is no longer mapped", async () => {
 		const remapped = await harness();
-		await remapped.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [ALL_READLIST], deliveryMode: "links" });
+		await remapped.mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [ALL_READLIST], deliveryMode: "links" });
 		await remapped.startJob("generation-1");
 		const removed = await harness();
-		await removed.senders.removeSender({ userId: READER, senderEmail: TLDR });
+		await removed.mappings.removeMapping({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR });
 		await removed.startJob("generation-1");
 
 		await remapped.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });

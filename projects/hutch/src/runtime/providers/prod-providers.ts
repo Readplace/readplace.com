@@ -87,6 +87,7 @@ import { deriveGmailStateSigningSecret } from "./gmail-oauth/gmail-state-secret"
 import {
 	initDynamoDbGmailConnection,
 	initDynamoDbGmailCredentials,
+	initDynamoDbGmailMapping,
 	initDynamoDbGmailSender,
 	initDynamoDbGmailDiscovery,
 	initDynamoDbGmailMonitoring,
@@ -404,6 +405,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		gmailSenderStore: initDynamoDbGmailSender({
 			client,
 			tableName: tables.gmailSenders,
+			now: () => new Date(),
+		}),
+		gmailMappingStore: initDynamoDbGmailMapping({
+			client,
+			tableName: tables.gmailMappings,
 			now: () => new Date(),
 		}),
 		gmailDiscoveryStore: initDynamoDbGmailDiscovery({

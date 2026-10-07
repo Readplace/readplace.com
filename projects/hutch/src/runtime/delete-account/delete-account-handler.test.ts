@@ -127,7 +127,7 @@ function buildSubject() {
 		senders: gmail.bundle.gmailSenderStore,
 		discovery: gmail.bundle.gmailDiscoveryStore,
 		addresses: gmail.addresses,
-		rewriteGmailFilter: async ({ userId }) => {
+		removeGmailFilter: async ({ userId }) => {
 			rewriteCalls.push(userId);
 			teardownOrder.push("rewrite");
 			return { ok: true, filterCount: 0, senderCount: 0 };
@@ -209,6 +209,7 @@ function buildSubject() {
 			await gmail.bundle.gmailHistoryImportStore.deleteAllByUserId(userId);
 		},
 		deleteAllGmailMonitoring: gmail.bundle.gmailMonitoringStore.deleteAllByUserId,
+		deleteAllGmailMappings: gmail.bundle.gmailMappingStore.deleteAllByUserId,
 		deleteAllEmailIdentities: async (userId: UserId) => {
 			teardownOrder.push("identities");
 			await identities.deleteAllByUserId(userId);
@@ -375,7 +376,7 @@ async function seedAccount(
 	const gatewayAddress = await s.gmail.bundle.mintGatewayAddress({ userId });
 	await s.gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
 	await s.gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: `gmail-${label}`, grantedScope: GMAIL_SCOPES });
-	await s.gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: ForwardableSenderSchema.parse("newsletter@example.com") });
+	await s.gmail.bundle.gmailSenderStore.recordSenderSeen({ userId, senderEmail: ForwardableSenderSchema.parse("newsletter@example.com"), subject: "Issue 1" });
 	await s.gmail.bundle.gmailDiscoveryStore.startDiscovery({ checkedMessageCount: 0, userId, accountEmail: GmailAccountEmailSchema.parse(email), gatewayAddress, generation: label, mode: "profile", historyId: undefined });
 
 	await s.articleStore.saveArticle({
@@ -1152,5 +1153,45 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.rewriteCalls, []);
 		assert.deepEqual(s.gmailRevokeTokens, []);
 		assert.equal(await s.auth.findEmailByUserId(account.userId), null);
+	});
+
+	it("erases the mappings kept for every Gmail account of a reader who had already disconnected, and leaves another reader's", async () => {
+		const s = buildSubject();
+		const victim = await seedAccount(s, { label: "kept", email: "kept@example.com", subscription: "none" });
+		const bystander = await seedAccount(s, { label: "kept-bystander", email: "kept-bystander@example.com", subscription: "none" });
+		const mappings = s.gmail.bundle.gmailMappingStore;
+		const personal = GmailAccountEmailSchema.parse("kept@gmail.com");
+		const work = GmailAccountEmailSchema.parse("kept@work.example");
+		const senderEmail = ForwardableSenderSchema.parse("newsletter@example.com");
+		await mappings.addSenderToFilter({ userId: victim.userId, accountEmail: personal, senderEmail });
+		await mappings.addSenderToFilter({ userId: victim.userId, accountEmail: work, senderEmail });
+		await mappings.addSenderToFilter({ userId: bystander.userId, accountEmail: personal, senderEmail });
+		await s.gmail.bundle.gmailConnectionStore.deleteConnection(victim.userId);
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(victim.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(await mappings.listMappingsByUserId(victim.userId), []);
+		assert.deepEqual(
+			(await mappings.listMappingsByUserId(bystander.userId)).map((mapping) => [mapping.accountEmail, mapping.senderEmail]),
+			[[personal, senderEmail]],
+		);
+	});
+
+	it("erases kept mappings even when the Gmail teardown stalls on Google", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, { label: "kept-stalled", email: "kept-stalled@example.com", subscription: "none" });
+		const mappings = s.gmail.bundle.gmailMappingStore;
+		await mappings.addSenderToFilter({
+			userId: account.userId,
+			accountEmail: GmailAccountEmailSchema.parse("kept-stalled@gmail.com"),
+			senderEmail: ForwardableSenderSchema.parse("newsletter@example.com"),
+		});
+		s.failGmailRevokeOnce();
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, [{ itemIdentifier: "msg" }]);
+		assert.deepEqual(await mappings.listMappingsByUserId(account.userId), []);
 	});
 });

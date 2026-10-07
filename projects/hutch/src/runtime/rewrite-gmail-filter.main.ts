@@ -1,7 +1,7 @@
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbGmailHistoryImport, initDynamoDbInboxAddress } from "@packages/inbox-store";
+import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import {
 	DisconnectGmailCommand,
@@ -55,7 +55,13 @@ const addresses = initDynamoDbInboxAddress({
 	now,
 });
 
-const rewriteGmailFilter = initRewriteGmailFilter({
+const mappings = initDynamoDbGmailMapping({
+	client,
+	tableName: requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE"),
+	now,
+});
+
+const filterDeps = {
 	filters: initGmailFilters({
 		accessToken: initGmailAccessToken({
 			clientId: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
@@ -68,11 +74,12 @@ const rewriteGmailFilter = initRewriteGmailFilter({
 		fetch: globalThis.fetch,
 	}),
 	connections,
-	senders,
 	addresses,
 	now,
 	logger,
-});
+};
+
+const rewriteGmailFilter = initRewriteGmailFilter({ ...filterDeps, mappings });
 
 const rewriteHandler = initRewriteGmailFilterHandler({
 	rewriteGmailFilter,
@@ -98,7 +105,7 @@ export const handler = initHandleByDetailType({
 					senders,
 					discovery: initDynamoDbGmailDiscovery({ client, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now }),
 					addresses,
-					rewriteGmailFilter,
+					removeGmailFilter: initRewriteGmailFilter({ ...filterDeps, mappings: { listMappings: async () => [] } }),
 					revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
 					cancelGmailHistoryImports: initCancelGmailHistoryImports({
 						imports: initDynamoDbGmailHistoryImport({ client, tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE") }),

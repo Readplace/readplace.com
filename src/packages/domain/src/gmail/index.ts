@@ -35,6 +35,7 @@ export {
 	type GmailDeliveryFanOut,
 	type GmailDeliveryMode,
 } from "./gmail-delivery-mode";
+export type { GmailMapping, GmailMappingStore } from "./gmail-mapping.types";
 export type { DiscoveredGmailSender, GmailDiscovery, GmailDiscoveryStore } from "./gmail-discovery.types";
 export {
 	GmailHistoryImportJobIdSchema,

@@ -16,6 +16,7 @@ import type { RewriteGmailFilterOutcome } from "./rewrite-gmail-filter";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
+const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
 const NOW = new Date("2026-08-27T00:00:00.000Z");
 const SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic";
 
@@ -48,7 +49,8 @@ async function makeHarness(options: {
 			gatewayAddress: gateway,
 		});
 		await connections.markForwardingConfirmed({ userId: USER });
-		await senders.addSenderToFilter({ userId: USER, senderEmail: TLDR });
+		await connections.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT });
+		await senders.recordSenderSeen({ userId: USER, senderEmail: TLDR, subject: "TLDR 2026-08-27" });
 	}
 	if (options.credentialed !== false) {
 		await credentials.saveCredentials({
@@ -64,7 +66,7 @@ async function makeHarness(options: {
 		senders,
 		discovery,
 		addresses,
-		rewriteGmailFilter: async ({ userId }) => {
+		removeGmailFilter: async ({ userId }) => {
 			rewrites.push(userId);
 			return options.rewritten ?? { ok: true, filterCount: 0, senderCount: 0 };
 		},
@@ -109,7 +111,7 @@ describe("initDisconnectGmail", () => {
 		assert.deepEqual([job?.state, job?.cancelReason], ["cancelled", "disconnected"]);
 	});
 
-	it("clears the senders, removes the filter, revokes at Google, then forgets the token", async () => {
+	it("clears what it saw of the senders, removes the filter, revokes at Google, then forgets the token", async () => {
 		const harness = await makeHarness();
 
 		const result = await harness.disconnect({ userId: USER });

@@ -7,7 +7,7 @@ import type { GmailIncomingMailbox, GmailIncomingSenderPage } from "@packages/pr
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
 import { initInMemoryGmailMonitoring } from "@packages/test-fixtures/providers/gmail-monitoring";
-import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initMonitorGmailNewsletters } from "./monitor-gmail-newsletters";
 
 const USER = UserIdSchema.parse("reader");
@@ -27,7 +27,7 @@ async function harness() {
 	const connections = initInMemoryGmailConnection({ now });
 	const discovery = initInMemoryGmailDiscovery({ now });
 	const monitoring = initInMemoryGmailMonitoring({ now });
-	const senders = initInMemoryGmailSender({ now });
+	const mappings = initInMemoryGmailMapping({ now });
 	await connections.createConnection({ userId: USER, gatewayAddress: GATEWAY });
 	await connections.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT });
 	const catalog = { available: true, records: [record({})] };
@@ -39,7 +39,7 @@ async function harness() {
 		listCurrentIncomingMessageSenders: async (input) => { calls.push({ baseline: input }); return { ok: true, value: { ...EMPTY, senders: [{ email: SENDER, name: "Letter", lastMessageAt: NOW - 10_000 }], scannedMessages: 1 } }; },
 		listIncomingMessageSenders: async (input) => { calls.push({ history: input }); return { ok: true, value: { ...EMPTY, historyId: "200" } }; },
 	};
-	const deps = { mailbox, connections, discovery, monitoring, senders, detectNewsletters: initCatalogNewsletterDetector({ readCatalog: async () => catalog.available ? { ok: true, document: { version: 1, records: catalog.records } } : { ok: false, reason: "unavailable" } }), newGeneration: () => `run-${++generation}`, now };
+	const deps = { mailbox, connections, discovery, monitoring, mappings, detectNewsletters: initCatalogNewsletterDetector({ readCatalog: async () => catalog.available ? { ok: true, document: { version: 1, records: catalog.records } } : { ok: false, reason: "unavailable" } }), newGeneration: () => `run-${++generation}`, now };
 	const monitor = initMonitorGmailNewsletters(deps);
 	async function run() {
 		let result = await monitor.start(USER);
@@ -109,10 +109,10 @@ describe("Gmail newsletter monitoring", () => {
 		const h = await harness();
 		h.catalog.records = [];
 		await h.run();
-		await h.senders.addSenderToFilter({ userId: USER, senderEmail: SENDER });
+		await h.mappings.addSenderToFilter({ userId: USER, accountEmail: ACCOUNT, senderEmail: SENDER });
 		h.catalog.records = [record({})];
 		assert.deepEqual(await h.run(), []);
-		await h.senders.removeSender({ userId: USER, senderEmail: SENDER });
+		await h.mappings.removeMapping({ userId: USER, accountEmail: ACCOUNT, senderEmail: SENDER });
 		assert.deepEqual(await h.run(), []);
 		h.mailbox.listIncomingMessageSenders = async () => ({ ok: true, value: { ...EMPTY, senders: [{ email: SENDER, name: undefined }], historyId: "300" } });
 		assert.deepEqual(await h.run(), [SENDER]);

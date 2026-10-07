@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import type { InboxAddress, ParsedEmail } from "@packages/domain/inbox";
 import { InboxAddressSchema, MessageIdSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger } from "@packages/hutch-logger";
+import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gmail-held-mail";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
 
@@ -12,6 +14,7 @@ const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 const ALIAS = InboxAddressSchema.parse("tldr-b8c3d0@read.place");
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
+const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
 const RECEIVED_AT = "2026-08-27T00:00:00.000Z";
 
 function forwardedEmail(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
@@ -30,14 +33,23 @@ function forwardedEmail(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
 	};
 }
 
-function harness() {
-	const senders = initInMemoryGmailSender({ now: () => new Date(RECEIVED_AT) });
+async function harness(options: { connectedAs?: typeof ACCOUNT | undefined } = { connectedAs: ACCOUNT }) {
+	const now = () => new Date(RECEIVED_AT);
+	const connections = initInMemoryGmailConnection({ now });
+	const mappings = initInMemoryGmailMapping({ now });
+	const senders = initInMemoryGmailSender({ now });
+	if (options.connectedAs !== undefined) {
+		await connections.createConnection({ userId: USER, gatewayAddress: GATEWAY });
+		await connections.recordAccountEmail({ userId: USER, accountEmail: options.connectedAs });
+	}
 	const heldMail = initInMemoryGmailHeldMail();
 	const logs: { message: string; data: unknown }[] = [];
 	const capture = (...args: unknown[]) => {
 		logs.push({ message: String(args[0]), data: args[1] });
 	};
 	const route = initRouteGmailForwardedEmail({
+		connections,
+		mappings,
 		senders,
 		heldMail,
 		logger: HutchLogger.from({
@@ -63,14 +75,15 @@ function harness() {
 			receivedAt: RECEIVED_AT,
 			rawEmailS3Key: "raw/user-1/tldr.eml",
 		});
-	return { run, senders, heldMail, logs };
+	return { run, mappings, senders, heldMail, logs };
 }
 
 describe("initRouteGmailForwardedEmail", () => {
 	it("delivers to the alias the reader mapped the sender to, with what the reader chose to save", async () => {
-		const { run, senders } = harness();
-		await senders.mapSenderToAddress({
+		const { run, mappings } = await harness();
+		await mappings.mapSenderToAddress({
 			userId: USER,
+			accountEmail: ACCOUNT,
 			senderEmail: TLDR,
 			mappedAddresses: [ALIAS],
 			deliveryMode: "issue",
@@ -79,8 +92,36 @@ describe("initRouteGmailForwardedEmail", () => {
 		assert.deepEqual(await run(), { destinationAddresses: [ALIAS], deliveryMode: "issue" });
 	});
 
+	it("holds mail from a sender mapped only under a Gmail account that is not the connected one", async () => {
+		const { run, mappings } = await harness({ connectedAs: GmailAccountEmailSchema.parse("reader@work.example") });
+		await mappings.mapSenderToAddress({
+			userId: USER,
+			accountEmail: ACCOUNT,
+			senderEmail: TLDR,
+			mappedAddresses: [ALIAS],
+			deliveryMode: "links",
+		});
+
+		assert.equal(await run(), undefined);
+	});
+
+	it("delivers a named-inbox message as addressed once Gmail is no longer connected", async () => {
+		const { run, mappings } = await harness({ connectedAs: undefined });
+		await mappings.mapSenderToAddress({
+			userId: USER,
+			accountEmail: ACCOUNT,
+			senderEmail: TLDR,
+			mappedAddresses: [GATEWAY],
+			deliveryMode: "links",
+		});
+
+		const delivered = await run(forwardedEmail(), { recipientAddress: ALIAS, purpose: "gmail-mapped" });
+
+		assert.deepEqual(delivered, { destinationAddresses: [ALIAS], deliveryMode: "links" });
+	});
+
 	it("holds mail from a sender the reader has not mapped yet", async () => {
-		const { run, heldMail } = harness();
+		const { run, heldMail } = await harness();
 
 		assert.equal(await run(), undefined);
 
@@ -103,7 +144,7 @@ describe("initRouteGmailForwardedEmail", () => {
 	});
 
 	it("records every sighting so the reader can recognise the sender", async () => {
-		const { run, senders } = harness();
+		const { run, senders } = await harness();
 
 		await run();
 		await run(forwardedEmail({ subject: "TLDR 2026-08-28" }));
@@ -114,11 +155,10 @@ describe("initRouteGmailForwardedEmail", () => {
 		});
 		assert.equal(sender?.seenCount, 2);
 		assert.equal(sender?.lastSubject, "TLDR 2026-08-28");
-		assert.equal(sender?.addedToFilterAt, undefined);
 	});
 
 	it("leaves mail whose sender it cannot read in the gateway inbox", async () => {
-		const { run, heldMail } = harness();
+		const { run, heldMail } = await harness();
 
 		const delivered = await run(forwardedEmail({ from: "Dan <dan at tldr>" }));
 
@@ -134,9 +174,10 @@ describe("initRouteGmailForwardedEmail", () => {
 	});
 
 	it("records a sighting for mail delivered straight to a named inbox from a known sender", async () => {
-		const { run, senders } = harness();
-		await senders.mapSenderToAddress({
+		const { run, mappings, senders } = await harness();
+		await mappings.mapSenderToAddress({
 			userId: USER,
+			accountEmail: ACCOUNT,
 			senderEmail: TLDR,
 			mappedAddresses: [ALIAS],
 			deliveryMode: "links",
@@ -159,7 +200,7 @@ describe("initRouteGmailForwardedEmail", () => {
 	});
 
 	it("does not mint a sender row for a hand-forwarded message to a named inbox", async () => {
-		const { run, senders } = harness();
+		const { run, senders } = await harness();
 
 		const delivered = await run(forwardedEmail(), {
 			recipientAddress: ALIAS,
@@ -173,9 +214,9 @@ describe("initRouteGmailForwardedEmail", () => {
 		);
 	});
 
-	it("delivers a named inbox's mail as addressed, saving links, when its sender was seen but never mapped", async () => {
-		const { run, senders } = harness();
-		await senders.recordSenderSeen({ userId: USER, senderEmail: TLDR, subject: "TLDR 2026-08-27" });
+	it("delivers a named inbox's mail as addressed, saving links, when its sender is in the filter but never mapped", async () => {
+		const { run, mappings, senders } = await harness();
+		await mappings.addSenderToFilter({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR });
 
 		const delivered = await run(forwardedEmail(), {
 			recipientAddress: ALIAS,
@@ -183,10 +224,11 @@ describe("initRouteGmailForwardedEmail", () => {
 		});
 
 		assert.deepEqual(delivered, { destinationAddresses: [ALIAS], deliveryMode: "links" });
+		assert.equal((await senders.findSender({ userId: USER, senderEmail: TLDR }))?.seenCount, 1);
 	});
 
 	it("logs the held and unreadable paths by user id and never the sender or an inbox address", async () => {
-		const { run, logs } = harness();
+		const { run, logs } = await harness();
 
 		await run();
 		await run(forwardedEmail({ from: "Dan <dan at tldr>" }));

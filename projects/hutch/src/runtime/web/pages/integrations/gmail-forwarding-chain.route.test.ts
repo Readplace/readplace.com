@@ -69,7 +69,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const rewriteGmailFilter = initRewriteGmailFilter({
 			filters: gmailFilters.api,
 			connections: gmail.bundle.gmailConnectionStore,
-			senders: gmail.bundle.gmailSenderStore,
+			mappings: gmail.bundle.gmailMappingStore,
 			addresses: gmail.addresses,
 			now: () => NOW,
 			logger,
@@ -181,7 +181,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 		assert.equal(added.status, 303);
 		assert.equal(added.headers.location, "/newsletters/gmail?notice=sender_mapped&discovery=started");
 		assert.deepEqual(gmail.rewriteRequests, [{ userId, reason: "sender-added" }]);
-		const senderRow = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail });
+		const senderRow = await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail });
 		assert(senderRow?.mappedAddresses, "the sender must be mapped to its readlist address");
 		const mapped = senderRow.mappedAddresses[0];
 		const mappedEntry = await gmail.addresses.findByAddress(mapped);

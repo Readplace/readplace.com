@@ -36,8 +36,10 @@ import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
+import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gmail-held-mail";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import {
@@ -57,6 +59,7 @@ import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
 
 const READER = UserIdSchema.parse("00000000000000000000000000000001");
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
+const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
 const JOB = GmailHistoryImportJobIdSchema.parse(
 	"0123456789abcdef0123456789abcdef",
 );
@@ -96,6 +99,8 @@ function makePipeline() {
 	const links = initInMemoryInboxEmailLink();
 	const identities = initInMemoryEmailIdentity();
 	const imports = initInMemoryGmailHistoryImport();
+	const connections = initInMemoryGmailConnection({ now });
+	const mappings = initInMemoryGmailMapping({ now });
 	const senders = initInMemoryGmailSender({ now });
 	const rawObjects = new Map<string, Buffer>();
 	const readRawEmail = async (key: string) => rawObjects.get(key);
@@ -149,6 +154,8 @@ function makePipeline() {
 			logger,
 		}),
 		routeGmailForwardedEmail: initRouteGmailForwardedEmail({
+			connections,
+			mappings,
 			senders,
 			heldMail: initInMemoryGmailHeldMail(),
 			logger,
@@ -241,7 +248,7 @@ function makePipeline() {
 			],
 			connection: {
 				gatewayAddress: InboxAddressSchema.parse("gmail-def456@read.place"),
-				accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+				accountEmail: ACCOUNT,
 			},
 			window: undefined,
 			generation: "generation-0",
@@ -347,17 +354,22 @@ function makePipeline() {
 		mappedAddress: InboxAddress,
 		additionalAddresses: InboxAddress[] = [],
 	) => {
-		await senders.mapSenderToAddress({
+		await mappings.mapSenderToAddress({
 			userId: READER,
+			accountEmail: ACCOUNT,
 			senderEmail: TLDR,
 			mappedAddresses: [mappedAddress, ...additionalAddresses],
 			deliveryMode: "links",
 		});
-		await senders.addSenderToFilter({ userId: READER, senderEmail: TLDR });
+		await mappings.addSenderToFilter({
+			userId: READER,
+			accountEmail: ACCOUNT,
+			senderEmail: TLDR,
+		});
 	};
 
-	const gatewayAddress = async () =>
-		(
+	const gatewayAddress = async () => {
+		const gateway = (
 			await addresses.createAddress({
 				userId: READER,
 				domain: "read.place",
@@ -365,6 +377,16 @@ function makePipeline() {
 				purpose: "gmail-forwarding",
 			})
 		).address;
+		await connections.createConnection({
+			userId: READER,
+			gatewayAddress: gateway,
+		});
+		await connections.recordAccountEmail({
+			userId: READER,
+			accountEmail: ACCOUNT,
+		});
+		return gateway;
+	};
 
 	const rows = async () =>
 		(

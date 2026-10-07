@@ -8,7 +8,7 @@ import {
 	initDynamoDbGmailConnection,
 	initDynamoDbGmailCredentials,
 	initDynamoDbGmailHistoryImport,
-	initDynamoDbGmailSender,
+	initDynamoDbGmailMapping,
 	initS3WriteRawEmail,
 } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
@@ -42,7 +42,7 @@ export const handler = initGmailHistoryImportHandler({
 		history,
 		imports: initDynamoDbGmailHistoryImport({ client, tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE") }),
 		connections: initDynamoDbGmailConnection({ client, tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"), now }),
-		senders: initDynamoDbGmailSender({ client, tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"), now }),
+		mappings: initDynamoDbGmailMapping({ client, tableName: requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE"), now }),
 		putRaw: initS3WriteRawEmail({ client: new S3Client({}), bucketName: requireEnv("RAW_EMAIL_BUCKET_NAME") }),
 		publishFetched: async (detail) => {
 			await publishEvent(GmailHistoryImportMessageFetchedEvent, detail);

@@ -15,7 +15,7 @@ import {
 	initDynamoDbGmailCredentials,
 	initDynamoDbGmailDiscovery,
 	initDynamoDbGmailMonitoring,
-	initDynamoDbGmailSender,
+	initDynamoDbGmailMapping,
 } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import { initGmailNewsletterMonitorHandler } from "./domain/gmail/gmail-newsletter-monitor-handler";
@@ -34,7 +34,7 @@ const credentials = initDynamoDbGmailCredentials({ client, tableName: requireEnv
 const connections = initDynamoDbGmailConnection({ client, tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"), now });
 const discovery = initDynamoDbGmailDiscovery({ client, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now });
 const monitoring = initDynamoDbGmailMonitoring({ client, tableName: requireEnv("DYNAMODB_GMAIL_MONITORING_TABLE"), now });
-const senders = initDynamoDbGmailSender({ client, tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"), now });
+const mappings = initDynamoDbGmailMapping({ client, tableName: requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE"), now });
 const catalog = initS3NewsletterCatalog({ client: new S3Client({}), bucketName: requireEnv("NEWSLETTER_CATALOG_BUCKET_NAME"), key: NEWSLETTER_CATALOG_OBJECT_KEY, logger });
 const mailbox = initGmailMailbox({
 	accessToken: initGmailAccessToken({ clientId: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"), clientSecret: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"), credentials, fetch: globalThis.fetch, now, logger }),
@@ -42,7 +42,7 @@ const mailbox = initGmailMailbox({
 });
 
 export const handler = initGmailNewsletterMonitorHandler({
-	monitor: initMonitorGmailNewsletters({ mailbox, connections, discovery, monitoring, senders, detectNewsletters: initCatalogNewsletterDetector(catalog), newGeneration: randomUUID, now }),
+	monitor: initMonitorGmailNewsletters({ mailbox, connections, discovery, monitoring, mappings, detectNewsletters: initCatalogNewsletterDetector(catalog), newGeneration: randomUUID, now }),
 	listConnectedAccounts: connections.listConnectedPage,
 	dispatchCheck: initSqsCommandDispatcher({ sqsClient, queueUrl, command: CheckGmailNewslettersCommand }).dispatch,
 	dispatchMonitor: initSqsCommandDispatcher({ sqsClient, queueUrl, command: MonitorGmailNewslettersCommand }).dispatch,

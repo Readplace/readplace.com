@@ -10,12 +10,16 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import { UserIdSchema } from "@packages/domain/user";
 import type { DeleteReadlistDefinition } from "@packages/provider-contracts/article-store";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
-import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
+import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initCancelGmailHistoryImports } from "./cancel-gmail-history-imports";
 import { initMoveGmailMappingsOnReadlistDelete } from "./move-gmail-mappings-on-readlist-delete";
 
 const READER = UserIdSchema.parse("reader-1");
+const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
+const FORMER_ACCOUNT = GmailAccountEmailSchema.parse("reader@work.example");
+const GATEWAY = InboxAddressSchema.parse("gmail-def456@read.place");
 const WORK = ReadlistSlugSchema.parse("work");
 const TRAVEL = ReadlistSlugSchema.parse("travel");
 const TLDR = ForwardableSenderSchema.parse("dan@tldrnewsletter.com");
@@ -31,8 +35,8 @@ function queuedImport(input: { jobId: string; senderEmail: typeof TLDR; destinat
 		senderEmail: input.senderEmail,
 		destinationAddresses: [input.destinationAddress],
 		connection: {
-			gatewayAddress: InboxAddressSchema.parse("gmail-def456@read.place"),
-			accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+			gatewayAddress: GATEWAY,
+			accountEmail: ACCOUNT,
 		},
 		window: { start: "2026-08-31T00:00:00.000Z", end: NOW.toISOString() },
 		generation: "generation-1",
@@ -51,7 +55,8 @@ function queuedImport(input: { jobId: string; senderEmail: typeof TLDR; destinat
 
 function harness() {
 	const addresses = initInMemoryInboxAddress({ now: () => NOW });
-	const senders = initInMemoryGmailSender({ now: () => NOW });
+	const mappings = initInMemoryGmailMapping({ now: () => NOW });
+	const connections = initInMemoryGmailConnection({ now: () => NOW });
 	const imports = initInMemoryGmailHistoryImport();
 	const deleted: Parameters<DeleteReadlistDefinition>[0][] = [];
 	const mappingsWhenRetired: ([InboxAddress, ...InboxAddress[]] | undefined)[][] = [];
@@ -63,11 +68,12 @@ function harness() {
 			deleted.push(params);
 			return { deleted: true };
 		},
-		senders,
+		mappings,
+		connections,
 		findReadlistAddress: addresses.findReadlistAddress,
 		getOrCreateReadlistAddress,
 		retireReadlistAddress: async (input) => {
-			mappingsWhenRetired.push((await senders.listSendersByUserId(READER)).map((sender) => sender.mappedAddresses));
+			mappingsWhenRetired.push((await mappings.listMappingsByUserId(READER)).map((mapping) => mapping.mappedAddresses));
 			return addresses.retireReadlistAddress(input);
 		},
 		cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports, now: () => NOW }),
@@ -75,16 +81,21 @@ function harness() {
 			rewrites.push(input);
 		},
 	});
-	const mapSender = async (senderEmail: typeof TLDR, mappedAddress: InboxAddress) => {
-		await senders.addSenderToFilter({ userId: READER, senderEmail });
-		await senders.mapSenderToAddress({ userId: READER, senderEmail, mappedAddresses: [mappedAddress], deliveryMode: "links" });
+	const connect = async () => {
+		await connections.createConnection({ userId: READER, gatewayAddress: GATEWAY });
+		await connections.recordAccountEmail({ userId: READER, accountEmail: ACCOUNT });
 	};
-	return { addresses, senders, imports, deleted, mappingsWhenRetired, rewrites, getOrCreateReadlistAddress, deleteReadlist, mapSender };
+	const mapSender = async (senderEmail: typeof TLDR, mappedAddress: InboxAddress) => {
+		await mappings.addSenderToFilter({ userId: READER, accountEmail: ACCOUNT, senderEmail });
+		await mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail, mappedAddresses: [mappedAddress], deliveryMode: "links" });
+	};
+	return { addresses, mappings, connect, imports, deleted, mappingsWhenRetired, rewrites, getOrCreateReadlistAddress, deleteReadlist, mapSender };
 }
 
 describe("initMoveGmailMappingsOnReadlistDelete", () => {
 	it("moves the deleted readlist's newsletters to All before retiring its address, cancels their unfinished imports and asks Gmail to record the move", async () => {
 		const h = harness();
+		await h.connect();
 		const work = await h.getOrCreateReadlistAddress({ userId: READER, readlist: WORK });
 		const travel = await h.getOrCreateReadlistAddress({ userId: READER, readlist: TRAVEL });
 		await h.mapSender(TLDR, work.address);
@@ -112,25 +123,56 @@ describe("initMoveGmailMappingsOnReadlistDelete", () => {
 
 	it("removes a secondary destination while preserving the remaining list and delivery mode, and cancels that sender's import", async () => {
 		const h = harness();
+		await h.connect();
 		const work = await h.getOrCreateReadlistAddress({ userId: READER, readlist: WORK });
 		const travel = await h.getOrCreateReadlistAddress({ userId: READER, readlist: TRAVEL });
 		await h.mapSender(TLDR, travel.address);
-		await h.senders.mapSenderToAddress({ userId: READER, senderEmail: TLDR, mappedAddresses: [travel.address, work.address], deliveryMode: "issue" });
+		await h.mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [travel.address, work.address], deliveryMode: "issue" });
 		await h.imports.createJob({ ...queuedImport({ jobId: "a".repeat(32), senderEmail: TLDR, destinationAddress: travel.address }), destinationAddresses: [travel.address, work.address] });
 
 		await h.deleteReadlist({ userId: READER, slug: WORK });
 
-		const moved = await h.senders.findSender({ userId: READER, senderEmail: TLDR });
+		const moved = await h.mappings.findMapping({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR });
 		assert.deepEqual([moved?.mappedAddresses, moved?.deliveryMode], [[travel.address], "issue"]);
 		assert.deepEqual(h.mappingsWhenRetired, [[[travel.address]]]);
 		assert.deepEqual((await h.imports.listJobsByUserId(READER)).map((job) => [job.state, job.cancelReason]), [["cancelled", "destination-changed"]]);
 		assert.equal(await h.addresses.findReadlistAddress({ userId: READER, readlist: DEFAULT_READLIST_SLUG }), undefined);
 	});
 
+	it("moves a newsletter kept for a Gmail account that is no longer connected, leaving the connected account's imports and Gmail filter alone", async () => {
+		const h = harness();
+		await h.connect();
+		const work = await h.getOrCreateReadlistAddress({ userId: READER, readlist: WORK });
+		await h.mappings.addSenderToFilter({ userId: READER, accountEmail: FORMER_ACCOUNT, senderEmail: TLDR });
+		await h.mappings.mapSenderToAddress({ userId: READER, accountEmail: FORMER_ACCOUNT, senderEmail: TLDR, mappedAddresses: [work.address], deliveryMode: "links" });
+		await h.imports.createJob(queuedImport({ jobId: "a".repeat(32), senderEmail: TLDR, destinationAddress: work.address }));
+
+		await h.deleteReadlist({ userId: READER, slug: WORK });
+
+		const all = await h.addresses.findReadlistAddress({ userId: READER, readlist: DEFAULT_READLIST_SLUG });
+		assert(all, "the All readlist address was allocated");
+		assert.deepEqual((await h.mappings.findMapping({ userId: READER, accountEmail: FORMER_ACCOUNT, senderEmail: TLDR }))?.mappedAddresses, [all.address]);
+		assert.deepEqual((await h.imports.listJobsByUserId(READER)).map((job) => job.state), ["queued"]);
+		assert.deepEqual(h.rewrites, []);
+	});
+
+	it("moves a kept newsletter to All while Gmail is disconnected", async () => {
+		const h = harness();
+		const work = await h.getOrCreateReadlistAddress({ userId: READER, readlist: WORK });
+		await h.mapSender(TLDR, work.address);
+
+		await h.deleteReadlist({ userId: READER, slug: WORK });
+
+		const all = await h.addresses.findReadlistAddress({ userId: READER, readlist: DEFAULT_READLIST_SLUG });
+		assert(all, "the All readlist address was allocated");
+		assert.deepEqual((await h.mappings.findMapping({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR }))?.mappedAddresses, [all.address]);
+		assert.deepEqual(h.rewrites, []);
+	});
+
 	it("retires an address no newsletter goes to without allocating All", async () => {
 		const h = harness();
 		await h.getOrCreateReadlistAddress({ userId: READER, readlist: WORK });
-		await h.senders.addSenderToFilter({ userId: READER, senderEmail: TLDR });
+		await h.mappings.addSenderToFilter({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR });
 
 		await h.deleteReadlist({ userId: READER, slug: WORK });
 
@@ -138,7 +180,7 @@ describe("initMoveGmailMappingsOnReadlistDelete", () => {
 		assert.equal(await h.addresses.findReadlistAddress({ userId: READER, readlist: WORK }), undefined);
 		assert.deepEqual(h.deleted, [{ userId: READER, slug: WORK }]);
 		assert.deepEqual(h.rewrites, []);
-		assert.equal((await h.senders.findSender({ userId: READER, senderEmail: TLDR }))?.mappedAddresses, undefined);
+		assert.equal((await h.mappings.findMapping({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR }))?.mappedAddresses, undefined);
 	});
 
 	it("only deletes the readlist when Gmail never sent newsletters to it", async () => {

@@ -43,7 +43,7 @@ import type {
 	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
-import type { GmailHistoryImportStore } from "@packages/domain/gmail";
+import type { GmailHistoryImportStore, GmailMappingStore } from "@packages/domain/gmail";
 import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type {
 	EmailIdentityStore,
@@ -74,6 +74,7 @@ export interface DeleteAccountHandlerDependencies {
 	deleteReadlistAddressClaims: InboxAddressStore["deleteReadlistAddressClaims"];
 	deleteAllGmailHistoryImports: GmailHistoryImportStore["deleteAllByUserId"];
 	deleteAllGmailMonitoring: GmailMonitoringStore["deleteAllByUserId"];
+	deleteAllGmailMappings: GmailMappingStore["deleteAllByUserId"];
 	deleteAllEmailIdentities: EmailIdentityStore["deleteAllByUserId"];
 	disconnectGmail: DisconnectGmail;
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
@@ -158,6 +159,7 @@ async function processCommand(
 	await deps.deleteAllGmailMonitoring(userId);
 	await deps.deleteAllEmailIdentities(userId);
 	const gmailTeardown = await deps.disconnectGmail({ userId });
+	await deps.deleteAllGmailMappings(userId);
 	assert(
 		gmailTeardown.ok || gmailTeardown.reason === "not-connected",
 		"Gmail teardown must remove the filter and revoke the grant before the account is erased",

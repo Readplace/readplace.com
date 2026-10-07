@@ -634,7 +634,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		? unrouteInboxesOnReadlistDelete
 		: initMoveGmailMappingsOnReadlistDelete({
 				deleteReadlistDefinition: unrouteInboxesOnReadlistDelete,
-				senders: gmailIntegration.gmailSenderStore,
+				mappings: gmailIntegration.gmailMappingStore,
+				connections: gmailIntegration.gmailConnectionStore,
 				findReadlistAddress: gmailIntegration.findReadlistAddress,
 				getOrCreateReadlistAddress: gmailIntegration.getOrCreateReadlistAddress,
 				retireReadlistAddress: gmailIntegration.retireReadlistAddress,

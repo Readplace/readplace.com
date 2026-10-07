@@ -5,7 +5,7 @@ import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import { baseCookieOptions } from "@packages/web-analytics";
 import { ForwardableSenderSchema, hasGmailScope, summarizeGmailHistoryImport } from "@packages/domain/gmail";
-import type { ForwardableSender, GmailConnection, GmailHistoryImportSummary } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailAccountEmail, GmailConnection, GmailHistoryImportSummary } from "@packages/domain/gmail";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
@@ -82,15 +82,17 @@ export function registerGmailConnectRoutes(
 		return payload.success ? payload.data : undefined;
 	};
 
-	const resumeImports = async (input: { userId: UserId; sender: ForwardableSender }): Promise<number> => {
-		const [jobs, mapping] = await Promise.all([
+	const resumeImports = async (input: { userId: UserId; accountEmail: GmailAccountEmail; sender: ForwardableSender }): Promise<number> => {
+		const [jobs, mapping, connection] = await Promise.all([
 			gmail.gmailHistoryImportStore.listJobsByUserId(input.userId),
-			gmail.gmailSenderStore.findSender({ userId: input.userId, senderEmail: input.sender }),
+			gmail.gmailMappingStore.findMapping({ userId: input.userId, accountEmail: input.accountEmail, senderEmail: input.sender }),
+			gmail.gmailConnectionStore.findConnectionByUserId(input.userId),
 		]);
+		assert(connection, "a completed Gmail callback leaves a connection");
 		const latest = latestGmailImportsBySender(jobs).get(input.sender);
 		const retry = latest !== undefined
 			&& RETRYABLE_IMPORT_STATUSES.has(summarizeGmailHistoryImport(latest).status)
-			&& importFollowsMapping({ job: latest, mapping });
+			&& importFollowsMapping({ job: latest, mapping, connection });
 		const resumable = [...jobs.filter((job) => job.state === "awaiting-permission"), ...(retry ? [latest] : [])];
 		const resumed = await Promise.all(resumable.map((job) => imports.resume({ userId: input.userId, jobId: job.jobId })));
 		return resumed.filter(Boolean).length;
@@ -254,9 +256,10 @@ export function registerGmailConnectRoutes(
 			grantedScope: grant.grant.grantedScope,
 		});
 
+		let created: GmailConnection | undefined;
 		if (existing === undefined) {
 			trace.enter(req, "create-connection");
-			await gmail.gmailConnectionStore.createConnection({
+			created = await gmail.gmailConnectionStore.createConnection({
 				userId,
 				gatewayAddress: await gmail.mintGatewayAddress({ userId }),
 			});
@@ -264,6 +267,9 @@ export function registerGmailConnectRoutes(
 
 		trace.enter(req, "record-account-email");
 		await gmail.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: found.value });
+		if (created?.forwardingConfirmedAt !== undefined) {
+			await gmail.publishRewriteGmailFilter({ userId, reason: "reconnected" });
+		}
 		trace.enter(req, "reconnect");
 		if (existing !== undefined && await reconnectRequired({ intent: payload.intent, existing, userId })) {
 			const connectedAt = await gmail.gmailConnectionStore.clearRevoked({ userId });
@@ -291,7 +297,7 @@ export function registerGmailConnectRoutes(
 				res.redirect(303, buildGmailUrl({ ...state, notice: "import_permission_refused" }));
 				return;
 			}
-			const resumed = await resumeImports({ userId, sender: payload.intent.sender });
+			const resumed = await resumeImports({ userId, accountEmail: found.value, sender: payload.intent.sender });
 			trace.enter(req, "done");
 			res.redirect(303, buildGmailUrl({ ...state, notice: resumed > 0 ? "import_started" : "import_permission_granted" }));
 			return;

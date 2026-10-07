@@ -222,8 +222,8 @@ async function connectedAgent(options: {
 	};
 	const mapSender = async (sender: ForwardableSender, readlist: string) => {
 		const entry = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse(readlist) });
-		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: sender, mappedAddresses: [entry.address], deliveryMode: "links" });
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: sender });
+		await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: EMAIL, senderEmail: sender, mappedAddresses: [entry.address], deliveryMode: "links" });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: sender });
 		return entry.address;
 	};
 	const seedJob = async (input: {
@@ -346,7 +346,7 @@ describe("GMail Newsletters page", () => {
 		const saved = await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default", readlist_choice_for: MORNING });
 		expect(locationParams(saved.headers.location).notice).toBe("sender_mapped");
 		expect((await monitoring.findCheckpoint(userId))?.mailboxId).toBe("current-mailbox");
-		await gmail.bundle.gmailSenderStore.removeSender({ userId, senderEmail: MORNING });
+		await gmail.bundle.gmailMappingStore.removeMapping({ userId, accountEmail: EMAIL, senderEmail: MORNING });
 		await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: GmailAccountEmailSchema.parse("different@gmail.com") });
 		const changed = load((await agent.get(destination)).text);
 		expect(changed.querySelector("#gmail-sender-choice")?.textContent).toBe("Choose a newsletter");
@@ -904,7 +904,7 @@ describe("Choose a readlist", () => {
 		const reserved = await agent.post(CREATE_READLIST).type("form").send({ sender: TLDR, readlist_name: "All" });
 		expect(reserved.headers.location).toBe(`${GMAIL}?notice=readlist_reused&sender=dan%40tldr.tech&readlist=default&discovery=started`);
 		expect((await articleStore.listReadlistDefinitions(userId)).map((definition) => definition.label)).toEqual(["Science"]);
-		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).toEqual([]);
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
@@ -934,7 +934,7 @@ describe("Choose a readlist", () => {
 		for (let index = 0; index < READLIST_MAX_PER_USER; index++) await createReadlist({ slug: `list-${index}`, label: `List ${index}` });
 		const limited = await agent.post(CREATE_READLIST).type("form").send({ sender: TLDR, readlist_name: "Overflow" });
 		expect(limited.headers.location).toBe(`${GMAIL}?error=readlist_limit&sender=dan%40tldr.tech&readlist_name=Overflow&discovery=started`);
-		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).toEqual([]);
 	});
 });
 
@@ -943,7 +943,7 @@ describe("Save a newsletter to a readlist", () => {
 		const { agent, gmail, userId } = await connectedAgent();
 		const save = await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default", search: "morning", advanced: "1" });
 		expect(save.headers.location).toBe(`${GMAIL}?notice=sender_mapped&search=morning&advanced=1&discovery=started`);
-		const saved = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: MORNING });
+		const saved = await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: MORNING });
 		assert(saved?.mappedAddresses);
 		const entry = await gmail.bundle.findInboxAddress(saved.mappedAddresses[0]);
 		expect({ purpose: entry?.purpose, readlist: entry?.readlist }).toEqual({ purpose: "gmail-readlist", readlist: undefined });
@@ -961,7 +961,7 @@ describe("Save a newsletter to a readlist", () => {
 		const { agent, gmail, userId, createReadlist } = await connectedAgent();
 		await createReadlist({ slug: "tech", label: "Tech" });
 		for (const sender of [TLDR, MORNING]) await agent.post(ADD).type("form").send({ sender, readlist: "tech" });
-		const rows = await gmail.bundle.gmailSenderStore.listSendersByUserId(userId);
+		const rows = await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId);
 		const addresses = new Set(rows.map((entry) => entry.mappedAddresses?.[0]));
 		expect(addresses.size).toBe(1);
 		expect((await gmail.addresses.listAddressesByUserId(userId)).filter((entry) => entry.purpose === "gmail-readlist").map((entry) => entry.readlist)).toEqual([TECH]);
@@ -1037,7 +1037,7 @@ describe("Save a newsletter to a readlist", () => {
 		await agent.post(ADD).type("form").send({ sender: MORNING, readlist: "default", delivery: "links" });
 		await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" });
 
-		const saved = await Promise.all([MORNING, TLDR].map((senderEmail) => gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail })));
+		const saved = await Promise.all([MORNING, TLDR].map((senderEmail) => gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail })));
 		expect(saved.map((sender) => sender?.deliveryMode)).toEqual(["links", "issue"]);
 		const doc = load((await agent.get(GMAIL)).text);
 		const delivery = (sender: string) => {
@@ -1052,8 +1052,8 @@ describe("Save a newsletter to a readlist", () => {
 		await createReadlist({ slug: "tech", label: "Tech" });
 		const named = await gmail.addresses.createAddress({ userId, domain: "read.place", name: AliasNameSchema.parse("reading"), purpose: "user-alias" });
 		await gmail.addresses.setAddressReadlist({ userId, address: named.address, readlist: TECH });
-		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddresses: [named.address], deliveryMode: "links" });
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: EMAIL, senderEmail: TLDR, mappedAddresses: [named.address], deliveryMode: "links" });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		const before = await gmail.bundle.findInboxAddress(named.address);
 		expect(row(load((await agent.get(GMAIL)).text), TLDR).querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All, Tech");
 		const jobId = await seedJob({ sender: TLDR, destination: named.address, state: "running" });
@@ -1062,7 +1062,7 @@ describe("Save a newsletter to a readlist", () => {
 
 		expect(moved.headers.location).toBe(`${GMAIL}?notice=sender_remapped&discovery=started`);
 		expect(await gmail.bundle.findInboxAddress(named.address)).toEqual(before);
-		const remapped = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		const remapped = await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		assert(remapped?.mappedAddresses);
 		expect((await gmail.bundle.findInboxAddress(remapped.mappedAddresses[0]))?.purpose).toBe("gmail-readlist");
 		expect({ state: (await findJob(jobId))?.state, reason: (await findJob(jobId))?.cancelReason }).toEqual({ state: "cancelled", reason: "destination-changed" });
@@ -1084,7 +1084,7 @@ describe("Save a newsletter to a readlist", () => {
 			expect((await agent.post(ADD).type("form").send(body)).headers.location).toContain("error=sender_invalid");
 		}
 		expect((await agent.post(ADD).type("form").send({ sender: "unknown@example.com", readlist: "default" })).headers.location).toContain("error=sender_unknown");
-		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).toEqual([]);
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
@@ -1096,7 +1096,7 @@ describe("Save a newsletter to a readlist", () => {
 		const response = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "secret" });
 		expect(response.headers.location).toContain("error=readlist_invalid");
 		expect((await gmail.addresses.listAddressesByUserId(userId)).map((entry) => entry.purpose)).toEqual(["gmail-forwarding"]);
-		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).toEqual([]);
 	});
 
 	it.each(["account", "gateway", "missing"])("rejects a stale picker submission when its discovery %s no longer matches the connection", async (change) => {
@@ -1113,16 +1113,16 @@ describe("Save a newsletter to a readlist", () => {
 		const before = await gmail.addresses.listAddressesByUserId(userId);
 		const response = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" });
 		expect(response.headers.location).toContain("error=sender_unknown");
-		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).toEqual([]);
 		expect(await gmail.addresses.listAddressesByUserId(userId)).toEqual(before);
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
 	it("lets an existing mapping be reassigned before mailbox reconsent", async () => {
 		const { agent, gmail, userId } = await connectedAgent({ discovered: false, scope: GMAIL_SETTINGS_SCOPE });
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		expect((await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" })).headers.location).toBe(`${GMAIL}?notice=sender_remapped&discovery=started`);
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddresses).toBeDefined();
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.mappedAddresses).toBeDefined();
 	});
 
 	it("saves a mapping during Step 2 and says forwarding starts after confirmation", async () => {
@@ -1143,7 +1143,7 @@ describe("Save a newsletter to a readlist", () => {
 		expect(save.headers.location).toBe(`${GMAIL}?notice=import_started&discovery=started`);
 		const [job] = await gmail.bundle.gmailHistoryImportStore.listJobsByUserId(userId);
 		assert(job);
-		const saved = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		const saved = await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		expect({ state: job.state, sender: job.senderEmail, destination: job.destinationAddresses }).toEqual({ state: "queued", sender: TLDR, destination: saved?.mappedAddresses });
 		expect(gmail.importStartRequests).toEqual([{ userId, jobId: job.jobId, generation: job.generation }]);
 		const doc = load((await agent.get(save.headers.location)).text);
@@ -1180,14 +1180,14 @@ describe("Save a newsletter to a readlist", () => {
 
 	it("treats choosing a readlist for a legacy newsletter as an edit, without the import option", async () => {
 		const { agent, gmail, userId } = await connectedAgent({ discovered: false, scope: READONLY_SCOPES });
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		const editing = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default&edit=1`)).text);
 		const form = editing.querySelector("[data-test-gmail-save-mapping]");
 		assert(form);
 		expect(Array.from(form.querySelectorAll('input[name="import"]'))).toEqual([]);
 		const save = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default", import: "1" });
 		expect(save.headers.location).toBe(`${GMAIL}?notice=sender_remapped&discovery=started`);
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddresses).toBeDefined();
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.mappedAddresses).toBeDefined();
 		expect(await gmail.bundle.gmailHistoryImportStore.listJobsByUserId(userId)).toEqual([]);
 		expect(gmail.importStartRequests).toEqual([]);
 	});
@@ -1198,7 +1198,7 @@ describe("Save a newsletter to a readlist", () => {
 		await seedJob({ sender: TLDR, destination: earlier.address, state: "running" });
 		const save = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default", import: "1" });
 		expect(save.headers.location).toBe(`${GMAIL}?error=import_in_progress&notice=sender_mapped&discovery=started`);
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.addedToFilterAt).toBeDefined();
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.addedToFilterAt).toBeDefined();
 		const doc = load((await agent.get(save.headers.location)).text);
 		expect([
 			doc.querySelector('[data-test-alert="sender_mapped"]')?.textContent,
@@ -1232,8 +1232,8 @@ describe("Your newsletters", () => {
 			[DELETED, deleted.address],
 		];
 		for (const [sender, address] of mappings) {
-			if (address !== undefined) await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: sender, mappedAddresses: [address], deliveryMode: "links" });
-			await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: sender });
+			if (address !== undefined) await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: EMAIL, senderEmail: sender, mappedAddresses: [address], deliveryMode: "links" });
+			await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: sender });
 		}
 		const doc = load((await agent.get(GMAIL)).text);
 		const described = (sender: string) => {
@@ -1282,7 +1282,7 @@ describe("Your newsletters", () => {
 		let now = new Date("2026-09-16T00:00:00.000Z");
 		const { agent, gmail, userId, mapSender } = await connectedAgent({ discovered: false, now: () => now });
 		const LEGACY = ForwardableSenderSchema.parse("legacy@example.com");
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: LEGACY });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: LEGACY });
 		await mapSender(TLDR, "default");
 		now = new Date("2026-09-16T00:01:00.000Z");
 		await gmail.bundle.gmailConnectionStore.recordFilter({ userId, filterCount: 1, filterSenderCount: 2 });
@@ -1294,7 +1294,7 @@ describe("Your newsletters", () => {
 	it("points unresolved newsletters at reconnecting while the readlist picker is hidden", async () => {
 		const { agent, gmail, userId } = await connectedAgent({ discovered: false, scope: GMAIL_SETTINGS_SCOPE });
 		const LEGACY = ForwardableSenderSchema.parse("legacy@example.com");
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: LEGACY });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: LEGACY });
 		const doc = load((await agent.get(GMAIL)).text);
 		const mapped = row(doc, LEGACY);
 		expect(sections(doc)).toEqual([]);
@@ -1398,7 +1398,7 @@ describe("Your newsletters", () => {
 		expect(importSummary(moved)).toEqual({ state: "none", message: [], counts: [], actions: ["edit", "start-import", "remove"] });
 	});
 
-	it("shows no import for a newsletter mapped to the same readlist after Gmail is disconnected and reconnected, until it imports again", async () => {
+	it("keeps a newsletter's mapping but shows no import after Gmail is disconnected and reconnected, until it imports again", async () => {
 		let now = new Date("2026-09-30T20:20:00.000Z");
 		const { agent, gmail, userId, createReadlist, mapSender, seedJob } = await connectedAgent({ scope: READONLY_SCOPES, now: () => now, appNow: () => now });
 		const disconnectGmail = initDisconnectGmail({
@@ -1407,7 +1407,7 @@ describe("Your newsletters", () => {
 			senders: gmail.bundle.gmailSenderStore,
 			discovery: gmail.bundle.gmailDiscoveryStore,
 			addresses: gmail.addresses,
-			rewriteGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
+			removeGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
 			revokeGmailGrant: async () => ({ ok: true }),
 			cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
 			logger: HutchLogger.from(noopLogger),
@@ -1430,11 +1430,9 @@ describe("Your newsletters", () => {
 		await seedDiscovery({ gmail, userId, gatewayAddress: reconnectedGateway, senders: DISCOVERED, generation: "reconnected", state: "complete" });
 
 		now = new Date("2026-09-30T20:43:08.444Z");
-		await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "dev-newsletters" });
-
-		const mappedAgain = row(load((await agent.get(GMAIL)).text), TLDR);
-		expect(mappedAgain.querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All, Dev newsletters");
-		expect(importSummary(mappedAgain)).toEqual({ state: "none", message: [], counts: [], actions: ["edit", "start-import", "remove"] });
+		const kept = row(load((await agent.get(GMAIL)).text), TLDR);
+		expect(kept.querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All, Dev newsletters");
+		expect(importSummary(kept)).toEqual({ state: "none", message: [], counts: [], actions: ["edit", "start-import", "remove"] });
 
 		now = new Date("2026-09-30T20:44:11.000Z");
 		await agent.post(IMPORT_START).type("form").send({ sender: TLDR });
@@ -1484,7 +1482,7 @@ describe("Import unread messages", () => {
 
 	it("refuses an import for a sender without a live readlist mapping", async () => {
 		const { agent, gmail, userId, mapSender } = await connectedAgent({ scope: READONLY_SCOPES });
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		const disabled = await mapSender(MORNING, "default");
 		await gmail.addresses.disableAddress({ userId, address: disabled });
 		for (const sender of [TLDR, MORNING, ForwardableSenderSchema.parse("unmapped@example.com")]) {
@@ -1496,8 +1494,7 @@ describe("Import unread messages", () => {
 	});
 
 	it("asks for a reconnect before importing through a connection that never recorded its Gmail account", async () => {
-		const { agent, gmail, mapSender } = await connectedAgent({ discovered: false, accountEmail: false, scope: READONLY_SCOPES });
-		await mapSender(TLDR, "default");
+		const { agent, gmail } = await connectedAgent({ discovered: false, accountEmail: false, scope: READONLY_SCOPES });
 		const started = await agent.post(IMPORT_START).type("form").send({ sender: TLDR });
 		expect(started.headers.location).toBe(`${GMAIL}?error=import_reconnect_required&discovery=started`);
 		expect(gmail.importStartRequests).toEqual([]);
@@ -1505,6 +1502,24 @@ describe("Import unread messages", () => {
 		expect(doc.querySelector('[data-test-alert="import_reconnect_required"]')?.textContent).toBe(
 			"Readplace doesn't know which Gmail account this connection belongs to, so it can't import unread messages. Disconnect Gmail below and connect it again to import them.",
 		);
+	});
+
+	it("has no mapping to remove through a connection that never recorded its Gmail account", async () => {
+		const { agent, gmail, userId } = await connectedAgent({ accountEmail: false });
+
+		const removed = await agent.post(REMOVE).type("form").send({ sender: TLDR });
+
+		expect(removed.headers.location).toBe(`${GMAIL}?notice=sender_removed&discovery=started`);
+		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-removed" }]);
+	});
+
+	it("knows no sender to map through a connection that never recorded its Gmail account", async () => {
+		const { agent, gmail } = await connectedAgent({ accountEmail: false });
+
+		const refused = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default" });
+
+		expect(locationParams(refused.headers.location).error).toBe("sender_unknown");
+		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
 	it("leaves reconnecting as the only way forward for imports once Google ends the grant", async () => {
@@ -1615,7 +1630,7 @@ describe("Remove a newsletter", () => {
 		const jobId = await seedJob({ sender: TLDR, destination, state: "running" });
 		const removed = await agent.post(REMOVE).type("form").send({ sender: TLDR, search: "dan", edit: "1" });
 		expect(removed.headers.location).toBe(`${GMAIL}?notice=sender_removed&search=dan&discovery=started`);
-		expect((await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).map((entry) => entry.senderEmail)).toEqual([MORNING]);
+		expect((await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).map((entry) => entry.senderEmail)).toEqual([MORNING]);
 		expect({ state: (await findJob(jobId))?.state, reason: (await findJob(jobId))?.cancelReason }).toEqual({ state: "cancelled", reason: "mapping-removed" });
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-removed" }]);
 		expect((await gmail.bundle.findInboxAddress(destination))?.disabledAt).toBeUndefined();
@@ -1746,7 +1761,7 @@ describe("Read-only and locked readers", () => {
 		expect((await agent.post(IMPORT_CANCEL).type("form").send({ job: jobId })).headers.location).toBe(`${GMAIL}?notice=import_cancelled&discovery=started`);
 		expect((await findJob(jobId))?.state).toBe("cancelled");
 		expect((await agent.post(REMOVE).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=sender_removed&discovery=started`);
-		expect(await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).toEqual([]);
+		expect(await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).toEqual([]);
 		expect((await agent.post(`${GMAIL}/disconnect`).send()).headers.location).toBe("/newsletters?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 	});
@@ -1766,7 +1781,7 @@ describe("Read-only and locked readers", () => {
 			const response = await agent.post(path).set("Accept", "text/html").type("form").send({ sender: TLDR, readlist: "default", readlist_name: "Science" });
 			expect(response.headers.location).toBe("/queue?inactive=1");
 		}
-		expect((await gmail.bundle.gmailSenderStore.listSendersByUserId(userId)).map((entry) => entry.senderEmail)).toEqual([MORNING]);
+		expect((await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).map((entry) => entry.senderEmail)).toEqual([MORNING]);
 		expect(await articleStore.listReadlistDefinitions(userId)).toEqual([]);
 		expect(gmail.discoveryRequests).toEqual([]);
 		expect(gmail.importStartRequests).toEqual([]);
@@ -1777,15 +1792,15 @@ describe("Gmail multiple readlists and notification confirmation", () => {
 	it("requires explicit notification choice for a legacy filtered sender without destinations", async () => {
 		const { agent, gmail, userId, createReadlist } = await connectedAgent();
 		await createReadlist({ slug: "tech", label: "Tech" });
-		await gmail.bundle.gmailSenderStore.addSenderToFilter({ userId, senderEmail: TLDR });
-		const existing = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: TLDR });
+		const existing = await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&notification=1`)).text);
 		expect(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(true);
 		expect(doc.querySelector('input[name="readlist_choice_for"]')?.getAttribute("value")).toBe(TLDR);
 		expect(doc.querySelector('input[name="import"]')).toBeNull();
 		const refused = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "tech", readlist_choice_for: TLDR });
 		expect(locationParams(refused.headers.location)).toMatchObject({ error: "readlist_choice_required", readlist_choice_for: TLDR, readlist: "tech" });
-		expect(await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR })).toEqual(existing);
+		expect(await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR })).toEqual(existing);
 		expect(gmail.rewriteRequests).toEqual([]);
 		const confirmation = await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=tech&readlist_choice_for=${encodeURIComponent(TLDR)}&confirm_readlists=${encodeURIComponent(TLDR)}`);
 		expect(new URL(confirmation.headers.location, TEST_APP_ORIGIN).searchParams.get("readlist_choice_for")).toBeNull();
@@ -1798,15 +1813,15 @@ describe("Gmail multiple readlists and notification confirmation", () => {
 		await createReadlist({ slug: "work", label: "Work" });
 		const tech = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse("tech") });
 		const work = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: ReadlistSlugSchema.parse("work") });
-		await gmail.bundle.gmailSenderStore.mapSenderToAddress({ userId, senderEmail: TLDR, mappedAddresses: [tech.address, work.address], deliveryMode: "links" });
+		await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: EMAIL, senderEmail: TLDR, mappedAddresses: [tech.address, work.address], deliveryMode: "links" });
 		const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&notification=1&readlist_choice_for=${encodeURIComponent(TLDR)}`)).text);
 		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Tech, Work");
 		expect(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
 		expect(doc.querySelector('input[name="import"]')).not.toBeNull();
 		const saved = await agent.post(ADD).type("form").send(new URLSearchParams([["sender", TLDR], ["readlist", "tech"], ["readlist", "work"], ["readlist_choice_for", TLDR]]).toString());
 		expect(locationParams(saved.headers.location).notice).toBe("sender_mapped");
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.addedToFilterAt).toBeDefined();
-		expect((await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR }))?.mappedAddresses).toEqual([tech.address, work.address]);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.addedToFilterAt).toBeDefined();
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.mappedAddresses).toEqual([tech.address, work.address]);
 	});
 
 	it("deduplicates repeated selections, validates every custom list, and enforces All when omitted", async () => {
@@ -1817,10 +1832,10 @@ describe("Gmail multiple readlists and notification confirmation", () => {
 		expect(locationParams(bad.headers.location).error).toBe("readlist_invalid");
 		const malformed = await agent.post(ADD).send({ sender: TLDR, readlist: 12 });
 		expect(locationParams(malformed.headers.location).error).toBe("readlist_invalid");
-		expect(await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR })).toBeUndefined();
+		expect(await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR })).toBeUndefined();
 		const saved = await agent.post(ADD).type("form").send(new URLSearchParams([["sender", TLDR], ["readlist", "tech"], ["readlist", "science"], ["readlist", "tech"]]).toString());
 		expect(locationParams(saved.headers.location).notice).toBe("sender_mapped");
-		const mapping = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		const mapping = await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		assert(mapping?.mappedAddresses);
 		expect(mapping.mappedAddresses).toHaveLength(2);
 		const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&edit=1`)).text);
@@ -1828,7 +1843,7 @@ describe("Gmail multiple readlists and notification confirmation", () => {
 		expect(row(doc, TLDR).querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All, Science, Tech");
 		expect(doc.querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
 		await agent.post(ADD).type("form").send({ sender: TLDR });
-		const allOnly = await gmail.bundle.gmailSenderStore.findSender({ userId, senderEmail: TLDR });
+		const allOnly = await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR });
 		assert(allOnly?.mappedAddresses);
 		expect(allOnly.mappedAddresses).toHaveLength(1);
 		expect((await gmail.bundle.findInboxAddress(allOnly.mappedAddresses[0]))?.readlist).toBeUndefined();

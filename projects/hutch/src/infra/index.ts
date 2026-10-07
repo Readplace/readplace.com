@@ -1433,7 +1433,6 @@ const gmailNewsletterAccountRead = new HutchDynamoDBAccess("hutch-gmail-newslett
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
@@ -1444,7 +1443,6 @@ const gmailNewsletterConnectionUpdate = new HutchDynamoDBAccess("hutch-gmail-new
 const gmailNewsletterNoticeAccountRead = new HutchDynamoDBAccess("hutch-gmail-newsletter-notice-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
 		{ arn: storage.usersTable.arn, includeIndexes: true },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: false },
@@ -1463,7 +1461,6 @@ const gmailNewsletterNoticeLambda = new HutchLambda("gmail-newsletter-notice", {
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
-		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
@@ -1503,7 +1500,6 @@ const gmailNewsletterMonitorLambda = new HutchLambda("gmail-newsletter-monitor",
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
-		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
@@ -1652,7 +1648,6 @@ const gmailHistoryImportAccountRead = new HutchDynamoDBAccess("hutch-gmail-histo
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem"],
 });
@@ -1685,7 +1680,6 @@ const gmailHistoryImportLambda = new HutchLambda("gmail-history-import", {
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
-		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),

@@ -8,7 +8,7 @@ import type {
 	GmailHistoryImportFailureReason,
 	GmailHistoryImportJob,
 	GmailHistoryImportSummary,
-	GmailSenderEntry,
+	GmailMapping,
 } from "@packages/domain/gmail";
 import { GMAIL_HISTORY_IMPORT_MAX_POLLS, resolveGmailDeliveryMode, summarizeGmailHistoryImport } from "@packages/domain/gmail";
 import { type InboxAddressEntry, isLiveAddress } from "@packages/domain/inbox";
@@ -81,7 +81,7 @@ export interface GmailMappingsInput {
 	userId: UserId;
 	canConnectGmail: boolean;
 	connection: GmailConnection;
-	senders: readonly GmailSenderEntry[];
+	senders: readonly GmailMapping[];
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
 	readlists: readonly ReadlistRef[];
 	candidates: ReadonlyMap<ForwardableSender, GmailSenderCandidate>;
@@ -156,7 +156,7 @@ function resolveEntry(entry: InboxAddressEntry, readlists: readonly ReadlistRef[
 }
 
 export function gmailMappingDestination(input: {
-	sender: GmailSenderEntry;
+	sender: GmailMapping;
 	userId: UserId;
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
 	readlists: readonly ReadlistRef[];
@@ -173,7 +173,7 @@ export function gmailMappingDestination(input: {
 	return { kind: "readlist", readlists: selected };
 }
 
-function forwardingPending(connection: GmailConnection, sender: GmailSenderEntry): boolean {
+function forwardingPending(connection: GmailConnection, sender: GmailMapping): boolean {
 	const filterUpdatedAt = connection.filterUpdatedAt;
 	return filterUpdatedAt === undefined
 		|| (sender.addedToFilterAt !== undefined && sender.addedToFilterAt > filterUpdatedAt)
@@ -211,7 +211,7 @@ const UNFINISHED: ReadonlySet<GmailImportState> = new Set(["awaiting-permission"
 const STARTABLE: ReadonlySet<GmailImportState> = new Set(["none", "no-unread", "complete", "cancelled"]);
 
 function rowActions(input: {
-	sender: GmailSenderEntry;
+	sender: GmailMapping;
 	destination: GmailMappingDestination;
 	importable: boolean;
 	importState: GmailImportState;
@@ -274,9 +274,9 @@ function consentFor(input: {
 	});
 }
 
-function toRow(input: GmailMappingsInput & { sender: GmailSenderEntry; job: GmailHistoryImportJob | undefined }): GmailMappingRow {
+function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHistoryImportJob | undefined }): GmailMappingRow {
 	const destination = gmailMappingDestination({ ...input, sender: input.sender });
-	const currentJob = input.job !== undefined && importFollowsMapping({ job: input.job, mapping: input.sender }) ? input.job : undefined;
+	const currentJob = input.job !== undefined && importFollowsMapping({ job: input.job, mapping: input.sender, connection: input.connection }) ? input.job : undefined;
 	const summary = currentJob === undefined ? undefined : summarizeGmailHistoryImport(currentJob);
 	const importState: GmailImportState = summary?.status ?? "none";
 	const forwarding = forwardingState({ connection: input.connection, destination, pending: forwardingPending(input.connection, input.sender) });
@@ -369,7 +369,7 @@ function filterMessage(input: GmailMappingsInput, state: GmailFilterState): stri
 	return FILTER_MESSAGES[state];
 }
 
-function filterState(input: GmailMappingsInput, mapped: readonly GmailSenderEntry[]): GmailFilterState {
+function filterState(input: GmailMappingsInput, mapped: readonly GmailMapping[]): GmailFilterState {
 	if (input.connection.revokedAt !== undefined) return "reconnect";
 	if (input.connection.forwardingConfirmedAt === undefined) return "waiting-confirmation";
 	if (input.connection.lastFilterError !== undefined) return "failed";

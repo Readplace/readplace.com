@@ -163,7 +163,7 @@ export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
 
 export const GMAIL_NOTICES: Record<string, string> = {
 	gmail_disconnected:
-		"Gmail is disconnecting. I'm removing the Readplace filter and Readplace's access to your Google account. I can't remove the forwarding address, so in Gmail open Settings, See all settings, then Forwarding and POP/IMAP, and remove the address that starts with gmail-. If a filter forwarding to that address is still listed under Filters and Blocked Addresses, delete it too.",
+		"Gmail is disconnecting. I'm removing the Readplace filter and Readplace's access to your Google account. I can't remove the forwarding address, so in Gmail open Settings, See all settings, then Forwarding and POP/IMAP, and remove the address that starts with gmail-. If a filter forwarding to that address is still listed under Filters and Blocked Addresses, delete it too. Readplace keeps your newsletter mappings for this Gmail account, so they come back when you connect it again.",
 };
 
 function alertsFor(error: string | undefined): IntegrationsAlertViewModel[] {

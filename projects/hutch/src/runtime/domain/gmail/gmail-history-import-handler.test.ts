@@ -24,7 +24,7 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailHistory, initInMemoryRawEmailBucket } from "@packages/test-fixtures/providers/gmail-history";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
-import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
 import { type GmailHistoryImport, type GmailHistoryImportPage, type GmailHistoryImportStep, initGmailHistoryImport } from "./gmail-history-import";
@@ -176,7 +176,7 @@ async function wiredHarness(options: { recordDiagnostic?: (now: () => Date) => R
 	const gmail = initInMemoryGmailHistory();
 	const store = initInMemoryGmailHistoryImport();
 	const connections = initInMemoryGmailConnection({ now });
-	const senders = initInMemoryGmailSender({ now });
+	const mappings = initInMemoryGmailMapping({ now });
 	const bucket = initInMemoryRawEmailBucket();
 	const published: { event: unknown; detail: unknown }[] = [];
 	const dispatched: GmailHistoryImportPage[] = [];
@@ -199,7 +199,7 @@ async function wiredHarness(options: { recordDiagnostic?: (now: () => Date) => R
 		history,
 		imports: store,
 		connections,
-		senders,
+		mappings,
 		putRaw: bucket.put,
 		publishFetched: async (detail) => {
 			await publishEvent(GmailHistoryImportMessageFetchedEvent, detail);
@@ -218,8 +218,8 @@ async function wiredHarness(options: { recordDiagnostic?: (now: () => Date) => R
 	const addReader = async (reader: { userId: UserId; jobId: GmailHistoryImportJobId }) => {
 		await connections.createConnection({ userId: reader.userId, gatewayAddress: GATEWAY });
 		await connections.recordAccountEmail({ userId: reader.userId, accountEmail: SENTINEL_ACCOUNT });
-		await senders.addSenderToFilter({ userId: reader.userId, senderEmail: SENTINEL_SENDER });
-		await senders.mapSenderToAddress({ userId: reader.userId, senderEmail: SENTINEL_SENDER, mappedAddresses: [READLIST], deliveryMode: "links" });
+		await mappings.addSenderToFilter({ userId: reader.userId, accountEmail: SENTINEL_ACCOUNT, senderEmail: SENTINEL_SENDER });
+		await mappings.mapSenderToAddress({ userId: reader.userId, accountEmail: SENTINEL_ACCOUNT, senderEmail: SENTINEL_SENDER, mappedAddresses: [READLIST], deliveryMode: "links" });
 		await store.createJob({
 			...reader,
 			senderEmail: SENTINEL_SENDER,
@@ -256,7 +256,7 @@ async function wiredHarness(options: { recordDiagnostic?: (now: () => Date) => R
 
 	const jobState = async (reader: { userId: UserId; jobId: GmailHistoryImportJobId }) => (await store.findJob(reader))?.state;
 
-	return { capture, gmail, store, senders, bucket, published, dispatched, handler, addReader, addUnread, jobState };
+	return { capture, gmail, store, mappings, bucket, published, dispatched, handler, addReader, addUnread, jobState };
 }
 
 const READER_1 = { userId: USER, jobId: JOB };
@@ -585,7 +585,7 @@ describe("initGmailHistoryImportHandler", () => {
 			await w.addReader(READER_1);
 			await w.addReader(READER_2);
 			w.addUnread({ userId: USER, ids: ["SentinelMessageA1", "SentinelMessageB2"] });
-			await w.senders.removeSender({ userId: READER_2.userId, senderEmail: SENTINEL_SENDER });
+			await w.mappings.removeMapping({ userId: READER_2.userId, accountEmail: SENTINEL_ACCOUNT, senderEmail: SENTINEL_SENDER });
 
 			const response = await runEvent(w.handler, sqsEvent([
 				{ messageId: "sqs-reader-1", body: start(READER_1) },
@@ -662,7 +662,7 @@ describe("initGmailHistoryImportHandler", () => {
 				await w.addReader(READER_1);
 				await w.addReader(READER_2);
 				w.addUnread({ userId: USER, ids: ["SentinelMessageA1", "SentinelMessageB2"] });
-				await w.senders.removeSender({ userId: READER_2.userId, senderEmail: SENTINEL_SENDER });
+				await w.mappings.removeMapping({ userId: READER_2.userId, accountEmail: SENTINEL_ACCOUNT, senderEmail: SENTINEL_SENDER });
 				const response = await runEvent(w.handler, sqsEvent([
 					{ messageId: "sqs-reader-1", body: start(READER_1) },
 					{ messageId: "sqs-malformed", body: "not json" },

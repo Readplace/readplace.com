@@ -66,6 +66,11 @@ export function registerGmailMappingRoutes(
 			return;
 		}
 		const senderEmail = body.data.sender;
+		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
+		assert(connection, "the connected middleware requires a Gmail connection");
+		if (connection.accountEmail !== undefined) {
+			await gmail.gmailMappingStore.removeMapping({ userId, accountEmail: connection.accountEmail, senderEmail });
+		}
 		await gmail.gmailSenderStore.removeSender({ userId, senderEmail });
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-removed" });
 		await gmail.cancelGmailHistoryImports({ userId, senderEmail, reason: "mapping-removed" });
@@ -81,18 +86,21 @@ export function registerGmailMappingRoutes(
 			return;
 		}
 		const sender = body.data.sender;
-		const [row, connection] = await Promise.all([
-			gmail.gmailSenderStore.findSender({ userId, senderEmail: sender }),
-			gmail.gmailConnectionStore.findConnectionByUserId(userId),
-		]);
+		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		assert(connection, "the connected middleware requires a Gmail connection");
+		const accountEmail = connection.accountEmail;
+		if (accountEmail === undefined) {
+			redirectTo(res, state, { error: "import_reconnect_required" });
+			return;
+		}
+		const row = await gmail.gmailMappingStore.findMapping({ userId, accountEmail, senderEmail: sender });
 		const destinations = row?.addedToFilterAt === undefined ? undefined : row.mappedAddresses;
 		const entries = destinations === undefined ? [] : await Promise.all(destinations.map((address) => gmail.findInboxAddress(address)));
 		if (destinations === undefined || entries.some((entry) => entry === undefined || entry.userId !== userId || !isLiveAddress(entry))) {
 			redirectTo(res, state, { error: "import_unavailable" });
 			return;
 		}
-		const outcome = await imports.start({ userId, sender, destinations, connection });
+		const outcome = await imports.start({ userId, sender, destinations, connection: { ...connection, accountEmail } });
 		redirectTo(res, state, outcome.ok ? { notice: outcome.notice } : { error: outcome.error });
 	});
 
@@ -106,11 +114,11 @@ export function registerGmailMappingRoutes(
 			return;
 		}
 		const [mapping, connection] = await Promise.all([
-			gmail.gmailSenderStore.findSender({ userId, senderEmail: job.senderEmail }),
+			gmail.gmailMappingStore.findMapping({ userId, accountEmail: job.connection.accountEmail, senderEmail: job.senderEmail }),
 			gmail.gmailConnectionStore.findConnectionByUserId(userId),
 		]);
 		assert(connection, "the connected middleware requires a Gmail connection");
-		if (!importFollowsMapping({ job, mapping })) {
+		if (!importFollowsMapping({ job, mapping, connection })) {
 			redirectTo(res, state, { error: "import_unavailable" });
 			return;
 		}

@@ -1,6 +1,8 @@
 import {
+	type GmailConnectionStore,
 	type GmailDeliveryMode,
 	type GmailHeldMailStore,
+	type GmailMappingStore,
 	type GmailSenderStore,
 	LEGACY_DELIVERY_MODE,
 	parseForwardableSender,
@@ -26,11 +28,13 @@ export type RouteGmailForwardedEmail = (input: {
 }) => Promise<GmailDelivery | undefined>;
 
 export function initRouteGmailForwardedEmail(deps: {
-	senders: GmailSenderStore;
+	connections: Pick<GmailConnectionStore, "findConnectionByUserId">;
+	mappings: Pick<GmailMappingStore, "findMapping">;
+	senders: Pick<GmailSenderStore, "recordSenderSeen">;
 	heldMail: GmailHeldMailStore;
 	logger: HutchLogger;
 }): RouteGmailForwardedEmail {
-	const { senders, heldMail, logger } = deps;
+	const { connections, mappings, senders, heldMail, logger } = deps;
 
 	return async ({
 		userId,
@@ -52,8 +56,13 @@ export function initRouteGmailForwardedEmail(deps: {
 			return { destinationAddresses: [recipientAddress], deliveryMode: LEGACY_DELIVERY_MODE };
 		}
 
+		const findConnectedMapping = async () => {
+			const accountEmail = (await connections.findConnectionByUserId(userId))?.accountEmail;
+			return accountEmail === undefined ? undefined : mappings.findMapping({ userId, accountEmail, senderEmail });
+		};
+
 		if (purpose === "gmail-mapped") {
-			const existing = await senders.findSender({ userId, senderEmail });
+			const existing = await findConnectedMapping();
 			if (existing === undefined) {
 				return { destinationAddresses: [recipientAddress], deliveryMode: LEGACY_DELIVERY_MODE };
 			}
@@ -73,9 +82,9 @@ export function initRouteGmailForwardedEmail(deps: {
 			senderEmail,
 			subject: email.subject,
 		});
-		const sender = await senders.findSender({ userId, senderEmail });
-		if (sender?.mappedAddresses !== undefined) {
-			return { destinationAddresses: sender.mappedAddresses, deliveryMode: resolveGmailDeliveryMode(sender) };
+		const mapping = await findConnectedMapping();
+		if (mapping?.mappedAddresses !== undefined) {
+			return { destinationAddresses: mapping.mappedAddresses, deliveryMode: resolveGmailDeliveryMode(mapping) };
 		}
 
 		await heldMail.holdMail({

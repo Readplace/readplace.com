@@ -1,36 +1,20 @@
-import type { InboxAddress } from "../inbox/inbox-address.schema";
 import type { UserId } from "../user";
 import type { ForwardableSender } from "./build-forwarding-filter-query";
-import type { GmailDeliveryMode } from "./gmail-delivery-mode";
 
 export interface GmailSenderEntry {
 	userId: UserId;
 	senderEmail: ForwardableSender;
-	addedToFilterAt: string | undefined;
 	firstSeenAt: string | undefined;
 	lastSeenAt: string | undefined;
 	seenCount: number | undefined;
 	lastSubject: string | undefined;
-	mappedAddresses: [InboxAddress, ...InboxAddress[]] | undefined;
-	mappedAt: string | undefined;
-	deliveryMode: GmailDeliveryMode | undefined;
 }
 
 export interface GmailSenderStore {
-	addSenderToFilter: (input: {
-		userId: UserId;
-		senderEmail: ForwardableSender;
-	}) => Promise<void>;
 	recordSenderSeen: (input: {
 		userId: UserId;
 		senderEmail: ForwardableSender;
 		subject: string;
-	}) => Promise<void>;
-	mapSenderToAddress: (input: {
-		userId: UserId;
-		senderEmail: ForwardableSender;
-		mappedAddresses: [InboxAddress, ...InboxAddress[]];
-		deliveryMode: GmailDeliveryMode;
 	}) => Promise<void>;
 	findSender: (input: {
 		userId: UserId;

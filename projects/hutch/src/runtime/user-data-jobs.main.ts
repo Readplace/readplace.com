@@ -41,7 +41,7 @@ import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
 import { initHandleByDetailType } from "./handle-by-detail-type";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
-import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailSender, initDynamoDbEmailIdentity } from "@packages/inbox-store";
+import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
 	initPurgeArticleContent,
@@ -235,6 +235,7 @@ const gmailCredentials = initDynamoDbGmailCredentials({ client: dynamoClient, ta
 const gmailSenders = initDynamoDbGmailSender({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"), now });
 const gmailDiscovery = initDynamoDbGmailDiscovery({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now });
 const gmailHistoryImports = initDynamoDbGmailHistoryImport({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE") });
+const gmailMappings = initDynamoDbGmailMapping({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE"), now });
 const gmailMonitoring = initDynamoDbGmailMonitoring({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_MONITORING_TABLE"), now });
 const emailIdentities = initDynamoDbEmailIdentity({ client: dynamoClient, tableName: requireEnv("DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE") });
 
@@ -244,7 +245,7 @@ const disconnectGmail = initDisconnectGmail({
 	senders: gmailSenders,
 	discovery: gmailDiscovery,
 	addresses: inboxAddress,
-	rewriteGmailFilter: initRewriteGmailFilter({
+	removeGmailFilter: initRewriteGmailFilter({
 		filters: initGmailFilters({
 			accessToken: initGmailAccessToken({
 				clientId: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
@@ -257,7 +258,7 @@ const disconnectGmail = initDisconnectGmail({
 			fetch: globalThis.fetch,
 		}),
 		connections: gmailConnections,
-		senders: gmailSenders,
+		mappings: { listMappings: async () => [] },
 		addresses: inboxAddress,
 		now,
 		logger,
@@ -288,6 +289,7 @@ export const handler = initHandleByDetailType({
 				deleteReadlistAddressClaims: inboxAddress.deleteReadlistAddressClaims,
 				deleteAllGmailHistoryImports: gmailHistoryImports.deleteAllByUserId,
 				deleteAllGmailMonitoring: gmailMonitoring.deleteAllByUserId,
+				deleteAllGmailMappings: gmailMappings.deleteAllByUserId,
 				deleteAllEmailIdentities: emailIdentities.deleteAllByUserId,
 				disconnectGmail,
 				deleteRawEmailObjects,

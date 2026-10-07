@@ -9,7 +9,7 @@ import {
 	hasGmailScope,
 	pickerDeliveryMode,
 } from "@packages/domain/gmail";
-import type { ForwardableSender, GmailConnection, GmailDiscovery } from "@packages/domain/gmail";
+import type { DiscoveredGmailSender, ForwardableSender, GmailConnection, GmailDiscovery, GmailMapping } from "@packages/domain/gmail";
 import { type InboxAddress, InboxAddressSchema, isLiveAddress } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, readerReadlists } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
@@ -85,7 +85,7 @@ export function registerGmailPageRoutes(
 	const teardown = [requireAuth];
 	const imports = initGmailImportActions({ gmail, now: context.now });
 	const mapSenderToReadlist = initMapSenderToReadlist({
-		senders: gmail.gmailSenderStore,
+		mappings: gmail.gmailMappingStore,
 		getOrCreateReadlistAddress: gmail.getOrCreateReadlistAddress,
 		cancelGmailHistoryImports: gmail.cancelGmailHistoryImports,
 	});
@@ -113,7 +113,7 @@ export function registerGmailPageRoutes(
 		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		assert(connection, "the connected middleware requires a Gmail connection");
 		const [senders, gateway, discoveredSenders, discovery, grantedScope, definitions, jobs, observedSenders, access] = await Promise.all([
-			gmail.gmailSenderStore.listSendersByUserId(userId),
+			connection.accountEmail === undefined ? [] : gmail.gmailMappingStore.listMappings({ userId, accountEmail: connection.accountEmail }),
 			gmail.findInboxAddress(connection.gatewayAddress),
 			gmail.gmailDiscoveryStore.listSendersByUserId(userId),
 			gmail.gmailDiscoveryStore.findDiscoveryByUserId(userId),
@@ -245,20 +245,24 @@ export function registerGmailPageRoutes(
 			return;
 		}
 		const senderEmail = sender.data.sender;
-		const [existing, discovered, discovery, connection, definitions] = await Promise.all([
-			gmail.gmailSenderStore.findSender({ userId, senderEmail }),
+		const [discovered, discovery, connection, definitions] = await Promise.all([
 			gmail.gmailDiscoveryStore.listSendersByUserId(userId),
 			gmail.gmailDiscoveryStore.findDiscoveryByUserId(userId),
 			gmail.gmailConnectionStore.findConnectionByUserId(userId),
 			gmail.listReadlistDefinitions(userId),
 		]);
 		assert(connection, "the connected middleware requires a Gmail connection");
-		const observed = connection.accountEmail === undefined ? [] : await gmail.gmailMonitoringStore.listObservedSenders({ userId, accountEmail: connection.accountEmail });
+		const accountEmail = connection.accountEmail;
+		const [existing, observed]: [GmailMapping | undefined, DiscoveredGmailSender[]] = accountEmail === undefined ? [undefined, []] : await Promise.all([
+			gmail.gmailMappingStore.findMapping({ userId, accountEmail, senderEmail }),
+			gmail.gmailMonitoringStore.listObservedSenders({ userId, accountEmail }),
+		]);
 		const senderDiscovered = discoveryMatchesConnection(discovery, connection) && discovered.some((entry) => entry.email === senderEmail);
 		if (existing?.addedToFilterAt === undefined && !senderDiscovered && !observed.some((entry) => entry.email === senderEmail)) {
 			invalid("sender_unknown");
 			return;
 		}
+		assert(accountEmail, "a sender this connection knows implies its Gmail account is recorded");
 		const choices = [...new Set(gmailSelectedReadlists(state))];
 		const readlists = readerReadlists(definitions);
 		if (choices.some((slug) => !readlists.some((entry) => entry.slug === slug))) {
@@ -272,6 +276,7 @@ export function registerGmailPageRoutes(
 		const selected = readlists.filter((entry) => entry.slug !== DEFAULT_READLIST_SLUG && choices.includes(entry.slug));
 		const { destinations } = await mapSenderToReadlist({
 			userId,
+			accountEmail,
 			sender: senderEmail,
 			readlists: selected.map((entry) => entry.slug),
 			deliveryMode: state.delivery ?? pickerDeliveryMode(existing),
@@ -288,7 +293,7 @@ export function registerGmailPageRoutes(
 			res.redirect(303, buildGmailUrl({ ...kept, notice }));
 			return;
 		}
-		const outcome = await imports.start({ userId, sender: senderEmail, destinations, connection });
+		const outcome = await imports.start({ userId, sender: senderEmail, destinations, connection: { ...connection, accountEmail } });
 		res.redirect(303, buildGmailUrl({ ...kept, ...(outcome.ok ? { notice: outcome.notice } : { notice: "sender_mapped", error: outcome.error }) }));
 	});
 

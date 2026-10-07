@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
-import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbGmailSender } from "./dynamodb-gmail-sender";
 
@@ -25,7 +24,6 @@ interface CapturedCommand {
 const TABLE = "test-gmail-senders";
 const USER = UserIdSchema.parse("user-1");
 const SENDER = ForwardableSenderSchema.parse("dan@tldr.tech");
-const ALIAS = InboxAddressSchema.parse("tldr-a7b2c9@read.place");
 const NOW = new Date("2026-08-27T00:00:00.000Z");
 
 function row(overrides: Record<string, unknown> = {}) {
@@ -46,18 +44,6 @@ function harness(reply: (input: unknown) => unknown = () => ({})) {
 }
 
 describe("initDynamoDbGmailSender", () => {
-	it("keeps the original filter timestamp when a sender is re-added", async () => {
-		const { store, commands } = harness();
-
-		await store.addSenderToFilter({ userId: USER, senderEmail: SENDER });
-
-		assert.deepEqual(commands[0].input.Key, { userId: USER, senderEmail: SENDER });
-		assert.match(
-			String(commands[0].input.UpdateExpression),
-			/if_not_exists\(addedToFilterAt, :now\)/,
-		);
-	});
-
 	it("counts every sighting while keeping the first-seen timestamp", async () => {
 		const { store, commands } = harness();
 
@@ -77,60 +63,9 @@ describe("initDynamoDbGmailSender", () => {
 		});
 	});
 
-	it("maps a sender onto the alias its mail should land in", async () => {
-		const { store, commands } = harness();
-
-		await store.mapSenderToAddress({
-			userId: USER,
-			senderEmail: SENDER,
-			mappedAddresses: [ALIAS],
-			deliveryMode: "issue",
-		});
-
-		assert.equal(commands[0].input.UpdateExpression, "SET mappedAddress = :addr, mappedAt = :now, deliveryMode = :mode REMOVE additionalMappedAddresses");
-		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
-			":addr": ALIAS,
-			":now": NOW.toISOString(),
-			":mode": "issue",
-		});
-	});
-
-	it("persists additional destinations beside the primary scalar address", async () => {
-		const { store, commands } = harness();
-		const secondary = InboxAddressSchema.parse("travel-a7b2c9@read.place");
-
-		await store.mapSenderToAddress({ userId: USER, senderEmail: SENDER, mappedAddresses: [ALIAS, secondary], deliveryMode: "both" });
-
-		assert.equal(commands[0].input.UpdateExpression, "SET mappedAddress = :addr, mappedAt = :now, deliveryMode = :mode, additionalMappedAddresses = :additional");
-		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
-			":addr": ALIAS,
-			":now": NOW.toISOString(),
-			":mode": "both",
-			":additional": [secondary],
-		});
-	});
-
-	it("reads the stored delivery mode, and none for a mapping saved before the mode existed", async () => {
-		const chosen = harness(() => ({ Item: row({ mappedAddress: ALIAS, deliveryMode: "issue" }) }));
-		const legacy = harness(() => ({ Item: row({ mappedAddress: ALIAS }) }));
-
-		assert.equal((await chosen.store.findSender({ userId: USER, senderEmail: SENDER }))?.deliveryMode, "issue");
-		assert.equal((await legacy.store.findSender({ userId: USER, senderEmail: SENDER }))?.deliveryMode, undefined);
-	});
-
-	it("reads legacy scalar mappings and additional mappings as destination arrays", async () => {
-		const secondary = InboxAddressSchema.parse("travel-a7b2c9@read.place");
-		const legacy = harness(() => ({ Item: row({ mappedAddress: ALIAS }) }));
-		const multiple = harness(() => ({ Items: [row({ mappedAddress: ALIAS, additionalMappedAddresses: [secondary] })] }));
-
-		assert.deepEqual((await legacy.store.findSender({ userId: USER, senderEmail: SENDER }))?.mappedAddresses, [ALIAS]);
-		assert.deepEqual((await multiple.store.listSendersByUserId(USER)).map((sender) => sender.mappedAddresses), [[ALIAS, secondary]]);
-		assert.equal((await harness(() => ({ Item: row() })).store.findSender({ userId: USER, senderEmail: SENDER }))?.mappedAddresses, undefined);
-	});
-
 	it("reads one sender as a point read", async () => {
 		const { store, commands } = harness(() => ({
-			Item: row({ addedToFilterAt: NOW.toISOString(), seenCount: 3 }),
+			Item: row({ seenCount: 3 }),
 		}));
 
 		const sender = await store.findSender({ userId: USER, senderEmail: SENDER });

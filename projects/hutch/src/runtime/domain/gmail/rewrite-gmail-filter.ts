@@ -2,7 +2,7 @@ import type {
 	ForwardableSender,
 	GmailConnectionStore,
 	GmailFilterError,
-	GmailSenderStore,
+	GmailMappingStore,
 } from "@packages/domain/gmail";
 import { buildForwardingFilterQuery } from "@packages/domain/gmail";
 import type { InboxAddressStore } from "@packages/domain/inbox";
@@ -48,12 +48,12 @@ export type RewriteGmailFilter = (input: {
 export function initRewriteGmailFilter(deps: {
 	filters: GmailFilters;
 	connections: GmailConnectionStore;
-	senders: GmailSenderStore;
+	mappings: Pick<GmailMappingStore, "listMappings">;
 	addresses: InboxAddressStore;
 	now: () => Date;
 	logger: HutchLogger;
 }): RewriteGmailFilter {
-	const { filters, connections, senders, addresses, now, logger } = deps;
+	const { filters, connections, mappings, addresses, now, logger } = deps;
 
 	function surfaceApiFailure(userId: UserId, failure: GmailApiFailure): Promise<GroupApiFailure> {
 		if (failure.reason === "unavailable") {
@@ -164,9 +164,11 @@ export function initRewriteGmailFilter(deps: {
 		const result = await reconcileGroup({
 			userId,
 			forwardTo: gateway,
-			senders: (await senders.listSendersByUserId(userId)).flatMap((sender) =>
-				sender.addedToFilterAt === undefined ? [] : [sender.senderEmail],
-			),
+			senders: connection.accountEmail === undefined
+				? []
+				: (await mappings.listMappings({ userId, accountEmail: connection.accountEmail })).flatMap((mapping) =>
+					mapping.addedToFilterAt === undefined ? [] : [mapping.senderEmail],
+				),
 			ours: owned,
 		});
 		if (!result.ok) {

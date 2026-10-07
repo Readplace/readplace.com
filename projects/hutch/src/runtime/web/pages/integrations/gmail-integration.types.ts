@@ -7,6 +7,7 @@ import type {
 	GmailHistoryImportJob,
 	GmailHistoryImportJobId,
 	GmailHistoryImportStore,
+	GmailMappingStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
@@ -28,6 +29,7 @@ export interface GmailIntegrationProviders {
 	gmailCredentialsStore: GmailCredentialsStore;
 	gmailConnectionStore: GmailConnectionStore;
 	gmailSenderStore: GmailSenderStore;
+	gmailMappingStore: GmailMappingStore;
 	gmailDiscoveryStore: GmailDiscoveryStore;
 	gmailMonitoringStore: GmailMonitoringStore;
 	publishStartGmailSenderDiscovery: (input: { userId: UserId }) => Promise<void>;

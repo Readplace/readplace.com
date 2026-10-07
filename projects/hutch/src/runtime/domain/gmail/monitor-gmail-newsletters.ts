@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { DiscoveredGmailSender, GmailConnection, GmailConnectionStore, GmailDiscoveryStore, GmailSenderStore } from "@packages/domain/gmail";
+import type { DiscoveredGmailSender, GmailConnection, GmailConnectionStore, GmailDiscoveryStore, GmailMappingStore } from "@packages/domain/gmail";
 import type { DetectNewsletters } from "@packages/domain/newsletter-catalog";
 import type { UserId } from "@packages/domain/user";
 import type { GmailIncomingMailbox, GmailMailboxResult } from "@packages/provider-contracts/gmail-mailbox";
@@ -25,7 +25,7 @@ export function initMonitorGmailNewsletters(deps: {
 	connections: GmailConnectionStore;
 	discovery: GmailDiscoveryStore;
 	monitoring: GmailMonitoringStore;
-	senders: GmailSenderStore;
+	mappings: Pick<GmailMappingStore, "findMapping">;
 	detectNewsletters: DetectNewsletters;
 	newGeneration: () => string;
 	now: () => Date;
@@ -48,7 +48,7 @@ export function initMonitorGmailNewsletters(deps: {
 		for (const sender of found) {
 			const [previous, mapping] = await Promise.all([
 				deps.monitoring.findObservation({ userId: checkpoint.userId, mailboxId: checkpoint.mailboxId, senderEmail: sender.email }),
-				deps.senders.findSender({ userId: checkpoint.userId, senderEmail: sender.email }),
+				deps.mappings.findMapping({ userId: checkpoint.userId, accountEmail: checkpoint.accountEmail, senderEmail: sender.email }),
 			]);
 			const approved = detection.recognized.has(sender.email);
 			const newMessage = source === "arrival" || (source === "baseline" && !checkpoint.initializing && sender.lastMessageAt !== undefined && sender.lastMessageAt >= checkpoint.lastCheckedAt);

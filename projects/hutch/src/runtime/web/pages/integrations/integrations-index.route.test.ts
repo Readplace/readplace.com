@@ -369,6 +369,9 @@ describe("GET /newsletters", () => {
 		const notice = doc.querySelector('[data-test-alert-variant="info"]');
 		assert(notice, "the index must render a notice for a redirect that carried one");
 		expect(notice.getAttribute("data-test-alert")).toBe("gmail_disconnected");
+		expect(notice.textContent).toBe(
+			"Gmail is disconnecting. I'm removing the Readplace filter and Readplace's access to your Google account. I can't remove the forwarding address, so in Gmail open Settings, See all settings, then Forwarding and POP/IMAP, and remove the address that starts with gmail-. If a filter forwarding to that address is still listed under Filters and Blocked Addresses, delete it too. Readplace keeps your newsletter mappings for this Gmail account, so they come back when you connect it again.",
+		);
 		expect(notice.getAttribute("role")).toBe("status");
 		expect(notice.classList.contains("alert--visible")).toBe(true);
 	});

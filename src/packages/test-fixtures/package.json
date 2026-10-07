@@ -89,6 +89,10 @@
       "types": "./dist/providers/gmail-integration/index.d.ts",
       "default": "./dist/providers/gmail-integration/index.js"
     },
+    "./providers/gmail-mapping": {
+      "types": "./dist/providers/gmail-mapping/index.d.ts",
+      "default": "./dist/providers/gmail-mapping/index.js"
+    },
     "./providers/gmail-sender": {
       "types": "./dist/providers/gmail-sender/index.d.ts",
       "default": "./dist/providers/gmail-sender/index.js"
@@ -251,6 +255,9 @@
       ],
       "providers/gmail-integration": [
         "./dist/providers/gmail-integration/index.d.ts"
+      ],
+      "providers/gmail-mapping": [
+        "./dist/providers/gmail-mapping/index.d.ts"
       ],
       "providers/gmail-sender": [
         "./dist/providers/gmail-sender/index.d.ts"

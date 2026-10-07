@@ -106,6 +106,7 @@ import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbo
 import { initInMemoryInboxEmailLink, initInMemoryInboxSavedLink } from "@packages/test-fixtures/providers/inbox-email";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
+import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
@@ -221,22 +222,23 @@ export function initDevProviders(input: { appOrigin: string }) {
 	}): GmailIntegrationProviders => {
 		const { clientId, clientSecret, stateSeed } = settings;
 		const gmailSenderStore = initInMemoryGmailSender({ now: () => new Date() });
+		const gmailMappingStore = initInMemoryGmailMapping({ now: () => new Date() });
 		const gmailAccessToken = initGmailAccessToken({ clientId, clientSecret, credentials: gmailCredentialsStore, fetch: globalThis.fetch, now: () => new Date(), logger });
-		const rewriteGmailFilter = initRewriteGmailFilter({
+		const gmailFilterDeps = {
 			filters: initGmailFilters({ accessToken: gmailAccessToken, fetch: globalThis.fetch }),
 			connections: gmailConnectionStore,
-			senders: gmailSenderStore,
 			addresses: inboxAddressStore,
 			now: () => new Date(),
 			logger,
-		});
+		};
+		const rewriteGmailFilter = initRewriteGmailFilter({ ...gmailFilterDeps, mappings: gmailMappingStore });
 		const disconnectGmail = initDisconnectGmail({
 			connections: gmailConnectionStore,
 			credentials: gmailCredentialsStore,
 			senders: gmailSenderStore,
 			discovery: gmailDiscoveryStore,
 			addresses: inboxAddressStore,
-			rewriteGmailFilter,
+			removeGmailFilter: initRewriteGmailFilter({ ...gmailFilterDeps, mappings: { listMappings: async () => [] } }),
 			revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
 			cancelGmailHistoryImports,
 			logger,
@@ -271,6 +273,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 				void runGmailDiscoveryLocally({ userId });
 			},
 			gmailSenderStore,
+			gmailMappingStore,
 			mintGatewayAddress: async ({ userId }: { userId: UserId }) => {
 				const entry = await inboxAddressStore.createAddress({
 					userId,

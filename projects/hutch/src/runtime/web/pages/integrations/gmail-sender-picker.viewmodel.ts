@@ -1,4 +1,4 @@
-import type { DiscoveredGmailSender, ForwardableSender, GmailSenderEntry } from "@packages/domain/gmail";
+import type { DiscoveredGmailSender, ForwardableSender, GmailMapping } from "@packages/domain/gmail";
 import type { NewsletterDetection, NewsletterRecognition } from "@packages/domain/newsletter-catalog";
 import { type FormField, gmailGetFields } from "./gmail-form-fields";
 import { GMAIL_SENDER_OPTION_LIMIT, type GmailPickerState } from "./gmail.url";
@@ -40,7 +40,7 @@ export interface GmailSenderResults {
 
 export function gmailSenderCandidates(input: {
 	discoveredSenders: readonly DiscoveredGmailSender[];
-	senders: readonly GmailSenderEntry[];
+	senders: readonly GmailMapping[];
 	detection: NewsletterDetection;
 }): Map<ForwardableSender, GmailSenderCandidate> {
 	const recognized: ReadonlyMap<ForwardableSender, NewsletterRecognition> =
