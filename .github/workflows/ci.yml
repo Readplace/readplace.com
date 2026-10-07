@@ -88,7 +88,13 @@ jobs:
           firefox --version 2>/dev/null || echo "firefox: not on PATH"
           geckodriver --version 2>/dev/null | head -1 || echo "geckodriver: not on PATH"
 
-      - run: pnpm check --exclude=ios,android
+      - name: Run pnpm check --exclude=ios,android
+        run: |
+          log=$(mktemp)
+          pnpm check --exclude=ios,android >"$log" 2>&1 &
+          check_pid=$!
+          tail --follow --pid="$check_pid" --lines=+1 "$log"
+          wait "$check_pid"
 
       - name: Upload Playwright reports and screenshot galleries
         if: always()
