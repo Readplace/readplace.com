@@ -61,6 +61,6 @@ final class ArticleRowPresentationTests: XCTestCase {
 		XCTAssertFalse(
 			ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: false).showsOfflineBadge
 		)
-		XCTAssertEqual(ArticleRowPresentation.offlineBadgeLabel, "Offline")
+		XCTAssertEqual(ArticleRowPresentation.offlineBadgeLabel, "Saved offline")
 	}
 }

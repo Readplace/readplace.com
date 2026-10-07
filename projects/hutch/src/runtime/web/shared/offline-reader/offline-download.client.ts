@@ -1,3 +1,4 @@
+import { iconSvg } from "@packages/ui-icons";
 import {
 	OFFLINE_CACHE_NAME,
 	OFFLINE_SOURCE_HEADER,
@@ -241,9 +242,10 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		}
 		if (tag !== null) return;
 		const created = deps.document.createElement("span");
-		created.className = "chip chip--badge chip--accent";
+		created.className = "chip chip--badge chip--success";
 		created.setAttribute(OFFLINE_TAG_ATTR, "");
-		created.textContent = "Available offline";
+		created.textContent = "Saved offline";
+		created.insertAdjacentHTML("beforeend", iconSvg("check"));
 		meta.append(created);
 	}
 

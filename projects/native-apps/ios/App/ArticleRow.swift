@@ -25,13 +25,18 @@ struct ArticleRow: View {
 				}
 
 				if presentation.showsOfflineBadge {
-					Text(ArticleRowPresentation.offlineBadgeLabel)
-						.font(.caption2.weight(.semibold))
-						.foregroundStyle(Color.brandPrimaryText)
-						.padding(.horizontal, 8)
-						.padding(.vertical, 2)
-						.background(Color.brandPrimaryText.opacity(0.12), in: Capsule())
-						.accessibilityLabel(ArticleRowPresentation.offlineBadgeAccessibilityLabel)
+					HStack(spacing: 4) {
+						Text(ArticleRowPresentation.offlineBadgeLabel)
+						Image(systemName: "checkmark")
+					}
+					.font(.caption2.weight(.semibold))
+					.foregroundStyle(Color.brandSuccessText)
+					.padding(.horizontal, 8)
+					.padding(.vertical, 2)
+					.background(Color.brandSuccess.opacity(0.12), in: Capsule())
+					.overlay(Capsule().strokeBorder(Color.brandSuccess, lineWidth: 1))
+					.accessibilityElement(children: .ignore)
+					.accessibilityLabel(ArticleRowPresentation.offlineBadgeLabel)
 				}
 			}
 

@@ -992,7 +992,10 @@ describe("initOfflineDownload", () => {
 		await flush();
 
 		expect(page.offlineTags()).toEqual([`/queue/a1/view?v=one&${CARD_TRACKING}`]);
-		expect(page.document.querySelector("[data-offline-tag]")?.textContent).toBe("Available offline");
+		const tag = page.document.querySelector("[data-offline-tag]");
+		expect(tag?.textContent).toBe("Saved offline");
+		expect(tag?.classList.contains("chip--success")).toBe(true);
+		expect(tag?.querySelector("svg path")?.getAttribute("d")).toBe("M5 14L8.5 17.5L19 6.5");
 		expect(page.deleted).toEqual([]);
 	});
 

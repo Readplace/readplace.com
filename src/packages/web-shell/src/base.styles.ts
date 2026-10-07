@@ -718,6 +718,12 @@ export const CHIP_STYLES = `
 		color: var(--primary-text-on-tint);
 	}
 
+	.chip--success {
+		border-color: var(--color-success);
+		background: var(--success-bg);
+		color: var(--success-text);
+	}
+
 	.chip--error {
 		border-color: var(--color-error);
 		background: var(--error-bg);

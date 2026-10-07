@@ -534,6 +534,7 @@ One pill family: a 1px border, `--radius-pill`, a declared 1.25 line box, and 8p
 |---|---|---|
 | Neutral | (default) | `--muted` / `--border` / `--foreground` |
 | Accent | `.chip--accent` | `--color-brand-light` / `--color-brand` / `--foreground`; an accent **badge** paints its label `--primary-text-on-tint` |
+| Success | `.chip--success` | `--success-bg` / `--color-success` / `--success-text`, with a trailing `check` in the same ink ("Saved offline") |
 | Error | `.chip--error` | `--error-bg` / `--color-error` / `--foreground` |
 
 Labels are sentence case ("Current", "Me"). A name the reader typed wraps inside its pill; a bounded label never wraps. A **removable tag** is a non-interactive `.chip--large` pill holding a POST form whose icon-only `.chip__remove` button draws the 16px × 8px after the label and 12px before the pill edge. The × rests transparent, hovers to a `--card` square, and its focus ring is drawn inset on that `--card` square, because the outset ring on the amber tint falls under 3:1. Its hit area covers the pill's trailing edge and full height (36×36) and stops at the label.

@@ -8,8 +8,7 @@ struct ArticleRowPresentation: Equatable {
 
 	static let thumbnailSize = CGSize(width: 72, height: 54)
 	static let thumbnailCornerRadius: CGFloat = 8
-	static let offlineBadgeLabel = "Offline"
-	static let offlineBadgeAccessibilityLabel = "Available offline"
+	static let offlineBadgeLabel = "Saved offline"
 
 	let marker: Marker
 	let markerColor: Color
