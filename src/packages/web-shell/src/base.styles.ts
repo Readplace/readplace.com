@@ -321,6 +321,9 @@ export const BASE_RESET_STYLES = `
 	body > main {
 		width: 100%;
 	}
+	body > main.htmx-swapping {
+		overflow-anchor: none;
+	}
 	button:focus-visible,
 	a:focus-visible {
 		outline: 2px solid var(--ring);
