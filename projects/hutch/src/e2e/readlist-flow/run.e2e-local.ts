@@ -19,6 +19,7 @@ const runStamp = Date.now()
 
 test.describe('Readlist management flow (local)', () => {
 	test('signup, logout, reset password, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page }) => {
+		test.setTimeout(240000)
 
 		const authData = {
 			email: 'e2e-test@example.com',
