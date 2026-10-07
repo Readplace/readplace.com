@@ -1,3 +1,7 @@
+import { candidateProvenance } from "../select-content/candidate-provenance";
+import { UserIdSchema } from "@packages/domain/user";
+import { initResolveSubmittedSource } from "../select-content/resolve-submitted-source";
+import type { VerifyWrapperSource } from "@packages/save-article";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
@@ -27,6 +31,8 @@ const TIER = "tier-0";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSaveLinkRawPdfCommandHandler(deps: {
+	resolveOriginalUrl: (url: string) => Promise<string>;
+	verifyWrapperSource: VerifyWrapperSource;
 	readPendingPdf: ReadPendingPdf;
 	extractPdf: ExtractPdf;
 	parseHtml: ParseHtml;
@@ -59,6 +65,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 
 	const logPrefix = "[SaveLinkRawPdfCommand]";
 
+	const resolveSubmittedSource = initResolveSubmittedSource(deps);
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
@@ -66,8 +73,10 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = SaveLinkRawPdfCommand.detailSchema.parse(envelope.detail);
+				const { saveAttemptId } = detail;
+				const originalUrl = await resolveSubmittedSource(detail);
 
-				const bytes = await readPendingPdf(detail.url);
+				const { bytes, capturedAt } = await readPendingPdf(detail.url, { saveAttemptId });
 				const bodyHash = createHash("sha256").update(bytes).digest("hex");
 				const crawlResult = await parsePdfFromBuffer({
 					buffer: bytes,
@@ -112,8 +121,8 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 				);
 
 				const parseResult = parseHtml({
-					url: detail.url,
-					documentUrl: detail.url,
+					url: originalUrl,
+					documentUrl: detail.sourceUrl,
 					html: crawlResult.html,
 					thumbnailUrl: null,
 				});
@@ -140,6 +149,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 
 				const articleResourceUniqueId = ArticleResourceUniqueId.parse(detail.url);
 				const media = await downloadMedia({
+					writeContext: { url: detail.url, attemptId: saveAttemptId, authorUserId: UserIdSchema.parse(detail.userId) },
 					html: parseResult.article.content,
 					referer: detail.url,
 					articleResourceUniqueId,
@@ -149,10 +159,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					media,
 				});
 
-				await putTierSource({
-					url: detail.url,
-					tier: TIER,
-					html: processedHtml,
+				const metadata = candidateProvenance({
 					metadata: {
 						title: parseResult.article.title,
 						siteName: parseResult.article.siteName,
@@ -162,7 +169,15 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 						imageUrl: parseResult.article.imageUrl,
 						authorUserId: detail.userId,
 					},
+					html: processedHtml,
+					evaluationHtml: processedHtml,
+					attemptId: saveAttemptId,
+					originalUrl,
+					sourceUrl: detail.sourceUrl,
+					kind: "extension",
+					fetchedAt: capturedAt,
 				});
+				await putTierSource({ url: detail.url, tier: TIER, html: processedHtml, metadata });
 
 				const snapshot = await readTierSnapshot({ url: detail.url });
 				logCrawlOutcome({
@@ -174,8 +189,9 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 				});
 
 				await publishEvent(TierContentExtractedEvent, {
+					saveAttemptId,
+					candidates: [{ id: metadata.id, tier: TIER }],
 					url: detail.url,
-					tier: TIER,
 					userId: detail.userId,
 					extractedAt: now().toISOString(),
 				});

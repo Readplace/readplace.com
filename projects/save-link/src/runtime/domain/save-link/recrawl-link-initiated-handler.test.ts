@@ -23,7 +23,7 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
+			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1" } }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -49,6 +49,7 @@ const stubFinalizedArticle: FinalizedArticle = {
 const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
 	article: stubFinalizedArticle,
+	evaluationHtml: stubFinalizedArticle.html,
 	bodyHash: "a".repeat(64),
 };
 
@@ -62,6 +63,9 @@ const fixedNow = () => new Date("2026-04-30T12:00:00.000Z");
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initRecrawlLinkInitiatedHandler({
+		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
+		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
+		resolveOriginalUrl: async (url) => url,
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -88,10 +92,10 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
+		expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({
 			url: "https://example.com/article",
 			extractedAt: "2026-04-30T12:00:00.000Z",
-		});
+		}));
 	});
 
 	it("reports the record as a batch failure when crawl-and-finalize fails (so SQS redelivers just that record)", async () => {
@@ -179,11 +183,11 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledTimes(1);
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({
 			url: "https://example.com/doc.pdf",
 			userId: undefined,
 			recrawl: true,
-		});
+		}));
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
@@ -246,7 +250,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 	describe("an article with a recorded archive capture", () => {
 		const capture = "https://web.archive.org/web/20081203185222/https://example.com/article";
 
-		it("re-crawls the capture into the archive tier before the live page, then asks for one content judgement", async () => {
+		it("re-crawls the capture into the archive tier alongside the live page, then asks for one content judgement", async () => {
 			const crawls: Parameters<CrawlAndFinalizeArticle>[0][] = [];
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
@@ -262,13 +266,14 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 
 			await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
 
-			expect(crawls).toEqual([{ url: "https://example.com/article", fetchUrl: capture }, { url: "https://example.com/article" }]);
-			expect(putTierSource.mock.calls.map(([params]) => params.tier)).toEqual(["tier-2", "tier-1"]);
+			const writeContext = { url: "https://example.com/article", attemptId: "attempt-1" };
+			expect(crawls).toEqual(expect.arrayContaining([{ url: "https://example.com/article", fetchUrl: capture, retainResponseBody: true, writeContext }, { url: "https://example.com/article", retainResponseBody: true, writeContext }]));
+			expect(putTierSource.mock.calls.map(([params]) => params.tier)).toEqual(expect.arrayContaining(["tier-2", "tier-1"]));
 			expect(publishEvent).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
+			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({
 				url: "https://example.com/article",
 				extractedAt: "2026-04-30T12:00:00.000Z",
-			});
+			}));
 		});
 
 		it("still asks for a content judgement when the live page is gone but the capture was re-crawled", async () => {
@@ -283,13 +288,13 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 			const result = await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
 
 			expect(result).toEqual({ batchItemFailures: [] });
-			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
+			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({
 				url: "https://example.com/article",
 				extractedAt: "2026-04-30T12:00:00.000Z",
-			});
+			}));
 		});
 
-		it("asks for nothing when neither the capture nor the live page could be crawled", async () => {
+		it("asks the selector to retain verified content or mark no readable article when both crawls fail", async () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				crawlAndFinalizeArticle: async () => ({ status: "not-found", httpStatus: 404 }),
@@ -299,7 +304,22 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 
 			await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
 
-			expect(publishEvent).not.toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.anything());
+			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body" } }));
+		});
+
+		it("carries why the live origin could not be reached to the selector when the capture also fails", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async (params) => params.fetchUrl === undefined
+					? { status: "failed", reason: "crawl-failed", failure: { kind: "origin-unreachable", code: "ENOTFOUND" } }
+					: { status: "not-found", httpStatus: 404 },
+				publishEvent,
+				findContentSourceUrl: async () => capture,
+			});
+
+			await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
+
+			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body", failureReason: { kind: "origin-unreachable", code: "ENOTFOUND" } } }));
 		});
 	});
 });

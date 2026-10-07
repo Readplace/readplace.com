@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { CandidateIdSchema } from "../../article/article.schema";
 import type { Article } from "../article.types";
 import { CanonicalImageUrlSchema } from "../canonical-image-url";
 import { refreshContent, type RefreshContentInput } from "./refresh-content";
@@ -337,4 +338,17 @@ describe("refreshContent", () => {
 
 		assert.deepEqual(before, beforeSnapshot);
 	});
+	it("invalidates an erased canonical summary even if the replacement text hash is unchanged", () => {
+		const before = buildArticle({ freshness: { contentFetchedAt: NOW, canonicalContentHash: "same" }, summary: { kind: "ready", summary: "Erased summary" }, contentSelection: { candidateId: CandidateIdSchema.parse("erased"), revokedCandidateIds: [CandidateIdSchema.parse("erased")] } });
+		const result = refreshContent(before, buildInput({ canonicalContentHash: "same" }));
+		assert.deepEqual(result.article.summary, { kind: "pending", pendingSince: NOW });
+		assert.ok(result.writes.includes("summary"));
+	});
+
+	it.each([undefined, [CandidateIdSchema.parse("other")]])("keeps an unchanged summary whose canonical candidate was never revoked (%j)", (revokedCandidateIds) => {
+		const before = buildArticle({ freshness: { contentFetchedAt: NOW, canonicalContentHash: "same" }, summary: { kind: "ready", summary: "Valid summary" }, contentSelection: { candidateId: CandidateIdSchema.parse("valid"), revokedCandidateIds } });
+		const result = refreshContent(before, buildInput({ canonicalContentHash: "same" }));
+		assert.deepEqual(result.article.summary, before.summary);
+	});
+
 });

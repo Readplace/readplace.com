@@ -128,8 +128,8 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { PinContentSource, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
-import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
+import type { FindIdentityRow, PinContentSource, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
+import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
 	FindArticleCrawlStatuses,
@@ -224,7 +224,7 @@ import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
-import { type ValidateSaveableUrl, withNewSavePreparation } from "@packages/domain/article";
+import { newSaveAttemptId, type ValidateSaveableUrl, withNewSavePreparation } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
@@ -443,17 +443,18 @@ interface AppDependencies {
 	findArticleCrawlStatuses: FindArticleCrawlStatuses;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
-	refreshArticleIfStale: RefreshArticleIfStale;
-	refreshArticleIfStaleStored: RefreshArticleIfStale;
+	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
+	refreshArticleIfStaleStored: RefreshIdentifiedArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	saveArticleKeepingPosition: SaveArticle;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
-	resolveSaveIdentity: ResolveSaveIdentity;
+	findIdentityRow: FindIdentityRow;
 	resolveFirstVisitIdentity: ResolveSaveIdentity;
 	resolveWrapperTarget: ResolveWrapperTarget;
 	pinContentSource: PinContentSource;
+	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 	getOnboardingSignals: GetOnboardingSignals;
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
@@ -682,7 +683,15 @@ export function createApp(dependencies: AppDependencies): Express {
 			try {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
 				const provenance = await resolveMcpSaveProvenance(oauthClientId);
+				const saveAttemptId = newSaveAttemptId();
+				if (freshness.action === "unresolved") {
+					for (const readlist of new Set([DEFAULT_READLIST_SLUG, ...readlists])) {
+						await deps.publishSubmitLink({ userId, url: validation.url, readlist, provenance, saveAttemptId });
+					}
+					return { ok: true, pending: true };
+				}
 				const { saved } = await saveArticleAtReadlistTop({
+					saveAttemptId,
 					userId,
 					url: validation.url,
 					freshness,
@@ -1408,8 +1417,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		allocateSavedAt: deps.allocateSavedAt,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
 		findSavedUrls: deps.findSavedUrls,
-		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
-		resolveSaveIdentity: deps.resolveSaveIdentity,
+		resolveSaveIdentity: deps.resolveFirstVisitIdentity,
 		pinContentSource: deps.pinContentSource,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
@@ -1463,7 +1471,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		refreshArticleIfStale: deps.refreshArticleIfStaleStored,
 		publishSubmitLink: deps.publishSubmitLink,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
-		resolveSaveIdentity: deps.resolveSaveIdentity,
 		pinContentSource: deps.pinContentSource,
 		logError: deps.logError,
 		recordAnalyticsEvent,
@@ -1502,8 +1509,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		markCrawlPending: deps.markCrawlPending,
 		saveArticleGlobally: deps.saveArticleGlobally,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
+		findIdentityRow: deps.findIdentityRow,
 		resolveSaveIdentity: deps.resolveFirstVisitIdentity,
 		pinContentSource: deps.pinContentSource,
+		findContentSourceUrl: deps.findContentSourceUrl,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		consumeRateLimit: deps.consumeRateLimit,

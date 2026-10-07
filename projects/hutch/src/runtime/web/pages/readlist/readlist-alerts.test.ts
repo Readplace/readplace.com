@@ -29,9 +29,21 @@ describe("readlistAlertFor", () => {
 		});
 	});
 
+	it("tells the reader a saved wrapper link is queued, as a notice rather than an error", () => {
+		expect(readlistAlertFor({ queue_error: "save_queued" })).toEqual({
+			variant: "info",
+			message: { text: "This link is queued while Readplace finds the original article." },
+		});
+	});
+
 	it("renders no alert without a known code", () => {
 		expect(readlistAlertFor({})).toBeUndefined();
 		expect(readlistAlertFor({ queue_error: "made-up" })).toBeUndefined();
 		expect(readlistAlertFor({ queue_error: ["limit"] })).toBeUndefined();
+	});
+
+	it("renders no alert for a code that names an inherited object member", () => {
+		expect(readlistAlertFor({ queue_error: "toString" })).toBeUndefined();
+		expect(readlistAlertFor({ queue_error: "constructor" })).toBeUndefined();
 	});
 });

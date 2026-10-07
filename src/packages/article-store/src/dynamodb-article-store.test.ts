@@ -1,3 +1,4 @@
+import { CandidateIdSchema } from "@packages/domain/article";
 import type { AggregateField, Article } from "@packages/domain/article-aggregate";
 import {
 	ConditionalCheckFailedException,
@@ -137,6 +138,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					sourceContentHash: "a".repeat(64),
 				},
 				summaryAutoHeal: { attempts: 0 },
+				contentSelection: {},
 			});
 		});
 
@@ -364,6 +366,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				crawl: { kind: "pending", pendingSince: "1970-01-01T00:00:00.000Z" },
 				summary: { kind: "pending", pendingSince: "1970-01-01T00:00:00.000Z" },
 				summaryAutoHeal: { attempts: 0 },
+				contentSelection: {},
 			});
 		});
 
@@ -1472,4 +1475,102 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			).toBe(0);
 		});
 	});
+});
+
+describe("atomic canonical selection", () => {
+	it("commits pointer, metadata and reader readiness in one guarded update", async () => {
+		let received: unknown;
+		const client = createFakeClient((command) => { received = command; return {}; });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		await store.save({ article: buildArticle({ readerAvailableAt: PENDING_SINCE }), writes: ["metadata", "freshness", "crawl", "summary", "readerAvailability"], canonicalCommit: { expected: undefined, contentLocation: "s3://content/immutable.html", candidateId: CandidateIdSchema.parse("candidate"), originalUrl: URL, tier: "tier-2" } });
+		const command = capturedCommand(received).input;
+		expect(command.UpdateExpression).toContain("contentLocation = :contentLocation");
+		expect(command.UpdateExpression).toContain("title = :title");
+		expect(command.UpdateExpression).toContain("crawlStatus = :crawlStatus");
+		expect(command.UpdateExpression).toContain("readerAvailableAt = if_not_exists");
+		expect(command.ConditionExpression).toContain("attribute_not_exists(contentSelectionRevision)");
+		expect(command.ConditionExpression).toContain("attribute_not_exists(displayUrl)");
+		expect(command.ConditionExpression).toContain("attribute_not_exists(contentSourceUrl)");
+		expect(command.ExpressionAttributeValues?.[":contentLocation"]).toBe("s3://content/immutable.html");
+		expect(command.ExpressionAttributeValues?.[":nextSelectionRevision"]).toBe(1);
+	});
+
+	it("rejects a stale decision after a competing selector has committed", async () => {
+		let currentRevision: number | undefined;
+		const client = createFakeClient((received) => {
+			const command = capturedCommand(received).input;
+			if (command.UpdateExpression === undefined) return { Item: { contentSelectionRevision: currentRevision } };
+			const expected = command.ExpressionAttributeValues?.[":expected_contentSelectionRevision"];
+			if (expected !== currentRevision) throw new ConditionalCheckFailedException({ $metadata: {}, message: "selection changed" });
+			currentRevision = z.number().parse(command.ExpressionAttributeValues?.[":nextSelectionRevision"]);
+			return {};
+		});
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		const selection = { expected: undefined, contentLocation: "s3://content/first.html", candidateId: CandidateIdSchema.parse("first"), originalUrl: URL, tier: "tier-1" as const };
+		await store.save({ article: buildArticle(), writes: ["metadata", "crawl"], canonicalCommit: selection });
+		await expect(store.save({ article: buildArticle({ metadata: { title: "Stale", siteName: "", excerpt: "", wordCount: 2 } }), writes: ["metadata", "crawl"], canonicalCommit: { ...selection, candidateId: CandidateIdSchema.parse("second"), contentLocation: "s3://content/second.html" } })).rejects.toThrow("selection changed");
+		expect(currentRevision).toBe(1);
+	});
+
+	it("loads the complete canonical and identity snapshot used by the selector", async () => {
+		const source = "https://archive.today/short";
+		const client = createFakeClient(() => ({ Item: { contentSelectionRevision: 3, contentLocation: "s3://content/current.html", canonicalCandidateId: "current", canonicalOriginalUrl: URL, contentSourceTier: "tier-2", displayUrl: URL, contentSourceUrl: source, sourceOriginalUrl: URL, revokedCandidateIds: new Set(["erased"]) } }));
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		const article = await store.load(URL);
+		expect(article?.contentSelection).toEqual({ revision: 3, contentLocation: "s3://content/current.html", candidateId: "current", tier: "tier-2", displayUrl: URL, contentSourceUrl: source, sourceOriginalUrl: URL, revokedCandidateIds: ["erased"] });
+	});
+
+	it("checks identity and source changes even when the canonical revision stays the same", async () => {
+		let received: unknown;
+		const client = createFakeClient((command) => { received = command; return {}; });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		const expected = { revision: 4, contentLocation: "s3://content/old.html", displayUrl: URL, contentSourceUrl: "https://archive.today/short", sourceOriginalUrl: URL };
+		await store.save({ article: buildArticle(), writes: ["metadata", "crawl"], canonicalCommit: { expected, contentLocation: "s3://content/new.html", candidateId: CandidateIdSchema.parse("new"), originalUrl: URL, tier: "tier-1" } });
+		const command = capturedCommand(received).input;
+		expect(command.ConditionExpression).toContain("displayUrl = :expected_displayUrl");
+		expect(command.ConditionExpression).toContain("sourceOriginalUrl = :expected_sourceOriginalUrl");
+		expect(command.ConditionExpression).toContain("contentSourceUrl = :expected_contentSourceUrl");
+		expect(command.ExpressionAttributeValues?.[":nextSelectionRevision"]).toBe(5);
+	});
+
+	it("guards no-readable terminalization and propagates a lost race", async () => {
+		let received: unknown;
+		const client = createFakeClient((command) => { received = command; throw new ConditionalCheckFailedException({ $metadata: {}, message: "new readable candidate committed" }); });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		await expect(store.save({ article: buildArticle({ crawl: { kind: "failed", reason: { kind: "parse-error", detail: "no readable article" } } }), writes: ["crawl"], selectionExpected: { snapshot: undefined } })).rejects.toThrow("new readable candidate committed");
+		expect(capturedCommand(received).input.ConditionExpression).toContain("attribute_not_exists(contentLocation)");
+	});
+	it.each([
+		{ name: "a canonical commit", guard: { canonicalCommit: { expected: undefined, contentLocation: "s3://content/late.html", candidateId: CandidateIdSchema.parse("late"), originalUrl: URL, tier: "tier-1" as const } } },
+		{ name: "a no-readable terminalization", guard: { selectionExpected: { snapshot: undefined } } },
+	])("treats $name against a tombstoned row as a no-op", async ({ guard }) => {
+		let received: unknown;
+		const client = createFakeClient((command) => { received = command; throw new ConditionalCheckFailedException({ $metadata: {}, message: "row purged", Item: { purgedAt: { S: "2026-10-05T00:00:00Z" } } }); });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		await expect(store.save({ article: buildArticle(), writes: ["crawl"], ...guard })).resolves.toBeUndefined();
+		expect(z.object({ input: z.object({ ReturnValuesOnConditionCheckFailure: z.literal("ALL_OLD") }) }).safeParse(received).success).toBe(true);
+	});
+
+	it("propagates a lost selection race on a live row", async () => {
+		const client = createFakeClient(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "selection changed", Item: { contentSelectionRevision: { N: "2" } } }); });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		await expect(store.save({ article: buildArticle(), writes: ["crawl"], selectionExpected: { snapshot: undefined } })).rejects.toThrow("selection changed");
+	});
+
+	it("loads an identity-only legacy snapshot without inventing a canonical candidate", async () => {
+		const client = createFakeClient(() => ({ Item: { displayUrl: URL } }));
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		expect((await store.load(URL))?.contentSelection).toMatchObject({ displayUrl: URL });
+		expect((await store.load(URL))?.contentSelection?.revokedCandidateIds).toBeUndefined();
+	});
+
+	it("saves only metadata without removing independently owned lifecycle state", async () => {
+		let received: unknown;
+		const client = createFakeClient((command) => { received = command; return {}; });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		await store.save({ article: buildArticle(), writes: ["metadata"] });
+		const command = capturedCommand(received).input;
+		expect(command.UpdateExpression).toBe("SET title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, estimatedReadTime = :ert, imageUrl = :img");
+	});
+
 });

@@ -24,7 +24,7 @@ function createSqsEvent(detail: { url: string; userId: string }): SQSEvent {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
+			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", sourceUrl: detail.url, sourceOriginalUrl: detail.url, ...detail } }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -67,7 +67,9 @@ type HandlerDeps = Parameters<typeof initSaveLinkRawPdfCommandHandler>[0];
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	const deps: HandlerDeps = {
-		readPendingPdf: jest.fn().mockResolvedValue(PDF_MAGIC_BYTES),
+		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
+		resolveOriginalUrl: async (url) => url,
+		readPendingPdf: jest.fn().mockResolvedValue({ bytes: PDF_MAGIC_BYTES, capturedAt: "2026-10-01T00:00:00.000Z" }),
 		extractPdf: successfulExtractPdf,
 		parseHtml: successfulParse,
 		downloadMedia: noopDownloadMedia,
@@ -99,12 +101,12 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 			() => {},
 		);
 
-		expect(deps.readPendingPdf).toHaveBeenCalledWith("https://example.com/x.pdf");
-		expect(deps.putTierSource).toHaveBeenCalledWith({
+		expect(deps.readPendingPdf).toHaveBeenCalledWith("https://example.com/x.pdf", { saveAttemptId: "attempt-1" });
+		expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 			url: "https://example.com/x.pdf",
 			tier: "tier-0",
 			html: "<p>PDF content</p>",
-			metadata: {
+			metadata: expect.objectContaining({
 				title: "Test PDF",
 				siteName: "example.com",
 				excerpt: "test",
@@ -112,14 +114,13 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 				estimatedReadTime: 1,
 				imageUrl: undefined,
 				authorUserId: "user-1",
-			},
-		});
-		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			}),
+		}));
+		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
 			url: "https://example.com/x.pdf",
-			tier: "tier-0",
 			userId: "user-1",
 			extractedAt: "2026-04-18T12:00:00.000Z",
-		});
+		}));
 	});
 
 	it("writes the tier-0 source before publishing TierContentExtractedEvent", async () => {

@@ -16,13 +16,16 @@ export {
 	initSubmitFreshness,
 	type SubmitFreshnessDependencies,
 } from "./submit-freshness";
+export {
+	initRefreshWithSaveIdentity,
+	type RefreshWithSaveIdentityDependencies,
+} from "./refresh-with-save-identity";
 export { initResolveCanonicalIdentity } from "./resolve-canonical-identity";
 export {
 	cleanWrapperTarget,
 	initResolveSaveIdentity,
 	type ResolveSaveIdentity,
 	type ResolveSaveIdentityDependencies,
-	type SaveIdentity,
 } from "./resolve-save-identity";
 export {
 	WRAPPER_RESOLVE_BUDGETS,
@@ -36,6 +39,7 @@ export {
 	type StartAnonymousCrawlDependencies,
 } from "./start-anonymous-crawl";
 export { withSyntacticUnwrap } from "./with-syntactic-unwrap";
+export { initVerifyWrapperSource, type VerifyWrapperSource } from "./verify-wrapper-source";
 export { rankNewLinksAbove } from "./rank-new-links-above";
 export {
 	bindArticleStoreToReadlist,
@@ -58,3 +62,5 @@ export {
 	type AddArticleToReadlist,
 	type AddArticleToReadlistDependencies,
 } from "./add-article-to-readlist";
+
+export { initPrepareArticleIdentity, type PrepareArticleIdentity } from "./prepare-article-identity";

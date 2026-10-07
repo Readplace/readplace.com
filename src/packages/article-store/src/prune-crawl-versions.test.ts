@@ -143,3 +143,15 @@ describe("initPruneCrawlVersions", () => {
 		expect(updated).toBe(false);
 	});
 });
+
+it("does not mistake a stale replica with no version log for completed pruning", async () => {
+	const minuteId = "2026-10-05T12:00Z";
+	const current = [{ minuteId, authorUserId: "alice", candidateId: "removed" }];
+	let update: Record<string, unknown> | undefined;
+	const client = { send: async (command: { input: Record<string, unknown> }) => {
+		if (command.input.UpdateExpression !== undefined) { update = command.input; return {}; }
+		return { Item: command.input.ConsistentRead === true ? { crawlVersions: current } : {} };
+	} } as unknown as DynamoDBDocumentClient;
+	await initPruneCrawlVersions({ client, tableName: TABLE }).pruneCrawlVersions({ url: URL, minuteIds: [minuteId] });
+	expect(update?.ExpressionAttributeValues).toEqual({ ":old": current, ":next": [] });
+});

@@ -1,4 +1,11 @@
-import { ArticleResourceUniqueId, toCrawlVersionMinuteId } from "./index";
+import { ArticleResourceUniqueId, canonicalIdentityOf, toCrawlVersionMinuteId } from "./index";
+
+describe("canonicalIdentityOf", () => {
+	it("gives equivalent hosts of one article the same identity", () => {
+		expect(canonicalIdentityOf("https://twitter.com/jack/status/20")).toBe("x.com/jack/status/20");
+		expect(canonicalIdentityOf("http://x.com/jack/status/20#m")).toBe("x.com/jack/status/20");
+	});
+});
 
 describe("ArticleResourceUniqueId.parse", () => {
 	it("strips https scheme", () => {
@@ -116,33 +123,52 @@ describe("ArticleResourceUniqueId.toString", () => {
 });
 
 describe("ArticleResourceUniqueId.toS3PendingHtmlKey", () => {
-	it("produces the canonical S3 pending-html key", () => {
-		expect(ArticleResourceUniqueId.parse("https://example.com/blog/post").toS3PendingHtmlKey())
-			.toBe("pending-html/example.com%2Fblog%2Fpost.html");
+	it("produces the attempt-scoped S3 pending-html key", () => {
+		expect(ArticleResourceUniqueId.parse("https://example.com/blog/post").toS3PendingHtmlKey("attempt-a"))
+			.toBe("pending-html/example.com%2Fblog%2Fpost/attempt-a.html");
 	});
 
 	it("encodes colon in port", () => {
-		expect(ArticleResourceUniqueId.parse("https://example.com:8080/path").toS3PendingHtmlKey())
-			.toBe("pending-html/example.com%3A8080%2Fpath.html");
+		expect(ArticleResourceUniqueId.parse("https://example.com:8080/path").toS3PendingHtmlKey("attempt-a"))
+			.toBe("pending-html/example.com%3A8080%2Fpath/attempt-a.html");
+	});
+
+	it("encodes reserved characters in the attempt", () => {
+		expect(ArticleResourceUniqueId.parse("https://example.com/article").toS3PendingHtmlKey("attempt/with?reserved#characters"))
+			.toBe("pending-html/example.com%2Farticle/attempt%2Fwith%3Freserved%23characters.html");
 	});
 
 	it("matches between write and read sides for the same URL regardless of scheme", () => {
-		const write = ArticleResourceUniqueId.parse("https://example.com/article").toS3PendingHtmlKey();
-		const read = ArticleResourceUniqueId.parse("http://example.com/article").toS3PendingHtmlKey();
+		const write = ArticleResourceUniqueId.parse("https://example.com/article").toS3PendingHtmlKey("attempt-a");
+		const read = ArticleResourceUniqueId.parse("http://example.com/article").toS3PendingHtmlKey("attempt-a");
 		expect(write).toBe(read);
 	});
 });
 
 describe("ArticleResourceUniqueId.toS3PendingPdfKey", () => {
-	it("produces the canonical S3 pending-pdf key", () => {
-		expect(ArticleResourceUniqueId.parse("https://example.com/doc.pdf").toS3PendingPdfKey())
-			.toBe("pending-pdf/example.com%2Fdoc.pdf.pdf");
+	it("produces the attempt-scoped S3 pending-pdf key", () => {
+		expect(ArticleResourceUniqueId.parse("https://example.com/doc.pdf").toS3PendingPdfKey("attempt-a"))
+			.toBe("pending-pdf/example.com%2Fdoc.pdf/attempt-a.pdf");
 	});
 
 	it("matches between write and read sides for the same URL regardless of scheme", () => {
-		const write = ArticleResourceUniqueId.parse("https://example.com/doc.pdf").toS3PendingPdfKey();
-		const read = ArticleResourceUniqueId.parse("http://example.com/doc.pdf").toS3PendingPdfKey();
+		const write = ArticleResourceUniqueId.parse("https://example.com/doc.pdf").toS3PendingPdfKey("attempt-a");
+		const read = ArticleResourceUniqueId.parse("http://example.com/doc.pdf").toS3PendingPdfKey("attempt-a");
 		expect(write).toBe(read);
+	});
+});
+
+describe("ArticleResourceUniqueId.toS3RefreshHtmlKey", () => {
+	it("produces the attempt-scoped S3 refresh-html key", () => {
+		expect(ArticleResourceUniqueId.parse("https://example.com/article").toS3RefreshHtmlKey("attempt-a"))
+			.toBe("refresh-html/example.com%2Farticle/attempt-a.html");
+	});
+});
+
+describe("ArticleResourceUniqueId.toS3RefreshEvaluationHtmlKey", () => {
+	it("stages the raw response beside the attempt's refresh-html object", () => {
+		expect(ArticleResourceUniqueId.parse("https://example.com/article").toS3RefreshEvaluationHtmlKey("attempt-a"))
+			.toBe("refresh-html/example.com%2Farticle/attempt-a.html.evaluation");
 	});
 });
 
@@ -186,6 +212,16 @@ describe("ArticleResourceUniqueId key-family prefixes", () => {
 		expect(id.toS3SourcesPrefix()).toBe("articles/example.com%2Fblog%2Fpost/sources/");
 		expect(id.toS3SourceKey({ tier: "tier-0" }).startsWith(id.toS3SourcesPrefix())).toBe(true);
 		expect(id.toS3SourceMetadataKey({ tier: "tier-1" }).startsWith(id.toS3SourcesPrefix())).toBe(true);
+	});
+
+	it("toS3CandidatesPrefix sits beside its tier source", () => {
+		const id = ArticleResourceUniqueId.parse("https://example.com/blog/post");
+		expect(id.toS3CandidatesPrefix({ tier: "tier-0" })).toBe("articles/example.com%2Fblog%2Fpost/sources/tier-0.html.candidates/");
+	});
+
+	it("toS3MediaOwnersPrefix sits under the sources prefix", () => {
+		const id = ArticleResourceUniqueId.parse("https://example.com/blog/post");
+		expect(id.toS3MediaOwnersPrefix()).toBe("articles/example.com%2Fblog%2Fpost/sources/media-owners/");
 	});
 
 	it("toS3ContentVersionsPrefix covers every dated snapshot", () => {
@@ -239,9 +275,9 @@ describe("ArticleResourceUniqueId S3 keys for over-long URLs", () => {
 		const keys = [
 			id.toS3ContentKey(),
 			id.toS3ImageKey("0123456789abcdef.webp"),
-			id.toS3PendingHtmlKey(),
-			id.toS3PendingPdfKey(),
-			id.toS3RefreshHtmlKey(),
+			id.toS3PendingHtmlKey("attempt-a"),
+			id.toS3PendingPdfKey("attempt-a"),
+			id.toS3RefreshHtmlKey("attempt-a"),
 			id.toS3SourceKey({ tier: "tier-0" }),
 			id.toS3ContentVersionKey({ minuteId: "2026-07-10T09:41Z" }),
 			id.toS3ImagePrefix(),

@@ -1636,6 +1636,28 @@ describe("Siren readlists", () => {
 		]);
 	});
 
+	it("queues an unresolved wrapper for every ticked readlist under one save attempt", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const { readlist, recipes, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+			email: "readlists-queue-unresolved@example.com",
+		});
+
+		const queued = await saveThrough(harness, {
+			accessToken,
+			path: "/queue",
+			url: "https://archive.ph/abc",
+			queues: [hrefs[WORK_LABEL], hrefs[RECIPES_LABEL]],
+		});
+
+		expect(queued.status).toBe(409);
+		const { submitLinks } = fixture.submitLink;
+		expect(submitLinks.map((link) => link.readlist).sort()).toEqual(["default", readlist, recipes].sort());
+		expect(submitLinks.map((link) => link.url)).toEqual(Array(3).fill("https://archive.ph/abc"));
+		expect(typeof submitLinks[0].saveAttemptId).toBe("string");
+		expect(submitLinks.map((link) => link.saveAttemptId)).toEqual(Array(3).fill(submitLinks[0].saveAttemptId));
+	});
+
 	it("leaves the reader's other readlists alone when the save names no queues", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { readlist, recipes, accessToken } = await readerWithTwoReadlists(harness, {

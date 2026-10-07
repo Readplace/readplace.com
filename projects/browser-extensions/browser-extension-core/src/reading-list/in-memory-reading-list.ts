@@ -85,6 +85,7 @@ export function initInMemoryReadingList(): {
 			}
 		}
 		return {
+			queued: 0,
 			saved,
 			skipped: skippedUrls.length,
 			failed: 0,

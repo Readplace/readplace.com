@@ -66,6 +66,7 @@ export function summarizeBulkSave(params: {
 	if (params.result.alreadySaved > 0) summary += ` · Already in readlist ${params.result.alreadySaved}`;
 	summary += ` · Skipped ${skipped}`;
 	if (params.result.failed > 0) summary += ` · Failed ${params.result.failed}`;
+	if (params.result.queued > 0) summary += ` · Queued ${params.result.queued}`;
 	if (params.result.pendingRetry > 0) summary += ` · Retrying ${params.result.pendingRetry}`;
 	const tooBig =
 		params.result.tooBig.length > 0

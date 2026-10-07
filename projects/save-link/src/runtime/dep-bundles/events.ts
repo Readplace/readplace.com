@@ -1,3 +1,4 @@
+import type { SaveAttemptId } from "@packages/domain/article";
 import type { SQSClient } from "@aws-sdk/client-sqs";
 import {
 	type EventBridgeClient,
@@ -10,6 +11,7 @@ import {
 	SimpleCrawlUnsupportedEvent,
 	GenerateSummaryCommand,
 } from "@packages/hutch-infra-components";
+import type { CandidateReference } from "../domain/select-content/list-available-tier-sources";
 
 export type DispatchGenerateSummary = DispatchCommand<typeof GenerateSummaryCommand>;
 
@@ -29,6 +31,8 @@ export type EmitSimpleCrawlUnsupported = (params: {
 	recrawl?: boolean;
 	refresh?: boolean;
 	previousBodyHash?: string;
+	saveAttemptId: SaveAttemptId;
+	candidates?: CandidateReference[];
 }) => Promise<void>;
 
 export type EventsDepBundle = {
@@ -60,12 +64,14 @@ export function initEventsDepBundle(deps: {
 export function initEmitSimpleCrawlUnsupported(deps: {
 	publishEvent: PublishEvent;
 }): EmitSimpleCrawlUnsupported {
-	return ({ url, userId, recrawl, refresh, previousBodyHash }) =>
+	return ({ url, userId, recrawl, refresh, previousBodyHash, saveAttemptId, candidates }) =>
 		deps.publishEvent(SimpleCrawlUnsupportedEvent, {
 			url,
 			userId,
 			recrawl,
 			refresh,
 			previousBodyHash,
+			saveAttemptId,
+			candidates,
 		});
 }

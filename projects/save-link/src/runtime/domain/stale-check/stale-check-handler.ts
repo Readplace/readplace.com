@@ -1,3 +1,5 @@
+import assert from "node:assert";
+import type { SaveAttemptId } from "@packages/domain/article";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
@@ -22,6 +24,7 @@ import type {
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
+import type { PrepareArticleIdentity } from "@packages/save-article";
 import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-reason";
 
 /**
@@ -37,8 +40,7 @@ import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-rea
  *   - `"new"`             — row missing; re-published SaveAnonymousLinkCommand.
  *   - `"skip"`            — within TTL, terminal state, or parse failure. No
  *                           downstream effect.
- *   - `"backoff"`         — the refresh fetch failed (cert error, redirect,
- *                           bot block); reset the freshness clock so the next
+ *   - `"backoff"`         — reset the freshness clock so the next
  *                           attempt waits a full TTL instead of re-firing on
  *                           every /view.
  *   - `"unchanged"`       — 304 Not Modified; published UpdateFetchTimestamp.
@@ -61,6 +63,7 @@ const logPrefix = "[StaleCheckRequested]";
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initStaleCheckHandler(deps: {
 	findArticleFreshness: FindArticleFreshness;
+	prepareArticleIdentity: PrepareArticleIdentity;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
 	publishRefreshArticleContent: PublishRefreshArticleContent;
@@ -71,6 +74,7 @@ export function initStaleCheckHandler(deps: {
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
 	now: () => Date;
+	newSaveAttemptId: () => SaveAttemptId;
 	staleTtlMs: number;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -86,6 +90,7 @@ export function initStaleCheckHandler(deps: {
 		loadArticle,
 		transitionAndPersist,
 		now,
+		newSaveAttemptId,
 		staleTtlMs,
 		logger,
 	} = deps;
@@ -102,8 +107,22 @@ export function initStaleCheckHandler(deps: {
 			if (now().getTime() - fetchedAt < staleTtlMs) return "skip";
 		}
 
+		const identity = await deps.prepareArticleIdentity(url);
+		if (identity.status === "unresolved") {
+			await publishUpdateFetchTimestamp({
+				url,
+				contentFetchedAt: now().toISOString(),
+				bodyHash: freshness.bodyHash,
+			});
+			return "backoff";
+		}
+		const originalUrl = identity.originalUrl;
+		const saveAttemptId = newSaveAttemptId();
+		const fetchedAt = now().toISOString();
 		const result = await crawlAndFinalizeArticle({
-			url,
+			writeContext: { url, attemptId: saveAttemptId },
+			url: originalUrl,
+			includeEvaluationHtml: true,
 			etag: freshness.etag,
 			lastModified: freshness.lastModified,
 			previousBodyHash: freshness.bodyHash,
@@ -156,17 +175,23 @@ export function initStaleCheckHandler(deps: {
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
 			await emitSimpleCrawlUnsupported({
 				url,
+				saveAttemptId,
 				refresh: true,
 				previousBodyHash: freshness.bodyHash,
 			});
 			return "tier-1-deferred";
 		}
 
+		assert(result.evaluationHtml !== undefined, "stale-check crawl must include the evaluation html");
 		/* Fields mapped explicitly: estimatedReadTime is a sibling field in the
 		 * event payload, not inside metadata — spreading would leak it in. */
 		await publishRefreshArticleContent({
 			url,
+			saveAttemptId,
 			html: result.article.html,
+			evaluationHtml: result.evaluationHtml,
+			sourceOriginalUrl: originalUrl,
+			sourceUrl: result.finalUrl ?? originalUrl,
 			metadata: {
 				title: result.article.metadata.title,
 				siteName: result.article.metadata.siteName,
@@ -177,7 +202,7 @@ export function initStaleCheckHandler(deps: {
 			estimatedReadTime: result.article.metadata.estimatedReadTime,
 			etag: result.etag,
 			lastModified: result.lastModified,
-			contentFetchedAt: now().toISOString(),
+			contentFetchedAt: fetchedAt,
 			bodyHash: result.bodyHash,
 		});
 		return "refreshed";
@@ -196,7 +221,7 @@ export function initStaleCheckHandler(deps: {
 				const action = await checkAndRefresh(detail.url);
 
 				if (action === "new") {
-					await publishSaveAnonymousLink({ url: detail.url });
+					await publishSaveAnonymousLink({ url: detail.url, saveAttemptId: newSaveAttemptId() });
 					logger.info(`${logPrefix} re-published SaveAnonymousLinkCommand`, {
 						url: detail.url,
 						action,

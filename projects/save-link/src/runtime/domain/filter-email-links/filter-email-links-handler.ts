@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { newSaveAttemptId } from "@packages/domain/article";
 import type {
 	Handler,
 	SQSBatchItemFailure,
@@ -131,6 +132,7 @@ export function initFilterEmailLinksHandler(deps: {
 						userId,
 						provenance: { kind: "email", senderEmail: detail.senderEmail },
 						readlist: outcome.savedTo,
+						saveAttemptId: newSaveAttemptId(),
 					});
 				}
 				await publishEvent(EmailLinksFilteredEvent, {

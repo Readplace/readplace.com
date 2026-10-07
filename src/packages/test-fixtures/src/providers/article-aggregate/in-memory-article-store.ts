@@ -33,7 +33,23 @@ export function initInMemoryArticleStore(): ArticleStore & {
 			if (!stored) return undefined;
 			return { ...stored, url };
 		},
-		save: async ({ article, writes }) => {
+		save: async ({ article, writes, canonicalCommit, selectionExpected }) => {
+			const current = rows.get(key(article.url));
+			const expected = canonicalCommit === undefined ? selectionExpected : { snapshot: canonicalCommit.expected };
+			if (expected !== undefined) {
+				for (const field of ["revision", "contentLocation", "displayUrl", "contentSourceUrl", "sourceOriginalUrl"] as const) {
+					if (current?.contentSelection?.[field] !== expected.snapshot?.[field]) throw new Error("content selection changed");
+				}
+			}
+			if (canonicalCommit !== undefined) {
+				article = { ...article, contentSelection: {
+					...current?.contentSelection,
+					revision: (current?.contentSelection?.revision ?? 0) + 1,
+					contentLocation: canonicalCommit.contentLocation,
+					candidateId: canonicalCommit.candidateId,
+					tier: canonicalCommit.tier,
+				} };
+			}
 			savedCalls.push({ article, writes });
 			rows.set(key(article.url), article);
 		},

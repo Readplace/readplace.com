@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { HutchLogger } from "@packages/hutch-logger";
 import { initInMemoryRefreshArticleContent } from "./in-memory-refresh-article-content";
 
@@ -17,6 +18,10 @@ describe("initInMemoryRefreshArticleContent", () => {
 
 		await publishRefreshArticleContent({
 			url: "https://example.com/article",
+			saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
+			sourceUrl: "https://example.com/article",
+			sourceOriginalUrl: "https://example.com/article",
+			evaluationHtml: "<p>hello</p>",
 			html: "<p>hello</p>",
 			metadata: {
 				title: "Example",

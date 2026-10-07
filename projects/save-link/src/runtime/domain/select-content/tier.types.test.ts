@@ -2,8 +2,8 @@ import { ReaderViewLoadingSucceeded, TierContentExtractedEvent } from "@packages
 import { KNOWN_TIERS } from "./tier.types";
 
 describe("content tiers on the wire", () => {
-	it("lets the tier-extracted event carry every tier the selector judges", () => {
-		expect(TierContentExtractedEvent.detailSchema.shape.tier.options).toEqual(KNOWN_TIERS);
+	it("lets the tier-extracted event carry a candidate of every tier the selector judges", () => {
+		expect(TierContentExtractedEvent.detailSchema.shape.candidates.element.shape.tier.options).toEqual(KNOWN_TIERS);
 	});
 
 	it("lets the reader-view event report every tier the selector can promote", () => {

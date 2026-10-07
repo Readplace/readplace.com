@@ -1,5 +1,4 @@
 import { MinutesSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
 import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from "@packages/save-article";
 import type { PublishLinkQueued, PublishLinkSaved, PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import { useTestServer, loginAgent } from "../../../test-app";
@@ -19,11 +18,11 @@ function createHarness() {
 		findArticleByUrl: fixture.articleStore.findArticleByUrl,
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		resolveSaveIdentity: initResolveSaveIdentity({
+			validateUrl: fixture.shared.validateSaveableUrl,
 			findIdentityRow: fixture.articleStore.findIdentityRow,
 			claimAlias: fixture.articleStore.claimAlias,
 			resolveWrapperTarget: neverResolveWrapperTarget,
 			now: () => new Date(),
-			logger: noopLogger,
 		}),
 		publishStaleCheckRequested: async (params) => {
 			staleChecks.push(params);
@@ -58,10 +57,10 @@ describe("Saving an archive capture", () => {
 		expect(await fixture.articleStore.findContentSourceUrl(ORIGINAL)).toBe(WAYBACK);
 		expect(await fixture.articleCrawl.findArticleCrawlStatus(ORIGINAL)).toEqual({ status: "pending" });
 		expect(linkSaves).toEqual([
-			{ url: ORIGINAL, userId: expect.any(String) },
-			{ url: ORIGINAL, userId: expect.any(String), captureUrl: WAYBACK },
+			{ url: ORIGINAL, userId: expect.any(String), captureUrl: WAYBACK, sourceOriginalUrl: ORIGINAL, saveAttemptId: expect.any(String) },
 		]);
 		expect(linkQueued).toEqual([{ url: WAYBACK, userId: expect.any(String) }]);
+		expect(response.headers["x-readplace-save-attempt-id"]).toBe(linkSaves[0].saveAttemptId);
 	});
 
 	it("keys a Wayback calendar URL on the original and records the latest capture, without any network", async () => {
@@ -74,7 +73,7 @@ describe("Saving an archive capture", () => {
 
 		expect(await fixture.articleStore.findArticleByUrl(calendar)).toBeNull();
 		expect(await fixture.articleStore.findContentSourceUrl(ORIGINAL)).toBe(timegate);
-		expect(linkSaves).toContainEqual({ url: ORIGINAL, userId: expect.any(String), captureUrl: timegate });
+		expect(linkSaves).toContainEqual({ url: ORIGINAL, userId: expect.any(String), captureUrl: timegate, sourceOriginalUrl: ORIGINAL, saveAttemptId: expect.any(String) });
 	});
 
 	it("keys a new save on the original even when an earlier save left a card on the archive URL", async () => {
@@ -117,7 +116,42 @@ describe("Saving an archive capture", () => {
 
 		expect(await fixture.articleCrawl.findArticleCrawlStatus(ORIGINAL)).toEqual({ status: "ready" });
 		expect(await fixture.articleStore.findContentSourceUrl(ORIGINAL)).toBe(WAYBACK);
-		expect(staleChecks).toEqual([{ url: ORIGINAL }]);
-		expect(linkSaves).toEqual([{ url: ORIGINAL, userId: expect.any(String), captureUrl: WAYBACK }]);
+		expect(staleChecks).toEqual([]);
+		expect(linkSaves).toEqual([{ url: ORIGINAL, userId: expect.any(String), captureUrl: WAYBACK, sourceOriginalUrl: ORIGINAL, saveAttemptId: expect.any(String) }]);
 	});
+});
+
+
+it.each(["https://archive.ph/abc", "https://web.archive.org/about", "https://apple.news/story"])("queues an unresolved wrapper without creating article state: %s", async (url) => {
+	const { fixture, harness, linkSaves, linkQueued } = createHarness();
+	const agent = await loginAgent(harness.server, harness.auth);
+	const response = await agent.post("/queue/save").type("form").send({ url });
+	expect(response.status).toBe(303);
+	expect(response.headers.location).toBe("/queue?queue_error=save_queued");
+	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url, saveAttemptId: expect.any(String) })]);
+	expect(response.headers["x-readplace-save-attempt-id"]).toBe(fixture.submitLink.submitLinks[0].saveAttemptId);
+	expect(await fixture.articleStore.findArticleByUrl(url)).toBeNull();
+	expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toBeUndefined();
+	expect(linkSaves).toEqual([]);
+	expect(linkQueued).toEqual([]);
+});
+it("retains and retries a proven short capture on a repeated foreground save", async () => {
+	const { fixture, harness, linkSaves } = createHarness();
+	const short = "https://archive.ph/abc";
+	await fixture.articleStore.claimAlias({ aliasUrl: short, targetOriginalUrl: ORIGINAL, sourceBinding: { contentSourceUrl: short, sourceOriginalUrl: ORIGINAL }, now: new Date() });
+	const agent = await loginAgent(harness.server, harness.auth);
+	await agent.post("/queue/save").type("form").send({ url: short });
+	await fixture.articleCrawl.markCrawlReady({ url: ORIGINAL });
+	await agent.post("/queue/save").type("form").send({ url: short });
+	expect(linkSaves).toEqual([0, 1].map(() => ({ url: ORIGINAL, userId: expect.any(String), captureUrl: short, sourceOriginalUrl: ORIGINAL, saveAttemptId: expect.any(String) })));
+	expect(linkSaves[0].saveAttemptId).not.toBe(linkSaves[1].saveAttemptId);
+	expect(fixture.submitLink.submitLinks).toEqual([]);
+});
+it("never associates an outbound link with its referring capture", async () => {
+	const { fixture, harness, linkSaves } = createHarness();
+	const outbound = `https://archive.ph/o/abc/${ORIGINAL}`;
+	const agent = await loginAgent(harness.server, harness.auth);
+	await agent.post("/queue/save").type("form").send({ url: outbound });
+	expect(await fixture.articleStore.findContentSourceUrl(ORIGINAL)).toBeUndefined();
+	expect(linkSaves).toEqual([{ url: ORIGINAL, userId: expect.any(String), saveAttemptId: expect.any(String) }]);
 });

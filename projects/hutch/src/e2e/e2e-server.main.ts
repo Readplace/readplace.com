@@ -285,11 +285,11 @@ const eventLogger = getEnv('CI') === 'true' ? noopLogger : logger
 const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: eventLogger })
 const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: eventLogger })
 const resolveSaveIdentity = initResolveSaveIdentity({
+	validateUrl: e2eValidateSaveableUrl,
 	findIdentityRow: fixture.articleStore.findIdentityRow,
 	claimAlias: fixture.articleStore.claimAlias,
 	resolveWrapperTarget: neverResolveWrapperTarget,
 	now: () => new Date(),
-	logger: eventLogger,
 })
 
 const applyParseResult = createFakeApplyParseResult({
@@ -311,7 +311,11 @@ const SAVE_PIPELINES = {
 			parseHtml,
 			publishRefreshArticleContent,
 			publishUpdateFetchTimestamp,
-			resolveCanonicalIdentity: async (url) => (await resolveSaveIdentity(url)).url,
+			resolveCanonicalIdentity: async (url) => {
+				const identity = await resolveSaveIdentity(url);
+				assert(identity.status === "resolved", "The wrapper original could not be resolved");
+				return { url: identity.url, originalUrl: identity.originalUrl };
+			},
 			now: () => new Date(),
 			staleTtlMs: 0,
 		}).refreshArticleIfStale,

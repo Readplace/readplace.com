@@ -29,6 +29,11 @@ export {
 	MAX_BULK_PAGE_CONTENT_BYTES,
 	MinutesSchema,
 	ArticleStatusSchema,
+	SaveAttemptIdSchema,
+	newSaveAttemptId,
+	type SaveAttemptId,
+	CandidateIdSchema,
+	type CandidateId,
 } from "./article.schema";
 export {
 	MAX_SAVEABLE_URL_LENGTH,
@@ -56,14 +61,12 @@ export { isBlockedIpAddress } from "./blocked-address";
 export { isNonArticleHost } from "./non-article-host";
 export {
 	isArchiveHost,
+	isWrapperUrl,
 	stripRedirectAddedParams,
 	unwrapWrapperUrl,
 	wrapperFamilyOf,
-	wrapperResolutionOf,
-	isUnresolvedArchiveCapture,
 	type UnwrappedUrl,
 	type WrapperFamily,
-	type WrapperResolution,
 } from "./wrapper-url";
 export { calculateReadTime } from "./estimated-read-time";
 export {

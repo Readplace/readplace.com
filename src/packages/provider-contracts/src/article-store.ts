@@ -372,31 +372,39 @@ export type ListUserSavesForUrls = (params: {
 	readlists?: readonly ReadlistSlug[];
 }) => Promise<Map<string, { readlist?: ReadlistSlug }[]>>;
 
+export type WrapperSourceBinding = { contentSourceUrl: string; sourceOriginalUrl: string };
+
 export type IdentityRow =
 	| { kind: "absent" }
-	| { kind: "article" }
-	| { kind: "alias"; targetUrl: string };
+	| { kind: "article"; originalUrl?: string; sourceBinding?: WrapperSourceBinding }
+	| { kind: "alias"; targetUrl: string; sourceBinding?: WrapperSourceBinding };
 
 export type FindIdentityRow = (url: string) => Promise<IdentityRow>;
 
 /**
  * First-writer-wins claim of `id(aliasUrl) → targetOriginalUrl`.
- * `"claimed"` when this call created the marker; `"occupied"` when the identity
- * is already taken (by another alias OR a real article row) — the caller must
- * never overwrite either.
  */
 export type ClaimCanonicalAlias = (params: {
 	aliasUrl: string;
 	targetOriginalUrl: string;
 	now: Date;
-}) => Promise<"claimed" | "occupied">;
+	sourceBinding?: WrapperSourceBinding;
+}) => Promise<void>;
 
 export type PinContentSource = (params: {
 	articleUrl: string;
 	contentSourceUrl: string;
+	sourceOriginalUrl: string;
 }) => Promise<void>;
 
 /** The identity a save/view should operate on: the alias target when `url` is an
  * adopted terminal, else `url` unchanged. Depth-1 — an alias never points at
  * another alias, so one lookup is total. */
 export type ResolveCanonicalIdentity = (url: string) => Promise<string>;
+
+export type RepairWrapperIdentity = (params: {
+	articleUrl: string;
+	expectedOriginalUrl: string;
+	originalUrl: string;
+	contentSourceUrl?: string;
+}) => Promise<boolean>;

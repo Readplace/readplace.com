@@ -1,3 +1,4 @@
+import { CandidateIdSchema } from "@packages/domain/article";
 import { appendCrawlVersion } from "./crawl-versions";
 
 describe("appendCrawlVersion", () => {
@@ -25,6 +26,13 @@ describe("appendCrawlVersion", () => {
 			{ minuteId: "2026-07-09T08:00Z" },
 		];
 		const result = appendCrawlVersion(existing, { minuteId: "2026-07-10T09:41Z" });
+		expect(result.changed).toBe(false);
+		expect(result.next).toEqual(existing);
+	});
+
+	it("treats a later-minute re-record of an already recorded candidate as a no-op", () => {
+		const existing = [{ minuteId: "2026-07-10T09:41Z", candidateId: CandidateIdSchema.parse("candidate") }];
+		const result = appendCrawlVersion(existing, { minuteId: "2026-07-10T09:45Z", candidateId: CandidateIdSchema.parse("candidate") });
 		expect(result.changed).toBe(false);
 		expect(result.next).toEqual(existing);
 	});

@@ -242,6 +242,7 @@ const SirenWarningSchema = z.object({
 const SaveArticlesResultSchema = z.object({
 	properties: z.object({
 		saved: z.number(),
+		queued: z.number().default(0),
 		skipped: z.number(),
 		failed: z.number(),
 		tooBig: z.array(z.object({ url: z.string(), mb: z.number() })),
@@ -399,6 +400,7 @@ type BulkSaveLimits = { maxItems: number; maxBytes: number; requestBudget: numbe
 
 export type BulkChunkSummary = {
 	saved: number;
+	queued: number;
 	skipped: number;
 	failed: number;
 	tooBig: { url: string; mb: number }[];
@@ -1418,6 +1420,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	const savePages: SavePages = async ({ pages }) => {
 		const summary: BulkSaveResult = {
 			saved: 0,
+			queued: 0,
 			skipped: 0,
 			failed: 0,
 			tooBig: [],
@@ -1441,7 +1444,8 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			try {
 				const bulk = await session.sendChunk(request);
 				const results = bulk.results ?? [];
-				summary.saved += bulk.saved;
+				summary.saved += bulk.saved - bulk.queued;
+				summary.queued += bulk.queued;
 				summary.skipped += bulk.skipped;
 				summary.failed += bulk.failed;
 				summary.tooBig.push(...bulk.tooBig);

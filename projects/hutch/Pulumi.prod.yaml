@@ -104,7 +104,8 @@ config:
     4e72063954f1e2753ace07d4084dbfd1,
     d62e199d47a5b1d9c419c94ddf74d712,
     c6f587a1e604f02595c1032a764543d7,
-    342d72290cd7570617cc1f99d8e1bc30
+    342d72290cd7570617cc1f99d8e1bc30,
+    ec6d29487a6f2b8e4f55621c9b7ff280
   ]
   hutch:dynamodbOAuthOutcomesTable: hutch-oauth-refresh-outcomes-prod
   hutch:oauthTestGrants: []

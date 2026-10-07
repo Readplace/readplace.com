@@ -2,8 +2,10 @@ import type { ContentTier } from "@packages/article-state-types";
 import type { Article, ArticleMetadata } from "../article.types";
 import type { CanonicalImageUrl } from "../canonical-image-url";
 import type { Effect } from "../effects.types";
+import { isCanonicalCandidateRevoked } from "../content-selection.types";
 import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
+import { pendingSummary } from "./mark-summary-pending";
 
 export interface PromoteTierInput {
 	tier: ContentTier;
@@ -26,14 +28,6 @@ export interface PromoteTierInput {
 	userId?: string;
 }
 
-/* Selector promotion: writes metadata + freshness + crawl=ready and records the
- * new canonical hash. It does not touch the summary axis; instead it
- * announces `publish-canonical-content-changed` whenever the canonical tier
- * flipped OR the readable text changed (lazy backfill: a row with no prior hash
- * counts as changed). The `canonical-content-changed` subscriber owns summary
- * regeneration, so derived-artifact consumers attach without editing this
- * transition (OCP). `canonicalChanged` gates the user-facing notification
- * so a re-pick of the same tier does not re-fire link-saved. */
 export function promoteTier(
 	article: Article,
 	input: PromoteTierInput,
@@ -54,7 +48,9 @@ export function promoteTier(
 
 	const writes: AggregateField[] = ["metadata", "freshness", "crawl", ...available.writes];
 	const effects: Effect[] = [];
-	if (input.canonicalChanged || contentChanged) {
+	const summaryInvalidated = input.canonicalChanged || contentChanged || isCanonicalCandidateRevoked(article.contentSelection);
+	if (summaryInvalidated) {
+		writes.push("summary");
 		effects.push({ kind: "publish-canonical-content-changed", url: article.url });
 	}
 	effects.push({ kind: "publish-crawl-article-completed", url: article.url });
@@ -78,6 +74,7 @@ export function promoteTier(
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,
 		crawl: { kind: "ready" },
+		summary: summaryInvalidated ? pendingSummary(article, input.now) : article.summary,
 	};
 
 	return { article: next, effects, writes };

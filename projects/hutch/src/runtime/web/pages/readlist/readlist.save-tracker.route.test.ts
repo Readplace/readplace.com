@@ -1,4 +1,3 @@
-import { noopLogger } from "@packages/hutch-logger";
 import { MinutesSchema } from "@packages/domain/article";
 import { initResolveSaveIdentity, initSubmitFreshness } from "@packages/save-article";
 import type { PublishLinkQueued, PublishLinkSaved, PublishStaleCheckRequested } from "@packages/provider-contracts/events";
@@ -19,11 +18,11 @@ function createHarness() {
 		findArticleByUrl: fixture.articleStore.findArticleByUrl,
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		resolveSaveIdentity: initResolveSaveIdentity({
+			validateUrl: fixture.shared.validateSaveableUrl,
 			findIdentityRow: fixture.articleStore.findIdentityRow,
 			claimAlias: fixture.articleStore.claimAlias,
 			resolveWrapperTarget: fixture.wrapperTarget.resolveWrapperTarget,
 			now: () => new Date(),
-			logger: noopLogger,
 		}),
 		publishStaleCheckRequested: async (params) => {
 			staleChecks.push(params);
@@ -45,69 +44,68 @@ function createHarness() {
 	return { fixture, harness, staleChecks, linkSaves, linkQueued };
 }
 
+
 describe("Saving a newsletter click-tracker", () => {
-	it("keys the save on the publisher, aliases the tracker and announces the tracker as the queued link", async () => {
+	it("resolves the tracker in the request and keys the save on the publisher", async () => {
 		const { fixture, harness, linkSaves, linkQueued } = createHarness();
 		fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
 		const agent = await loginAgent(harness.server, harness.auth);
-
 		const response = await agent.post("/queue/save").type("form").send({ url: TRACKER });
-
 		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue#latest-saved");
 		expect(fixture.wrapperTarget.calls).toEqual([TRACKER]);
 		expect(await fixture.articleStore.findArticleByUrl(TRACKER)).toBeNull();
 		expect(await fixture.articleStore.findArticleByUrl(PUBLISHER)).not.toBeNull();
-		expect(await fixture.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "alias", targetUrl: PUBLISHER });
 		expect(await fixture.articleCrawl.findArticleCrawlStatus(PUBLISHER)).toEqual({ status: "pending" });
-		expect(linkSaves).toEqual([{ url: PUBLISHER, userId: expect.any(String) }]);
+		expect(linkSaves).toEqual([expect.objectContaining({ url: PUBLISHER, userId: expect.any(String) })]);
 		expect(linkQueued).toEqual([{ url: TRACKER, userId: expect.any(String) }]);
-		expect(fixture.publishedQueueEntryCreated).toEqual([{ url: PUBLISHER, userId: expect.any(String) }]);
+		expect(fixture.submitLink.submitLinks).toEqual([]);
 	});
-
 	it("resolves the tracker once — a second save finds the alias", async () => {
 		const { fixture, harness } = createHarness();
 		fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
 		const agent = await loginAgent(harness.server, harness.auth);
-
 		await agent.post("/queue/save").type("form").send({ url: TRACKER });
 		await agent.post("/queue/save").type("form").send({ url: TRACKER });
-
 		expect(fixture.wrapperTarget.calls).toEqual([TRACKER]);
 		expect(await fixture.articleStore.findArticleByUrl(TRACKER)).toBeNull();
 	});
-
-	it("attaches to the article a crawl already adopted the publisher into, never to the alias", async () => {
-		const { fixture, harness, linkSaves } = createHarness();
-		const firstWrapper = "https://leadershipintech.com/links/1/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11/email";
-		await fixture.articleStore.saveArticleGlobally({
-			url: firstWrapper,
-			metadata: { title: "T", siteName: "sqlite.org", excerpt: "", wordCount: 0 },
-			estimatedReadTime: MinutesSchema.parse(1),
-			savedAt: new Date(),
-		});
-		await fixture.articleCrawl.markCrawlReady({ url: firstWrapper });
-		await fixture.articleStore.claimAlias({ aliasUrl: PUBLISHER, targetOriginalUrl: firstWrapper, now: new Date() });
-		fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+	it("queues the tracker with a notice and writes no article when its target cannot be resolved", async () => {
+		const { fixture, harness, linkSaves, linkQueued } = createHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
-
 		const response = await agent.post("/queue/save").type("form").send({ url: TRACKER });
-
 		expect(response.status).toBe(303);
-		expect(await fixture.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "alias", targetUrl: firstWrapper });
-		expect(await fixture.articleStore.findArticleByUrl(PUBLISHER)).toBeNull();
-		expect(linkSaves).toEqual([]);
-	});
-
-	it("keeps the tracker as the identity when the target cannot be resolved", async () => {
-		const { fixture, harness, linkSaves } = createHarness();
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.post("/queue/save").type("form").send({ url: TRACKER });
-
-		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=save_queued");
 		expect(fixture.wrapperTarget.calls).toEqual([TRACKER]);
-		expect(await fixture.articleStore.findArticleByUrl(TRACKER)).not.toBeNull();
-		expect(await fixture.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "article" });
-		expect(linkSaves).toEqual([{ url: TRACKER, userId: expect.any(String) }]);
+		expect(await fixture.articleStore.findArticleByUrl(TRACKER)).toBeNull();
+		expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: TRACKER, saveAttemptId: expect.any(String) })]);
+		expect(linkSaves).toEqual([]);
+		expect(linkQueued).toEqual([]);
+	});
+	it("reuses a verified tracker mapping and retries its body on every save", async () => {
+		const { fixture, harness, linkSaves, linkQueued } = createHarness();
+		await fixture.articleStore.claimAlias({ aliasUrl: TRACKER, targetOriginalUrl: PUBLISHER, sourceBinding: { contentSourceUrl: TRACKER, sourceOriginalUrl: PUBLISHER }, now: new Date() });
+		const agent = await loginAgent(harness.server, harness.auth);
+		for (let count = 0; count < 2; count += 1) await agent.post("/queue/save").type("form").send({ url: TRACKER });
+		expect(fixture.wrapperTarget.calls).toEqual([]);
+		expect(await fixture.articleStore.findArticleByUrl(TRACKER)).toBeNull();
+		expect((await fixture.articleStore.findArticleByUrl(PUBLISHER))?.metadata.siteName).toBe("sqlite.org");
+		expect(linkSaves).toHaveLength(2);
+		expect(linkSaves).toEqual([expect.objectContaining({ url: PUBLISHER, captureUrl: TRACKER, sourceOriginalUrl: PUBLISHER }), expect.objectContaining({ url: PUBLISHER, captureUrl: TRACKER, sourceOriginalUrl: PUBLISHER })]);
+		expect(linkQueued).toEqual([{ url: TRACKER, userId: expect.any(String) }, { url: TRACKER, userId: expect.any(String) }]);
+	});
+	it("keeps the stable key of a previously adopted article and verifies the tracker against its original", async () => {
+		const { fixture, harness, linkSaves } = createHarness();
+		const owner = "https://leadershipintech.com/links/1/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11/email";
+		await fixture.articleStore.saveArticleGlobally({ url: owner, metadata: { title: "T", siteName: "sqlite.org", excerpt: "", wordCount: 0 }, estimatedReadTime: MinutesSchema.parse(1), savedAt: new Date() });
+		await fixture.articleStore.setDisplayUrl({ url: owner, displayUrl: PUBLISHER });
+		await fixture.articleCrawl.markCrawlReady({ url: owner });
+		await fixture.articleStore.claimAlias({ aliasUrl: PUBLISHER, targetOriginalUrl: owner, now: new Date() });
+		await fixture.articleStore.claimAlias({ aliasUrl: TRACKER, targetOriginalUrl: owner, sourceBinding: { contentSourceUrl: TRACKER, sourceOriginalUrl: PUBLISHER }, now: new Date() });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const response = await agent.post("/queue/save").type("form").send({ url: TRACKER });
+		expect(response.status).toBe(303);
+		expect(await fixture.articleStore.findArticleByUrl(PUBLISHER)).toBeNull();
+		expect(linkSaves).toEqual([expect.objectContaining({ url: owner, captureUrl: TRACKER, sourceOriginalUrl: PUBLISHER })]);
 	});
 });

@@ -1,195 +1,60 @@
-import assert from "node:assert/strict";
-import type { S3Client } from "@aws-sdk/client-s3";
+import { CandidateIdSchema } from "@packages/domain/article";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import { z } from "zod";
 import { initRecordCrawlVersion } from "./record-crawl-version";
 
-type DynamoSend = DynamoDBDocumentClient["send"];
-type S3Send = S3Client["send"];
+const cid = (id: string) => CandidateIdSchema.parse(id);
 
-const TABLE = "articles-table";
-const BUCKET = "content-bucket";
 const URL = "https://example.com/post";
 const CRAWLED_AT = "2026-07-10T09:41:32.123Z";
-const MINUTE_ID = "2026-07-10T09:41Z";
+const canonicalCommit = { expected: { revision: 4 }, candidateId: cid("candidate"), contentLocation: "s3://content/immutable-candidate/content.html", originalUrl: URL, tier: "tier-0" as const };
+const Input = z.object({ UpdateExpression: z.string(), ConditionExpression: z.string(), ExpressionAttributeValues: z.record(z.string(), z.unknown()) });
 
-interface CapturedCopy {
-	Bucket?: string;
-	Key?: string;
-	CopySource?: string;
-	MetadataDirective?: string;
+function setup(row: Record<string, unknown> | undefined, onUpdate: (input: z.infer<typeof Input>) => void = () => {}) {
+	const updates: z.infer<typeof Input>[] = [];
+	const client = { send: async (command: { input: Record<string, unknown> }) => {
+		if (command.input.UpdateExpression !== undefined) {
+			const input = Input.parse(command.input); updates.push(input); onUpdate(input); return {};
+		}
+		expect(command.input.ConsistentRead).toBe(true);
+		return { Item: row };
+	} } as unknown as DynamoDBDocumentClient;
+	return { ...initRecordCrawlVersion({ dynamoClient: client, tableName: "articles" }), updates };
 }
 
-interface CapturedUpdate {
-	UpdateExpression?: string;
-	ConditionExpression?: string;
-	ExpressionAttributeValues?: Record<string, unknown>;
-}
+const params = { url: URL, crawledAt: CRAWLED_AT, authorUserId: "alice", canonicalCommit };
 
-function createFakeS3(capture: (input: CapturedCopy) => void): Partial<S3Client> {
-	return {
-		send: (async (command: { input: CapturedCopy }) => {
-			capture(command.input);
-			return {};
-		}) as unknown as S3Send,
-	};
-}
-
-function createFakeDynamo(opts: {
-	getItem?: Record<string, unknown>;
-	captureUpdate?: (input: CapturedUpdate) => void;
-}): Partial<DynamoDBDocumentClient> {
-	return {
-		send: (async (command: { input: CapturedUpdate }) => {
-			if (command.input.UpdateExpression !== undefined) {
-				opts.captureUpdate?.(command.input);
-				return {};
-			}
-			return opts.getItem === undefined ? {} : { Item: opts.getItem };
-		}) as unknown as DynamoSend,
-	};
-}
-
-describe("initRecordCrawlVersion", () => {
-	it("snapshots the winning tier source into the per-minute version folder", async () => {
-		let copy: CapturedCopy | undefined;
-		const { recordCrawlVersion } = initRecordCrawlVersion({
-			s3Client: createFakeS3((input) => {
-				copy = input;
-			}) as S3Client,
-			dynamoClient: createFakeDynamo({ getItem: { crawlVersions: [] } }) as DynamoDBDocumentClient,
-			tableName: TABLE,
-			bucketName: BUCKET,
-		});
-
-		await recordCrawlVersion({ url: URL, tier: "tier-1", crawledAt: CRAWLED_AT });
-
-		assert(copy, "a CopyObject must be issued");
-		expect(copy.Bucket).toBe(BUCKET);
-		expect(copy.Key).toBe("content-versions/example.com%2Fpost/2026-07-10T09-41Z/content.html");
-		expect(copy.CopySource).toBe(
-			`${BUCKET}/${encodeURIComponent("articles/example.com%2Fpost/sources/tier-1.html")}`,
-		);
-		expect(copy.MetadataDirective).toBe("REPLACE");
+describe("immutable crawl version references", () => {
+	it("records the committed immutable body and capture identity while retaining legacy entries", async () => {
+		const { recordCrawlVersion, updates } = setup({ crawlVersions: ["2026-07-09T08:00Z"] });
+		await recordCrawlVersion(params);
+		expect(updates[0].ExpressionAttributeValues).toEqual({ ":next": [{ minuteId: "2026-07-10T09:41Z", authorUserId: "alice", candidateId: cid("candidate") }, "2026-07-09T08:00Z"], ":old": ["2026-07-09T08:00Z"], ":candidate": "candidate", ":revision": 5 });
+		expect(updates[0].ConditionExpression).toContain("canonicalCandidateId = :candidate AND contentSelectionRevision = :revision");
 	});
-
-	it("prepends the new entry to a legacy string log with a compare-and-swap on the raw stored value", async () => {
-		let update: CapturedUpdate | undefined;
-		const { recordCrawlVersion } = initRecordCrawlVersion({
-			s3Client: createFakeS3(() => {}) as S3Client,
-			dynamoClient: createFakeDynamo({
-				getItem: { crawlVersions: ["2026-07-09T08:00Z"] },
-				captureUpdate: (input) => {
-					update = input;
-				},
-			}) as DynamoDBDocumentClient,
-			tableName: TABLE,
-			bucketName: BUCKET,
-		});
-
-		await recordCrawlVersion({ url: URL, tier: "tier-1", crawledAt: CRAWLED_AT });
-
-		assert(update, "the CAS update must be issued");
-		expect(update.UpdateExpression).toContain("SET crawlVersions = :next");
-		expect(update.ConditionExpression).toContain("attribute_not_exists(crawlVersions)");
-		expect(update.ConditionExpression).toContain("crawlVersions = :old");
-		const values = update.ExpressionAttributeValues;
-		expect(values?.[":next"]).toEqual([{ minuteId: MINUTE_ID }, "2026-07-09T08:00Z"]);
-		expect(values?.[":old"]).toEqual(["2026-07-09T08:00Z"]);
+	it.each([undefined, {}])("records public content without assigning an author (%#)", async (row) => {
+		const { recordCrawlVersion, updates } = setup(row);
+		await recordCrawlVersion({ ...params, authorUserId: undefined, canonicalCommit: { ...canonicalCommit, expected: undefined } });
+		expect(updates[0].ExpressionAttributeValues[":next"]).toEqual([{ minuteId: "2026-07-10T09:41Z", candidateId: cid("candidate") }]);
+		expect(updates[0].ExpressionAttributeValues[":revision"]).toBe(1);
 	});
-
-	it("stamps the capture author onto the new log entry", async () => {
-		let update: CapturedUpdate | undefined;
-		const { recordCrawlVersion } = initRecordCrawlVersion({
-			s3Client: createFakeS3(() => {}) as S3Client,
-			dynamoClient: createFakeDynamo({
-				getItem: { crawlVersions: [{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" }] },
-				captureUpdate: (input) => {
-					update = input;
-				},
-			}) as DynamoDBDocumentClient,
-			tableName: TABLE,
-			bucketName: BUCKET,
-		});
-
-		await recordCrawlVersion({
-			url: URL,
-			tier: "tier-0",
-			crawledAt: CRAWLED_AT,
-			authorUserId: "user-1",
-		});
-
-		assert(update, "the CAS update must be issued");
-		const values = update.ExpressionAttributeValues;
-		expect(values?.[":next"]).toEqual([
-			{ minuteId: MINUTE_ID, authorUserId: "user-1" },
-			{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" },
-		]);
-		expect(values?.[":old"]).toEqual([{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" }]);
+	it("does not replace an earlier capture's attribution within the same minute", async () => {
+		const { recordCrawlVersion, updates } = setup({ crawlVersions: [{ minuteId: "2026-07-10T09:41Z", authorUserId: "bob" }] });
+		await recordCrawlVersion(params);
+		expect(updates).toEqual([]);
 	});
-
-	it("records the first version on a row whose log attribute is absent", async () => {
-		let update: CapturedUpdate | undefined;
-		const { recordCrawlVersion } = initRecordCrawlVersion({
-			s3Client: createFakeS3(() => {}) as S3Client,
-			dynamoClient: createFakeDynamo({
-				getItem: {},
-				captureUpdate: (input) => {
-					update = input;
-				},
-			}) as DynamoDBDocumentClient,
-			tableName: TABLE,
-			bucketName: BUCKET,
+	it("refuses a postcommit append after the selection revision moves on", async () => {
+		const { recordCrawlVersion } = setup({}, (input) => {
+			expect(input.ConditionExpression).toContain("contentSelectionRevision = :revision");
+			throw new ConditionalCheckFailedException({ message: "erased after selection commit", $metadata: {} });
 		});
-
-		await recordCrawlVersion({ url: URL, tier: "tier-0", crawledAt: CRAWLED_AT });
-
-		assert(update, "the CAS update must be issued");
-		const values = update.ExpressionAttributeValues;
-		expect(values?.[":next"]).toEqual([{ minuteId: MINUTE_ID }]);
-		expect(values?.[":old"]).toEqual([]);
+		await expect(recordCrawlVersion(params)).rejects.toThrow("erased after selection commit");
 	});
-
-	it("records the first version when the row does not exist yet", async () => {
-		let update: CapturedUpdate | undefined;
-		const { recordCrawlVersion } = initRecordCrawlVersion({
-			s3Client: createFakeS3(() => {}) as S3Client,
-			dynamoClient: createFakeDynamo({
-				getItem: undefined,
-				captureUpdate: (input) => {
-					update = input;
-				},
-			}) as DynamoDBDocumentClient,
-			tableName: TABLE,
-			bucketName: BUCKET,
+	it("leaves a purged row alone when the selection commit was skipped by the purge fence", async () => {
+		const { recordCrawlVersion, updates } = setup({}, () => {
+			throw new ConditionalCheckFailedException({ message: "purged", $metadata: {}, Item: { purgedAt: { S: "2026-07-10T09:42:00.000Z" } } });
 		});
-
-		await recordCrawlVersion({ url: URL, tier: "tier-1", crawledAt: CRAWLED_AT });
-
-		assert(update, "the CAS update must be issued for a brand-new row");
-		const values = update.ExpressionAttributeValues;
-		expect(values?.[":next"]).toEqual([{ minuteId: MINUTE_ID }]);
-	});
-
-	it("still snapshots but skips the log update when the minute is already recorded", async () => {
-		let updateCalled = false;
-		let copyCalled = false;
-		const { recordCrawlVersion } = initRecordCrawlVersion({
-			s3Client: createFakeS3(() => {
-				copyCalled = true;
-			}) as S3Client,
-			dynamoClient: createFakeDynamo({
-				getItem: { crawlVersions: [MINUTE_ID, "2026-07-09T08:00Z"] },
-				captureUpdate: () => {
-					updateCalled = true;
-				},
-			}) as DynamoDBDocumentClient,
-			tableName: TABLE,
-			bucketName: BUCKET,
-		});
-
-		await recordCrawlVersion({ url: URL, tier: "tier-1", crawledAt: CRAWLED_AT });
-
-		expect(copyCalled).toBe(true);
-		expect(updateCalled).toBe(false);
+		await expect(recordCrawlVersion(params)).resolves.toBeUndefined();
+		expect(updates).toHaveLength(1);
 	});
 });

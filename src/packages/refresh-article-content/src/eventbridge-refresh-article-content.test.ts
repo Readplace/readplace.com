@@ -1,8 +1,13 @@
+import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { RefreshArticleContentCommand } from "@packages/hutch-infra-components";
 import { initEventBridgeRefreshArticleContent } from "./eventbridge-refresh-article-content";
 
 const PARAMS = {
 	url: "https://example.com/article",
+	saveAttemptId: SaveAttemptIdSchema.parse("provided-attempt"),
+	sourceUrl: "https://example.com/article",
+	sourceOriginalUrl: "https://example.com/article",
+	evaluationHtml: "<html><body>Raw response before finalization</body></html>",
 	html: "<html><body><h1>Refreshed</h1></body></html>",
 	metadata: {
 		title: "Refreshed",
@@ -35,7 +40,7 @@ describe("initEventBridgeRefreshArticleContent (put HTML to S3 then publish even
 		await publishRefreshArticleContent(PARAMS);
 
 		expect(order).toEqual(["putRefreshHtml", "publishEvent"]);
-		expect(putRefreshHtml).toHaveBeenCalledWith({ url: PARAMS.url, html: PARAMS.html });
+		expect(putRefreshHtml).toHaveBeenCalledWith({ url: PARAMS.url, html: PARAMS.html, evaluationHtml: PARAMS.evaluationHtml, saveAttemptId: PARAMS.saveAttemptId });
 	});
 
 	it("publishes the event with no html in detail so the payload stays under EventBridge's 256 KB cap", async () => {
@@ -52,6 +57,9 @@ describe("initEventBridgeRefreshArticleContent (put HTML to S3 then publish even
 		expect(publishEvent).toHaveBeenCalledTimes(1);
 		expect(publishEvent).toHaveBeenCalledWith(RefreshArticleContentCommand, {
 			url: PARAMS.url,
+			sourceUrl: PARAMS.sourceUrl,
+			sourceOriginalUrl: PARAMS.sourceOriginalUrl,
+			saveAttemptId: PARAMS.saveAttemptId,
 			metadata: PARAMS.metadata,
 			estimatedReadTime: PARAMS.estimatedReadTime,
 			etag: PARAMS.etag,

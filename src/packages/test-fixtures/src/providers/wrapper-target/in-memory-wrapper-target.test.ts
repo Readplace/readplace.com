@@ -5,9 +5,7 @@ describe("initInMemoryWrapperTarget", () => {
 		const wrapperTarget = initInMemoryWrapperTarget();
 		wrapperTarget.targets.set("https://tracker.example/link/1", "https://publisher.example/article");
 
-		expect(await wrapperTarget.resolveWrapperTarget("https://tracker.example/link/1")).toBe(
-			"https://publisher.example/article",
-		);
+		expect(await wrapperTarget.resolveWrapperTarget("https://tracker.example/link/1")).toEqual({ url: "https://publisher.example/article" });
 		expect(await wrapperTarget.resolveWrapperTarget("https://tracker.example/link/2")).toBeUndefined();
 		expect(wrapperTarget.calls).toEqual(["https://tracker.example/link/1", "https://tracker.example/link/2"]);
 	});

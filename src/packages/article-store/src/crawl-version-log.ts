@@ -1,8 +1,10 @@
+import { CandidateIdSchema } from "@packages/domain/article";
 import { z } from "zod";
 
 export const CrawlVersionEntrySchema = z.object({
 	minuteId: z.string(),
 	authorUserId: z.string().optional(),
+	candidateId: CandidateIdSchema.optional(),
 });
 export type CrawlVersionEntry = z.infer<typeof CrawlVersionEntrySchema>;
 

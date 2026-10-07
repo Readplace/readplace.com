@@ -1,6 +1,4 @@
-export type WrapperFamily = "newsletter-tracker" | "apple-news" | "archive-snapshot";
-
-export type WrapperResolution = "none" | "syntactic" | "network";
+export type WrapperFamily = "newsletter-tracker" | "apple-news" | "archive-snapshot" | "archive-outbound" | "share-intent";
 
 export type UnwrappedUrl = { url: string; contentSourceUrl?: string };
 
@@ -35,7 +33,7 @@ const TWEET_INTENT_PATH = /^\/intent\/(?:tweet|post)$/;
 
 const WAYBACK_STAMPED_PATH = /^\/web\/([^/]+)\/(.+)$/;
 const WAYBACK_UNSTAMPED_PATH = /^\/(?:web|save)\/(.+)$/;
-const WAYBACK_CAPTURE_TIMESTAMP = /^\d{1,14}(?:id_)?$/;
+const WAYBACK_CAPTURE_TIMESTAMP = /^\d{1,14}(?:(?:id|if|fr)_)?$/;
 const WAYBACK_ASSET_TIMESTAMP = /^\d{1,14}[a-z]{2}_$/;
 const WAYBACK_CALENDAR_TIMESTAMP = /^\d*(?:\*|%2a)$/i;
 
@@ -43,7 +41,7 @@ const ARCHIVE_TODAY_SCREENSHOT = /^\/([A-Za-z0-9]+)\/[0-9a-f]+\/scr\.png$/;
 const ARCHIVE_TODAY_WIP = /^\/wip\/([A-Za-z0-9]+)$/;
 const ARCHIVE_TODAY_OUTBOUND = /^\/o\/([A-Za-z0-9]+)\/(.+)$/;
 const ARCHIVE_TODAY_SELECTOR = /^\/(?:newest|oldest)\/(.+)$/;
-const ARCHIVE_TODAY_SNAPSHOT = /^\/(?:\d{14}|\d{4}\.\d{2}\.\d{2}-\d{6})\/(.+)$/;
+const ARCHIVE_TODAY_SNAPSHOT = /^\/(?:\d{14}|\d{4}\.\d{2}(?:\.\d{2}(?:-\d{1,6})?)?)\/(.+)$/;
 const ARCHIVE_TODAY_PARTIAL_TIMESTAMP = /^\/\d{1,13}\/(.+)$/;
 const ARCHIVE_TODAY_LISTING = /^\/(.+)$/;
 
@@ -151,8 +149,6 @@ function unwrapArchiveToday(parsed: URL): UnwrappedUrl | undefined {
 	const path = pathWithQuery(parsed);
 	const collapsed = ARCHIVE_TODAY_SCREENSHOT.exec(pathname) ?? ARCHIVE_TODAY_WIP.exec(pathname);
 	if (collapsed !== null) return { url: `${origin}/${collapsed[1]}` };
-	const outbound = ARCHIVE_TODAY_OUTBOUND.exec(path);
-	if (outbound !== null) return captureOf({ rawInner: outbound[2], contentSourceUrl: `${origin}/${outbound[1]}` });
 	const exact = ARCHIVE_TODAY_SELECTOR.exec(path) ?? ARCHIVE_TODAY_SNAPSHOT.exec(path);
 	if (exact !== null) return captureOf({ rawInner: exact[1], contentSourceUrl: parsed.href });
 	const listing = ARCHIVE_TODAY_PARTIAL_TIMESTAMP.exec(path) ?? ARCHIVE_TODAY_LISTING.exec(path);
@@ -174,10 +170,20 @@ function isArchiveTodayShortId(parsed: URL): boolean {
 	);
 }
 
+function archiveTodayOutbound(parsed: URL): RegExpExecArray | null {
+	return ARCHIVE_TODAY_HOSTS.has(hostnameOf(parsed)) ? ARCHIVE_TODAY_OUTBOUND.exec(pathWithQuery(parsed)) : null;
+}
+
+function isTweetIntent(parsed: URL): boolean {
+	return TWEET_INTENT_HOSTS.has(hostnameOf(parsed)) && TWEET_INTENT_PATH.test(parsed.pathname);
+}
+
 export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
 	const parsed = parseHttpUrl(url);
 	if (parsed === undefined) return undefined;
 	const host = hostnameOf(parsed);
+	if (archiveTodayOutbound(parsed) !== null) return "archive-outbound";
+	if (isTweetIntent(parsed)) return "share-intent";
 	if (NEWSLETTER_TRACKERS.some((rule) => matchesTracker(rule, host, parsed))) return "newsletter-tracker";
 	if (APPLE_NEWS_HOSTS.has(host) && OPAQUE_TOKEN_PATH.test(parsed.pathname)) return "apple-news";
 	if (unwrapArchive(parsed) !== undefined || isArchiveTodayShortId(parsed)) return "archive-snapshot";
@@ -187,6 +193,10 @@ export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
 export function isArchiveHost(url: string): boolean {
 	const parsed = parseHttpUrl(url);
 	return parsed !== undefined && ARCHIVE_HOSTS.has(hostnameOf(parsed));
+}
+
+export function isWrapperUrl(url: string): boolean {
+	return isArchiveHost(url) || wrapperFamilyOf(url) !== undefined;
 }
 
 function unwrapTweetIntent(url: string, parsed: URL): UnwrappedUrl {
@@ -200,22 +210,12 @@ function unwrapTweetIntent(url: string, parsed: URL): UnwrappedUrl {
 export function unwrapWrapperUrl(url: string): UnwrappedUrl {
 	const parsed = parseHttpUrl(url);
 	if (parsed === undefined) return { url };
+	const outbound = archiveTodayOutbound(parsed);
+	if (outbound !== null) return { url: normaliseInnerUrl(outbound[2]) ?? url };
 	const archived = unwrapArchive(parsed);
 	if (archived !== undefined) return archived;
-	if (TWEET_INTENT_HOSTS.has(hostnameOf(parsed)) && TWEET_INTENT_PATH.test(parsed.pathname)) {
-		return unwrapTweetIntent(url, parsed);
-	}
+	if (isTweetIntent(parsed)) return unwrapTweetIntent(url, parsed);
 	return { url };
-}
-
-export function wrapperResolutionOf(url: string): WrapperResolution {
-	if (wrapperFamilyOf(url) === undefined) return "none";
-	const unwrapped = unwrapWrapperUrl(url).url;
-	return unwrapped !== url && wrapperFamilyOf(unwrapped) === undefined ? "syntactic" : "network";
-}
-
-export function isUnresolvedArchiveCapture(url: string): boolean {
-	return wrapperFamilyOf(url) === "archive-snapshot" && wrapperResolutionOf(url) === "network";
 }
 
 export function stripRedirectAddedParams(params: { wrapperUrl: string; targetUrl: string }): string {

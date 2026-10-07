@@ -1,242 +1,189 @@
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { ClaimCanonicalAlias, FindIdentityRow, IdentityRow } from "@packages/provider-contracts/article-store";
-import { initResolveSaveIdentity, type ResolveSaveIdentityDependencies } from "./resolve-save-identity";
+import { validateSaveableUrl } from "@packages/domain/article";
+import type { IdentityRow } from "@packages/provider-contracts/article-store";
+import { cleanWrapperTarget, initResolveSaveIdentity } from "./resolve-save-identity";
+import type { ResolvedWrapperTarget } from "./resolve-wrapper-target";
 
-const NOW = new Date("2026-10-01T10:00:00.000Z");
-const WAYBACK = "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106.html";
-const ORIGINAL = "http://www.onscreenasia.com/article-106.html";
+const ORIGINAL = "https://publisher.example/article";
 const TRACKER = "https://javascriptweekly.com/link/100000/rss";
-const PUBLISHER = "https://sqlite.org/lang_with.html#rcex3";
 const ARCHIVE = "https://archive.ph/Ab1cD";
+const WAYBACK = `https://web.archive.org/web/20260000000000*/${ORIGINAL}`;
 
-type Harness = {
-	resolve: ReturnType<typeof initResolveSaveIdentity>;
-	lookups: string[];
-	resolverCalls: string[];
-	claims: Array<{ aliasUrl: string; targetOriginalUrl: string; now: Date }>;
-	warnings: string[];
-};
-
-function createHarness(options: {
-	rows?: Record<string, IdentityRow>;
-	targets?: Record<string, string>;
-	claimOutcome?: "claimed" | "occupied";
-	rowsAfterClaim?: Record<string, IdentityRow>;
-} = {}): Harness {
-	const lookups: string[] = [];
-	const resolverCalls: string[] = [];
-	const claims: Harness["claims"] = [];
-	const warnings: string[] = [];
-	let rows = options.rows ?? {};
-	const findIdentityRow: FindIdentityRow = async (url) => {
-		lookups.push(url);
-		return rows[url] ?? { kind: "absent" };
-	};
-	const claimAlias: ClaimCanonicalAlias = async (params) => {
-		claims.push(params);
-		rows = { ...rows, ...options.rowsAfterClaim };
-		return options.claimOutcome ?? "claimed";
-	};
-	const logger: HutchLogger = {
-		info: () => {},
-		warn: (line) => {
-			warnings.push(String(line));
+function harness(options: {
+	rows?: Record<string, IdentityRow | undefined>;
+	targets?: Record<string, ResolvedWrapperTarget>;
+	occupied?: IdentityRow;
+} = {}) {
+	const rows = { ...options.rows };
+	const requests: string[] = [];
+	const claims: unknown[] = [];
+	const resolve = initResolveSaveIdentity({
+		validateUrl: validateSaveableUrl,
+		findIdentityRow: async (url) => rows[url] ?? { kind: "absent" },
+		claimAlias: async (params) => {
+			claims.push(params);
+			if (options.occupied !== undefined) {
+				rows[params.aliasUrl] = options.occupied;
+				return;
+			}
+			rows[params.aliasUrl] = { kind: "alias", targetUrl: params.targetOriginalUrl, sourceBinding: params.sourceBinding };
 		},
-		error: () => {},
-		debug: () => {},
-	};
-	const deps: ResolveSaveIdentityDependencies = {
-		findIdentityRow,
-		claimAlias,
-		resolveWrapperTarget: async (url) => {
-			resolverCalls.push(url);
-			return options.targets?.[url];
-		},
-		now: () => NOW,
-		logger,
-	};
-	return { resolve: initResolveSaveIdentity(deps), lookups, resolverCalls, claims, warnings };
+		resolveWrapperTarget: async (url) => { requests.push(url); return options.targets?.[url]; },
+		now: () => new Date("2026-10-01T10:00:00Z"),
+	});
+	return { resolve, requests, claims };
 }
 
-describe("initResolveSaveIdentity", () => {
-	describe("without touching the network", () => {
-		it("keeps a wrapper URL that already has its own article row", async () => {
-			const harness = createHarness({ rows: { [TRACKER]: { kind: "article" } } });
+function resolved(url: string, source?: string) {
+	return { status: "resolved", url, originalUrl: url, contentSourceUrl: source, sourceOriginalUrl: source === undefined ? undefined : url };
+}
 
-			expect(await harness.resolve(TRACKER)).toEqual({ url: TRACKER });
-			expect(harness.resolverCalls).toEqual([]);
-			expect(harness.claims).toEqual([]);
-		});
-
-		it("folds a wrapper already aliased by an earlier save onto that target", async () => {
-			const harness = createHarness({ rows: { [TRACKER]: { kind: "alias", targetUrl: PUBLISHER } } });
-
-			expect(await harness.resolve(TRACKER)).toEqual({ url: PUBLISHER });
-			expect(harness.resolverCalls).toEqual([]);
-		});
-
-		it("keys an archive capture on its original and keeps the capture as the content source", async () => {
-			const harness = createHarness();
-
-			expect(await harness.resolve(WAYBACK)).toEqual({ url: ORIGINAL, contentSourceUrl: WAYBACK });
-			expect(harness.resolverCalls).toEqual([]);
-			expect(harness.claims).toEqual([]);
-		});
-
-		it("leaves a plain article URL alone", async () => {
-			const harness = createHarness();
-
-			expect(await harness.resolve(PUBLISHER)).toEqual({ url: PUBLISHER });
-			expect(harness.resolverCalls).toEqual([]);
-			expect(harness.lookups).toEqual([PUBLISHER]);
-		});
+describe("save identity", () => {
+	it("keeps a plain original", async () => {
+		const h = harness();
+		expect(await h.resolve(ORIGINAL)).toEqual(resolved(ORIGINAL));
+		expect(h.requests).toEqual([]);
+		expect(h.claims).toEqual([]);
 	});
 
-	describe("an archive URL whose path names the article", () => {
-		it("keys a new save on the original even when an earlier save left a row on the capture URL", async () => {
-			const harness = createHarness({ rows: { [WAYBACK]: { kind: "article" } } });
-
-			expect(await harness.resolve(WAYBACK)).toEqual({ url: ORIGINAL, contentSourceUrl: WAYBACK });
-			expect(harness.lookups).toEqual([ORIGINAL]);
-		});
-
-		it("keeps the capture as the content source when the original is aliased onto another article", async () => {
-			const harness = createHarness({ rows: { [ORIGINAL]: { kind: "alias", targetUrl: PUBLISHER } } });
-
-			expect(await harness.resolve(WAYBACK)).toEqual({ url: PUBLISHER, contentSourceUrl: WAYBACK });
-		});
-
-		it("canonicalises the original's host the way a direct save would", async () => {
-			const capture = "https://web.archive.org/web/20230101000000/https://twitter.com/someone/status/1";
-
-			expect(await createHarness().resolve(capture)).toEqual({
-				url: "https://x.com/someone/status/1",
-				contentSourceUrl: capture,
-			});
-		});
-
-		describe("naming an original a save would refuse", () => {
-			const capture = "https://web.archive.org/web/20230101000000/http://localhost/admin";
-
-			it("keeps the archive URL and asks the archive for the original instead", async () => {
-				const harness = createHarness();
-
-				expect(await harness.resolve(capture)).toEqual({ url: capture });
-				expect(harness.lookups).toEqual([capture]);
-				expect(harness.resolverCalls).toEqual([capture]);
-			});
-
-			it("follows an alias already stored on the archive URL", async () => {
-				const harness = createHarness({ rows: { [capture]: { kind: "alias", targetUrl: PUBLISHER } } });
-
-				expect(await harness.resolve(capture)).toEqual({ url: PUBLISHER });
-				expect(harness.resolverCalls).toEqual([]);
-			});
-		});
+	it("uses a calendar original despite a legacy wrapper article row", async () => {
+		const h = harness({ rows: { [WAYBACK]: { kind: "article" } }, occupied: { kind: "article" } });
+		expect(await h.resolve(WAYBACK)).toEqual(resolved(ORIGINAL, `https://web.archive.org/web/${ORIGINAL}`));
+		expect(h.requests).toEqual([]);
 	});
 
-	describe("resolving a wrapper nothing is stored for", () => {
-		it("keys the save on the resolved target and claims the wrapper as its alias", async () => {
-			const harness = createHarness({ targets: { [TRACKER]: PUBLISHER } });
-
-			expect(await harness.resolve(TRACKER)).toEqual({ url: PUBLISHER, contentSourceUrl: undefined });
-			expect(harness.resolverCalls).toEqual([TRACKER]);
-			expect(harness.claims).toEqual([{ aliasUrl: TRACKER, targetOriginalUrl: PUBLISHER, now: NOW }]);
-			expect(harness.lookups).toEqual([TRACKER, PUBLISHER]);
-		});
-
-		it("strips the per-subscriber params a Substack redirect appends before keying", async () => {
-			const share = "https://open.substack.com/pub/lcamtuf/p/post";
-			const harness = createHarness({
-				targets: { [share]: "https://blog.coredump.cx/p/post?r=abc12&utm_source=substack&utm_medium=email" },
-			});
-
-			expect(await harness.resolve(share)).toMatchObject({
-				url: "https://blog.coredump.cx/p/post?utm_source=substack&utm_medium=email",
-			});
-			expect(harness.claims[0].targetOriginalUrl).toBe(
-				"https://blog.coredump.cx/p/post?utm_source=substack&utm_medium=email",
-			);
-		});
-
-		it("collapses a Mailchimp 'tweet this' redirect onto the URL being shared", async () => {
-			const mailchimp = "https://us12.list-manage.com/track/click?u=abc&id=def&e=sub";
-			const harness = createHarness({
-				targets: { [mailchimp]: "https://twitter.com/intent/tweet?url=https%3A%2F%2Fpublisher.example%2Farticle&text=Read" },
-			});
-
-			expect(await harness.resolve(mailchimp)).toMatchObject({ url: "https://publisher.example/article" });
-		});
-
-		it("normalises the target's host the way a direct save would", async () => {
-			const harness = createHarness({ targets: { [TRACKER]: "https://SQLite.org/lang_with.html" } });
-
-			expect(await harness.resolve(TRACKER)).toMatchObject({ url: "https://sqlite.org/lang_with.html" });
-		});
-
-		it("points the wrapper at the article a crawl already adopted the target into, never at the alias", async () => {
-			const firstWrapper = "https://leadershipintech.com/links/1/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11/email";
-			const harness = createHarness({
-				rows: { [PUBLISHER]: { kind: "alias", targetUrl: firstWrapper } },
-				targets: { [TRACKER]: PUBLISHER },
-			});
-
-			expect(await harness.resolve(TRACKER)).toMatchObject({ url: firstWrapper });
-			expect(harness.claims).toEqual([{ aliasUrl: TRACKER, targetOriginalUrl: firstWrapper, now: NOW }]);
-		});
-
-		it("keys an archive short id on the Memento original and pins the snapshot as the content source", async () => {
-			const harness = createHarness({ targets: { [ARCHIVE]: "https://publisher.example/article" } });
-
-			expect(await harness.resolve(ARCHIVE)).toEqual({
-				url: "https://publisher.example/article",
-				contentSourceUrl: ARCHIVE,
-			});
-		});
-
-		it("keeps the wrapper as the identity when the target cannot be resolved", async () => {
-			const harness = createHarness();
-
-			expect(await harness.resolve(TRACKER)).toEqual({ url: TRACKER });
-			expect(harness.resolverCalls).toEqual([TRACKER]);
-			expect(harness.claims).toEqual([]);
-		});
-
-		it.each([
-			{ label: "a private-network target", target: "http://localhost/admin", code: "private_network" },
-			{ label: "a non-HTTP target", target: "ftp://files.example/a", code: "unsupported_scheme" },
-		])("keeps the wrapper and logs the rejection when the resolver hands back $label", async ({ target, code }) => {
-			const harness = createHarness({ targets: { [TRACKER]: target } });
-
-			expect(await harness.resolve(TRACKER)).toEqual({ url: TRACKER });
-			expect(harness.claims).toEqual([]);
-			expect(JSON.parse(harness.warnings[0])).toEqual({
-				stream: "wrapper-resolve",
-				family: "newsletter-tracker",
-				wrapperHost: "javascriptweekly.com",
-				outcome: "target-rejected",
-				code,
-			});
-		});
-
-		it("adopts the alias a concurrent save claimed first", async () => {
-			const harness = createHarness({
-				targets: { [TRACKER]: PUBLISHER },
-				claimOutcome: "occupied",
-				rowsAfterClaim: { [TRACKER]: { kind: "alias", targetUrl: "https://sqlite.org/other" } },
-			});
-
-			expect(await harness.resolve(TRACKER)).toMatchObject({ url: "https://sqlite.org/other" });
-		});
-
-		it("keeps the wrapper when an article row landed on it during the resolution", async () => {
-			const harness = createHarness({
-				targets: { [TRACKER]: PUBLISHER },
-				claimOutcome: "occupied",
-				rowsAfterClaim: { [TRACKER]: { kind: "article" } },
-			});
-
-			expect(await harness.resolve(TRACKER)).toEqual({ url: TRACKER });
-		});
+	it("normalizes the embedded original host", async () => {
+		const capture = "https://web.archive.org/web/2026/https://twitter.com/person/status/1";
+		expect(await harness().resolve(capture)).toEqual(resolved("https://x.com/person/status/1", capture));
 	});
+
+	it.each(["http://localhost/admin", "ftp://files.example/article"])("rejects a wrapper target that cannot be saved: %s", async (target) => {
+		const h = harness({ targets: { [TRACKER]: { url: target, contentSourceUrl: TRACKER } } });
+		expect(await h.resolve(TRACKER)).toEqual({ status: "unresolved" });
+		expect(h.claims).toEqual([]);
+	});
+
+	it.each([ARCHIVE, TRACKER, "https://apple.news/story", "https://web.archive.org/about", "https://archive.ph/o/abc/not-an-original"])("leaves an unavailable original unresolved even when a legacy wrapper row exists: %s", async (url) => {
+		const h = harness({ rows: { [url]: { kind: "article" } } });
+		expect(await h.resolve(url)).toEqual({ status: "unresolved" });
+	});
+
+	it("resolves a tracker through an archive to the original", async () => {
+		const h = harness({ targets: { [TRACKER]: { url: ARCHIVE, contentSourceUrl: TRACKER }, [ARCHIVE]: { url: ORIGINAL, contentSourceUrl: ARCHIVE } } });
+		expect(await h.resolve(TRACKER)).toEqual(resolved(ORIGINAL, TRACKER));
+		expect(h.requests).toEqual([TRACKER, ARCHIVE]);
+	});
+
+	it("unwraps an archive outbound URL without using its referring article", async () => {
+		expect(await harness().resolve(`https://archive.ph/o/Ab1cD/${ORIGINAL}`)).toEqual(resolved(ORIGINAL));
+	});
+
+	it("unwraps an intent after a tracker without manufacturing an archive source", async () => {
+		const h = harness({ targets: { [TRACKER]: { url: `https://x.com/intent/post?url=${encodeURIComponent(ORIGINAL)}` } } });
+		expect(await h.resolve(TRACKER)).toEqual(resolved(ORIGINAL));
+	});
+
+	it("strips subscriber parameters before fixing the original identity", async () => {
+		const wrapper = "https://open.substack.com/pub/person/p/article";
+		const h = harness({ targets: { [wrapper]: { url: `${ORIGINAL}?r=reader&utm_source=email`, contentSourceUrl: wrapper } } });
+		expect(await h.resolve(wrapper)).toEqual(resolved(`${ORIGINAL}?utm_source=email`, wrapper));
+	});
+
+	it("reuses a verified alias binding for a repeated short-link save without network", async () => {
+		const h = harness({ targets: { [ARCHIVE]: { url: ORIGINAL, contentSourceUrl: ARCHIVE } } });
+		expect(await h.resolve(ARCHIVE)).toEqual(resolved(ORIGINAL, ARCHIVE));
+		h.requests.length = 0;
+		expect(await h.resolve(ARCHIVE)).toEqual(resolved(ORIGINAL, ARCHIVE));
+		expect(h.requests).toEqual([]);
+	});
+
+	it("revalidates a legacy short alias rather than deriving source proof from it", async () => {
+		const h = harness({ rows: { [ARCHIVE]: { kind: "alias", targetUrl: ORIGINAL } }, targets: { [ARCHIVE]: { url: ORIGINAL, contentSourceUrl: ARCHIVE } } });
+		expect(await h.resolve(ARCHIVE)).toEqual(resolved(ORIGINAL, ARCHIVE));
+		expect(h.requests).toEqual([ARCHIVE]);
+	});
+
+	it("retains a legacy row key whose adopted original matches the capture", async () => {
+		const h = harness({ rows: { [ORIGINAL]: { kind: "alias", targetUrl: TRACKER }, [TRACKER]: { kind: "article", originalUrl: ORIGINAL } } });
+		expect(await h.resolve(WAYBACK)).toEqual({ ...resolved(ORIGINAL, `https://web.archive.org/web/${ORIGINAL}`), url: TRACKER });
+	});
+
+	it("uses an adopted destination as authoritative for a plain original save", async () => {
+		const destination = "https://publisher.example/replacement";
+		const h = harness({ rows: { [ORIGINAL]: { kind: "article", originalUrl: destination } } });
+		expect(await h.resolve(ORIGINAL)).toEqual({ ...resolved(destination), url: ORIGINAL });
+	});
+
+	it.each([
+		{ label: "an unadopted wrapper owner", rows: { [ORIGINAL]: { kind: "alias" as const, targetUrl: TRACKER }, [TRACKER]: { kind: "article" as const } } },
+		{ label: "an alias pointing to an alias", rows: { [ORIGINAL]: { kind: "alias" as const, targetUrl: TRACKER }, [TRACKER]: { kind: "alias" as const, targetUrl: ORIGINAL } } },
+		{ label: "an invalid stored original", rows: { [ORIGINAL]: { kind: "article" as const, originalUrl: "http://localhost/a" } } },
+	])("rejects source identity conflicts with $label", async ({ rows }) => {
+		expect(await harness({ rows }).resolve(WAYBACK)).toEqual({ status: "unresolved" });
+	});
+
+	it.each<{ label: string; submitted: string; targets: Record<string, ResolvedWrapperTarget> }>([
+		{ label: "an archive capture", submitted: WAYBACK, targets: {} },
+		{ label: "a tracker", submitted: TRACKER, targets: { [TRACKER]: { url: ORIGINAL, contentSourceUrl: TRACKER } } },
+	])("lands $label of a former redirecting URL on the adopted article without attaching its source", async ({ submitted, targets }) => {
+		const h = harness({ rows: { [ORIGINAL]: { kind: "article", originalUrl: "https://other.example/article" } }, targets });
+		expect(await h.resolve(submitted)).toEqual({ ...resolved("https://other.example/article"), url: ORIGINAL });
+	});
+
+	it("saves a revalidated opaque original despite an incompatible legacy wrapper alias", async () => {
+		const h = harness({ targets: { [ARCHIVE]: { url: ORIGINAL, contentSourceUrl: ARCHIVE } }, occupied: { kind: "alias", targetUrl: "https://other.example/article" } });
+		expect(await h.resolve(ARCHIVE)).toEqual(resolved(ORIGINAL, ARCHIVE));
+	});
+
+	it("stops a wrapper cycle", async () => {
+		const h = harness({ targets: { [ARCHIVE]: { url: TRACKER }, [TRACKER]: { url: ARCHIVE } } });
+		expect(await h.resolve(ARCHIVE)).toEqual({ status: "unresolved" });
+	});
+
+	it("bounds a chain of distinct wrappers", async () => {
+		const targets = Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`https://archive.ph/a${index}`, { url: `https://archive.ph/a${index + 1}` }]));
+		const h = harness({ targets });
+		expect(await h.resolve("https://archive.ph/a0")).toEqual({ status: "unresolved" });
+		expect(h.requests).toHaveLength(8);
+	});
+});
+
+it("cleans a syntactic target for admin recrawl", () => {
+	expect(cleanWrapperTarget({ wrapperUrl: ARCHIVE, targetUrl: WAYBACK })).toEqual({ status: "SUCCESS", url: ORIGINAL });
+});
+
+
+it("retains an outer capture through nested syntactic wrapper resolution", async () => {
+	const inner = `https://web.archive.org/web/2025/${ORIGINAL}`;
+	const outer = `https://archive.ph/newest/${inner}`;
+	expect(await harness().resolve(outer)).toEqual(resolved(ORIGINAL, outer));
+});
+it("resolves a share intent to its original with no content source", async () => {
+	const url = `https://x.com/intent/post?url=${encodeURIComponent(ORIGINAL)}`;
+	expect(await harness().resolve(url)).toEqual(resolved(ORIGINAL));
+});
+it("resolves a screenshot alias through its capture rather than using the image as article HTML", async () => {
+	const screenshot = `https://archive.ph/Ab1cD/123abc/scr.png`;
+	const h = harness({ targets: { [ARCHIVE]: { url: ORIGINAL, contentSourceUrl: ARCHIVE } } });
+	expect(await h.resolve(screenshot)).toEqual(resolved(ORIGINAL, ARCHIVE));
+});
+it("does not replace an outer verified capture with a cached inner binding", async () => {
+	const outer = `https://web.archive.org/web/2026/${ARCHIVE}`;
+	const h = harness({ rows: { [ARCHIVE]: { kind: "alias", targetUrl: ORIGINAL, sourceBinding: { contentSourceUrl: ARCHIVE, sourceOriginalUrl: ORIGINAL } } } });
+	expect(await h.resolve(outer)).toEqual(resolved(ORIGINAL, outer));
+});
+
+it("drops a capture of a share intent rather than binding it to the shared original", async () => {
+	const capture = `https://web.archive.org/web/2020/https://x.com/intent/post?url=${encodeURIComponent(ORIGINAL)}`;
+	expect(await harness().resolve(capture)).toEqual(resolved(ORIGINAL));
+});
+it("offers the tracker rather than its capture as the source of the tracker's current target", async () => {
+	const h = harness({ targets: { [TRACKER]: { url: ORIGINAL } } });
+	expect(await h.resolve(`https://web.archive.org/web/2020/${TRACKER}`)).toEqual(resolved(ORIGINAL, TRACKER));
+});
+
+it("ignores an old incorrect outbound alias without repointing it", async () => {
+	const outbound = `https://archive.ph/o/abc/${ORIGINAL}`;
+	const h = harness({ occupied: { kind: "alias", targetUrl: "https://referring.example/article" } });
+	expect(await h.resolve(outbound)).toEqual(resolved(ORIGINAL));
+	expect(h.claims).toEqual([expect.objectContaining({ aliasUrl: outbound, targetOriginalUrl: ORIGINAL, sourceBinding: undefined })]);
 });

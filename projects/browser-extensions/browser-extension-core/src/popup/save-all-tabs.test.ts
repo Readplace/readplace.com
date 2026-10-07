@@ -165,7 +165,7 @@ describe("summarizeBulkSave", () => {
 	it("folds client-skipped tabs (tabCount - saveableCount) into the server's skipped count", () => {
 		expect(
 			summarizeBulkSave({
-				result: { saved: 2, skipped: 1, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
+				result: { queued: 0, saved: 2, skipped: 1, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
 				tabCount: 5,
 				saveableCount: 3,
 			}),
@@ -175,7 +175,7 @@ describe("summarizeBulkSave", () => {
 	it("appends a Failed segment when the server reports failures", () => {
 		expect(
 			summarizeBulkSave({
-				result: { saved: 1, skipped: 0, failed: 2, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
+				result: { queued: 0, saved: 1, skipped: 0, failed: 2, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
 				tabCount: 3,
 				saveableCount: 3,
 			}).summary,
@@ -185,7 +185,7 @@ describe("summarizeBulkSave", () => {
 	it("omits the Failed segment when there are no failures", () => {
 		expect(
 			summarizeBulkSave({
-				result: { saved: 0, skipped: 0, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
+				result: { queued: 0, saved: 0, skipped: 0, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
 				tabCount: 0,
 				saveableCount: 0,
 			}).summary,
@@ -196,6 +196,7 @@ describe("summarizeBulkSave", () => {
 		expect(
 			summarizeBulkSave({
 				result: {
+					queued: 0,
 					saved: 2,
 					skipped: 0,
 					failed: 0,
@@ -220,7 +221,7 @@ describe("summarizeBulkSave", () => {
 	it("reports no too-big line when every page fit", () => {
 		expect(
 			summarizeBulkSave({
-				result: { saved: 1, skipped: 0, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
+				result: { queued: 0, saved: 1, skipped: 0, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
 				tabCount: 1,
 				saveableCount: 1,
 			}).tooBig,
@@ -230,7 +231,7 @@ describe("summarizeBulkSave", () => {
 	it("partitions merged tabs out of the Saved segment so the segments sum to the tab count", () => {
 		expect(
 			summarizeBulkSave({
-				result: { saved: 5, skipped: 0, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 2, pendingRetry: 0, unauthorized: false },
+				result: { queued: 0, saved: 5, skipped: 0, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 2, pendingRetry: 0, unauthorized: false },
 				tabCount: 5,
 				saveableCount: 5,
 			}).summary,
@@ -240,7 +241,7 @@ describe("summarizeBulkSave", () => {
 	it("titles the report Not signed in when the session died mid-run", () => {
 		expect(
 			summarizeBulkSave({
-				result: { saved: 2, skipped: 0, failed: 3, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: true },
+				result: { queued: 0, saved: 2, skipped: 0, failed: 3, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: true },
 				tabCount: 5,
 				saveableCount: 5,
 			}).title,
@@ -250,7 +251,7 @@ describe("summarizeBulkSave", () => {
 	it("counts tabs queued for a background retry in their own segment", () => {
 		expect(
 			summarizeBulkSave({
-				result: { saved: 3, skipped: 0, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 4, unauthorized: false },
+				result: { queued: 0, saved: 3, skipped: 0, failed: 0, tooBig: noTooBig, skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 4, unauthorized: false },
 				tabCount: 7,
 				saveableCount: 7,
 			}).summary,
@@ -340,4 +341,9 @@ describe("buildSaveAllDetailLines", () => {
 			{ kind: "skipped", text: "Already open in another tab" },
 		]);
 	});
+});
+
+
+it("shows queued original resolution separately from completed saves", () => {
+	expect(summarizeBulkSave({ result: { saved: 0, queued: 2, skipped: 0, failed: 0, tooBig: [], skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false }, tabCount: 2, saveableCount: 2 }).summary).toBe("Saved 0 · Skipped 0 · Queued 2");
 });

@@ -11,7 +11,12 @@ const COUNTDOWN_SECONDS = 5;
 
 const COUNTDOWN_SCRIPT = `<script src="/client-dist/save-error.client.js" defer></script>`;
 
-export function SaveErrorPage(input: { redirectUrl: string; linkLabel: string }): PageBody {
+export function SaveErrorPage(input: {
+	redirectUrl: string;
+	linkLabel: string;
+	title: string;
+	statusCode?: number;
+}): PageBody {
 	const messageHtml = render(
 		'Redirecting in <span class="save-error__seconds" data-countdown-seconds="{{seconds}}">{{seconds}}</span> seconds...',
 		{ seconds: COUNTDOWN_SECONDS },
@@ -20,7 +25,7 @@ export function SaveErrorPage(input: { redirectUrl: string; linkLabel: string })
 		key: "save-error",
 		content: {
 			variant: "error",
-			title: { text: "No article URL provided", element: "h1" },
+			title: { text: input.title, element: "h1" },
 			message: { html: messageHtml },
 		},
 	});
@@ -40,5 +45,6 @@ export function SaveErrorPage(input: { redirectUrl: string; linkLabel: string })
 			linkLabel: input.linkLabel,
 		}) },
 		scripts: COUNTDOWN_SCRIPT,
+		statusCode: input.statusCode,
 	};
 }

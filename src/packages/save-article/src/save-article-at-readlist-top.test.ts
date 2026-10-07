@@ -1,4 +1,4 @@
-import { ReaderArticleHashIdSchema, SaveableUrlSchema, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, SaveAttemptIdSchema, SaveableUrlSchema, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
 import type { SaveProvenance, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -9,6 +9,8 @@ const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abc
 const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
 const destination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 const provenance: SaveProvenance = { kind: "web" };
+const saveAttemptId = SaveAttemptIdSchema.parse("save-attempt");
+const freshness = { action: "skip" as const, identity: { status: "resolved" as const, url: exampleUrl, originalUrl: exampleUrl } };
 const allocatedInstant = new Date("2026-08-04T00:00:00.123Z");
 
 const saved: SavedArticle = {
@@ -41,8 +43,8 @@ describe("initSaveArticleAtReadlistTop", () => {
 		const result = await saveArticleAtReadlistTop({
 			userId,
 			url: exampleUrl,
-			freshness: { action: "skip" },
-			provenance,
+			freshness,
+			provenance, saveAttemptId,
 		});
 
 		expect(calls).toEqual([`allocate:${userId}`, "save"]);
@@ -50,8 +52,8 @@ describe("initSaveArticleAtReadlistTop", () => {
 			{
 				userId,
 				url: exampleUrl,
-				freshness: { action: "skip" },
-				provenance,
+				freshness,
+				provenance, saveAttemptId,
 				savedAt: allocatedInstant,
 			},
 		]);
@@ -71,7 +73,7 @@ describe("initSaveArticleAtReadlistTop", () => {
 		});
 
 		await expect(
-			saveArticleAtReadlistTop({ userId, url: exampleUrl, freshness: { action: "skip" }, provenance }),
+			saveArticleAtReadlistTop({ userId, url: exampleUrl, freshness, provenance, saveAttemptId }),
 		).rejects.toThrow("cursor write throttled");
 		expect(receivedSaves).toEqual([]);
 	});

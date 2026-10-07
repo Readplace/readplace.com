@@ -8,7 +8,7 @@ import type { FindArticleCrawlStatus } from "@packages/provider-contracts/articl
 import type { FindArticleFreshness } from "@packages/provider-contracts/article-store";
 import type { PublishRefreshArticleContent } from "@packages/provider-contracts/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import { calculateReadTime } from "@packages/domain/article";
+import { newSaveAttemptId, calculateReadTime } from "@packages/domain/article";
 import { decideTerminalAction } from "./decide-terminal-action";
 
 export type { ContentFreshnessResult, RefreshArticleIfStale };
@@ -22,12 +22,12 @@ export function initRefreshArticleIfStale(deps: {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	/** Collapse an adopted terminal URL onto the article it aliases before any
 	 * freshness/crawl decision, so intake keys on the same identity a save does. */
-	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	resolveCanonicalIdentity: (url: string) => Promise<{ url: string; originalUrl: string }>;
 	now: () => Date;
 	staleTtlMs: number;
 }): { refreshArticleIfStale: RefreshArticleIfStale } {
 	const refreshArticleIfStale: RefreshArticleIfStale = async (params) => {
-		const url = await deps.resolveCanonicalIdentity(params.url);
+		const { url, originalUrl } = await deps.resolveCanonicalIdentity(params.url);
 		const freshness = await deps.findArticleFreshness(url);
 
 		if (!freshness) {
@@ -47,7 +47,7 @@ export function initRefreshArticleIfStale(deps: {
 		}
 
 		const result = await deps.crawlArticle({
-			url,
+			url: originalUrl,
 			etag: freshness.etag,
 			lastModified: freshness.lastModified,
 			previousBodyHash: freshness.bodyHash,
@@ -71,16 +71,18 @@ export function initRefreshArticleIfStale(deps: {
 			return { action: "skip" };
 		}
 
-		return handleFetchedContent(url, result);
+		return handleFetchedContent({ url, originalUrl, result });
 	};
 
-	async function handleFetchedContent(
-		url: string,
-		result: CrawlArticleResult & { status: "fetched" },
-	): Promise<ContentFreshnessResult> {
+	async function handleFetchedContent(input: {
+		url: string;
+		originalUrl: string;
+		result: CrawlArticleResult & { status: "fetched" };
+	}): Promise<ContentFreshnessResult> {
+		const { url, originalUrl, result } = input;
 		const parsed = deps.parseHtml({
-			url,
-			documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: result.finalUrl }),
+			url: originalUrl,
+			documentUrl: resolveDocumentUrl({ requestedUrl: originalUrl, finalUrl: result.finalUrl }),
 			html: result.html,
 			thumbnailUrl: result.thumbnailUrl ?? null,
 		});
@@ -88,7 +90,11 @@ export function initRefreshArticleIfStale(deps: {
 
 		await deps.publishRefreshArticleContent({
 			url,
+			saveAttemptId: newSaveAttemptId(),
 			html: result.html,
+			evaluationHtml: result.evaluationHtml ?? result.html,
+			sourceOriginalUrl: originalUrl,
+			sourceUrl: result.finalUrl ?? originalUrl,
 			metadata: {
 				title: parsed.article.title,
 				siteName: parsed.article.siteName,

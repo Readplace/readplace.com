@@ -1,3 +1,4 @@
+import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { consoleLogger } from "@packages/hutch-logger";
@@ -5,13 +6,7 @@ import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
-import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
-import {
-	DEFAULT_CRAWL_HEADERS,
-	initCaptureFallbackCrawl,
-	initFetchRedirectHop,
-	initResolveAppleNewsStoryUrl,
-} from "@packages/crawl-article";
+import { validateSaveableUrl } from "@packages/domain/article";
 import {
 	initCanonicalAliasStore,
 	initDynamoDbArticleCrawl,
@@ -20,12 +15,9 @@ import {
 } from "@packages/article-store";
 import { initSubmitLinkCommandHandler } from "./domain/submit-link/submit-link-command-handler";
 import {
-	WRAPPER_RESOLVE_BUDGETS,
 	initFileArticleIntoReadlist,
 	initResolveSaveIdentity,
-	initResolveWrapperTarget,
 	initSubmitFreshness,
-	neverResolveWrapperTarget,
 } from "@packages/save-article";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
@@ -66,16 +58,11 @@ const parser = initParserDepBundle({
 	logInfo: observability.logInfo,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
+const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
-	parser: {
-		...parser,
-		crawlArticle: initCaptureFallbackCrawl({
-			crawlArticle: parser.crawlArticle,
-			findContentSourceUrl: canonicalAliasStore.findContentSourceUrl,
-		}),
-	},
+	parser,
 	media,
 	articleStore,
 	imagesCdnBaseUrl,
@@ -89,8 +76,7 @@ const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 	publishEvent: events.publishEvent,
 });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
-	claimAlias: canonicalAliasStore.claimAlias,
-	setDisplayUrl: canonicalAliasStore.setDisplayUrl,
+	adoptDestination: canonicalAliasStore.adoptDestination,
 	reconcileStubMetadata: canonicalAliasStore.reconcileStubMetadata,
 	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
@@ -106,29 +92,22 @@ const savedArticleStore = initDynamoDbSavedArticleStore({
 });
 const crawlStore = initDynamoDbArticleCrawl({ client: dynamoClient, tableName: articlesTable, now });
 const summaryStore = initDynamoDbGeneratedSummary({ client: dynamoClient, tableName: articlesTable, now });
-const resolveWrapperTarget = initResolveWrapperTarget({
-	fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
-	resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch: parser.crawlFetch, logError: observability.logError }),
-	headers: DEFAULT_CRAWL_HEADERS,
-	...WRAPPER_RESOLVE_BUDGETS,
-	logger: consoleLogger,
-});
 const saveIdentityDeps = {
+	validateUrl: validateSaveableUrl,
 	findIdentityRow: canonicalAliasStore.findIdentityRow,
 	claimAlias: canonicalAliasStore.claimAlias,
 	now,
-	logger: consoleLogger,
 };
-const resolveStoredSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: neverResolveWrapperTarget });
 const { refreshArticleIfStale } = initSubmitFreshness({
 	findArticleByUrl: savedArticleStore.findArticleByUrl,
 	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-	resolveSaveIdentity: initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget }),
+	resolveSaveIdentity: initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: sourceIdentity.resolveWrapperTarget }),
 	publishStaleCheckRequested: (params) => events.publishEvent(StaleCheckRequestedEvent, params),
 });
 
 export const handler = initSubmitLinkCommandHandler({
 	...articleStore,
+	...sourceIdentity,
 	...events,
 	...articleAggregate,
 	...articleCrawl,
@@ -151,6 +130,5 @@ export const handler = initSubmitLinkCommandHandler({
 	markSummaryPending: summaryStore.markSummaryPending,
 	publishUpdateFetchTimestamp: articleCrawl.updateFetchTimestamp,
 	refreshArticleIfStale,
-	resolveSaveIdentity: resolveStoredSaveIdentity,
 	pinContentSource: canonicalAliasStore.pinContentSource,
 });

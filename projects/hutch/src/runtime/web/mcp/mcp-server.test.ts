@@ -2151,3 +2151,9 @@ describe("MCP readlist name validation", () => {
 		expect(addToReadlist).toHaveBeenCalledTimes(1);
 	});
 });
+
+
+it("reports queued wrapper resolution without inventing a saved article", async () => {
+	const server = initMcpServer(fakeDeps({ saveLink: async () => ({ ok: true, pending: true }) }));
+	expect(await call(server, 91, "save_link", { url: "https://archive.ph/abc" })).toMatchObject({ result: { structuredContent: { status: "pending" } } });
+});

@@ -12,7 +12,7 @@ export function initCheckTier0SourceExistsS3(deps: {
 	const { client, bucketName } = deps;
 
 	const checkTier0SourceExists: CheckTier0SourceExists = async ({ url }) => {
-		const key = ArticleResourceUniqueId.parse(url).toS3SourceKey({ tier: "tier-0" });
+		const key = ArticleResourceUniqueId.parse(url).toS3SourceMetadataKey({ tier: "tier-0" });
 		try {
 			await client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }));
 			return true;

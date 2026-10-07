@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { CandidateIdSchema } from "../article/article.schema";
 import type { Article } from "./article.types";
 import type { DispatchEffect } from "./effect-dispatcher.types";
 import type { Effect } from "./effects.types";
@@ -437,5 +438,29 @@ describe("initTransitionAndPersist.upsertAndPersist", () => {
 		});
 
 		assert.deepEqual(order, ["save", "dispatch:dispatch-submit-link"]);
+	});
+});
+
+describe("conditional selection persistence", () => {
+	it("passes the selected pointer with the transition writes before emitting effects", async () => {
+		const url = "https://example.com/article";
+		let saveParams: Parameters<SaveArticle>[0] | undefined;
+		const store: ArticleStore = { load: async () => seededArticle(url), save: async (params) => { saveParams = params; } };
+		const dispatched: Effect[] = [];
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { dispatched.push(effect); } });
+		const canonicalCommit = { expected: undefined, contentLocation: "s3://content/immutable.html", candidateId: CandidateIdSchema.parse("winner"), originalUrl: url, tier: "tier-1" as const };
+		await transitionAndPersist((article) => ({ article, writes: ["metadata", "crawl"], effects: [{ kind: "generate-summary", url }] }), { url, input: undefined, canonicalCommit });
+		assert.deepEqual(saveParams?.canonicalCommit, canonicalCommit);
+		assert.deepEqual(dispatched, [{ kind: "generate-summary", url }]);
+	});
+	it("passes the failure snapshot to storage and emits nothing after a conditional conflict", async () => {
+		const url = "https://example.com/article";
+		let saveParams: Parameters<SaveArticle>[0] | undefined;
+		const store: ArticleStore = { load: async () => seededArticle(url), save: async (params) => { saveParams = params; throw new Error("selection revision changed"); } };
+		const dispatched: Effect[] = [];
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { dispatched.push(effect); } });
+		await assert.rejects(transitionAndPersist((article) => ({ article, writes: ["crawl"], effects: [{ kind: "generate-summary", url }] }), { url, input: undefined, selectionExpected: { snapshot: undefined } }), /selection revision changed/);
+		assert.deepEqual(saveParams?.selectionExpected, { snapshot: undefined });
+		assert.deepEqual(dispatched, []);
 	});
 });

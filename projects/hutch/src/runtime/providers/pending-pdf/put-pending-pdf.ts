@@ -11,7 +11,7 @@ export function initPutPendingPdf(deps: {
 	const { client, bucketName } = deps;
 
 	const putPendingPdf: PutPendingPdf = async (params) => {
-		const key = ArticleResourceUniqueId.parse(params.url).toS3PendingPdfKey();
+		const key = ArticleResourceUniqueId.parse(params.url).toS3PendingPdfKey(params.saveAttemptId);
 		await client.send(
 			new PutObjectCommand({
 				Bucket: bucketName,

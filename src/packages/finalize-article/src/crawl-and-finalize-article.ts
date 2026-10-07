@@ -5,7 +5,8 @@ import {
 	resolveDocumentUrl,
 } from "@packages/crawl-article";
 import { validateSaveableUrl } from "@packages/domain/article";
-import type { FinalizeArticle, FinalizedArticle } from "./finalize-article";
+import type { MediaWriteContext } from "./put-image-object.types";
+import { type FinalizeArticle, type FinalizedArticle, UNREADABLE_ARTICLE } from "./finalize-article";
 
 export type CrawlAndFinalizeResult =
 	| {
@@ -18,6 +19,9 @@ export type CrawlAndFinalizeResult =
 			etag?: string;
 			lastModified?: string;
 			bodyHash: string;
+			evaluationHtml?: string;
+			httpStatus?: number;
+			parseFailure?: string;
 		}
 	| { status: "not-modified" }
 	| {
@@ -31,11 +35,14 @@ export type CrawlAndFinalizeResult =
 	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason };
 
 export type CrawlAndFinalizeArticle = (params: {
+	writeContext?: MediaWriteContext;
 	url: string;
 	fetchUrl?: string;
 	etag?: string;
 	lastModified?: string;
 	previousBodyHash?: string;
+	retainResponseBody?: boolean;
+	includeEvaluationHtml?: boolean;
 }) => Promise<CrawlAndFinalizeResult>;
 
 /**
@@ -69,6 +76,8 @@ export function initCrawlAndFinalizeArticle(deps: {
 			lastModified: params.lastModified,
 			previousBodyHash: params.previousBodyHash,
 			fetchThumbnail: true,
+			retainResponseBody: params.retainResponseBody,
+			...(params.fetchUrl !== undefined ? { skipFetchPin: true } : {}),
 		});
 
 		if (crawlResult.status === "not-modified") return { status: "not-modified" };
@@ -95,13 +104,26 @@ export function initCrawlAndFinalizeArticle(deps: {
 		}
 
 		const finalized = await finalizeArticle({
+			writeContext: params.writeContext,
 			url: params.url,
 			documentUrl: resolveDocumentUrl({ requestedUrl: fetchUrl, finalUrl: crawlResult.finalUrl }),
 			html: crawlResult.html,
 			resolvedThumbnail: crawlResult.thumbnail,
 			mediaType: crawlResult.mediaType,
 		});
-		if (!finalized.ok) return { status: "failed", reason: finalized.reason, finalUrl: crawlResult.finalUrl };
+		if (!finalized.ok) {
+			const evaluationHtml = crawlResult.evaluationHtml ?? crawlResult.html;
+			if (!params.retainResponseBody || evaluationHtml.trim() === "") return { status: "failed", reason: finalized.reason, finalUrl: crawlResult.finalUrl };
+			return {
+				status: "fetched",
+				article: UNREADABLE_ARTICLE,
+				evaluationHtml,
+				bodyHash: crawlResult.bodyHash,
+				finalUrl: crawlResult.finalUrl,
+				httpStatus: crawlResult.httpStatus,
+				parseFailure: finalized.reason,
+			};
+		}
 
 		return {
 			status: "fetched",
@@ -110,6 +132,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 			etag: crawlResult.etag,
 			lastModified: crawlResult.lastModified,
 			bodyHash: crawlResult.bodyHash,
+			...(params.retainResponseBody || params.includeEvaluationHtml ? { evaluationHtml: crawlResult.evaluationHtml ?? crawlResult.html, httpStatus: crawlResult.httpStatus } : {}),
 		};
 	};
 }

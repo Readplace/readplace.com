@@ -1,3 +1,4 @@
+import { CrawlFailureReasonSchema } from "@packages/article-state-types";
 import { z } from "zod";
 
 type HutchEvent<T extends z.ZodTypeAny> = {
@@ -26,12 +27,18 @@ function defineCommand<T extends z.ZodTypeAny>(definition: {
 	return Object.freeze(definition);
 }
 
+const SaveAttemptId = z.string().min(1).brand<"SaveAttemptId">();
+const CandidateReferences = z.array(z.object({ id: z.string().min(1).brand<"CandidateId">(), tier: z.enum(["tier-0", "tier-1", "tier-2"]) }));
+const LiveAttempt = z.object({ outcome: z.enum(["body", "no-body", "deferred"]), failureReason: CrawlFailureReasonSchema.optional() });
+
 export const SaveLinkCommand = defineEvent({
 	name: "save-link-command",
 	source: "hutch.api",
 	detailType: "SaveLinkCommand",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		sourceOriginalUrl: z.string().optional(),
 		userId: z.string(),
 		captureUrl: z.string().optional(),
 	}),
@@ -44,6 +51,9 @@ export const SaveLinkRawHtmlCommand = defineEvent({
 	detailType: "SaveLinkRawHtmlCommand",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		sourceOriginalUrl: z.string(),
+		sourceUrl: z.string(),
 		userId: z.string(),
 		title: z.string().optional(),
 	}),
@@ -62,6 +72,9 @@ export const SaveLinkRawPdfCommand = defineEvent({
 	detailType: "SaveLinkRawPdfCommand",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		sourceOriginalUrl: z.string(),
+		sourceUrl: z.string(),
 		userId: z.string(),
 		title: z.string().optional(),
 	}),
@@ -74,6 +87,8 @@ export const SaveAnonymousLinkCommand = defineEvent({
 	detailType: "SaveAnonymousLinkCommand",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		sourceOriginalUrl: z.string().optional(),
 		captureUrl: z.string().optional(),
 	}),
 });
@@ -100,12 +115,13 @@ export const SubmitLinkCommand = defineEvent({
 		 *     fails loudly here instead of being read as an anonymous submission. */
 		z.object({
 			url: z.string(),
+			saveAttemptId: SaveAttemptId,
 			userId: z.string(),
 			provenance: z.looseObject({ kind: z.string() }), /* 1 */
 			readlist: z.string(),
 			rawHtml: z.string().optional(),
 		}),
-		z.strictObject({ url: z.string(), rawHtml: z.string().optional() }), /* 2 */
+		z.strictObject({ url: z.string(), saveAttemptId: SaveAttemptId, rawHtml: z.string().optional() }), /* 2 */
 	]),
 });
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
@@ -132,6 +148,8 @@ export const SimpleCrawlUnsupportedEvent = defineEvent({
 	detailType: "SimpleCrawlUnsupported",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		candidates: CandidateReferences.optional(),
 		userId: z.string().optional(),
 		recrawl: z.boolean().optional(),
 		refresh: z.boolean().optional(),
@@ -167,6 +185,8 @@ export const ComprehensiveCrawlCommand = defineEvent({
 	detailType: "ComprehensiveCrawlCommand",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		candidates: CandidateReferences.optional(),
 		userId: z.string().optional(),
 		recrawl: z.boolean().optional(),
 		refresh: z.boolean().optional(),
@@ -395,7 +415,9 @@ export const TierContentExtractedEvent = defineEvent({
 	detailType: "TierContentExtracted",
 	detailSchema: z.object({
 		url: z.string(),
-		tier: z.enum(["tier-0", "tier-1", "tier-2"]),
+		saveAttemptId: SaveAttemptId,
+		liveAttempt: LiveAttempt.optional(),
+		candidates: CandidateReferences,
 		userId: z.string().optional(),
 		/* Extraction instant, stamped once by the emitter. The selector uses it as
 		 * the crawl-version minute-id, so an SQS redelivery (e.g. a persist failure
@@ -478,6 +500,7 @@ export const RecrawlLinkInitiatedEvent = defineEvent({
 	detailType: "RecrawlLinkInitiated",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
 	}),
 });
 export type RecrawlLinkInitiatedDetail = z.infer<
@@ -528,6 +551,9 @@ export const RecrawlContentExtractedEvent = defineEvent({
 	detailType: "RecrawlContentExtracted",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		liveAttempt: LiveAttempt.optional(),
+		candidates: CandidateReferences,
 		/* See TierContentExtractedEvent.extractedAt — the same stable minute-id
 		 * anchor, here keeping crawl-version recording idempotent across recrawl
 		 * redeliveries. */
@@ -544,6 +570,8 @@ export const RefreshContentExtractedEvent = defineEvent({
 	detailType: "RefreshContentExtracted",
 	detailSchema: z.object({
 		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		candidates: CandidateReferences,
 		etag: z.string().optional(),
 		lastModified: z.string().optional(),
 		contentFetchedAt: z.string(),
@@ -588,6 +616,9 @@ export const RefreshArticleContentCommand = defineEvent({
 	detailType: "RefreshArticleContentCommand",
 	detailSchema: z.object({
 		url: z.string(),
+		sourceUrl: z.url(),
+		sourceOriginalUrl: z.url(),
+		saveAttemptId: SaveAttemptId,
 		metadata: z.object({
 			title: z.string(),
 			siteName: z.string(),
@@ -989,6 +1020,7 @@ export const SaveEmailIssueCommand = defineEvent({
 	detailType: "SaveEmailIssueCommand",
 	detailSchema: z.object({
 		userId: z.string(),
+		saveAttemptId: SaveAttemptId,
 		receivedAtMessageId: z.string(),
 		subject: z.string(),
 		senderEmail: z.string(),

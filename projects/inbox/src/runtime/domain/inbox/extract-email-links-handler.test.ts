@@ -209,7 +209,7 @@ function makeHarness(opts?: {
 			publishOrder.push("preview");
 			published.push({ ordinal, url });
 		},
-		publishSubmitLink: async (input) => {
+		publishSubmitLink: async ({ saveAttemptId: _saveAttemptId, ...input }) => {
 			publishOrder.push("submit");
 			submitted.push(input);
 		},
@@ -1331,6 +1331,7 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 		expect(harness.issues).toEqual([
 			{
 				userId: USER,
+				saveAttemptId: expect.any(String),
 				receivedAtMessageId: RAM,
 				subject: "Digest",
 				senderEmail: "news@example.com",

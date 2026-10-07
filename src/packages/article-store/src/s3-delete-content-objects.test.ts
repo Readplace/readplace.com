@@ -63,3 +63,14 @@ describe("initS3DeleteContentObjects", () => {
 		expect(second.Objects).toEqual([{ Key: "key-1000" }]);
 	});
 });
+
+describe("partial S3 erasure", () => {
+	it("rejects HTTP-success responses containing failed object deletions", async () => {
+		const client = { send: async () => ({ Errors: [{ Key: "private.html", Code: "InternalError" }] }) } as unknown as Pick<S3Client, "send">;
+		await expect(initS3DeleteContentObjects({ client, bucketName: BUCKET }).deleteContentObjects(["private.html"])).rejects.toThrow("private.html");
+	});
+	it("accepts an explicitly empty deletion-error list", async () => {
+		const client = { send: async () => ({ Errors: [] }) } as unknown as Pick<S3Client, "send">;
+		await expect(initS3DeleteContentObjects({ client, bucketName: BUCKET }).deleteContentObjects(["private.html"])).resolves.toBeUndefined();
+	});
+});

@@ -456,6 +456,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			"<!DOCTYPE html><html><head><title>readme</title></head><body><article><h1>readme</h1><p>Line one.</p><p>Line two.</p></article></body></html>",
 		);
 		expect(result.etag).toBe('"txt-1"');
+		expect(result.evaluationHtml).toBe("Line one.\n\nLine two.");
 		expect(extractPdf).not.toHaveBeenCalled();
 	});
 
@@ -2011,5 +2012,37 @@ describe("initCrawlArticle — site rules recognise twitter.com and x.com alike"
 		assertFetched(result);
 		expect(result.html).toContain("just setting up");
 		expect(requested).toEqual(["https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2Fjack%2Fstatus%2F20"]);
+	});
+});
+
+describe("bounded wrapper response candidates", () => {
+	it("returns a fresh received body for comparison even when it matches the previous body hash", async () => {
+		const html = "<html><body><article>Unchanged readable article.</article></body></html>";
+		const bodyHash = createHash("sha256").update(html).digest("hex");
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status: 200, headers: { "content-type": "text/html", etag: '"capture-v1"' } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
+		expect(await crawlArticle({ url: "https://example.com/article", previousBodyHash: bodyHash, retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash, httpStatus: 200, finalUrl: undefined, etag: '"capture-v1"' });
+	});
+	it("retains an error response without Content-Type for the article judge", async () => {
+		const html = "<html><body><article>Article returned without a media declaration.</article></body></html>";
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(Buffer.from(html), { status: 503 }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
+		expect(await crawlArticle({ url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: 503, finalUrl: undefined });
+	});
+	it("defers a retained PDF response without an extractor and extracts it when comprehensive work resumes", async () => {
+		const shared = { crawlFetch: async () => new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo };
+		expect(await initCrawlArticle(shared)({ url: "https://example.com/report.pdf", retainResponseBody: true })).toMatchObject({ status: "unsupported" });
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "PDF article", html: "<html><body>Extracted PDF article</body></html>" }));
+		const result = await initCrawlArticle({ ...shared, extractPdf })({ url: "https://example.com/report.pdf", retainResponseBody: true });
+		expect(result).toMatchObject({ status: "fetched", html: "<html><body>Extracted PDF article</body></html>", httpStatus: 200 });
+		expect(extractPdf).toHaveBeenCalledTimes(1);
+	});
+	it("bounds an unknown retained body before parsing it as HTML", async () => {
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response("x".repeat(MAX_HTML_BYTES.bytes + 1), { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
+		expect(await crawlArticle({ url: "https://example.com/unknown", retainResponseBody: true })).toMatchObject({ status: "unsupported", unsupportedReason: { kind: "content-too-large" } });
+	});
+	it.each([200, 403, 404, 410, 429, 500])("retains HTTP %i body for the article judge", async (status) => {
+		const html = "<html><body><h1>Verify you are human</h1></body></html>";
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
+		const result = await crawlArticle({ url: "https://archive.ph/abcde", retainResponseBody: true });
+		expect(result).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: status, finalUrl: undefined });
 	});
 });

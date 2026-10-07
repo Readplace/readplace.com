@@ -17,6 +17,7 @@ export function initFetchPinnedCrawl(deps: {
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 }): CrawlArticle {
 	return async (params) => {
+		if (params.skipFetchPin) return deps.crawlArticle(params);
 		const fetchUrl = toCanonicalHostUrl((await deps.findAdoptedFetchUrl(params.url)) ?? params.url);
 		return deps.crawlArticle({ ...params, url: fetchUrl });
 	};

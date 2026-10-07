@@ -1,3 +1,4 @@
+import { initCrawlSaveCandidates, type SaveCandidates } from "./crawl-save-candidates";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -11,6 +12,8 @@ import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initSaveLinkWork, logRecordFailure } from "./save-link-work";
+import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
+import assert from "node:assert";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
@@ -31,6 +34,9 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
+	resolveOriginalUrl: (url: string) => Promise<string>;
+	verifyWrapperSource: VerifyWrapperSource;
+	prepareArticleIdentity: PrepareArticleIdentity;
 	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
@@ -50,6 +56,7 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 		logCrawlOutcome: deps.logCrawlOutcome,
 		readTierSnapshot: deps.readTierSnapshot,
 		logPrefix,
+		resolveOriginalUrl: deps.resolveOriginalUrl,
 	});
 
 	const crawlArchiveCapture = initCrawlArchiveCapture({
@@ -59,7 +66,11 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 		logCrawlOutcome: deps.logCrawlOutcome,
 		publishEvent,
 		logger,
+		now: deps.now,
+		verifyWrapperSource: deps.verifyWrapperSource,
 	});
+
+	const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -68,28 +79,26 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = RecrawlLinkInitiatedEvent.detailSchema.parse(envelope.detail);
+				const { saveAttemptId } = detail;
 
 				logger.info("[RecrawlLinkInitiated] processing", { url: detail.url });
+				const identity = await deps.prepareArticleIdentity(detail.url);
+				assert(identity.status === "resolved", "recrawl original identity is unresolved");
 
 				const captureUrl = await deps.findContentSourceUrl(detail.url);
-				const capture =
-					captureUrl === undefined ? "not-written" : await crawlArchiveCapture({ url: detail.url, captureUrl });
-
-				const result = await saveLinkWork(detail.url, { recrawl: true });
-				if (result === "tier-1-deferred") {
-					logger.info("[RecrawlLinkInitiated] tier-1 deferred to comprehensive Lambda", {
-						url: detail.url,
-					});
+				let extracted: SaveCandidates;
+				if (captureUrl !== undefined) {
+					extracted = await crawlSaveCandidates({ url: detail.url, captureUrl, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
+				} else {
+					const result = await saveLinkWork(detail.url, { recrawl: true, saveAttemptId });
+					if (typeof result !== "object") continue;
+					extracted = { candidates: [result.candidate], liveAttempt: { outcome: "body" } };
 				}
-				if (result === "tier-1-terminal") {
-					logger.info("[RecrawlLinkInitiated] tier-1 terminal — origin no longer serves the page", {
-						url: detail.url,
-					});
-				}
-				if (result !== "tier-1-written" && capture === "not-written") continue;
 
 				await publishEvent(RecrawlContentExtractedEvent, {
 					url: detail.url,
+					saveAttemptId,
+					...extracted,
 					extractedAt: deps.now().toISOString(),
 				});
 				logger.info("[RecrawlLinkInitiated] emitted RecrawlContentExtractedEvent", {

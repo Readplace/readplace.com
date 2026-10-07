@@ -71,7 +71,7 @@ describe("initResolveWrapperTarget", () => {
 			const { fetchRedirectHop, requests } = scriptedHops({ [TRACKER]: () => redirect(PUBLISHER, 301) });
 			const { resolve, lines } = createResolver({ fetchRedirectHop });
 
-			expect(await resolve(TRACKER)).toBe(PUBLISHER);
+			expect(await resolve(TRACKER)).toEqual({ url: PUBLISHER });
 			expect(requests.map((request) => request.url)).toEqual([TRACKER]);
 			expect(requests[0].init.headers).toBe(HEADERS);
 			expect(requests[0].init.signal).toBeInstanceOf(AbortSignal);
@@ -105,7 +105,7 @@ describe("initResolveWrapperTarget", () => {
 			});
 			const { resolve, lines } = createResolver({ fetchRedirectHop });
 
-			expect(await resolve(share)).toBe("https://publisher.example/article");
+			expect(await resolve(share)).toEqual({ url: "https://publisher.example/article" });
 			expect(requests.map((request) => request.url)).toEqual([share, googleHop]);
 			expect(parsedLine(lines).hops).toBe(2);
 		});
@@ -118,14 +118,14 @@ describe("initResolveWrapperTarget", () => {
 			});
 			const { resolve } = createResolver({ fetchRedirectHop });
 
-			expect(await resolve(insecure)).toBe(PUBLISHER);
+			expect(await resolve(insecure)).toEqual({ url: PUBLISHER });
 		});
 
 		it("resolves a relative Location against the hop that sent it", async () => {
 			const { fetchRedirectHop } = scriptedHops({ [TRACKER]: () => redirect("/issues/700") });
 			const { resolve } = createResolver({ fetchRedirectHop });
 
-			expect(await resolve(TRACKER)).toBe("https://javascriptweekly.com/issues/700");
+			expect(await resolve(TRACKER)).toEqual({ url: "https://javascriptweekly.com/issues/700" });
 		});
 
 		it("hands back a Mailchimp 'tweet this' intent verbatim — unwrapping it is the caller's job", async () => {
@@ -134,7 +134,7 @@ describe("initResolveWrapperTarget", () => {
 			const { fetchRedirectHop } = scriptedHops({ [mailchimp]: () => redirect(intent) });
 			const { resolve } = createResolver({ fetchRedirectHop });
 
-			expect(await resolve(mailchimp)).toBe(intent);
+			expect(await resolve(mailchimp)).toEqual({ url: intent });
 		});
 
 		it.each([
@@ -216,7 +216,7 @@ describe("initResolveWrapperTarget", () => {
 				},
 			});
 
-			expect(await resolve(`${APPLE}?articleList=x`)).toBe("https://www.abc.net.au/news/story");
+			expect(await resolve(`${APPLE}?articleList=x`)).toEqual({ url: "https://www.abc.net.au/news/story" });
 			expect(received?.url).toBe(`${APPLE}?articleList=x`);
 			expect(received?.signal).toBeInstanceOf(AbortSignal);
 			expect(parsedLine(lines)).toEqual({
@@ -250,7 +250,7 @@ describe("initResolveWrapperTarget", () => {
 			});
 			const { resolve, lines } = createResolver({ fetchRedirectHop });
 
-			expect(await resolve(ARCHIVE)).toBe("https://publisher.example/article");
+			expect(await resolve(ARCHIVE)).toEqual({ url: "https://publisher.example/article", contentSourceUrl: ARCHIVE });
 			expect(parsedLine(lines)).toMatchObject({ family: "archive-snapshot", targetHost: "publisher.example", outcome: "resolved" });
 		});
 
@@ -261,7 +261,7 @@ describe("initResolveWrapperTarget", () => {
 			});
 			const { resolve } = createResolver({ fetchRedirectHop });
 
-			expect(await resolve(ARCHIVE)).toBe("https://publisher.example/a");
+			expect(await resolve(ARCHIVE)).toEqual({ url: "https://publisher.example/a", contentSourceUrl: ARCHIVE });
 		});
 
 		it.each([
@@ -290,7 +290,7 @@ describe("initResolveWrapperTarget", () => {
 			});
 			const { resolve, lines } = createResolver({ fetchRedirectHop });
 
-			expect(await resolve(ARCHIVE)).toBe("https://publisher.example/article");
+			expect(await resolve(ARCHIVE)).toEqual({ url: "https://publisher.example/article", contentSourceUrl: MIRROR });
 			expect(requests.map((request) => request.url)).toEqual([ARCHIVE, MIRROR]);
 			expect(parsedLine(lines)).toMatchObject({ outcome: "resolved", hops: 2 });
 		});
@@ -322,4 +322,11 @@ describe("initResolveWrapperTarget", () => {
 			expect(parsedLine(lines)).toMatchObject({ outcome: "hop-budget-exhausted", hops: 5 });
 		});
 	});
+});
+
+
+it.each(["https://archive.ph/o/abc/javascript:alert(1)", "https://x.com/intent/post"])("does not turn an unresolved syntactic wrapper into an archive lookup: %s", async (url) => {
+	const { resolve, lines } = createResolver();
+	expect(await resolve(url)).toBeUndefined();
+	expect(lines).toEqual([]);
 });

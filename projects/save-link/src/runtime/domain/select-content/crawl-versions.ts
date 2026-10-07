@@ -19,7 +19,10 @@ export function appendCrawlVersion(
 	entry: CrawlVersionEntry,
 ): { changed: boolean; next: StoredCrawlVersion[] } {
 	const alreadyRecorded = existing.some(
-		(stored) => normalizeCrawlVersion(stored).minuteId === entry.minuteId,
+		(stored) => {
+			const recorded = normalizeCrawlVersion(stored);
+			return recorded.minuteId === entry.minuteId || (entry.candidateId !== undefined && recorded.candidateId === entry.candidateId);
+		},
 	);
 	if (alreadyRecorded) {
 		return { changed: false, next: [...existing] };

@@ -10,6 +10,7 @@ import { initS3HnSnapshot } from "../../providers/hn-snapshot/s3-hn-snapshot";
 import { initHnSnapshot } from "./hn-snapshot";
 
 const NOW = new Date("2026-10-10T12:00:00.000Z");
+const resolvedAs = (url: string) => ({ status: "resolved" as const, url, originalUrl: url });
 const DAY = "2026-10-10";
 
 function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
@@ -47,7 +48,7 @@ function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
 			);
 		},
 		validateSaveableUrl,
-		resolveSaveIdentity: async (url) => ({ url }),
+		resolveSaveIdentity: async (url) => resolvedAs(url),
 		findArticleByUrl: articles.findArticleByUrl,
 		findArticleCrawlStatus: crawl.findArticleCrawlStatus,
 		readArticleContent: async (url) => articles.readContent(ArticleResourceUniqueId.parse(url)),
@@ -130,14 +131,25 @@ describe("shared HN preparation", () => {
 		const capture = "https://web.archive.org/web/2026/https://publisher.com/archived";
 		const app = subject({
 			resolveSaveIdentity: async () => ({
-				url: "https://publisher.com/archived",
+				...resolvedAs("https://publisher.com/archived"),
 				contentSourceUrl: capture,
+				sourceOriginalUrl: "https://publisher.com/archived",
 			}),
 		});
 		app.items.set(1, { id: 1, type: "story", url: capture });
 		await app.prepareSnapshot();
-		expect(app.published).toEqual(["https://publisher.com/archived", capture]);
+		expect(app.published).toEqual([capture]);
 		expect(await app.statuses()).toEqual(["pending"]);
+	});
+	it("skips a story whose wrapper link does not resolve to an original article", async () => {
+		const wrapper = "https://t.co/unresolvable";
+		const app = subject({
+			resolveSaveIdentity: async () => ({ status: "unresolved" }),
+		});
+		app.items.set(1, { id: 1, type: "story", url: wrapper });
+		await app.prepareSnapshot();
+		expect(app.published).toEqual([]);
+		expect(await app.statuses()).toEqual(["skipped"]);
 	});
 	it("filters jobs, dead/deleted stories, discussions, unsupported URLs and missing items without losing rank", async () => {
 		const app = subject();
@@ -162,13 +174,14 @@ describe("shared HN preparation", () => {
 	});
 	it("deduplicates canonical redirects in rank order and skips purged and unsupported destinations", async () => {
 		const app = subject({
-			resolveSaveIdentity: async (url) => ({
-				url: url.endsWith("second")
-					? "https://publisher.com/first"
-					: url.endsWith("private")
-						? "http://localhost/private"
-						: url,
-			}),
+			resolveSaveIdentity: async (url) =>
+				resolvedAs(
+					url.endsWith("second")
+						? "https://publisher.com/first"
+						: url.endsWith("private")
+							? "http://localhost/private"
+							: url,
+				),
 		});
 		for (const [i, slug] of ["first", "second", "purged", "private"].entries())
 			app.items.set(i + 1, { id: i + 1, type: "story", url: `https://publisher.com/${slug}` });
@@ -233,7 +246,7 @@ describe("shared HN preparation", () => {
 						);
 		app.deps.resolveSaveIdentity = async (url) => {
 			if (url.endsWith("canonical-failure")) throw new Error("resolve failed");
-			return { url };
+			return resolvedAs(url);
 		};
 		app.deps.findGeneratedSummary = async () => {
 			throw new Error("summary failed");

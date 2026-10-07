@@ -1,15 +1,13 @@
 name: Tier 1+ crawl pipeline health
 
-# Exercises the prod Lambda's crawl pipeline end-to-end by forcing a
-# re-crawl via https://readplace.com/admin/recrawl?url=<url> and asserting
-# the parsed article contains expected content. Routes through prod so
-# a green run means prod's Lambda can reach the origin, not that the
-# GitHub Actions runner can.
-
 on:
   schedule:
     - cron: '0 19 * * *'    # 06:00 AEST daily
   workflow_dispatch:
+
+concurrency:
+  group: tier-1-plus-crawl-pipeline-health-prod
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -37,6 +35,14 @@ jobs:
     env:
       READPLACE_ORIGIN: https://readplace.com
       RECRAWL_SERVICE_TOKEN: ${{ secrets.RECRAWL_SERVICE_TOKEN }}
+      CRAWL_CANARY_EMAIL: ${{ secrets.CRAWL_CANARY_EMAIL }}
+      CRAWL_CANARY_PASSWORD: ${{ secrets.CRAWL_CANARY_PASSWORD }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ap-southeast-2
+      CONTENT_BUCKET_NAME: hutch-article-content-prod
+      ARCHIVE_COMPARISON_LOG_GROUP: /aws/lambda/select-most-complete-content-handler
+      ARCHIVE_HEALTH_REPORT_PATH: ${{ github.workspace }}/archive-health-report.json
     steps:
       - uses: actions/checkout@v6
 
@@ -53,6 +59,15 @@ jobs:
 
       - name: Run Tier 1+ crawl pipeline health
         run: pnpm nx run @packages/crawl-article:tier-1-plus-pipeline-health
+
+      - name: Upload archive save evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: archive-health-evidence
+          path: archive-health-report.json
+          if-no-files-found: warn
+          retention-days: 30
 
       # ┌──────────────────────────────────────────────────────────────────┐
       # │ ON FAILURE: open or update a tracking issue                      │
@@ -77,7 +92,7 @@ jobs:
             const body = [
               marker,
               '',
-              'The Tier 1+ crawl pipeline canary failed on its scheduled run. A source real users save can no longer be parsed by prod. Investigate the failing source, then close this issue once resolved.',
+              'The Tier 1+ crawl pipeline canary failed. Inspect the failing source and archive-health-evidence artifact: archive saves require their own fresh comparison evidence, so retained reader content alone cannot prove archive health. Close this issue once resolved.',
               '',
               '## Context',
               `- **Run**: ${runUrl}`,

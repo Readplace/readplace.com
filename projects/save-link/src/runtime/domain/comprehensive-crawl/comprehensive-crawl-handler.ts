@@ -1,3 +1,10 @@
+import type { SaveAttemptId } from "@packages/domain/article";
+import assert from "node:assert";
+import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
+import { initCrawlAndFinalizeArticle } from "@packages/finalize-article";
+import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
+import type { CandidateReference } from "../select-content/list-available-tier-sources";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -28,7 +35,7 @@ import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-h
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-failure-outcome";
-import type { FinalizeArticle } from "@packages/finalize-article";
+import { type FinalizeArticle, UNREADABLE_ARTICLE } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
 
 /* Every comprehensive-crawl record must account for the row's crawl axis being
@@ -44,6 +51,9 @@ type CrawlTermination =
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComprehensiveCrawlHandler(deps: {
+	resolveOriginalUrl: (url: string) => Promise<string>;
+	prepareArticleIdentity: PrepareArticleIdentity;
+	verifyWrapperSource: VerifyWrapperSource;
 	crawlArticle: CrawlArticle;
 	finalizeArticle: FinalizeArticle;
 	putTierSource: PutTierSource;
@@ -83,6 +93,16 @@ export function initComprehensiveCrawlHandler(deps: {
 	} = deps;
 
 	const logPrefix = "[ComprehensiveCrawlCommand]";
+	const crawlArchiveCapture = initCrawlArchiveCapture({
+		crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle }),
+		putTierSource,
+		readTierSnapshot,
+		logCrawlOutcome,
+		publishEvent,
+		logger,
+		now,
+		verifyWrapperSource: deps.verifyWrapperSource,
+	});
 
 	const { emitTier1FailureOutcome } = initEmitTier1FailureOutcome({
 		readTierSnapshot,
@@ -119,17 +139,43 @@ export function initComprehensiveCrawlHandler(deps: {
 		return { via: "committed-in-process" };
 	};
 
+	const publishArchiveComparison = async (ctx: {
+		url: string;
+		userId?: string;
+		recrawl?: boolean;
+		saveAttemptId: SaveAttemptId;
+		candidates: CandidateReference[];
+	}) => {
+		const detail = {
+			url: ctx.url,
+			userId: ctx.userId,
+			saveAttemptId: ctx.saveAttemptId,
+			candidates: ctx.candidates,
+			liveAttempt: { outcome: "no-body" as const },
+			extractedAt: now().toISOString(),
+		};
+		if (ctx.recrawl) await publishEvent(RecrawlContentExtractedEvent, detail);
+		else await publishEvent(TierContentExtractedEvent, detail);
+	};
+
 	const resolveCrawlResult = async (
 		crawlResult: Awaited<ReturnType<CrawlArticle>>,
 		ctx: {
 			url: string;
+			originalUrl: string;
 			refresh?: boolean;
 			recrawl?: boolean;
 			userId?: string;
 			previousBodyHash?: string;
+			saveAttemptId: SaveAttemptId;
+			candidates?: CandidateReference[];
 		},
 	): Promise<CrawlTermination> => {
-		const { url, refresh, recrawl, userId, previousBodyHash } = ctx;
+		const { url, originalUrl, refresh, recrawl, userId, previousBodyHash } = ctx;
+		if (ctx.candidates !== undefined && crawlResult.status !== "fetched") {
+			await publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+			return { via: "deferred-to-event" };
+		}
 		switch (crawlResult.status) {
 			case "unsupported": {
 				// Comprehensive saw the body and confirmed it cannot be extracted
@@ -194,13 +240,15 @@ export function initComprehensiveCrawlHandler(deps: {
 				return { via: "committed-in-process" };
 			}
 			case "fetched": {
+				const fetchedAt = now().toISOString();
 				const finalized = await finalizeArticle({
-					url,
+					writeContext: { url, attemptId: ctx.saveAttemptId },
+					url: originalUrl,
 					documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: crawlResult.finalUrl }),
 					html: crawlResult.html,
 					resolvedThumbnail: crawlResult.thumbnail,
 				});
-				if (!finalized.ok) {
+				if (!finalized.ok && ctx.candidates === undefined) {
 					logParseError({ url, reason: finalized.reason });
 					await emitTier1FailureOutcome({ url });
 					await transitionAndPersist(markCrawlFailed, {
@@ -211,12 +259,38 @@ export function initComprehensiveCrawlHandler(deps: {
 					});
 					throw new Error(`crawl failed for ${url}: ${finalized.reason}`);
 				}
+				const article = finalized.ok ? finalized.article : UNREADABLE_ARTICLE;
+				const liveFailed = !finalized.ok || (crawlResult.httpStatus !== undefined && (crawlResult.httpStatus < 200 || crawlResult.httpStatus >= 300));
+				const evaluationHtml = ctx.candidates === undefined ? article.html : crawlResult.evaluationHtml ?? crawlResult.html;
 
+				/* Best-effort and never throws: a redirecting PDF/comprehensive URL
+				 * claims its terminal identity here too. Refresh and recrawl are both
+				 * re-crawls of an existing article, so folding either flag into
+				 * `recrawl` suppresses re-adoption on every stale re-fetch. */
+				await adoptCanonicalIdentity({
+					url,
+					finalUrl: crawlResult.finalUrl,
+					outcome: liveFailed ? { kind: "crawl-failed" } : { kind: "finalized", wordCount: article.metadata.wordCount },
+					recrawl: Boolean(recrawl || refresh),
+				});
+				const metadata = candidateProvenance({
+					metadata: article.metadata,
+					html: article.html,
+					evaluationHtml,
+					attemptId: ctx.saveAttemptId,
+					originalUrl: await deps.resolveOriginalUrl(url),
+					sourceUrl: crawlResult.finalUrl ?? originalUrl,
+					kind: "live",
+					fetchedAt,
+					httpStatus: crawlResult.httpStatus,
+				});
+				const candidates = [...(ctx.candidates ?? []), { id: metadata.id, tier: "tier-1" as const }];
 				await putTierSource({
 					url,
 					tier: "tier-1",
-					html: finalized.article.html,
-					metadata: finalized.article.metadata,
+					html: article.html,
+					evaluationHtml,
+					metadata,
 				});
 				await markCrawlStage({ url, stage: "crawl-content-uploaded" });
 
@@ -229,7 +303,7 @@ export function initComprehensiveCrawlHandler(deps: {
 				 * Lambda. Save / recrawl chains have no aggregate write that
 				 * persists etag/lastModified, so they still go through the
 				 * UpdateFetchTimestampCommand → update-fetch-timestamp Lambda. */
-				if (!refresh) {
+				if (!refresh && !liveFailed) {
 					await updateFetchTimestamp({
 						url,
 						contentFetchedAt,
@@ -243,20 +317,9 @@ export function initComprehensiveCrawlHandler(deps: {
 				logCrawlOutcome({
 					url,
 					thisTier: "tier-1",
-					thisTierStatus: "success",
+					thisTierStatus: liveFailed ? "failed" : "success",
 					otherTierStatus: successSnapshot.tier0Status,
 					pickedTier: successSnapshot.pickedTier,
-				});
-
-				/* Best-effort and never throws: a redirecting PDF/comprehensive URL
-				 * claims its terminal identity here too. Refresh and recrawl are both
-				 * re-crawls of an existing article, so folding either flag into
-				 * `recrawl` suppresses re-adoption on every stale re-fetch. */
-				await adoptCanonicalIdentity({
-					url,
-					finalUrl: crawlResult.finalUrl,
-					outcome: { kind: "finalized", wordCount: finalized.article.metadata.wordCount },
-					recrawl: Boolean(recrawl || refresh),
 				});
 
 				if (refresh) {
@@ -265,6 +328,8 @@ export function initComprehensiveCrawlHandler(deps: {
 					// that sets freshness and canonical content.
 					await publishEvent(RefreshContentExtractedEvent, {
 						url,
+						candidates,
+						saveAttemptId: ctx.saveAttemptId,
 						etag: crawlResult.etag,
 						lastModified: crawlResult.lastModified,
 						contentFetchedAt,
@@ -275,10 +340,10 @@ export function initComprehensiveCrawlHandler(deps: {
 					// Recrawl chain runs a clone of the selector that ALWAYS dispatches
 					// generate-summary regardless of canonical change. Emit the recrawl-
 					// specific event so admin recrawls of PDFs preserve that semantics.
-					await publishEvent(RecrawlContentExtractedEvent, { url, extractedAt: contentFetchedAt });
+					await publishEvent(RecrawlContentExtractedEvent, { url, extractedAt: contentFetchedAt, candidates, saveAttemptId: ctx.saveAttemptId });
 					logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
 				} else {
-					await publishEvent(TierContentExtractedEvent, { url, tier: "tier-1", userId, extractedAt: contentFetchedAt });
+					await publishEvent(TierContentExtractedEvent, { url, userId, extractedAt: contentFetchedAt, candidates, saveAttemptId: ctx.saveAttemptId });
 					logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
 				}
 				return { via: "deferred-to-event" };
@@ -293,7 +358,19 @@ export function initComprehensiveCrawlHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = ComprehensiveCrawlCommand.detailSchema.parse(envelope.detail);
-				const { url, userId, recrawl, refresh, previousBodyHash } = detail;
+				const { url, userId, recrawl, refresh, previousBodyHash, saveAttemptId } = detail;
+				const identity = await deps.prepareArticleIdentity(url);
+				assert(identity.status === "resolved", "queued comprehensive article original is unresolved");
+				let candidates = detail.candidates;
+				if (candidates === undefined && !refresh && identity.contentSourceUrl !== undefined) {
+					const capture = await crawlArchiveCapture({
+						url,
+						captureUrl: identity.contentSourceUrl,
+						sourceOriginalUrl: identity.sourceOriginalUrl,
+						saveAttemptId,
+					});
+					candidates = capture === undefined ? [] : [capture];
+				}
 
 				logger.info(`${logPrefix} processing`, {
 					url,
@@ -312,7 +389,8 @@ export function initComprehensiveCrawlHandler(deps: {
 				const budget = await consumePaidCrawlBudget({ messageId: record.messageId });
 				if (!budget.allowed) {
 					logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
-					await resolveBudgetExhausted({ url, refresh });
+					if (candidates !== undefined) await publishArchiveComparison({ url, userId, recrawl, saveAttemptId, candidates });
+					else await resolveBudgetExhausted({ url, refresh });
 					continue;
 				}
 
@@ -338,8 +416,9 @@ export function initComprehensiveCrawlHandler(deps: {
 					logger,
 				});
 				const crawlResult = await crawlArticle({
-					url,
+					url: identity.originalUrl,
 					previousBodyHash,
+					...(candidates !== undefined ? { retainResponseBody: true } : {}),
 					onProgress: ({ partIndex, partCount, stage }) => {
 						const effectiveStage = stage ?? "comprehensive-extracting";
 						if (effectiveStage !== latchedStage) {
@@ -374,6 +453,9 @@ export function initComprehensiveCrawlHandler(deps: {
 
 				await resolveCrawlResult(crawlResult, {
 					url,
+					originalUrl: identity.originalUrl,
+					saveAttemptId,
+					candidates,
 					refresh,
 					recrawl,
 					userId,

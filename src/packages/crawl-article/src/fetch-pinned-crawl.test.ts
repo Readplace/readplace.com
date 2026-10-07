@@ -100,3 +100,25 @@ describe("initFetchPinnedCrawl — twitter.com identities", () => {
 		expect(urls).toEqual(["https://mobile.twitter.com/jack/status/20"]);
 	});
 });
+
+it("fetches an explicitly verified wrapper candidate even when its legacy row now displays the original", async () => {
+	const capture = "https://web.archive.org/web/20081203/https://example.com/post";
+	const crawlArticle = jest.fn<ReturnType<CrawlArticle>, Parameters<CrawlArticle>>().mockResolvedValue({ status: "fetched", html: "<html>archive</html>", bodyHash: "hash" });
+	const findAdoptedFetchUrl = jest.fn().mockResolvedValue("https://example.com/post");
+	const crawl = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl });
+	await crawl({ url: capture, retainResponseBody: true, skipFetchPin: true });
+	expect(crawlArticle).toHaveBeenCalledWith({ url: capture, retainResponseBody: true, skipFetchPin: true });
+	expect(findAdoptedFetchUrl).not.toHaveBeenCalled();
+});
+
+it("still fetches the adopted terminal for a live crawl that retains the response body", async () => {
+	const { crawlArticle, urls } = captureCrawl();
+	const pinned = initFetchPinnedCrawl({
+		crawlArticle,
+		findAdoptedFetchUrl: async () => "https://nytimes.com/real-article",
+	});
+
+	await pinned({ url: "https://evil.com/x", retainResponseBody: true });
+
+	expect(urls).toEqual(["https://nytimes.com/real-article"]);
+});

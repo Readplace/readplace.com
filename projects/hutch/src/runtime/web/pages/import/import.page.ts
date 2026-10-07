@@ -11,8 +11,7 @@ import {
 	MAX_IMPORT_FILE_BYTES,
 } from "@packages/domain/import-session";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
-import { isUnresolvedArchiveCapture } from "@packages/domain/article";
+import { newSaveAttemptId, type ValidateSaveableUrl, type SaveableUrl, type SaveableUrlErrorCode } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { PublishSubmitLink } from "@packages/provider-contracts/events";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -25,6 +24,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
+import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import { type AnalyticsEvent, hashIp, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
@@ -42,6 +42,7 @@ import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
+	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
 	publishSubmitLink: PublishSubmitLink;
 	validateNewSaveUrl: ValidateSaveableUrl;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
@@ -349,15 +350,15 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 				),
 			);
 			const settled = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
-			const submitted = settled.filter(({ url, freshness }) => isUnresolvedArchiveCapture(freshness.identity?.url ?? url));
+			const submitted = settled.filter(({ freshness }) => freshness.action === "unresolved");
 			await Promise.all(
 				submitted.map(({ url }) =>
 					deps
-						.publishSubmitLink({ url, userId, provenance: { kind: "import" }, readlist: DEFAULT_READLIST_SLUG })
+						.publishSubmitLink({ url, userId, provenance: { kind: "import" }, readlist: DEFAULT_READLIST_SLUG, saveAttemptId: newSaveAttemptId() })
 						.catch((error: unknown) => logImportFailure(url, error)),
 				),
 			);
-			const ready = settled.filter((page) => !submitted.includes(page));
+			const ready = settled.flatMap(({ url, freshness }) => (freshness.action === "unresolved" ? [] : [{ url, freshness }]));
 			if (ready.length === 0) continue;
 			let savedAts: Date[];
 			try {
@@ -374,6 +375,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 						freshness,
 						provenance: { kind: "import" },
 						savedAt: savedAts[index],
+						saveAttemptId: newSaveAttemptId(),
 					}).catch((error: unknown) => logImportFailure(url, error)),
 				),
 			);

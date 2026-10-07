@@ -31,10 +31,10 @@ function createRecord(detail: unknown, receiveCount: number, messageId = "msg-1"
 }
 
 function createSqsEvent(
-	detail: { url: string; tier: "tier-0" | "tier-1"; userId?: string },
+	detail: { url: string; userId?: string },
 	receiveCount = 3,
 ): SQSEvent {
-	return { Records: [createRecord(detail, receiveCount)] };
+	return { Records: [createRecord({ ...detail, saveAttemptId: "attempt-1", candidates: [] }, receiveCount)] };
 }
 
 describe("initSelectMostCompleteContentDlqHandler", () => {
@@ -47,7 +47,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 		});
 
 		await handler(
-			createSqsEvent({ url: "https://example.com/failed", tier: "tier-1", userId: "user-1" }, 4),
+			createSqsEvent({ url: "https://example.com/failed", userId: "user-1" }, 4),
 			buildLambdaContext(),
 			() => {},
 		);
@@ -103,7 +103,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 		});
 
 		const result = await handler(
-			createSqsEvent({ url: "https://example.com/failed", tier: "tier-1" }, 4),
+			createSqsEvent({ url: "https://example.com/failed" }, 4),
 			buildLambdaContext(),
 			() => {},
 		);
@@ -127,8 +127,8 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 
 		const event: SQSEvent = {
 			Records: [
-				createRecord({ url: "https://example.com/ok", tier: "tier-1" }, 4, "msg-ok"),
-				createRecord({ url: "https://example.com/explode", tier: "tier-1" }, 4, "msg-bad"),
+				createRecord({ url: "https://example.com/ok", saveAttemptId: "attempt-1", candidates: [] }, 4, "msg-ok"),
+				createRecord({ url: "https://example.com/explode", saveAttemptId: "attempt-1", candidates: [] }, 4, "msg-bad"),
 			],
 		};
 

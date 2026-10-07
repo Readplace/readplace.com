@@ -7,6 +7,8 @@ import {
 } from "@packages/hutch-infra-components/runtime";
 import {
 	initCountSaversByUrl,
+	initDynamoDbArticleStore,
+	initRevokeContentCandidates,
 	initPruneCrawlVersions,
 	initPurgeArticleContent,
 	initResolveAuthoredContentKeys,
@@ -15,7 +17,6 @@ import {
 	initTombstoneArticle,
 } from "@packages/article-store";
 import { requireEnv } from "@packages/require-env";
-import { initFindContentSourceTier } from "./providers/article-store/find-content-source-tier";
 import { initReadTierSource } from "./providers/article-store/read-tier-source";
 import { initListAvailableTierSources } from "./domain/select-content/list-available-tier-sources";
 import { initRemoveMyContentCommandHandler } from "./domain/remove-my-content/remove-my-content-command-handler";
@@ -28,13 +29,6 @@ const eventBusName = requireEnv("EVENT_BUS_NAME");
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
 
-const { resolveAuthoredContentKeys } = initResolveAuthoredContentKeys({
-	s3Client,
-	dynamoClient,
-	tableName: articlesTable,
-	bucketName: contentBucketName,
-});
-
 const { deleteContentObjects } = initS3DeleteContentObjects({
 	client: s3Client,
 	bucketName: contentBucketName,
@@ -43,6 +37,14 @@ const { deleteContentObjects } = initS3DeleteContentObjects({
 const { listContentKeys } = initS3ListContentKeys({
 	client: s3Client,
 	bucketName: contentBucketName,
+});
+
+const { resolveAuthoredContentKeys } = initResolveAuthoredContentKeys({
+	s3Client,
+	dynamoClient,
+	tableName: articlesTable,
+	bucketName: contentBucketName,
+	listContentKeys,
 });
 
 const { pruneCrawlVersions } = initPruneCrawlVersions({
@@ -57,11 +59,6 @@ const { readTierSource } = initReadTierSource({
 });
 
 const { listAvailableTierSources } = initListAvailableTierSources({ readTierSource });
-
-const { findContentSourceTier } = initFindContentSourceTier({
-	dynamoClient,
-	tableName: articlesTable,
-});
 
 const { countSaversByUrl } = initCountSaversByUrl({
 	client: dynamoClient,
@@ -83,11 +80,16 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
+const { store } = initDynamoDbArticleStore({ client: dynamoClient, tableName: articlesTable });
+const revokeContentCandidates = initRevokeContentCandidates({ client: dynamoClient, tableName: articlesTable });
+
 export const handler = initRemoveMyContentCommandHandler({
+	loadArticle: store.load,
+	saveArticle: store.save,
+	revokeContentCandidates,
 	resolveAuthoredContentKeys,
 	deleteContentObjects,
 	pruneCrawlVersions,
-	findContentSourceTier,
 	listAvailableTierSources,
 	countSaversByUrl,
 	purgeArticleContent,

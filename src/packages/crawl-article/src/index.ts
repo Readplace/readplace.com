@@ -7,7 +7,7 @@ export {
 	CRAWL_PERSONAS,
 	PROXIED_FETCH_TIMEOUTS,
 } from "./crawl-article";
-export type { Persona } from "./persona-fallback";
+export { isBlockClassStatus, type Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
 export {
 	extractThumbnailCandidates,
@@ -24,7 +24,6 @@ export type {
 export { resolveDocumentUrl } from "./resolve-document-url";
 export { initCrawlFetch } from "./crawl-fetch";
 export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
-export { initCaptureFallbackCrawl } from "./fetch-capture-fallback";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
 export { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "./curl-fetch";
 export type { CurlImpersonateProbe, CurlImpersonateProbeResult } from "./curl-fetch";

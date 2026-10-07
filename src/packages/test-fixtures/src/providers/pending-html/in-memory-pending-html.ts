@@ -3,19 +3,19 @@ import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 
 export interface InMemoryPendingHtml {
 	putPendingHtml: PutPendingHtml;
-	readPendingHtml: (url: string) => string | undefined;
+	readPendingHtml: (url: string, options: { saveAttemptId: string }) => string | undefined;
 }
 
 export function initInMemoryPendingHtml(): InMemoryPendingHtml {
 	const store = new Map<string, string>();
 
 	const putPendingHtml: PutPendingHtml = async (params) => {
-		const key = ArticleResourceUniqueId.parse(params.url).toS3PendingHtmlKey();
+		const key = ArticleResourceUniqueId.parse(params.url).toS3PendingHtmlKey(params.saveAttemptId);
 		store.set(key, params.html);
 	};
 
-	const readPendingHtml = (url: string): string | undefined => {
-		const key = ArticleResourceUniqueId.parse(url).toS3PendingHtmlKey();
+	const readPendingHtml = (url: string, options: { saveAttemptId: string }): string | undefined => {
+		const key = ArticleResourceUniqueId.parse(url).toS3PendingHtmlKey(options.saveAttemptId);
 		return store.get(key);
 	};
 

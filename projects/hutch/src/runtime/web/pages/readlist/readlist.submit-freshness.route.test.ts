@@ -18,7 +18,7 @@ describe("Readlist save through submit freshness", () => {
 		const { refreshArticleIfStale } = initSubmitFreshness({
 			findArticleByUrl: fixture.articleStore.findArticleByUrl,
 			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
-			resolveSaveIdentity: async (url) => ({ url }),
+			resolveSaveIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 			publishStaleCheckRequested: async (params) => {
 				staleChecks.push(params);
 			},
@@ -37,7 +37,7 @@ describe("Readlist save through submit freshness", () => {
 
 		await agent.post("/queue/save").type("form").send({ url: articleUrl });
 
-		expect(linkSaves).toEqual([{ url: articleUrl, userId: expect.any(String) }]);
+		expect(linkSaves).toEqual([{ url: articleUrl, userId: expect.any(String), saveAttemptId: expect.any(String) }]);
 		expect(staleChecks).toEqual([]);
 		expect(await fixture.articleCrawl.findArticleCrawlStatus(articleUrl)).toEqual({
 			status: "pending",

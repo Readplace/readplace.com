@@ -1,4 +1,5 @@
 import type { Article } from "./article.types";
+import type { CanonicalCommit, SelectionExpected } from "./content-selection.types";
 
 /* Scopes the aggregate save so concurrent inline writers on untouched axes are not clobbered. */
 export type AggregateField =
@@ -9,19 +10,12 @@ export type AggregateField =
 	| "summaryAutoHeal"
 	| "readerAvailability";
 
-/**
- * Storage adapter contract for the Article aggregate.
- *
- * `save` is an unconditional whole-row write — Phase 1 accepts last-writer-wins
- * on concurrent updates because the row is < 8 KB and only one workflow writes
- * per URL per second in practice. Adding optimistic concurrency would mean
- * reading a `version` attribute and re-writing under a ConditionExpression;
- * we defer that until a measured conflict rate justifies the complexity.
- */
 export type LoadArticle = (url: string) => Promise<Article | undefined>;
 export type SaveArticle = (params: {
 	article: Article;
 	writes: readonly AggregateField[];
+	canonicalCommit?: CanonicalCommit;
+	selectionExpected?: SelectionExpected;
 }) => Promise<void>;
 
 export interface ArticleStore {

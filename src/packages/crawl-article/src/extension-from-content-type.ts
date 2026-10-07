@@ -12,8 +12,8 @@ export function extensionFromContentType(params: { contentType: string; url: str
 	if (mimeMap[mimeBase]) return mimeMap[mimeBase];
 	try {
 		const pathname = new URL(url).pathname;
-		const match = pathname.match(/\.(\w{2,5})$/);
-		if (match) return `.${match[1]}`;
+		const match = pathname.match(/\.([a-z0-9]{2,5})$/i);
+		if (match) return `.${match[1].toLowerCase()}`;
 	} catch {
 		// malformed URL
 	}

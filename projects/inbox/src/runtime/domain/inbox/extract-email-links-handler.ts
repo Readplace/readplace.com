@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { decodeHtmlEntities } from "@packages/crawl-article";
-import type { SaveProvenance } from "@packages/domain/article";
-import { validateSaveableUrl } from "@packages/domain/article";
+import type { SaveAttemptId, SaveProvenance } from "@packages/domain/article";
+import { newSaveAttemptId, validateSaveableUrl } from "@packages/domain/article";
 import { extractUrls } from "@packages/domain/import-session";
 import {
 	capEmailLinks,
@@ -94,6 +94,7 @@ export function initExtractEmailLinksHandler(deps: {
 		url: string;
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
+		saveAttemptId: SaveAttemptId;
 	}) => Promise<void>;
 	publishEmailLinksTriaged: (input: {
 		userId: UserId;
@@ -105,6 +106,7 @@ export function initExtractEmailLinksHandler(deps: {
 	}) => Promise<void>;
 	publishSaveEmailIssue: (input: {
 		userId: UserId;
+		saveAttemptId: SaveAttemptId;
 		receivedAtMessageId: string;
 		subject: string;
 		senderEmail: string;
@@ -331,6 +333,7 @@ export function initExtractEmailLinksHandler(deps: {
 					if (writeAccess === "full") {
 						await publishSaveEmailIssue({
 							userId,
+							saveAttemptId: newSaveAttemptId(),
 							receivedAtMessageId,
 							subject: email.subject,
 							senderEmail: email.senderEmail,
@@ -430,6 +433,7 @@ export function initExtractEmailLinksHandler(deps: {
 								url,
 								provenance: { kind: "email", senderEmail: email.senderEmail },
 								readlist: DEFAULT_READLIST_SLUG,
+								saveAttemptId: newSaveAttemptId(),
 							});
 							if (routing.kind === "inbox" && !firstInboxNoticePublished) {
 								firstInboxNoticePublished = true;

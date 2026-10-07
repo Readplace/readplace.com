@@ -22,7 +22,7 @@ function createSqsEvent(detail: {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
+			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1" } }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -51,6 +51,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		expect(publishEvent).toHaveBeenCalledTimes(1);
 		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
 			url: "https://example.com/doc.pdf",
+			saveAttemptId: "attempt-1",
 			userId: "user-1",
 			recrawl: undefined,
 			refresh: undefined,
@@ -74,6 +75,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
 			url: "https://example.com/doc.pdf",
+			saveAttemptId: "attempt-1",
 			userId: undefined,
 			recrawl: true,
 			refresh: undefined,
@@ -97,6 +99,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
 			url: "https://example.com/doc.pdf",
+			saveAttemptId: "attempt-1",
 			userId: undefined,
 			recrawl: undefined,
 			refresh: true,
@@ -124,6 +127,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
 			url: "https://example.com/doc.pdf",
+			saveAttemptId: "attempt-1",
 			userId: undefined,
 			recrawl: undefined,
 			refresh: true,
@@ -147,6 +151,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
 			url: "https://example.com/blob",
+			saveAttemptId: "attempt-1",
 			userId: undefined,
 			recrawl: undefined,
 			refresh: undefined,

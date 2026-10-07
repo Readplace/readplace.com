@@ -5,6 +5,7 @@ import type {
 } from "../article.types";
 import type { CanonicalImageUrl } from "../canonical-image-url";
 import type { Effect } from "../effects.types";
+import { isCanonicalCandidateRevoked } from "../content-selection.types";
 import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
 
@@ -53,7 +54,7 @@ export function refreshContent(
 	const effects: Effect[] = [];
 
 	let nextSummary: Article["summary"];
-	if (contentChanged) {
+	if (contentChanged || isCanonicalCandidateRevoked(article.contentSelection)) {
 		nextSummary = { kind: "pending", pendingSince: input.now };
 		writes.push("summary");
 		effects.push({ kind: "generate-summary", url: article.url });

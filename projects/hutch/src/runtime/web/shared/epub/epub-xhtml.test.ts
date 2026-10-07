@@ -17,6 +17,25 @@ describe("embeddableImageFilename", () => {
 		).toBe("abcdef0123456789.jpg");
 	});
 
+	it.each(["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"])("accepts an owned image with the supported %s extension", (extension) => {
+		const filename = `attempts/${"a".repeat(64)}/${"b".repeat(64)}.${extension}`;
+		expect(embeddableImageFilename({ src: embeddedSrc(filename), imagePrefix: IMAGE_PREFIX })).toBe(filename);
+		const otherSrc = ArticleResourceUniqueId.parse("https://example.com/other").toImageCdnUrl({ baseUrl: "https://cdn.readplace.test", filename });
+		expect(embeddableImageFilename({ src: otherSrc, imagePrefix: IMAGE_PREFIX })).toBeUndefined();
+	});
+
+	it.each([
+		`attempts/short/${"b".repeat(64)}.png`,
+		`attempts/${"a".repeat(64)}/short.png`,
+		`attempts/${"a".repeat(64)}/${"b".repeat(64)}.png.metadata.json`,
+		`attempts/${"a".repeat(64)}/${"b".repeat(64)}.html`,
+		`attempts/${"a".repeat(64)}/../${"b".repeat(64)}.png`,
+		`attempts/${"a".repeat(64)}/..%2f${"b".repeat(64)}.png`,
+		`attempts/${"a".repeat(64)}/%252e%252e%252f${"b".repeat(64)}.png`,
+	])("rejects malformed or traversing owned image path %s", (filename) => {
+		expect(embeddableImageFilename({ src: embeddedSrc(filename), imagePrefix: IMAGE_PREFIX })).toBeUndefined();
+	});
+
 	it("returns undefined for an image on a foreign path", () => {
 		expect(
 			embeddableImageFilename({ src: "https://origin.example/photo.jpg", imagePrefix: IMAGE_PREFIX }),

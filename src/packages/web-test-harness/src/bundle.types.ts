@@ -3,6 +3,7 @@ import type {
 	FindPersonalLibrary,
 	SaveStarterPack,
 } from "@packages/provider-contracts/engagement-starter";
+import type { ClaimCanonicalAlias, FindIdentityRow, PinContentSource } from "@packages/provider-contracts/article-store";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
@@ -412,12 +413,10 @@ export interface ArticleStoreBundle {
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
-	claimAlias: (params: { aliasUrl: string; targetOriginalUrl: string; now: Date }) => Promise<"claimed" | "occupied">;
+	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: (url: string) => Promise<string | undefined>;
-	findIdentityRow: (
-		url: string,
-	) => Promise<{ kind: "absent" } | { kind: "article" } | { kind: "alias"; targetUrl: string }>;
-	pinContentSource: (params: { articleUrl: string; contentSourceUrl: string }) => Promise<void>;
+	findIdentityRow: FindIdentityRow;
+	pinContentSource: PinContentSource;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
@@ -467,19 +466,19 @@ export interface EventsBundle {
 
 export interface PendingHtmlBundle {
 	putPendingHtml: PutPendingHtml;
-	readPendingHtml: (url: string) => string | undefined;
+	readPendingHtml: (url: string, options: { saveAttemptId: string }) => string | undefined;
 }
 
 export interface PendingPdfBundle {
 	putPendingPdf: PutPendingPdf;
-	readPendingPdfSync: (url: string) => Buffer | undefined;
+	readPendingPdfSync: (url: string, options: { saveAttemptId: string }) => Buffer | undefined;
 }
 
 export interface PendingUploadBundle {
 	createUploadSlot: CreateUploadSlot;
 	statPendingUpload: StatPendingUpload;
 	readPendingUploadPrefix: ReadPendingUploadPrefix;
-	stageUploaded: (params: { url: string; mediaType: string; bytes: Buffer; stagedAt?: Date }) => void;
+	stageUploaded: (params: { url: string; mediaType: string; bytes: Buffer; stagedAt?: Date; saveAttemptId: string }) => void;
 	receiveUpload: (key: string, bytes: Buffer) => void;
 }
 
@@ -533,7 +532,7 @@ export interface SubmitLinkBundle {
 }
 
 export interface WrapperTargetBundle {
-	resolveWrapperTarget: (url: string) => Promise<string | undefined>;
+	resolveWrapperTarget: (url: string) => Promise<{ url: string; contentSourceUrl?: string } | undefined>;
 	targets: Map<string, string>;
 	calls: string[];
 }

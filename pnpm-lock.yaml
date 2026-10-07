@@ -1471,6 +1471,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@packages/article-state-types':
+        specifier: workspace:*
+        version: link:../article-state-types
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1642,6 +1645,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0
@@ -1696,6 +1702,9 @@ importers:
 
   src/packages/save-article:
     dependencies:
+      '@packages/article-resource-unique-id':
+        specifier: workspace:*
+        version: link:../article-resource-unique-id
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain

@@ -1,8 +1,7 @@
 import { noopLogger } from "@packages/hutch-logger";
 import type {
-	ClaimCanonicalAlias,
+	AdoptArticleDestination,
 	ReconcileStubMetadata,
-	SetArticleDisplayUrl,
 } from "@packages/article-store";
 import { noExtract, noRecovery, noTransform, skipCrawl, type SiteRules } from "@packages/site-rules";
 import { adoptableTerminal, initAdoptCanonicalIdentity, initIsSiteRuleUrl } from "./adopt-canonical-identity";
@@ -103,207 +102,41 @@ describe("adoptableTerminal", () => {
 });
 
 describe("initAdoptCanonicalIdentity", () => {
-	const noopSetDisplayUrl: SetArticleDisplayUrl = async () => {};
-	const noopReconcileStubMetadata: ReconcileStubMetadata = async () => {};
-
-	function build(
-		claimAlias: ClaimCanonicalAlias,
-		opts: {
-			isSiteRuleUrl?: (url: string) => boolean;
-			setDisplayUrl?: SetArticleDisplayUrl;
-			reconcileStubMetadata?: ReconcileStubMetadata;
-		} = {},
-	) {
-		const now = () => new Date("2026-07-15T10:00:00.000Z");
-		return initAdoptCanonicalIdentity({
-			claimAlias,
-			setDisplayUrl: opts.setDisplayUrl ?? noopSetDisplayUrl,
-			reconcileStubMetadata: opts.reconcileStubMetadata ?? noopReconcileStubMetadata,
-			isSiteRuleUrl: opts.isSiteRuleUrl ?? never,
-			now,
-			logger: noopLogger,
-		});
+	function build(outcome: "adopted" | "declined" = "adopted") {
+		const adoptDestination = jest.fn<ReturnType<AdoptArticleDestination>, Parameters<AdoptArticleDestination>>().mockResolvedValue(outcome);
+		const reconcileStubMetadata = jest.fn<ReturnType<ReconcileStubMetadata>, Parameters<ReconcileStubMetadata>>().mockResolvedValue(undefined);
+		const logger = { ...noopLogger, warn: jest.fn() };
+		const adopt = initAdoptCanonicalIdentity({ adoptDestination, reconcileStubMetadata, isSiteRuleUrl: never, now: () => new Date("2026-07-15T10:00:00.000Z"), logger });
+		return { adopt, adoptDestination, reconcileStubMetadata, logger };
 	}
 
-	it("claims id(terminal) → url and records the destination as the display URL when the gates pass", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
-		const adopt = build(claimAlias, { setDisplayUrl });
+	const input = { url: "https://site.com/page.html", finalUrl: "https://site.com/page", outcome: { kind: "finalized" as const, wordCount: 300 } };
 
-		await adopt({
-			url: "https://site.com/page.html",
-			finalUrl: "https://site.com/page",
-			outcome: { kind: "finalized", wordCount: 300 },
-		});
-
-		expect(claimAlias).toHaveBeenCalledWith({
-			aliasUrl: "https://site.com/page",
-			targetOriginalUrl: "https://site.com/page.html",
-			now: new Date("2026-07-15T10:00:00.000Z"),
-		});
-		expect(setDisplayUrl).toHaveBeenCalledWith({
-			articleUrl: "https://site.com/page.html",
-			displayUrl: "https://site.com/page",
-		});
+	it("atomically adopts and reconciles metadata after an accepted destination claim", async () => {
+		const harness = build();
+		await harness.adopt(input);
+		expect(harness.adoptDestination).toHaveBeenCalledWith({ articleUrl: input.url, destinationUrl: input.finalUrl, now: new Date("2026-07-15T10:00:00.000Z") });
+		expect(harness.reconcileStubMetadata).toHaveBeenCalledWith({ articleUrl: input.url, displayUrl: input.finalUrl });
 	});
 
-	it("claims nothing for a twitter.com article whose fetch was only moved to x.com", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
-		const adopt = build(claimAlias, { setDisplayUrl });
-
-		await adopt({
-			url: "https://twitter.com/jack/status/20",
-			finalUrl: "https://x.com/jack/status/20",
-			outcome: { kind: "finalized", wordCount: 300 },
-		});
-
-		expect(claimAlias).not.toHaveBeenCalled();
-		expect(setDisplayUrl).not.toHaveBeenCalled();
+	it("does not reconcile a destination rejected by the source pin transaction", async () => {
+		const harness = build("declined");
+		await harness.adopt(input);
+		expect(harness.adoptDestination).toHaveBeenCalledWith({ articleUrl: input.url, destinationUrl: input.finalUrl, now: new Date("2026-07-15T10:00:00.000Z") });
+		expect(harness.reconcileStubMetadata.mock.calls).toEqual([]);
 	});
 
-	it("does not claim or record a display URL when a gate rejects the terminal", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
-		const adopt = build(claimAlias, { setDisplayUrl });
-
-		await adopt({
-			url: "https://site.com/page.html",
-			finalUrl: "https://site.com/page",
-			outcome: { kind: "finalized", wordCount: 0 },
-		});
-
-		expect(claimAlias).not.toHaveBeenCalled();
-		expect(setDisplayUrl).not.toHaveBeenCalled();
+	it("does no storage work when a terminal is not adoptable", async () => {
+		const harness = build();
+		await harness.adopt({ ...input, recrawl: true });
+		expect(harness.adoptDestination.mock.calls).toEqual([]);
 	});
 
-	it("claims id(destination) → url and records it as the display URL when the crawl failed at the destination", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
-		const adopt = build(claimAlias, { setDisplayUrl });
-
-		await adopt({
-			url: "https://wrapper.example/link/188518",
-			finalUrl: "https://dest.example/article",
-			outcome: { kind: "crawl-failed" },
-		});
-
-		expect(claimAlias).toHaveBeenCalledWith({
-			aliasUrl: "https://dest.example/article",
-			targetOriginalUrl: "https://wrapper.example/link/188518",
-			now: new Date("2026-07-15T10:00:00.000Z"),
-		});
-		expect(setDisplayUrl).toHaveBeenCalledWith({
-			articleUrl: "https://wrapper.example/link/188518",
-			displayUrl: "https://dest.example/article",
-		});
-	});
-
-	it("still records the display URL when the alias is already occupied (fan-in origin)", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "occupied");
-		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
-		const adopt = build(claimAlias, { setDisplayUrl });
-
-		await expect(
-			adopt({
-				url: "https://site.com/page.html",
-				finalUrl: "https://site.com/page",
-				outcome: { kind: "finalized", wordCount: 300 },
-			}),
-		).resolves.toBeUndefined();
-		expect(claimAlias).toHaveBeenCalled();
-		expect(setDisplayUrl).toHaveBeenCalledWith({
-			articleUrl: "https://site.com/page.html",
-			displayUrl: "https://site.com/page",
-		});
-	});
-
-	it("never throws when the alias write fails (crawl must not be stranded)", async () => {
-		const claimAlias: ClaimCanonicalAlias = async () => {
-			throw new Error("DDB unavailable");
-		};
-		const adopt = build(claimAlias);
-
-		await expect(
-			adopt({
-				url: "https://site.com/page.html",
-				finalUrl: "https://site.com/page",
-				outcome: { kind: "finalized", wordCount: 300 },
-			}),
-		).resolves.toBeUndefined();
-	});
-
-	it("re-points the stub metadata at the destination when the crawl failed there", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const reconcileStubMetadata = jest.fn<
-			ReturnType<ReconcileStubMetadata>,
-			Parameters<ReconcileStubMetadata>
-		>(async () => {});
-		const adopt = build(claimAlias, { reconcileStubMetadata });
-
-		await adopt({
-			url: "https://wrapper.example/link/188518",
-			finalUrl: "https://dest.example/article",
-			outcome: { kind: "crawl-failed" },
-		});
-
-		expect(reconcileStubMetadata).toHaveBeenCalledWith({
-			articleUrl: "https://wrapper.example/link/188518",
-			displayUrl: "https://dest.example/article",
-		});
-	});
-
-	it("re-points the stub metadata on a successful adoption too, before the tier promotion lands", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const reconcileStubMetadata = jest.fn<
-			ReturnType<ReconcileStubMetadata>,
-			Parameters<ReconcileStubMetadata>
-		>(async () => {});
-		const adopt = build(claimAlias, { reconcileStubMetadata });
-
-		await adopt({
-			url: "https://site.com/page.html",
-			finalUrl: "https://other.com/page",
-			outcome: { kind: "finalized", wordCount: 300 },
-		});
-
-		expect(reconcileStubMetadata).toHaveBeenCalledWith({
-			articleUrl: "https://site.com/page.html",
-			displayUrl: "https://other.com/page",
-		});
-	});
-
-	it("does not touch the stub metadata when a gate rejects the terminal", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const reconcileStubMetadata = jest.fn<
-			ReturnType<ReconcileStubMetadata>,
-			Parameters<ReconcileStubMetadata>
-		>(async () => {});
-		const adopt = build(claimAlias, { reconcileStubMetadata });
-
-		await adopt({
-			url: "https://site.com/page.html",
-			finalUrl: "https://site.com/page",
-			outcome: { kind: "finalized", wordCount: 0 },
-		});
-
-		expect(reconcileStubMetadata).not.toHaveBeenCalled();
-	});
-
-	it("never throws when the stub reconcile fails (crawl must not be stranded)", async () => {
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const reconcileStubMetadata: ReconcileStubMetadata = async () => {
-			throw new Error("DDB unavailable");
-		};
-		const adopt = build(claimAlias, { reconcileStubMetadata });
-
-		await expect(
-			adopt({
-				url: "https://wrapper.example/link/188518",
-				finalUrl: "https://dest.example/article",
-				outcome: { kind: "crawl-failed" },
-			}),
-		).resolves.toBeUndefined();
+	it.each(["adoptDestination", "reconcileStubMetadata"] as const)("logs %s failures without stranding the crawl", async (operation) => {
+		const harness = build();
+		harness[operation].mockRejectedValue(new Error("storage unavailable"));
+		await harness.adopt(input);
+		expect(harness.logger.warn).toHaveBeenCalledWith("[adopt-canonical-identity] adoption failed", { url: input.url, error: "Error: storage unavailable" });
 	});
 });
 

@@ -1,37 +1,35 @@
 #!/usr/bin/env node
-/**
- * Tier 1+ crawl pipeline health canary.
- *
- * Exercises the production crawling pipeline END-TO-END from a user's
- * perspective: force a re-crawl via `https://readplace.com/admin/recrawl?url=<url>`
- * and wait for the Lambda-driven worker to produce a parsed article. A
- * "failed" state or a missing expectedContent substring fails the run.
- *
- * Why this replaces the previous GH-Actions-local canary: the crawler can
- * behave differently from AWS Lambda's egress than from GitHub Actions'
- * egress (different IP reputation, different TLS fingerprint handling).
- * This test routes through prod's Lambda, so a "green" run means prod can
- * actually crawl the URL — not that GitHub Actions can.
- *
- * Auth: shared secret in `x-service-token` header, matched by require-admin
- * middleware against `RECRAWL_SERVICE_TOKEN`. No session cookie needed.
- *
- * Required env:
- *   - RECRAWL_SERVICE_TOKEN: the shared secret
- *   - READPLACE_ORIGIN: the origin URL (e.g. https://readplace.com)
- */
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { appendFile, writeFile } from "node:fs/promises";
 import { describe, it } from "node:test";
+import { promisify } from "node:util";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { type ReaderStatus, ReaderStatusSchema } from "@packages/article-state-types";
-import { requireEnv } from "@packages/require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 import { parseHTML } from "linkedom";
 import { type HealthSource, HEALTH_SOURCES } from "./health-sources";
+import { initArchiveHealthClient } from "./archive-health-client";
+import { initArchiveHealthEvidence } from "./archive-health-evidence";
+import { initArchiveHealthAws } from "./archive-health-aws";
+import { initArchiveHealth } from "./archive-health";
 
 const ORIGIN = requireEnv("READPLACE_ORIGIN");
 assert(ORIGIN, "READPLACE_ORIGIN env var must not be empty");
 const SERVICE_TOKEN = requireEnv("RECRAWL_SERVICE_TOKEN");
 assert(SERVICE_TOKEN, "RECRAWL_SERVICE_TOKEN env var must not be empty");
+const CANARY_EMAIL = requireEnv("CRAWL_CANARY_EMAIL");
+const CANARY_PASSWORD = requireEnv("CRAWL_CANARY_PASSWORD");
+assert(CANARY_EMAIL && CANARY_PASSWORD, "configure an existing verified canary account with write access");
+const REPORT_PATH = requireEnv("ARCHIVE_HEALTH_REPORT_PATH");
+const STEP_SUMMARY = getEnv("GITHUB_STEP_SUMMARY");
+const runFile = promisify(execFile);
+const archiveAws = initArchiveHealthAws({
+	runAws: async (args) => (await runFile("aws", args, { maxBuffer: 32 * 1024 * 1024, timeout: 60_000 })).stdout,
+	region: requireEnv("AWS_REGION"),
+	contentBucket: requireEnv("CONTENT_BUCKET_NAME"),
+	comparisonLogGroup: requireEnv("ARCHIVE_COMPARISON_LOG_GROUP"),
+});
 
 // 3s poll interval × 800 polls = 2400s (40 min) budget per source. A
 // successful Lambda cold start + crawl + parse + write still lands in a
@@ -115,8 +113,7 @@ async function pollUntilDone(url: string): Promise<{ status: TerminalReaderStatu
 	);
 }
 
-async function checkSource(source: HealthSource): Promise<void> {
-	await forceRecrawl(source.url);
+async function checkReader(source: HealthSource): Promise<void> {
 	const { status, html } = await pollUntilDone(source.url);
 	assert.equal(
 		status,
@@ -156,10 +153,37 @@ async function checkSource(source: HealthSource): Promise<void> {
 // sources and spend DeepInfra OCR tokens on a run that is already red. The
 // thrown assertion carries the failing source's label, and node --test exits
 // non-zero on the throw — no bail flag or shared failure state needed.
-describe("Tier 1+ crawl pipeline health (via readplace.com/admin/recrawl)", () => {
-	it("force recrawls every source via prod Lambda, in order, stopping at the first failure", async () => {
+describe("Tier 1+ crawl pipeline health", () => {
+	it("checks production recrawls and actual archive saves sequentially", async (test) => {
+		const reports: unknown[] = [];
+		await writeFile(REPORT_PATH, "[]\n");
+		const archiveHealth = initArchiveHealth({
+			client: initArchiveHealthClient({ origin: ORIGIN, email: CANARY_EMAIL, password: CANARY_PASSWORD, fetch }),
+			evidence: initArchiveHealthEvidence(archiveAws),
+			readCompletionMessages: archiveAws.readCompletionMessages,
+			now: Date.now,
+			wait: () => new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS)),
+			timeoutMs: POLL_TIMEOUT_MS,
+			report: async (report) => {
+				reports.push(report);
+				await writeFile(REPORT_PATH, `${JSON.stringify(reports, null, 2)}\n`);
+				const summary = report.outcome === "deduplicated"
+					? `${report.label}: same original card confirmed.`
+					: `${report.label}: fresh archive ${report.freshArchive}; ${report.outcome} ${report.selected.fresh ? "fresh" : "cached"} ${report.selected.kind} candidate (${report.saveAttemptId}).`;
+				test.diagnostic(summary);
+				if (STEP_SUMMARY !== undefined) await appendFile(STEP_SUMMARY, `- ${summary}\n`);
+			},
+		});
 		for (const source of HEALTH_SOURCES) {
-			await checkSource(source);
+			try {
+				if ("save" in source) await archiveHealth(source);
+				else await forceRecrawl(source.url);
+				await checkReader(source);
+			} catch (error) {
+				reports.push({ label: source.label, outcome: "failed", error: String(error) });
+				await writeFile(REPORT_PATH, `${JSON.stringify(reports, null, 2)}\n`);
+				throw error;
+			}
 		}
 	});
 });

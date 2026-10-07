@@ -1,3 +1,4 @@
+import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { consoleLogger } from "@packages/hutch-logger";
@@ -5,7 +6,6 @@ import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initCanonicalAliasStore } from "@packages/article-store";
-import { initCaptureFallbackCrawl } from "@packages/crawl-article";
 import { initRecrawlLinkInitiatedHandler } from "./domain/save-link/recrawl-link-initiated-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -37,16 +37,11 @@ const parser = initParserDepBundle({
 	logInfo: observability.logInfo,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
+const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
-	parser: {
-		...parser,
-		crawlArticle: initCaptureFallbackCrawl({
-			crawlArticle: parser.crawlArticle,
-			findContentSourceUrl: canonicalAliasStore.findContentSourceUrl,
-		}),
-	},
+	parser,
 	media,
 	articleStore,
 	imagesCdnBaseUrl,
@@ -60,8 +55,7 @@ const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 	publishEvent: events.publishEvent,
 });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
-	claimAlias: canonicalAliasStore.claimAlias,
-	setDisplayUrl: canonicalAliasStore.setDisplayUrl,
+	adoptDestination: canonicalAliasStore.adoptDestination,
 	reconcileStubMetadata: canonicalAliasStore.reconcileStubMetadata,
 	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
@@ -70,6 +64,7 @@ const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 
 export const handler = initRecrawlLinkInitiatedHandler({
 	...articleStore,
+	...sourceIdentity,
 	...events,
 	...articleAggregate,
 	...articleCrawl,

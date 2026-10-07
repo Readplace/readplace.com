@@ -31,7 +31,7 @@ function createRecord(detail: unknown, receiveCount: number, messageId = "msg-1"
 }
 
 function createSqsEvent(detail: { url: string }, receiveCount = 3): SQSEvent {
-	return { Records: [createRecord(detail, receiveCount)] };
+	return { Records: [createRecord({ ...detail, saveAttemptId: "attempt-1", candidates: [] }, receiveCount)] };
 }
 
 describe("initRecrawlContentExtractedDlqHandler", () => {
@@ -124,8 +124,8 @@ describe("initRecrawlContentExtractedDlqHandler", () => {
 
 		const event: SQSEvent = {
 			Records: [
-				createRecord({ url: "https://example.com/ok" }, 4, "msg-ok"),
-				createRecord({ url: "https://example.com/explode" }, 4, "msg-bad"),
+				createRecord({ url: "https://example.com/ok", saveAttemptId: "attempt-1", candidates: [] }, 4, "msg-ok"),
+				createRecord({ url: "https://example.com/explode", saveAttemptId: "attempt-1", candidates: [] }, 4, "msg-bad"),
 			],
 		};
 

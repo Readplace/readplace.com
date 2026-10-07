@@ -1,4 +1,3 @@
-import { ContentTierSchema } from "@packages/article-state-types";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -9,6 +8,7 @@ import {
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import {
 	MinutesSchema,
@@ -22,6 +22,7 @@ import type { FindPersonalLibrary } from "@packages/provider-contracts/engagemen
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
+import { CONTENT_BEARING_COLUMNS } from "./tombstone-article";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
@@ -78,6 +79,7 @@ import {
 
 const ArticleContentRow = z.object({
 	content: dynamoField(z.string()),
+	...VerificationFields,
 });
 
 const ArticleFreshnessRow = z.object({
@@ -91,13 +93,10 @@ const ArticleCrawlVersionsRow = z.object({
 });
 
 const ArticleRow = z.object({
+	...VerificationFields,
 	url: z.string(),
 	routeId: ReaderArticleHashIdSchema,
 	originalUrl: z.string(),
-	/** The redirect destination this article was adopted onto, stamped by the
-	 * adopt hook. Optional: only redirect-merged articles carry it. Read-only
-	 * here — it drives display, never identity. */
-	displayUrl: dynamoField(z.string()),
 	title: z.string(),
 	siteName: z.string(),
 	excerpt: z.string(),
@@ -106,7 +105,6 @@ const ArticleRow = z.object({
 	content: dynamoField(z.string()),
 	estimatedReadTime: MinutesSchema,
 	savedAt: dynamoField(z.string()),
-	contentSourceTier: dynamoField(ContentTierSchema),
 	purgedAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
@@ -188,7 +186,7 @@ function toSavedArticle(
 			wordCount: article.wordCount,
 			imageUrl: article.imageUrl,
 		},
-		content: article.content,
+		content: isUnverifiedWrapperContent(article) ? undefined : article.content,
 		estimatedReadTime: article.estimatedReadTime,
 		status: userArticle.status,
 		savedAt: new Date(userArticle.savedAt),
@@ -347,22 +345,20 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const routeId = ReaderArticleHashId.from(params.url);
 
 		try {
-			// A full put replaces the item, so a tombstoned row is revived clean —
-			// purgedAt and every content column drop away. Allowed when the row is
-			// absent OR tombstoned; a live (non-purged) row still fails the
-			// condition so an ordinary re-save stays a no-op upsert (savedAt bump).
-			await articles.put({
-				Item: {
-					url: articleResourceUniqueId.value,
-					routeId: routeId.value,
-					originalUrl: params.url,
-					title: params.metadata.title,
-					siteName: params.metadata.siteName,
-					excerpt: params.metadata.excerpt,
-					wordCount: params.metadata.wordCount,
-					imageUrl: params.metadata.imageUrl,
-					estimatedReadTime: params.estimatedReadTime,
-					savedAt: params.savedAt.toISOString(),
+			await articles.update({
+				Key: { url: articleResourceUniqueId.value },
+				UpdateExpression: `SET routeId = :routeId, originalUrl = :originalUrl, title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, imageUrl = :imageUrl, estimatedReadTime = :estimatedReadTime, savedAt = :savedAt ADD contentSelectionRevision :one REMOVE ${[...CONTENT_BEARING_COLUMNS.filter((column) => column !== "imageUrl"), "purgedAt", "crawlStatus", "summaryStatus", "summarySkippedReason", "readerAvailableAt"].join(", ")}`,
+				ExpressionAttributeValues: {
+					":routeId": routeId.value,
+					":originalUrl": params.url,
+					":title": params.metadata.title,
+					":siteName": params.metadata.siteName,
+					":excerpt": params.metadata.excerpt,
+					":wordCount": params.metadata.wordCount,
+					":imageUrl": params.metadata.imageUrl ?? null,
+					":estimatedReadTime": params.estimatedReadTime,
+					":savedAt": params.savedAt.toISOString(),
+					":one": 1,
 				},
 				ConditionExpression: "attribute_not_exists(#url) OR attribute_exists(purgedAt)",
 				ExpressionAttributeNames: { "#url": "url" },
@@ -1339,9 +1335,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const readContent: ContentProvider = async (articleResourceUniqueId) => {
 		const row = await articleContent.get(
 			{ url: articleResourceUniqueId.value },
-			{ projection: ["content"] },
+			{ projection: ArticleContentRow.keyof().options, consistentRead: true },
 		);
-		return row?.content;
+		if (row === undefined || isUnverifiedWrapperContent(row)) return undefined;
+		return row.content;
 	};
 
 	return {

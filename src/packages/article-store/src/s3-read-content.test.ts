@@ -5,16 +5,17 @@ import type { S3GetObject } from "./s3-read-content";
 
 describe("initS3ReadContent", () => {
 	const articleId = ArticleResourceUniqueId.parse("https://example.com/article");
-
-	it("returns the object body for an existing key", async () => {
-		const send: S3GetObject = async () => ({
-			Body: { transformToString: async () => "hello world" },
-		});
-		const provider = initS3ReadContent({ send, bucketName: "my-bucket" });
-
-		const content = await provider(articleId);
-
-		expect(content).toBe("hello world");
+	it("does not read S3 when provenance has withheld the content", async () => {
+		const send: S3GetObject = async () => { throw new Error("withheld content must not be read"); };
+		const provider = initS3ReadContent({ send, readContentLocation: async () => undefined });
+		expect(await provider(articleId)).toBeUndefined();
+	});
+	it("uses the committed pointer's bucket and object", async () => {
+		let request: GetObjectCommand | undefined;
+		const send: S3GetObject = async (cmd) => { request = cmd; return { Body: { transformToString: async () => "committed" } }; };
+		const provider = initS3ReadContent({ send, readContentLocation: async () => ({ bucket: "committed-bucket", key: "immutable.html" }) });
+		expect(await provider(articleId)).toBe("committed");
+		expect(request?.input).toEqual({ Bucket: "committed-bucket", Key: "immutable.html" });
 	});
 
 	it("returns undefined when S3 throws NoSuchKey", async () => {
@@ -27,7 +28,7 @@ describe("initS3ReadContent", () => {
 		const send: S3GetObject = async () => {
 			throw new NoSuchKey({ message: "The specified key does not exist.", $metadata: {} });
 		};
-		const provider = initS3ReadContent({ send, bucketName: "my-bucket" });
+		const provider = initS3ReadContent({ send, readContentLocation: async (id) => ({ bucket: "my-bucket", key: id.toS3ContentKey() }) });
 
 		const content = await provider(articleId);
 
@@ -38,23 +39,8 @@ describe("initS3ReadContent", () => {
 		const send: S3GetObject = async () => {
 			throw new Error("ThrottlingException");
 		};
-		const provider = initS3ReadContent({ send, bucketName: "my-bucket" });
+		const provider = initS3ReadContent({ send, readContentLocation: async (id) => ({ bucket: "my-bucket", key: id.toS3ContentKey() }) });
 
 		await expect(provider(articleId)).rejects.toThrow("ThrottlingException");
-	});
-
-	it("forwards the bucket name and S3 key", async () => {
-		const calls: GetObjectCommand[] = [];
-		const send: S3GetObject = async (cmd) => {
-			calls.push(cmd);
-			return { Body: { transformToString: async () => "ignored" } };
-		};
-		const provider = initS3ReadContent({ send, bucketName: "my-bucket" });
-
-		await provider(articleId);
-
-		expect(calls).toHaveLength(1);
-		expect(calls[0].input.Bucket).toBe("my-bucket");
-		expect(calls[0].input.Key).toBe(articleId.toS3ContentKey());
 	});
 });

@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { DeleteObjectsCommand, type S3Client } from "@aws-sdk/client-s3";
 
 /** DeleteObjects accepts at most 1000 keys per request. */
@@ -14,12 +15,13 @@ export function initS3DeleteContentObjects(deps: {
 		// pointless round-trip and S3 rejects a zero-length Objects list.
 		for (let i = 0; i < keys.length; i += DELETE_OBJECTS_MAX_KEYS) {
 			const batch = keys.slice(i, i + DELETE_OBJECTS_MAX_KEYS);
-			await deps.client.send(
+			const result = await deps.client.send(
 				new DeleteObjectsCommand({
 					Bucket: deps.bucketName,
 					Delete: { Objects: batch.map((Key) => ({ Key })) },
 				}),
 			);
+			assert(!result.Errors?.length, `S3 object deletion failed: ${JSON.stringify(result.Errors)}`);
 		}
 	};
 

@@ -1,4 +1,4 @@
-import type { SaveProvenance } from "@packages/domain/article";
+import type { SaveAttemptId, SaveProvenance } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { BillingPlan } from "./subscription-providers";
@@ -24,6 +24,8 @@ export type PublishDeleteAccountCommand = (params: {
 
 export type PublishLinkSaved = (params: {
 	url: string;
+	saveAttemptId: SaveAttemptId;
+	sourceOriginalUrl?: string;
 	userId: UserId;
 	captureUrl?: string;
 }) => Promise<void>;
@@ -57,6 +59,7 @@ export type PublishComputeRelatedPastReads = (params: {
 
 export type PublishRecrawlLinkInitiated = (params: {
 	url: string;
+	saveAttemptId: SaveAttemptId;
 }) => Promise<void>;
 
 export type PublishRemoveMyContent = (params: {
@@ -67,6 +70,10 @@ export type PublishRemoveMyContent = (params: {
 
 export type PublishRefreshArticleContent = (params: {
 	url: string;
+	sourceUrl: string;
+	sourceOriginalUrl: string;
+	evaluationHtml: string;
+	saveAttemptId: SaveAttemptId;
 	html: string;
 	metadata: {
 		title: string;
@@ -84,6 +91,7 @@ export type PublishRefreshArticleContent = (params: {
 
 export type PublishSubmitLink = (params: {
 	url: string;
+	saveAttemptId: SaveAttemptId;
 	userId: UserId;
 	provenance: SaveProvenance;
 	readlist: ReadlistSlug;
@@ -91,17 +99,25 @@ export type PublishSubmitLink = (params: {
 
 export type PublishSaveAnonymousLink = (params: {
 	url: string;
+	saveAttemptId: SaveAttemptId;
+	sourceOriginalUrl?: string;
 	captureUrl?: string;
 }) => Promise<void>;
 
 export type PublishSaveLinkRawHtmlCommand = (params: {
 	url: string;
+	saveAttemptId: SaveAttemptId;
+	sourceOriginalUrl: string;
+	sourceUrl: string;
 	userId: UserId;
 	title?: string;
 }) => Promise<void>;
 
 export type PublishSaveLinkRawPdfCommand = (params: {
 	url: string;
+	saveAttemptId: SaveAttemptId;
+	sourceOriginalUrl: string;
+	sourceUrl: string;
 	userId: UserId;
 	title?: string;
 }) => Promise<void>;

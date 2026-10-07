@@ -11,7 +11,7 @@ export function initPutPendingHtml(deps: {
 	const { client, bucketName } = deps;
 
 	const putPendingHtml: PutPendingHtml = async (params) => {
-		const key = ArticleResourceUniqueId.parse(params.url).toS3PendingHtmlKey();
+		const key = ArticleResourceUniqueId.parse(params.url).toS3PendingHtmlKey(params.saveAttemptId);
 		await client.send(
 			new PutObjectCommand({
 				Bucket: bucketName,

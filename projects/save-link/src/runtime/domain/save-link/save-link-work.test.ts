@@ -1,9 +1,10 @@
+import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
 import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
-import { initSaveLinkWork } from "./save-link-work";
+import { ClassifiedCrawlError, initSaveLinkWork } from "./save-link-work";
 import { type CrawlAndFinalizeArticle, type FinalizeArticle, initCrawlAndFinalizeArticle } from "@packages/finalize-article";
 import { type CrawlArticle, initFetchPinnedCrawl } from "@packages/crawl-article";
-import type { ClaimCanonicalAlias } from "@packages/article-store";
+import type { AdoptArticleDestination } from "@packages/article-store";
 import { initAdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
@@ -18,10 +19,12 @@ const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async ()
 
 type WorkDeps = Parameters<typeof initSaveLinkWork>[0];
 
+const saveAttemptId = SaveAttemptIdSchema.parse("attempt-1");
 const fixedNow = () => new Date("2026-04-18T12:00:00.000Z");
 
 function createWork(overrides: Partial<WorkDeps> = {}) {
 	return initSaveLinkWork({
+		resolveOriginalUrl: async (url) => url,
 		crawlAndFinalizeArticle: notFoundCrawl(404),
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -40,10 +43,22 @@ function createWork(overrides: Partial<WorkDeps> = {}) {
 }
 
 describe("initSaveLinkWork", () => {
+	it.each<Awaited<ReturnType<CrawlAndFinalizeArticle>>>([
+		{ status: "failed", reason: "crawl-failed" },
+		{ status: "failed", reason: "parse failure" },
+		{ status: "unsupported", reason: "oversized", unsupportedReason: { kind: "content-too-large", bytes: 100_000_000 } },
+	])("leaves a paired archive attempt's terminal state to the combined selector after %j", async (result) => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: async () => result, transitionAndPersist });
+		const pending = saveLinkWork("https://example.com/article", { saveAttemptId: SaveAttemptIdSchema.parse("paired-attempt"), deferUnsupported: true });
+		if (result.status === "failed") await expect(pending).rejects.toBeInstanceOf(ClassifiedCrawlError);
+		else await expect(pending).resolves.toBe("tier-1-terminal");
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+	});
 	it("resolves tier-1-terminal instead of throwing for a permanently-dead link (HTTP 410) — an SQS retry can never revive a page the origin no longer serves", async () => {
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: notFoundCrawl(410) });
 
-		await expect(saveLinkWork("https://example.com/gone")).resolves.toBe("tier-1-terminal");
+		await expect(saveLinkWork("https://example.com/gone", { saveAttemptId })).resolves.toBe("tier-1-terminal");
 	});
 
 	it("still resolves tier-1-terminal when the tier-1 failure outcome log fails — a telemetry hiccup must not dead-letter a message whose row is already terminal", async () => {
@@ -52,7 +67,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: notFoundCrawl(404), readTierSnapshot, logCrawlOutcome });
 
-		await expect(saveLinkWork("https://example.com/gone")).resolves.toBe("tier-1-terminal");
+		await expect(saveLinkWork("https://example.com/gone", { saveAttemptId })).resolves.toBe("tier-1-terminal");
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/gone",
 			thisTier: "tier-1",
@@ -67,7 +82,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: notFoundCrawl(404), transitionAndPersist });
 
-		await saveLinkWork("https://example.com/gone");
+		await saveLinkWork("https://example.com/gone", { saveAttemptId });
 
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
 			url: "https://example.com/gone",
@@ -85,7 +100,7 @@ describe("initSaveLinkWork", () => {
 			transitionAndPersist,
 		});
 
-		await saveLinkWork("https://example.com/gone");
+		await saveLinkWork("https://example.com/gone", { saveAttemptId });
 
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
 			url: "https://example.com/gone",
@@ -104,7 +119,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: notFoundCrawl(404), logCrawlOutcome, readTierSnapshot });
 
-		await saveLinkWork("https://example.com/gone");
+		await saveLinkWork("https://example.com/gone", { saveAttemptId });
 
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/gone",
@@ -122,7 +137,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, readTierSnapshot, logCrawlOutcome });
 
-		await expect(saveLinkWork("https://example.com/presigned.pdf")).rejects.toMatchObject({
+		await expect(saveLinkWork("https://example.com/presigned.pdf", { saveAttemptId })).rejects.toMatchObject({
 			name: "CrawlFailedError",
 		});
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
@@ -144,7 +159,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist });
 
-		await expect(saveLinkWork("https://example.com/article")).rejects.toMatchObject({
+		await expect(saveLinkWork("https://example.com/article", { saveAttemptId })).rejects.toMatchObject({
 			name: "CrawlFailedError",
 			crawlFailureReason: { kind: "origin-unreachable", httpStatus: 522 },
 		});
@@ -160,7 +175,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist });
 
-		await expect(saveLinkWork("https://example.com/article")).rejects.toThrow("conditional check failed");
+		await expect(saveLinkWork("https://example.com/article", { saveAttemptId })).rejects.toThrow("conditional check failed");
 	});
 
 	it("reports a parse-class failure to both telemetry sinks even when the terminal-state write fails, and still surfaces the persistence error", async () => {
@@ -171,7 +186,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist, logParseError, logCrawlOutcome });
 
-		await expect(saveLinkWork("https://example.com/article")).rejects.toThrow("conditional check failed");
+		await expect(saveLinkWork("https://example.com/article", { saveAttemptId })).rejects.toThrow("conditional check failed");
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/article",
 			reason: "Readability returned null",
@@ -192,7 +207,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist, logCrawlOutcome });
 
-		await expect(saveLinkWork("https://example.com/article")).rejects.toThrow("crawl failed for https://example.com/article: Readability returned null");
+		await expect(saveLinkWork("https://example.com/article", { saveAttemptId })).rejects.toThrow("crawl failed for https://example.com/article: Readability returned null");
 		expect(logCrawlOutcome.mock.invocationCallOrder[0]).toBeLessThan(transitionAndPersist.mock.invocationCallOrder[0]);
 	});
 
@@ -208,7 +223,7 @@ describe("initSaveLinkWork", () => {
 			emitSimpleCrawlUnsupported,
 		});
 
-		await saveLinkWork("https://example.com/gone");
+		await saveLinkWork("https://example.com/gone", { saveAttemptId });
 
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(updateFetchTimestamp).not.toHaveBeenCalled();
@@ -232,7 +247,7 @@ describe("initSaveLinkWork", () => {
 			markCrawlStage,
 		});
 
-		await expect(saveLinkWork("https://example.com/huge")).resolves.toBe("tier-1-terminal");
+		await expect(saveLinkWork("https://example.com/huge", { saveAttemptId })).resolves.toBe("tier-1-terminal");
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
 			url: "https://example.com/huge",
 			input: { reason: { kind: "content-too-large", bytes: 54090542 } },
@@ -254,7 +269,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported, markCrawlStage });
 
-		await expect(saveLinkWork("https://example.com/doc.pdf")).resolves.toBe("tier-1-deferred");
+		await expect(saveLinkWork("https://example.com/doc.pdf", { saveAttemptId })).resolves.toBe("tier-1-deferred");
 		expect(markCrawlStage).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
 			stage: "comprehensive-fetching",
@@ -272,7 +287,7 @@ describe("initSaveLinkWork", () => {
 				transitionAndPersist,
 			});
 
-			await expect(saveLinkWork("https://example.com/walled")).resolves.toBe("tier-1-terminal");
+			await expect(saveLinkWork("https://example.com/walled", { saveAttemptId })).resolves.toBe("tier-1-terminal");
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
 				url: "https://example.com/walled",
 				input: { reason: { kind: "blocked", cause: "edge-block" } },
@@ -285,7 +300,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(429), transitionAndPersist });
 
-		await expect(saveLinkWork("https://example.com/throttled")).resolves.toBe("tier-1-terminal");
+		await expect(saveLinkWork("https://example.com/throttled", { saveAttemptId })).resolves.toBe("tier-1-terminal");
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
 			url: "https://example.com/throttled",
 			input: { reason: { kind: "blocked", cause: "rate-limited" } },
@@ -297,7 +312,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(429), logParseError });
 
-		await saveLinkWork("https://example.com/walled");
+		await saveLinkWork("https://example.com/walled", { saveAttemptId });
 
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/walled",
@@ -317,7 +332,7 @@ describe("initSaveLinkWork", () => {
 			emitSimpleCrawlUnsupported,
 		});
 
-		await saveLinkWork("https://example.com/walled");
+		await saveLinkWork("https://example.com/walled", { saveAttemptId });
 
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(updateFetchTimestamp).not.toHaveBeenCalled();
@@ -330,7 +345,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(403), readTierSnapshot, logCrawlOutcome });
 
-		await expect(saveLinkWork("https://example.com/walled")).resolves.toBe("tier-1-terminal");
+		await expect(saveLinkWork("https://example.com/walled", { saveAttemptId })).resolves.toBe("tier-1-terminal");
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/walled",
 			thisTier: "tier-1",
@@ -340,7 +355,7 @@ describe("initSaveLinkWork", () => {
 		});
 	});
 
-	it("hands the redirect terminal + word count to adoptCanonicalIdentity after a successful tier-1 write", async () => {
+	it("hands the redirect terminal + word count to adoptCanonicalIdentity before binding a successful tier-1 candidate", async () => {
 		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
 		const fetchedCrawl: CrawlAndFinalizeArticle = async () => ({
 			status: "fetched",
@@ -354,14 +369,56 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: fetchedCrawl, adoptCanonicalIdentity });
 
-		const result = await saveLinkWork("https://site.com/page.html", { userId: "u1" });
+		const result = await saveLinkWork("https://site.com/page.html", { userId: "u1", saveAttemptId });
 
-		expect(result).toBe("tier-1-written");
+		expect(result).toEqual({ candidate: { id: expect.any(String), tier: "tier-1" } });
 		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
 			url: "https://site.com/page.html",
 			finalUrl: "https://site.com/page",
 			outcome: { kind: "finalized", wordCount: 321 },
 			recrawl: undefined,
+		});
+	});
+
+	it.each<{ name: string; retained: { httpStatus: number; parseFailure?: string } }>([
+		{ name: "an HTTP 403 body", retained: { httpStatus: 403 } },
+		{ name: "an unparseable HTTP 200 body", retained: { httpStatus: 200, parseFailure: "no readable content" } },
+	])("stores $name retained for a paired archive attempt as a candidate without recording a successful crawl", async ({ retained }) => {
+		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
+		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
+		const putTierSource = jest.fn().mockResolvedValue(undefined);
+		const logCrawlOutcome = jest.fn();
+		const retainedCrawl: CrawlAndFinalizeArticle = async () => ({
+			status: "fetched",
+			article: {
+				html: "",
+				metadata: { title: "", siteName: "", excerpt: "", wordCount: 0, estimatedReadTime: 0 },
+			},
+			evaluationHtml: "<html><body>Verify you are human</body></html>",
+			finalUrl: "https://site.com/challenge",
+			bodyHash: "c".repeat(64),
+			...retained,
+		});
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: retainedCrawl, adoptCanonicalIdentity, updateFetchTimestamp, putTierSource, logCrawlOutcome });
+
+		const result = await saveLinkWork("https://site.com/page", { saveAttemptId, deferUnsupported: true });
+
+		expect(result).toEqual({ candidate: { id: expect.any(String), tier: "tier-1" } });
+		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ tier: "tier-1", evaluationHtml: "<html><body>Verify you are human</body></html>" }));
+		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
+			url: "https://site.com/page",
+			finalUrl: "https://site.com/challenge",
+			outcome: { kind: "crawl-failed" },
+			recrawl: undefined,
+		});
+		expect(updateFetchTimestamp).toHaveBeenCalledTimes(0);
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://site.com/page",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "not_attempted",
+			pickedTier: "none",
 		});
 	});
 
@@ -377,7 +434,7 @@ describe("initSaveLinkWork", () => {
 			adoptCanonicalIdentity,
 		});
 
-		await expect(saveLinkWork("https://wrapper.example/link/188518")).rejects.toThrow(
+		await expect(saveLinkWork("https://wrapper.example/link/188518", { saveAttemptId })).rejects.toThrow(
 			"crawl failed for https://wrapper.example/link/188518: crawl-failed",
 		);
 
@@ -401,7 +458,7 @@ describe("initSaveLinkWork", () => {
 			adoptCanonicalIdentity,
 		});
 
-		await expect(saveLinkWork("https://wrapper.example/link/188518")).resolves.toBe("tier-1-terminal");
+		await expect(saveLinkWork("https://wrapper.example/link/188518", { saveAttemptId })).resolves.toBe("tier-1-terminal");
 
 		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
 			url: "https://wrapper.example/link/188518",
@@ -423,7 +480,7 @@ describe("initSaveLinkWork", () => {
 			adoptCanonicalIdentity,
 		});
 
-		await expect(saveLinkWork("https://wrapper.example/link/188519")).rejects.toThrow(
+		await expect(saveLinkWork("https://wrapper.example/link/188519", { saveAttemptId })).rejects.toThrow(
 			"crawl failed for https://wrapper.example/link/188519: readability crashed",
 		);
 
@@ -447,7 +504,7 @@ describe("initSaveLinkWork", () => {
 			adoptCanonicalIdentity,
 		});
 
-		await expect(saveLinkWork("https://wrapper.example/link/188481")).resolves.toBe("tier-1-terminal");
+		await expect(saveLinkWork("https://wrapper.example/link/188481", { saveAttemptId })).resolves.toBe("tier-1-terminal");
 
 		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
 			url: "https://wrapper.example/link/188481",
@@ -476,7 +533,7 @@ describe("initSaveLinkWork — a queued twitter.com identity", () => {
 				},
 			};
 		};
-		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
+		const adoptDestination = jest.fn<ReturnType<AdoptArticleDestination>, Parameters<AdoptArticleDestination>>().mockResolvedValue("adopted");
 		const putTierSource = jest.fn<ReturnType<PutTierSource>, Parameters<PutTierSource>>(async () => {});
 		const { saveLinkWork } = createWork({
 			crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({
@@ -485,8 +542,7 @@ describe("initSaveLinkWork — a queued twitter.com identity", () => {
 			}),
 			putTierSource,
 			adoptCanonicalIdentity: initAdoptCanonicalIdentity({
-				claimAlias,
-				setDisplayUrl: async () => {},
+				adoptDestination,
 				reconcileStubMetadata: async () => {},
 				isSiteRuleUrl: () => false,
 				now: fixedNow,
@@ -494,11 +550,11 @@ describe("initSaveLinkWork — a queued twitter.com identity", () => {
 			}),
 		});
 
-		await saveLinkWork("https://twitter.com/jack/status/20");
+		await saveLinkWork("https://twitter.com/jack/status/20", { saveAttemptId });
 
 		expect(fetched).toEqual(["https://x.com/jack/status/20"]);
 		expect(finalized).toEqual([{ url: "https://twitter.com/jack/status/20", documentUrl: "https://x.com/jack/status/20" }]);
 		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: "https://twitter.com/jack/status/20", tier: "tier-1" }));
-		expect(claimAlias).not.toHaveBeenCalled();
+		expect(adoptDestination.mock.calls).toEqual([]);
 	});
 });

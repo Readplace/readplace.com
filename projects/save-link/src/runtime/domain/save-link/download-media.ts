@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
 import { extensionFromContentType, MAX_IMAGE_BYTES } from "@packages/crawl-article";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
 import type { CrawlFetch } from "@packages/crawl-article";
+import { mediaFilename } from "@packages/finalize-article";
 import type { DownloadedMedia, DownloadMedia, PutImageObject } from "@packages/finalize-article";
 
 const MAX_IMAGES = 20;
@@ -18,7 +18,7 @@ export function initDownloadMedia(deps: {
 }): DownloadMedia {
 	const { putImageObject, logError, crawlFetch, imagesCdnBaseUrl } = deps;
 
-	return async ({ html, referer, articleResourceUniqueId }) => {
+	return async ({ html, referer, articleResourceUniqueId, writeContext }) => {
 		const results: DownloadedMedia[] = [];
 
 		const uniqueUrls = selectImageUrls(html);
@@ -30,13 +30,12 @@ export function initDownloadMedia(deps: {
 					const downloaded = await downloadImage({ crawlFetch, url: originalUrl, referer });
 					if (!downloaded) return;
 
-					const hash = createHash("sha256").update(originalUrl).digest("hex").slice(0, 16);
 					const ext = extensionFromContentType({ contentType: downloaded.contentType, url: originalUrl });
-					const filename = `${hash}${ext}`;
+					const filename = mediaFilename({ sourceUrl: originalUrl, body: downloaded.body, extension: ext, writeContext });
 					const key = articleResourceUniqueId.toS3ImageKey(filename);
 					const cdnUrl = articleResourceUniqueId.toImageCdnUrl({ baseUrl: imagesCdnBaseUrl, filename });
 
-					await putImageObject({ key, body: downloaded.body, contentType: downloaded.contentType });
+					await putImageObject({ key, body: downloaded.body, contentType: downloaded.contentType, writeContext });
 					results.push({ originalUrl, cdnUrl });
 				} catch (error) {
 					logError(

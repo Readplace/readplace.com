@@ -41,7 +41,7 @@ describe("Readlist freshness integration", () => {
 			}),
 			publishRefreshArticleContent: async (p) => { refreshPublished.push(p); },
 			publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
-			resolveCanonicalIdentity: async (url) => url,
+			resolveCanonicalIdentity: async (url) => ({ url, originalUrl: url }),
 			now: () => new Date(),
 			staleTtlMs: 0,
 		});
@@ -91,7 +91,11 @@ describe("Readlist freshness integration", () => {
 		expect(refreshPublished).toHaveLength(1);
 		expect(refreshPublished[0]).toEqual({
 			url: "https://example.com/article",
+			saveAttemptId: expect.any(String),
 			html: expect.any(String),
+			evaluationHtml: "<html><head><title>Updated</title></head><body><article><p>New content</p></article></body></html>",
+			sourceUrl: "https://example.com/article",
+			sourceOriginalUrl: "https://example.com/article",
 			metadata: expect.objectContaining({
 				title: "Updated Article",
 				siteName: "example.com",

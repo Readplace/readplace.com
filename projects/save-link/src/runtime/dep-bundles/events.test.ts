@@ -1,3 +1,4 @@
+import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import {
 	EventBridgeClient,
@@ -8,6 +9,8 @@ import {
 	initEmitSimpleCrawlUnsupported,
 	initEventsDepBundle,
 } from "./events";
+
+const saveAttemptId = SaveAttemptIdSchema.parse("attempt-1");
 
 describe("initEventsDepBundle", () => {
 	it("returns a bundle with publishEvent and dispatchGenerateSummary fields", () => {
@@ -28,10 +31,11 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", userId: "user-1" });
+		await emit({ url: "https://example.com/doc.pdf", saveAttemptId, userId: "user-1" });
 
 		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
 			url: "https://example.com/doc.pdf",
+			saveAttemptId,
 			userId: "user-1",
 			recrawl: undefined,
 			refresh: undefined,
@@ -42,10 +46,11 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", recrawl: true });
+		await emit({ url: "https://example.com/doc.pdf", saveAttemptId, recrawl: true });
 
 		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
 			url: "https://example.com/doc.pdf",
+			saveAttemptId,
 			userId: undefined,
 			recrawl: true,
 			refresh: undefined,
@@ -56,10 +61,11 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", refresh: true });
+		await emit({ url: "https://example.com/doc.pdf", saveAttemptId, refresh: true });
 
 		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
 			url: "https://example.com/doc.pdf",
+			saveAttemptId,
 			userId: undefined,
 			recrawl: undefined,
 			refresh: true,

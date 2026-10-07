@@ -116,7 +116,9 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import {
 	WRAPPER_RESOLVE_BUDGETS,
 	initResolveCanonicalIdentity,
+	initRefreshWithSaveIdentity,
 	initResolveSaveIdentity,
+	initSubmitFreshness,
 	initResolveWrapperTarget,
 	neverResolveWrapperTarget,
 } from "@packages/save-article";
@@ -467,10 +469,10 @@ export function initDevProviders(input: { appOrigin: string }) {
 		logger,
 	});
 	const saveIdentityDeps = {
+		validateUrl: validateSaveableUrl,
 		findIdentityRow: articleStore.findIdentityRow,
 		claimAlias: articleStore.claimAlias,
 		now: () => new Date(),
-		logger,
 	};
 	const resolveSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget });
 	const resolveStoredSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: neverResolveWrapperTarget });
@@ -479,16 +481,31 @@ export function initDevProviders(input: { appOrigin: string }) {
 		now: () => new Date(),
 		ttlSeconds: UPLOAD_SLOT_TTL_SECONDS,
 	});
-	const { refreshArticleIfStale } = initRefreshArticleIfStale({
+	const { refreshArticleIfStale: refreshResolvedArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		crawlArticle,
 		parseHtml,
 		publishRefreshArticleContent,
 		publishUpdateFetchTimestamp,
-		resolveCanonicalIdentity: async (url) => (await resolveSaveIdentity(url)).url,
+		resolveCanonicalIdentity: async (url) => {
+			const identity = await resolveSaveIdentity(url);
+			assert(identity.status === "resolved", "The wrapper original could not be resolved");
+			return { url: identity.url, originalUrl: identity.originalUrl };
+		},
 		now: () => new Date(),
 		staleTtlMs,
+	});
+	const { refreshArticleIfStale } = initRefreshWithSaveIdentity({
+		resolveSaveIdentity,
+		refreshArticleIfStale: refreshResolvedArticleIfStale,
+	});
+
+	const { refreshArticleIfStale: refreshArticleIfStaleStored } = initSubmitFreshness({
+		findArticleByUrl: articleStore.findArticleByUrl,
+		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		resolveSaveIdentity: resolveStoredSaveIdentity,
+		publishStaleCheckRequested,
 	});
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
@@ -593,12 +610,13 @@ export function initDevProviders(input: { appOrigin: string }) {
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
-		refreshArticleIfStaleStored: refreshArticleIfStale,
+		refreshArticleIfStaleStored,
 		resolveCanonicalIdentity,
-		resolveSaveIdentity: resolveStoredSaveIdentity,
+		findIdentityRow: articleStore.findIdentityRow,
 		resolveFirstVisitIdentity: resolveSaveIdentity,
 		resolveWrapperTarget,
 		pinContentSource: articleStore.pinContentSource,
+		findContentSourceUrl: articleStore.findContentSourceUrl,
 		getStarterReport: async () => undefined,
 		recordEngagementActivity: engagementStarter.recordEngagementActivity,
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,

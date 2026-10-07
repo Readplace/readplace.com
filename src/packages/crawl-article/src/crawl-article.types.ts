@@ -18,6 +18,7 @@ export type CrawlArticleResult =
 	| {
 			status: "fetched";
 			html: string;
+			evaluationHtml?: string;
 			/* Set only when the fetched body was itself an image. Signals the
 			 * finalizer to synthesise an `<img>` body from `thumbnail.image`
 			 * instead of running Readability (which extracts no text from an
@@ -36,6 +37,7 @@ export type CrawlArticleResult =
 			 * identity. Absent only for the site-rule/oembed path, which never
 			 * issues an HTTP fetch. */
 			finalUrl?: string;
+			httpStatus?: number;
 		}
 	| { status: "not-modified" }
 	/* A failure carries the terminal too: the redirect chain's own `Location` is
@@ -79,4 +81,6 @@ export type CrawlArticle = (params: {
 	previousBodyHash?: string;
 	fetchThumbnail?: boolean;
 	onProgress?: ComprehensiveCrawlProgress;
+	retainResponseBody?: boolean;
+	skipFetchPin?: boolean;
 }) => Promise<CrawlArticleResult>;

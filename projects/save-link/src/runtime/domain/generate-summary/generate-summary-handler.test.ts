@@ -1,3 +1,6 @@
+import { CandidateIdSchema } from "@packages/domain/article";
+import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
+import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-aggregate";
 import {
 	type Article,
 	markSummaryReady,
@@ -11,6 +14,8 @@ import type { SummarizeArticle } from "./link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "./max-receive-count";
+
+const cid = (id: string) => CandidateIdSchema.parse(id);
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -118,6 +123,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, {
 			url: URL,
+			selectionExpected: { snapshot: undefined },
 			input: {
 				summary: "A summary.",
 				excerpt: "A blurb.",
@@ -220,6 +226,31 @@ describe("initGenerateSummaryHandler", () => {
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 	});
 
+	it("regenerates a candidate-less ready summary whose source hash no longer matches the canonical content", async () => {
+		const URL = "https://example.com/legacy-stale";
+		const html = "<p>content</p>";
+		const cached: Article = {
+			...pendingArticle(URL),
+			freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(html) },
+			summary: { kind: "ready", summary: "stale", sourceContentHash: "old" },
+		};
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
+				kind: "ready",
+				summary: "Fresh.",
+				excerpt: "Fresh blurb.",
+				inputTokens: 100,
+				outputTokens: 50,
+			}),
+			findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue({ content: html }),
+			loadArticle: jest.fn().mockResolvedValue(cached),
+		});
+
+		await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, expect.objectContaining({ url: URL }));
+	});
+
 	it("does not short-circuit when the cached row is summary=failed (redrive scenario)", async () => {
 		const URL = "https://example.com/cached-failed";
 		const cached: Article = {
@@ -259,6 +290,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
+			selectionExpected: { snapshot: undefined },
 			input: { reason: "content-too-short", now: NOW.toISOString() },
 		});
 	});
@@ -309,6 +341,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
+			selectionExpected: { snapshot: undefined },
 			input: { reason: "declined", now: NOW.toISOString() },
 		});
 	});
@@ -380,6 +413,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
+			selectionExpected: { snapshot: undefined },
 			input: { reason: "crawl-failed", now: NOW.toISOString() },
 		});
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
@@ -397,6 +431,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
+			selectionExpected: { snapshot: undefined },
 			input: { reason: "crawl-unsupported", now: NOW.toISOString() },
 		});
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
@@ -451,4 +486,39 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 	});
+	it.each(["<p>Original private content</p>", "<p>Replacement public content</p>"])("rejects a stale summary completion after canonical replacement even with an equal readable hash: %s", async (replacement) => {
+		const url = "https://example.com/erased";
+		const original = "<p>Original private content</p>";
+		const store = initInMemoryArticleStore();
+		store.seed({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(original) }, contentSelection: { revision: 1, candidateId: cid("old"), contentLocation: "s3://bucket/old.html" } });
+		const effects: unknown[] = [];
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { effects.push(effect); } });
+		const { handler } = createHandler({ loadArticle: store.load, transitionAndPersist, findArticleContent: async () => ({ content: original }), summarizeArticle: async () => {
+			store.seed({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(replacement) }, contentSelection: { revision: 2, candidateId: cid("new"), contentLocation: "s3://bucket/new.html", revokedCandidateIds: [cid("old")] } });
+			return { kind: "ready", summary: "Private erased summary", excerpt: "Private excerpt", inputTokens: 1, outputTokens: 1 };
+		} });
+		expect(await handler(createSqsEvent({ url }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect((await store.load(url))?.summary.kind).toBe("pending");
+		expect(effects).toEqual([]);
+	});
+
+	it("retries before generation if the pointer read returns a different body from the loaded snapshot", async () => {
+		const url = "https://example.com/raced";
+		const summarizeArticle: SummarizeArticle = jest.fn();
+		const { handler } = createHandler({ summarizeArticle, loadArticle: async () => ({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: "older-hash" } }) });
+		expect(await handler(createSqsEvent({ url }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(summarizeArticle).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ candidateId: cid("new"), revokedCandidateIds: [cid("old")] },
+		{ candidateId: cid("old"), revokedCandidateIds: [cid("old")] },
+	])("does not cache an unbound or revoked canonical summary: %j", async (contentSelection) => {
+		const url = "https://example.com/unbound";
+		const findArticleContent: FindArticleContent = jest.fn(async () => undefined);
+		const { handler } = createHandler({ loadArticle: async () => ({ ...pendingArticle(url), summary: { kind: "ready", summary: "Private stale summary" }, freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: "current-hash" }, contentSelection }), findArticleContent });
+		expect(await handler(createSqsEvent({ url }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(findArticleContent).toHaveBeenCalled();
+	});
+
 });

@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { DOMParser } from "linkedom";
 import { strFromU8, unzipSync } from "fflate";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
+import { mediaFilename } from "@packages/finalize-article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 import { destinationUrl } from "../../test-helpers/article-fixtures";
 import { epubFilename, initBuildArticleEpub } from "./article-epub";
@@ -27,6 +30,23 @@ function contentOutline(epub: Uint8Array): [string, string][] {
 }
 
 describe("initBuildArticleEpub", () => {
+	it.each([ARTICLE_URL, "https://web.archive.org/web/20250101000000/https://example.com/article"])("embeds owned media under the stored identity %s", async (articleUrl) => {
+		const body = Buffer.from([1, 2, 3]);
+		const filename = mediaFilename({ sourceUrl: "https://example.com/photo.png", body, extension: ".png", writeContext: { url: articleUrl, attemptId: SaveAttemptIdSchema.parse("capture-attempt"), authorUserId: UserIdSchema.parse("alice") } });
+		const imageUrl = ArticleResourceUniqueId.parse(articleUrl).toImageCdnUrl({ baseUrl: "https://cdn.readplace.test", filename });
+		const readArticleImage = jest.fn(readerFor({ [filename]: body }));
+		const logError = jest.fn();
+		const build = initBuildArticleEpub({ readArticleImage, logError, now: NOW });
+
+		const files = unzipSync(await build({ articleUrl, title: "Article", siteName: "Example", excerpt: "", summary: undefined, contentHtml: `<p><img src="${imageUrl}" alt="Photo"></p>` }));
+
+		expect(readArticleImage).toHaveBeenCalledWith({ url: articleUrl, filename });
+		expect(files[`OEBPS/images/${filename}`]).toEqual(new Uint8Array(body));
+		expect(strFromU8(files["OEBPS/content.xhtml"])).toContain(`<img src="images/${filename}" alt="Photo" />`);
+		expect(strFromU8(files["OEBPS/content.opf"])).toContain(`href="images/${filename}" media-type="image/png"`);
+		expect(logError).not.toHaveBeenCalled();
+	});
+
 	it("embeds an available hosted image", async () => {
 		const filename = "abcdef0123456789.jpg";
 		const logError = jest.fn();

@@ -42,7 +42,10 @@ const onboardingSignals = initOnboardingSignals({ client: dynamoClient, onboardi
 const { putTierSource } = initPutTierSource({ client: s3Client, bucketName: contentBucketName });
 
 export const handler = initSaveEmailIssueCommandHandler({
-	readEmailBody: initS3ReadContent({ send: (command) => s3Client.send(command), bucketName: contentBucketName }),
+	readEmailBody: initS3ReadContent({
+		send: (command) => s3Client.send(command),
+		readContentLocation: async (id) => ({ bucket: contentBucketName, key: id.toS3ContentKey() }),
+	}),
 	saveEmailIssue: initSaveEmailIssue({
 		allocateSavedAt: savedArticleStore.allocateSavedAt,
 		saveArticle: savedArticleStore.saveArticle,

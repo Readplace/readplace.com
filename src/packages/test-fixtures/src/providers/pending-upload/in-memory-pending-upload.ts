@@ -10,13 +10,14 @@ export interface InMemoryPendingUpload {
 	createUploadSlot: CreateUploadSlot;
 	statPendingUpload: StatPendingUpload;
 	readPendingUploadPrefix: ReadPendingUploadPrefix;
-	stageUploaded: (params: { url: string; mediaType: string; bytes: Buffer; stagedAt?: Date }) => void;
+	stageUploaded: (params: { url: string; mediaType: string; bytes: Buffer; stagedAt?: Date; saveAttemptId: string }) => void;
 	receiveUpload: (key: string, bytes: Buffer) => void;
 }
 
-function keyFor(url: string, mediaType: string): string {
+function keyFor(params: { url: string; mediaType: string; saveAttemptId: string }): string {
+	const { url, mediaType, saveAttemptId } = params;
 	const id = ArticleResourceUniqueId.parse(url);
-	return mediaType === "application/pdf" ? id.toS3PendingPdfKey() : id.toS3PendingHtmlKey();
+	return mediaType === "application/pdf" ? id.toS3PendingPdfKey(saveAttemptId) : id.toS3PendingHtmlKey(saveAttemptId);
 }
 
 export function initInMemoryPendingUpload(deps: {
@@ -26,18 +27,18 @@ export function initInMemoryPendingUpload(deps: {
 }): InMemoryPendingUpload {
 	const store = new Map<string, { bytes: Buffer; mtime: Date }>();
 
-	const createUploadSlot: CreateUploadSlot = async ({ url, mediaType }) => ({
-		uploadUrl: `${deps.uploadBaseUrl}/${encodeURIComponent(keyFor(url, mediaType))}`,
+	const createUploadSlot: CreateUploadSlot = async ({ url, mediaType, saveAttemptId }) => ({
+		uploadUrl: `${deps.uploadBaseUrl}/${encodeURIComponent(keyFor({ url, mediaType, saveAttemptId }))}`,
 		expiresAt: new Date(deps.now().getTime() + deps.ttlSeconds * 1000),
 	});
 
-	const statPendingUpload: StatPendingUpload = async ({ url, mediaType }) => {
-		const entry = store.get(keyFor(url, mediaType));
+	const statPendingUpload: StatPendingUpload = async ({ url, mediaType, saveAttemptId }) => {
+		const entry = store.get(keyFor({ url, mediaType, saveAttemptId }));
 		return entry ? { byteLength: entry.bytes.length, lastModified: entry.mtime } : undefined;
 	};
 
-	const readPendingUploadPrefix: ReadPendingUploadPrefix = async ({ url, mediaType, bytes }) => {
-		const entry = store.get(keyFor(url, mediaType));
+	const readPendingUploadPrefix: ReadPendingUploadPrefix = async ({ url, mediaType, bytes, saveAttemptId }) => {
+		const entry = store.get(keyFor({ url, mediaType, saveAttemptId }));
 		assert(entry, `no staged upload for ${url}`);
 		return entry.bytes.subarray(0, bytes);
 	};
@@ -46,8 +47,8 @@ export function initInMemoryPendingUpload(deps: {
 		createUploadSlot,
 		statPendingUpload,
 		readPendingUploadPrefix,
-		stageUploaded: ({ url, mediaType, bytes, stagedAt }) => {
-			store.set(keyFor(url, mediaType), { bytes, mtime: stagedAt ?? deps.now() });
+		stageUploaded: ({ url, mediaType, bytes, stagedAt, saveAttemptId }) => {
+			store.set(keyFor({ url, mediaType, saveAttemptId }), { bytes, mtime: stagedAt ?? deps.now() });
 		},
 		receiveUpload: (key, bytes) => {
 			store.set(key, { bytes, mtime: deps.now() });

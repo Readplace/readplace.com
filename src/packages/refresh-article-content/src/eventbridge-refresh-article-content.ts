@@ -10,9 +10,12 @@ export function initEventBridgeRefreshArticleContent(deps: {
 	const { publishEvent, putRefreshHtml } = deps;
 
 	const publishRefreshArticleContent: PublishRefreshArticleContent = async (params) => {
-		await putRefreshHtml({ url: params.url, html: params.html });
+		await putRefreshHtml({ url: params.url, html: params.html, evaluationHtml: params.evaluationHtml, saveAttemptId: params.saveAttemptId });
 		await publishEvent(RefreshArticleContentCommand, {
 			url: params.url,
+			sourceUrl: params.sourceUrl,
+			sourceOriginalUrl: params.sourceOriginalUrl,
+			saveAttemptId: params.saveAttemptId,
 			metadata: params.metadata,
 			estimatedReadTime: params.estimatedReadTime,
 			etag: params.etag,

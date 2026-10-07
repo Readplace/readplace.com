@@ -1,3 +1,4 @@
+import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { Agent } from "node:https";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
@@ -84,6 +85,7 @@ const parser = initComprehensiveParserDepBundle({
 	extractPdf,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
+const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
@@ -104,8 +106,7 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 	now,
 });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
-	claimAlias: canonicalAliasStore.claimAlias,
-	setDisplayUrl: canonicalAliasStore.setDisplayUrl,
+	adoptDestination: canonicalAliasStore.adoptDestination,
 	reconcileStubMetadata: canonicalAliasStore.reconcileStubMetadata,
 	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
@@ -113,6 +114,7 @@ const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 });
 
 export const handler = initComprehensiveCrawlHandler({
+	...sourceIdentity,
 	crawlArticle: parser.crawlArticle,
 	finalizeArticle: crawlAndFinalize.finalizeArticle,
 	...articleStore,

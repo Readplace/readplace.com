@@ -33,6 +33,8 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 					recrawl: detail.recrawl,
 					refresh: detail.refresh,
 					previousBodyHash: detail.previousBodyHash,
+					saveAttemptId: detail.saveAttemptId,
+					candidates: detail.candidates,
 				});
 
 				logger.info(`${logPrefix} dispatched ComprehensiveCrawlCommand`, {

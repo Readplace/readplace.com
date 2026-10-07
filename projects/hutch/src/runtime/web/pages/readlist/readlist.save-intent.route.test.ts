@@ -92,6 +92,19 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(saveIntents(harness)[0]).toMatchObject({ article_host: "fagnerbrack.com", content_class: "own" });
 		});
 
+		it("emits queue_save_bar / saved and lands on the queued notice when the wrapper's original cannot be resolved", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.post("/queue/save").type("form").send({ url: "https://archive.ph/abc" });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?queue_error=save_queued");
+			const intents = saveIntents(harness);
+			assert.equal(intents.length, 1, "exactly one view_save_intent");
+			expect(intents[0]).toMatchObject({ path: "/queue/save", article_host: "archive.ph", surface: "queue_save_bar", outcome: "saved" });
+		});
+
 		it("emits queue_save_bar / error when the save throws", async () => {
 			const harness = useApp(failingSaveFixture());
 			const agent = await loginAgent(harness.server, harness.auth);

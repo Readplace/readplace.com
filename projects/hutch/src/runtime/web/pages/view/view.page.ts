@@ -6,11 +6,12 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { articleDestinationUrl, calculateReadTime, hostStubMetadata, isNonArticleHost } from "@packages/domain/article";
+import { newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isNonArticleHost, isWrapperUrl, unwrapWrapperUrl, wrapperFamilyOf } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
+	FindIdentityRow,
 	PinContentSource,
 	SaveArticleGlobally,
 } from "@packages/provider-contracts/article-store";
@@ -92,8 +93,10 @@ interface ViewDependencies {
 	markCrawlPending: MarkCrawlPending;
 	saveArticleGlobally: SaveArticleGlobally;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	findIdentityRow: FindIdentityRow;
 	resolveSaveIdentity: ResolveSaveIdentity;
 	pinContentSource: PinContentSource;
+	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	consumeRateLimit: ConsumeRateLimit;
@@ -104,13 +107,34 @@ interface ViewDependencies {
 	salt: string;
 }
 
-async function renderError(deps: ViewDependencies, req: Request, res: Response): Promise<void> {
+async function renderError(
+	deps: ViewDependencies,
+	req: Request,
+	res: Response,
+	page: { title: string; statusCode?: number },
+): Promise<void> {
 	const redirectUrl = withInternalTracking(req.userId ? "/queue" : "/", {
 		source: "view-error",
 		content: req.userId ? "back-to-queue" : "home",
 	});
 	const linkLabel = req.userId ? "Go to your readlist" : "Go to homepage";
-	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
+	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel, ...page }), await deps.buildBannerState(req)));
+}
+
+async function captureAlreadyOffered(
+	deps: ViewDependencies,
+	visit: { wrapperUrl: string; articleUrl: string },
+): Promise<{ offered: boolean; provenOriginalUrl?: string }> {
+	const row = await deps.findIdentityRow(visit.wrapperUrl);
+	if (row.kind !== "alias") return { offered: false };
+	if (row.sourceBinding === undefined) {
+		const local = unwrapWrapperUrl(visit.wrapperUrl);
+		if (local.contentSourceUrl !== visit.wrapperUrl || (await deps.findContentSourceUrl(local.url)) !== visit.wrapperUrl) return { offered: false };
+		if ((await deps.findArticleCrawlStatus(local.url))?.status === "failed") return { offered: false };
+		return { offered: true, provenOriginalUrl: local.url };
+	}
+	const crawl = await deps.findArticleCrawlStatus(visit.articleUrl);
+	return { offered: crawl?.status !== "failed" };
 }
 
 function pollUrlBuilderFor(articleUrl: string, utmParams: [string, string][]): PollUrlBuilder {
@@ -206,7 +230,7 @@ function handleViewRoot(deps: ViewDependencies) {
 		}
 		const validation = deps.validateSaveableUrl(submittedUrl);
 		if (validation.status === "ERROR") {
-			await renderError(deps, req, res);
+			await renderError(deps, req, res, { title: "No article URL provided" });
 			return;
 		}
 		// Only this route, never the canonical article path: a shared /view link
@@ -238,7 +262,7 @@ function handleViewArticle(
 		}
 		const validation = deps.validateSaveableUrl(parsed.articleUrl);
 		if (validation.status === "ERROR") {
-			await renderError(deps, req, res);
+			await renderError(deps, req, res, { title: "No article URL provided" });
 			return;
 		}
 		// Collapse an adopted terminal URL onto the article it aliases before any
@@ -299,34 +323,66 @@ function handleViewArticle(
 		// none of the paid crawl work: a speculative fetch is not a reader asking
 		// to spend budget. Bots are deliberately NOT excluded — a third-party
 		// importer fetching a /view link must be able to materialise the article
-		// it came for. The per-IP budget below caps the first-visit cascade; a
-		// repeat visit only publishes a stale check, which the stale-check
-		// handler TTL-bounds per article.
+		// it came for.
 		if (!isPrefetchRequest(req) && !gated) {
-			if (!existing) {
-				// First visit is the request that triggers the whole crawl cascade
-				// (stub save → crawl → summary → possibly OCR), each leg with real
-				// third-party cost — so the per-IP budget is spent here, not on reads
-				// of already-known articles.
+			let wrapperCandidatesQueued = false;
+			const locallyUnwrapped = unwrapWrapperUrl(validation.url);
+			const unwrapsToPlainOriginal =
+				locallyUnwrapped.url !== validation.url &&
+				locallyUnwrapped.contentSourceUrl === undefined &&
+				!isWrapperUrl(locallyUnwrapped.url);
+			const priorCapture =
+				existing !== null &&
+				articleUrl !== validation.url &&
+				wrapperFamilyOf(validation.url) !== undefined &&
+				!unwrapsToPlainOriginal
+					? await captureAlreadyOffered(deps, { wrapperUrl: validation.url, articleUrl })
+					: undefined;
+			const offersCapture = priorCapture?.offered === false;
+			if (priorCapture?.provenOriginalUrl !== undefined) {
+				articleUrl = priorCapture.provenOriginalUrl;
+				existing = await deps.findArticleByUrl(articleUrl);
+				if (existing?.purgedAt) {
+					sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+					return;
+				}
+			}
+			if (!existing || offersCapture) {
 				const decision = await deps.consumeRateLimit({
 					bucket: "view-crawl",
 					key: rateLimitKeyFromRequest(req),
 					rule: deps.viewCrawlRateLimit,
 				});
-				if (!decision.allowed) {
+				if (!decision.allowed && !existing) {
 					sendRateLimited(res, decision.retryAfterSeconds);
 					return;
 				}
-				const identity = await deps.resolveSaveIdentity(validation.url);
-				if (identity.url !== validation.url) {
-					articleUrl = identity.url;
-					existing = await deps.findArticleByUrl(articleUrl);
+				const identity = decision.allowed ? await deps.resolveSaveIdentity(validation.url) : undefined;
+				if (identity?.status === "unresolved" && !existing) {
+					await renderError(deps, req, res, { title: "The original article could not be resolved", statusCode: 422 });
+					return;
 				}
-				if (!existing) {
-					await startAnonymousCrawl({ url: articleUrl, contentSourceUrl: identity.contentSourceUrl });
+				if (identity?.status === "resolved") {
+					if (identity.url !== validation.url) {
+						articleUrl = identity.url;
+						existing = await deps.findArticleByUrl(articleUrl);
+					}
+					if (existing?.purgedAt) {
+						sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+						return;
+					}
+					wrapperCandidatesQueued = identity.contentSourceUrl !== undefined;
+					if (!existing) {
+						await startAnonymousCrawl({ ...identity, url: articleUrl });
+					} else if (identity.contentSourceUrl !== undefined) {
+						if (isArchiveHost(identity.contentSourceUrl)) {
+							await deps.pinContentSource({ articleUrl, contentSourceUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl });
+						}
+						await deps.publishSaveAnonymousLink({ url: articleUrl, captureUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl, saveAttemptId: newSaveAttemptId() });
+					}
 				}
 			}
-			await deps.publishStaleCheckRequested({ url: articleUrl });
+			if (!wrapperCandidatesQueued) await deps.publishStaleCheckRequested({ url: articleUrl });
 		}
 		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };

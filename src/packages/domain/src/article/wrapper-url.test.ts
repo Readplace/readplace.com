@@ -1,10 +1,9 @@
 import {
 	isArchiveHost,
+	isWrapperUrl,
 	stripRedirectAddedParams,
 	unwrapWrapperUrl,
 	wrapperFamilyOf,
-	isUnresolvedArchiveCapture,
-	wrapperResolutionOf,
 } from "./wrapper-url";
 
 const TRACKERS = [
@@ -114,6 +113,19 @@ describe("isArchiveHost", () => {
 	);
 });
 
+describe("isWrapperUrl", () => {
+	it.each(["https://archive.is/", "https://javascriptweekly.com/link/100000/rss", "https://web.archive.org/web/2018/https://x.example/"])(
+		"recognises %s",
+		(url) => {
+			expect(isWrapperUrl(url)).toBe(true);
+		},
+	);
+
+	it("does not recognise a publisher article", () => {
+		expect(isWrapperUrl("https://publisher.example/article")).toBe(false);
+	});
+});
+
 describe("unwrapWrapperUrl", () => {
 	it("recovers the original from a Wayback capture and keeps the snapshot as the content source", () => {
 		expect(unwrapWrapperUrl(WAYBACK)).toEqual({ url: ORIGINAL, contentSourceUrl: WAYBACK });
@@ -159,6 +171,7 @@ describe("unwrapWrapperUrl", () => {
 		"https://twitter.com/intent/tweet?url=https%3A%2F%2Fpublisher.example%2Farticle&text=Read",
 		"https://x.com/intent/post?url=https%3A%2F%2Fpublisher.example%2Farticle",
 	])("recovers the shared URL from the tweet intent %s", (intent) => {
+		expect(wrapperFamilyOf(intent)).toBe("share-intent");
 		expect(unwrapWrapperUrl(intent)).toEqual({ url: "https://publisher.example/article" });
 	});
 
@@ -233,7 +246,6 @@ describe("archive URL shapes", () => {
 	])("keys $label on the article and reads the latest capture", ({ url }) => {
 		expect(wrapperFamilyOf(url)).toBe("archive-snapshot");
 		expect(unwrapWrapperUrl(url)).toEqual({ url: ARTICLE, contentSourceUrl: LATEST_WAYBACK_CAPTURE });
-		expect(wrapperResolutionOf(url)).toBe("syntactic");
 	});
 
 	it.each([
@@ -260,7 +272,6 @@ describe("archive URL shapes", () => {
 			const capture = `https://${host}/20261002094222/${ARTICLE}`;
 			expect(isArchiveHost(`https://${host}/Ab1cD`)).toBe(true);
 			expect(wrapperFamilyOf(`https://${host}/Ab1cD`)).toBe("archive-snapshot");
-			expect(wrapperResolutionOf(`https://${host}/Ab1cD`)).toBe("network");
 			expect(unwrapWrapperUrl(capture)).toEqual({ url: ARTICLE, contentSourceUrl: capture });
 		},
 	);
@@ -277,32 +288,35 @@ describe("archive URL shapes", () => {
 		{ label: "oldest capture", url: `https://archive.ph/oldest/${ARTICLE}`, contentSourceUrl: `https://archive.ph/oldest/${ARTICLE}` },
 		{ label: "partial-timestamp capture", url: `https://archive.ph/2026/${ARTICLE}`, contentSourceUrl: `https://archive.ph/newest/${ARTICLE}` },
 		{ label: "listing of every capture", url: `https://archive.li/${ARTICLE}`, contentSourceUrl: `https://archive.li/newest/${ARTICLE}` },
-		{ label: "outbound link from a capture", url: `https://archive.ph/o/Ab1cD/${ARTICLE}`, contentSourceUrl: "https://archive.ph/Ab1cD" },
 	])("keys an archive.today $label on the article", ({ url, contentSourceUrl }) => {
 		expect(wrapperFamilyOf(url)).toBe("archive-snapshot");
 		expect(unwrapWrapperUrl(url)).toEqual({ url: ARTICLE, contentSourceUrl });
 	});
 
-	it("collapses an archive.today work-in-progress URL onto its short id, which still needs the network", () => {
+	it("collapses an archive.today work-in-progress URL onto its short id", () => {
 		expect(unwrapWrapperUrl("https://archive.ph/wip/Ab1cD")).toEqual({ url: "https://archive.ph/Ab1cD" });
-		expect(wrapperResolutionOf("https://archive.ph/wip/Ab1cD")).toBe("network");
 	});
+});
 
-	it.each([
-		{ label: "a plain article", url: ARTICLE, resolution: "none" },
-		{ label: "a tweet intent", url: `https://x.com/intent/post?url=${encodeURIComponent(ARTICLE)}`, resolution: "none" },
-		{ label: "a newsletter tracker", url: "https://javascriptweekly.com/link/100000/rss", resolution: "network" },
-		{ label: "a Wayback capture of a tracker", url: "https://web.archive.org/web/2026/https://javascriptweekly.com/link/100000/rss", resolution: "network" },
-	])("resolves $label by $resolution", ({ url, resolution }) => {
-		expect(wrapperResolutionOf(url)).toBe(resolution);
+
+describe("wrapper identity boundaries", () => {
+	const original = "https://publisher.example/article";
+	it("unwraps an outbound link without offering the referring snapshot as content", () => {
+		const link = `https://archive.ph/o/Ab1cD/${original}`;
+		expect(wrapperFamilyOf(link)).toBe("archive-outbound");
+		expect(unwrapWrapperUrl(link)).toEqual({ url: original });
 	});
-
-	it.each([
-		{ label: "an archive.today short id", url: "https://archive.ph/Ab1cD", unresolved: true },
-		{ label: "a Wayback capture whose path names the article", url: `https://web.archive.org/web/2026/${ARTICLE}`, unresolved: false },
-		{ label: "a newsletter tracker", url: "https://javascriptweekly.com/link/100000/rss", unresolved: false },
-		{ label: "a plain article", url: ARTICLE, unresolved: false },
-	])("needs the network to find the article behind $label: $unresolved", ({ url, unresolved }) => {
-		expect(isUnresolvedArchiveCapture(url)).toBe(unresolved);
+	it("recognises an invalid outbound target as an unresolved wrapper", () => {
+		const link = "https://archive.ph/o/Ab1cD/javascript:alert(1)";
+		expect(wrapperFamilyOf(link)).toBe("archive-outbound");
+		expect(unwrapWrapperUrl(link)).toEqual({ url: link });
+	});
+	it.each(["if_", "fr_"])("keeps a %s document capture", (modifier) => {
+		const capture = `https://web.archive.org/web/20081203185222${modifier}/${original}`;
+		expect(unwrapWrapperUrl(capture)).toEqual({ url: original, contentSourceUrl: capture });
+	});
+	it.each(["2020.04", "2020.04.21", "2020.04.21-13"])("recognises a dotted date %s without changing the requested snapshot", (date) => {
+		const capture = `https://archive.ph/${date}/publisher.example/article`;
+		expect(unwrapWrapperUrl(capture)).toEqual({ url: original, contentSourceUrl: capture });
 	});
 });

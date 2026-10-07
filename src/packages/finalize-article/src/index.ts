@@ -8,8 +8,10 @@ export type {
 	FinalizedArticle,
 	ProcessContent,
 } from "./finalize-article";
-export { initFinalizeArticle } from "./finalize-article";
-export type { PutImageObject } from "./put-image-object.types";
+export { initFinalizeArticle, UNREADABLE_ARTICLE } from "./finalize-article";
+export type { PutImageObject, MediaWriteContext } from "./put-image-object.types";
 export { decideTerminalAction } from "./decide-terminal-action";
 export { initRefreshArticleIfStale } from "./check-content-freshness";
 export type { ContentFreshnessResult, RefreshArticleIfStale } from "./check-content-freshness";
+
+export { mediaFilename } from "./media-filename";

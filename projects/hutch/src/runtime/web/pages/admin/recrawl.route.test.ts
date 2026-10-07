@@ -67,7 +67,7 @@ function buildHarness(
 	// route tests (it's covered by save-link's own tests).
 	const recrawlPublishedCalls: { url: string }[] = [];
 	const publishRecrawlLinkInitiated = async (params: { url: string }) => {
-		recrawlPublishedCalls.push(params);
+		recrawlPublishedCalls.push({ url: params.url });
 	};
 
 	const harness = mountApp({

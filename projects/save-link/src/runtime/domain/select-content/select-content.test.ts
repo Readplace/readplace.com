@@ -1,318 +1,137 @@
+import { CandidateIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
-import { initSelectMostCompleteContent, type CreateSelectorChatCompletion } from "./select-content";
+import { createHash } from "node:crypto";
+import { initSelectMostCompleteContent, type CreateSelectorChatCompletion, type ContentDecision } from "./select-content";
+
+const cid = (id: string) => CandidateIdSchema.parse(id);
+
+const candidates = [
+	{ id: cid("extension"), tier: "tier-0" as const, title: "Article", wordCount: 100, html: "<p>Extension article</p>" },
+	{ id: cid("live"), tier: "tier-1" as const, title: "Article", wordCount: 100, html: "<p>Live article</p>" },
+	{ id: cid("archive"), tier: "tier-2" as const, title: "Challenge", wordCount: 20, html: "<p>Verify you are human</p>", httpStatus: 403 },
+];
+const request = { url: "https://example.com/article", candidates };
+
+function modelResponse(decision: ContentDecision, readableIds: readonly string[] = [], assessedCandidates = candidates): string {
+	return JSON.stringify({ ...decision, readability: assessedCandidates.map((candidate) => ({ candidateId: candidate.id, readable: readableIds.includes(candidate.id) })) });
+}
 
 function fakeChat(content: string | null | undefined): CreateSelectorChatCompletion {
-	return jest.fn().mockResolvedValue({
+	return async () => ({
 		choices: [{ message: { content } }],
-		usage: {
-			prompt_tokens: 900,
-			completion_tokens: 40,
-			prompt_cache_hit_tokens: 768,
-			prompt_cache_miss_tokens: 132,
-		},
+		usage: { prompt_tokens: 900, completion_tokens: 40, prompt_cache_hit_tokens: 768, prompt_cache_miss_tokens: 132 },
 	});
 }
 
-describe("initSelectMostCompleteContent (variadic)", () => {
-	it("maps a winner letter back to the candidate's tier", async () => {
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat(JSON.stringify({ winner: "A", reason: "tier-0 is more complete" })),
-			logger: noopLogger,
-		});
+function judge(content: string | null | undefined) {
+	return initSelectMostCompleteContent({ createChatCompletion: fakeChat(content), logger: noopLogger }).selectMostCompleteContent;
+}
 
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
-				{ tier: "tier-1", title: "T", wordCount: 50, html: "<p>tier-1</p>" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tier-0", reason: "tier-0 is more complete" });
+describe("initSelectMostCompleteContent", () => {
+	it("keeps readability of a shorter archive article independent from the live winner", async () => {
+		const result = await judge(modelResponse({ kind: "winner", candidateId: cid("live"), reason: "Live has an additional article section" }, ["extension", "live", "archive"]))(request);
+		expect(result).toMatchObject({ kind: "winner", candidateId: cid("live"), readability: [{ candidateId: cid("extension"), readable: true }, { candidateId: cid("live"), readable: true }, { candidateId: cid("archive"), readable: true }] });
+	});
+	it.each([
+		undefined,
+		[],
+		[{ candidateId: cid("live"), readable: true }],
+		[{ candidateId: cid("extension"), readable: true }, { candidateId: cid("live"), readable: true }, { candidateId: cid("missing"), readable: false }],
+		[{ candidateId: cid("live"), readable: true }, { candidateId: cid("live"), readable: true }, { candidateId: cid("archive"), readable: false }],
+	])("rejects incomplete or fabricated per-candidate readability: %j", async (readability) => {
+		await expect(judge(JSON.stringify({ kind: "winner", candidateId: cid("live"), reason: "Article", readability }))(request)).rejects.toThrow(/incomplete candidate readability|schema mismatch/);
+	});
+	it.each([
+		modelResponse({ kind: "winner", candidateId: cid("archive"), reason: "Conflicting assessment" }, ["live"]),
+		modelResponse({ kind: "tie", candidateIds: [cid("live"), cid("archive")], reason: "Conflicting assessment" }, ["live"]),
+		modelResponse({ kind: "none", reason: "Conflicting assessment" }, ["live"]),
+	])("rejects a ranking that contradicts its readability assessments", async (response) => {
+		await expect(judge(response)(request)).rejects.toThrow("decision contradicts candidate readability");
+	});
+	it.each<ContentDecision>([
+		{ kind: "winner", candidateId: cid("live"), reason: "Most complete" },
+		{ kind: "tie", candidateIds: [cid("extension"), cid("live")], reason: "Same article" },
+		{ kind: "none", reason: "Only challenge pages" },
+	])("returns a validated candidate decision: %j", async (decision) => {
+		expect(await judge(modelResponse(decision, decision.kind === "none" ? [] : ["extension", "live"]))(request)).toMatchObject(decision);
 	});
 
-	it("logs the token counts and the cache hit/miss split of a call that picked a winner", async () => {
+	it("still judges a single candidate, which can be unreadable", async () => {
+		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "none", reason: "CAPTCHA" }, [], [candidates[2]])));
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger });
+		expect(await selectMostCompleteContent({ ...request, candidates: [candidates[2]] })).toMatchObject({ kind: "none", reason: "CAPTCHA" });
+		expect(createChatCompletion).toHaveBeenCalledTimes(1);
+	});
+
+	it("sends stable candidate ids and the actual challenge body in non-thinking JSON mode", async () => {
+		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "winner", candidateId: cid("live"), reason: "Article" }, ["extension", "live"])));
 		const info = jest.fn();
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat(JSON.stringify({ winner: "A", reason: "tier-0 is more complete" })),
-			logger: { ...noopLogger, info },
-		});
-
-		await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
-				{ tier: "tier-1", title: "T", wordCount: 50, html: "<p>tier-1</p>" },
-			],
-		});
-
+		const result = await initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, info } }).selectMostCompleteContent(request);
+		expect(createChatCompletion).toHaveBeenCalledWith(expect.objectContaining({
+			model: "deepseek-flash", thinking: { type: "disabled" }, response_format: { type: "json_object" },
+			messages: expect.arrayContaining([expect.objectContaining({ role: "user", content: expect.stringContaining("Verify you are human") })]),
+		}));
 		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
-			url: "https://example.com/a",
-			inputTokens: 900,
-			outputTokens: 40,
-			cacheHitInputTokens: 768,
-			cacheMissInputTokens: 132,
+			url: request.url, inputTokens: 900, outputTokens: 40, cacheHitInputTokens: 768, cacheMissInputTokens: 132,
 		});
+		const actualMessages = createChatCompletion.mock.calls[0]?.[0].messages;
+		expect(result.audit).toEqual({
+			judgedCandidates: candidates.map((candidate) => ({ id: candidate.id, contentHash: createHash("sha256").update(candidate.html).digest("hex") })),
+			promptHash: createHash("sha256").update(JSON.stringify(actualMessages)).digest("hex"),
+			responseStatus: "completed",
+		});
+		for (const candidate of result.audit.judgedCandidates) {
+			expect(actualMessages?.[1]?.content).toContain(candidate.id);
+			expect(actualMessages?.[1]?.content).toContain(candidate.contentHash);
+		}
 	});
 
-	it("logs the token counts of a call the model answered with a tie", async () => {
+	it.each([
+		["", "empty response"], [null, "empty response"], [undefined, "empty response"],
+		["{not json", "malformed response"], ["{}", "schema mismatch"],
+		[modelResponse({ kind: "winner", candidateId: cid("missing"), reason: "bad id" }), "unknown winner candidate"],
+		[modelResponse({ kind: "tie", candidateIds: [cid("live"), cid("missing")], reason: "bad id" }), "invalid tied candidates"],
+		[modelResponse({ kind: "tie", candidateIds: [cid("live"), cid("live")], reason: "duplicate" }), "invalid tied candidates"],
+	])("fails closed for invalid model output %s", async (response, reason) => {
+		await expect(judge(response)(request)).rejects.toThrow(reason);
+	});
+
+	it.each([{ choices: [] }, { choices: [{}] }])("fails closed when the provider omits response content: %j", async (response) => {
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion: async () => response, logger: noopLogger });
+		await expect(selectMostCompleteContent(request)).rejects.toThrow("empty response");
+	});
+
+	it.each([
+		{ usage: { prompt_tokens: 900, completion_tokens: 40 }, inputTokens: 900, outputTokens: 40 },
+		{ usage: undefined, inputTokens: "unknown", outputTokens: "unknown" },
+		{ usage: null, inputTokens: "unknown", outputTokens: "unknown" },
+	])("logs available usage without requiring cache details: %j", async ({ usage, inputTokens, outputTokens }) => {
 		const info = jest.fn();
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat(JSON.stringify({ winner: "tie", reason: "equally good" })),
+			createChatCompletion: async () => ({ choices: [{ message: { content: modelResponse({ kind: "winner", candidateId: cid("live"), reason: "Article" }, ["extension", "live"]) } }], usage }),
 			logger: { ...noopLogger, info },
 		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
-				{ tier: "tier-1", title: "T", wordCount: 100, html: "<p>tier-1</p>" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tie", reason: "equally good" });
+		await selectMostCompleteContent(request);
 		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
-			url: "https://example.com/a",
-			inputTokens: 900,
-			outputTokens: 40,
-			cacheHitInputTokens: 768,
-			cacheMissInputTokens: 132,
+			url: request.url, inputTokens, outputTokens, cacheHitInputTokens: "unknown", cacheMissInputTokens: "unknown",
 		});
 	});
 
-	it("logs no token counts when the provider rejected the request and no completion was billed", async () => {
+	it("fails closed on a nonretryable provider rejection without recording a billed completion", async () => {
+		const rejection = Object.assign(new Error("bad request"), { status: 400 });
 		const info = jest.fn();
-		const rejection = Object.assign(new Error("400 bad request"), { status: 400 });
+		const error = jest.fn();
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: jest.fn().mockRejectedValue(rejection),
-			logger: { ...noopLogger, info },
+			createChatCompletion: async () => { throw rejection; }, logger: { ...noopLogger, info, error },
 		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
-				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tie", reason: "provider rejected request" });
+		expect(await selectMostCompleteContent(request)).toMatchObject({ kind: "none", reason: "provider rejected request", audit: { responseStatus: "rejected", judgedCandidates: expect.arrayContaining([{ id: "archive", contentHash: createHash("sha256").update(candidates[2].html).digest("hex") }]) } });
 		expect(info).not.toHaveBeenCalledWith("[SelectContent] completed", expect.anything());
+		expect(error).toHaveBeenCalledWith("[SelectContent] provider rejected the request", { url: request.url, error: rejection });
 	});
 
-	it("still picks a winner, logging an unknown split, when the provider reports no cache split", async () => {
-		const info = jest.fn();
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: async () => ({
-				choices: [{ message: { content: JSON.stringify({ winner: "A", reason: "tier-0 is more complete" }) } }],
-				usage: { prompt_tokens: 900, completion_tokens: 40 },
-			}),
-			logger: { ...noopLogger, info },
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
-				{ tier: "tier-1", title: "T", wordCount: 50, html: "<p>tier-1</p>" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tier-0", reason: "tier-0 is more complete" });
-		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
-			url: "https://example.com/a",
-			inputTokens: 900,
-			outputTokens: 40,
-			cacheHitInputTokens: "unknown",
-			cacheMissInputTokens: "unknown",
-		});
-	});
-
-	it("still picks a winner, logging unknown counts, when the provider reports no usage at all", async () => {
-		const info = jest.fn();
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: async () => ({
-				choices: [{ message: { content: JSON.stringify({ winner: "A", reason: "tier-0 is more complete" }) } }],
-			}),
-			logger: { ...noopLogger, info },
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
-				{ tier: "tier-1", title: "T", wordCount: 50, html: "<p>tier-1</p>" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tier-0", reason: "tier-0 is more complete" });
-		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
-			url: "https://example.com/a",
-			inputTokens: "unknown",
-			outputTokens: "unknown",
-			cacheHitInputTokens: "unknown",
-			cacheMissInputTokens: "unknown",
-		});
-	});
-
-	it("calls deepseek-flash in non-thinking JSON mode", async () => {
-		let captured: Parameters<CreateSelectorChatCompletion>[0] | undefined;
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: async (params) => {
-				captured = params;
-				return { choices: [{ message: { content: JSON.stringify({ winner: "tie", reason: "r" }) } }] };
-			},
-			logger: noopLogger,
-		});
-
-		await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
-				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
-			],
-		});
-
-		expect(captured?.model).toBe("deepseek-flash");
-		expect(captured?.thinking).toEqual({ type: "disabled" });
-		expect(captured?.response_format).toEqual({ type: "json_object" });
-	});
-
-	it("returns 'tie' when the model says 'tie'", async () => {
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat(JSON.stringify({ winner: "tie", reason: "equally good" })),
-			logger: noopLogger,
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: "<p>tier-0</p>" },
-				{ tier: "tier-1", title: "T", wordCount: 100, html: "<p>tier-1</p>" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tie", reason: "equally good" });
-	});
-
-	it("returns 'tie' on empty model response", async () => {
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat(""),
-			logger: noopLogger,
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
-				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tie", reason: "empty response" });
-	});
-
-	it("returns 'tie' on malformed JSON", async () => {
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat("{not json"),
-			logger: noopLogger,
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
-				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tie", reason: "malformed response" });
-	});
-
-	it("returns 'tie' when the model picks a label outside the candidate range", async () => {
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat(JSON.stringify({ winner: "Z", reason: "out of range" })),
-			logger: noopLogger,
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
-				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tie", reason: "unknown winner label" });
-	});
-
-	it("supports a single candidate (still maps via label A)", async () => {
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat(JSON.stringify({ winner: "A", reason: "only candidate" })),
-			logger: noopLogger,
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [{ tier: "tier-1", title: "T", wordCount: 1, html: "" }],
-		});
-
-		expect(result).toEqual({ winner: "tier-1", reason: "only candidate" });
-	});
-
-	it("returns 'tie' when the provider rejects the request outright (HTTP 400) instead of throwing into the retry chain", async () => {
-		const rejection = Object.assign(
-			new Error("400 This model's maximum context length is 1048565 tokens."),
-			{ status: 400 },
-		);
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: jest.fn().mockRejectedValue(rejection),
-			logger: noopLogger,
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
-				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tie", reason: "provider rejected request" });
-	});
-
-	it("rethrows provider failures a retry can heal (HTTP 500)", async () => {
-		const failure = Object.assign(new Error("500 internal error"), { status: 500 });
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: jest.fn().mockRejectedValue(failure),
-			logger: noopLogger,
-		});
-
-		await expect(
-			selectMostCompleteContent({
-				url: "https://example.com/a",
-				candidates: [
-					{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
-					{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
-				],
-			}),
-		).rejects.toThrow("500 internal error");
-	});
-
-	it("returns 'tie' on schema mismatch (e.g. missing reason)", async () => {
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: fakeChat(JSON.stringify({ winner: "A" })),
-			logger: noopLogger,
-		});
-
-		const result = await selectMostCompleteContent({
-			url: "https://example.com/a",
-			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
-				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
-			],
-		});
-
-		expect(result).toEqual({ winner: "tie", reason: "schema mismatch" });
+	it("rethrows a transient provider failure so the queue can retry", async () => {
+		const failure = Object.assign(new Error("internal error"), { status: 500 });
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion: async () => { throw failure; }, logger: noopLogger });
+		await expect(selectMostCompleteContent(request)).rejects.toBe(failure);
 	});
 });

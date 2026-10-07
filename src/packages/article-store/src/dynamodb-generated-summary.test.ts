@@ -86,6 +86,43 @@ describe("initDynamoDbGeneratedSummary", () => {
 		expect(result).toEqual({ status: "ready", summary: "Fresh summary" });
 	});
 
+	it("withholds a summary from unverified wrapper content", async () => {
+		const client = createFakeClient({
+			url: "example.com/article",
+			summary: "Unverified wrapper summary",
+			summaryExcerpt: "Unverified wrapper excerpt",
+			summaryStatus: "ready",
+			originalUrl: "https://archive.ph/abc12",
+		});
+		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
+
+		expect(await findGeneratedSummary("https://example.com/article")).toBeUndefined();
+	});
+
+	it("allows a rebuilt summary while retaining the legacy wrapper identity", async () => {
+		const archiveUrl = "https://archive.ph/abc12";
+		const client = createFakeClient({
+			url: "archive.ph/abc12",
+			originalUrl: archiveUrl,
+			displayUrl: "https://example.com/article",
+			contentSourceUrl: archiveUrl,
+			contentSourceTier: "tier-2",
+			canonicalContentHash: "verified-hash", summarySourceContentHash: "verified-hash",
+			canonicalCandidateId: "rebuilt-candidate",
+			canonicalOriginalUrl: "https://example.com/article",
+			summaryStatus: "ready",
+			summary: "Verified article summary",
+			summaryExcerpt: "Verified article excerpt",
+		});
+		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
+
+		expect(await findGeneratedSummary(archiveUrl)).toEqual({
+			status: "ready",
+			summary: "Verified article summary",
+			excerpt: "Verified article excerpt",
+		});
+	});
+
 	it("throws when summaryStatus=ready is persisted without summary text (data inconsistency)", async () => {
 		// Why this matters: this is the exact state the
 		// fagnerbrack.com/why-developers-become-frustrated-… row was left in
@@ -236,6 +273,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 	describe("findGeneratedSummaries (batch)", () => {
 		interface BatchRequest {
 			Keys: { url: string }[];
+			ConsistentRead?: boolean;
 			ProjectionExpression?: string;
 			ExpressionAttributeNames?: Record<string, string>;
 		}
@@ -277,14 +315,42 @@ describe("initDynamoDbGeneratedSummary", () => {
 			expect(captured.commands).toHaveLength(1);
 			const req = requestFor(captured);
 			expect(req.Keys).toEqual([{ url: "example.com/a" }]);
+			expect(req.ConsistentRead).toBe(true);
 			const projectedNames = Object.values(req.ExpressionAttributeNames ?? {});
-			expect(projectedNames).not.toContain("content");
-			expect(projectedNames).toEqual(
-				expect.arrayContaining(["url", "summaryStatus", "summary", "summaryExcerpt"]),
-			);
-			expect(req.ProjectionExpression).not.toContain("content");
+			expect([...projectedNames].sort()).toEqual([
+				"canonicalCandidateId", "canonicalContentHash", "canonicalOriginalUrl", "contentSourceTier",
+				"contentSourceUrl", "directContentBeforePin", "displayUrl", "originalUrl", "revokedCandidateIds",
+				"summary", "summaryExcerpt", "summaryFailureReason", "summarySkippedReason",
+				"summarySourceContentHash", "summaryStage", "summaryStatus", "url",
+			].sort());
 			expect(map.get("https://example.com/a")).toEqual({ status: "ready", summary: "A" });
 			expect(map.get("https://example.com/a#heading")).toEqual({ status: "ready", summary: "A" });
+		});
+
+		it("withholds unverified archive summaries alongside verified rebuilt and ordinary summaries", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient([
+				{
+					url: "example.com/unverified", contentSourceUrl: "https://archive.ph/abc12",
+					summaryStatus: "ready", summary: "Unverified archive summary",
+				},
+				{
+					url: "archive.ph/verified", originalUrl: "https://archive.ph/verified", contentSourceTier: "tier-2",
+					canonicalCandidateId: "rebuilt-candidate", canonicalOriginalUrl: "https://example.com/verified", canonicalContentHash: "verified-hash", summarySourceContentHash: "verified-hash",
+					displayUrl: "https://example.com/verified",
+					summaryStatus: "ready", summary: "Verified article summary",
+				},
+				{ url: "example.com/direct", summary: "Ordinary legacy summary" },
+			], captured);
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
+
+			const result = await findGeneratedSummaries([
+				"https://example.com/unverified", "https://archive.ph/verified", "https://example.com/direct",
+			]);
+
+			expect(result.get("https://example.com/unverified")).toBeUndefined();
+			expect(result.get("https://archive.ph/verified")).toEqual({ status: "ready", summary: "Verified article summary" });
+			expect(result.get("https://example.com/direct")).toEqual({ status: "ready", summary: "Ordinary legacy summary" });
 		});
 
 		it("keys every input url, mapping a missing row to undefined", async () => {
@@ -446,4 +512,18 @@ describe("initDynamoDbGeneratedSummary", () => {
 			).rejects.toThrow("throttled");
 		});
 	});
+	it.each([
+		{ canonicalCandidateId: "new", canonicalContentHash: "new-hash", summarySourceContentHash: "old-hash" },
+	])("withholds a summary that no longer belongs to readable canonical content: %j", async (state) => {
+		const client = createFakeClient({ url: "https://example.com/article", originalUrl: "https://example.com/article", canonicalOriginalUrl: "https://example.com/article", summaryStatus: "ready", summary: "Private erased text", ...state });
+		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
+		expect(await findGeneratedSummary("https://example.com/article")).toBeUndefined();
+	});
+
+	it("serves a ready summary stamped with a source hash on a legacy row that has no canonical hash and no candidate", async () => {
+		const client = createFakeClient({ url: "https://example.com/article", originalUrl: "https://example.com/article", summaryStatus: "ready", summary: "Legacy summary", summarySourceContentHash: "legacy-hash" });
+		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
+		expect(await findGeneratedSummary("https://example.com/article")).toEqual({ status: "ready", summary: "Legacy summary" });
+	});
+
 });

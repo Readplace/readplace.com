@@ -10,8 +10,8 @@ import {
 	isExcludedLink,
 	parseInboxHighlight,
 } from "@packages/domain/inbox";
-import { validateSaveableUrl } from "@packages/domain/article";
-import type { SaveProvenance } from "@packages/domain/article";
+import { newSaveAttemptId, validateSaveableUrl } from "@packages/domain/article";
+import type { SaveAttemptId, SaveProvenance } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type {
@@ -85,6 +85,7 @@ interface InboxDependencies {
 		url: string;
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
+		saveAttemptId: SaveAttemptId;
 	}) => Promise<void>;
 	recordEngagementActivity: RecordEngagementActivity;
 	/** Save gates applied to the write actions — the per-link save (it lands an article
@@ -527,6 +528,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				url: unresolved ? link.url : stripUtmParams(link.url),
 				provenance: { kind: "email", senderEmail: email.senderEmail },
 				readlist: link.droppedFor?.readlist ?? DEFAULT_READLIST_SLUG,
+				saveAttemptId: newSaveAttemptId(),
 			});
 			await deps.recordEngagementActivity({ userId, kind: "personal-save", at: deps.now() });
 			// Saving a skipped link is itself the reader's verdict that the classifier

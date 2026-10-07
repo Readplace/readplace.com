@@ -5,6 +5,7 @@ import type {
 } from "@packages/article-state-types";
 import type { ArticleMetadata } from "../article/article.types";
 import type { CrawlStage, SummaryStage } from "../article/progress-mapping";
+import type { ContentSelectionSnapshot } from "./content-selection.types";
 
 export type { ArticleMetadata };
 
@@ -68,4 +69,5 @@ export interface Article {
 	summary: SummaryState;
 	summaryAutoHeal: SummaryAutoHealState;
 	readerAvailableAt?: string;
+	contentSelection?: ContentSelectionSnapshot;
 }

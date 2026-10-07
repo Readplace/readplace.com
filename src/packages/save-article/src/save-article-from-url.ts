@@ -1,8 +1,8 @@
-import { calculateReadTime, isNonArticleHost, stubMetadataFor } from "@packages/domain/article";
-import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
+import { calculateReadTime, isNonArticleHost, stubMetadataFor, isArchiveHost } from "@packages/domain/article";
+import type { ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
 import type { MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
-import type { PinContentSource, SaveArticle, UpdateArticleStatus } from "@packages/provider-contracts/article-store";
+import type { PinContentSource, SaveArticle, UpdateArticleStatus, WrapperSourceBinding } from "@packages/provider-contracts/article-store";
 import type {
 	PublishLinkQueued,
 	PublishLinkSaved,
@@ -10,8 +10,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { UserId } from "@packages/domain/user";
-import type { SaveProvenance, SaveableUrl, SavedArticle } from "@packages/domain/article";
-import type { ResolveSaveIdentity } from "./resolve-save-identity";
+import type { SaveAttemptId, SaveProvenance, SaveableUrl, SavedArticle } from "@packages/domain/article";
 
 export interface SaveArticleFromUrlDependencies {
 	saveArticle: SaveArticle;
@@ -23,11 +22,6 @@ export interface SaveArticleFromUrlDependencies {
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
-	refreshArticleIfStale: RefreshArticleIfStale;
-	/** Collapse an adopted terminal URL onto the article it aliases, so the save
-	 * attaches to that article instead of minting a duplicate (and never lands on
-	 * an inert alias row). */
-	resolveSaveIdentity: ResolveSaveIdentity;
 }
 
 const RESURFACES_EARLIER_SAVES = {
@@ -65,9 +59,10 @@ async function markUnreadIfRead(
 export type SaveArticleFromUrl = (params: {
 	userId: UserId;
 	url: SaveableUrl;
-	freshness: ContentFreshnessResult;
+	freshness: ResolvedFreshnessResult;
 	provenance: SaveProvenance;
 	savedAt: Date;
+	saveAttemptId: SaveAttemptId;
 }) => Promise<{
 	saved: SavedArticle;
 	canonicalUrl: string;
@@ -81,30 +76,31 @@ async function saveByFreshness(
 	params: {
 		userId: UserId;
 		url: string;
-		contentSourceUrl?: string;
-		freshness: ContentFreshnessResult;
+		source?: WrapperSourceBinding;
+		saveAttemptId: SaveAttemptId;
+		freshness: ResolvedFreshnessResult;
 		provenance: SaveProvenance;
 		savedAt: Date;
 	},
 ): Promise<SaveOutcome> {
-	const { userId, url, contentSourceUrl, freshness, provenance, savedAt } = params;
+	const { userId, url, source, saveAttemptId, freshness, provenance, savedAt } = params;
+
+	const written = await deps.saveArticle({
+		userId,
+		url,
+		metadata:
+			freshness.action === "new"
+				? { ...stubMetadataFor(new URL(url).hostname), wordCount: 0 }
+				: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+		estimatedReadTime: calculateReadTime(0),
+		provenance,
+		savedAt,
+	});
+	if (source !== undefined && isArchiveHost(source.contentSourceUrl)) {
+		await deps.pinContentSource({ articleUrl: url, ...source });
+	}
 
 	if (freshness.action === "new") {
-		const hostname = new URL(url).hostname;
-		const written = await deps.saveArticle({
-			userId,
-			url,
-			metadata: {
-				...stubMetadataFor(hostname),
-				wordCount: 0,
-			},
-			estimatedReadTime: calculateReadTime(0),
-			provenance,
-			savedAt,
-		});
-		if (contentSourceUrl !== undefined) {
-			await deps.pinContentSource({ articleUrl: url, contentSourceUrl });
-		}
 		if (isNonArticleHost(url)) {
 			return markUnreadIfRead(deps.updateArticleStatus, written);
 		}
@@ -116,31 +112,18 @@ async function saveByFreshness(
 				url,
 				contentFetchedAt: new Date().toISOString(),
 			}),
-			deps.publishLinkSaved({ url, userId }),
+			deps.publishLinkSaved({ url, userId, saveAttemptId, captureUrl: source?.contentSourceUrl, sourceOriginalUrl: source?.sourceOriginalUrl }),
 		]);
-		if (contentSourceUrl !== undefined) {
-			await deps.publishLinkSaved({ url, userId, captureUrl: contentSourceUrl });
-		}
 		return outcome;
 	}
 
-	const written = await deps.saveArticle({
-		userId,
-		url,
-		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
-		estimatedReadTime: calculateReadTime(0),
-		provenance,
-		savedAt,
-	});
-
-	if (freshness.action === "refreshed" && freshness.article.article.content) {
+	if (source === undefined && freshness.action === "refreshed" && freshness.article.article.content) {
 		await deps.markSummaryPending({ url });
-		await deps.publishLinkSaved({ url, userId });
+		await deps.publishLinkSaved({ url, userId, saveAttemptId });
 	}
 
-	if (contentSourceUrl !== undefined) {
-		await deps.pinContentSource({ articleUrl: url, contentSourceUrl });
-		await deps.publishLinkSaved({ url, userId, captureUrl: contentSourceUrl });
+	if (source !== undefined) {
+		await deps.publishLinkSaved({ url, userId, captureUrl: source.contentSourceUrl, sourceOriginalUrl: source.sourceOriginalUrl, saveAttemptId });
 	}
 
 	return markUnreadIfRead(deps.updateArticleStatus, written);
@@ -150,11 +133,17 @@ export function initSaveArticleFromUrl(
 	deps: SaveArticleFromUrlDependencies,
 ): SaveArticleFromUrl {
 	return async (params) => {
-		const { url, contentSourceUrl } = params.freshness.identity ?? (await deps.resolveSaveIdentity(params.url));
+		const { identity } = params.freshness;
+		const { url } = identity;
+		const source =
+			identity.contentSourceUrl === undefined
+				? undefined
+				: { contentSourceUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl };
 		const result = await saveByFreshness(deps, {
 			userId: params.userId,
 			url,
-			contentSourceUrl,
+			source,
+			saveAttemptId: params.saveAttemptId,
 			freshness: params.freshness,
 			provenance: params.provenance,
 			savedAt: params.savedAt,

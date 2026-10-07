@@ -150,6 +150,7 @@ describe("initInMemoryReadingList", () => {
 			});
 
 			expect(result).toEqual({
+				queued: 0,
 				saved: 2,
 				skipped: 0,
 				failed: 0,
@@ -177,6 +178,7 @@ describe("initInMemoryReadingList", () => {
 			});
 
 			expect(result).toEqual({
+				queued: 0,
 				saved: 1,
 				skipped: 1,
 				failed: 0,

@@ -47,6 +47,7 @@ const selectContent = initSelectContentDepBundle({
 export const handler = initRefreshContentExtractedHandler({
 	...selectContent,
 	...articleAggregate,
+	loadArticle: articleAggregate.store.load,
 	now: () => new Date(),
 	logger: consoleLogger,
 });

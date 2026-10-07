@@ -8,6 +8,8 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { summaryMatchesCanonical } from "@packages/domain/article-aggregate";
+import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	GeneratedSummary,
@@ -18,7 +20,10 @@ import type {
 
 const ArticleSummaryRow = z.object({
 	url: z.string(),
+	...VerificationFields,
 	summary: dynamoField(z.string()),
+	canonicalContentHash: dynamoField(z.string()),
+	summarySourceContentHash: dynamoField(z.string()),
 	summaryExcerpt: dynamoField(z.string()),
 	summaryStatus: dynamoField(SummaryStatusSchema),
 	summaryFailureReason: dynamoField(z.string()),
@@ -48,6 +53,9 @@ function rowToGeneratedSummary(
 	row: ArticleSummaryRowShape | undefined,
 ): GeneratedSummary | undefined {
 	if (!row) return undefined;
+	if (isUnverifiedWrapperContent(row)) return undefined;
+	if ((row.summaryStatus === "ready" || (row.summaryStatus === undefined && row.summary !== undefined)) &&
+		!summaryMatchesCanonical({ candidateId: row.canonicalCandidateId, summarySourceContentHash: row.summarySourceContentHash, canonicalContentHash: row.canonicalContentHash })) return undefined;
 	if (row.summaryStatus === "failed") {
 		assert(row.summaryFailureReason, "summaryStatus=failed row must carry a summaryFailureReason");
 		return { status: "failed", reason: row.summaryFailureReason };
@@ -100,7 +108,7 @@ export function initDynamoDbGeneratedSummary(deps: {
 
 	const findGeneratedSummary: FindGeneratedSummary = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const row = await table.get({ url: articleResourceUniqueId.value });
+		const row = await table.get({ url: articleResourceUniqueId.value }, { consistentRead: true });
 		return rowToGeneratedSummary(row);
 	};
 
@@ -127,6 +135,7 @@ export function initDynamoDbGeneratedSummary(deps: {
 			schema: LooseArticleSummaryRow,
 			keys: [...keyToUrls.keys()].map((url) => ({ url })),
 			projection: ArticleSummaryRow.keyof().options,
+			consistentRead: true,
 		});
 
 		const valueByKey = new Map<string, GeneratedSummary | undefined>();

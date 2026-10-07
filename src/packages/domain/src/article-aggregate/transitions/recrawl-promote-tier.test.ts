@@ -151,7 +151,7 @@ describe("recrawlPromoteTier", () => {
 		]);
 	});
 
-	it("leaves the summary axis untouched — regeneration is driven by the CanonicalContentChanged subscriber, including for a row stuck on skipped(content-too-short)", () => {
+	it("invalidates the previous summary atomically while announcing regeneration", () => {
 		const stuckSummary = { kind: "skipped" as const, reason: "content-too-short" };
 		const before = buildArticle({
 			freshness: {
@@ -168,7 +168,7 @@ describe("recrawlPromoteTier", () => {
 			buildInput({ canonicalContentHash: HASH_B }),
 		);
 
-		assert.deepEqual(article.summary, stuckSummary);
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 	});
 
 	it("stamps readerAvailableAt when the recrawl is what first makes the body readable", () => {
@@ -187,10 +187,10 @@ describe("recrawlPromoteTier", () => {
 		assert.ok(!writes.includes("readerAvailability"));
 	});
 
-	it("declares writes for metadata, freshness, crawl and reader availability — never the summary axis", () => {
+	it("declares summary invalidation with canonical metadata and reader readiness", () => {
 		const { writes } = recrawlPromoteTier(buildArticle(), buildInput());
 
-		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata", "readerAvailability"]);
+		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata", "readerAvailability", "summary"]);
 	});
 
 	it("does not mutate the input article (pure function)", () => {

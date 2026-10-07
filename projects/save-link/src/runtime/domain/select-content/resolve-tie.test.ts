@@ -1,236 +1,72 @@
-import type { Article } from "@packages/domain/article-aggregate";
-import { initResolveTie } from "./resolve-tie";
-import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
-import type { TierSource, TierSourceMetadata } from "./tier-source.types";
+import { type CandidateId, CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
+import { chooseTiedCandidate } from "./resolve-tie";
+import { candidateProvenance } from "./candidate-provenance";
+import type { VerifiedTierSource } from "./tier-source.types";
 
-const stubMetadata: TierSourceMetadata = {
-	title: "Title",
-	siteName: "example.com",
-	excerpt: "excerpt",
-	wordCount: 100,
-	estimatedReadTime: 1,
-};
+const cid = (id: string) => CandidateIdSchema.parse(id);
 
-function source(tier: TierSource["tier"], html = `<p>${tier} html</p>`): TierSource {
-	return { tier, html, metadata: stubMetadata };
-}
-
-function articleWithSummary(summary: Article["summary"]): Article {
+function source({ tier, id, html = "<p>Article</p>", sourceUrl = "https://example.com/a" }: { tier: VerifiedTierSource["tier"]; id: string; html?: string; sourceUrl?: string }): VerifiedTierSource {
 	return {
-		url: "https://example.com/a",
-		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
-		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
-		estimatedReadTime: 1,
-		crawl: { kind: "ready" },
-		summary,
-		summaryAutoHeal: { attempts: 0 },
+		tier, html,
+		metadata: { ...candidateProvenance({
+			metadata: { title: "Article", siteName: "example.com", excerpt: "", wordCount: 100, estimatedReadTime: 1 },
+			html, evaluationHtml: html, attemptId: SaveAttemptIdSchema.parse(id), originalUrl: "https://example.com/a", sourceUrl,
+			kind: tier === "tier-0" ? "extension" : tier === "tier-1" ? "live" : "wrapper", fetchedAt: "2026-10-05T00:00:00.000Z",
+		}), id: cid(id) },
 	};
 }
 
-describe("initResolveTie", () => {
-	it("promotes the fresh tier when media differs, without consulting the existing canonical", async () => {
-		const findContentSourceTier: jest.MockedFunction<FindContentSourceTier> = jest.fn();
-		const loadArticle = jest.fn();
-		const resolveTie = initResolveTie({ findContentSourceTier, loadArticle });
+const extension = source({ tier: "tier-0", id: "extension" });
+const live = source({ tier: "tier-1", id: "live" });
+const archive = source({ tier: "tier-2", id: "archive", sourceUrl: "https://archive.ph/abc12" });
+const defaults = { canonicalId: undefined, freshIds: new Set<CandidateId>(), canonicalNeedsRetry: false };
 
-		const result = await resolveTie({
-			sources: [
-				source("tier-0", '<p>body</p><img src="https://cdn/old.png">'),
-				source("tier-1", '<p>body</p><img src="https://cdn/new.png">'),
-			],
-			freshTier: "tier-1",
-			url: "https://example.com/a",
-		});
-
-		expect(result).toEqual({
-			kind: "promote",
-			tier: "tier-1",
-			reason: "media changed on prose tie; promoted tier-1",
-			existingTier: undefined,
-		});
-		expect(findContentSourceTier).not.toHaveBeenCalled();
-		expect(loadArticle).not.toHaveBeenCalled();
+describe("chooseTiedCandidate", () => {
+	it.each([
+		[undefined, "live"], [cid("live"), "live"], [cid("archive"), "live"], [cid("extension"), "extension"],
+	])("preserves live-over-archive and extension canonical rules with canonical %s", (canonicalId, expected) => {
+		expect(chooseTiedCandidate({ ...defaults, sources: [archive, extension, live], canonicalId })?.metadata.id).toBe(expected);
 	});
 
-	it("keeps the canonical when it exists and the summary is healthy", async () => {
-		const resolveTie = initResolveTie({
-			findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue("tier-1"),
-			loadArticle: jest.fn().mockResolvedValue(
-				articleWithSummary({ kind: "ready", summary: "ok" }),
-			),
-		});
-
-		const result = await resolveTie({
-			sources: [source("tier-0"), source("tier-1")],
-			freshTier: "tier-1",
-			url: "https://example.com/a",
-		});
-
-		expect(result).toEqual({ kind: "keep-canonical" });
+	it("prefers a fresh live candidate when a cached archive ties multiple live candidates", () => {
+		const fresh = source({ tier: "tier-1", id: "fresh-live" });
+		expect(chooseTiedCandidate({ ...defaults, sources: [archive, live, fresh], canonicalId: cid("archive"), freshIds: new Set([cid("fresh-live")]) })).toBe(fresh);
 	});
 
-	it("promotes the fallback when the canonical summary is stuck on content-too-short and returns the existing tier", async () => {
-		const resolveTie = initResolveTie({
-			findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue("tier-0"),
-			loadArticle: jest.fn().mockResolvedValue(
-				articleWithSummary({ kind: "skipped", reason: "content-too-short" }),
-			),
-		});
-
-		const result = await resolveTie({
-			sources: [source("tier-0"), source("tier-1")],
-			freshTier: "tier-1",
-			url: "https://example.com/a",
-		});
-
-		expect(result).toEqual({
-			kind: "promote",
-			tier: "tier-1",
-			reason: "tie + canonical summary skipped on too-short content; promoted tier-1 to retry",
-			existingTier: "tier-0",
-		});
+	it.each(["https://archive.ph/abc12", "https://archive.ph/unrecognized/wrapper", "https://twitter.com/intent/tweet?url=https%3A%2F%2Fexample.com%2Fa"])("treats an extension capture taken on %s as a wrapper tie candidate", (sourceUrl) => {
+		const wrapperExtension = source({ tier: "tier-0", id: "wrapper-extension", sourceUrl });
+		expect(chooseTiedCandidate({ ...defaults, sources: [wrapperExtension, live], canonicalId: cid("wrapper-extension") })).toBe(live);
 	});
 
-	it("promotes the fallback when no canonical exists", async () => {
-		const loadArticle = jest.fn();
-		const resolveTie = initResolveTie({
-			findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
-			loadArticle,
-		});
-
-		const result = await resolveTie({
-			sources: [source("tier-0"), source("tier-1")],
-			freshTier: "tier-1",
-			url: "https://example.com/a",
-		});
-
-		expect(result).toEqual({
-			kind: "promote",
-			tier: "tier-1",
-			reason: "tie with no canonical; defaulted to tier-1",
-			existingTier: undefined,
-		});
-		expect(loadArticle).not.toHaveBeenCalled();
+	it("uses a fresh extension or live capture when their media changes on an otherwise equal article", () => {
+		const old = source({ tier: "tier-0", id: "old", html: '<p>Article</p><img src="https://cdn/old.png">' });
+		const fresh = source({ tier: "tier-1", id: "fresh", html: '<p>Article</p><img src="https://cdn/new.png">' });
+		expect(chooseTiedCandidate({ ...defaults, sources: [old, fresh, archive], canonicalId: cid("old"), freshIds: new Set([cid("fresh")]) })).toBe(fresh);
 	});
 
-	it("falls back to tier-0 when tier-1 is not among the candidates", async () => {
-		const resolveTie = initResolveTie({
-			findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
-			loadArticle: jest.fn(),
-		});
-
-		const result = await resolveTie({
-			sources: [source("tier-0")],
-			freshTier: "tier-0",
-			url: "https://example.com/a",
-		});
-
-		expect(result).toEqual({
-			kind: "promote",
-			tier: "tier-0",
-			reason: "tie with no canonical; defaulted to tier-0",
-			existingTier: undefined,
-		});
+	it("retains a healthy canonical when media differ but none of the tied non-archive candidates is fresh", () => {
+		const old = source({ tier: "tier-0", id: "old", html: '<img src="https://cdn/old.png">' });
+		expect(chooseTiedCandidate({ ...defaults, sources: [old, live, archive], canonicalId: cid("old"), freshIds: new Set([cid("archive")]) })).toBe(old);
 	});
 
-	it("keeps the canonical when the summary is skipped for a non-too-short reason", async () => {
-		const resolveTie = initResolveTie({
-			findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue("tier-1"),
-			loadArticle: jest.fn().mockResolvedValue(
-				articleWithSummary({ kind: "skipped", reason: "ai-unavailable" }),
-			),
-		});
-
-		const result = await resolveTie({
-			sources: [source("tier-0"), source("tier-1")],
-			freshTier: "tier-1",
-			url: "https://example.com/a",
-		});
-
-		expect(result).toEqual({ kind: "keep-canonical" });
+	it("ignores archive image rewriting when retaining an extension canonical", () => {
+		const extensionImage = source({ tier: "tier-0", id: "extension", html: '<img src="https://cdn/image.png">' });
+		const liveImage = source({ tier: "tier-1", id: "live", html: '<img src="https://cdn/image.png">' });
+		const archiveImage = source({ tier: "tier-2", id: "archive", html: '<img src="https://archive.ph/image.png">' });
+		expect(chooseTiedCandidate({ ...defaults, sources: [extensionImage, liveImage, archiveImage], canonicalId: cid("extension"), freshIds: new Set([cid("archive")]) })).toBe(extensionImage);
 	});
 
-	it("throws when the freshly-written tier is not in the candidate set on a media-different tie", async () => {
-		const resolveTie = initResolveTie({
-			findContentSourceTier: jest.fn(),
-			loadArticle: jest.fn(),
-		});
-
-		await expect(resolveTie({
-			sources: [
-				source("tier-0", '<p>body</p><img src="https://cdn/old.png">'),
-				source("tier-0", '<p>body</p><img src="https://cdn/new.png">'),
-			],
-			freshTier: "tier-1",
-			url: "https://example.com/a",
-		})).rejects.toThrow("freshly-written tier tier-1 missing from candidate set");
+	it("retries a too-short canonical with the live candidate", () => {
+		expect(chooseTiedCandidate({ ...defaults, sources: [extension, live], canonicalId: cid("extension"), canonicalNeedsRetry: true })).toBe(live);
 	});
 
-	describe("an archive capture among the candidates", () => {
-		const noCanonical = () => jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined);
-		const healthyCanonical = () => ({
-			findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue("tier-1"),
-			loadArticle: jest.fn().mockResolvedValue(articleWithSummary({ kind: "ready", summary: "ok" })),
-		});
-
-		it("keeps the canonical when a fresh capture ties on prose, even though its images are archive copies", async () => {
-			const resolveTie = initResolveTie(healthyCanonical());
-
-			const result = await resolveTie({
-				sources: [
-					source("tier-1", '<p>body</p><img src="https://cdn/live.png">'),
-					source("tier-2", '<p>body</p><img src="https://cdn/archived.png">'),
-				],
-				freshTier: "tier-2",
-				url: "https://example.com/a",
-			});
-
-			expect(result).toEqual({ kind: "keep-canonical" });
-		});
-
-		it("ignores the capture's images when the live crawl ties with the extension capture", async () => {
-			const resolveTie = initResolveTie(healthyCanonical());
-
-			const result = await resolveTie({
-				sources: [
-					source("tier-0", '<p>body</p><img src="https://cdn/live.png">'),
-					source("tier-1", '<p>body</p><img src="https://cdn/live.png">'),
-					source("tier-2", '<p>body</p><img src="https://cdn/archived.png">'),
-				],
-				freshTier: "tier-1",
-				url: "https://example.com/a",
-			});
-
-			expect(result).toEqual({ kind: "keep-canonical" });
-		});
-
-		it("defaults to the live crawl over the capture when nothing is canonical yet", async () => {
-			const resolveTie = initResolveTie({ findContentSourceTier: noCanonical(), loadArticle: jest.fn() });
-
-			const result = await resolveTie({
-				sources: [source("tier-1"), source("tier-2")],
-				freshTier: "tier-2",
-				url: "https://example.com/a",
-			});
-
-			expect(result).toMatchObject({ kind: "promote", tier: "tier-1" });
-		});
-
-		it("defaults to the capture only when it is the sole candidate", async () => {
-			const resolveTie = initResolveTie({ findContentSourceTier: noCanonical(), loadArticle: jest.fn() });
-
-			const result = await resolveTie({
-				sources: [source("tier-2")],
-				freshTier: "tier-2",
-				url: "https://example.com/a",
-			});
-
-			expect(result).toEqual({
-				kind: "promote",
-				tier: "tier-2",
-				reason: "tie with no canonical; defaulted to tier-2",
-				existingTier: undefined,
-			});
-		});
+	it("defaults to fresh live, then extension, then the existing archive, then the first archive", () => {
+		const fresh = source({ tier: "tier-1", id: "fresh" });
+		expect(chooseTiedCandidate({ ...defaults, sources: [extension, live, fresh], freshIds: new Set([cid("fresh")]) })).toBe(fresh);
+		expect(chooseTiedCandidate({ ...defaults, sources: [archive, extension] })).toBe(extension);
+		const newerArchive = source({ tier: "tier-2", id: "newer-archive" });
+		expect(chooseTiedCandidate({ ...defaults, sources: [archive, newerArchive], canonicalId: cid("newer-archive") })).toBe(newerArchive);
+		expect(chooseTiedCandidate({ ...defaults, sources: [archive, newerArchive] })).toBe(archive);
+		expect(chooseTiedCandidate({ ...defaults, sources: [] })).toBeUndefined();
 	});
 });

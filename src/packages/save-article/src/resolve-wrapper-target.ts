@@ -1,7 +1,9 @@
 import { type WrapperFamily, isArchiveHost, wrapperFamilyOf } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 
-export type ResolveWrapperTarget = (url: string) => Promise<string | undefined>;
+export type ResolvedWrapperTarget = { url: string; contentSourceUrl?: string };
+
+export type ResolveWrapperTarget = (url: string) => Promise<ResolvedWrapperTarget | undefined>;
 
 export const neverResolveWrapperTarget: ResolveWrapperTarget = async () => undefined;
 
@@ -26,7 +28,7 @@ type Outcome =
 	| "no-story-url"
 	| "no-memento-original";
 
-type Resolution = { target?: string; outcome: Outcome; hops: number };
+type Resolution = { target?: string; contentSourceUrl?: string; outcome: Outcome; hops: number };
 
 function parseHttpLocation(location: string, base: string): string | undefined {
 	let parsed: URL;
@@ -89,21 +91,24 @@ export function initResolveWrapperTarget(deps: {
 		let current = url;
 		for (let hops = 1; hops <= MAX_HOPS; hops += 1) {
 			const response = await hop(current, deadline);
+			const next = archiveRedirectOf(response, current);
+			if (next !== undefined) {
+				current = next;
+				continue;
+			}
 			const link = response.headers.get("link");
 			const original = link === null ? null : MEMENTO_ORIGINAL.exec(link);
 			if (original !== null) {
 				const target = parseHttpLocation(original[1], current);
 				if (target === undefined) return { outcome: "non-http-location", hops };
-				return { target, outcome: "resolved", hops };
+				return { target, contentSourceUrl: current, outcome: "resolved", hops };
 			}
-			const next = archiveRedirectOf(response, current);
-			if (next === undefined) return { outcome: "no-memento-original", hops };
-			current = next;
+			return { outcome: "no-memento-original", hops };
 		}
 		return { outcome: "hop-budget-exhausted", hops: MAX_HOPS };
 	};
 
-	const RESOLVERS: Record<WrapperFamily, (url: string, deadline: AbortSignal) => Promise<Resolution>> = {
+	const RESOLVERS: Record<Exclude<WrapperFamily, "archive-outbound" | "share-intent">, (url: string, deadline: AbortSignal) => Promise<Resolution>> = {
 		"newsletter-tracker": followTracker,
 		"apple-news": resolveStory,
 		"archive-snapshot": readMementoOriginal,
@@ -111,7 +116,7 @@ export function initResolveWrapperTarget(deps: {
 
 	return async (url) => {
 		const family = wrapperFamilyOf(url);
-		if (family === undefined) return undefined;
+		if (family === undefined || family === "archive-outbound" || family === "share-intent") return undefined;
 		const wrapperHost = hostOf(url);
 		try {
 			const resolution = await RESOLVERS[family](url, AbortSignal.timeout(deps.totalBudgetMs));
@@ -125,7 +130,7 @@ export function initResolveWrapperTarget(deps: {
 					outcome: resolution.outcome,
 				}),
 			);
-			return resolution.target;
+			return resolution.target === undefined ? undefined : { url: resolution.target, contentSourceUrl: resolution.contentSourceUrl };
 		} catch (error) {
 			deps.logger.warn(
 				JSON.stringify({

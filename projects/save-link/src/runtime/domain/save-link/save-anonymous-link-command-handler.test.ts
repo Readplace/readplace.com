@@ -24,7 +24,7 @@ function createSqsEvent(detail: { url: string; captureUrl?: string }): SQSEvent 
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
+			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1" } }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -50,6 +50,7 @@ const stubFinalizedArticle: FinalizedArticle = {
 const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
 	article: stubFinalizedArticle,
+	evaluationHtml: stubFinalizedArticle.html,
 	bodyHash: "a".repeat(64),
 };
 
@@ -63,6 +64,9 @@ const fixedNow = () => new Date("2026-04-30T12:00:00.000Z");
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initSaveAnonymousLinkCommandHandler({
+		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
+		resolveOriginalUrl: async (url) => url,
+		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -92,11 +96,10 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(putTierSource).toHaveBeenCalledWith(
 			expect.objectContaining({ url: "https://example.com/article", tier: "tier-1" }),
 		);
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
 			url: "https://example.com/article",
-			tier: "tier-1",
 			extractedAt: "2026-04-30T12:00:00.000Z",
-		});
+		}));
 	});
 
 	it("does not write a tier source or publish anything when the crawl fails (record reported as batch failure)", async () => {
@@ -217,11 +220,11 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledTimes(1);
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({
 			url: "https://example.com/blob",
 			userId: undefined,
 			recrawl: undefined,
-		});
+		}));
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
@@ -294,15 +297,14 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 			await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: capture }), buildLambdaContext(), () => {});
 
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/article", tier: "tier-2" }));
-			expect(putTierSource).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			expect(putTierSource).toHaveBeenCalledTimes(2);
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
 				url: "https://example.com/article",
-				tier: "tier-2",
 				extractedAt: expect.any(String),
-			});
+			}));
 		});
 
-		it("announces nothing to the content judge when the archive would not serve the capture", async () => {
+		it("announces a completed no-body attempt when neither source serves a body", async () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				crawlAndFinalizeArticle: async () => ({ status: "not-found", httpStatus: 404 }),
@@ -311,7 +313,16 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 			await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: capture }), buildLambdaContext(), () => {});
 
-			expect(publishEvent).not.toHaveBeenCalledWith(TierContentExtractedEvent, expect.anything());
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body" } }));
 		});
 	});
+});
+
+it("uses a recovered source binding for old anonymous wrapper work", async () => {
+	const url = "https://example.com/article";
+	const captureUrl = `https://web.archive.org/web/20081203/${url}`;
+	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const handler = createHandler({ prepareArticleIdentity: async () => ({ status: "resolved", url, originalUrl: url, contentSourceUrl: captureUrl, sourceOriginalUrl: url }), publishEvent });
+	await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+	expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [{ id: expect.any(String), tier: "tier-1" }, { id: expect.any(String), tier: "tier-2" }] }));
 });

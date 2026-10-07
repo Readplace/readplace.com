@@ -33,7 +33,16 @@ export interface HealthSource {
 	expectsThumbnail: boolean;
 }
 
-export const HEALTH_SOURCES: readonly HealthSource[] = [
+export type SaveHealthSource = HealthSource & {
+	expectedDestinationUrl: string;
+	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean } | { kind: "direct" };
+};
+
+export type ArchiveSaveHealthSource = SaveHealthSource & {
+	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean };
+};
+
+export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 	// Cloudflare refuses this URL to our datacenter egress: on 2026-08-13 every
 	// transport leg was 403'd under both personas, so the entry asserts a fetch
 	// the crawler cannot make. Disabled rather than fixed — reaching bot-walled
@@ -227,22 +236,43 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 	{
 		label: "Wayback Machine capture (origin now redirects elsewhere)",
 		url: "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+		save: {
+			kind: "archive",
+			captureUrl: "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+			requireFreshArchive: true,
+		},
 		expectedContent: "utilised an all-digital production environment for the movie",
 		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
 		expectsThumbnail: false,
 	},
 	{
-		// The calendar form is what the Wayback UI leaves in the address bar. It names no capture, so the trigger and the reader poll must resolve it to the same original as the exact-capture entry above without a network hop.
 		label: "Wayback Machine calendar URL",
 		url: "https://web.archive.org/web/*/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+		save: {
+			kind: "archive",
+			captureUrl: "https://web.archive.org/web/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+			requireFreshArchive: true,
+		},
 		expectedContent: "utilised an all-digital production environment for the movie",
 		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
 		expectsThumbnail: false,
 	},
 	{
-		// archive.today long-form capture on a page the canary already owns. Proves the mirror/long-form grammar keys the save on the original; the live page keeps the row green, so archive.today fetch health is read from the crawl-outcomes log stream and the capture-failed event, not from this entry.
+		label: "Original after Wayback saves (same card)",
+		url: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+		save: { kind: "direct" },
+		expectedContent: "utilised an all-digital production environment for the movie",
+		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
+		expectsThumbnail: false,
+	},
+	{
 		label: "archive.today long-form capture",
 		url: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
+		save: {
+			kind: "archive",
+			captureUrl: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
+			requireFreshArchive: false,
+		},
 		expectedContent: "he had had to carry the ice and glassware",
 		expectedDestinationUrl: "https://hex.ooo/library/last_question.html",
 		expectsThumbnail: false,

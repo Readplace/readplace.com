@@ -1,3 +1,5 @@
+import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { initSelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/hutch-logger";
 import {
 	type Article,
@@ -11,7 +13,8 @@ import { initCanonicalContentChangedHandler } from "../save-link/canonical-conte
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { SummarizeArticle } from "../generate-summary/link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
-import type { TierSource } from "./tier-source.types";
+import { candidateProvenance } from "./candidate-provenance";
+import type { VerifiedTierSource } from "./tier-source.types";
 import type { Handler, SQSBatchResponse, SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
@@ -63,6 +66,7 @@ function stuckArticle(canonicalContentHash: string): Article {
 		crawl: { kind: "ready" },
 		summary: { kind: "skipped", reason: "content-too-short" },
 		summaryAutoHeal: { attempts: 0 },
+		contentSelection: { tier: "tier-0" },
 	};
 }
 
@@ -71,16 +75,10 @@ describe("summary recovery on canonical content change", () => {
 		/* The winning tier-1 source's content hashes to exactly the value already
 		 * recorded on the row — so contentChanged is false. Only the TIER flips. */
 		const canonicalHash = computeCanonicalContentHash(CANONICAL_HTML);
-		const tier1: TierSource = {
+		const tier1: VerifiedTierSource = {
 			tier: "tier-1",
 			html: CANONICAL_HTML,
-			metadata: {
-				title: "Title",
-				siteName: "example.com",
-				excerpt: "x",
-				wordCount: 1123,
-				estimatedReadTime: 5,
-			},
+			metadata: candidateProvenance({ metadata: { title: "Title", siteName: "example.com", excerpt: "x", wordCount: 1123, estimatedReadTime: 5 }, html: CANONICAL_HTML, evaluationHtml: CANONICAL_HTML, attemptId: SaveAttemptIdSchema.parse("attempt"), originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: FIXED_NOW.toISOString() }),
 		};
 
 		const store = initInMemoryArticleStore();
@@ -133,17 +131,15 @@ describe("summary recovery on canonical content change", () => {
 		});
 
 		const selectHandler = initSelectMostCompleteContentHandler({
+			readCanonicalContent: async () => undefined,
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
-			selectMostCompleteContent: jest.fn(),
-			writeCanonicalContent: jest.fn().mockResolvedValue(undefined),
-			/* Current canonical is tier-0; the winner is tier-1 → the tier flips
-			 * (canonicalChanged=true) even though the readable text is identical. */
-			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
-			findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidateId: tier1.metadata.id, reason: "readable article", readability: [{ candidateId: tier1.metadata.id, readable: true }] }) } }] }) }).selectMostCompleteContent,
+			writeCanonicalContent: async () => ({ contentLocation: "s3://content/current.html", candidateId: tier1.metadata.id, originalUrl: URL, tier: "tier-1" }),
+			resolveOriginalUrl: async () => URL,
+			verifyWrapperSource: async () => undefined,
 			recordCrawlVersion: jest.fn().mockResolvedValue(undefined),
 			loadArticle: store.load,
 			transitionAndPersist,
-			publishEvent: jest.fn().mockResolvedValue(undefined),
 			now: () => FIXED_NOW,
 			logger: noopLogger,
 		});
@@ -151,7 +147,7 @@ describe("summary recovery on canonical content change", () => {
 		const seeded = await store.load(URL);
 		expect(seeded?.summary.kind).toBe("skipped");
 
-		await selectHandler(sqsEvent({ url: URL, tier: "tier-1" }), buildLambdaContext(), () => {});
+		await selectHandler(sqsEvent({ url: URL, tier: "tier-1", saveAttemptId: "attempt-1", candidates: [{ id: tier1.metadata.id, tier: "tier-1" }] }), buildLambdaContext(), () => {});
 
 		const recovered = await store.load(URL);
 		expect(recovered?.summary.kind).toBe("ready");

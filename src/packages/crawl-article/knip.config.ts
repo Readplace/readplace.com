@@ -20,6 +20,6 @@ export default {
 		"nx",
 	],
 	jest: {
-		entry: ["src/**/*.test.ts"],
+		entry: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
 	},
 } satisfies KnipConfig;

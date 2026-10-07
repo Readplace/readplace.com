@@ -27,17 +27,17 @@ export function markSummaryPending(
 	effects: readonly Effect[];
 	writes: readonly AggregateField[];
 } {
-	const pendingSince =
-		article.summary.kind === "pending"
-			? article.summary.pendingSince
-			: input.now;
 	const next: Article = {
 		...article,
-		summary: { kind: "pending", pendingSince },
+		summary: pendingSummary(article, input.now),
 	};
 	const effects: readonly Effect[] = [
 		{ kind: "generate-summary", url: article.url },
 	];
 	const writes: readonly AggregateField[] = ["summary"];
 	return { article: next, effects, writes };
+}
+
+export function pendingSummary(article: Article, now: string): Article["summary"] {
+	return article.summary.kind === "pending" ? article.summary : { kind: "pending", pendingSince: now };
 }

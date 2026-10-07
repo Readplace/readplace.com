@@ -45,6 +45,7 @@ async function createAccessToken(testApp: TestAppResult): Promise<string> {
 }
 
 const VALID_PDF = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(64, 0x20)]);
+const UPLOAD_ATTEMPT = "a5d68419-dc83-4f6c-84a9-67e6808acb57";
 const VALID_HTML = Buffer.from("<html><body>Hello world</body></html>");
 
 const useApp = useTestServer();
@@ -161,7 +162,7 @@ describe("POST /queue/save-content with PDF", () => {
 		expect(publishedSavePdf).toEqual([
 			expect.objectContaining({ url: "https://example.com/article.pdf" }),
 		]);
-		expect(testApp.pendingPdf.readPendingPdfSync("https://example.com/article.pdf")).toEqual(VALID_PDF);
+		expect(testApp.pendingPdf.readPendingPdfSync("https://example.com/article.pdf", { saveAttemptId: publishedSavePdf[0].saveAttemptId })).toEqual(VALID_PDF);
 	});
 
 	it("forwards the captured title to the PDF pipeline", async () => {
@@ -219,7 +220,6 @@ describe("POST /queue/save-content with PDF", () => {
 			url: "https://example.com/article.pdf",
 		}));
 		expect(publishedSavePdf).toHaveLength(0);
-		expect(testApp.pendingPdf.readPendingPdfSync("https://example.com/article.pdf")).toBeUndefined();
 	});
 });
 
@@ -282,7 +282,7 @@ describe("POST /queue/save-content with HTML", () => {
 				title: "Test Article",
 			}),
 		]);
-		expect(testApp.pendingHtml.readPendingHtml("https://example.com/article")).toBe(
+		expect(testApp.pendingHtml.readPendingHtml("https://example.com/article", { saveAttemptId: publishedSaveHtml[0].saveAttemptId })).toBe(
 			"<html><body>Hello world</body></html>",
 		);
 	});
@@ -346,7 +346,6 @@ describe("POST /queue/save-content with HTML", () => {
 			url: "https://example.com/article",
 		}));
 		expect(publishedSaveHtml).toHaveLength(0);
-		expect(testApp.pendingHtml.readPendingHtml("https://example.com/article")).toBeUndefined();
 	});
 });
 
@@ -666,7 +665,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 		const complete = response.body.actions.find((a: { name: string }) => a.name === "save-uploaded-content");
 		expect(complete).toEqual(expect.objectContaining({ href: "/queue/save-content", method: "POST" }));
 		const byName = Object.fromEntries(complete.fields.map((f: { name: string; value?: string }) => [f.name, f.value]));
-		expect(byName).toEqual({ url: PDF_URL, mediaType: "application/pdf", title: "Big Doc", uploaded: "true" });
+		expect(byName).toEqual({ url: PDF_URL, mediaType: "application/pdf", title: "Big Doc", uploaded: "true", saveAttemptId: expect.any(String) });
 	});
 
 	it("refuses a slot when the declared size exceeds the PDF ceiling", async () => {
@@ -736,7 +735,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 	it("completes a PDF upload, forwarding the title and publishing the raw-pdf command", async () => {
 		const { testApp, publishedSavePdf } = setupUpload();
 		const accessToken = await createAccessToken(testApp);
-		await testApp.pendingUpload.stageUploaded({ url: PDF_URL, mediaType: "application/pdf", bytes: VALID_PDF });
+		await testApp.pendingUpload.stageUploaded({ saveAttemptId: UPLOAD_ATTEMPT, url: PDF_URL, mediaType: "application/pdf", bytes: VALID_PDF });
 
 		const response = await request(testApp.server)
 			.post("/queue/save-content")
@@ -745,6 +744,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 			.field("url", PDF_URL)
 			.field("mediaType", "application/pdf")
 			.field("title", "Big Doc")
+			.field("saveAttemptId", UPLOAD_ATTEMPT)
 			.field("uploaded", "true");
 
 		expect(response.status).toBe(201);
@@ -756,7 +756,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 		const { testApp, publishedSaveHtml } = setupUpload();
 		const accessToken = await createAccessToken(testApp);
 		const url = "https://example.com/big.html";
-		await testApp.pendingUpload.stageUploaded({ url, mediaType: "text/html", bytes: VALID_HTML });
+		await testApp.pendingUpload.stageUploaded({ saveAttemptId: UPLOAD_ATTEMPT, url, mediaType: "text/html", bytes: VALID_HTML });
 
 		const response = await request(testApp.server)
 			.post("/queue/save-content")
@@ -765,6 +765,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 			.field("url", url)
 			.field("mediaType", "text/html")
 			.field("title", "Big Page")
+			.field("saveAttemptId", UPLOAD_ATTEMPT)
 			.field("uploaded", "true");
 
 		expect(response.status).toBe(201);
@@ -781,6 +782,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 			.set("Authorization", `Bearer ${accessToken}`)
 			.field("url", PDF_URL)
 			.field("mediaType", "application/pdf")
+			.field("saveAttemptId", UPLOAD_ATTEMPT)
 			.field("uploaded", "true");
 
 		expect(response.status).toBe(422);
@@ -790,7 +792,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 	it("refuses completion when the staged bytes are not a PDF", async () => {
 		const { testApp, publishedSavePdf } = setupUpload();
 		const accessToken = await createAccessToken(testApp);
-		await testApp.pendingUpload.stageUploaded({ url: PDF_URL, mediaType: "application/pdf", bytes: Buffer.from("not a pdf at all") });
+		await testApp.pendingUpload.stageUploaded({ saveAttemptId: UPLOAD_ATTEMPT, url: PDF_URL, mediaType: "application/pdf", bytes: Buffer.from("not a pdf at all") });
 
 		const response = await request(testApp.server)
 			.post("/queue/save-content")
@@ -798,6 +800,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 			.set("Authorization", `Bearer ${accessToken}`)
 			.field("url", PDF_URL)
 			.field("mediaType", "application/pdf")
+			.field("saveAttemptId", UPLOAD_ATTEMPT)
 			.field("uploaded", "true");
 
 		expect(response.status).toBe(422);
@@ -808,7 +811,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 	it("refuses completion when the staged object is stale", async () => {
 		const { testApp } = setupUpload();
 		const accessToken = await createAccessToken(testApp);
-		await testApp.pendingUpload.stageUploaded({
+		await testApp.pendingUpload.stageUploaded({ saveAttemptId: UPLOAD_ATTEMPT,
 			url: PDF_URL,
 			mediaType: "application/pdf",
 			bytes: VALID_PDF,
@@ -821,6 +824,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 			.set("Authorization", `Bearer ${accessToken}`)
 			.field("url", PDF_URL)
 			.field("mediaType", "application/pdf")
+			.field("saveAttemptId", UPLOAD_ATTEMPT)
 			.field("uploaded", "true");
 
 		expect(response.status).toBe(422);
@@ -831,7 +835,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 		const { testApp } = setupUpload();
 		const accessToken = await createAccessToken(testApp);
 		const url = "https://example.com/huge.html";
-		await testApp.pendingUpload.stageUploaded({
+		await testApp.pendingUpload.stageUploaded({ saveAttemptId: UPLOAD_ATTEMPT,
 			url,
 			mediaType: "text/html",
 			bytes: Buffer.alloc(MAX_HTML_BYTES.bytes + 1, 0x61),
@@ -843,6 +847,7 @@ describe("POST /queue/save-content upload-slot flow", () => {
 			.set("Authorization", `Bearer ${accessToken}`)
 			.field("url", url)
 			.field("mediaType", "text/html")
+			.field("saveAttemptId", UPLOAD_ATTEMPT)
 			.field("uploaded", "true");
 
 		expect(response.status).toBe(422);
@@ -952,6 +957,7 @@ describe("POST /queue/save-content for a host that can never hold an article", (
 			.set("Authorization", `Bearer ${accessToken}`)
 			.field("url", GATED_URL)
 			.field("mediaType", "text/html")
+			.field("saveAttemptId", UPLOAD_ATTEMPT)
 			.field("uploaded", "true");
 
 		expect(response.status).toBe(422);
@@ -998,9 +1004,6 @@ describe("POST /queue/save-content of an archive capture", () => {
 		const publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
 		const testApp = useApp({
 			...fixture,
-			freshness: {
-				refreshArticleIfStale: async () => ({ action: "new", identity: { url: ORIGINAL, contentSourceUrl: WAYBACK } }),
-			},
 			events: {
 				...fixture.events,
 				publishSaveLinkRawHtmlCommand: async (params) => {
@@ -1023,4 +1026,112 @@ describe("POST /queue/save-content of an archive capture", () => {
 		expect(await testApp.articleStore.findArticleByUrl(ORIGINAL)).not.toBeNull();
 		expect(await testApp.articleStore.findArticleByUrl(WAYBACK)).toBeNull();
 	});
+});
+
+
+it.each(["slot", "completion"])("does not stage or save an unresolved wrapper from %s content intake", async (mode) => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const events: unknown[] = [];
+	const staged: unknown[] = [];
+	const testApp = useApp({ ...fixture, events: { ...fixture.events, publishSaveLinkRawHtmlCommand: async (event) => { events.push(event); } }, pendingHtml: { ...fixture.pendingHtml, putPendingHtml: async (input) => { staged.push(input); } } });
+	const token = await createAccessToken(testApp);
+	const submit = request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", "https://archive.ph/abc").field("mediaType", "text/html");
+	if (mode === "slot") submit.field("size", "100");
+	if (mode === "completion") submit.field("uploaded", "true").field("saveAttemptId", UPLOAD_ATTEMPT);
+	const response = await submit;
+	expect(response.status).toBe(422);
+	expect(response.body.properties.code).toBe("original-unresolved");
+	expect(events).toEqual([]);
+	expect(staged).toEqual([]);
+	expect(fixture.submitLink.submitLinks).toEqual([]);
+	expect(await fixture.articleStore.findArticleByUrl("https://archive.ph/abc")).toBeNull();
+});
+
+it("queues an unresolved wrapper from inline content intake and answers with a notice every shipped client renders", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const events: unknown[] = [];
+	const staged: unknown[] = [];
+	const testApp = useApp({ ...fixture, events: { ...fixture.events, publishSaveLinkRawHtmlCommand: async (event) => { events.push(event); } }, pendingHtml: { ...fixture.pendingHtml, putPendingHtml: async (input) => { staged.push(input); } } });
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", "https://archive.ph/abc").field("mediaType", "text/html").attach("content", VALID_HTML, "page.html");
+	expect(response.status).toBe(409);
+	expect(response.body).toEqual({ class: ["error"], properties: { messages: [{ type: "warning", content: { type: "text/html", body: "This link is queued while Readplace finds the original article." } }] } });
+	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", readlist: "default", saveAttemptId: expect.any(String) })]);
+	expect(events).toEqual([]);
+	expect(staged).toEqual([]);
+	expect(await fixture.articleStore.findArticleByUrl("https://archive.ph/abc")).toBeNull();
+});
+
+it("queues a URL-only save of an unresolved wrapper and answers with the notice refusal shape", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const testApp = useApp(fixture);
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).send({ url: "https://archive.ph/abc" });
+	expect(response.status).toBe(409);
+	expect(response.body).toEqual({ class: ["error"], properties: { messages: [{ type: "warning", content: { type: "text/html", body: "This link is queued while Readplace finds the original article." } }] } });
+	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", readlist: "default", saveAttemptId: expect.any(String) })]);
+	expect(await fixture.articleStore.findArticleByUrl("https://archive.ph/abc")).toBeNull();
+	expect(testApp.analytics.events.filter((event) => event.event === "view_save_intent")).toEqual([expect.objectContaining({ path: "/queue", outcome: "saved" })]);
+});
+
+it("saves a URL-only wrapper under the original it resolves to within the request", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const tracker = "https://javascriptweekly.com/link/100000/rss";
+	const publisher = "https://sqlite.org/lang_with.html";
+	fixture.wrapperTarget.targets.set(tracker, publisher);
+	const testApp = useApp(fixture);
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).send({ url: tracker });
+	expect(response.status).toBe(201);
+	expect(response.body.properties.url).toBe(publisher);
+	expect(fixture.submitLink.submitLinks).toEqual([]);
+	expect(await fixture.articleStore.findArticleByUrl(tracker)).toBeNull();
+});
+
+it("stages an inline capture under the original a wrapper resolves to within the request", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const tracker = "https://javascriptweekly.com/link/100000/rss";
+	const publisher = "https://sqlite.org/lang_with.html";
+	fixture.wrapperTarget.targets.set(tracker, publisher);
+	const events: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+	const testApp = useApp({ ...fixture, events: { ...fixture.events, publishSaveLinkRawHtmlCommand: async (event) => { events.push(event); } } });
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", tracker).field("mediaType", "text/html").attach("content", VALID_HTML, "page.html");
+	expect(response.status).toBe(201);
+	expect(events.map((event) => event.url)).toEqual([publisher]);
+	expect(fixture.submitLink.submitLinks).toEqual([]);
+	expect(await fixture.articleStore.findArticleByUrl(tracker)).toBeNull();
+	expect((await fixture.articleStore.findArticleByUrl(publisher))?.metadata.siteName).toBe("sqlite.org");
+});
+
+it("preserves independent staged captures and publishes only after their article exists", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const events: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+	const testApp = useApp({ ...fixture, events: { ...fixture.events, publishSaveLinkRawHtmlCommand: async (event) => { expect((await fixture.articleStore.findArticleByUrl(event.url))?.metadata.siteName).toBe("example.com"); events.push(event); } } });
+	const token = await createAccessToken(testApp);
+	const url = "https://example.com/immutable";
+	for (const text of ["first capture", "second capture"]) {
+		const response = await request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", url).field("mediaType", "text/html").attach("content", Buffer.from(text), "page.html");
+		expect(response.status).toBe(201);
+	}
+	expect(events[0].saveAttemptId).not.toBe(events[1].saveAttemptId);
+	expect(events.map((event) => fixture.pendingHtml.readPendingHtml(url, { saveAttemptId: event.saveAttemptId }))).toEqual(["first capture", "second capture"]);
+	expect(events).toEqual([expect.objectContaining({ sourceUrl: url, sourceOriginalUrl: url }), expect.objectContaining({ sourceUrl: url, sourceOriginalUrl: url })]);
+});
+
+it.each(["inline", "completion"])("records the article a Readplace reader tab wraps as the %s capture's source", async (mode) => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const article = "https://example.com/post";
+	const events: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+	const testApp = useApp({ ...fixture, events: { ...fixture.events, publishSaveLinkRawHtmlCommand: async (event) => { events.push(event); } } });
+	const token = await createAccessToken(testApp);
+	const submit = request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", `${TEST_APP_ORIGIN}/view/example.com/post`).field("mediaType", "text/html");
+	if (mode === "inline") submit.attach("content", VALID_HTML, "page.html");
+	if (mode === "completion") {
+		await testApp.pendingUpload.stageUploaded({ saveAttemptId: UPLOAD_ATTEMPT, url: article, mediaType: "text/html", bytes: VALID_HTML });
+		submit.field("uploaded", "true").field("saveAttemptId", UPLOAD_ATTEMPT);
+	}
+	const response = await submit;
+	expect(response.status).toBe(201);
+	expect(events).toEqual([expect.objectContaining({ url: article, sourceUrl: article, sourceOriginalUrl: article })]);
 });

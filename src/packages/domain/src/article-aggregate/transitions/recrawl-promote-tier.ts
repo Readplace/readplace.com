@@ -4,6 +4,7 @@ import type { CanonicalImageUrl } from "../canonical-image-url";
 import type { Effect } from "../effects.types";
 import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
+import { pendingSummary } from "./mark-summary-pending";
 
 export interface RecrawlPromoteTierInput {
 	winnerTier: ContentTier;
@@ -21,14 +22,6 @@ export interface RecrawlPromoteTierInput {
 	canonicalContentHash: string;
 }
 
-/* Recrawl promotion: writes metadata + freshness + crawl=ready and records the
- * new canonical hash. An operator recrawl is an explicit "rebuild this" action,
- * so — unlike the automatic save path, which gates on a tier flip or hash
- * change — it announces `publish-canonical-content-changed` UNCONDITIONALLY on
- * every promotion. The `canonical-content-changed` subscriber re-primes the
- * summary, so every operator recrawl regenerates the AI excerpt regardless of
- * whether the readable text changed. Like promoteTier, this transition no
- * longer touches the summary axis itself — the subscriber owns it (OCP). */
 export function recrawlPromoteTier(
 	article: Article,
 	input: RecrawlPromoteTierInput,
@@ -57,6 +50,7 @@ export function recrawlPromoteTier(
 		"metadata",
 		"freshness",
 		"crawl",
+		"summary",
 		...available.writes,
 	];
 
@@ -66,6 +60,7 @@ export function recrawlPromoteTier(
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,
 		crawl: { kind: "ready" },
+		summary: pendingSummary(article, input.now),
 	};
 
 	return { article: next, effects, writes };

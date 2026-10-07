@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -12,7 +13,8 @@ import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-compo
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initSaveLinkWork, logRecordFailure } from "./save-link-work";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
-import { ARCHIVE_TIER } from "@packages/article-state-types";
+import { initCrawlSaveCandidates } from "./crawl-save-candidates";
+import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -32,6 +34,9 @@ export function initSaveLinkCommandHandler(deps: {
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
+	resolveOriginalUrl: (url: string) => Promise<string>;
+	verifyWrapperSource: VerifyWrapperSource;
+	prepareArticleIdentity: PrepareArticleIdentity;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
 	const logPrefix = "[SaveLinkCommand]";
@@ -50,6 +55,7 @@ export function initSaveLinkCommandHandler(deps: {
 		logCrawlOutcome: deps.logCrawlOutcome,
 		readTierSnapshot: deps.readTierSnapshot,
 		logPrefix,
+		resolveOriginalUrl: deps.resolveOriginalUrl,
 	});
 
 	const crawlArchiveCapture = initCrawlArchiveCapture({
@@ -59,7 +65,11 @@ export function initSaveLinkCommandHandler(deps: {
 		logCrawlOutcome: deps.logCrawlOutcome,
 		publishEvent,
 		logger,
+		now: deps.now,
+		verifyWrapperSource: deps.verifyWrapperSource,
 	});
+
+	const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -68,21 +78,30 @@ export function initSaveLinkCommandHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = SaveLinkCommand.detailSchema.parse(envelope.detail);
+				const { saveAttemptId } = detail;
+				const identity = await deps.prepareArticleIdentity(detail.url);
+				assert(identity.status === "resolved", "queued article original is unresolved");
+				const captureUrl = detail.captureUrl ?? identity.contentSourceUrl;
 
-				if (detail.captureUrl !== undefined) {
-					const capture = await crawlArchiveCapture({ url: detail.url, captureUrl: detail.captureUrl });
-					if (capture === "written") {
-						await publishEvent(TierContentExtractedEvent, {
-							url: detail.url,
-							tier: ARCHIVE_TIER,
-							userId: detail.userId,
-							extractedAt: deps.now().toISOString(),
-						});
-					}
+				if (captureUrl !== undefined) {
+					const result = await crawlSaveCandidates({
+						url: detail.url,
+						captureUrl,
+						saveAttemptId,
+						sourceOriginalUrl: detail.sourceOriginalUrl ?? identity.sourceOriginalUrl,
+						userId: detail.userId,
+					});
+					await publishEvent(TierContentExtractedEvent, {
+						url: detail.url,
+						saveAttemptId,
+						...result,
+						userId: detail.userId,
+						extractedAt: deps.now().toISOString(),
+					});
 					continue;
 				}
 
-				const result = await saveLinkWork(detail.url, { userId: detail.userId });
+				const result = await saveLinkWork(detail.url, { userId: detail.userId, saveAttemptId });
 				if (result === "tier-1-deferred") {
 					logger.info("[SaveLinkCommand] tier-1 deferred to comprehensive Lambda", {
 						url: detail.url,
@@ -98,7 +117,8 @@ export function initSaveLinkCommandHandler(deps: {
 
 				await publishEvent(TierContentExtractedEvent, {
 					url: detail.url,
-					tier: "tier-1",
+					saveAttemptId,
+					candidates: [result.candidate],
 					userId: detail.userId,
 					extractedAt: deps.now().toISOString(),
 				});

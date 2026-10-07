@@ -124,6 +124,7 @@ export type GetItems = () => Promise<CollectionPage>;
 export type LoadPage = (params: { index: number }) => Promise<LoadPageResult>;
 
 export type BulkSaveResult = {
+	queued: number;
 	saved: number;
 	skipped: number;
 	failed: number;

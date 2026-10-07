@@ -3,6 +3,7 @@ import type { Article } from "./article.types";
 import type { DispatchEffect } from "./effect-dispatcher.types";
 import type { Effect } from "./effects.types";
 import type { AggregateField, ArticleStore } from "./storage.types";
+import type { CanonicalCommit, SelectionExpected } from "./content-selection.types";
 
 export type Transition<TInput> = (
 	article: Article,
@@ -24,7 +25,7 @@ export type UpsertTransition<TInput> = (
 
 export type TransitionAndPersist = <TInput>(
 	transition: Transition<TInput>,
-	params: { url: string; input: TInput },
+	params: { url: string; input: TInput; canonicalCommit?: CanonicalCommit; selectionExpected?: SelectionExpected },
 ) => Promise<void>;
 
 export type UpsertAndPersist = <TInput>(
@@ -63,11 +64,15 @@ export function initTransitionAndPersist(deps: {
 		article: Article;
 		effects: readonly Effect[];
 		writes: readonly AggregateField[];
+		canonicalCommit?: CanonicalCommit;
+		selectionExpected?: SelectionExpected;
 	}): Promise<void> {
 		if (params.writes.length > 0) {
 			await store.save({
 				article: params.article,
 				writes: params.writes,
+				canonicalCommit: params.canonicalCommit,
+				selectionExpected: params.selectionExpected,
 			});
 		}
 		for (const effect of params.effects) {
@@ -86,6 +91,8 @@ export function initTransitionAndPersist(deps: {
 			article,
 			effects,
 			writes,
+			canonicalCommit: params.canonicalCommit,
+			selectionExpected: params.selectionExpected,
 		});
 	};
 

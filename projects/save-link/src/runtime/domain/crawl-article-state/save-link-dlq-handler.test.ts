@@ -22,7 +22,7 @@ function createSqsEvent(
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
+			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1" } }),
 			attributes: attributes(receiveCount),
 			messageAttributes: {},
 			md5OfBody: "",
@@ -106,14 +106,20 @@ describe("initSaveLinkDlqHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
-	it("leaves the original's crawl state alone when a dead-lettered command carried an archive capture", async () => {
+	it("marks the original's crawl exhausted when a dead-lettered command carried an archive capture", async () => {
 		const CAPTURE = "https://web.archive.org/web/20081203185222/https://example.com/article";
 		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const handler = initSaveLinkDlqHandler({ transitionAndPersist, logger: noopLogger });
 
 		const result = await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1", captureUrl: CAPTURE }), buildLambdaContext(), () => {});
 
-		expect(transitionAndPersist).not.toHaveBeenCalled();
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
+			url: "https://example.com/article",
+			input: {
+				reason: { kind: "exhausted-retries", receiveCount: 3 },
+				receiveCount: 3,
+			},
+		});
 		expect(result).toEqual({ batchItemFailures: [] });
 	});
 });

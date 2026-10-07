@@ -3,6 +3,8 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { stubMetadataFor } from "@packages/domain/article";
 import {
 	ConditionalCheckFailedException,
+	TransactionCanceledException,
+	TransactWriteCommand,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -12,6 +14,7 @@ import type {
 	FindIdentityRow,
 	IdentityRow,
 	PinContentSource,
+	RepairWrapperIdentity,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
 
@@ -31,10 +34,13 @@ const CanonicalAliasRow = z.object({
 	rowKind: dynamoField(z.literal("alias")),
 	aliasTargetUrl: dynamoField(z.string()),
 	aliasCreatedAt: dynamoField(z.string()),
+	originalUrl: dynamoField(z.string()),
 	// A real article's redirect destination, read back through this same table
 	// handle so a re-crawl can pin its fetch to the terminal (see findAdoptedFetchUrl).
 	displayUrl: dynamoField(z.string()),
 	contentSourceUrl: dynamoField(z.string()),
+	sourceOriginalUrl: dynamoField(z.string()),
+	purgedAt: dynamoField(z.string()),
 });
 
 export type { ClaimCanonicalAlias, FindIdentityRow, IdentityRow, PinContentSource };
@@ -44,10 +50,6 @@ export type { ClaimCanonicalAlias, FindIdentityRow, IdentityRow, PinContentSourc
  * is a stored URL, never itself resolved again. */
 export type ResolveCanonicalAlias = (url: string) => Promise<string | undefined>;
 
-/** Stamp the redirect destination onto the origin article at `id(articleUrl)` so
- * the reader / readlist / API can show where it lives while `url` stays the lookup
- * identity. Best-effort and idempotent; a no-op when the target is not a real
- * article row. */
 export type SetArticleDisplayUrl = (params: {
 	articleUrl: string;
 	displayUrl: string;
@@ -66,6 +68,8 @@ export type FindAdoptedFetchUrl = (url: string) => Promise<string | undefined>;
 
 export type FindContentSourceUrl = (url: string) => Promise<string | undefined>;
 
+export type AdoptArticleDestination = (params: { articleUrl: string; destinationUrl: string; now: Date }) => Promise<"adopted" | "declined">;
+
 export function initCanonicalAliasStore(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -78,6 +82,8 @@ export function initCanonicalAliasStore(deps: {
 	reconcileStubMetadata: ReconcileStubMetadata;
 	findAdoptedFetchUrl: FindAdoptedFetchUrl;
 	findContentSourceUrl: FindContentSourceUrl;
+	adoptDestination: AdoptArticleDestination;
+	repairWrapperIdentity: RepairWrapperIdentity;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -85,22 +91,22 @@ export function initCanonicalAliasStore(deps: {
 		schema: CanonicalAliasRow,
 	});
 
-	const claimAlias: ClaimCanonicalAlias = async ({ aliasUrl, targetOriginalUrl, now }) => {
+	const claimAlias: ClaimCanonicalAlias = async ({ aliasUrl, targetOriginalUrl, now, sourceBinding }) => {
 		try {
 			await table.update({
 				Key: { url: ArticleResourceUniqueId.parse(aliasUrl).value },
-				UpdateExpression: "SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now",
-				ConditionExpression: "attribute_not_exists(#url)",
+				UpdateExpression: `SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now${sourceBinding === undefined ? "" : ", contentSourceUrl = :source, sourceOriginalUrl = :original"}`,
+				ConditionExpression: sourceBinding === undefined ? "attribute_not_exists(#url)" : "attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)",
 				ExpressionAttributeNames: { "#url": "url" },
 				ExpressionAttributeValues: {
 					":alias": "alias",
 					":target": targetOriginalUrl,
 					":now": now.toISOString(),
+					...(sourceBinding === undefined ? {} : { ":source": sourceBinding.contentSourceUrl, ":original": sourceBinding.sourceOriginalUrl }),
 				},
 			});
-			return "claimed";
 		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "occupied";
+			if (error instanceof ConditionalCheckFailedException) return;
 			throw error;
 		}
 	};
@@ -113,24 +119,33 @@ export function initCanonicalAliasStore(deps: {
 
 	const findIdentityRow: FindIdentityRow = async (url) => {
 		const key = ArticleResourceUniqueId.parse(url).value;
-		const row = await table.get({ url: key });
+		const row = await table.get({ url: key }, { consistentRead: true });
 		if (!row) return { kind: "absent" };
-		if (row.rowKind !== "alias") return { kind: "article" };
+		const sourceBinding = row.contentSourceUrl !== undefined && row.sourceOriginalUrl !== undefined
+			? { contentSourceUrl: row.contentSourceUrl, sourceOriginalUrl: row.sourceOriginalUrl }
+			: undefined;
+		if (row.rowKind !== "alias") return { kind: "article", originalUrl: row.purgedAt === undefined ? row.displayUrl ?? row.originalUrl : row.displayUrl, sourceBinding };
 		assert(row.aliasTargetUrl !== undefined, `alias row "${key}" has no aliasTargetUrl`);
-		return { kind: "alias", targetUrl: row.aliasTargetUrl };
+		return { kind: "alias", targetUrl: row.aliasTargetUrl, sourceBinding };
 	};
 
-	const pinContentSource: PinContentSource = async ({ articleUrl, contentSourceUrl }) => {
+	const pinContentSource: PinContentSource = async ({ articleUrl, contentSourceUrl, sourceOriginalUrl }) => {
+		const pin = {
+			Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+			UpdateExpression: "SET contentSourceUrl = :contentSourceUrl, sourceOriginalUrl = :sourceOriginalUrl",
+			ConditionExpression: "attribute_exists(routeId) AND (displayUrl = :sourceOriginalUrl OR (attribute_not_exists(displayUrl) AND originalUrl = :sourceOriginalUrl))",
+			ExpressionAttributeValues: { ":contentSourceUrl": contentSourceUrl, ":sourceOriginalUrl": sourceOriginalUrl },
+		};
 		try {
 			await table.update({
-				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
-				UpdateExpression: "SET contentSourceUrl = :contentSourceUrl",
-				ConditionExpression: "attribute_exists(routeId)",
-				ExpressionAttributeValues: { ":contentSourceUrl": contentSourceUrl },
+				...pin,
+				UpdateExpression: `${pin.UpdateExpression}, directContentBeforePin = :true`,
+				ConditionExpression: `${pin.ConditionExpression} AND attribute_not_exists(contentSourceUrl) AND attribute_not_exists(canonicalCandidateId) AND (contentSourceTier IN (:tier0, :tier1) OR (attribute_not_exists(contentSourceTier) AND wordCount > :zero))`,
+				ExpressionAttributeValues: { ...pin.ExpressionAttributeValues, ":true": true, ":tier0": "tier-0", ":tier1": "tier-1", ":zero": 0 },
 			});
 		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
+			if (!(error instanceof ConditionalCheckFailedException)) throw error;
+			await table.update(pin);
 		}
 	};
 
@@ -139,9 +154,6 @@ export function initCanonicalAliasStore(deps: {
 			await table.update({
 				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
 				UpdateExpression: "SET displayUrl = :displayUrl",
-				// Only annotate an existing real article (a `routeId` row): a missing
-				// or alias row is left untouched so this never forges a partial row
-				// that a strict `ArticleRow` read would 500 on.
 				ConditionExpression: "attribute_exists(routeId)",
 				ExpressionAttributeValues: { ":displayUrl": displayUrl },
 			});
@@ -184,7 +196,58 @@ export function initCanonicalAliasStore(deps: {
 		return row?.contentSourceUrl;
 	};
 
+	const adoptDestination: AdoptArticleDestination = async ({ articleUrl, destinationUrl, now }) => {
+		const pinDestination = {
+			Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+			UpdateExpression: "SET displayUrl = :destination",
+			ConditionExpression: "attribute_exists(routeId) AND (attribute_not_exists(sourceOriginalUrl) OR sourceOriginalUrl = :destination) AND (attribute_not_exists(displayUrl) OR displayUrl = :destination) AND (attribute_not_exists(contentSourceTier) OR contentSourceTier <> :firstPartyTier) AND (attribute_not_exists(canonicalOriginalUrl) OR canonicalOriginalUrl = :destination)",
+			ExpressionAttributeValues: { ":destination": destinationUrl, ":firstPartyTier": "tier-0" },
+		};
+		try {
+			await deps.client.send(new TransactWriteCommand({ TransactItems: [
+				{ Update: {
+					TableName: deps.tableName,
+					Key: { url: ArticleResourceUniqueId.parse(destinationUrl).value },
+					UpdateExpression: "SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now",
+					ConditionExpression: "attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)",
+					ExpressionAttributeNames: { "#url": "url" },
+					ExpressionAttributeValues: { ":alias": "alias", ":target": articleUrl, ":now": now.toISOString() },
+				} },
+				{ Update: { TableName: deps.tableName, ...pinDestination } },
+			] }));
+			return "adopted";
+		} catch (error) {
+			if (!(error instanceof TransactionCanceledException)) throw error;
+			const [aliasReason, articleReason] = error.CancellationReasons ?? [];
+			if (articleReason?.Code === "ConditionalCheckFailed") return "declined";
+			if (aliasReason?.Code !== "ConditionalCheckFailed") throw error;
+		}
+		try {
+			await table.update(pinDestination);
+			return "adopted";
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return "declined";
+			throw error;
+		}
+	};
+
+	const repairWrapperIdentity: RepairWrapperIdentity = async ({ articleUrl, expectedOriginalUrl, originalUrl, contentSourceUrl }) => {
+		try {
+			await table.update({
+				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+				UpdateExpression: contentSourceUrl === undefined ? "SET displayUrl = :original REMOVE contentSourceUrl, sourceOriginalUrl" : "SET displayUrl = :original, contentSourceUrl = :source, sourceOriginalUrl = :original",
+				ConditionExpression: "attribute_exists(routeId) AND (displayUrl = :expected OR (attribute_not_exists(displayUrl) AND originalUrl = :expected)) AND (attribute_not_exists(sourceOriginalUrl) OR sourceOriginalUrl = :original)",
+				ExpressionAttributeValues: { ":original": originalUrl, ":expected": expectedOriginalUrl, ...(contentSourceUrl === undefined ? {} : { ":source": contentSourceUrl }) },
+			});
+			return true;
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return false;
+			throw error;
+		}
+	};
+
 	return {
+		repairWrapperIdentity,
 		claimAlias,
 		resolveAlias,
 		findIdentityRow,
@@ -193,5 +256,6 @@ export function initCanonicalAliasStore(deps: {
 		reconcileStubMetadata,
 		findAdoptedFetchUrl,
 		findContentSourceUrl,
+		adoptDestination,
 	};
 }

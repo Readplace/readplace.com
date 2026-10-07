@@ -29,15 +29,6 @@ export function initSaveAnonymousLinkDlqHandler(
 				const command = SaveAnonymousLinkCommand.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-				if (command.captureUrl !== undefined) {
-					logger.warn("[SaveAnonymousLinkDlq] archive capture exhausted its retries", {
-						url: command.url,
-						captureUrl: command.captureUrl,
-						receiveCount,
-					});
-					continue;
-				}
-
 				logger.info("[SaveAnonymousLinkDlq] marking crawl exhausted", {
 					url: command.url,
 					receiveCount,

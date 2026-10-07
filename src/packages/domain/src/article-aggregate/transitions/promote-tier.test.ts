@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { CandidateIdSchema } from "../../article/article.schema";
 import type { Article, ArticleMetadata } from "../article.types";
 import { CanonicalImageUrlSchema } from "../canonical-image-url";
 import { promoteTier, type PromoteTierInput } from "./promote-tier";
@@ -127,7 +128,7 @@ describe("promoteTier", () => {
 		assert.deepEqual(article.crawl, { kind: "ready" });
 	});
 
-	it("leaves the summary axis untouched when the canonical hash changed (regeneration is driven by the CanonicalContentChanged subscriber, not this transition)", () => {
+	it("invalidates the old summary in the same transition as a changed canonical body", () => {
 		const existingSummary = {
 			kind: "ready" as const,
 			summary: "existing summary",
@@ -151,7 +152,7 @@ describe("promoteTier", () => {
 			}),
 		);
 
-		assert.deepEqual(article.summary, existingSummary);
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 	});
 
 	it("leaves the cached ready summary untouched when the canonical hash is unchanged", () => {
@@ -175,6 +176,7 @@ describe("promoteTier", () => {
 				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalContentHash: HASH_A,
+				canonicalChanged: false,
 			}),
 		);
 
@@ -271,10 +273,7 @@ describe("promoteTier", () => {
 				url: "https://example.com/post",
 			},
 		]);
-		/* The transition only announces the change; it must not reset the summary
-		 * itself — the subscriber does that. The stuck skipped state is carried
-		 * forward unchanged here. */
-		assert.deepEqual(article.summary, stuckSummary);
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 	});
 
 	it("emits publish-canonical-content-changed but omits the user-facing event when the content changed while canonicalChanged is false (same-tier re-pick with different text)", () => {
@@ -371,7 +370,7 @@ describe("promoteTier", () => {
 		assert.ok(!writes.includes("readerAvailability"));
 	});
 
-	it("declares writes for metadata, freshness, crawl and reader availability — never the summary axis — when the hash changed", () => {
+	it("declares atomic summary invalidation with changed canonical metadata and readiness", () => {
 		const before = buildArticle({
 			freshness: {
 				etag: '"old-etag"',
@@ -389,7 +388,7 @@ describe("promoteTier", () => {
 			}),
 		);
 
-		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata", "readerAvailability"]);
+		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata", "readerAvailability", "summary"]);
 	});
 
 	it("declares writes for metadata, freshness, crawl and reader availability when the canonical hash is unchanged", () => {
@@ -408,6 +407,7 @@ describe("promoteTier", () => {
 				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalContentHash: HASH_A,
+				canonicalChanged: false,
 			}),
 		);
 
@@ -434,4 +434,26 @@ describe("promoteTier", () => {
 
 		assert.deepEqual(before, snapshot);
 	});
+	it("keeps the original stamp of a summary that is already pending", () => {
+		const { article } = promoteTier(buildArticle(), buildInput());
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: FIXED_PENDING });
+	});
+	it("removes an erased candidate's summary even when its replacement has the same readable hash", () => {
+		const before = buildArticle({ freshness: { contentFetchedAt: NOW, canonicalContentHash: HASH_A }, summary: { kind: "ready", summary: "Private erased summary" }, contentSelection: { candidateId: CandidateIdSchema.parse("erased"), revokedCandidateIds: [CandidateIdSchema.parse("erased")] } });
+		const result = promoteTier(before, buildInput({ canonicalChanged: false, canonicalContentHash: HASH_A }));
+		assert.deepEqual(result.article.summary, { kind: "pending", pendingSince: NOW });
+		assert.ok(result.writes.includes("summary"));
+		assert.deepEqual(result.effects, [
+			{ kind: "publish-canonical-content-changed", url: before.url },
+			{ kind: "publish-crawl-article-completed", url: before.url },
+		]);
+	});
+
+	it.each([undefined, [CandidateIdSchema.parse("other")]])("retains a valid unchanged candidate's summary after another candidate was revoked (%j)", (revokedCandidateIds) => {
+		const before = buildArticle({ freshness: { contentFetchedAt: NOW, canonicalContentHash: HASH_A }, summary: { kind: "ready", summary: "Valid summary" }, contentSelection: { candidateId: CandidateIdSchema.parse("survivor"), revokedCandidateIds } });
+		const result = promoteTier(before, buildInput({ canonicalChanged: false, canonicalContentHash: HASH_A }));
+		assert.deepEqual(result.article.summary, before.summary);
+		assert.deepEqual([...result.writes].sort(), ["crawl", "freshness", "metadata", "readerAvailability"]);
+	});
+
 });

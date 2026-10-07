@@ -2,8 +2,10 @@ import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
+	isCanonicalCandidateRevoked,
 	markSummaryReady,
 	markSummarySkipped,
+	summaryMatchesCanonical,
 	type LoadArticle,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
@@ -36,13 +38,16 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				const command = GenerateSummaryCommand.detailSchema.parse(envelope.detail);
 				url = command.url;
 
-				/* Cache check via the aggregate's loader — `ready` and `skipped` are
-				 * terminal, short-circuit those. `failed` is retryable on redrive so
-				 * a new attempt re-runs the AI. */
+				/* `failed` is retryable on redrive so a new attempt re-runs the AI. */
 				const existing = await loadArticle(command.url);
+				const selectionExpected = { snapshot: existing?.contentSelection };
+				const candidateRevoked = isCanonicalCandidateRevoked(existing?.contentSelection);
+				const validReadySummary = existing?.summary.kind === "ready" &&
+					summaryMatchesCanonical({ candidateId: existing.contentSelection?.candidateId, summarySourceContentHash: existing.summary.sourceContentHash, canonicalContentHash: existing.freshness.canonicalContentHash });
 				if (
 					existing &&
-					(existing.summary.kind === "ready" ||
+					!candidateRevoked &&
+					(validReadySummary ||
 						existing.summary.kind === "skipped")
 				) {
 					logger.info("[GenerateSummary] cache hit", {
@@ -66,6 +71,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				) {
 					await transitionAndPersist(markSummarySkipped, {
 						url: command.url,
+						selectionExpected,
 						input: {
 							reason: existing.crawl.kind === "failed" ? "crawl-failed" : "crawl-unsupported",
 							now: now().toISOString(),
@@ -78,6 +84,8 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 					continue;
 				}
 				assert(article, `Article content not found: ${command.url}`);
+				const sourceContentHash = computeCanonicalContentHash(article.content);
+				if (existing?.freshness.canonicalContentHash !== undefined) assert(sourceContentHash === existing.freshness.canonicalContentHash, "summary fetched a different canonical snapshot");
 
 				const result = await summarizeArticle({
 					url: command.url,
@@ -88,9 +96,9 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 					/* Tag the persisted ready summary with the hash of the canonical
 					 * content it was generated against so a future caller can compare
 					 * hashes and short-circuit on cacheability. */
-					const sourceContentHash = computeCanonicalContentHash(article.content);
 					await transitionAndPersist(markSummaryReady, {
 						url: command.url,
+						selectionExpected,
 						input: {
 							summary: result.summary,
 							excerpt: result.excerpt,
@@ -113,6 +121,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				if (result.kind === "skipped") {
 					await transitionAndPersist(markSummarySkipped, {
 						url: command.url,
+						selectionExpected,
 						input: { reason: result.reason, now: now().toISOString() },
 					});
 					logger.info("[GenerateSummary] skipped", {
@@ -126,6 +135,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				if (result.kind === "declined" && receiveCount >= GENERATE_SUMMARY_MAX_RECEIVE_COUNT) {
 					await transitionAndPersist(markSummarySkipped, {
 						url: command.url,
+						selectionExpected,
 						input: { reason: "declined", now: now().toISOString() },
 					});
 					logger.info("[GenerateSummary] declined on the final receive — marking summary skipped", {

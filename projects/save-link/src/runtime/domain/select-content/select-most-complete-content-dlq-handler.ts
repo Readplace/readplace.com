@@ -28,7 +28,6 @@ export function initSelectMostCompleteContentDlqHandler(
 
 				logger.info("[SelectMostCompleteContentDlq] marking crawl exhausted", {
 					url: detail.url,
-					tier: detail.tier,
 					receiveCount,
 				});
 

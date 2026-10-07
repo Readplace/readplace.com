@@ -726,7 +726,7 @@ describe("Import routes", () => {
 
 				expect(commit.status).toBe(303);
 				expect(fixture.submitLink.submitLinks).toEqual([
-					{ url: SHORT_ID, userId, provenance: { kind: "import" }, readlist: "default" },
+					{ url: SHORT_ID, userId, provenance: { kind: "import" }, readlist: "default", saveAttemptId: expect.any(String) },
 				]);
 				expect(await harness.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
 				expect(await harness.articleStore.findArticleByUrl("https://example.com/imported-a")).not.toBeNull();
@@ -734,12 +734,8 @@ describe("Import routes", () => {
 
 			it("saves it inline when an earlier save already resolved it to its article", async () => {
 				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-				const harness = useApp({
-					...fixture,
-					freshness: {
-						refreshArticleIfStale: async ({ url }) => ({ action: "new", identity: { url: url === SHORT_ID ? ORIGINAL : url } }),
-					},
-				});
+				await fixture.articleStore.claimAlias({ aliasUrl: SHORT_ID, targetOriginalUrl: ORIGINAL, sourceBinding: { contentSourceUrl: SHORT_ID, sourceOriginalUrl: ORIGINAL }, now: new Date() });
+				const harness = useApp(fixture);
 
 				await commitFile(harness, SHORT_ID);
 

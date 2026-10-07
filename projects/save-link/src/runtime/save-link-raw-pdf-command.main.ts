@@ -1,3 +1,4 @@
+import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { Agent } from "node:https";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
@@ -73,6 +74,7 @@ const parser = initParserDepBundle({
 	logInfo: observability.logInfo,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
+const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
@@ -81,6 +83,7 @@ const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesT
 const { readPendingPdf } = initReadPendingPdf({ client: s3Client, bucketName: pendingPdfBucketName });
 
 export const handler = initSaveLinkRawPdfCommandHandler({
+	...sourceIdentity,
 	readPendingPdf,
 	extractPdf,
 	parseHtml: parser.parseHtml,

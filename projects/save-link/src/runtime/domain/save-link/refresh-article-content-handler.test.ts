@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { noopLogger } from "@packages/hutch-logger";
 import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { ReadRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
@@ -15,6 +16,8 @@ const stubAttributes: SQSRecordAttributes = {
 
 interface RefreshDetail {
 	url: string;
+	sourceUrl?: string;
+	sourceOriginalUrl?: string;
 	metadata: {
 		title: string;
 		siteName: string;
@@ -35,7 +38,7 @@ function createSqsEvent(detail: RefreshDetail): SQSEvent {
 			{
 				messageId: "msg-1",
 				receiptHandle: "receipt-1",
-				body: JSON.stringify({ detail }),
+				body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", sourceUrl: URL, sourceOriginalUrl: URL, ...detail } }),
 				attributes: stubAttributes,
 				messageAttributes: {},
 				md5OfBody: "",
@@ -71,6 +74,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
 			publishEvent,
@@ -79,8 +83,8 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 
 		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
-		expect(readRefreshHtml).toHaveBeenCalledWith(URL);
-		expect(putTierSource).toHaveBeenCalledWith({
+		expect(readRefreshHtml).toHaveBeenCalledWith(URL, { saveAttemptId: "attempt-1" });
+		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 			url: URL,
 			tier: "tier-1",
 			html: HTML,
@@ -91,7 +95,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 				wordCount: 250,
 				estimatedReadTime: 2,
 			}),
-		});
+		}));
 	});
 
 	it("publishes RefreshContentExtractedEvent carrying url + freshness so the downstream selector handler can persist", async () => {
@@ -100,6 +104,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
 			publishEvent,
@@ -109,13 +114,13 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, {
+		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({
 			url: URL,
 			etag: '"new-etag"',
 			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			bodyHash: "a".repeat(64),
-		});
+		}));
 	});
 
 	it("forwards bodyHash from the command into RefreshContentExtractedEvent so the persister can land it on the freshness row", async () => {
@@ -124,6 +129,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
 			publishEvent,
@@ -132,13 +138,13 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 
 		await handler(createSqsEvent({ ...DETAIL, bodyHash: "deadbeef".repeat(8) }), buildLambdaContext(), () => {});
 
-		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, {
+		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({
 			url: URL,
 			etag: '"new-etag"',
 			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			bodyHash: "deadbeef".repeat(8),
-		});
+		}));
 	});
 
 	it("reads S3, writes the tier source, then publishes — in that order, so a fast downstream handler doesn't race a missing tier-1 read", async () => {
@@ -155,6 +161,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		});
 
 		const handler = initRefreshArticleContentHandler({
+			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
 			publishEvent,
@@ -163,7 +170,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 
 		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
-		expect(order).toEqual(["readRefreshHtml", "putTierSource", "publishEvent"]);
+		expect(order).toEqual(["readRefreshHtml", "readRefreshHtml", "putTierSource", "publishEvent"]);
 	});
 
 	it("reports the record as a batch failure on invalid event detail (zod failure) without touching S3 or tier source or event bus", async () => {
@@ -172,6 +179,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn();
 
 		const handler = initRefreshArticleContentHandler({
+			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
 			publishEvent,
@@ -210,6 +218,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn();
 
 		const handler = initRefreshArticleContentHandler({
+			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
 			publishEvent,
@@ -231,6 +240,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
 			publishEvent,
@@ -242,4 +252,32 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		expect(publishEvent).not.toHaveBeenCalled();
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
+	it("binds candidate provenance to the staged attempt and the actual evaluation bytes", async () => {
+		const putTierSource: PutTierSource = jest.fn();
+		const publishEvent = jest.fn();
+		const handler = initRefreshArticleContentHandler({ resolveOriginalUrl: async () => URL, readRefreshHtml: async () => HTML, putTierSource, publishEvent, logger: noopLogger });
+		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
+		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: HTML, metadata: expect.objectContaining({ attemptId: "attempt-1", originalUrl: URL, sourceUrl: URL, kind: "live", contentHash: createHash("sha256").update(HTML).digest("hex") }) }));
+		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({ saveAttemptId: "attempt-1", candidates: [{ id: expect.any(String), tier: "tier-1" }] }));
+	});
+
+});
+
+
+it("preserves actual response identity and raw evaluation separately from finalized reader HTML", async () => {
+	const raw = "<html><body>Raw origin response with chrome</body></html>";
+	const sourceUrl = "https://example.com/article?edition=current";
+	const putTierSource = jest.fn();
+	const handler = initRefreshArticleContentHandler({ resolveOriginalUrl: async () => URL, readRefreshHtml: async (_url, options) => options?.representation === "evaluation" ? raw : HTML, putTierSource, publishEvent: jest.fn(), logger: noopLogger });
+	await expect(handler(createSqsEvent({ ...DETAIL, sourceUrl }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+	expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: HTML, evaluationHtml: raw, metadata: expect.objectContaining({ kind: "live", sourceUrl, originalUrl: URL, contentHash: createHash("sha256").update(raw).digest("hex") }) }));
+});
+
+it("rejects stale refresh original proof before reading or writing artifacts", async () => {
+	const readRefreshHtml = jest.fn();
+	const putTierSource = jest.fn();
+	const handler = initRefreshArticleContentHandler({ resolveOriginalUrl: async () => URL, readRefreshHtml, putTierSource, publishEvent: jest.fn(), logger: noopLogger });
+	await expect(handler(createSqsEvent({ ...DETAIL, sourceOriginalUrl: "https://different.example/article" }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	expect(readRefreshHtml).not.toHaveBeenCalled();
+	expect(putTierSource).not.toHaveBeenCalled();
 });

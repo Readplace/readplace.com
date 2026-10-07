@@ -74,7 +74,7 @@ async function buildHarness(options: { extraction?: "finished" | "failed" | "pen
 		});
 	}
 
-	return { fixture, harness, agent, userId, issueId: issue.id.value };
+	return { fixture, harness, agent, userId, putLink, issueId: issue.id.value };
 }
 
 function panelOf(html: string) {
@@ -195,6 +195,42 @@ describe("Saving a link from an issue (POST /queue/:id/issue-links)", () => {
 		assert.deepEqual(panelOf(back.text).rows, [
 			["0000", "unsaved"],
 			["0001", "saved"],
+		]);
+	});
+
+	it("saves a newsletter click-tracker link under the publisher it resolves to", async () => {
+		const { agent, fixture, putLink, issueId } = await buildHarness();
+		const tracker = "https://javascriptweekly.com/link/100000/rss";
+		const publisher = "https://sqlite.org/lang_with.html";
+		await putLink({ ordinal: "0003", url: tracker });
+		fixture.wrapperTarget.targets.set(tracker, publisher);
+
+		const response = await agent.post(`/queue/${issueId}/issue-links`).type("form").send({ ordinal: "0003" });
+
+		expect(response.status).toBe(303);
+		assert.equal(await fixture.articleStore.findArticleByUrl(tracker), null);
+		const saved = await fixture.articleStore.findArticleByUrl(publisher);
+		assert.equal(saved?.url, publisher);
+		assert.deepEqual(fixture.submitLink.submitLinks, []);
+	});
+
+	it("queues a click-tracker link whose publisher cannot be resolved, writing no article for the tracker", async () => {
+		const { agent, fixture, userId, putLink, issueId } = await buildHarness();
+		const tracker = "https://javascriptweekly.com/link/100000/rss";
+		await putLink({ ordinal: "0003", url: tracker });
+
+		const response = await agent.post(`/queue/${issueId}/issue-links`).type("form").send({ ordinal: "0003" });
+
+		expect(response.status).toBe(303);
+		assert.equal(await fixture.articleStore.findArticleByUrl(tracker), null);
+		expect(fixture.submitLink.submitLinks).toEqual([
+			{
+				url: tracker,
+				userId,
+				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+				readlist: "default",
+				saveAttemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+			},
 		]);
 	});
 

@@ -1,3 +1,7 @@
+import { initCanonicalAliasStore } from "@packages/article-store";
+import { initSelectionSourceIdentity } from "./source-identity";
+import { initFindArticleContent, type FindArticleContent } from "../providers/article-store/find-article-content";
+import type { VerifyWrapperSource } from "@packages/save-article";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
@@ -19,26 +23,19 @@ import {
 	type WriteCanonicalContent,
 } from "../providers/article-store/promote-tier-to-canonical";
 import {
-	initFindContentSourceTier,
-	type FindContentSourceTier,
-} from "../providers/article-store/find-content-source-tier";
-import {
-	initFindCanonicalContentHash,
-	type FindCanonicalContentHash,
-} from "../providers/article-store/find-canonical-content-hash";
-import {
 	initRecordCrawlVersion,
 	type RecordCrawlVersion,
 } from "../providers/article-store/record-crawl-version";
 
 export type SelectContentDepBundle = {
+	resolveOriginalUrl: (url: string) => Promise<string>;
+	verifyWrapperSource: VerifyWrapperSource;
 	readTierSource: ReadTierSource;
 	listAvailableTierSources: ListAvailableTierSources;
 	selectMostCompleteContent: SelectMostCompleteContent;
 	writeCanonicalContent: WriteCanonicalContent;
-	findContentSourceTier: FindContentSourceTier;
-	findCanonicalContentHash: FindCanonicalContentHash;
 	recordCrawlVersion: RecordCrawlVersion;
+	readCanonicalContent: FindArticleContent;
 };
 
 export function initSelectContentDepBundle(deps: {
@@ -60,32 +57,22 @@ export function initSelectContentDepBundle(deps: {
 		logger: deps.logger,
 	});
 	const { writeCanonicalContent } = initWriteCanonicalContent({
-		dynamoClient: deps.dynamoClient,
 		s3Client: deps.s3Client,
-		tableName: deps.articlesTable,
 		bucketName: deps.contentBucketName,
-	});
-	const { findContentSourceTier } = initFindContentSourceTier({
-		dynamoClient: deps.dynamoClient,
-		tableName: deps.articlesTable,
-	});
-	const { findCanonicalContentHash } = initFindCanonicalContentHash({
-		dynamoClient: deps.dynamoClient,
-		tableName: deps.articlesTable,
 	});
 	const { recordCrawlVersion } = initRecordCrawlVersion({
 		dynamoClient: deps.dynamoClient,
-		s3Client: deps.s3Client,
 		tableName: deps.articlesTable,
-		bucketName: deps.contentBucketName,
 	});
+	const identities = initCanonicalAliasStore({ client: deps.dynamoClient, tableName: deps.articlesTable });
+	const sourceIdentity = initSelectionSourceIdentity({ findIdentityRow: identities.findIdentityRow });
 	return {
+		...sourceIdentity,
+		readCanonicalContent: initFindArticleContent({ dynamoClient: deps.dynamoClient, s3Client: deps.s3Client, tableName: deps.articlesTable }).findArticleContent,
 		readTierSource,
 		listAvailableTierSources,
 		selectMostCompleteContent,
 		writeCanonicalContent,
-		findContentSourceTier,
-		findCanonicalContentHash,
 		recordCrawlVersion,
 	};
 }

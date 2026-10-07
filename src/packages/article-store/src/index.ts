@@ -16,6 +16,7 @@ export {
 	type ReconcileStubMetadata,
 	type FindAdoptedFetchUrl,
 	type FindContentSourceUrl,
+	type AdoptArticleDestination,
 } from "./canonical-alias";
 export type { ArticleStore } from "@packages/domain/article-aggregate";
 export {
@@ -43,6 +44,9 @@ export type { TombstoneArticle } from "./tombstone-article";
 export { initReadArticleContent } from "./read-article-content";
 export type { ContentProvider, ReadArticleContent } from "./read-article-content";
 export { initS3ReadContent } from "./s3-read-content";
+export { initReadContentLocation, type ReadContentLocation } from "./read-content-location";
+export { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
+export { initRevokeContentCandidates, type RevokeContentCandidates } from "./revoke-content-candidates";
 export type { S3GetObject } from "./s3-read-content";
 export { initS3ReadArticleImage } from "./s3-read-image";
 export type { S3GetImageObject } from "./s3-read-image";

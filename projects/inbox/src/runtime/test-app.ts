@@ -75,7 +75,7 @@ export function createInboxTestApp(
 			inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
 			inboxSavedLinkStore: fixture.inboxEmail.inboxSavedLinkStore,
 			readEmailContent: fixture.inboxEmail.readEmailContent,
-			publishSubmitLink: async (input) => {
+			publishSubmitLink: async ({ saveAttemptId: _saveAttemptId, ...input }) => {
 				submittedLinks.push(input);
 				// The e2e server stands in for the deployed round trip so the Saved
 				// chip can appear; route tests leave it recording-only.

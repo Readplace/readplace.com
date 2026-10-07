@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ParseHtml } from "@packages/article-parser";
 import type { FetchThumbnailImage, ThumbnailImage } from "@packages/crawl-article";
+import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
 import type { DownloadMedia } from "./download-media.types";
 import type { PutImageObject } from "./put-image-object.types";
 import {
@@ -618,4 +620,15 @@ describe("initFinalizeArticle", () => {
 			expect(result.article.html).not.toContain(oversized);
 		}
 	});
+});
+
+it.each([undefined, "image"] as const)("hosts %s media under the storage row with its capture ownership", async (mediaType) => {
+	const writeContext = { url: "https://archive.is/legacy", attemptId: SaveAttemptIdSchema.parse("attempt"), authorUserId: UserIdSchema.parse("author") };
+	const downloadMedia = jest.fn(noopDownloadMedia);
+	const putImageObject = jest.fn(noopPutImageObject);
+	const finalize = createFinalize({ downloadMedia, putImageObject });
+	const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<p>article</p>", mediaType, writeContext, resolvedThumbnail: { image: { url: "https://example.com/photo.png", body: Buffer.from("image"), contentType: "image/png", extension: ".png" }, provenUnusable: [] } });
+	expect(result.ok).toBe(true);
+	expect(putImageObject).toHaveBeenCalledWith({ key: expect.stringMatching(/^content\/archive.is%2Flegacy\/images\/attempts\/[a-f0-9]{64}\/[a-f0-9]{64}\.png$/), body: Buffer.from("image"), contentType: "image/png", writeContext });
+	if (mediaType === undefined) expect(downloadMedia).toHaveBeenCalledWith({ html: expect.any(String), referer: URL_UNDER_TEST, articleResourceUniqueId: ArticleResourceUniqueId.parse(writeContext.url), writeContext });
 });

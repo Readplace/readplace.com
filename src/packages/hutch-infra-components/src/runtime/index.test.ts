@@ -128,6 +128,7 @@ describe("initEventBridgePublisher", () => {
 		await expect(
 			publishEvent(SimpleCrawlUnsupportedEvent, {
 				url: "https://example.com/doc.pdf",
+				saveAttemptId: z.string().brand<"SaveAttemptId">().parse("attempt-1"),
 				recrawl: true,
 				refresh: true,
 			}),

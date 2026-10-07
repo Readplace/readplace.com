@@ -261,6 +261,7 @@ describe("initLambdaEffectDispatcher", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
 			url: "https://example.com/article",
+			saveAttemptId: expect.any(String),
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
@@ -282,6 +283,7 @@ describe("initLambdaEffectDispatcher", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
 			url: "https://example.com/article",
+			saveAttemptId: expect.any(String),
 			userId: "user-123",
 			provenance: { kind: "email", senderEmail: "news@example.com" },
 			readlist: "default",
@@ -304,6 +306,7 @@ describe("initLambdaEffectDispatcher", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
 			url: "https://example.com/article",
+			saveAttemptId: expect.any(String),
 		});
 	});
 
@@ -324,6 +327,7 @@ describe("initLambdaEffectDispatcher", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
 			url: "https://example.com/article",
+			saveAttemptId: expect.any(String),
 			rawHtml: "<html>captured DOM</html>",
 		});
 	});
@@ -346,6 +350,7 @@ describe("initLambdaEffectDispatcher", () => {
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
 			url: "https://example.com/article",
+			saveAttemptId: expect.any(String),
 			userId: "user-123",
 			provenance: { kind: "web" },
 			readlist: "default",

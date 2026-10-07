@@ -36,8 +36,12 @@ const BLOCK_ERROR_SIGNATURES = [
 	"too many redirects", /* follow-redirects app-level cap (curl/h2/aia legs) — mirrors undici's max_redirects */
 ];
 
+export function isBlockClassStatus(status: number): boolean {
+	return BLOCK_STATUS_CODES.has(status);
+}
+
 export function isBlockClassResponse(response: Response): boolean {
-	return BLOCK_STATUS_CODES.has(response.status);
+	return isBlockClassStatus(response.status);
 }
 
 export function isBlockClassError(error: unknown): boolean {

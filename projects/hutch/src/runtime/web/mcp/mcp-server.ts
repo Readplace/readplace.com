@@ -70,6 +70,7 @@ export interface McpReadlist {
 }
 
 type SaveLinkResult =
+	| { readonly ok: true; readonly pending: true }
 	| {
 			readonly ok: true;
 			readonly id: string;
@@ -505,6 +506,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				oauthClientId: context.oauthClientId,
 			});
 			if (!outcome.ok) return toolError(outcome.message);
+			if ("pending" in outcome) return data("This link is queued while Readplace resolves the original article. Check your readlist for the saved article.", { status: "pending" });
 			const filed = outcome.filedInto.filter(
 				(readlist) => readlist.id !== DEFAULT_READLIST_SLUG,
 			);

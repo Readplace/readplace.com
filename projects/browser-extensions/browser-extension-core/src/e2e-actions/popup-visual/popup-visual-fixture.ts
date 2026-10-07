@@ -101,6 +101,7 @@ function bulkSaveReply(): unknown {
 	return {
 		ok: true,
 		value: {
+			queued: 0,
 			saved: 7,
 			alreadySaved: 1,
 			skipped: 0,

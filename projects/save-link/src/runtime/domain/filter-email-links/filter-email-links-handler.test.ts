@@ -99,12 +99,14 @@ describe("initFilterEmailLinksHandler", () => {
 					userId: USER,
 					provenance: { kind: "email", senderEmail: "news@example.com" },
 					readlist: "a1b2c3d4",
+					saveAttemptId: expect.any(String),
 				},
 				{
 					url: "https://c.test/testing",
 					userId: USER,
 					provenance: { kind: "email", senderEmail: "news@example.com" },
 					readlist: "a1b2c3d4",
+					saveAttemptId: expect.any(String),
 				},
 			]);
 		});

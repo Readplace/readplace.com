@@ -114,7 +114,11 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 						Effect: "Allow",
 						Principal: { Service: "cloudfront.amazonaws.com" },
 						Action: "s3:GetObject",
-						Resource: `${bucketArn}/*`,
+						Resource: [
+							`${bucketArn}/content/*/images/*`,
+							`${bucketArn}/content/email-images/*`,
+							`${bucketArn}/robots.txt`,
+						],
 						Condition: { StringEquals: { "AWS:SourceArn": distArn } },
 					}],
 				}),

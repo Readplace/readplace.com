@@ -49,6 +49,7 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "../runtime/domain/generate-summary/max-receive-count";
+import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "../runtime/domain/submit-link/max-receive-count";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "../runtime/domain/filter-email-links/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
@@ -412,10 +413,7 @@ const saveLinkCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-command
 eventBus.subscribe(SaveLinkCommand, saveLinkCommandLambdaWithSQS);
 
 // --- SubmitLinkCommand handler ---
-// dlqMaxReceiveCount 3, not the crawl queues' fail-fast 1: crawl failures
-// terminalise in-process inside the handler and never throw, so a thrown
-// record is an accept-phase failure (DynamoDB/EventBridge blip) that a
-// retry genuinely can heal. Its DLQ handler mutates no article row — the row
+// Its DLQ handler mutates no article row — the row
 // either does not exist or belongs to another saver's in-flight crawl — it only
 // publishes LinkQueueFailedEvent so a reader's saved-link read model is not left
 // claiming a queue row that never landed. That fact means "the command gave up",
@@ -424,7 +422,7 @@ eventBus.subscribe(SaveLinkCommand, saveLinkCommandLambdaWithSQS);
 // The DLQ alarm stays wired alongside it.
 const submitLinkQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.submitLink, {
 	visibilityTimeoutSeconds: 480,
-	dlqMaxReceiveCount: 3,
+	dlqMaxReceiveCount: SUBMIT_LINK_MAX_RECEIVE_COUNT,
 	sharedDlq: failuresDlq,
 });
 
@@ -1097,8 +1095,7 @@ eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
 // Subscribes to TierContentExtractedEvent emitted by the three save-link
 // workers. Reads available per-tier sources from S3, runs the Deepseek
 // selector when there is competition, short-circuits when only one tier is
-// present, and is the only Lambda that promotes to canonical (S3 CopyObject
-// + Dynamo UpdateItem with contentSourceTier). Emits LinkSavedEvent /
+// present. Emits LinkSavedEvent /
 // AnonymousLinkSavedEvent (only on canonical change) and
 // CrawlArticleCompletedEvent (every successful selection).
 
@@ -1637,6 +1634,8 @@ const refreshArticleContentQueue = new HutchSQS("refresh-article-content", {
 	visibilityTimeoutSeconds: 60,
 });
 
+const refreshArticleContentDynamodb = new HutchDynamoDBAccess("refresh-article-content-dynamodb", { tables: [{ arn: articlesTableArn, includeIndexes: false }], actions: ["dynamodb:GetItem"] });
+
 const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 	entryPoint: "./src/runtime/refresh-article-content.main.ts",
 	outputDir: ".lib/refresh-article-content",
@@ -1647,10 +1646,13 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 	timeout: 30,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 	},
 	policies: [
+		...refreshArticleContentDynamodb.policies,
+		...contentBucket.readPolicies("refresh-article-content-content-read"),
 		...contentBucket.writePolicies("refresh-article-content-content-write"),
 		...pendingHtmlBucket.readPolicies("refresh-article-content-refresh-html"),
 	],

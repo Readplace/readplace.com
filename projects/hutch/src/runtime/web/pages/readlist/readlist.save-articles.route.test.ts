@@ -248,7 +248,7 @@ describe("POST /queue/save-articles", () => {
 		]);
 	});
 
-	it("saves a newsletter tracker as-is — the bulk path never resolves wrappers over the network", async () => {
+	it("queues a newsletter tracker without resolving it over the network", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const tracker = "https://javascriptweekly.com/link/100000/rss";
 		fixture.wrapperTarget.targets.set(tracker, "https://sqlite.org/lang_with.html");
@@ -264,7 +264,8 @@ describe("POST /queue/save-articles", () => {
 		expect(response.status).toBe(200);
 		expect(fixture.wrapperTarget.calls).toEqual([]);
 		const { articles } = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
-		expect(articles.map((a) => a.url)).toEqual([tracker]);
+		expect(articles).toEqual([]);
+		expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: tracker, saveAttemptId: expect.any(String) })]);
 	});
 
 	it("re-saving a window bumps every tab onto fresh consecutive instants and ranks the article deleted from its middle above them", async () => {
@@ -585,7 +586,7 @@ describe("POST /queue/save-articles", () => {
 		expect(publishedSaveHtml).toEqual([
 			expect.objectContaining({ url: "https://example.com/a", title: "A" }),
 		]);
-		expect(testApp.pendingHtml.readPendingHtml("https://example.com/a")).toBe(
+		expect(testApp.pendingHtml.readPendingHtml("https://example.com/a", { saveAttemptId: publishedSaveHtml[0].saveAttemptId })).toBe(
 			"<html><body>Hello world</body></html>",
 		);
 
@@ -634,7 +635,7 @@ describe("POST /queue/save-articles", () => {
 		expect(publishedSavePdf).toEqual([
 			expect.objectContaining({ url: "https://example.com/a.pdf" }),
 		]);
-		expect(testApp.pendingPdf.readPendingPdfSync("https://example.com/a.pdf")).toEqual(VALID_PDF);
+		expect(testApp.pendingPdf.readPendingPdfSync("https://example.com/a.pdf", { saveAttemptId: publishedSavePdf[0].saveAttemptId })).toEqual(VALID_PDF);
 	});
 
 	it("saves a content page with an unsupported media type as url-only, staging nothing", async () => {
@@ -677,7 +678,7 @@ describe("POST /queue/save-articles", () => {
 		expect(publishedSaveHtml).toEqual([
 			expect.objectContaining({ url: "https://example.com/big" }),
 		]);
-		expect(testApp.pendingHtml.readPendingHtml("https://example.com/big")).toBe(
+		expect(testApp.pendingHtml.readPendingHtml("https://example.com/big", { saveAttemptId: publishedSaveHtml[0].saveAttemptId })).toBe(
 			overDirectBudget.toString("utf8"),
 		);
 		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
@@ -1087,9 +1088,6 @@ describe("POST /queue/save-articles with an archive capture tab", () => {
 		const publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
 		const testApp = useApp({
 			...fixture,
-			freshness: {
-				refreshArticleIfStale: async () => ({ action: "new", identity: { url: ORIGINAL, contentSourceUrl: WAYBACK } }),
-			},
 			events: {
 				...fixture.events,
 				publishSaveLinkRawHtmlCommand: async (params) => {
@@ -1114,8 +1112,27 @@ describe("POST /queue/save-articles with an archive capture tab", () => {
 
 describe("POST /queue/save-articles with an archive.today short id", () => {
 	const SHORT_ID = "https://archive.ph/Ab1cD";
+	it.each([{ mediaType: "text/html", bytes: VALID_HTML }, { mediaType: "application/pdf", bytes: VALID_PDF }])("queues an unresolved $mediaType capture without staging it, under the outcome shipped clients already parse", async ({ mediaType, bytes }) => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const putPendingHtml = jest.fn(fixture.pendingHtml.putPendingHtml);
+		const putPendingPdf = jest.fn(fixture.pendingPdf.putPendingPdf);
+		const publishSaveLinkRawHtmlCommand = jest.fn(fixture.events.publishSaveLinkRawHtmlCommand);
+		const publishSaveLinkRawPdfCommand = jest.fn(fixture.events.publishSaveLinkRawPdfCommand);
+		const testApp = useApp({ ...fixture, pendingHtml: { ...fixture.pendingHtml, putPendingHtml }, pendingPdf: { ...fixture.pendingPdf, putPendingPdf }, events: { ...fixture.events, publishSaveLinkRawHtmlCommand, publishSaveLinkRawPdfCommand } });
+		const accessToken = await createAccessToken(testApp);
+		const response = await request(testApp.server).post("/queue/save-articles").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: SHORT_ID, mediaType }])).attach("content-0", bytes, "content-0");
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toMatchObject({ saved: 1, queued: 1, skipped: 0, failed: 0, results: [{ url: SHORT_ID, outcome: "created", code: "queued" }] });
+		expect(putPendingHtml).not.toHaveBeenCalled();
+		expect(putPendingPdf).not.toHaveBeenCalled();
+		expect(publishSaveLinkRawHtmlCommand).not.toHaveBeenCalled();
+		expect(publishSaveLinkRawPdfCommand).not.toHaveBeenCalled();
+		expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: SHORT_ID, readlist: "default" })]);
+		expect(await testApp.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
+	});
 
-	it("hands the page to the background submit, which asks the archive, and reports it created", async () => {
+	it("hands the page to the background submit, which asks the archive, and reports it queued", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const testApp = useApp(fixture);
 		const accessToken = await createAccessToken(testApp);
@@ -1127,9 +1144,18 @@ describe("POST /queue/save-articles with an archive.today short id", () => {
 			.field("manifest", manifest([{ url: SHORT_ID }, { url: "https://example.com/inline" }]));
 
 		expect(response.status).toBe(200);
-		expect(response.body.properties).toEqual(expect.objectContaining({ saved: 2, failed: 0 }));
+		expect(response.body.properties).toEqual(expect.objectContaining({
+			saved: 2,
+			queued: 1,
+			skipped: 0,
+			failed: 0,
+			results: [
+				{ url: SHORT_ID, outcome: "created", code: "queued" },
+				{ url: "https://example.com/inline", outcome: "created" },
+			],
+		}));
 		expect(fixture.submitLink.submitLinks).toEqual([
-			{ url: SHORT_ID, userId: TEST_USER_ID, provenance: { kind: "client", clientName: "firefox" }, readlist: "default" },
+			{ url: SHORT_ID, userId: TEST_USER_ID, provenance: { kind: "client", clientName: "firefox" }, readlist: "default", saveAttemptId: expect.any(String) },
 		]);
 		expect(await testApp.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
 		expect(await testApp.articleStore.findArticleByUrl("https://example.com/inline")).not.toBeNull();

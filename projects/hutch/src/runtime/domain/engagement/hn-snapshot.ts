@@ -121,6 +121,7 @@ export function initHnSnapshot(deps: {
 				if (item.url === undefined) return { item };
 				try {
 					const identity = await deps.resolveSaveIdentity(item.url);
+					if (identity.status === "unresolved") return { item: { ...item, status: "skipped" as const } };
 					return { item, identity, article: await deps.findArticleByUrl(identity.url) };
 				} catch (error) {
 					deps.logger.error("[HnSnapshot] canonical preparation failed", {

@@ -1,0 +1,1 @@
+export const SUBMIT_LINK_MAX_RECEIVE_COUNT = 3;

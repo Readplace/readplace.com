@@ -41,15 +41,13 @@ describe("initInMemoryArticleStore", () => {
 	describe("canonical aliases and the pinned content source", () => {
 		const NOW = new Date("2026-07-15T10:00:00.000Z");
 
-		it("claims an alias once and reports it occupied afterwards", async () => {
+		it("claims an alias once and keeps the first claim afterwards", async () => {
 			const store = initInMemoryArticleStore();
 
-			expect(
-				await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW }),
-			).toBe("claimed");
-			expect(
-				await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW }),
-			).toBe("occupied");
+			await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW });
+			expect(await store.findIdentityRow("https://wrapper.example/x")).toEqual({ kind: "alias", targetUrl: URL });
+			await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: "https://other.example/y", now: NOW });
+			expect(await store.findIdentityRow("https://wrapper.example/x")).toEqual({ kind: "alias", targetUrl: URL });
 			expect(await store.resolveAlias("https://wrapper.example/x")).toBe(URL);
 		});
 
@@ -57,9 +55,8 @@ describe("initInMemoryArticleStore", () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());
 
-			expect(
-				await store.claimAlias({ aliasUrl: URL, targetOriginalUrl: "https://other.example/y", now: NOW }),
-			).toBe("occupied");
+			await store.claimAlias({ aliasUrl: URL, targetOriginalUrl: "https://other.example/y", now: NOW });
+			expect(await store.findIdentityRow(URL)).toEqual({ kind: "article", originalUrl: URL });
 			expect(await store.resolveAlias(URL)).toBeUndefined();
 		});
 
@@ -68,7 +65,7 @@ describe("initInMemoryArticleStore", () => {
 			await store.saveArticle(makeArticleParams());
 			await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW });
 
-			expect(await store.findIdentityRow(URL)).toEqual({ kind: "article" });
+			expect(await store.findIdentityRow(URL)).toEqual({ kind: "article", originalUrl: URL });
 			expect(await store.findIdentityRow("https://wrapper.example/x")).toEqual({
 				kind: "alias",
 				targetUrl: URL,
@@ -82,19 +79,59 @@ describe("initInMemoryArticleStore", () => {
 
 			expect(await store.findAdoptedFetchUrl(URL)).toBeUndefined();
 			await store.setDisplayUrl({ url: URL, displayUrl: "https://example.com/article-final" });
-			await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot" });
+			await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot", sourceOriginalUrl: "https://example.com/article-final" });
 			expect(await store.findAdoptedFetchUrl(URL)).toBe("https://example.com/article-final");
 			expect(await store.findContentSourceUrl(URL)).toBe("https://archive.example/snapshot");
 		});
 
-		it("ignores a pin or a fetch-url lookup for an unknown article", async () => {
+		it("rejects a pin for an unknown article and finds no fetch url", async () => {
 			const store = initInMemoryArticleStore();
 
-			await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot" });
+			await expect(store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot", sourceOriginalUrl: URL })).rejects.toThrow("Content source identity changed");
 
 			expect(await store.findAdoptedFetchUrl(URL)).toBeUndefined();
 			expect(await store.findContentSourceUrl(URL)).toBeUndefined();
 		});
+	});
+
+	it("upgrades a compatible legacy alias with its verified source binding", async () => {
+		const store = initInMemoryArticleStore();
+		const params = { aliasUrl: "https://archive.ph/abc", targetOriginalUrl: URL, now: new Date() };
+		await store.claimAlias(params);
+		const sourceBinding = { contentSourceUrl: params.aliasUrl, sourceOriginalUrl: URL };
+		await store.claimAlias({ ...params, sourceBinding });
+		expect(await store.findIdentityRow(params.aliasUrl)).toEqual({ kind: "alias", targetUrl: URL, sourceBinding });
+		await store.claimAlias({ ...params, targetOriginalUrl: "https://another.example/page", sourceBinding });
+		expect(await store.findIdentityRow(params.aliasUrl)).toEqual({ kind: "alias", targetUrl: URL, sourceBinding });
+	});
+	it("pins a re-saved purged article under the string the re-save stored", async () => {
+		const store = initInMemoryArticleStore();
+		const resaved = "https://example.com/article";
+		await store.saveArticle(makeArticleParams({ url: "http://example.com/article" }));
+		await store.setPurgedAt({ url: resaved, at: new Date("2026-07-16T10:00:00.000Z") });
+		const purged = await store.findIdentityRow(resaved);
+		assert.equal(purged.kind, "article");
+		const sourceOriginalUrl = purged.originalUrl ?? resaved;
+		await store.saveArticle(makeArticleParams({ url: resaved }));
+		await store.pinContentSource({ articleUrl: resaved, contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl });
+		expect(await store.findIdentityRow(resaved)).toEqual({ kind: "article", originalUrl: resaved, sourceBinding: { contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl: resaved } });
+	});
+	it("keeps an adopted article's destination as its identity through purge and revive", async () => {
+		const store = initInMemoryArticleStore();
+		const displayUrl = "https://victim.example/a";
+		await store.saveArticle(makeArticleParams());
+		await store.setDisplayUrl({ url: URL, displayUrl });
+		await store.setPurgedAt({ url: URL, at: new Date("2026-07-16T10:00:00.000Z") });
+		expect(await store.findIdentityRow(URL)).toEqual({ kind: "article", originalUrl: displayUrl });
+		await store.saveArticleGlobally({ url: URL, metadata: makeArticleParams().metadata, estimatedReadTime: makeArticleParams().estimatedReadTime, savedAt: new Date("2026-07-17T10:00:00.000Z") });
+		expect(await store.findIdentityRow(URL)).toEqual({ kind: "article", originalUrl: displayUrl });
+	});
+	it("reads the effective original and paired source proof from a pinned article", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams());
+		await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl: URL });
+		expect(await store.findIdentityRow(URL)).toEqual({ kind: "article", originalUrl: URL, sourceBinding: { contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl: URL } });
+		await expect(store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.ph/other", sourceOriginalUrl: "https://other.example/page" })).rejects.toThrow("Content source identity changed");
 	});
 
 	describe("saveArticle + findArticleById", () => {

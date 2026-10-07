@@ -1,6 +1,8 @@
+import type { SaveAttemptId } from "@packages/domain/article";
 import type { SirenEntity } from "./siren";
 
 export function toUploadSlotEntity(params: {
+	saveAttemptId: SaveAttemptId;
 	uploadUrl: string;
 	expiresAt: Date;
 	url: string;
@@ -11,6 +13,7 @@ export function toUploadSlotEntity(params: {
 	const fields: { name: string; type: string; value: string }[] = [
 		{ name: "url", type: "url", value: params.url },
 		{ name: "mediaType", type: "text", value: params.mediaType },
+		{ name: "saveAttemptId", type: "hidden", value: params.saveAttemptId },
 	];
 	if (params.title !== undefined) fields.push({ name: "title", type: "text", value: params.title });
 	fields.push({ name: "uploaded", type: "hidden", value: "true" });

@@ -1,5 +1,5 @@
 export type InMemoryWrapperTarget = {
-	resolveWrapperTarget: (url: string) => Promise<string | undefined>;
+	resolveWrapperTarget: (url: string) => Promise<{ url: string; contentSourceUrl?: string } | undefined>;
 	targets: Map<string, string>;
 	calls: string[];
 };
@@ -12,7 +12,8 @@ export function initInMemoryWrapperTarget(): InMemoryWrapperTarget {
 		calls,
 		resolveWrapperTarget: async (url) => {
 			calls.push(url);
-			return targets.get(url);
+			const target = targets.get(url);
+			return target === undefined ? undefined : { url: target };
 		},
 	};
 }

@@ -1,4 +1,4 @@
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { initCanonicalAliasStore } from "./canonical-alias";
 
@@ -15,6 +15,7 @@ function createFakeClient(impl: (input: unknown) => unknown): DynamoDBDocumentCl
 const CapturedCommand = z.object({
 	input: z.object({
 		Key: z.record(z.string(), z.unknown()).optional(),
+		ConsistentRead: z.boolean().optional(),
 		UpdateExpression: z.string().optional(),
 		ConditionExpression: z.string().optional(),
 		ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
@@ -30,7 +31,7 @@ function conditionalCheckFailed(): ConditionalCheckFailedException {
 
 describe("initCanonicalAliasStore", () => {
 	describe("claimAlias", () => {
-		it("writes id(terminal) → target as a first-writer-wins upsert and returns 'claimed'", async () => {
+		it("writes id(terminal) → target as a first-writer-wins upsert", async () => {
 			let captured: unknown;
 			const client = createFakeClient((input) => {
 				captured = input;
@@ -38,13 +39,12 @@ describe("initCanonicalAliasStore", () => {
 			});
 			const { claimAlias } = initCanonicalAliasStore({ client, tableName: TABLE });
 
-			const outcome = await claimAlias({
+			await claimAlias({
 				aliasUrl: "https://site.com/page",
 				targetOriginalUrl: "https://site.com/page.html",
 				now: NOW,
 			});
 
-			expect(outcome).toBe("claimed");
 			const { input } = CapturedCommand.parse(captured);
 			expect(input.Key).toEqual({ url: "site.com/page" });
 			expect(input.ConditionExpression).toBe("attribute_not_exists(#url)");
@@ -55,19 +55,19 @@ describe("initCanonicalAliasStore", () => {
 			});
 		});
 
-		it("returns 'occupied' when the identity is already taken (conditional check fails)", async () => {
+		it("leaves an already-taken identity alone without failing (conditional check fails)", async () => {
 			const client = createFakeClient(() => {
 				throw conditionalCheckFailed();
 			});
 			const { claimAlias } = initCanonicalAliasStore({ client, tableName: TABLE });
 
-			const outcome = await claimAlias({
-				aliasUrl: "https://site.com/page",
-				targetOriginalUrl: "https://site.com/page.html",
-				now: NOW,
-			});
-
-			expect(outcome).toBe("occupied");
+			await expect(
+				claimAlias({
+					aliasUrl: "https://site.com/page",
+					targetOriginalUrl: "https://site.com/page.html",
+					now: NOW,
+				}),
+			).resolves.toBeUndefined();
 		});
 
 		it("propagates non-conditional write errors", async () => {
@@ -182,10 +182,10 @@ describe("initCanonicalAliasStore", () => {
 	});
 
 	describe("pinContentSource", () => {
-		it("stamps the snapshot the content is read from onto the article, gated on it being a real row", async () => {
-			let captured: unknown;
+		it("marks direct content that predates the pin when the row was never pinned or selected", async () => {
+			const captured: unknown[] = [];
 			const client = createFakeClient((input) => {
-				captured = input;
+				captured.push(input);
 				return {};
 			});
 			const { pinContentSource } = initCanonicalAliasStore({ client, tableName: TABLE });
@@ -193,13 +193,46 @@ describe("initCanonicalAliasStore", () => {
 			await pinContentSource({
 				articleUrl: "http://dead.example/article",
 				contentSourceUrl: "https://web.archive.org/web/20140413140620/http://dead.example/article",
+				sourceOriginalUrl: "http://dead.example/article",
 			});
 
-			const { input } = CapturedCommand.parse(captured);
+			expect(captured).toHaveLength(1);
+			const { input } = CapturedCommand.parse(captured[0]);
 			expect(input.Key).toEqual({ url: "dead.example/article" });
-			expect(input.UpdateExpression).toBe("SET contentSourceUrl = :contentSourceUrl");
-			expect(input.ConditionExpression).toBe("attribute_exists(routeId)");
+			expect(input.UpdateExpression).toBe("SET contentSourceUrl = :contentSourceUrl, sourceOriginalUrl = :sourceOriginalUrl, directContentBeforePin = :true");
+			expect(input.ConditionExpression).toBe("attribute_exists(routeId) AND (displayUrl = :sourceOriginalUrl OR (attribute_not_exists(displayUrl) AND originalUrl = :sourceOriginalUrl)) AND attribute_not_exists(contentSourceUrl) AND attribute_not_exists(canonicalCandidateId) AND (contentSourceTier IN (:tier0, :tier1) OR (attribute_not_exists(contentSourceTier) AND wordCount > :zero))");
 			expect(input.ExpressionAttributeValues).toEqual({
+				":sourceOriginalUrl": "http://dead.example/article",
+				":contentSourceUrl": "https://web.archive.org/web/20140413140620/http://dead.example/article",
+				":true": true,
+				":tier0": "tier-0",
+				":tier1": "tier-1",
+				":zero": 0,
+			});
+		});
+
+		it("pins without the marker when the row already carried a pin or holds no direct content", async () => {
+			const captured: unknown[] = [];
+			const client = createFakeClient((input) => {
+				captured.push(input);
+				if (captured.length === 1) throw conditionalCheckFailed();
+				return {};
+			});
+			const { pinContentSource } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await pinContentSource({
+				articleUrl: "http://dead.example/article",
+				contentSourceUrl: "https://web.archive.org/web/20140413140620/http://dead.example/article",
+				sourceOriginalUrl: "http://dead.example/article",
+			});
+
+			expect(captured).toHaveLength(2);
+			const { input } = CapturedCommand.parse(captured[1]);
+			expect(input.Key).toEqual({ url: "dead.example/article" });
+			expect(input.UpdateExpression).toBe("SET contentSourceUrl = :contentSourceUrl, sourceOriginalUrl = :sourceOriginalUrl");
+			expect(input.ConditionExpression).toBe("attribute_exists(routeId) AND (displayUrl = :sourceOriginalUrl OR (attribute_not_exists(displayUrl) AND originalUrl = :sourceOriginalUrl))");
+			expect(input.ExpressionAttributeValues).toEqual({
+				":sourceOriginalUrl": "http://dead.example/article",
 				":contentSourceUrl": "https://web.archive.org/web/20140413140620/http://dead.example/article",
 			});
 		});
@@ -211,8 +244,8 @@ describe("initCanonicalAliasStore", () => {
 			const { pinContentSource } = initCanonicalAliasStore({ client, tableName: TABLE });
 
 			await expect(
-				pinContentSource({ articleUrl: "http://dead.example/article", contentSourceUrl: "https://archive.example/x" }),
-			).resolves.toBeUndefined();
+				pinContentSource({ articleUrl: "http://dead.example/article", contentSourceUrl: "https://archive.example/x", sourceOriginalUrl: "http://dead.example/article" }),
+			).rejects.toThrow("conditional request failed");
 		});
 
 		it("propagates non-conditional write errors", async () => {
@@ -222,7 +255,7 @@ describe("initCanonicalAliasStore", () => {
 			const { pinContentSource } = initCanonicalAliasStore({ client, tableName: TABLE });
 
 			await expect(
-				pinContentSource({ articleUrl: "http://dead.example/article", contentSourceUrl: "https://archive.example/x" }),
+				pinContentSource({ articleUrl: "http://dead.example/article", contentSourceUrl: "https://archive.example/x", sourceOriginalUrl: "http://dead.example/article" }),
 			).rejects.toThrow("DDB unavailable");
 		});
 	});
@@ -298,6 +331,11 @@ describe("initCanonicalAliasStore", () => {
 	});
 
 	describe("findIdentityRow", () => {
+		it("reads the current identity pin rather than a stale pre-adoption destination", async () => {
+			const client = createFakeClient((command) => ({ Item: { originalUrl: "https://origin.example/post", displayUrl: CapturedCommand.parse(command).input.ConsistentRead === true ? "https://current.example/post" : "https://old.example/post" } }));
+			const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: TABLE });
+			expect(await findIdentityRow("https://origin.example/post")).toEqual({ kind: "article", originalUrl: "https://current.example/post" });
+		});
 		it("reports an alias row with its target", async () => {
 			const client = createFakeClient(() => ({
 				Item: { url: "site.com/page", rowKind: "alias", aliasTargetUrl: "https://site.com/page.html" },
@@ -316,7 +354,19 @@ describe("initCanonicalAliasStore", () => {
 			}));
 			const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: TABLE });
 
-			expect(await findIdentityRow("https://site.com/page")).toEqual({ kind: "article" });
+			expect(await findIdentityRow("https://site.com/page")).toEqual({ kind: "article", originalUrl: "https://site.com/page" });
+		});
+
+		it.each([
+			{ stored: { originalUrl: "http://site.com/page" }, originalUrl: undefined },
+			{ stored: { originalUrl: "http://site.com/page", displayUrl: "https://site.com/destination" }, originalUrl: "https://site.com/destination" },
+		])("reports only the identity a re-save keeps for a purged article row %j", async ({ stored, originalUrl }) => {
+			const client = createFakeClient(() => ({
+				Item: { url: "site.com/page", routeId: "a".repeat(32), purgedAt: "2026-07-16T10:00:00.000Z", ...stored },
+			}));
+			const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findIdentityRow("https://site.com/page")).toEqual({ kind: "article", originalUrl });
 		});
 
 		it("reports an absent identity", async () => {
@@ -361,5 +411,124 @@ describe("initCanonicalAliasStore", () => {
 
 			expect(await resolveAlias("https://site.com/page")).toBeUndefined();
 		});
+	});
+});
+
+
+describe("atomic identity updates", () => {
+	it("claims the destination and pins its owner in the same transaction", async () => {
+		const commands: unknown[] = [];
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => { commands.push(command); return {}; }) });
+		expect(await store.adoptDestination({ articleUrl: "https://a.example/a", destinationUrl: "https://b.example/b", now: NOW })).toBe("adopted");
+		expect(commands).toHaveLength(1);
+		expect(commands[0]).toMatchObject({ input: { TransactItems: [
+			{ Update: { Key: { url: "b.example/b" }, ConditionExpression: "attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)" } },
+			{ Update: { Key: { url: "a.example/a" }, ConditionExpression: "attribute_exists(routeId) AND (attribute_not_exists(sourceOriginalUrl) OR sourceOriginalUrl = :destination) AND (attribute_not_exists(displayUrl) OR displayUrl = :destination) AND (attribute_not_exists(contentSourceTier) OR contentSourceTier <> :firstPartyTier) AND (attribute_not_exists(canonicalOriginalUrl) OR canonicalOriginalUrl = :destination)" } },
+		] } });
+	});
+	it.each([undefined, [{ Code: "TransactionConflict" }], [{ Code: "None" }, { Code: "TransactionConflict" }]])("rethrows a transaction cancelled without a failed condition %j", async (CancellationReasons) => {
+		const failure = new TransactionCanceledException({ $metadata: {}, message: "transaction refused", CancellationReasons });
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient(() => { throw failure; }) });
+		await expect(store.adoptDestination({ articleUrl: "https://a.example/a", destinationUrl: "https://b.example/b", now: NOW })).rejects.toBe(failure);
+	});
+	it.each([[[{ Code: "None" }, { Code: "ConditionalCheckFailed" }]], [[{ Code: "ConditionalCheckFailed" }, { Code: "ConditionalCheckFailed" }]]])("declines without a second write when the article refuses the destination %j", async (CancellationReasons) => {
+		const commands: unknown[] = [];
+		const failure = new TransactionCanceledException({ $metadata: {}, message: "transaction refused", CancellationReasons });
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => { commands.push(command); throw failure; }) });
+		expect(await store.adoptDestination({ articleUrl: "https://a.example/a", destinationUrl: "https://b.example/b", now: NOW })).toBe("declined");
+		expect(commands).toHaveLength(1);
+	});
+	it("still records the display URL when only the destination key is already occupied (fan-in origin)", async () => {
+		const commands: unknown[] = [];
+		const occupied = new TransactionCanceledException({ $metadata: {}, message: "transaction refused", CancellationReasons: [{ Code: "ConditionalCheckFailed" }, { Code: "None" }] });
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => {
+			commands.push(command);
+			if (commands.length === 1) throw occupied;
+			return {};
+		}) });
+		expect(await store.adoptDestination({ articleUrl: "https://a.example/a", destinationUrl: "https://b.example/b", now: NOW })).toBe("adopted");
+		expect(commands).toHaveLength(2);
+		expect(commands[1]).toMatchObject({ input: {
+			Key: { url: "a.example/a" },
+			UpdateExpression: "SET displayUrl = :destination",
+			ConditionExpression: "attribute_exists(routeId) AND (attribute_not_exists(sourceOriginalUrl) OR sourceOriginalUrl = :destination) AND (attribute_not_exists(displayUrl) OR displayUrl = :destination) AND (attribute_not_exists(contentSourceTier) OR contentSourceTier <> :firstPartyTier) AND (attribute_not_exists(canonicalOriginalUrl) OR canonicalOriginalUrl = :destination)",
+			ExpressionAttributeValues: { ":destination": "https://b.example/b", ":firstPartyTier": "tier-0" },
+		} });
+	});
+	it.each([["declines", conditionalCheckFailed(), "declined"], ["propagates", new Error("offline"), "offline"]] as const)("%s when the fan-in display URL write fails", async (_label, failure, expected) => {
+		const occupied = new TransactionCanceledException({ $metadata: {}, message: "transaction refused", CancellationReasons: [{ Code: "ConditionalCheckFailed" }, { Code: "None" }] });
+		let calls = 0;
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient(() => { calls += 1; throw calls === 1 ? occupied : failure; }) });
+		const call = store.adoptDestination({ articleUrl: "https://a.example/a", destinationUrl: "https://b.example/b", now: NOW });
+		if (expected === "declined") await expect(call).resolves.toBe("declined");
+		else await expect(call).rejects.toThrow(expected);
+	});
+	it("declines without writing an alias when the reader's own capture already serves the article", async () => {
+		const row = { url: "a.example/a", routeId: "r".repeat(32), originalUrl: "https://a.example/a", contentSourceTier: "tier-0" };
+		const writes: unknown[] = [];
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => {
+			const articleLeg = z.object({ input: z.object({ TransactItems: z.tuple([z.unknown(), z.object({ Update: z.object({ ConditionExpression: z.string(), ExpressionAttributeValues: z.record(z.string(), z.unknown()) }) })]) }) }).parse(command).input.TransactItems[1].Update;
+			const refusesFirstPartyContent = articleLeg.ConditionExpression.includes("contentSourceTier <> :firstPartyTier") && articleLeg.ExpressionAttributeValues[":firstPartyTier"] === row.contentSourceTier;
+			if (refusesFirstPartyContent) throw new TransactionCanceledException({ $metadata: {}, message: "transaction refused", CancellationReasons: [{ Code: "None" }, { Code: "ConditionalCheckFailed" }] });
+			writes.push(command);
+			return {};
+		}) });
+		expect(await store.adoptDestination({ articleUrl: "https://a.example/a", destinationUrl: "https://login.example/wall", now: NOW })).toBe("declined");
+		expect(writes).toEqual([]);
+	});
+	it("declines a later redirect once a candidate is committed against the original URL", async () => {
+		const row = { url: "a.example/a", routeId: "r".repeat(32), originalUrl: "https://a.example/a", contentSourceTier: "tier-1", canonicalCandidateId: "candidate", canonicalOriginalUrl: "https://a.example/a" };
+		const writes: unknown[] = [];
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => {
+			const articleLeg = z.object({ input: z.object({ TransactItems: z.tuple([z.unknown(), z.object({ Update: z.object({ ConditionExpression: z.string(), ExpressionAttributeValues: z.record(z.string(), z.unknown()) }) })]) }) }).parse(command).input.TransactItems[1].Update;
+			const keepsCommittedOriginal = articleLeg.ConditionExpression.includes("canonicalOriginalUrl = :destination") && articleLeg.ExpressionAttributeValues[":destination"] !== row.canonicalOriginalUrl;
+			if (keepsCommittedOriginal) throw new TransactionCanceledException({ $metadata: {}, message: "transaction refused", CancellationReasons: [{ Code: "None" }, { Code: "ConditionalCheckFailed" }] });
+			writes.push(command);
+			return {};
+		}) });
+		expect(await store.adoptDestination({ articleUrl: "https://a.example/a", destinationUrl: "https://b.example/b", now: NOW })).toBe("declined");
+		expect(writes).toEqual([]);
+	});
+	it("propagates ordinary transaction errors", async () => {
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient(() => { throw new Error("offline"); }) });
+		await expect(store.adoptDestination({ articleUrl: "https://a.example/a", destinationUrl: "https://b.example/b", now: NOW })).rejects.toThrow("offline");
+	});
+	it.each([undefined, "https://archive.ph/abc"])("repairs one legacy row without claiming its original %s", async (contentSourceUrl) => {
+		const commands: unknown[] = [];
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => { commands.push(command); return {}; }) });
+		expect(await store.repairWrapperIdentity({ articleUrl: "https://archive.ph/abc", expectedOriginalUrl: "https://archive.ph/abc", originalUrl: "https://site.com/page", contentSourceUrl })).toBe(true);
+		expect(commands).toHaveLength(1);
+		expect(commands[0]).toMatchObject({ input: {
+			Key: { url: "archive.ph/abc" },
+			UpdateExpression: contentSourceUrl === undefined ? "SET displayUrl = :original REMOVE contentSourceUrl, sourceOriginalUrl" : "SET displayUrl = :original, contentSourceUrl = :source, sourceOriginalUrl = :original",
+			ConditionExpression: "attribute_exists(routeId) AND (displayUrl = :expected OR (attribute_not_exists(displayUrl) AND originalUrl = :expected)) AND (attribute_not_exists(sourceOriginalUrl) OR sourceOriginalUrl = :original)",
+		} });
+	});
+	it("refuses a legacy repair whose effective identity changed", async () => {
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient(() => { throw conditionalCheckFailed(); }) });
+		await expect(store.repairWrapperIdentity({ articleUrl: "https://archive.ph/abc", expectedOriginalUrl: "https://archive.ph/abc", originalUrl: "https://site.com/page" })).resolves.toBe(false);
+	});
+	it("propagates legacy repair write failures", async () => {
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient(() => { throw new Error("offline"); }) });
+		await expect(store.repairWrapperIdentity({ articleUrl: "https://archive.ph/abc", expectedOriginalUrl: "https://archive.ph/abc", originalUrl: "https://site.com/page" })).rejects.toThrow("offline");
+	});
+	it("persists a verified alias mapping and reads the proof as a pair", async () => {
+		const binding = { contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl: "https://site.com/page" };
+		const commands: unknown[] = [];
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => {
+			commands.push(command); return { Item: { rowKind: "alias", aliasTargetUrl: "https://site.com/page", ...binding } };
+		}) });
+		await store.claimAlias({ aliasUrl: "https://archive.ph/abc", targetOriginalUrl: "https://site.com/page", sourceBinding: binding, now: NOW });
+		expect(commands[0]).toMatchObject({ input: { ExpressionAttributeValues: { ":source": binding.contentSourceUrl, ":original": binding.sourceOriginalUrl } } });
+		expect(await store.findIdentityRow("https://archive.ph/abc")).toEqual({ kind: "alias", targetUrl: binding.sourceOriginalUrl, sourceBinding: binding });
+	});
+	it.each([
+		{ displayUrl: "https://site.com/destination", contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl: "https://site.com/destination" },
+		{ contentSourceUrl: "https://archive.ph/abc" },
+		{},
+	])("returns the effective article identity and only complete source pairs %j", async (fields) => {
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient(() => ({ Item: { ...fields } })) });
+		const result = await store.findIdentityRow("https://site.com/page");
+		expect(result).toEqual({ kind: "article", originalUrl: fields.displayUrl, sourceBinding: fields.sourceOriginalUrl === undefined ? undefined : { contentSourceUrl: fields.contentSourceUrl, sourceOriginalUrl: fields.sourceOriginalUrl } });
 	});
 });

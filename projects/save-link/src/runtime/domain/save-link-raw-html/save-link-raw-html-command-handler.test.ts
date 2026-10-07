@@ -14,12 +14,12 @@ const stubAttributes: SQSRecordAttributes = {
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
 
-function createSqsEvent(detail: { url: string; userId: string; title?: string }): SQSEvent {
+function createSqsEvent(detail: { url: string; userId: string; title?: string; sourceUrl?: string }): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
+			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", sourceUrl: detail.url, sourceOriginalUrl: detail.url, ...detail } }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -48,7 +48,9 @@ type HandlerDeps = Parameters<typeof initSaveLinkRawHtmlCommandHandler>[0];
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	const deps: HandlerDeps = {
-		readPendingHtml: jest.fn().mockResolvedValue("<html><body><p>Article content</p></body></html>"),
+		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
+		resolveOriginalUrl: async (url) => url,
+		readPendingHtml: jest.fn().mockResolvedValue({ html: "<html><body><p>Article content</p></body></html>", capturedAt: "2026-10-01T00:00:00.000Z" }),
 		finalizeArticle: okFinalize,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
@@ -77,19 +79,18 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 			() => {},
 		);
 
-		expect(deps.readPendingHtml).toHaveBeenCalledWith("https://example.com/article");
-		expect(deps.putTierSource).toHaveBeenCalledWith({
+		expect(deps.readPendingHtml).toHaveBeenCalledWith("https://example.com/article", { saveAttemptId: "attempt-1" });
+		expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 			url: "https://example.com/article",
 			tier: "tier-0",
 			html: stubFinalizedArticle.html,
-			metadata: { ...stubFinalizedArticle.metadata, authorUserId: "user-1" },
-		});
-		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			metadata: expect.objectContaining({ ...stubFinalizedArticle.metadata, authorUserId: "user-1" }),
+		}));
+		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
 			url: "https://example.com/article",
-			tier: "tier-0",
 			userId: "user-1",
 			extractedAt: "2026-04-18T12:00:00.000Z",
-		});
+		}));
 	});
 
 	it("threads the captured rawHtml through finalizeArticle without a resolvedThumbnail (the raw-html path has no inline crawler image)", async () => {
@@ -97,7 +98,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		const finalizeArticle = jest.fn(okFinalize);
 
 		const { handler } = createHandler({
-			readPendingHtml: jest.fn().mockResolvedValue(rawHtml),
+			readPendingHtml: jest.fn().mockResolvedValue({ html: rawHtml, capturedAt: "2026-10-01T00:00:00.000Z" }),
 			finalizeArticle,
 		});
 
@@ -109,6 +110,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: "https://example.com/article",
+			writeContext: { url: "https://example.com/article", attemptId: "attempt-1", authorUserId: "user-1" },
 			documentUrl: "https://example.com/article",
 			html: rawHtml,
 		});
@@ -308,4 +310,13 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
+});
+
+it("submits a verified wrapper's unparsable raw response to the judge without fabricating a reader article", async () => {
+	const raw = "captcha response without html document";
+	const { handler, deps } = createHandler({ readPendingHtml: async () => ({ html: raw, capturedAt: "2026-10-01T00:00:00.000Z" }), finalizeArticle: async () => ({ ok: false, reason: "no html" }) });
+	const response = await handler(createSqsEvent({ url: "https://example.com/article", sourceUrl: "https://web.archive.org/web/20081203/https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
+	expect(response).toEqual({ batchItemFailures: [] });
+	expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: "", evaluationHtml: raw, metadata: expect.objectContaining({ wordCount: 0, kind: "extension", attemptId: "attempt-1" }) }));
+	expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ saveAttemptId: "attempt-1", candidates: [{ id: expect.any(String), tier: "tier-0" }] }));
 });

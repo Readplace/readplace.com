@@ -1,3 +1,4 @@
+import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubmitLinkCommand } from "@packages/hutch-infra-components";
@@ -12,6 +13,7 @@ describe("initEventBridgeSubmitLink", () => {
 			userId: UserIdSchema.parse("00000000000000000000000000000001"),
 			provenance: { kind: "import" as const },
 			readlist: DEFAULT_READLIST_SLUG,
+			saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
 		};
 
 		await publishSubmitLink(params);

@@ -1,4 +1,4 @@
-import { calculateReadTime } from "@packages/domain/article";
+import { SaveAttemptIdSchema, calculateReadTime } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	createFakeSummaryProvider,
@@ -276,7 +276,7 @@ describe("createFakePublishLinkSaved", () => {
 		};
 		const publish = createFakePublishLinkSaved(apply);
 
-		await publish({ url: "https://example.com/x", userId: UserIdSchema.parse("user-1") });
+		await publish({ url: "https://example.com/x", userId: UserIdSchema.parse("user-1"), saveAttemptId: SaveAttemptIdSchema.parse("attempt-1") });
 
 		expect(calls).toEqual(["https://example.com/x"]);
 	});
@@ -290,7 +290,7 @@ describe("createFakePublishSaveAnonymousLink", () => {
 		};
 		const publish = createFakePublishSaveAnonymousLink(apply);
 
-		await publish({ url: "https://example.com/x" });
+		await publish({ url: "https://example.com/x", saveAttemptId: SaveAttemptIdSchema.parse("attempt-1") });
 
 		expect(calls).toEqual(["https://example.com/x"]);
 	});
@@ -304,7 +304,7 @@ describe("createFakePublishRecrawlLinkInitiated", () => {
 		};
 		const publish = createFakePublishRecrawlLinkInitiated(apply);
 
-		await publish({ url: "https://example.com/x" });
+		await publish({ url: "https://example.com/x", saveAttemptId: SaveAttemptIdSchema.parse("attempt-1") });
 
 		expect(calls).toEqual(["https://example.com/x"]);
 	});

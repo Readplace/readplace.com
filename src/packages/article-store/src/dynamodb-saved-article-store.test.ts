@@ -34,11 +34,12 @@ interface CapturedCommand {
 		ReturnValues?: string;
 		ScanIndexForward?: boolean;
 		Select?: string;
+		TableName?: string;
 		UpdateExpression?: string;
 	};
 }
 
-type CommandResponse = Record<string, unknown> | (() => Record<string, unknown>);
+type CommandResponse = Record<string, unknown> | ((input: CapturedCommand["input"]) => Record<string, unknown>);
 
 /** Records every command sent and replays canned responses keyed by command
  * type, so a test can assert the exact UpdateExpression / ConditionExpression /
@@ -54,16 +55,16 @@ function createFakeClient(
 	for (const [name, spec] of Object.entries(responses)) {
 		readlists.set(name, [...(spec?.readlist ?? [])]);
 	}
-	const resolve = (value: CommandResponse): Record<string, unknown> =>
-		typeof value === "function" ? value() : value;
+	const resolve = (value: CommandResponse, input: CapturedCommand["input"]): Record<string, unknown> =>
+		typeof value === "function" ? value(input) : value;
 	const client = {
 		send: (async (command: { constructor: { name: string }; input: CapturedCommand["input"] }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			const readlist = readlists.get(name);
-			if (readlist && readlist.length > 0) return resolve(readlist.shift() as CommandResponse);
+			if (readlist && readlist.length > 0) return resolve(readlist.shift() as CommandResponse, command.input);
 			const fallback = responses[name]?.default;
-			return fallback ? resolve(fallback) : {};
+			return fallback ? resolve(fallback, command.input) : {};
 		}) as DynamoDBDocumentClient["send"],
 	};
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
@@ -430,7 +431,7 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 });
 
 describe("initDynamoDbSavedArticleStore global writes", () => {
-	it("saveArticleGlobally reports created=true on a fresh conditional put", async () => {
+	it("saveArticleGlobally reports created=true on a fresh conditional update", async () => {
 		const { client, commands } = createFakeClient();
 		const result = await initStore(client).saveArticleGlobally({
 			url: URL,
@@ -439,17 +440,15 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			savedAt: new Date("2026-05-30T09:00:00.000Z"),
 		});
 
-		const put = commands.find((c) => c.name === "PutCommand");
-		// The put succeeds on an absent row OR a tombstoned one, so re-saving a
-		// purged URL revives it (the full put drops purgedAt); a live row still
-		// fails the condition and stays a no-op upsert.
-		expect(put?.input.ConditionExpression).toBe("attribute_not_exists(#url) OR attribute_exists(purgedAt)");
+		const update = commands.find((c) => c.name === "UpdateCommand");
+		expect(update?.input.ConditionExpression).toBe("attribute_not_exists(#url) OR attribute_exists(purgedAt)");
+		expect(update?.input.ExpressionAttributeValues?.[":imageUrl"]).toBe("https://x/i.jpg");
 		expect(result).toEqual({ created: true });
 	});
 
 	it("saveArticleGlobally reports created=false when the row already exists", async () => {
 		const { client } = createFakeClient({
-			PutCommand: {
+			UpdateCommand: {
 				default: () => {
 					throw new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
 				},
@@ -466,9 +465,9 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(result).toEqual({ created: false });
 	});
 
-	it("saveArticleGlobally rethrows a non-conditional put error", async () => {
+	it("saveArticleGlobally rethrows a non-conditional update error", async () => {
 		const { client } = createFakeClient({
-			PutCommand: {
+			UpdateCommand: {
 				default: () => {
 					throw new Error("throttled");
 				},
@@ -483,6 +482,37 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 				savedAt: new Date("2026-05-30T09:00:00.000Z"),
 			}),
 		).rejects.toThrow("throttled");
+	});
+	it("keeps revoked capture identities after revival while advancing the selection revision", async () => {
+		const cutoff = "2026-05-30T10:00:00.000Z";
+		const durable = { revokedCandidateIds: new Set(["removed-candidate"]) };
+		const row: Record<string, unknown> = { ...articleItem(), ...durable, purgedAt: cutoff, contentSelectionRevision: 9, contentLocation: "s3://content/old.html", canonicalCandidateId: "removed-candidate", summaryStatus: "skipped", summarySkippedReason: "content-purged" };
+		let writes: CapturedCommand[] = [];
+		const fake = createFakeClient({
+			UpdateCommand: { default: () => {
+				const command = writes.at(-1)?.input;
+				assert(command?.UpdateExpression && command.ExpressionAttributeValues);
+				const clauses = /^SET (.+) ADD (.+) REMOVE (.+)$/.exec(command.UpdateExpression);
+				assert(clauses);
+				for (const assignment of clauses[1].split(", ")) {
+					const [field, token] = assignment.split(" = ");
+					row[field] = command.ExpressionAttributeValues[token];
+				}
+				const [counter, amount] = clauses[2].split(" ");
+				const prior = row[counter];
+				const increment = command.ExpressionAttributeValues[amount];
+				assert(typeof prior === "number" && typeof increment === "number");
+				row[counter] = prior + increment;
+				for (const field of clauses[3].split(", ")) delete row[field];
+				return {};
+			} },
+		});
+		writes = fake.commands;
+
+		expect(await initStore(fake.client).saveArticleGlobally({ url: URL, metadata: { title: "New save", siteName: "Example", excerpt: "", wordCount: 0 }, estimatedReadTime: TWO_MINUTES, savedAt: OPERATION_SAVED_AT })).toEqual({ created: true });
+
+		expect(row).toMatchObject({ ...durable, contentSelectionRevision: 10, title: "New save", imageUrl: null });
+		expect(Object.keys(row).sort()).toEqual(["contentSelectionRevision", "estimatedReadTime", "excerpt", "imageUrl", "originalUrl", "revokedCandidateIds", "routeId", "savedAt", "siteName", "title", "url", "wordCount"]);
 	});
 
 	it("bumpArticleSavedAt writes savedAt guarded by attribute_exists", async () => {
@@ -538,7 +568,9 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			savedAt: OPERATION_SAVED_AT,
 		});
 
-		expect(commands.some((c) => c.name === "PutCommand")).toBe(true);
+		const globalUpdate = commands.find((c) => c.name === "UpdateCommand" && c.input.TableName === "articles");
+		expect(globalUpdate?.input.Key).toEqual({ url: RESOURCE_ID });
+		expect(globalUpdate?.input.ConditionExpression).toBe("attribute_not_exists(#url) OR attribute_exists(purgedAt)");
 		// Read-back-after-write must be strongly consistent, otherwise an
 		// eventually-consistent miss trips the "must exist immediately after save"
 		// asserts and 500s a healthy save (the readplace save-failure RCA).
@@ -614,7 +646,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		});
 
 		const userRowUpdate = commands.find(
-			(c) => c.name === "UpdateCommand" && c.input.UpdateExpression !== "SET savedAt = :savedAt",
+			(c) => c.name === "UpdateCommand" && c.input.TableName === "user-articles",
 		);
 		expect(userRowUpdate?.input.ReturnValues).toBe("ALL_OLD");
 		expect(createdUserArticle).toBe(true);
@@ -622,7 +654,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 
 	it("saveArticle reports the user row as pre-existing when the update returned the prior item", async () => {
 		const { client } = createFakeClient({
-			UpdateCommand: { default: { Attributes: userArticleItem() } },
+			UpdateCommand: { default: (input) => input.TableName === "user-articles" ? { Attributes: userArticleItem() } : {} },
 			GetCommand: {
 				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
 			},
@@ -642,13 +674,16 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 
 	it("saveArticle bumps savedAt when the global row already exists", async () => {
 		const { client, commands } = createFakeClient({
-			PutCommand: {
-				default: () => {
-					throw new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+			UpdateCommand: {
+				default: (input) => {
+					if (input.TableName === "articles" && input.UpdateExpression !== "SET savedAt = :savedAt") {
+						throw new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+					}
+					return {};
 				},
 			},
 			GetCommand: {
-				readlist: [{ Item: articleItem() }, { Item: userArticleItem() }],
+				default: (input) => ({ Item: input.TableName === "articles" ? articleItem() : userArticleItem() }),
 			},
 		});
 
@@ -662,7 +697,12 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		});
 
 		const bump = commands.find((c) => c.name === "UpdateCommand" && c.input.UpdateExpression === "SET savedAt = :savedAt");
-		expect(bump).toBeDefined();
+		expect(bump?.input.TableName).toBe("articles");
+		expect(bump?.input.ConditionExpression).toBe("attribute_exists(#url)");
+		expect(bump?.input.ExpressionAttributeValues?.[":savedAt"]).toBe(STORE_NOW.toISOString());
+		const reads = commands.filter((c) => c.name === "GetCommand");
+		expect(reads).toHaveLength(2);
+		expect(reads.every((c) => c.input.ConsistentRead === true)).toBe(true);
 		expect(saved.readAt).toBeUndefined();
 	});
 
@@ -682,9 +722,9 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			savedAt: OPERATION_SAVED_AT,
 		});
 
-		const globalPut = commands.find((c) => c.name === "PutCommand");
-		assert(globalPut, "the store must put the global article row");
-		expect(globalPut.input.Item?.savedAt).toBe(STORE_NOW.toISOString());
+		const globalUpdate = commands.find((c) => c.name === "UpdateCommand" && c.input.TableName === "articles");
+		assert(globalUpdate, "the store must update the global article row");
+		expect(globalUpdate.input.ExpressionAttributeValues?.[":savedAt"]).toBe(STORE_NOW.toISOString());
 		const userRowUpdate = commands.find(
 			(c) => c.name === "UpdateCommand" && c.input.ReturnValues === "ALL_OLD",
 		);
@@ -722,7 +762,8 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticle treats a lost savedAt race as pre-existing and returns the newer row it read back", async () => {
 		const { client } = createFakeClient({
 			UpdateCommand: {
-				default: () => {
+				default: (input) => {
+					if (input.TableName !== "user-articles") return {};
 					throw new ConditionalCheckFailedException({ $metadata: {}, message: "newer save won" });
 				},
 			},
@@ -750,7 +791,8 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		});
 		const losing = createFakeClient({
 			UpdateCommand: {
-				default: () => {
+				default: (input) => {
+					if (input.TableName !== "user-articles") return {};
 					throw new ConditionalCheckFailedException({ $metadata: {}, message: "newer save won" });
 				},
 			},
@@ -991,7 +1033,8 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticleKeepingPosition reports an existing row untouched and returns it as read back", async () => {
 		const { client } = createFakeClient({
 			UpdateCommand: {
-				default: () => {
+				default: (input) => {
+					if (input.TableName !== "user-articles") return {};
 					throw new ConditionalCheckFailedException({ $metadata: {}, message: "row exists" });
 				},
 			},
@@ -1018,7 +1061,8 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticle rethrows a non-conditional user-row write error", async () => {
 		const { client } = createFakeClient({
 			UpdateCommand: {
-				default: () => {
+				default: (input) => {
+					if (input.TableName !== "user-articles") return {};
 					throw new Error("throttled");
 				},
 			},
@@ -1051,6 +1095,54 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 
 		expect(article?.url).toBe(URL);
 		expect(article?.status).toBe("unread");
+	});
+
+	it.each([
+		{ originalUrl: "https://archive.ph/abc12" },
+		{ contentSourceUrl: "https://archive.ph/abc12" },
+		{ contentSourceTier: "tier-2" },
+	])("findArticleById keeps the saved card while withholding unverified wrapper content: %j", async (archiveFields) => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem(archiveFields)], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.id.value).toBe(ROUTE_ID);
+		expect(article?.status).toBe("unread");
+		expect(article?.savedAt).toEqual(new Date("2026-05-30T09:00:00.000Z"));
+		expect(article?.content).toBeUndefined();
+	});
+
+	it("findArticleById exposes rebuilt verified content without changing a legacy wrapper card or its reading history", async () => {
+		const archiveUrl = "https://archive.ph/abc12";
+		const archiveId = ReaderArticleHashId.from(archiveUrl);
+		const { client } = createFakeClient({
+			QueryCommand: {
+				default: {
+					Items: [articleItem({
+						url: "archive.ph/abc12", routeId: archiveId.value, originalUrl: archiveUrl,
+						contentSourceUrl: archiveUrl, contentSourceTier: "tier-2",
+						canonicalCandidateId: "rebuilt-candidate", canonicalOriginalUrl: URL, displayUrl: URL,
+						content: "<p>Verified rebuilt article</p>",
+					})],
+					Count: 1,
+				},
+			},
+			GetCommand: { default: { Item: userArticleItem({
+				url: "archive.ph/abc12", status: "read", readAt: "2026-05-30T10:00:00.000Z",
+			}) } },
+		});
+
+		const article = await initStore(client).findArticleById(archiveId, USER);
+
+		expect(article?.id.value).toBe(archiveId.value);
+		expect(article?.url).toBe(archiveUrl);
+		expect(article?.content).toBe("<p>Verified rebuilt article</p>");
+		expect(article?.status).toBe("read");
+		expect(article?.savedAt).toEqual(new Date("2026-05-30T09:00:00.000Z"));
+		expect(article?.readAt).toEqual(new Date("2026-05-30T10:00:00.000Z"));
 	});
 
 	it("findArticleById names a cross-host redirect after its destination and links to it, keeping the saved url as identity", async () => {
@@ -1227,7 +1319,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt, #readerAvailableAt, #contentFetchedAt",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #purgedAt, #readerAvailableAt, #contentFetchedAt",
 		);
 	});
 
@@ -1608,7 +1700,7 @@ describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt, #readerAvailableAt, #contentFetchedAt",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #purgedAt, #readerAvailableAt, #contentFetchedAt",
 		);
 		expect(
 			page.candidates.map((candidate) => ({
@@ -2176,6 +2268,33 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		const content = await initStore(client).readContent(ArticleResourceUniqueId.parse(URL));
 
 		expect(content).toBe("<p>legacy</p>");
+	});
+
+	it("readContent withholds unverified wrapper bodies", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: { content: "<p>Unverified wrapper</p>", originalUrl: "https://archive.ph/abc12" } } },
+		});
+
+		expect(await initStore(client).readContent(ArticleResourceUniqueId.parse(URL))).toBeUndefined();
+		const read = commands.find((command) => command.name === "GetCommand");
+		expect(read?.input.ConsistentRead).toBe(true);
+		expect(Object.values(read?.input.ExpressionAttributeNames ?? {})).toEqual(expect.arrayContaining([
+			"originalUrl", "contentSourceUrl", "contentSourceTier", "canonicalCandidateId", "canonicalOriginalUrl",
+		]));
+	});
+
+	it("readContent exposes a verified rebuild under its unchanged legacy wrapper key", async () => {
+		const archiveUrl = "https://archive.ph/abc12";
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: {
+				originalUrl: archiveUrl, contentSourceUrl: archiveUrl, contentSourceTier: "tier-2",
+				canonicalCandidateId: "rebuilt-candidate", canonicalOriginalUrl: URL, displayUrl: URL,
+				content: "<p>Verified rebuilt article</p>",
+			} } },
+		});
+
+		expect(await initStore(client).readContent(ArticleResourceUniqueId.parse(archiveUrl))).toBe("<p>Verified rebuilt article</p>");
+		expect(commands.find((command) => command.name === "GetCommand")?.input.Key).toEqual({ url: "archive.ph/abc12" });
 	});
 
 	it("readContent returns undefined when no legacy content row exists", async () => {

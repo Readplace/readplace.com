@@ -1,6 +1,6 @@
 import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
-import type { ContentFreshnessResult } from "@packages/provider-contracts/article-freshness";
-import type { SaveProvenance, SaveableUrl, SavedArticle } from "@packages/domain/article";
+import type { ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
+import type { SaveAttemptId, SaveProvenance, SaveableUrl, SavedArticle } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { SaveArticleFromUrl } from "./save-article-from-url";
 
@@ -12,8 +12,9 @@ export interface SaveArticleAtReadlistTopDependencies {
 export type SaveArticleAtReadlistTop = (params: {
 	userId: UserId;
 	url: SaveableUrl;
-	freshness: ContentFreshnessResult;
+	freshness: ResolvedFreshnessResult;
 	provenance: SaveProvenance;
+	saveAttemptId: SaveAttemptId;
 }) => Promise<{
 	saved: SavedArticle;
 	canonicalUrl: string;

@@ -1,3 +1,4 @@
+import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
 import { ArchiveCaptureCrawlFailedEvent } from "@packages/hutch-infra-components";
 import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult, FinalizedArticle } from "@packages/finalize-article";
@@ -17,6 +18,8 @@ function createCapture(result: CrawlAndFinalizeResult) {
 	const publishEvent = jest.fn().mockResolvedValue(undefined);
 	const logCrawlOutcome = jest.fn();
 	const crawlArchiveCapture = initCrawlArchiveCapture({
+		now: () => new Date("2026-04-18T12:00:00.000Z"),
+		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		crawlAndFinalizeArticle: async (params) => {
 			crawls.push(params);
 			return result;
@@ -32,15 +35,16 @@ function createCapture(result: CrawlAndFinalizeResult) {
 
 describe("initCrawlArchiveCapture", () => {
 	it("crawls the capture under the original and writes it to the archive tier with the capture recorded", async () => {
-		const harness = createCapture({ status: "fetched", article: finalized, bodyHash: "a".repeat(64) });
+		const harness = createCapture({ status: "fetched", article: finalized, bodyHash: "a".repeat(64), evaluationHtml: "<html><body><p>From the archive</p></body></html>" });
 
-		expect(await harness.crawlArchiveCapture({ url: ORIGINAL, captureUrl: CAPTURE })).toBe("written");
-		expect(harness.crawls).toEqual([{ url: ORIGINAL, fetchUrl: CAPTURE }]);
+		expect(await harness.crawlArchiveCapture({ url: ORIGINAL, captureUrl: CAPTURE, saveAttemptId: SaveAttemptIdSchema.parse("attempt") })).toEqual({ id: expect.any(String), tier: "tier-2" });
+		expect(harness.crawls).toEqual([{ url: ORIGINAL, fetchUrl: CAPTURE, retainResponseBody: true, writeContext: { url: ORIGINAL, attemptId: "attempt" } }]);
 		expect(harness.putTierSource).toHaveBeenCalledWith({
 			url: ORIGINAL,
 			tier: "tier-2",
 			html: finalized.html,
-			metadata: { ...finalized.metadata, sourceUrl: CAPTURE },
+			metadata: expect.objectContaining({ ...finalized.metadata, sourceUrl: CAPTURE }),
+			evaluationHtml: "<html><body><p>From the archive</p></body></html>",
 		});
 		expect(harness.logCrawlOutcome).toHaveBeenCalledWith({
 			url: ORIGINAL,
@@ -61,9 +65,18 @@ describe("initCrawlArchiveCapture", () => {
 	])("records a capture the archive would not serve ($reason) as a failure fact and writes nothing", async ({ result, reason }) => {
 		const harness = createCapture(result);
 
-		expect(await harness.crawlArchiveCapture({ url: ORIGINAL, captureUrl: CAPTURE })).toBe("not-written");
+		expect(await harness.crawlArchiveCapture({ url: ORIGINAL, captureUrl: CAPTURE, saveAttemptId: SaveAttemptIdSchema.parse("attempt") })).toBeUndefined();
 		expect(harness.putTierSource).not.toHaveBeenCalled();
 		expect(harness.publishEvent).toHaveBeenCalledWith(ArchiveCaptureCrawlFailedEvent, { url: ORIGINAL, captureUrl: CAPTURE, reason });
 		expect(harness.logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTier: "tier-2", thisTierStatus: "failed" }));
 	});
+});
+
+it("rejects a legacy queued capture whose original does not match the adopted identity", async () => {
+	const crawlAndFinalizeArticle = jest.fn();
+	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const crawl = initCrawlArchiveCapture({ crawlAndFinalizeArticle, putTierSource: async () => {}, readTierSnapshot: async () => ({ tier0Status: "not_attempted", tier1Status: "not_attempted", pickedTier: "none" }), logCrawlOutcome: () => {}, logger: noopLogger, now: () => new Date(), verifyWrapperSource: async () => undefined, publishEvent });
+	expect(await crawl({ url: ORIGINAL, captureUrl: CAPTURE, saveAttemptId: SaveAttemptIdSchema.parse("legacy-attempt") })).toBeUndefined();
+	expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
+	expect(publishEvent).toHaveBeenCalledWith(ArchiveCaptureCrawlFailedEvent, { url: ORIGINAL, captureUrl: CAPTURE, reason: "unverified source identity" });
 });

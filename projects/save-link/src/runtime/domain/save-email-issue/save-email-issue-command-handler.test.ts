@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -15,8 +16,11 @@ const INBOX_PAGE = "https://readplace.com/inbox/2026-06-24T09%3A00%3A00.000Z%23%
 const BODY = "<table><tr><td><h1>Employee #1</h1><p>Yahoo's first employee looks back.</p></td></tr></table>";
 const NOW = new Date("2026-06-24T09:05:00.000Z");
 
+const SAVE_ATTEMPT_ID = "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b";
+
 const COMMAND = {
 	userId: READER,
+	saveAttemptId: SAVE_ATTEMPT_ID,
 	receivedAtMessageId: RECEIVED_AT_MESSAGE_ID,
 	subject: "Employee #1: Yahoo",
 	senderEmail: "dan@tldr.tech",
@@ -99,6 +103,7 @@ describe("initSaveEmailIssueCommandHandler", () => {
 
 		await harness.run(COMMAND);
 
+		const candidateId = harness.tierSources[0]?.metadata.id;
 		assert.deepEqual(harness.tierSources, [
 			{
 				url: ISSUE_URL,
@@ -110,13 +115,27 @@ describe("initSaveEmailIssueCommandHandler", () => {
 					excerpt: "Employee #1 Yahoo's first employee looks back.",
 					wordCount: 7,
 					estimatedReadTime: 1,
+					id: candidateId,
+					attemptId: SAVE_ATTEMPT_ID,
+					contentHash: createHash("sha256").update(BODY).digest("hex"),
+					originalUrl: INBOX_PAGE,
+					sourceUrl: ISSUE_URL,
+					kind: "extension",
+					fetchedAt: NOW.toISOString(),
+					httpStatus: undefined,
 				},
 			},
 		]);
 		assert.deepEqual(harness.published, [
 			{
 				detailType: TierContentExtractedEvent.detailType,
-				detail: { url: ISSUE_URL, tier: "tier-0", userId: READER, extractedAt: NOW.toISOString() },
+				detail: {
+					url: ISSUE_URL,
+					userId: READER,
+					saveAttemptId: SAVE_ATTEMPT_ID,
+					candidates: [{ id: candidateId, tier: "tier-0" }],
+					extractedAt: NOW.toISOString(),
+				},
 			},
 		]);
 	});

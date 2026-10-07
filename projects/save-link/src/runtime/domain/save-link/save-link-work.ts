@@ -1,3 +1,4 @@
+import type { CandidateId, SaveAttemptId } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
@@ -18,31 +19,15 @@ import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
 import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 
-/**
- * `"tier-1-written"` — the worker fetched, parsed, and wrote a tier-1 source.
- * The caller should publish TierContentExtractedEvent so the selector runs.
- *
- * `"tier-1-deferred"` — the simple crawl reported `unsupported` so the worker
- * emitted `SimpleCrawlUnsupportedEvent`. The policy Lambda subscribes and
- * dispatches `ComprehensiveCrawlCommand` to the dedicated PDF-handling
- * Lambda. The row stays in its current non-terminal state (the comprehensive
- * Lambda owns the next status transition + any downstream event). The caller
- * must NOT publish a follow-up event itself; the comprehensive Lambda emits
- * the appropriate event after it finishes (TierContentExtractedEvent or
- * RecrawlContentExtractedEvent).
- *
- * `"tier-1-terminal"` — the origin will not serve the page to this crawler
- * (HTTP 404/410, or an edge that refuses the datacenter IP) and the worker
- * terminalised both axes in-process. No tier source was written, so the caller
- * must NOT publish a follow-up event: there is no new content for a selector
- * to pick and no summary to generate.
- */
-export type SaveLinkWorkResult = "tier-1-written" | "tier-1-deferred" | "tier-1-terminal";
+export type SaveLinkWorkResult = { candidate: { id: CandidateId; tier: "tier-1" } } | "tier-1-deferred" | "tier-1-terminal";
 
 export type SaveLinkWorkOptions = {
 	userId?: string;
 	recrawl?: boolean;
+	saveAttemptId: SaveAttemptId;
+	deferUnsupported?: boolean;
 };
 
 const CRAWL_FAILED_REASON = "crawl-failed";
@@ -114,7 +99,8 @@ export function initSaveLinkWork(deps: {
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
 	logPrefix: string;
-}): { saveLinkWork: (url: string, options?: SaveLinkWorkOptions) => Promise<SaveLinkWorkResult> } {
+	resolveOriginalUrl: (url: string) => Promise<string>;
+}): { saveLinkWork: (url: string, options: SaveLinkWorkOptions) => Promise<SaveLinkWorkResult> } {
 	const {
 		crawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported,
@@ -138,9 +124,12 @@ export function initSaveLinkWork(deps: {
 		logPrefix,
 	});
 
-	const saveLinkWork = async (url: string, options?: SaveLinkWorkOptions): Promise<SaveLinkWorkResult> => {
+	const saveLinkWork = async (url: string, options: SaveLinkWorkOptions): Promise<SaveLinkWorkResult> => {
+		const originalUrl = await deps.resolveOriginalUrl(url);
+		const attemptId = options.saveAttemptId;
+		const fetchedAt = now().toISOString();
 		await markCrawlStage({ url, stage: "crawl-fetching" });
-		const result = await crawlAndFinalizeArticle({ url });
+		const result = await crawlAndFinalizeArticle({ url: originalUrl, writeContext: { url, attemptId }, ...(options.deferUnsupported ? { retainResponseBody: true } : {}) });
 
 		if (result.status === "unsupported") {
 			const terminalReason = terminalUnsupportedReason(result.unsupportedReason);
@@ -148,7 +137,7 @@ export function initSaveLinkWork(deps: {
 				// Terminalise in-process rather than defer: the comprehensive Lambda
 				// would re-fetch the same oversized body and OOM again.
 				await emitTier1FailureOutcome({ url });
-				await transitionAndPersist(markCrawlUnsupported, { url, input: { reason: terminalReason } });
+				if (!options.deferUnsupported) await transitionAndPersist(markCrawlUnsupported, { url, input: { reason: terminalReason } });
 				logger.info(`${logPrefix} tier-1 unsupported terminal`, { url, reason: result.reason });
 				return "tier-1-terminal";
 			}
@@ -158,7 +147,7 @@ export function initSaveLinkWork(deps: {
 			 * `comprehensive-fetching` is written before the emit so the reader's
 			 * progress bar moves forward immediately. */
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
-			await emitSimpleCrawlUnsupported({ url, userId: options?.userId, recrawl: options?.recrawl });
+			if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId });
 			logger.info(`${logPrefix} tier-1 deferred to comprehensive crawl`, {
 				url,
 				reason: result.reason,
@@ -176,7 +165,7 @@ export function initSaveLinkWork(deps: {
 				url,
 				finalUrl: result.finalUrl,
 				outcome: { kind: "crawl-failed" },
-				recrawl: options?.recrawl,
+				recrawl: options.recrawl,
 			});
 			return "tier-1-terminal";
 		}
@@ -194,7 +183,7 @@ export function initSaveLinkWork(deps: {
 				url,
 				finalUrl: result.finalUrl,
 				outcome: { kind: "crawl-failed" },
-				recrawl: options?.recrawl,
+				recrawl: options.recrawl,
 			});
 			return "tier-1-terminal";
 		}
@@ -208,17 +197,17 @@ export function initSaveLinkWork(deps: {
 				url,
 				finalUrl: result.finalUrl,
 				outcome: { kind: "crawl-failed" },
-				recrawl: options?.recrawl,
+				recrawl: options.recrawl,
 			});
 			if (result.reason === CRAWL_FAILED_REASON) {
 				const crawlFailureReason = crawlFailureReasonForFetchFailure(result.failure);
-				await transitionAndPersist(markCrawlFailed, {
+				if (!options.deferUnsupported) await transitionAndPersist(markCrawlFailed, {
 					url,
 					input: { reason: crawlFailureReason },
 				});
 				throw new CrawlFailedError({ url, crawlFailureReason });
 			}
-			await transitionAndPersist(markCrawlFailed, {
+			if (!options.deferUnsupported) await transitionAndPersist(markCrawlFailed, {
 				url,
 				input: { reason: { kind: "parse-error", detail: result.reason } },
 			});
@@ -233,43 +222,59 @@ export function initSaveLinkWork(deps: {
 			throw new Error(`save-link-work received unexpected not-modified for ${url}`);
 		}
 
+		const liveFailed =
+			result.parseFailure !== undefined ||
+			(result.httpStatus !== undefined && (result.httpStatus < 200 || result.httpStatus >= 300));
+		await adoptCanonicalIdentity({
+			url,
+			finalUrl: result.finalUrl,
+			outcome: liveFailed ? { kind: "crawl-failed" } : { kind: "finalized", wordCount: result.article.metadata.wordCount },
+			recrawl: options.recrawl,
+		});
+		const metadata = candidateProvenance({
+			metadata: result.article.metadata,
+			html: result.article.html,
+			evaluationHtml: result.evaluationHtml ?? result.article.html,
+			attemptId,
+			originalUrl: await deps.resolveOriginalUrl(url),
+			sourceUrl: result.finalUrl ?? originalUrl,
+			kind: "live",
+			fetchedAt,
+			httpStatus: result.httpStatus,
+		});
 		await putTierSource({
 			url,
 			tier: "tier-1",
 			html: result.article.html,
-			metadata: result.article.metadata,
+			metadata,
+			evaluationHtml: result.evaluationHtml,
 		});
 		await markCrawlStage({ url, stage: "crawl-content-uploaded" });
 
-		await updateFetchTimestamp({
-			url,
-			contentFetchedAt: now().toISOString(),
-			etag: result.etag,
-			lastModified: result.lastModified,
-			bodyHash: result.bodyHash,
-		});
+		if (!liveFailed) {
+			await updateFetchTimestamp({
+				url,
+				contentFetchedAt: now().toISOString(),
+				etag: result.etag,
+				lastModified: result.lastModified,
+				bodyHash: result.bodyHash,
+			});
+		}
 
 		const successSnapshot = await readTierSnapshot({ url });
 		logCrawlOutcome({
 			url,
 			thisTier: "tier-1",
-			thisTierStatus: "success",
+			thisTierStatus: liveFailed ? "failed" : "success",
 			otherTierStatus: successSnapshot.tier0Status,
 			pickedTier: successSnapshot.pickedTier,
-		});
-
-		await adoptCanonicalIdentity({
-			url,
-			finalUrl: result.finalUrl,
-			outcome: { kind: "finalized", wordCount: result.article.metadata.wordCount },
-			recrawl: options?.recrawl,
 		});
 
 		logger.info(`${logPrefix} tier-1 source written`, {
 			url,
 			imageUrl: result.article.metadata.imageUrl ?? null,
 		});
-		return "tier-1-written";
+		return { candidate: { id: metadata.id, tier: "tier-1" } };
 	};
 
 	return { saveLinkWork };

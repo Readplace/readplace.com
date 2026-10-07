@@ -6,6 +6,8 @@ export type {
 	SummaryAutoHealState,
 	SummaryState,
 } from "./article.types";
+export { isCanonicalCandidateRevoked, summaryMatchesCanonical } from "./content-selection.types";
+export type { CanonicalCommit, ContentSelectionSnapshot, SelectionExpected } from "./content-selection.types";
 export {
 	CanonicalImageUrlSchema,
 	type CanonicalImageUrl,

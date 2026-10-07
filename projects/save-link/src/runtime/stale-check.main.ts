@@ -11,6 +11,8 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/provider-contracts/events";
+import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
+import { newSaveAttemptId } from "@packages/domain/article";
 import { initStaleCheckHandler } from "./domain/stale-check/stale-check-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initCanonicalAliasStore, initDynamoDbArticleCrawl } from "@packages/article-store";
@@ -90,7 +92,10 @@ const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 	now,
 });
 
+const sourceIdentity = initSourceIdentityDepBundle({ ...canonicalAliasStore, crawlFetch: parser.crawlFetch, logger: consoleLogger });
+
 export const handler = initStaleCheckHandler({
+	prepareArticleIdentity: sourceIdentity.prepareArticleIdentity,
 	findArticleFreshness,
 	findArticleCrawlStatus,
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
@@ -102,6 +107,7 @@ export const handler = initStaleCheckHandler({
 	loadArticle: articleAggregate.store.load,
 	transitionAndPersist: articleAggregate.transitionAndPersist,
 	now,
+	newSaveAttemptId,
 	staleTtlMs: STALE_TTL_MS,
 	logger: consoleLogger,
 });

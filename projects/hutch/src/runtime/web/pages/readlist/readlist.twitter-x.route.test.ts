@@ -18,11 +18,12 @@ const useApp = useTestServer();
 
 function setup() {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const published: { linkSaved: string[]; linkQueued: string[]; rawHtml: string[]; rawPdf: string[] } = {
+	const published: { linkSaved: string[]; linkQueued: string[]; rawHtml: string[]; rawPdf: string[]; attempts: string[] } = {
 		linkSaved: [],
 		linkQueued: [],
 		rawHtml: [],
 		rawPdf: [],
+		attempts: [],
 	};
 	const testApp = useApp({
 		...fixture,
@@ -37,9 +38,11 @@ function setup() {
 			},
 			publishSaveLinkRawHtmlCommand: async (params) => {
 				published.rawHtml.push(params.url);
+				published.attempts.push(params.saveAttemptId);
 			},
 			publishSaveLinkRawPdfCommand: async (params) => {
 				published.rawPdf.push(params.url);
+				published.attempts.push(params.saveAttemptId);
 			},
 		},
 	});
@@ -127,8 +130,8 @@ describe("saving a twitter.com link stores it as the x.com article", () => {
 		expect(response.status).toBe(200);
 		expect(response.body.properties).toEqual(expect.objectContaining({ saved: 2, skipped: 0, failed: 0 }));
 		expect(published.rawHtml).toEqual([TWEET_ON_X]);
-		expect(testApp.pendingHtml.readPendingHtml(TWEET_ON_X)).toBe(VALID_HTML.toString("utf8"));
-		expect(testApp.pendingHtml.readPendingHtml(TWEET_ON_TWITTER)).toBeUndefined();
+		expect(testApp.pendingHtml.readPendingHtml(TWEET_ON_X, { saveAttemptId: published.attempts[0] })).toBe(VALID_HTML.toString("utf8"));
+		expect(testApp.pendingHtml.readPendingHtml(TWEET_ON_TWITTER, { saveAttemptId: published.attempts[0] })).toBeUndefined();
 		expect(await savedUrls(testApp)).toEqual([TWEET_ON_X, "https://x.com/jack/status/21"]);
 	});
 
@@ -145,7 +148,7 @@ describe("saving a twitter.com link stores it as the x.com article", () => {
 		expect(response.status).toBe(201);
 		expect(response.body.properties.url).toBe(TWEET_ON_X);
 		expect(published.rawHtml).toEqual([TWEET_ON_X]);
-		expect(testApp.pendingHtml.readPendingHtml(TWEET_ON_X)).toBe(VALID_HTML.toString("utf8"));
+		expect(testApp.pendingHtml.readPendingHtml(TWEET_ON_X, { saveAttemptId: published.attempts[0] })).toBe(VALID_HTML.toString("utf8"));
 		expect(await savedUrls(testApp)).toEqual([TWEET_ON_X]);
 	});
 
@@ -161,119 +164,58 @@ describe("saving a twitter.com link stores it as the x.com article", () => {
 
 		expect(response.status).toBe(201);
 		expect(published.rawPdf).toEqual([TWEET_ON_X]);
-		expect(testApp.pendingPdf.readPendingPdfSync(TWEET_ON_X)).toEqual(VALID_PDF);
+		expect(testApp.pendingPdf.readPendingPdfSync(TWEET_ON_X, { saveAttemptId: published.attempts[0] })).toEqual(VALID_PDF);
 	});
 });
 
+
 describe("upload slots and completions for twitter.com captures", () => {
-	it("issues a new slot at the x.com key whose completion action names x.com", async () => {
+	const attempt = "a5d68419-dc83-4f6c-84a9-67e6808acb57";
+	it("issues an attempt-scoped slot at x.com and advertises its completion attempt", async () => {
 		const { testApp } = setup();
 		const token = await createAccessToken(testApp);
-
-		const response = await saveContent(testApp, {
-			token,
-			fields: { url: TWEET_ON_TWITTER, mediaType: "application/pdf", title: "Big", size: String(50 * 1024 * 1024) },
-		});
-
+		const response = await saveContent(testApp, { token, fields: { url: TWEET_ON_TWITTER, mediaType: "application/pdf", title: "Big", size: String(50 * 1024 * 1024) } });
 		expect(response.status).toBe(200);
-		const upload = response.body.actions.find((action: { name: string }) => action.name === "upload-content");
-		expect(upload.href).toBe(
-			`${TEST_APP_ORIGIN}/e2e/s3/${encodeURIComponent(ArticleResourceUniqueId.parse(TWEET_ON_X).toS3PendingPdfKey())}`,
-		);
 		const complete = response.body.actions.find((action: { name: string }) => action.name === "save-uploaded-content");
 		const fields = Object.fromEntries(complete.fields.map((field: { name: string; value?: string }) => [field.name, field.value]));
-		expect(fields).toEqual({ url: TWEET_ON_X, mediaType: "application/pdf", title: "Big", uploaded: "true" });
+		expect(fields).toEqual({ url: TWEET_ON_X, mediaType: "application/pdf", title: "Big", uploaded: "true", saveAttemptId: expect.any(String) });
+		const upload = response.body.actions.find((action: { name: string }) => action.name === "upload-content");
+		expect(upload.href).toBe(`${TEST_APP_ORIGIN}/e2e/s3/${encodeURIComponent(ArticleResourceUniqueId.parse(TWEET_ON_X).toS3PendingPdfKey(fields.saveAttemptId))}`);
 	});
-
-	it("finishes a slot issued before deployment under the twitter.com identity its object was uploaded to", async () => {
+	it("refuses a completion without an attempt instead of attributing staged bytes to a new capture", async () => {
 		const { testApp, published } = setup();
 		const token = await createAccessToken(testApp);
-		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_TWITTER, mediaType: "text/html", bytes: VALID_HTML });
-
-		const response = await saveContent(testApp, {
-			token,
-			fields: { url: TWEET_ON_TWITTER, mediaType: "text/html", uploaded: "true" },
-		});
-
-		expect(response.status).toBe(201);
-		expect(published.rawHtml).toEqual([TWEET_ON_TWITTER]);
-		expect(await savedUrls(testApp)).toEqual([TWEET_ON_TWITTER]);
+		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_TWITTER, saveAttemptId: attempt, mediaType: "text/html", bytes: VALID_HTML });
+		const response = await saveContent(testApp, { token, fields: { url: TWEET_ON_TWITTER, mediaType: "text/html", uploaded: "true" } });
+		expect(response.status).toBe(422);
+		expect(published.rawHtml).toEqual([]);
+		expect(await savedUrls(testApp)).toEqual([]);
 	});
-
-	it("finishes under x.com when only the x.com object was uploaded for a twitter.com completion", async () => {
+	it("completes the original x.com object for the advertised attempt", async () => {
 		const { testApp, published } = setup();
 		const token = await createAccessToken(testApp);
-		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_X, mediaType: "application/pdf", bytes: VALID_PDF });
-
-		const response = await saveContent(testApp, {
-			token,
-			fields: { url: TWEET_ON_TWITTER, mediaType: "application/pdf", uploaded: "true" },
-		});
-
+		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_X, saveAttemptId: attempt, mediaType: "application/pdf", bytes: VALID_PDF });
+		const response = await saveContent(testApp, { token, fields: { url: TWEET_ON_TWITTER, mediaType: "application/pdf", uploaded: "true", saveAttemptId: attempt } });
 		expect(response.status).toBe(201);
 		expect(published.rawPdf).toEqual([TWEET_ON_X]);
 		expect(await savedUrls(testApp)).toEqual([TWEET_ON_X]);
 	});
-
-	it("prefers the submitted twitter.com object when both spellings were uploaded", async () => {
+	it("ignores an object staged for another attempt", async () => {
 		const { testApp, published } = setup();
 		const token = await createAccessToken(testApp);
-		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_TWITTER, mediaType: "text/html", bytes: VALID_HTML });
-		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_X, mediaType: "text/html", bytes: VALID_HTML });
-
-		await saveContent(testApp, { token, fields: { url: TWEET_ON_TWITTER, mediaType: "text/html", uploaded: "true" } });
-
-		expect(published.rawHtml).toEqual([TWEET_ON_TWITTER]);
-	});
-
-	it("refuses an expired twitter.com object instead of passing over it to a fresh x.com one", async () => {
-		const { testApp, published } = setup();
-		const token = await createAccessToken(testApp);
-		testApp.pendingUpload.stageUploaded({
-			url: TWEET_ON_TWITTER,
-			mediaType: "text/html",
-			bytes: VALID_HTML,
-			stagedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-		});
-		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_X, mediaType: "text/html", bytes: VALID_HTML });
-
-		const response = await saveContent(testApp, {
-			token,
-			fields: { url: TWEET_ON_TWITTER, mediaType: "text/html", uploaded: "true" },
-		});
-
+		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_X, saveAttemptId: "0b0f6a52-7a41-4c2e-9d0e-3a8f5c1f2b9d", mediaType: "text/html", bytes: VALID_HTML });
+		const response = await saveContent(testApp, { token, fields: { url: TWEET_ON_X, mediaType: "text/html", uploaded: "true", saveAttemptId: attempt } });
 		expect(response.status).toBe(422);
-		expect(response.body.properties.code).toBe("upload-not-found");
 		expect(published.rawHtml).toEqual([]);
 	});
-
-	it("checks the media of the object it selected", async () => {
+	it("checks the media of the attempt-scoped object", async () => {
 		const { testApp, published } = setup();
 		const token = await createAccessToken(testApp);
-		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_X, mediaType: "application/pdf", bytes: Buffer.from("not a pdf") });
-
-		const response = await saveContent(testApp, {
-			token,
-			fields: { url: TWEET_ON_TWITTER, mediaType: "application/pdf", uploaded: "true" },
-		});
-
+		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_X, saveAttemptId: attempt, mediaType: "application/pdf", bytes: Buffer.from("not a pdf") });
+		const response = await saveContent(testApp, { token, fields: { url: TWEET_ON_TWITTER, mediaType: "application/pdf", uploaded: "true", saveAttemptId: attempt } });
 		expect(response.status).toBe(422);
 		expect(response.body.properties.code).toBe("not-a-pdf");
 		expect(published.rawPdf).toEqual([]);
-	});
-
-	it("does not look for a twitter.com object when the completion names x.com", async () => {
-		const { testApp } = setup();
-		const token = await createAccessToken(testApp);
-		testApp.pendingUpload.stageUploaded({ url: TWEET_ON_TWITTER, mediaType: "text/html", bytes: VALID_HTML });
-
-		const response = await saveContent(testApp, {
-			token,
-			fields: { url: TWEET_ON_X, mediaType: "text/html", uploaded: "true" },
-		});
-
-		expect(response.status).toBe(422);
-		expect(response.body.properties.code).toBe("upload-not-found");
 	});
 });
 

@@ -1,3 +1,6 @@
+import assert from "node:assert";
+import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -23,6 +26,7 @@ import { RefreshArticleContentCommand } from "./index";
  */
 export function initRefreshArticleContentHandler(deps: {
 	readRefreshHtml: ReadRefreshHtml;
+	resolveOriginalUrl: (url: string) => Promise<string>;
 	putTierSource: PutTierSource;
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
@@ -39,23 +43,26 @@ export function initRefreshArticleContentHandler(deps: {
 
 				logger.info("[RefreshArticleContent] processing", { url: detail.url });
 
-				const html = await readRefreshHtml(detail.url);
+				const { saveAttemptId } = detail;
+				const originalUrl = await deps.resolveOriginalUrl(detail.url);
+				assert(canonicalIdentityOf(detail.sourceOriginalUrl) === canonicalIdentityOf(originalUrl), "Refresh source original no longer matches article identity");
+				const [html, evaluationHtml] = await Promise.all([
+					readRefreshHtml(detail.url, { saveAttemptId }),
+					readRefreshHtml(detail.url, { saveAttemptId, representation: "evaluation" }),
+				]);
+				const metadata = candidateProvenance({ metadata: { ...detail.metadata, estimatedReadTime: detail.estimatedReadTime }, html, evaluationHtml, attemptId: saveAttemptId, originalUrl, sourceUrl: detail.sourceUrl, kind: "live", fetchedAt: detail.contentFetchedAt });
 
 				await putTierSource({
 					url: detail.url,
 					tier: "tier-1",
 					html,
-					metadata: {
-						title: detail.metadata.title,
-						siteName: detail.metadata.siteName,
-						excerpt: detail.metadata.excerpt,
-						wordCount: detail.metadata.wordCount,
-						imageUrl: detail.metadata.imageUrl,
-						estimatedReadTime: detail.estimatedReadTime,
-					},
+					evaluationHtml,
+					metadata,
 				});
 
 				await publishEvent(RefreshContentExtractedEvent, {
+					saveAttemptId,
+					candidates: [{ id: metadata.id, tier: "tier-1" }],
 					url: detail.url,
 					etag: detail.etag,
 					lastModified: detail.lastModified,

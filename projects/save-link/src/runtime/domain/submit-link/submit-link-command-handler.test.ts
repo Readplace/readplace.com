@@ -18,6 +18,7 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
 import { initFileArticleIntoReadlist } from "@packages/save-article";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -30,6 +31,7 @@ import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initSubmitLinkCommandHandler } from "./submit-link-command-handler";
+import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { initFilterEmailLinksHandler } from "../filter-email-links/filter-email-links-handler";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
@@ -60,8 +62,8 @@ function createSqsEvent(
 			body: JSON.stringify({
 				detail:
 					detail.userId === undefined
-						? detail
-						: { provenance: { kind: "web" }, readlist: "default", ...detail },
+						? { saveAttemptId: `attempt-${index + 1}`, ...detail }
+						: { saveAttemptId: `attempt-${index + 1}`, provenance: { kind: "web" }, readlist: "default", ...detail },
 			}),
 			attributes: stubAttributes,
 			messageAttributes: {},
@@ -102,6 +104,7 @@ const stubFinalizedArticle: FinalizedArticle = {
 const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
 	article: stubFinalizedArticle,
+	evaluationHtml: stubFinalizedArticle.html,
 	bodyHash: "a".repeat(64),
 };
 
@@ -111,11 +114,20 @@ const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async ()
 
 type HandlerDeps = Parameters<typeof initSubmitLinkCommandHandler>[0];
 
+function refreshAs(
+	action: "new" | "skip",
+	identityOf = (url: string): ResolvedSaveIdentity => ({ status: "resolved", url, originalUrl: url }),
+): RefreshIdentifiedArticleIfStale {
+	return async ({ url }) => ({ action, identity: identityOf(url) });
+}
+
 const fixedNow = () => new Date("2026-06-01T12:00:00.000Z");
 const allocatedSavedAt = new Date("2026-06-01T12:00:00.777Z");
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initSubmitLinkCommandHandler({
+		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
+		resolveOriginalUrl: async (url) => url,
 		validateSaveableUrl,
 		saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
 		allocateSavedAt: jest.fn().mockResolvedValue(allocatedSavedAt),
@@ -125,8 +137,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		markCrawlPending: jest.fn().mockResolvedValue(undefined),
 		markSummaryPending: jest.fn().mockResolvedValue(undefined),
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
-		refreshArticleIfStale: jest.fn().mockResolvedValue({ action: "new" }),
-		resolveSaveIdentity: async (url) => ({ url }),
+		refreshArticleIfStale: refreshAs("new"),
 		pinContentSource: jest.fn().mockResolvedValue(undefined),
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
@@ -177,8 +188,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			allocateSavedAt: store.allocateSavedAt,
 			updateArticleStatus: store.updateArticleStatus,
 			fileArticleIntoReadlist: initFileArticleIntoReadlist(store),
-			resolveSaveIdentity: async () => ({ url: canonical }),
-			refreshArticleIfStale: async () => ({ action: "skip" }),
+			refreshArticleIfStale: refreshAs("skip", () => ({ status: "resolved", url: canonical, originalUrl: canonical })),
 		});
 		const initial = createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letter@example.com" } }]);
 		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
@@ -239,17 +249,17 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(putTierSource).toHaveBeenCalledWith(
 			expect.objectContaining({ url: exampleUrl, tier: "tier-1" }),
 		);
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
 			url: exampleUrl,
-			tier: "tier-1",
 			userId,
 			extractedAt: fixedNow().toISOString(),
-		});
+		}));
 	});
 
 	describe("a link whose identity carries an archive capture", () => {
 		const capture = "https://web.archive.org/web/20081203185222/https://example.com/post";
-		const withCapture = { resolveSaveIdentity: async (url: string) => ({ url, contentSourceUrl: capture }) };
+		const captureIdentity = (url: string): ResolvedSaveIdentity => ({ status: "resolved", originalUrl: url, sourceOriginalUrl: url, url, contentSourceUrl: capture });
+		const withCapture = { refreshArticleIfStale: refreshAs("new", captureIdentity) };
 
 		it("crawls the live page and the capture in-process, offering both to the content judge", async () => {
 			const crawls: Parameters<CrawlAndFinalizeArticle>[0][] = [];
@@ -268,23 +278,22 @@ describe("initSubmitLinkCommandHandler", () => {
 			const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 			expect(response.batchItemFailures).toEqual([]);
-			expect(crawls).toEqual([{ url: exampleUrl }, { url: exampleUrl, fetchUrl: capture }]);
-			expect(putTierSource.mock.calls.map(([params]) => params.tier)).toEqual(["tier-1", "tier-2"]);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			const writeContext = { url: exampleUrl, attemptId: "attempt-1" };
+			expect(crawls).toEqual(expect.arrayContaining([{ url: exampleUrl, retainResponseBody: true, writeContext }, { url: exampleUrl, fetchUrl: capture, retainResponseBody: true, writeContext }]));
+			expect(putTierSource.mock.calls.map(([params]) => params.tier)).toEqual(expect.arrayContaining(["tier-1", "tier-2"]));
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
 				url: exampleUrl,
-				tier: "tier-2",
 				userId,
 				extractedAt: fixedNow().toISOString(),
-			});
+			}));
 		});
 
-		it("leaves the original's crawl state alone when the archive will not serve the capture", async () => {
+		it("runs both candidates even for an existing original when an archive is submitted", async () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
-				...withCapture,
-				refreshArticleIfStale: jest.fn().mockResolvedValue({ action: "skip" }),
-				crawlAndFinalizeArticle: async () => ({ status: "blocked", httpStatus: 429 }),
+				refreshArticleIfStale: refreshAs("skip", captureIdentity),
+				crawlAndFinalizeArticle: async () => ({ status: "failed", reason: "crawl-failed" }),
 				publishEvent,
 				transitionAndPersist,
 			});
@@ -293,7 +302,29 @@ describe("initSubmitLinkCommandHandler", () => {
 
 			expect(response.batchItemFailures).toEqual([]);
 			expect(transitionAndPersist).not.toHaveBeenCalled();
-			expect(publishEvent).not.toHaveBeenCalledWith(TierContentExtractedEvent, expect.anything());
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body", failureReason: { kind: "fetch-failed" } } }));
+		});
+
+		it.each([
+			{ path: "capture", deps: withCapture },
+			{ path: "plain tier-1", deps: {} },
+		])("terminalises a $path storage failure as exhausted-retries on the last receive, so the row is not left pending once the record dead-letters", async ({ deps }) => {
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				...deps,
+				transitionAndPersist,
+				putTierSource: jest.fn().mockRejectedValue(new Error("S3 PutObject failed")),
+			});
+			const lastReceive = createSqsEvent([{ url: exampleUrl, userId }]);
+			lastReceive.Records[0].attributes = { ...stubAttributes, ApproximateReceiveCount: String(SUBMIT_LINK_MAX_RECEIVE_COUNT) };
+
+			const response = await run(handler, lastReceive);
+
+			expect(response.batchItemFailures).toEqual([]);
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
+				url: exampleUrl,
+				input: { reason: { kind: "exhausted-retries", receiveCount: SUBMIT_LINK_MAX_RECEIVE_COUNT }, receiveCount: SUBMIT_LINK_MAX_RECEIVE_COUNT },
+			});
 		});
 	});
 
@@ -301,7 +332,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			publishEvent,
-			resolveSaveIdentity: async () => ({ url: "https://example.com/canonical" }),
+			refreshArticleIfStale: refreshAs("new", () => ({ status: "resolved", originalUrl: "https://example.com/canonical", url: "https://example.com/canonical" })),
 		});
 
 		await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
@@ -334,7 +365,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const handler = createHandler({
 			saveArticle,
 			publishEvent,
-			refreshArticleIfStale: jest.fn().mockResolvedValue({ action: "skip" }),
+			refreshArticleIfStale: refreshAs("skip"),
 			crawlAndFinalizeArticle: crawlAndFinalizeArticle as unknown as CrawlAndFinalizeArticle,
 		});
 
@@ -355,7 +386,7 @@ describe("initSubmitLinkCommandHandler", () => {
 				.fn()
 				.mockResolvedValue({ saved: makeSaved({ status: "read", readAt: new Date("2026-06-10T00:00:00.000Z") }), createdUserArticle: true, wroteUserArticle: true }),
 			updateArticleStatus,
-			refreshArticleIfStale: jest.fn().mockResolvedValue({ action: "skip" }),
+			refreshArticleIfStale: refreshAs("skip"),
 		});
 
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
@@ -509,6 +540,32 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
 	});
 
+	it("fails the record and writes no article when the wrapper's original cannot be resolved, so the queue retries and then dead-letters it", async () => {
+		const wrapperUrl = "https://archive.ph/abc";
+		const saveArticle = jest.fn();
+		const pinContentSource = jest.fn();
+		const markCrawlPending = jest.fn();
+		const allocateSavedAt = jest.fn();
+		const publishEvent = jest.fn();
+		const handler = createHandler({
+			refreshArticleIfStale: async () => ({ action: "unresolved", identity: { status: "unresolved" } }),
+			saveArticle,
+			pinContentSource,
+			markCrawlPending,
+			allocateSavedAt,
+			publishEvent,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: wrapperUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(saveArticle).toHaveBeenCalledTimes(0);
+		expect(pinContentSource).toHaveBeenCalledTimes(0);
+		expect(markCrawlPending).toHaveBeenCalledTimes(0);
+		expect(allocateSavedAt).toHaveBeenCalledTimes(0);
+		expect(publishEvent).toHaveBeenCalledTimes(0);
+	});
+
 	it("fails the record for an unsaveable URL instead of stub-saving garbage", async () => {
 		const saveArticle = jest.fn();
 		const handler = createHandler({ saveArticle });
@@ -537,11 +594,11 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({
 			url: exampleUrl,
 			userId,
 			recrawl: undefined,
-		});
+		}));
 		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 
@@ -624,7 +681,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 	});
 
-	it("still terminalises with the receive count when the failure came from the worker's own storage write, not from the crawl", async () => {
+	it("retries storage failure without relabeling it as a crawl failure", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			transitionAndPersist,
@@ -633,11 +690,8 @@ describe("initSubmitLinkCommandHandler", () => {
 
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
-		expect(response.batchItemFailures).toEqual([]);
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
-			url: exampleUrl,
-			input: { reason: { kind: "exhausted-retries", receiveCount: 1 }, receiveCount: 1 },
-		});
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
 
 	it("fails the record when the in-process terminalisation itself fails, so the row is not silently left pending", async () => {
@@ -781,7 +835,7 @@ describe("initSubmitLinkCommandHandler — a twitter.com link from an email", ()
 	const TWEET_ON_X = "https://x.com/jack/status/20";
 
 	it("checks freshness, saves, crawls and announces the x.com article", async () => {
-		const refreshArticleIfStale = jest.fn().mockResolvedValue({ action: "new" });
+		const refreshArticleIfStale = jest.fn(refreshAs("new"));
 		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
 		const crawled: string[] = [];
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async (params) => {

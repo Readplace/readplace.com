@@ -3,9 +3,11 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
-import type { ValidateSaveableUrl } from "@packages/domain/article";
+import type { SaveAttemptId, ValidateSaveableUrl } from "@packages/domain/article";
 import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
+import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
+import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import { prepareNewSaveUrl, SaveProvenanceSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -31,10 +33,11 @@ import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
-import { initSaveLinkWork, logRecordFailure } from "../save-link/save-link-work";
-import { crawlFailureReasonForError } from "../save-link/crawl-failure-reason-for-error";
+import { ClassifiedCrawlError, initSaveLinkWork, logRecordFailure } from "../save-link/save-link-work";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
-import { ARCHIVE_TIER } from "@packages/article-state-types";
+import type { VerifyWrapperSource } from "@packages/save-article";
+import { initCrawlSaveCandidates } from "../save-link/crawl-save-candidates";
+import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
 
 export function initSubmitLinkCommandHandler(deps: {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -43,11 +46,10 @@ export function initSubmitLinkCommandHandler(deps: {
 	markCrawlPending: SaveArticleFromUrlDependencies["markCrawlPending"];
 	markSummaryPending: SaveArticleFromUrlDependencies["markSummaryPending"];
 	publishUpdateFetchTimestamp: SaveArticleFromUrlDependencies["publishUpdateFetchTimestamp"];
-	refreshArticleIfStale: SaveArticleFromUrlDependencies["refreshArticleIfStale"];
+	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
 	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
-	resolveSaveIdentity: SaveArticleFromUrlDependencies["resolveSaveIdentity"];
 	pinContentSource: SaveArticleFromUrlDependencies["pinContentSource"];
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
 	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
@@ -62,6 +64,8 @@ export function initSubmitLinkCommandHandler(deps: {
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
+	resolveOriginalUrl: (url: string) => Promise<string>;
+	verifyWrapperSource: VerifyWrapperSource;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
 	const logPrefix = "[SubmitLinkCommand]";
@@ -80,6 +84,7 @@ export function initSubmitLinkCommandHandler(deps: {
 		logCrawlOutcome: deps.logCrawlOutcome,
 		readTierSnapshot: deps.readTierSnapshot,
 		logPrefix,
+		resolveOriginalUrl: deps.resolveOriginalUrl,
 	});
 
 	const crawlArchiveCapture = initCrawlArchiveCapture({
@@ -89,21 +94,25 @@ export function initSubmitLinkCommandHandler(deps: {
 		logCrawlOutcome: deps.logCrawlOutcome,
 		publishEvent,
 		logger,
+		now: deps.now,
+		verifyWrapperSource: deps.verifyWrapperSource,
 	});
 
-	async function crawlCapture(link: { url: string; userId: UserId; captureUrl: string }): Promise<void> {
-		const capture = await crawlArchiveCapture({ url: link.url, captureUrl: link.captureUrl });
-		if (capture === "not-written") return;
+	const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
+
+	async function crawlCapture(link: { url: string; userId: UserId; captureUrl: string; sourceOriginalUrl?: string; saveAttemptId: SaveAttemptId }): Promise<void> {
+		const result = await crawlSaveCandidates(link);
 		await publishEvent(TierContentExtractedEvent, {
 			url: link.url,
-			tier: ARCHIVE_TIER,
 			userId: link.userId,
+			saveAttemptId: link.saveAttemptId,
+			...result,
 			extractedAt: deps.now().toISOString(),
 		});
 	}
 
-	async function crawlTier1(link: { url: string; userId: UserId }): Promise<void> {
-		const result = await saveLinkWork(link.url, { userId: link.userId });
+	async function crawlTier1(link: { url: string; userId: UserId; saveAttemptId: SaveAttemptId }): Promise<void> {
+		const result = await saveLinkWork(link.url, { userId: link.userId, saveAttemptId: link.saveAttemptId });
 		if (result === "tier-1-deferred") {
 			logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, { url: link.url });
 			return;
@@ -116,8 +125,9 @@ export function initSubmitLinkCommandHandler(deps: {
 		}
 		await publishEvent(TierContentExtractedEvent, {
 			url: link.url,
-			tier: "tier-1",
 			userId: link.userId,
+			saveAttemptId: link.saveAttemptId,
+			candidates: [result.candidate],
 			extractedAt: deps.now().toISOString(),
 		});
 		logger.info(`${logPrefix} emitted TierContentExtractedEvent`, {
@@ -133,6 +143,7 @@ export function initSubmitLinkCommandHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = SubmitLinkCommand.detailSchema.parse(envelope.detail);
+				const { saveAttemptId } = detail;
 				assert(
 					detail.rawHtml === undefined,
 					`${logPrefix} rawHtml (tier-0) submissions have no handler yet`,
@@ -149,15 +160,13 @@ export function initSubmitLinkCommandHandler(deps: {
 				);
 				const url = prepareNewSaveUrl(validation.url);
 
-				const enrichment: Array<{ url: string; userId: UserId; captureUrl?: string }> = [];
+				const enrichment: Parameters<PublishLinkSaved>[0][] = [];
 				const saveArticleFromUrl = initSaveArticleFromUrl({
 					saveArticle: deps.saveArticle,
 					updateArticleStatus: deps.updateArticleStatus,
 					markCrawlPending: deps.markCrawlPending,
 					markSummaryPending: deps.markSummaryPending,
 					publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
-					refreshArticleIfStale: deps.refreshArticleIfStale,
-					resolveSaveIdentity: deps.resolveSaveIdentity,
 					pinContentSource: deps.pinContentSource,
 					publishLinkSaved: async (params) => {
 						enrichment.push(params);
@@ -172,11 +181,13 @@ export function initSubmitLinkCommandHandler(deps: {
 					saveArticleFromUrl,
 				});
 				const freshness = await deps.refreshArticleIfStale({ url });
+				assert(freshness.action !== "unresolved", "The wrapper original could not be resolved");
 				const { saved } = await saveArticleAtReadlistTop({
 					userId,
 					url,
 					freshness,
 					provenance,
+					saveAttemptId,
 				});
 				if (readlist !== DEFAULT_READLIST_SLUG) {
 					await deps.fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
@@ -194,22 +205,21 @@ export function initSubmitLinkCommandHandler(deps: {
 				}
 
 				for (const link of enrichment) {
-					if (link.captureUrl !== undefined) {
-						await crawlCapture({ url: link.url, userId: link.userId, captureUrl: link.captureUrl });
-						continue;
-					}
 					try {
-						await crawlTier1(link);
+						if (link.captureUrl !== undefined) await crawlCapture({ ...link, captureUrl: link.captureUrl });
+						else await crawlTier1(link);
 					} catch (error) {
+						const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+						const classified = error instanceof ClassifiedCrawlError;
+						if (!classified && receiveCount < SUBMIT_LINK_MAX_RECEIVE_COUNT) throw error;
 						logger.warn(`${logPrefix} tier-1 crawl failed — terminalising in-process`, {
 							url: link.url,
 							error: String(error),
 						});
-						const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 						await deps.transitionAndPersist(markCrawlExhausted, {
 							url: link.url,
 							input: {
-								reason: crawlFailureReasonForError({ error, receiveCount }),
+								reason: classified ? error.crawlFailureReason : { kind: "exhausted-retries", receiveCount },
 								receiveCount,
 							},
 						});

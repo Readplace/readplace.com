@@ -49,7 +49,7 @@ import {
 import { initDynamoDbArticleCrawl } from "@packages/article-store";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { initS3ReadContent, initS3ReadArticleImage } from "@packages/article-store";
+import { initS3ReadContent, initS3ReadArticleImage, initReadContentLocation } from "@packages/article-store";
 import { initStripeSubscriptions } from "./stripe-subscriptions/stripe-subscriptions";
 import { initStripePrices } from "./stripe-prices/stripe-prices";
 import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-payment-methods";
@@ -192,16 +192,16 @@ export function initProdProviders(input: { appOrigin: string }) {
 		logger,
 	});
 	const saveIdentityDeps = {
+		validateUrl: validateSaveableUrl,
 		findIdentityRow: canonicalAlias.findIdentityRow,
 		claimAlias: canonicalAlias.claimAlias,
 		now: () => new Date(),
-		logger,
 	};
 	const resolveSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget });
 	const resolveStoredSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: neverResolveWrapperTarget });
 	const readArticleContent = initReadArticleContent({
 		storageProviderQueryOrder: [
-			initS3ReadContent({ send: (cmd) => s3Client.send(cmd), bucketName: contentBucketName }),
+			initS3ReadContent({ send: (cmd) => s3Client.send(cmd), readContentLocation: initReadContentLocation({ client, tableName: articlesTable, bucketName: contentBucketName }) }),
 			articleStore.readContent, // Legacy fallback for articles saved before S3 migration
 		],
 		logError,
@@ -577,10 +577,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		refreshArticleIfStale,
 		refreshArticleIfStaleStored,
 		resolveCanonicalIdentity,
-		resolveSaveIdentity: resolveStoredSaveIdentity,
+		findIdentityRow: canonicalAlias.findIdentityRow,
 		resolveFirstVisitIdentity: resolveSaveIdentity,
 		resolveWrapperTarget,
 		pinContentSource: canonicalAlias.pinContentSource,
+		findContentSourceUrl: canonicalAlias.findContentSourceUrl,
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,

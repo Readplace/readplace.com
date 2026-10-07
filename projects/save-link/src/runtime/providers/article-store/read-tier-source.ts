@@ -1,72 +1,49 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
-import { GetObjectCommand, NoSuchKey, S3ServiceException } from "@aws-sdk/client-s3";
+import { GetObjectCommand, S3ServiceException } from "@aws-sdk/client-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
+import type { CandidateId } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { Tier } from "../../domain/select-content/tier.types";
 import { type TierSource, TierSourceMetadataSchema } from "../../domain/select-content/tier-source.types";
+import { candidateManifestKey } from "./candidate-object-keys";
 
-export type ReadTierSource = (params: {
-	url: string;
-	tier: Tier;
-}) => Promise<TierSource | undefined>;
+export type ReadTierSource = (params: { url: string; tier: Tier; candidateId?: CandidateId }) => Promise<TierSource | undefined>;
 
 export function initReadTierSource(deps: {
-	client: S3Client;
+	client: Pick<S3Client, "send">;
 	bucketName: string;
 	logger: HutchLogger;
 }): { readTierSource: ReadTierSource } {
 	const { client, bucketName, logger } = deps;
-
+	async function tryGetObject(key: string): Promise<string | undefined> {
+		try {
+			const response = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
+			if (!response.Body) return undefined;
+			return await response.Body.transformToString("utf-8");
+		} catch (error) {
+			if (error instanceof S3ServiceException && error.name === "NoSuchKey") return undefined;
+			throw error;
+		}
+	}
 	const readTierSource: ReadTierSource = async (params) => {
 		const id = ArticleResourceUniqueId.parse(params.url);
-		const htmlKey = id.toS3SourceKey({ tier: params.tier });
-		const metadataKey = id.toS3SourceMetadataKey({ tier: params.tier });
-
-		const html = await tryGetObject(client, bucketName, htmlKey);
-		if (html === undefined) return undefined;
-
-		const metadataRaw = await tryGetObject(client, bucketName, metadataKey);
-		if (metadataRaw === undefined) {
-			// HTML written but sidecar absent — treat as not-yet-fully-written.
-			// The partial write is transient; a later write completes it.
-			logger.info("[ReadTierSource] missing metadata sidecar", {
-				url: params.url,
-				tier: params.tier,
-			});
-			return undefined;
-		}
-
+		const metadataKey = params.candidateId === undefined
+			? id.toS3SourceMetadataKey({ tier: params.tier })
+			: candidateManifestKey({ ...params, candidateId: params.candidateId });
+		const metadataRaw = await tryGetObject(metadataKey);
+		if (metadataRaw === undefined) return undefined;
 		const parsed = TierSourceMetadataSchema.safeParse(JSON.parse(metadataRaw));
 		if (!parsed.success) {
-			logger.info("[ReadTierSource] malformed metadata sidecar", {
-				url: params.url,
-				tier: params.tier,
-			});
+			logger.info("[ReadTierSource] malformed metadata sidecar", { url: params.url, tier: params.tier });
 			return undefined;
 		}
-
-		return { tier: params.tier, html, metadata: parsed.data };
+		const htmlKey = parsed.data.htmlLocation ?? id.toS3SourceKey({ tier: params.tier });
+		const html = await tryGetObject(htmlKey);
+		if (html === undefined) return undefined;
+		if (parsed.data.evaluationLocation === undefined) return { tier: params.tier, html, metadata: parsed.data };
+		const evaluationHtml = await tryGetObject(parsed.data.evaluationLocation);
+		if (evaluationHtml === undefined) return undefined;
+		return { tier: params.tier, html, evaluationHtml, metadata: parsed.data };
 	};
-
 	return { readTierSource };
 }
-
-async function tryGetObject(
-	client: S3Client,
-	bucketName: string,
-	key: string,
-): Promise<string | undefined> {
-	try {
-		const response = await client.send(
-			new GetObjectCommand({ Bucket: bucketName, Key: key }),
-		);
-		if (!response.Body) return undefined;
-		return await response.Body.transformToString("utf-8");
-	} catch (error) {
-		if (error instanceof NoSuchKey) return undefined;
-		if (error instanceof S3ServiceException && error.name === "NoSuchKey") return undefined;
-		throw error;
-	}
-}
-/* c8 ignore stop */

@@ -55,14 +55,20 @@ describe("initTombstoneArticle", () => {
 			"contentFetchedAt",
 			"imageUrl",
 			"contentSourceUrl",
+			"sourceOriginalUrl",
+			"directContentBeforePin",
+			"canonicalCandidateId",
+			"canonicalOriginalUrl",
 		]) {
 			const removeClause = expression.slice(expression.indexOf("REMOVE"));
 			expect(removeClause).toContain(column);
 		}
+		expect(expression).toContain("ADD contentSelectionRevision :one");
 		expect(update.ConditionExpression).toBe("attribute_exists(#url)");
 		expect(update.ExpressionAttributeNames).toEqual({ "#url": "url" });
 		expect(update.ExpressionAttributeValues).toEqual({
 			":now": "2026-07-16T10:00:00.000Z",
+			":one": 1,
 			":ready": "ready",
 			":skipped": "skipped",
 			":skippedReason": "content-purged",

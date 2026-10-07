@@ -1,181 +1,46 @@
+import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
+import { initSelectMostCompleteContent } from "../select-content/select-content";
 import { noopLogger } from "@packages/hutch-logger";
-import { ReselectAfterRemovalEvent } from "@packages/hutch-infra-components";
-import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { promoteTier } from "@packages/domain/article-aggregate";
-import type { TierSource } from "../select-content/tier-source.types";
+import { promoteTier, type Article, type TransitionAndPersist } from "@packages/domain/article-aggregate";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 import { initReselectAfterRemovalHandler } from "./reselect-after-removal-handler";
 
-const stubAttributes: SQSRecordAttributes = {
-	ApproximateReceiveCount: "1",
-	SentTimestamp: "1620000000000",
-	SenderId: "TESTID",
-	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
+const cid = (id: string) => CandidateIdSchema.parse(id);
 
-function createSqsEvent(detail: unknown): SQSEvent {
-	return {
-		Records: [{
-			messageId: "msg-1",
-			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
-			attributes: stubAttributes,
-			messageAttributes: {},
-			md5OfBody: "",
-			eventSource: "aws:sqs",
-			eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:reselect-after-removal",
-			awsRegion: "ap-southeast-2",
-		}],
-	};
-}
-
-function tierSource(tier: TierSource["tier"]): TierSource {
-	return {
-		tier,
-		html: `<p>${tier} html</p>`,
-		metadata: {
-			title: "Title",
-			siteName: "example.com",
-			excerpt: "excerpt",
-			wordCount: 100,
-			estimatedReadTime: 1,
-		},
-	};
-}
-
-const FIXED_NOW = new Date("2026-07-16T10:00:00.000Z");
 const URL = "https://example.com/post";
-
-type SelectDeps = Parameters<typeof initReselectAfterRemovalHandler>[0]["selectDeps"];
-
-function createHandler(overrides: Partial<SelectDeps> = {}) {
-	const selectDeps: SelectDeps = {
-		listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
-		selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "" }),
-		writeCanonicalContent: jest.fn().mockResolvedValue(undefined),
-		findContentSourceTier: jest.fn().mockResolvedValue(undefined),
-		findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
-		recordCrawlVersion: jest.fn().mockResolvedValue(undefined),
-		loadArticle: jest.fn().mockResolvedValue(undefined),
-		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
-		publishEvent: jest.fn().mockResolvedValue(undefined),
-		now: () => FIXED_NOW,
-		logger: noopLogger,
-		...overrides,
+const NOW = new Date("2026-10-05T00:00:00.000Z");
+const html = "<p>Surviving article</p>";
+const source = { tier: "tier-1" as const, html, metadata: candidateProvenance({ metadata: { title: "Article", siteName: "Example", excerpt: "", wordCount: 2, estimatedReadTime: 1 }, html, evaluationHtml: html, attemptId: SaveAttemptIdSchema.parse("survivor"), originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: NOW.toISOString() }) };
+const article: Article = { url: URL, metadata: { title: "Old", siteName: "Example", excerpt: "", wordCount: 2 }, freshness: { contentFetchedAt: NOW.toISOString() }, estimatedReadTime: 1, crawl: { kind: "ready" }, summary: { kind: "skipped" }, summaryAutoHeal: { attempts: 0 }, contentSelection: { candidateId: cid("erased"), tier: "tier-0", revokedCandidateIds: [cid("erased")] } };
+function event(detail: unknown): SQSEvent {
+	return { Records: [{ messageId: "message", receiptHandle: "receipt", body: JSON.stringify({ detail }), attributes: { ApproximateReceiveCount: "1", SentTimestamp: "1", SenderId: "sender", ApproximateFirstReceiveTimestamp: "1" }, messageAttributes: {}, md5OfBody: "", eventSource: "aws:sqs", eventSourceARN: "arn:aws:sqs:ap-southeast-2:123:test", awsRegion: "ap-southeast-2" }] };
+}
+function setup(overrides: Partial<Parameters<typeof initReselectAfterRemovalHandler>[0]> = {}) {
+	const savedInputs: unknown[] = [];
+	const transitionAndPersist: TransitionAndPersist = async (transition, params) => {
+		if (transition === promoteTier) savedInputs.push(params.input);
 	};
-	return { handler: initReselectAfterRemovalHandler({ selectDeps, logger: noopLogger }), selectDeps };
+	const handler = initReselectAfterRemovalHandler({
+		listAvailableTierSources: async () => [source], selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidateId: source.metadata.id, reason: "surviving original", readability: [{ candidateId: source.metadata.id, readable: true }] }) } }] }) }).selectMostCompleteContent,
+		writeCanonicalContent: async () => ({ contentLocation: "s3://content/survivor.html", candidateId: source.metadata.id, originalUrl: URL, tier: source.tier }),
+		recordCrawlVersion: async () => {}, readCanonicalContent: async () => undefined, loadArticle: async () => article,
+		transitionAndPersist, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined, now: () => NOW, logger: noopLogger, ...overrides,
+	});
+	return { handler, savedInputs };
 }
 
-describe("initReselectAfterRemovalHandler", () => {
-	it("promotes the surviving tier-1 source with no userId, so promoteTier emits no publish-link-saved effect at the remover", async () => {
-		const { handler, selectDeps } = createHandler();
-
-		const result = await handler(
-			createSqsEvent({ url: URL }),
-			buildLambdaContext(),
-			() => {},
-		);
-
-		expect(result).toEqual({ batchItemFailures: [] });
-		expect(selectDeps.transitionAndPersist).toHaveBeenCalledWith(
-			promoteTier,
-			expect.objectContaining({
-				input: expect.objectContaining({ tier: "tier-1", userId: undefined }),
-			}),
-		);
-		// promoteTier gates publish-link-saved on userId being present, so an
-		// undefined userId means the transition produces only the content-changed
-		// and crawl-completed facts — never a saved! notification.
-		const [, promoteParams] = (selectDeps.transitionAndPersist as jest.Mock).mock.calls[0];
-		const { effects } = promoteTier(
-			{
-				url: URL,
-				metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
-				freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
-				estimatedReadTime: 1,
-				crawl: { kind: "ready" },
-				summary: { kind: "skipped" },
-				summaryAutoHeal: { attempts: 0 },
-			},
-			promoteParams.input,
-		);
-		expect(effects.map((effect) => effect.kind)).not.toContain("publish-link-saved");
+describe("content reselection after erasure", () => {
+	it("promotes surviving verified content without attributing a new save to the remover", async () => {
+		const { handler, savedInputs } = setup();
+		expect(await handler(event({ url: URL }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		expect(savedInputs[0]).toMatchObject({ tier: "tier-1", userId: undefined, metadata: { title: "Article" } });
 	});
-
-	it("promotes the single surviving source directly when only the anonymous crawler copy remains (length-1 short-circuit)", async () => {
-		const { handler, selectDeps } = createHandler({
-			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
-			// A single source takes the length-1 short-circuit, so the selector is
-			// never consulted; this mock would only matter if it were.
-			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-1", reason: "unused" }),
-		});
-
-		await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
-
-		expect(selectDeps.selectMostCompleteContent).not.toHaveBeenCalled();
-		expect(selectDeps.writeCanonicalContent).toHaveBeenCalledWith({ url: URL, tier: "tier-1" });
-	});
-
-	it("resolves a genuine 2-source post-removal tie by promoting the tier-1 fresh tier the normalization supplies, with no userId", async () => {
-		// A co-saver's tier-0 capture and the crawler's tier-1 both survive the
-		// removal — the case the `tier: "tier-1"` normalization exists for. Give
-		// them different media so the selector's tie resolves via the media-changed
-		// branch, which asserts the fresh tier (tier-1) is in the candidate set.
-		const tier0WithImage: TierSource = {
-			tier: "tier-0",
-			html: '<p>body</p><img src="https://cdn.example.com/old.png">',
-			metadata: { title: "T", siteName: "example.com", excerpt: "e", wordCount: 100, estimatedReadTime: 1 },
-		};
-		const tier1WithImage: TierSource = {
-			tier: "tier-1",
-			html: '<p>body</p><img src="https://cdn.example.com/new.png">',
-			metadata: { title: "T", siteName: "example.com", excerpt: "e", wordCount: 100, estimatedReadTime: 1 },
-		};
-		const { handler, selectDeps } = createHandler({
-			listAvailableTierSources: jest.fn().mockResolvedValue([tier0WithImage, tier1WithImage]),
-			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "identical prose" }),
-			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
-			findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
-		});
-
-		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
-
-		expect(result).toEqual({ batchItemFailures: [] });
-		expect(selectDeps.selectMostCompleteContent).toHaveBeenCalled();
-		expect(selectDeps.writeCanonicalContent).toHaveBeenCalledWith({ url: URL, tier: "tier-1" });
-		expect(selectDeps.transitionAndPersist).toHaveBeenCalledWith(
-			promoteTier,
-			expect.objectContaining({
-				input: expect.objectContaining({ tier: "tier-1", userId: undefined }),
-			}),
-		);
-	});
-
-	it("surfaces the core's per-record batch failure (no sources → retry)", async () => {
-		const { handler } = createHandler({
-			listAvailableTierSources: jest.fn().mockResolvedValue([]),
-		});
-
-		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
-
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-	});
-
-	it("reports a batch failure on malformed detail before reaching the core", async () => {
-		const { handler, selectDeps } = createHandler();
-
-		const result = await handler(createSqsEvent({ wrong: "shape" }), buildLambdaContext(), () => {});
-
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(selectDeps.listAvailableTierSources).not.toHaveBeenCalled();
-	});
-
-	it("round-trips the published ReselectAfterRemoval shape", async () => {
-		const detail = ReselectAfterRemovalEvent.detailSchema.parse({ url: URL });
-		const { handler, selectDeps } = createHandler();
-
-		await handler(createSqsEvent(detail), buildLambdaContext(), () => {});
-
-		expect(selectDeps.listAvailableTierSources).toHaveBeenCalledWith(URL);
+	it("rejects malformed erasure events before invoking selection", async () => {
+		const listAvailableTierSources = jest.fn(async () => [source]);
+		const { handler } = setup({ listAvailableTierSources });
+		expect(await handler(event({ url: 1 }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [{ itemIdentifier: "message" }] });
+		expect(listAvailableTierSources).not.toHaveBeenCalled();
 	});
 });

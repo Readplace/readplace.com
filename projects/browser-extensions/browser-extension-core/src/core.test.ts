@@ -935,6 +935,7 @@ describe("BrowserExtensionCore saveAll", () => {
 		});
 
 		expect(result).toEqual({
+			queued: 0,
 			saved: 2,
 			skipped: 0,
 			failed: 0,
@@ -972,7 +973,7 @@ describe("BrowserExtensionCore saveAll", () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList({
-			savePagesResult: { saved: 1, skipped: 0, failed: 0, tooBig: [{ url: "https://big.example", mb: 25 }], skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
+			savePagesResult: { queued: 0, saved: 1, skipped: 0, failed: 0, tooBig: [{ url: "https://big.example", mb: 25 }], skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
 		});
 		const { shell } = createFakeShell();
 		const core = BrowserExtensionCore(shell, {

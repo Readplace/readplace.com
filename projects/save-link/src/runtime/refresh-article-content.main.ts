@@ -1,3 +1,6 @@
+import { initCanonicalAliasStore } from "@packages/article-store";
+import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { initResolveCandidateOriginal } from "./domain/select-content/candidate-provenance";
 import { S3Client } from "@aws-sdk/client-s3";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
@@ -27,7 +30,11 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
+const canonicalAliasStore = initCanonicalAliasStore({ client: createDynamoDocumentClient(), tableName: requireEnv("DYNAMODB_ARTICLES_TABLE") });
+const resolveOriginalUrl = initResolveCandidateOriginal({ findIdentityRow: canonicalAliasStore.findIdentityRow });
+
 export const handler = initRefreshArticleContentHandler({
+	resolveOriginalUrl,
 	readRefreshHtml,
 	putTierSource,
 	publishEvent,

@@ -43,6 +43,7 @@
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {
+    "@packages/article-state-types": "workspace:*",
     "@aws-sdk/client-eventbridge": "3.1057.0",
     "@aws-sdk/client-sqs": "3.1057.0",
     "zod": "4.4.3"

@@ -6,7 +6,7 @@ describe("bulkSaveNotification", () => {
 			bulkSaveNotification({
 				outcome: {
 					ok: true,
-					value: { saved: 8, skipped: 1, failed: 0, tooBig: [], skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
+					value: { queued: 0, saved: 8, skipped: 1, failed: 0, tooBig: [], skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
 				},
 				tabCount: 11,
 				saveableCount: 9,
@@ -19,6 +19,7 @@ describe("bulkSaveNotification", () => {
 			outcome: {
 				ok: true,
 				value: {
+					queued: 0,
 					saved: 2,
 					skipped: 0,
 					failed: 0,
@@ -58,6 +59,7 @@ describe("bulkSaveNotification", () => {
 				outcome: {
 					ok: true,
 					value: {
+						queued: 0,
 						saved: 40,
 						skipped: 0,
 						failed: 60,
@@ -84,6 +86,7 @@ describe("bulkSaveNotification", () => {
 				outcome: {
 					ok: true,
 					value: {
+						queued: 0,
 						saved: 10,
 						skipped: 0,
 						failed: 10,

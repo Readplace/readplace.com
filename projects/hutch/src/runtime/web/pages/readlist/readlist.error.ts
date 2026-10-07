@@ -41,6 +41,8 @@ export const READLIST_ERROR_LIMIT = "limit";
 
 export const READLIST_ERROR_UNKNOWN_READLIST = "unknown_readlist";
 
+export const READLIST_NOTICE_SAVE_QUEUED = "save_queued";
+
 const READLIST_ERROR_MESSAGES: Record<string, string> = {
 	[READLIST_ERROR_LIMIT]: `You can keep up to ${READLIST_MAX_PER_USER} readlists.`,
 	[READLIST_ERROR_UNKNOWN_READLIST]: "That readlist no longer exists.",

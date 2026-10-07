@@ -1,3 +1,4 @@
+import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { consoleLogger } from "@packages/hutch-logger";
@@ -41,6 +42,7 @@ const parser = initParserDepBundle({
 	logInfo: observability.logInfo,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
+const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
@@ -57,6 +59,7 @@ const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesT
 const { readPendingHtml } = initReadPendingHtml({ client: s3Client, bucketName: pendingHtmlBucketName });
 
 export const handler = initSaveLinkRawHtmlCommandHandler({
+	...sourceIdentity,
 	...articleStore,
 	...events,
 	...articleAggregate,

@@ -1,4 +1,3 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via production canaries (article-pipeline-health) */
 import assert from "node:assert";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -9,6 +8,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
+import { VerificationFields, isUnverifiedWrapperContent } from "@packages/article-store";
 import { parseS3Uri } from "../../domain/save-link/parse-s3-uri";
 
 export type ArticleContentResult = { content: string; imageUrl?: string };
@@ -17,11 +17,13 @@ export type FindArticleContent = (url: string) => Promise<ArticleContentResult |
 const ArticleContentRow = z.object({
 	contentLocation: dynamoField(z.string()),
 	imageUrl: dynamoField(z.string()),
+	...VerificationFields,
+	purgedAt: dynamoField(z.string()),
 });
 
 export function initFindArticleContent(deps: {
 	dynamoClient: DynamoDBDocumentClient;
-	s3Client: S3Client;
+	s3Client: Pick<S3Client, "send">;
 	tableName: string;
 }): { findArticleContent: FindArticleContent } {
 	const { dynamoClient, s3Client, tableName } = deps;
@@ -35,9 +37,10 @@ export function initFindArticleContent(deps: {
 	const findArticleContent: FindArticleContent = async (url) => {
 		const parsed = await articleTable.get(
 			{ url: ArticleResourceUniqueId.parse(url).value },
-			{ projection: ["contentLocation", "imageUrl"] },
+			{ projection: ArticleContentRow.keyof().options, consistentRead: true },
 		);
 		assert(parsed, "result.Item must exist");
+		if (parsed.purgedAt !== undefined || isUnverifiedWrapperContent(parsed)) return undefined;
 		if (!parsed.contentLocation) return undefined;
 
 		const { bucket, key } = parseS3Uri(parsed.contentLocation);
@@ -52,4 +55,3 @@ export function initFindArticleContent(deps: {
 
 	return { findArticleContent };
 }
-/* c8 ignore stop */

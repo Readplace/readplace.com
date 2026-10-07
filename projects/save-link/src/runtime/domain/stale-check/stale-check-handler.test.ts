@@ -1,3 +1,9 @@
+import assert from "node:assert";
+import { initPrepareArticleIdentity } from "@packages/save-article";
+import { initCrawlArticle, initFetchPinnedCrawl } from "@packages/crawl-article";
+import { initCrawlAndFinalizeArticle } from "@packages/finalize-article";
+import { initEventBridgeRefreshArticleContent } from "@packages/refresh-article-content";
+import { initRefreshArticleContentHandler } from "../save-link/refresh-article-content-handler";
 import type { LoadArticle, TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/hutch-logger";
 import type {
@@ -20,10 +26,13 @@ import type {
 } from "@packages/finalize-article";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
+import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { initStaleCheckHandler } from "./stale-check-handler";
 
 const STALE_TTL_MS = 86_400_000;
 const URL_UNDER_TEST = "https://example.com/article";
+const REFRESH_ATTEMPT_ID = "40cc800b-d6e5-49e9-a6c8-2b07936c5062";
+
 
 const noopLoadArticle: LoadArticle = async () => undefined;
 const noopTransitionAndPersist: TransitionAndPersist = async () => {};
@@ -61,6 +70,7 @@ const noopFindArticleCrawlStatus: FindArticleCrawlStatus = async () => undefined
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initStaleCheckHandler({
+		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		findArticleFreshness: noopFindArticleFreshness,
 		findArticleCrawlStatus: noopFindArticleCrawlStatus,
 		crawlAndFinalizeArticle: failingCrawlAndFinalize,
@@ -72,6 +82,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		loadArticle: noopLoadArticle,
 		transitionAndPersist: noopTransitionAndPersist,
 		now: fixedNow,
+		newSaveAttemptId: () => SaveAttemptIdSchema.parse(REFRESH_ATTEMPT_ID),
 		staleTtlMs: STALE_TTL_MS,
 		logger: noopLogger,
 		...overrides,
@@ -88,7 +99,7 @@ describe("initStaleCheckHandler", () => {
 		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
-		expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: URL_UNDER_TEST });
+		expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: URL_UNDER_TEST, saveAttemptId: REFRESH_ATTEMPT_ID });
 	});
 
 	it("does nothing when the crawl status is terminal-skip (failed)", async () => {
@@ -183,10 +194,12 @@ describe("initStaleCheckHandler", () => {
 		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(crawlAndFinalizeArticle).toHaveBeenCalledWith({
+			includeEvaluationHtml: true,
 			url: URL_UNDER_TEST,
 			etag: undefined,
 			lastModified: undefined,
 			previousBodyHash: "h".repeat(64),
+			writeContext: { url: URL_UNDER_TEST, attemptId: REFRESH_ATTEMPT_ID },
 		});
 	});
 
@@ -215,6 +228,7 @@ describe("initStaleCheckHandler", () => {
 
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
+			saveAttemptId: REFRESH_ATTEMPT_ID,
 			refresh: true,
 			previousBodyHash: "h".repeat(64),
 		});
@@ -239,9 +253,12 @@ describe("initStaleCheckHandler", () => {
 		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(crawlAndFinalizeArticle).toHaveBeenCalledWith({
+			includeEvaluationHtml: true,
 			url: URL_UNDER_TEST,
 			etag: '"abc"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
+			previousBodyHash: undefined,
+			writeContext: { url: URL_UNDER_TEST, attemptId: REFRESH_ATTEMPT_ID },
 		});
 	});
 
@@ -279,6 +296,7 @@ describe("initStaleCheckHandler", () => {
 		});
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
+			saveAttemptId: REFRESH_ATTEMPT_ID,
 			refresh: true,
 		});
 		expect(publishRefreshArticleContent).not.toHaveBeenCalled();
@@ -465,6 +483,7 @@ describe("initStaleCheckHandler", () => {
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
 			status: "fetched",
 			article: finalizedArticle,
+			evaluationHtml: "<html><body><p>hi</p></body></html>",
 			etag: '"new"',
 			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
 			bodyHash: "deadbeef".repeat(8),
@@ -483,6 +502,10 @@ describe("initStaleCheckHandler", () => {
 
 		expect(publishRefreshArticleContent).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
+			saveAttemptId: REFRESH_ATTEMPT_ID,
+			sourceUrl: URL_UNDER_TEST,
+			sourceOriginalUrl: URL_UNDER_TEST,
+			evaluationHtml: "<html><body><p>hi</p></body></html>",
 			html: "<p>hi</p>",
 			metadata: {
 				title: "Hi",
@@ -536,8 +559,8 @@ describe("initStaleCheckHandler", () => {
 
 		const result = await handler(batch, buildLambdaContext(), () => {});
 
-		expect(publishSaveAnonymousLink).toHaveBeenNthCalledWith(1, { url: "https://a.example.com/" });
-		expect(publishSaveAnonymousLink).toHaveBeenNthCalledWith(2, { url: "https://b.example.com/" });
+		expect(publishSaveAnonymousLink).toHaveBeenNthCalledWith(1, { url: "https://a.example.com/", saveAttemptId: REFRESH_ATTEMPT_ID });
+		expect(publishSaveAnonymousLink).toHaveBeenNthCalledWith(2, { url: "https://b.example.com/", saveAttemptId: REFRESH_ATTEMPT_ID });
 		expect(result).toEqual({ batchItemFailures: [] });
 	});
 
@@ -585,7 +608,7 @@ describe("initStaleCheckHandler", () => {
 		const result = await handler(batch, buildLambdaContext(), () => {});
 
 		expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
-		expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: "https://a.example.com/" });
+		expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: "https://a.example.com/", saveAttemptId: REFRESH_ATTEMPT_ID });
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-2" }] });
 	});
 
@@ -689,4 +712,91 @@ describe("initStaleCheckHandler", () => {
 
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
+});
+
+
+it.each([
+	"https://web.archive.org/web/20250101000000/https://example.com/article",
+	"https://old.example.com/adopted-article",
+])("refreshes the verified original while preserving the existing storage key %s", async (storedUrl) => {
+	const finalUrl = "https://example.com/article?edition=current";
+	const evaluationHtml = "<html><body><main>The actual origin response</main></body></html>";
+	const crawlAndFinalizeArticle = jest.fn<ReturnType<CrawlAndFinalizeArticle>, Parameters<CrawlAndFinalizeArticle>>().mockResolvedValue({
+		status: "fetched", bodyHash: "a".repeat(64), finalUrl, evaluationHtml,
+		article: { html: "<p>The actual origin response</p>", metadata: { title: "Origin", siteName: "Example", excerpt: "Origin", wordCount: 5, estimatedReadTime: 1 } },
+	});
+	const publishRefreshArticleContent = jest.fn();
+	const handler = createHandler({
+		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: URL_UNDER_TEST }),
+		findArticleFreshness: async () => ({ contentFetchedAt: "2025-01-01T00:00:00.000Z", etag: "etag", bodyHash: "b".repeat(64) }),
+		crawlAndFinalizeArticle, publishRefreshArticleContent,
+	});
+	await expect(handler(createSqsEvent({ url: storedUrl }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+	expect(crawlAndFinalizeArticle).toHaveBeenCalledWith({ url: URL_UNDER_TEST, etag: "etag", lastModified: undefined, previousBodyHash: "b".repeat(64), includeEvaluationHtml: true, writeContext: { url: storedUrl, attemptId: REFRESH_ATTEMPT_ID } });
+	expect(publishRefreshArticleContent).toHaveBeenCalledWith(expect.objectContaining({ url: storedUrl, saveAttemptId: REFRESH_ATTEMPT_ID, sourceOriginalUrl: URL_UNDER_TEST, sourceUrl: finalUrl, evaluationHtml, html: "<p>The actual origin response</p>" }));
+});
+
+it("backs off without fetching or staging when the stored wrapper identity cannot be resolved", async () => {
+	const wrapperUrl = "https://archive.ph/abc12";
+	const crawlAndFinalizeArticle = jest.fn();
+	const publishRefreshArticleContent = jest.fn();
+	const publishUpdateFetchTimestamp = jest.fn();
+	const handler = createHandler({
+		findArticleFreshness: async () => ({ contentFetchedAt: "2025-01-01T00:00:00.000Z", bodyHash: "b".repeat(64) }),
+		prepareArticleIdentity: async () => ({ status: "unresolved" }),
+		crawlAndFinalizeArticle, publishRefreshArticleContent, publishUpdateFetchTimestamp,
+	});
+	await expect(handler(createSqsEvent({ url: wrapperUrl }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+	expect(crawlAndFinalizeArticle).toHaveBeenCalledTimes(0);
+	expect(publishRefreshArticleContent).toHaveBeenCalledTimes(0);
+	expect(publishUpdateFetchTimestamp).toHaveBeenCalledTimes(1);
+	expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({ url: wrapperUrl, contentFetchedAt: fixedNow().toISOString(), bodyHash: "b".repeat(64) });
+});
+
+
+it.each([
+	{ storedUrl: "https://web.archive.org/web/20250101000000/https://example.com/article", original: "https://web.archive.org/web/20250101000000/https://example.com/article" },
+	{ storedUrl: "https://web.archive.org/web/20250101000000/https://example.com/article", original: URL_UNDER_TEST },
+	{ storedUrl: "https://old.example.com/adopted-article", original: URL_UNDER_TEST },
+])("carries the original fetch through repair, stale pin lookup, finalization, and staging: %j", async ({ storedUrl, original }) => {
+	let storedOriginal = original;
+	const prepareIdentity = initPrepareArticleIdentity({
+		findIdentityRow: async () => ({ kind: "article", originalUrl: storedOriginal }),
+		resolveWrapperTarget: async () => undefined,
+		repairWrapperIdentity: async ({ originalUrl }) => { storedOriginal = originalUrl; return true; },
+	});
+	const resolveOriginalUrl = async (url: string) => {
+		const identity = await prepareIdentity(url);
+		assert(identity.status === "resolved");
+		return identity.originalUrl;
+	};
+	const raw = "<html><body><main>The real original article with navigation</main></body></html>";
+	const html = "<p>The real original article</p>";
+	const fetched: string[] = [];
+	const crawlArticle = initCrawlArticle({ crawlFetch: async (url) => { fetched.push(url); return new Response(raw, { headers: { "content-type": "text/html" } }); }, siteRules: [], logError: () => {}, logInfo: () => {} });
+	const pinnedCrawl = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined });
+	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({ crawlArticle: pinnedCrawl, finalizeArticle: async ({ url }) => {
+		expect(url).toBe(URL_UNDER_TEST);
+		return { ok: true, article: { html, metadata: { title: "Origin", siteName: "Example", excerpt: "Origin", wordCount: 5, estimatedReadTime: 1 } } };
+	} });
+	let staged: { html: string; evaluationHtml: string } | undefined;
+	const putTierSource = jest.fn();
+	const refresh = initRefreshArticleContentHandler({
+		resolveOriginalUrl,
+		readRefreshHtml: async (_url, options) => { assert(staged); return options?.representation === "evaluation" ? staged.evaluationHtml : staged.html; },
+		putTierSource, publishEvent: jest.fn(), logger: noopLogger,
+	});
+	const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({
+		putRefreshHtml: async (params) => { staged = params; },
+		publishEvent: async (_event, detail) => {
+			const event = createSqsEvent({ url: storedUrl });
+			event.Records[0].body = JSON.stringify({ detail });
+			await expect(refresh(event, buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+		},
+	});
+	const handler = createHandler({ prepareArticleIdentity: prepareIdentity, crawlAndFinalizeArticle, publishRefreshArticleContent, findArticleFreshness: async () => ({ contentFetchedAt: "2025-01-01T00:00:00.000Z" }) });
+	await expect(handler(createSqsEvent({ url: storedUrl }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+	expect(fetched).toEqual([URL_UNDER_TEST]);
+	expect(storedOriginal).toBe(URL_UNDER_TEST);
+	expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: storedUrl, html, evaluationHtml: raw, metadata: expect.objectContaining({ kind: "live", originalUrl: URL_UNDER_TEST, sourceUrl: URL_UNDER_TEST }) }));
 });

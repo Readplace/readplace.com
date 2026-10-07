@@ -9,7 +9,7 @@ import {
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
+import type { BulkSaveOutcome, SaveAttemptId, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import {
 	type EmailLinkOrdinal,
 	EmailLinkOrdinalSchema,
@@ -22,7 +22,7 @@ import {
 import type { IssueLinksSectionInput } from "../../shared/issue-links/issue-links.component";
 import type { ResolveReaderProvenance } from "../../shared/article-body/article-header/resolve-reader-provenance";
 import type { UserId } from "@packages/domain/user";
-import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema, prepareNewSaveUrl } from "@packages/domain/article";
+import { SaveAttemptIdSchema, newSaveAttemptId, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
@@ -32,10 +32,10 @@ import {
 	decodeImportSkippedCookie,
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
-import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, isUnresolvedArchiveCapture, nextReadDismissalOf } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
 import { articlesSavedAt } from "./articles-saved-at";
-import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
+import type { RefreshIdentifiedArticleIfStale, ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
@@ -153,6 +153,7 @@ import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toSavedArticleEntity } from "../../api/article-siren";
 import { readlistsAtHrefs } from "../../api/readlist-href";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
+import { saveQueuedSirenNotice } from "../../api/save-queued-siren";
 import {
 	parseReadlistUrl,
 	buildReadlistUrl,
@@ -205,7 +206,7 @@ import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./readlist.error";
-import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -303,7 +304,7 @@ function markExtensionSavedArticle(res: Response): void {
 }
 
 type SaveContentResult =
-	| { ok: true }
+	| { ok: true; dispatch: () => Promise<void> }
 	| { ok: false; code: string; message: string };
 
 type SaveContentMedia = {
@@ -313,14 +314,22 @@ type SaveContentMedia = {
 		bytes: Buffer;
 		title?: string;
 		userId: UserId;
+		saveAttemptId: SaveAttemptId;
+		sourceUrl: string;
+		sourceOriginalUrl: string;
 	}) => Promise<SaveContentResult>;
 	admitUploadedBytes: (input: {
-		url: SaveableUrl;
+		url: string;
 		mediaType: string;
 		title?: string;
 		userId: UserId;
+		saveAttemptId: SaveAttemptId;
+		sourceUrl: string;
+		sourceOriginalUrl: string;
 	}) => Promise<SaveContentResult>;
 };
+
+const ORIGINAL_UNRESOLVED_MESSAGE = "The original article could not be resolved. Try saving the original link.";
 
 const NOT_A_PDF: SaveContentResult = {
 	ok: false,
@@ -418,13 +427,12 @@ interface ReadlistDependencies {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	findArticleCrawlStatuses: FindArticleCrawlStatuses;
 	markCrawlPending: MarkCrawlPending;
-	refreshArticleIfStale: RefreshArticleIfStale;
-	refreshArticleIfStaleStored: RefreshArticleIfStale;
+	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
+	refreshArticleIfStaleStored: RefreshIdentifiedArticleIfStale;
 	publishSubmitLink: PublishSubmitLink;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
-	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	resolveSaveIdentity: ResolveSaveIdentity;
 	pinContentSource: PinContentSource;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
@@ -709,6 +717,7 @@ const NATIVE_APP_SIGNAL_PLATFORM = {
 } as const satisfies Record<Platform, NativeAppPlatform | undefined>;
 
 const ISSUE_LINK_SAVED_PARAM = "issue_link_saved";
+const SAVE_ATTEMPT_ID_HEADER = "x-readplace-save-attempt-id";
 
 export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	const router = express.Router();
@@ -825,32 +834,53 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		);
 	};
 
+	const queueUnresolvedSave = async (params: {
+		req: Request;
+		res: Response;
+		userId: UserId;
+		url: SaveableUrl;
+		readlists: Iterable<ReadlistSlug>;
+		saveAttemptId: SaveAttemptId;
+		path: string;
+	}): Promise<void> => {
+		for (const readlist of params.readlists) {
+			await deps.publishSubmitLink({
+				url: params.url,
+				userId: params.userId,
+				provenance: resolveSaveProvenance(params.req.oauthClientId),
+				readlist,
+				saveAttemptId: params.saveAttemptId,
+			});
+		}
+		emitSaveIntent({ req: params.req, url: params.url, path: params.path, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
+		params.res
+			.status(409)
+			.type(SIREN_MEDIA_TYPE)
+			.json(saveQueuedSirenNotice());
+	};
+
 	const saveContentMedia: Record<string, SaveContentMedia> = {
 		"application/pdf": {
 			uploadCeilingBytes: MAX_PDF_BYTES.bytes,
-			stageInlineBytes: async ({ url, bytes, title, userId }) => {
+			stageInlineBytes: async ({ url, bytes, title, userId, saveAttemptId, sourceUrl, sourceOriginalUrl }) => {
 				if (!isPDF({ bodyBytes: bytes })) return NOT_A_PDF;
-				await deps.putPendingPdf({ url, bytes });
-				await deps.publishSaveLinkRawPdfCommand({ url, userId, title });
-				return { ok: true };
+				await deps.putPendingPdf({ url, bytes, saveAttemptId });
+				return { ok: true, dispatch: () => deps.publishSaveLinkRawPdfCommand({ url, userId, title, saveAttemptId, sourceUrl, sourceOriginalUrl }) };
 			},
-			admitUploadedBytes: async ({ url, mediaType, title, userId }) => {
-				const prefix = await deps.readPendingUploadPrefix({ url, mediaType, bytes: 8 });
+			admitUploadedBytes: async ({ url, mediaType, title, userId, saveAttemptId, sourceUrl, sourceOriginalUrl }) => {
+				const prefix = await deps.readPendingUploadPrefix({ url, mediaType, bytes: 8, saveAttemptId });
 				if (!isPDF({ bodyBytes: prefix })) return NOT_A_PDF;
-				await deps.publishSaveLinkRawPdfCommand({ url, userId, title });
-				return { ok: true };
+				return { ok: true, dispatch: () => deps.publishSaveLinkRawPdfCommand({ url, userId, title, saveAttemptId, sourceUrl, sourceOriginalUrl }) };
 			},
 		},
 		"text/html": {
 			uploadCeilingBytes: MAX_HTML_BYTES.bytes,
-			stageInlineBytes: async ({ url, bytes, title, userId }) => {
-				await deps.putPendingHtml({ url, html: bytes.toString("utf8") });
-				await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
-				return { ok: true };
+			stageInlineBytes: async ({ url, bytes, title, userId, saveAttemptId, sourceUrl, sourceOriginalUrl }) => {
+				await deps.putPendingHtml({ url, html: bytes.toString("utf8"), saveAttemptId });
+				return { ok: true, dispatch: () => deps.publishSaveLinkRawHtmlCommand({ url, userId, title, saveAttemptId, sourceUrl, sourceOriginalUrl }) };
 			},
-			admitUploadedBytes: async ({ url, title, userId }) => {
-				await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
-				return { ok: true };
+			admitUploadedBytes: async ({ url, title, userId, saveAttemptId, sourceUrl, sourceOriginalUrl }) => {
+				return { ok: true, dispatch: () => deps.publishSaveLinkRawHtmlCommand({ url, userId, title, saveAttemptId, sourceUrl, sourceOriginalUrl }) };
 			},
 		},
 	};
@@ -1845,13 +1875,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 
 		try {
-			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			const result = await saveArticleAtReadlistTop({
-				userId,
-				url: validation.url,
-				freshness,
-				provenance: resolveSaveProvenance(req.oauthClientId),
-			});
 			const addressedFiling = readlistToFileInto(context);
 			const ticked = readlistsAtHrefs({
 				hrefs: SaveArticleQueuesSchema.parse(req.body?.queues) ?? [],
@@ -1864,6 +1887,28 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						readlist.slug !== DEFAULT_READLIST_SLUG && readlist.slug !== addressedFiling,
 				),
 			];
+			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+			const saveAttemptId = newSaveAttemptId();
+			if (freshness.action === "unresolved") {
+				await queueUnresolvedSave({
+					req,
+					res,
+					userId,
+					url: validation.url,
+					readlists: new Set([DEFAULT_READLIST_SLUG, ...destinations.map((destination) => destination.slug)]),
+					saveAttemptId,
+					path: SAVE_INTENT_PATH.saveArticle,
+				});
+				return;
+			}
+			const result = await saveArticleAtReadlistTop({
+				userId,
+				url: validation.url,
+				freshness,
+				provenance: resolveSaveProvenance(req.oauthClientId),
+				saveAttemptId,
+			});
+
 			const filings: { createdUserArticle: boolean; wroteUserArticle: boolean; resurfacedFromRead: boolean }[] = [result];
 			for (const destination of destinations) {
 				filings.push(await deps.fileArticleIntoReadlist({
@@ -1958,10 +2003,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		type PageJob =
 			| { kind: "content"; index: number; url: SaveableUrl; title?: string; mediaType: string; bytes: Buffer }
 			| { kind: "url-only"; index: number; url: SaveableUrl; title?: string };
-		type PageOutcome = { index: number; outcome: Exclude<BulkSaveOutcome, "skipped"> };
+		type PageOutcome = { index: number; outcome: Exclude<BulkSaveOutcome, "skipped">; code?: "queued" };
 		const jobs: PageJob[] = [];
 		const skipped: { url: string; code: SaveableUrlErrorCode; message: string }[] = [];
-		const entryOutcomes: { outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode }[] = [];
+		const entryOutcomes: { outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode | "queued" }[] = [];
 
 		manifest.data.forEach((entry, index) => {
 			const validation = deps.validateNewSaveUrl(entry.url);
@@ -1991,23 +2036,24 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return { index: job.index, outcome: "failed" };
 		};
 
-		type PreparedPage = { job: PageJob; freshness: ContentFreshnessResult; canonicalUrl: string };
+		type PreparedPage = { job: PageJob; freshness: ResolvedFreshnessResult; saveAttemptId: SaveAttemptId };
 
 		const prepareOnePage = async (job: PageJob): Promise<PreparedPage | PageOutcome> => {
 			try {
 				const freshness = await deps.refreshArticleIfStaleStored({ url: job.url });
-				if (isUnresolvedArchiveCapture(freshness.identity?.url ?? job.url)) {
+				const saveAttemptId = newSaveAttemptId();
+				if (freshness.action === "unresolved") {
 					await deps.publishSubmitLink({
 						url: job.url,
 						userId,
 						provenance: resolveSaveProvenance(req.oauthClientId),
 						readlist: DEFAULT_READLIST_SLUG,
+						saveAttemptId,
 					});
 					emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-					return { index: job.index, outcome: "created" };
+					return { index: job.index, outcome: "created", code: "queued" };
 				}
-				const canonicalUrl = freshness.identity?.url ?? (await deps.resolveCanonicalIdentity(job.url));
-				return { job, freshness, canonicalUrl };
+				return { job, freshness, saveAttemptId };
 			} catch (error) {
 				return failOnePage(job, error);
 			}
@@ -2016,12 +2062,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const writeOnePage = async (page: PreparedPage, savedAt: Date): Promise<PageOutcome> => {
 			const { job, freshness } = page;
 			try {
+				let staged: SaveContentResult | undefined;
 				if (job.kind === "content") {
 					/** Stage the captured bytes when the media type is supported; an
 					 * unsupported type stages nothing and the page is saved URL-only,
 					 * so the crawl enriches it the ordinary way. */
-					const media = mediaFor({ mediaType: job.mediaType, url: page.canonicalUrl });
-					if (media) await media.stageInlineBytes({ url: page.canonicalUrl, bytes: job.bytes, title: job.title, userId });
+					const media = mediaFor({ mediaType: job.mediaType, url: freshness.identity.url });
+					if (media) staged = await media.stageInlineBytes({ url: freshness.identity.url, bytes: job.bytes, title: job.title, userId, saveAttemptId: page.saveAttemptId, sourceUrl: job.url, sourceOriginalUrl: freshness.identity.originalUrl });
 				}
 				const { createdUserArticle } = await saveArticleFromUrlWithoutActivity({
 					userId,
@@ -2029,7 +2076,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
 					savedAt,
+					saveAttemptId: page.saveAttemptId,
 				});
+				if (staged?.ok) await staged.dispatch();
 				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				return { index: job.index, outcome: createdUserArticle ? "created" : "merged" };
 			} catch (error) {
@@ -2038,7 +2087,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		};
 
 		const findAlreadySaved = async (ready: PreparedPage[]): Promise<Set<string>> => {
-			const canonicalUrls = ready.map((page) => page.canonicalUrl);
+			const canonicalUrls = ready.map((page) => page.freshness.identity.url);
 			try {
 				return new Set(await deps.findSavedUrls({ userId, urls: canonicalUrls }));
 			} catch (error) {
@@ -2061,7 +2110,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const ranked = rankNewLinksAbove({
 				items: ready,
 				instants: savedAts,
-				isNew: (page) => !alreadySaved.has(page.canonicalUrl),
+				isNew: (page) => !alreadySaved.has(page.freshness.identity.url),
 			});
 			return Promise.all(ready.map((page, index) => writeOnePage(page, ranked[index])));
 		};
@@ -2077,7 +2126,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 
 		for (const page of pageOutcomes) {
-			entryOutcomes[page.index] = { outcome: page.outcome };
+			entryOutcomes[page.index] = { outcome: page.outcome, code: page.code };
 		}
 		const results = manifest.data.map((entry, index) => {
 			const entryOutcome = entryOutcomes[index];
@@ -2151,6 +2200,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const mediaType = textPart("mediaType") ?? "";
 			const title = textPart("title");
 			const uploaded = textPart("uploaded");
+			const completionAttempt = z.uuid().pipe(SaveAttemptIdSchema).safeParse(textPart("saveAttemptId"));
+			const saveAttemptId = uploaded === "true" && completionAttempt.success ? completionAttempt.data : newSaveAttemptId();
 			const sizeRaw = textPart("size");
 			const size = sizeRaw !== undefined ? Number(sizeRaw) : Number.NaN;
 
@@ -2187,22 +2238,17 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				return { articleUrl: validation.url, normalized, media };
 			};
 
-			const findPendingUpload = async (target: { articleUrl: SaveableUrl; normalized: string }) => {
-				for (const url of new Set([target.articleUrl, prepareNewSaveUrl(target.articleUrl)])) {
-					const stat = await deps.statPendingUpload({ url, mediaType: target.normalized });
-					if (stat) return { url, stat };
-				}
-				return undefined;
-			};
 
-			const finishSave = async (articleUrl: SaveableUrl, freshness: ContentFreshnessResult): Promise<void> => {
+			const finishSave = async (articleUrl: SaveableUrl, freshness: ResolvedFreshnessResult, dispatch?: () => Promise<void>): Promise<void> => {
 				const result = await attachArticleContent({
 					userId,
 					url: articleUrl,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
 					savedAt: await deps.allocateSavedAt({ userId }),
+					saveAttemptId,
 				});
+				if (dispatch !== undefined) await dispatch();
 				const context = await resolveReadlistContext(req, userId);
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
@@ -2229,24 +2275,44 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						return;
 					}
 					const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-					const stageUrl = freshness.identity?.url ?? (await deps.resolveSaveIdentity(validation.url)).url;
-					const media = mediaFor({ mediaType, url: stageUrl });
-					if (media) {
-						await media.stageInlineBytes({ url: stageUrl, bytes: contentBytes, title, userId });
+					if (freshness.action === "unresolved") {
+						await queueUnresolvedSave({
+							req,
+							res,
+							userId,
+							url: validation.url,
+							readlists: [DEFAULT_READLIST_SLUG],
+							saveAttemptId,
+							path: SAVE_INTENT_PATH.saveContent,
+						});
+						return;
 					}
-					await finishSave(validation.url, freshness);
+					const { identity } = freshness;
+					const stageUrl = identity.url;
+					const media = mediaFor({ mediaType, url: stageUrl });
+					const staged = await media?.stageInlineBytes({ url: stageUrl, bytes: contentBytes, title, userId, saveAttemptId, sourceUrl: validation.url, sourceOriginalUrl: identity.originalUrl });
+					await finishSave(validation.url, freshness, staged?.ok ? staged.dispatch : undefined);
 					return;
 				}
 
 				if (uploaded === "true") {
+					if (!completionAttempt.success) {
+						refuse("The upload attempt is missing or invalid; please re-upload", "upload-not-found");
+						return;
+					}
 					const target = resolveTarget(deps.validateSaveableUrl);
 					if (!target) return;
-					const pending = await findPendingUpload(target);
-					if (!pending) {
+					const freshness = await deps.refreshArticleIfStale({ url: target.articleUrl });
+					if (freshness.action === "unresolved") {
+						refuse(ORIGINAL_UNRESOLVED_MESSAGE, "original-unresolved");
+						return;
+					}
+					const { identity } = freshness;
+					const stat = await deps.statPendingUpload({ url: identity.url, mediaType: target.normalized, saveAttemptId });
+					if (!stat) {
 						refuse("No uploaded content found for this URL", "upload-not-found");
 						return;
 					}
-					const { stat } = pending;
 					if (stat.byteLength > target.media.uploadCeilingBytes) {
 						refuse(`Content upload exceeded ${bytesToMb(target.media.uploadCeilingBytes)} MB`, "content-too-large");
 						return;
@@ -2257,7 +2323,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						return;
 					}
 					const admitted = await target.media.admitUploadedBytes({
-						url: pending.url,
+						url: identity.url,
+						saveAttemptId,
+						sourceUrl: target.articleUrl,
+						sourceOriginalUrl: identity.originalUrl,
 						mediaType: target.normalized,
 						title,
 						userId,
@@ -2266,7 +2335,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						refuse(admitted.message, admitted.code);
 						return;
 					}
-					await finishSave(pending.url, await deps.refreshArticleIfStale({ url: pending.url }));
+					await finishSave(target.articleUrl, freshness, admitted.dispatch);
 					return;
 				}
 
@@ -2277,9 +2346,15 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						refuse(`Content upload exceeded ${bytesToMb(target.media.uploadCeilingBytes)} MB`, "content-too-large");
 						return;
 					}
-					const slot = await deps.createUploadSlot({ url: target.articleUrl, mediaType: target.normalized, byteLength: size });
+					const identity = await deps.resolveSaveIdentity(target.articleUrl);
+					if (identity.status === "unresolved") {
+						refuse(ORIGINAL_UNRESOLVED_MESSAGE, "original-unresolved");
+						return;
+					}
+					const slot = await deps.createUploadSlot({ url: identity.url, mediaType: target.normalized, byteLength: size, saveAttemptId });
 					res.status(200).type(SIREN_MEDIA_TYPE).json(
 						toUploadSlotEntity({
+							saveAttemptId,
 							uploadUrl: slot.uploadUrl,
 							expiresAt: slot.expiresAt,
 							url: target.articleUrl,
@@ -2321,13 +2396,23 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+			const saveAttemptId = newSaveAttemptId();
+			if (freshness.action === "unresolved") {
+				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, saveAttemptId });
+				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
+				res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
+				res.redirect(303, buildReadlistUrl(saveState, [["queue_error", READLIST_NOTICE_SAVE_QUEUED]]));
+				return;
+			}
 			await saveArticleAtReadlistTop({
 				userId,
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
+				saveAttemptId,
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
+			res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
 			res.redirect(303, `${buildReadlistUrl(saveState)}#latest-saved`);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
@@ -2630,12 +2715,19 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 		assert(target.article.provenance, "an issue is saved with its newsletter's provenance");
-		await saveArticleAtReadlistTop({
-			userId,
-			url: target.url,
-			freshness: await deps.refreshArticleIfStale({ url: target.url }),
-			provenance: target.article.provenance,
-		});
+		const freshness = await deps.refreshArticleIfStale({ url: target.url });
+		const saveAttemptId = newSaveAttemptId();
+		if (freshness.action === "unresolved") {
+			await deps.publishSubmitLink({ url: target.url, userId, provenance: target.article.provenance, readlist: DEFAULT_READLIST_SLUG, saveAttemptId });
+		} else {
+			await saveArticleAtReadlistTop({
+				userId,
+				url: target.url,
+				freshness,
+				provenance: target.article.provenance,
+				saveAttemptId,
+			});
+		}
 		const returnTo = new URL(safeReturnPath(req.body.returnTo), deps.appOrigin);
 		returnTo.searchParams.set(ISSUE_LINK_SAVED_PARAM, target.ordinal);
 		res.redirect(303, `${returnTo.pathname}${returnTo.search}#issue-links`);

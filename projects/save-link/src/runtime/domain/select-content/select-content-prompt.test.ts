@@ -1,3 +1,4 @@
+import { CandidateIdSchema } from "@packages/domain/article";
 import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import {
 	CHARS_PER_INPUT_TOKEN,
@@ -6,6 +7,8 @@ import {
 	buildSelectContentUserMessage,
 	perCandidateHtmlCap,
 } from "./select-content-prompt";
+
+const cid = (id: string) => CandidateIdSchema.parse(id);
 
 describe("perCandidateHtmlCap", () => {
 	it("gives a single candidate the whole html budget", () => {
@@ -22,7 +25,7 @@ describe("buildSelectContentUserMessage", () => {
 	it("passes condensed candidate html through untouched when it fits the per-candidate budget", () => {
 		const message = buildSelectContentUserMessage({
 			url: "https://example.com/a",
-			candidates: [{ tier: "tier-0", title: "T", wordCount: 3, html: "<p>small</p>" }],
+			candidates: [{ id: cid("extension"), tier: "tier-0", title: "T", wordCount: 3, html: "<p>small</p>" }],
 			logger: noopLogger,
 		});
 
@@ -36,8 +39,8 @@ describe("buildSelectContentUserMessage", () => {
 		const message = buildSelectContentUserMessage({
 			url: "https://example.com/a",
 			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: oversized },
-				{ tier: "tier-1", title: "T", wordCount: 100, html: "<p>small</p>" },
+				{ id: cid("extension"), tier: "tier-0", title: "T", wordCount: 100, html: oversized },
+				{ id: cid("live"), tier: "tier-1", title: "T", wordCount: 100, html: "<p>small</p>" },
 			],
 			logger: noopLogger,
 		});
@@ -57,8 +60,8 @@ describe("buildSelectContentUserMessage", () => {
 		buildSelectContentUserMessage({
 			url: "https://example.com/a",
 			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: "x".repeat(cap + 10) },
-				{ tier: "tier-1", title: "T", wordCount: 100, html: "<p>small</p>" },
+				{ id: cid("extension"), tier: "tier-0", title: "T", wordCount: 100, html: "x".repeat(cap + 10) },
+				{ id: cid("live"), tier: "tier-1", title: "T", wordCount: 100, html: "<p>small</p>" },
 			],
 			logger,
 		});
@@ -76,7 +79,7 @@ describe("buildSelectContentUserMessage", () => {
 
 		buildSelectContentUserMessage({
 			url: "https://example.com/a",
-			candidates: [{ tier: "tier-0", title: "T", wordCount: 3, html: "<p>small</p>" }],
+			candidates: [{ id: cid("extension"), tier: "tier-0", title: "T", wordCount: 3, html: "<p>small</p>" }],
 			logger,
 		});
 
@@ -88,8 +91,8 @@ describe("buildSelectContentUserMessage", () => {
 		const message = buildSelectContentUserMessage({
 			url: "https://example.com/a",
 			candidates: [
-				{ tier: "tier-0", title: "T", wordCount: 100, html: "x".repeat(cap + 5_000) },
-				{ tier: "tier-1", title: "T", wordCount: 100, html: "y".repeat(cap + 5_000) },
+				{ id: cid("extension"), tier: "tier-0", title: "T", wordCount: 100, html: "x".repeat(cap + 5_000) },
+				{ id: cid("live"), tier: "tier-1", title: "T", wordCount: 100, html: "y".repeat(cap + 5_000) },
 			],
 			logger: noopLogger,
 		});
@@ -108,8 +111,8 @@ describe("buildSelectContentUserMessage", () => {
 		const message = buildSelectContentUserMessage({
 			url: "https://en.wikipedia.org/wiki/Reading",
 			candidates: [
-				{ tier: "tier-0", title: "Reading", wordCount: 200_000, html: "x".repeat(1_200_000) },
-				{ tier: "tier-1", title: "Reading", wordCount: 200_000, html: "y".repeat(1_200_000) },
+				{ id: cid("extension"), tier: "tier-0", title: "Reading", wordCount: 200_000, html: "x".repeat(1_200_000) },
+				{ id: cid("live"), tier: "tier-1", title: "Reading", wordCount: 200_000, html: "y".repeat(1_200_000) },
 			],
 			logger: noopLogger,
 		});

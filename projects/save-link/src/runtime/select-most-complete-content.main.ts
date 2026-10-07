@@ -13,14 +13,8 @@ import {
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { requireEnv } from "@packages/require-env";
-import { initReadTierSource } from "./providers/article-store/read-tier-source";
-import { initListAvailableTierSources } from "./domain/select-content/list-available-tier-sources";
-import { initSelectMostCompleteContent } from "./domain/select-content/select-content";
+import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
-import { initWriteCanonicalContent } from "./providers/article-store/promote-tier-to-canonical";
-import { initFindContentSourceTier } from "./providers/article-store/find-content-source-tier";
-import { initFindCanonicalContentHash } from "./providers/article-store/find-canonical-content-hash";
-import { initRecordCrawlVersion } from "./providers/article-store/record-crawl-version";
 import { initSelectMostCompleteContentHandler } from "./domain/select-content/select-most-complete-content-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -38,41 +32,13 @@ const deepseekClient = new OpenAI({
 	timeout: SELECT_CONTENT_TIMEOUTS.deepseekMs,
 });
 
-const { readTierSource } = initReadTierSource({
-	client: s3Client,
-	bucketName: contentBucketName,
-	logger: consoleLogger,
-});
-
-const { listAvailableTierSources } = initListAvailableTierSources({ readTierSource });
-
-const { selectMostCompleteContent } = initSelectMostCompleteContent({
+const selectContent = initSelectContentDepBundle({
+	s3Client,
+	dynamoClient,
+	contentBucketName,
+	articlesTable,
 	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
 	logger: consoleLogger,
-});
-
-const { writeCanonicalContent } = initWriteCanonicalContent({
-	dynamoClient,
-	s3Client,
-	tableName: articlesTable,
-	bucketName: contentBucketName,
-});
-
-const { findContentSourceTier } = initFindContentSourceTier({
-	dynamoClient,
-	tableName: articlesTable,
-});
-
-const { findCanonicalContentHash } = initFindCanonicalContentHash({
-	dynamoClient,
-	tableName: articlesTable,
-});
-
-const { recordCrawlVersion } = initRecordCrawlVersion({
-	dynamoClient,
-	s3Client,
-	tableName: articlesTable,
-	bucketName: contentBucketName,
 });
 
 const { store } = initDynamoDbArticleStore({
@@ -102,15 +68,9 @@ const { transitionAndPersist } = initTransitionAndPersist({
 });
 
 export const handler = initSelectMostCompleteContentHandler({
-	listAvailableTierSources,
-	selectMostCompleteContent,
-	writeCanonicalContent,
-	findContentSourceTier,
-	findCanonicalContentHash,
-	recordCrawlVersion,
+	...selectContent,
 	loadArticle: store.load,
 	transitionAndPersist,
-	publishEvent,
 	now: () => new Date(),
 	logger: consoleLogger,
 });

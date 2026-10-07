@@ -2339,14 +2339,16 @@ describe("View routes", () => {
 			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
 			expect(await harness.articleStore.findArticleByUrl(TRACKER)).toBeNull();
 			expect(await harness.articleStore.findArticleByUrl(PUBLISHER)).not.toBeNull();
-			expect(await harness.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "alias", targetUrl: PUBLISHER });
+			expect(await harness.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "alias", targetUrl: PUBLISHER, sourceBinding: { contentSourceUrl: TRACKER, sourceOriginalUrl: PUBLISHER } });
+			expect(await harness.articleStore.findContentSourceUrl(PUBLISHER)).toBeUndefined();
 			expect(response.text).toContain(`href="${PUBLISHER}"`);
 		});
 
 		it("attaches a visit to the publisher's existing row instead of re-stubbing it", async () => {
-			const harness = buildReaderHarness(useApp, (fixture) => {
-				fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
-			});
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); } } });
 			await harness.articleStore.saveArticleGlobally({
 				url: PUBLISHER,
 				metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 },
@@ -2361,7 +2363,9 @@ describe("View routes", () => {
 			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
 			expect(await harness.articleStore.findArticleByUrl(TRACKER)).toBeNull();
 			expect((await harness.articleStore.findArticleByUrl(PUBLISHER))?.metadata.title).toBe("Seeded title");
-			expect(await harness.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "alias", targetUrl: PUBLISHER });
+			expect(saves).toEqual([{ url: PUBLISHER, captureUrl: TRACKER, sourceOriginalUrl: PUBLISHER, saveAttemptId: expect.any(String) }]);
+			expect(await harness.articleStore.findIdentityRow(TRACKER)).toEqual({ kind: "alias", targetUrl: PUBLISHER, sourceBinding: { contentSourceUrl: TRACKER, sourceOriginalUrl: PUBLISHER } });
+			expect(await harness.articleStore.findContentSourceUrl(PUBLISHER)).toBeUndefined();
 		});
 
 		it("resolves the wrapper once — the alias answers the second visit", async () => {
@@ -2406,14 +2410,143 @@ describe("View routes", () => {
 			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
 		});
 
-		it("keeps the wrapper as the row when the resolver finds no target", async () => {
+		it("refuses to create a wrapper row when the resolver finds no target", async () => {
 			const harness = buildReaderHarness();
 
 			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`);
 
-			expect(response.status).toBe(200);
+			expect(response.status).toBe(422);
 			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
-			expect(await harness.articleStore.findArticleByUrl(TRACKER)).not.toBeNull();
+			expect(await harness.articleStore.findArticleByUrl(TRACKER)).toBeNull();
+			const heading = new JSDOM(response.text).window.document.querySelector('[data-test-alert="save-error"] [data-test-alert-title]');
+			assert(heading, "the refusal must render the save-error alert heading");
+			expect(heading.textContent).toBe("The original article could not be resolved");
+		});
+
+		it("renders the stored article and only checks staleness when an alias without a recorded source no longer resolves", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); }, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: PUBLISHER, metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+			await harness.articleStore.claimAlias({ aliasUrl: TRACKER, targetOriginalUrl: PUBLISHER, now: new Date() });
+
+			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(new JSDOM(response.text).window.document.title).toContain("Seeded title");
+			expect(saves).toEqual([]);
+			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
+		});
+
+		it("renders the stored article through an alias without a recorded source once the crawl budget is spent", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, viewCrawl: { limit: 1, windowSeconds: 60 } },
+			};
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: PUBLISHER, metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+			await harness.articleStore.claimAlias({ aliasUrl: TRACKER, targetOriginalUrl: PUBLISHER, now: new Date() });
+			await request(harness.server).get("/view/example.com/spends-the-budget");
+
+			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(new JSDOM(response.text).window.document.title).toContain("Seeded title");
+			expect(harness.wrapperTarget.calls).toEqual([]);
+			expect(staleChecks).toEqual([{ url: "https://example.com/spends-the-budget" }, { url: PUBLISHER }]);
+		});
+
+		it("only checks staleness on a repeat visit through a tracker whose capture was already offered, spending no crawl budget", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, viewCrawl: { limit: 1, windowSeconds: 60 } },
+			};
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); }, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+
+			await request(harness.server).get(`/view/${TRACKER_PATH}`);
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+			const repeat = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(repeat.status).toBe(200);
+			expect(saves).toEqual([{ url: PUBLISHER, captureUrl: TRACKER, sourceOriginalUrl: PUBLISHER, saveAttemptId: expect.any(String) }]);
+			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
+		});
+
+		it("only checks staleness on a repeat visit through an archive.today outbound link, spending no crawl budget", async () => {
+			const outbound = `https://archive.ph/o/abc/${PUBLISHER}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, viewCrawl: { limit: 1, windowSeconds: 60 } },
+			};
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); }, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: PUBLISHER, metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+			await harness.articleStore.claimAlias({ aliasUrl: outbound, targetOriginalUrl: PUBLISHER, now: new Date() });
+
+			const repeat = await request(harness.server).get(`/view/archive.ph/o/abc/${PUBLISHER}`);
+
+			expect(repeat.status).toBe(200);
+			expect(saves).toEqual([]);
+			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
+			expect(harness.wrapperTarget.calls).toEqual([]);
+			const firstVisitElsewhere = await request(harness.server).get("/view/example.com/still-has-budget");
+			expect(firstVisitElsewhere.status).toBe(200);
+		});
+
+		it("still offers the capture on a repeat visit through an archive.today outbound link that wraps a Wayback snapshot", async () => {
+			const snapshot = `https://web.archive.org/web/20081203185222/${PUBLISHER}`;
+			const outbound = `https://archive.ph/o/abc/${snapshot}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: PUBLISHER, metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+			await harness.articleStore.claimAlias({ aliasUrl: outbound, targetOriginalUrl: PUBLISHER, now: new Date() });
+
+			const repeat = await request(harness.server).get(`/view/archive.ph/o/abc/${snapshot}`);
+
+			expect(repeat.status).toBe(200);
+			expect(saves.map((save) => ({ url: save.url, captureUrl: save.captureUrl }))).toEqual([{ url: PUBLISHER, captureUrl: snapshot }]);
+		});
+
+		it("only checks staleness on a repeat tracker visit to an article that has no crawl record", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); }, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: PUBLISHER, metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+
+			await request(harness.server).get(`/view/${TRACKER_PATH}`);
+			await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(saves.map((save) => save.captureUrl)).toEqual([TRACKER]);
+			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
+		});
+
+		it("offers the tracker capture again on a repeat visit when the article's crawl failed", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); } } });
+
+			await request(harness.server).get(`/view/${TRACKER_PATH}`);
+			await harness.articleCrawl.markCrawlFailed({ url: PUBLISHER, reason: "blocked" });
+			await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(saves.map((save) => save.captureUrl)).toEqual([TRACKER, TRACKER]);
 		});
 
 		it("keys a Wayback capture on the original article and pins its content to the snapshot, without any network", async () => {
@@ -2449,7 +2582,133 @@ describe("View routes", () => {
 
 			await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
 
-			expect(anonymousSaves).toEqual([{ url: original }, { url: original, captureUrl: snapshot }]);
+			expect(anonymousSaves).toEqual([{ url: original, captureUrl: snapshot, sourceOriginalUrl: original, saveAttemptId: expect.any(String) }]);
+		});
+		it("compares a new Wayback capture when its original already has a failed crawl", async () => {
+			const original = "https://publisher.example/paywalled";
+			const snapshot = `https://web.archive.org/web/20250101000000/${original}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves = jest.fn<ReturnType<PublishSaveAnonymousLink>, Parameters<PublishSaveAnonymousLink>>(async () => {});
+			const stale = jest.fn(async () => {});
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: saves, publishStaleCheckRequested: stale } });
+			await harness.articleStore.saveArticleGlobally({ url: original, metadata: { title: "Paywalled article", siteName: "publisher.example", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlFailed({ url: original, reason: "blocked" });
+
+			const response = await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+
+			expect(response.status).toBe(200);
+			expect(saves).toHaveBeenCalledWith({ url: original, captureUrl: snapshot, sourceOriginalUrl: original, saveAttemptId: expect.any(String) });
+			expect(stale).not.toHaveBeenCalled();
+			expect(await harness.articleStore.findContentSourceUrl(original)).toBe(snapshot);
+			expect(await harness.articleStore.findArticleByUrl(snapshot)).toBeNull();
+		});
+		it("verifies a new capture independently of an incompatible legacy wrapper alias", async () => {
+			const original = "https://publisher.example/correct";
+			const wrong = "https://other.example/wrong";
+			const snapshot = `https://web.archive.org/web/20250101000000/${original}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves = jest.fn<ReturnType<PublishSaveAnonymousLink>, Parameters<PublishSaveAnonymousLink>>(async () => {});
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: saves } });
+			await harness.articleStore.saveArticleGlobally({ url: wrong, metadata: { title: "Wrong legacy article", siteName: "other.example", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleStore.claimAlias({ aliasUrl: snapshot, targetOriginalUrl: wrong, now: new Date() });
+
+			const response = await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+
+			expect(response.status).toBe(200);
+			expect(saves).toHaveBeenCalledWith({ url: original, captureUrl: snapshot, sourceOriginalUrl: original, saveAttemptId: expect.any(String) });
+			expect(await harness.articleStore.resolveAlias(snapshot)).toBe(wrong);
+			expect(await harness.articleStore.findContentSourceUrl(original)).toBe(snapshot);
+			expect(await harness.articleStore.findContentSourceUrl(wrong)).toBeUndefined();
+			const readerTitle = new JSDOM(response.text).window.document.querySelector("[data-test-reader-title]");
+			assert(readerTitle, "the reader title must be rendered");
+			expect(readerTitle.textContent).toBe("publisher.example");
+		});
+		it("only checks staleness on a repeat visit to a snapshot whose incompatible legacy alias already had its capture offered", async () => {
+			const original = "https://publisher.example/correct";
+			const wrong = "https://other.example/wrong";
+			const snapshot = `https://web.archive.org/web/20250101000000/${original}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves = jest.fn<ReturnType<PublishSaveAnonymousLink>, Parameters<PublishSaveAnonymousLink>>(async () => {});
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: saves, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: wrong, metadata: { title: "Wrong legacy article", siteName: "other.example", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleStore.claimAlias({ aliasUrl: snapshot, targetOriginalUrl: wrong, now: new Date() });
+
+			await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+			const repeat = await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+
+			expect(repeat.status).toBe(200);
+			expect(saves).toHaveBeenCalledTimes(1);
+			expect(staleChecks).toEqual([{ url: original }]);
+			const readerTitle = new JSDOM(repeat.text).window.document.querySelector("[data-test-reader-title]");
+			assert(readerTitle, "the reader title must be rendered");
+			expect(readerTitle.textContent).toBe("publisher.example");
+		});
+		it("404s a repeat visit to a snapshot behind an incompatible legacy alias once its proven original is tombstoned", async () => {
+			const original = "https://publisher.example/correct";
+			const wrong = "https://other.example/wrong";
+			const snapshot = `https://web.archive.org/web/20250101000000/${original}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves = jest.fn<ReturnType<PublishSaveAnonymousLink>, Parameters<PublishSaveAnonymousLink>>(async () => {});
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: saves } });
+			await harness.articleStore.saveArticleGlobally({ url: wrong, metadata: { title: "Wrong legacy article", siteName: "other.example", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleStore.claimAlias({ aliasUrl: snapshot, targetOriginalUrl: wrong, now: new Date() });
+
+			await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+			await harness.articleStore.setPurgedAt({ url: original, at: new Date() });
+			const repeat = await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+
+			expect(repeat.status).toBe(404);
+			expect(saves).toHaveBeenCalledTimes(1);
+		});
+		it("offers the snapshot capture again through an incompatible legacy alias when the original's crawl failed", async () => {
+			const original = "https://publisher.example/correct";
+			const wrong = "https://other.example/wrong";
+			const snapshot = `https://web.archive.org/web/20250101000000/${original}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves = jest.fn<ReturnType<PublishSaveAnonymousLink>, Parameters<PublishSaveAnonymousLink>>(async () => {});
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: saves } });
+			await harness.articleStore.saveArticleGlobally({ url: wrong, metadata: { title: "Wrong legacy article", siteName: "other.example", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleStore.claimAlias({ aliasUrl: snapshot, targetOriginalUrl: wrong, now: new Date() });
+
+			await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+			await harness.articleCrawl.markCrawlFailed({ url: original, reason: "blocked" });
+			await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+
+			expect(saves).toHaveBeenCalledTimes(2);
+		});
+		it("keeps the authoritative legacy reader row when its adopted original receives a new capture", async () => {
+			const original = "https://publisher.example/adopted";
+			const snapshot = `https://web.archive.org/web/20250101000000/${original}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves = jest.fn<ReturnType<PublishSaveAnonymousLink>, Parameters<PublishSaveAnonymousLink>>(async () => {});
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: saves } });
+			await harness.articleStore.saveArticleGlobally({ url: TRACKER, metadata: { title: "Legacy saved article", siteName: "publisher.example", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleStore.setDisplayUrl({ url: TRACKER, displayUrl: original });
+			await harness.articleStore.claimAlias({ aliasUrl: original, targetOriginalUrl: TRACKER, now: new Date() });
+
+			const response = await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`);
+
+			expect(response.status).toBe(200);
+			expect(saves).toHaveBeenCalledWith({ url: TRACKER, captureUrl: snapshot, sourceOriginalUrl: original, saveAttemptId: expect.any(String) });
+			expect(await harness.articleStore.findArticleByUrl(original)).toBeNull();
+			expect(await harness.articleStore.findContentSourceUrl(TRACKER)).toBe(snapshot);
+			expect(response.text).toContain("Legacy saved article");
+		});
+		it("does not revive a tombstoned original hidden by an incompatible wrapper alias", async () => {
+			const original = "https://publisher.example/purged";
+			const wrong = "https://other.example/old-alias";
+			const snapshot = `https://web.archive.org/web/20250101000000/${original}`;
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const saves = jest.fn<ReturnType<PublishSaveAnonymousLink>, Parameters<PublishSaveAnonymousLink>>(async () => {});
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: saves } });
+			for (const url of [original, wrong]) await harness.articleStore.saveArticleGlobally({ url, metadata: { title: "Existing article", siteName: "publisher.example", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleStore.setPurgedAt({ url: original, at: new Date() });
+			await harness.articleStore.claimAlias({ aliasUrl: snapshot, targetOriginalUrl: wrong, now: new Date() });
+
+			expect((await request(harness.server).get(`/view/${snapshot.replace("https://", "")}`)).status).toBe(404);
+			expect(saves).not.toHaveBeenCalled();
+			expect(await harness.articleStore.findContentSourceUrl(original)).toBeUndefined();
 		});
 	});
 });

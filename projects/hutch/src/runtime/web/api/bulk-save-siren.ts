@@ -10,7 +10,7 @@ interface BulkSaveSummary {
 	 * the client can tell the user their full capture was too big. */
 	tooBig: { url: string; mb: number }[];
 	skippedUrls: { url: string; code: SaveableUrlErrorCode; message: string }[];
-	results: { url: string; outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode }[];
+	results: { url: string; outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode | "queued" }[];
 }
 
 export function toBulkSaveResultEntity(summary: BulkSaveSummary): SirenEntity {
@@ -18,6 +18,7 @@ export function toBulkSaveResultEntity(summary: BulkSaveSummary): SirenEntity {
 		class: ["save-articles-result"],
 		properties: {
 			saved: summary.saved,
+			queued: summary.results.filter((entry) => entry.code === "queued").length,
 			skipped: summary.skipped,
 			failed: summary.failed,
 			tooBig: summary.tooBig,

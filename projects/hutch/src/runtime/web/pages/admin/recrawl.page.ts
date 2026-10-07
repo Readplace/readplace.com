@@ -22,7 +22,7 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-view-failed-oob";
 import { initResolveStoredArticle, type ResolveStoredArticle } from "../../shared/resolve-stored-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { wrapperFamilyOf } from "@packages/domain/article";
+import { newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
 import { cleanWrapperTarget, type ResolveWrapperTarget } from "@packages/save-article";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
@@ -74,6 +74,7 @@ async function renderNotFound(
 	const html = Base(SaveErrorPage({
 		redirectUrl: "/admin/recrawl",
 		linkLabel: "Back to recrawl",
+		title: "No article URL provided",
 	}), await deps.buildBannerState(req)).to("text/html");
 	res.status(404).type("html").send(html.body);
 }
@@ -233,7 +234,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArtic
 				res.status(502).type("text/plain").send("The wrapper could not be resolved to an article.");
 				return;
 			}
-			const cleaned = cleanWrapperTarget({ wrapperUrl: requestedUrl, targetUrl: target });
+			const cleaned = cleanWrapperTarget({ wrapperUrl: requestedUrl, targetUrl: target.url });
 			if (cleaned.status === "ERROR") {
 				res.status(502).type("text/plain").send(`The wrapper resolved to a URL that cannot be saved: ${cleaned.error.message}.`);
 				return;
@@ -251,7 +252,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArtic
 		// publishes CanonicalContentChanged, whose subscriber re-primes and
 		// regenerates the summary, so wiping it here would be redundant.
 		await deps.forceMarkCrawlPending({ url: articleUrl });
-		await deps.publishRecrawlLinkInitiated({ url: articleUrl });
+		await deps.publishRecrawlLinkInitiated({ url: articleUrl, saveAttemptId: newSaveAttemptId() });
 
 		res.redirect(303, `${recrawlPathFor(articleUrl)}&started=1`);
 	};

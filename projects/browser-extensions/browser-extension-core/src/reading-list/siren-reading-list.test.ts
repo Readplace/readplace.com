@@ -1869,6 +1869,7 @@ describe("save-articles action", () => {
 		expect(result.items).toEqual([]);
 		expect(result.bulk).toEqual({
 			saved: 2,
+			queued: 0,
 			skipped: 1,
 			failed: 0,
 			tooBig: [{ url: "https://example.com/big", mb: 25 }],
@@ -2668,6 +2669,15 @@ describe("initSirenReadingList", () => {
 			await expect(
 				list.saveUrl({ url: "https://example.com", title: "Test" }),
 			).rejects.toThrow("Navigation failed: 500");
+		});
+
+		it("renders the queued notice a wrapper save is refused with, without inventing an article card", async () => {
+			const { fetchFn } = createRoutingFetch(withEntryPoint({
+				"GET http://localhost:3000/queue": { status: 200, body: collectionResponse() },
+				"POST http://localhost:3000/queue": { status: 409, body: JSON.stringify({ class: ["error"], properties: { messages: [{ type: "warning", content: { type: "text/html", body: "Resolving original" } }] } }) },
+			}));
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			expect(await list.saveUrl({ url: "https://archive.ph/abc", title: "Archive" })).toEqual({ ok: false, messages: [{ type: "warning", content: { type: "text/html", body: "Resolving original" } }] });
 		});
 
 		it("should track a per-item action from a save response for later invocation", async () => {
@@ -3963,6 +3973,7 @@ describe("initSirenReadingList", () => {
 				],
 			});
 			expect(result).toEqual({
+				queued: 0,
 				saved: 1,
 				skipped: 1,
 				failed: 0,
@@ -4015,6 +4026,7 @@ describe("initSirenReadingList", () => {
 			const result = await list.savePages({ pages: [] });
 
 			expect(result).toEqual({
+				queued: 0,
 				saved: 0,
 				skipped: 0,
 				failed: 0,
@@ -4316,6 +4328,7 @@ describe("initSirenReadingList", () => {
 			});
 
 			expect(result).toEqual({
+				queued: 0,
 				saved: 2,
 				skipped: 0,
 				failed: 4,
@@ -4375,6 +4388,16 @@ describe("initSirenReadingList", () => {
 				{ url: "https://example.com/tab-1" },
 				{ url: "https://example.com/tab-2" },
 			]);
+		});
+
+		it("accounts for queued wrappers over multiple chunks without counting them saved or failed", async () => {
+			const { fetchFn } = createRoutingFetch(withEntryPoint({
+				"GET http://localhost:3000/queue": { status: 200, body: collectionAdvertising({ maxItems: 1 }) },
+				"POST http://localhost:3000/queue/save-articles": { status: 200, body: JSON.stringify({ class: ["save-articles-result"], properties: { saved: 1, queued: 1, skipped: 0, failed: 0, tooBig: [], skippedUrls: [], results: [{ url: "https://archive.ph/abc", outcome: "created", code: "queued" }] } }) },
+			}));
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.savePages({ pages: [{ url: "https://archive.ph/abc" }, { url: "https://archive.ph/def" }] });
+			expect(result).toMatchObject({ saved: 0, queued: 2, failed: 0, pendingRetry: 0, failedUrls: [] });
 		});
 
 		it("counts pages the server reports as merged in alreadySaved", async () => {

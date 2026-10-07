@@ -35,7 +35,7 @@ export function initPruneCrawlVersions(deps: {
 
 		const row = await articleTable.get(
 			{ url: ArticleResourceUniqueId.parse(params.url).value },
-			{ projection: ["crawlVersions"] },
+			{ projection: ["crawlVersions"], consistentRead: true },
 		);
 		const existing = row?.crawlVersions;
 		if (existing === undefined) return;

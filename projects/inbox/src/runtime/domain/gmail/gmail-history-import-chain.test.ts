@@ -454,17 +454,15 @@ describe("gmail history import chain (inbox half)", () => {
 				},
 			],
 		);
-		assert.deepEqual(
-			pipeline.publishedOf(SubmitLinkCommand).map(({ detail }) => detail),
-			[
-				{
-					userId: READER,
-					url: STORY_URL,
-					readlist: DEFAULT_READLIST_SLUG,
-					provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
-				},
-			],
-		);
+		expect(pipeline.publishedOf(SubmitLinkCommand).map(({ detail }) => detail)).toEqual([
+			{
+				userId: READER,
+				url: STORY_URL,
+				readlist: DEFAULT_READLIST_SLUG,
+				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+				saveAttemptId: expect.any(String),
+			},
+		]);
 	});
 
 	it("delivers an imported issue into All with the email as its provenance", async () => {
@@ -480,17 +478,15 @@ describe("gmail history import chain (inbox half)", () => {
 		});
 		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
 
-		assert.deepEqual(
-			pipeline.publishedOf(SubmitLinkCommand).map((entry) => entry.detail),
-			[
-				{
-					userId: READER,
-					url: STORY_URL,
-					provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
-					readlist: DEFAULT_READLIST_SLUG,
-				},
-			],
-		);
+		expect(pipeline.publishedOf(SubmitLinkCommand).map((entry) => entry.detail)).toEqual([
+			{
+				userId: READER,
+				url: STORY_URL,
+				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+				readlist: DEFAULT_READLIST_SLUG,
+				saveAttemptId: expect.any(String),
+			},
+		]);
 		assert.deepEqual(pipeline.publishedOf(EmailLinksTriagedEvent), []);
 	});
 
@@ -644,17 +640,15 @@ for (const delivery of ["forward", "import"] as const) {
 			});
 		}
 		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
-		assert.deepEqual(
-			pipeline.publishedOf(SubmitLinkCommand).map(({ detail }) => detail),
-			[
-				{
-					userId: READER,
-					url: STORY_URL,
-					provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
-					readlist: DEFAULT_READLIST_SLUG,
-				},
-			],
-		);
+		expect(pipeline.publishedOf(SubmitLinkCommand).map(({ detail }) => detail)).toEqual([
+			{
+				userId: READER,
+				url: STORY_URL,
+				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+				readlist: DEFAULT_READLIST_SLUG,
+				saveAttemptId: expect.any(String),
+			},
+		]);
 		assert.deepEqual(
 			pipeline
 				.publishedOf(EmailLinksTriagedEvent)

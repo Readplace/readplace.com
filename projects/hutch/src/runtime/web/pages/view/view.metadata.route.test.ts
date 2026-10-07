@@ -608,7 +608,7 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
-			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
+			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL, saveAttemptId: expect.any(String) });
 			// Stub metadata is written synchronously by the web layer; the worker
 			// (mocked here as a noop publish) is what would later overwrite it
 			// with the parsed title.
@@ -663,7 +663,7 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
-			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
+			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL, saveAttemptId: expect.any(String) });
 		});
 
 		it("skips priming SaveAnonymousLinkCommand when the cached article already exists, but still requests a background stale-check", async () => {
@@ -921,7 +921,7 @@ describe("View routes", () => {
 
 			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
-			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
+			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL, saveAttemptId: expect.any(String) });
 		});
 	});
 

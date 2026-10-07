@@ -10,6 +10,7 @@ import type { ContentProvider } from "@packages/provider-contracts/article-store
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 import type { SaveEmailIssue } from "./save-email-issue";
 
 const LOG_PREFIX = "[SaveEmailIssueCommand]";
@@ -51,12 +52,24 @@ export function initSaveEmailIssueCommandHandler(deps: {
 					readlists: detail.readlists.map((readlist) => ReadlistSlugSchema.parse(readlist)),
 				});
 				if (contentPending) {
-					await deps.putTierSource({ url, tier: "tier-0", html: body, metadata: { ...metadata, estimatedReadTime } });
+					const extractedAt = deps.now().toISOString();
+					const candidate = candidateProvenance({
+						metadata: { ...metadata, estimatedReadTime },
+						html: body,
+						evaluationHtml: body,
+						attemptId: detail.saveAttemptId,
+						originalUrl: detail.issueUrl,
+						sourceUrl: url,
+						kind: "extension",
+						fetchedAt: extractedAt,
+					});
+					await deps.putTierSource({ url, tier: "tier-0", html: body, metadata: candidate });
 					await deps.publishEvent(TierContentExtractedEvent, {
 						url,
-						tier: "tier-0",
 						userId,
-						extractedAt: deps.now().toISOString(),
+						saveAttemptId: detail.saveAttemptId,
+						candidates: [{ id: candidate.id, tier: "tier-0" }],
+						extractedAt,
 					});
 				}
 				try {

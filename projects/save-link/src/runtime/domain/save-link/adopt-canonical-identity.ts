@@ -1,10 +1,9 @@
-import { ArticleResourceUniqueId, toCanonicalHostUrl } from "@packages/article-resource-unique-id";
+import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
 import type {
-	ClaimCanonicalAlias,
+	AdoptArticleDestination,
 	ReconcileStubMetadata,
-	SetArticleDisplayUrl,
 } from "@packages/article-store";
-import { isArchiveHost, unwrapWrapperUrl } from "@packages/domain/article";
+import { isWrapperUrl } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { matchingSiteRuleUrl, type SiteRules } from "@packages/site-rules";
 
@@ -36,10 +35,6 @@ export type AdoptCanonicalIdentity = (params: {
 	recrawl?: boolean;
 }) => Promise<void>;
 
-function identityOf(url: string): string {
-	return ArticleResourceUniqueId.parse(toCanonicalHostUrl(url)).value;
-}
-
 /**
  * The redirect terminal to adopt, or `undefined` when a gate rejects it. Pure so
  * every gate is unit-testable in isolation. Gates:
@@ -69,32 +64,27 @@ export function adoptableTerminal(params: {
 	if (recrawl) return undefined;
 	if (outcome.kind === "finalized" && outcome.wordCount <= 0) return undefined;
 	if (finalUrl === undefined) return undefined;
-	if (identityOf(finalUrl) === identityOf(url)) return undefined;
+	if (canonicalIdentityOf(finalUrl) === canonicalIdentityOf(url)) return undefined;
 	if (isSiteRuleUrl(finalUrl)) return undefined;
-	if (isArchiveHost(finalUrl) || unwrapWrapperUrl(finalUrl).url !== finalUrl) return undefined;
+	if (isWrapperUrl(finalUrl)) return undefined;
 	return finalUrl;
 }
 
 export function initAdoptCanonicalIdentity(deps: {
-	claimAlias: ClaimCanonicalAlias;
-	setDisplayUrl: SetArticleDisplayUrl;
+	adoptDestination: AdoptArticleDestination;
 	reconcileStubMetadata: ReconcileStubMetadata;
 	isSiteRuleUrl: (url: string) => boolean;
 	now: () => Date;
 	logger: HutchLogger;
 }): AdoptCanonicalIdentity {
-	const { claimAlias, setDisplayUrl, reconcileStubMetadata, isSiteRuleUrl, now, logger } = deps;
+	const { adoptDestination, reconcileStubMetadata, isSiteRuleUrl, now, logger } = deps;
 	return async (params) => {
 		try {
 			const terminal = adoptableTerminal({ ...params, isSiteRuleUrl });
 			if (terminal === undefined) return;
-			const outcome = await claimAlias({ aliasUrl: terminal, targetOriginalUrl: params.url, now: now() });
-			// Independent of the claim outcome: the origin genuinely redirects to
-			// `terminal`, so record it as this article's display URL either way
-			// (idempotent SET, so a fan-in second origin re-stamps the same value).
-			await setDisplayUrl({ articleUrl: params.url, displayUrl: terminal });
+			if ((await adoptDestination({ articleUrl: params.url, destinationUrl: terminal, now: now() })) === "declined") return;
 			await reconcileStubMetadata({ articleUrl: params.url, displayUrl: terminal });
-			logger.info(`[adopt-canonical-identity] alias ${outcome}`, { url: params.url, terminalUrl: terminal });
+			logger.info("[adopt-canonical-identity] alias adopted", { url: params.url, terminalUrl: terminal });
 		} catch (error) {
 			logger.warn("[adopt-canonical-identity] adoption failed", {
 				url: params.url,

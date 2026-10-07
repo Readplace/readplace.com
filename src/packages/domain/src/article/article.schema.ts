@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 export const SaveArticleInputSchema = z.object({
@@ -35,3 +36,13 @@ export const MAX_BULK_PAGE_CONTENT_BYTES = MAX_UPLOAD_REQUEST_BYTES - BULK_MANIF
 export const MinutesSchema = z.number().brand<"Minutes">();
 
 export const ArticleStatusSchema = z.enum(["unread", "read"]);
+
+export const SaveAttemptIdSchema = z.string().min(1).brand<"SaveAttemptId">();
+
+export type SaveAttemptId = z.infer<typeof SaveAttemptIdSchema>;
+
+export const newSaveAttemptId = (): SaveAttemptId => SaveAttemptIdSchema.parse(randomUUID());
+
+export const CandidateIdSchema = z.string().min(1).brand<"CandidateId">();
+
+export type CandidateId = z.infer<typeof CandidateIdSchema>;

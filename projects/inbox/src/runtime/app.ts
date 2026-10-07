@@ -17,7 +17,7 @@ import type {
 } from "@packages/provider-contracts/auth";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 import type { UserId } from "@packages/domain/user";
-import type { SaveProvenance } from "@packages/domain/article";
+import type { SaveAttemptId, SaveProvenance } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { ResolveLogin } from "@packages/web-session";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -67,6 +67,7 @@ export function createInboxApp(
 			url: string;
 			provenance: SaveProvenance;
 			readlist: ReadlistSlug;
+			saveAttemptId: SaveAttemptId;
 		}) => Promise<void>;
 		recordEngagementActivity: RecordEngagementActivity;
 		logError: (message: string, error?: Error) => void;

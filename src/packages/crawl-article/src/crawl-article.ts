@@ -205,6 +205,7 @@ function initConditionalGet(deps: {
 	url: string;
 	etag?: string;
 	lastModified?: string;
+	retainResponseBody?: boolean;
 }) => Promise<
 	| { status: "ok"; response: Response; buffer: Buffer }
 	| { status: "not-modified" }
@@ -240,14 +241,14 @@ function initConditionalGet(deps: {
 			}
 			const finalUrl = terminalUrl(response);
 			const suffix = redirectSuffix({ requestedUrl: params.url, responseUrl: finalUrl });
-			if (response.status === 404 || response.status === 410) {
+			if (!params.retainResponseBody && (response.status === 404 || response.status === 410)) {
 				logFetchFailure({
 					status: response.status,
 					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`,
 				});
 				return { status: "not-found", httpStatus: response.status, finalUrl };
 			}
-			if (!response.ok) {
+			if (!response.ok && !params.retainResponseBody) {
 				logFetchFailure({
 					status: response.status,
 					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`,
@@ -467,17 +468,18 @@ export function initCrawlArticle(deps: {
 		 * caller short-circuit without paying the parse cost — for PDFs that
 		 * means saving tens of seconds of mupdf walking the document. */
 		const bodyHash = createHash("sha256").update(buffer).digest("hex");
-		if (params.previousBodyHash && params.previousBodyHash === bodyHash) {
+		if (!params.retainResponseBody && params.previousBodyHash && params.previousBodyHash === bodyHash) {
 			return { status: "not-modified" };
 		}
 		const contentType = response.headers.get("content-type") ?? "";
 		const mediaType = classifyMediaType({ contentType, buffer });
-		if (mediaType === undefined) {
+		const effectiveMediaType = mediaType ?? (params.retainResponseBody ? "html" : undefined);
+		if (effectiveMediaType === undefined) {
 			const suffix = redirectSuffix({ requestedUrl: currentUrl, responseUrl: terminalUrl(response) });
 			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${currentUrl}${suffix}`);
 			return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 		}
-		if (buffer.byteLength > HTML_PARSE_BYTE_CAP[mediaType]) {
+		if (buffer.byteLength > HTML_PARSE_BYTE_CAP[effectiveMediaType]) {
 			const suffix = redirectSuffix({ requestedUrl: currentUrl, responseUrl: terminalUrl(response) });
 			logError(
 				`[CrawlArticle] Body too large (${buffer.byteLength} bytes, cap ${MAX_HTML_BYTES.label}) for ${currentUrl}${suffix}`,
@@ -489,7 +491,7 @@ export function initCrawlArticle(deps: {
 			};
 		}
 		const result = await dispatchSupportedMedia({
-			mediaType,
+			mediaType: effectiveMediaType,
 			buffer,
 			bodyHash,
 			response,
@@ -505,7 +507,13 @@ export function initCrawlArticle(deps: {
 		});
 		/* One dispatch point rather than one per parser, so a 3xx resolves the
 		 * article's identity uniformly across HTML/PDF/text/image. */
-		if (result.status === "fetched") result.finalUrl = terminalUrl(response);
+		if (result.status === "fetched") {
+			result.finalUrl = terminalUrl(response);
+			if (mediaType === "plain-text") result.evaluationHtml = new TextDecoder().decode(buffer);
+			if (params.retainResponseBody) {
+				result.httpStatus = response.status;
+			}
+		}
 		return result;
 	};
 }

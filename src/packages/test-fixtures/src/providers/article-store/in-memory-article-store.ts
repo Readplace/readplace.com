@@ -60,6 +60,10 @@ import type {
 	SaveArticleGlobally,
 	SaveArticleParams,
 	SaveReadlistArticle,
+	ClaimCanonicalAlias,
+	FindIdentityRow,
+	PinContentSource,
+	WrapperSourceBinding,
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
@@ -71,6 +75,7 @@ interface GlobalArticle {
 	originalUrl: string;
 	displayUrl?: string;
 	contentSourceUrl?: string;
+	sourceOriginalUrl?: string;
 	routeId: ReaderArticleHashId;
 	metadata: ArticleMetadata;
 	content?: string;
@@ -200,12 +205,10 @@ export function initInMemoryArticleStore(): {
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
-	claimAlias: (params: { aliasUrl: string; targetOriginalUrl: string; now: Date }) => Promise<"claimed" | "occupied">;
+	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: (url: string) => Promise<string | undefined>;
-	findIdentityRow: (
-		url: string,
-	) => Promise<{ kind: "absent" } | { kind: "article" } | { kind: "alias"; targetUrl: string }>;
-	pinContentSource: (params: { articleUrl: string; contentSourceUrl: string }) => Promise<void>;
+	findIdentityRow: FindIdentityRow;
+	pinContentSource: PinContentSource;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
@@ -333,6 +336,7 @@ export function initInMemoryArticleStore(): {
 		articles.set(articleResourceUniqueId.value, {
 			url: articleResourceUniqueId.value,
 			originalUrl: params.url,
+			displayUrl: existing?.displayUrl,
 			routeId,
 			metadata: params.metadata,
 			estimatedReadTime: params.estimatedReadTime,
@@ -982,31 +986,40 @@ export function initInMemoryArticleStore(): {
 		article.displayUrl = params.displayUrl;
 	};
 
-	const aliases = new Map<string, { targetUrl: string; createdAt: Date }>();
+	const aliases = new Map<string, { targetUrl: string; createdAt: Date; sourceBinding?: WrapperSourceBinding }>();
 
-	const claimAlias = async (params: { aliasUrl: string; targetOriginalUrl: string; now: Date }) => {
+	const claimAlias: ClaimCanonicalAlias = async (params) => {
 		const key = ArticleResourceUniqueId.parse(params.aliasUrl).value;
-		if (articles.has(key) || aliases.has(key)) return "occupied" as const;
-		aliases.set(key, { targetUrl: params.targetOriginalUrl, createdAt: params.now });
-		return "claimed" as const;
+		if (articles.has(key)) return;
+		const existing = aliases.get(key);
+		if (existing !== undefined && (params.sourceBinding === undefined || existing.targetUrl !== params.targetOriginalUrl)) return;
+		aliases.set(key, { targetUrl: params.targetOriginalUrl, createdAt: params.now, sourceBinding: params.sourceBinding });
 	};
 
 	const resolveAlias = async (url: string) => {
 		return aliases.get(ArticleResourceUniqueId.parse(url).value)?.targetUrl;
 	};
 
-	const findIdentityRow = async (url: string) => {
+	const findIdentityRow: FindIdentityRow = async (url) => {
 		const key = ArticleResourceUniqueId.parse(url).value;
-		if (articles.has(key)) return { kind: "article" } as const;
+		const article = articles.get(key);
+		if (article) return {
+			kind: "article",
+			originalUrl: article.purgedAt === undefined ? article.displayUrl ?? article.originalUrl : article.displayUrl,
+			sourceBinding: article.contentSourceUrl !== undefined && article.sourceOriginalUrl !== undefined
+				? { contentSourceUrl: article.contentSourceUrl, sourceOriginalUrl: article.sourceOriginalUrl }
+				: undefined,
+		};
 		const alias = aliases.get(key);
-		if (alias) return { kind: "alias", targetUrl: alias.targetUrl } as const;
+		if (alias) return { kind: "alias", targetUrl: alias.targetUrl, sourceBinding: alias.sourceBinding };
 		return { kind: "absent" } as const;
 	};
 
-	const pinContentSource = async (params: { articleUrl: string; contentSourceUrl: string }) => {
+	const pinContentSource: PinContentSource = async (params) => {
 		const article = articles.get(ArticleResourceUniqueId.parse(params.articleUrl).value);
-		if (!article) return;
+		assert(article && (article.displayUrl ?? article.originalUrl) === params.sourceOriginalUrl, "Content source identity changed");
 		article.contentSourceUrl = params.contentSourceUrl;
+		article.sourceOriginalUrl = params.sourceOriginalUrl;
 	};
 
 	const findAdoptedFetchUrl = async (url: string) => {

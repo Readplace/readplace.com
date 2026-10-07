@@ -10,7 +10,7 @@ import { z } from "zod";
  * survives (url, routeId, originalUrl, savedAt) so in-flight aggregate
  * transitions still load it and reader-permalink ids still resolve to
  * "removed", never "never existed". */
-const CONTENT_BEARING_COLUMNS = [
+export const CONTENT_BEARING_COLUMNS = [
 	"content",
 	"contentLocation",
 	"contentSourceTier",
@@ -40,6 +40,10 @@ const CONTENT_BEARING_COLUMNS = [
 	"contentFetchedAt",
 	"imageUrl",
 	"contentSourceUrl",
+	"sourceOriginalUrl",
+	"directContentBeforePin",
+	"canonicalCandidateId",
+	"canonicalOriginalUrl",
 ] as const;
 
 /** 1. Both axes land on terminal, non-error states so pollers stop, the
@@ -70,11 +74,12 @@ export function initTombstoneArticle(deps: {
 					"SET purgedAt = if_not_exists(purgedAt, :now), " /* 2 */ +
 					"crawlStatus = :ready, summaryStatus = :skipped, summarySkippedReason = :skippedReason, " /* 1 */ +
 					"title = :hostname, siteName = :hostname, excerpt = :empty, wordCount = :zero, estimatedReadTime = :zero" +
-					` REMOVE ${CONTENT_BEARING_COLUMNS.join(", ")}`,
+					` REMOVE ${CONTENT_BEARING_COLUMNS.join(", ")} ADD contentSelectionRevision :one`,
 				ConditionExpression: "attribute_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
 				ExpressionAttributeValues: {
 					":now": params.at.toISOString(),
+					":one": 1,
 					":ready": "ready",
 					":skipped": "skipped",
 					":skippedReason": "content-purged",

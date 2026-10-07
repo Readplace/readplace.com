@@ -40,7 +40,7 @@ export function initSaveRoutes(deps: {
 				content: req.userId ? "back-to-queue" : "home",
 			});
 			const linkLabel = req.userId ? "Go to your readlist" : "Go to homepage";
-			sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel, title: "No article URL provided" }), await deps.buildBannerState(req)));
 			return;
 		}
 

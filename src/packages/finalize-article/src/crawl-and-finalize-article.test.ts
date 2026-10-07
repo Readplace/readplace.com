@@ -38,6 +38,26 @@ describe("initCrawlAndFinalizeArticle", () => {
 		}));
 	});
 
+	it("keeps the adopted-terminal pin for a crawl of the article's own URL, even when it retains the response body", async () => {
+		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>(async () => ({
+			status: "fetched",
+			html: "<html></html>",
+			bodyHash: "a".repeat(64),
+		}));
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle: okFinalize });
+
+		await crawlAndFinalize({ url: URL_UNDER_TEST, retainResponseBody: true });
+
+		expect(crawlArticle).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			etag: undefined,
+			lastModified: undefined,
+			previousBodyHash: undefined,
+			fetchThumbnail: true,
+			retainResponseBody: true,
+		});
+	});
+
 	it("fetches a capture URL while finalizing under the article's own URL, resolving relative links against the capture", async () => {
 		const capture = "https://web.archive.org/web/20081203185222/https://example.com/article";
 		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>(async () => ({
@@ -50,7 +70,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 
 		await crawlAndFinalize({ url: URL_UNDER_TEST, fetchUrl: capture });
 
-		expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({ url: capture }));
+		expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({ url: capture, skipFetchPin: true }));
 		expect(finalizeArticle).toHaveBeenCalledWith(expect.objectContaining({ url: URL_UNDER_TEST, documentUrl: capture }));
 	});
 
@@ -372,4 +392,34 @@ describe("initCrawlAndFinalizeArticle", () => {
 			bodyHash: "deadbeef".repeat(8),
 		});
 	});
+});
+
+describe("wrapper evaluation evidence", () => {
+	it.each([true, false])("preserves the raw evaluation supplied beside converted plain-text HTML when finalized=%s", async (ok) => {
+		const finalizeArticle: FinalizeArticle = ok ? okFinalize : async () => ({ ok: false, reason: "empty document" });
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle: async () => ({ status: "fetched", html: "<html><body><p>Converted text</p></body></html>", evaluationHtml: "Original plain-text response", bodyHash: "raw-hash", httpStatus: 200 }), finalizeArticle });
+		expect(await crawlAndFinalize({ url: URL_UNDER_TEST, retainResponseBody: true })).toMatchObject({ status: "fetched", evaluationHtml: "Original plain-text response", httpStatus: 200 });
+	});
+	it("keeps fetched raw HTML and HTTP status when extraction succeeds", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle: async () => ({ status: "fetched", html: "<html>raw</html>", bodyHash: "hash", httpStatus: 403 }), finalizeArticle: okFinalize });
+		expect(await crawlAndFinalize({ url: URL_UNDER_TEST, retainResponseBody: true })).toEqual(expect.objectContaining({ status: "fetched", article: stubFinalizedArticle, evaluationHtml: "<html>raw</html>", httpStatus: 403 }));
+	});
+	it("preserves a failed extraction as an empty reader candidate with the original evaluation bytes", async () => {
+		const captcha = "<html><body><form id=\"captcha\">Please complete the security check</form></body></html>";
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle: async () => ({ status: "fetched", html: captcha, bodyHash: "captcha-hash", httpStatus: 429 }), finalizeArticle: async () => ({ ok: false, reason: "no readable content" }) });
+		expect(await crawlAndFinalize({ url: URL_UNDER_TEST, retainResponseBody: true })).toEqual({ status: "fetched", article: { html: "", metadata: { title: "", siteName: "", excerpt: "", wordCount: 0, estimatedReadTime: 0 } }, evaluationHtml: captcha, bodyHash: "captcha-hash", finalUrl: undefined, httpStatus: 429, parseFailure: "no readable content" });
+	});
+	it.each(["", " \n\t "])("fails a retained response whose body is empty (%j) instead of keeping it as a candidate", async (html) => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle: async () => ({ status: "fetched", html, bodyHash: "empty-hash", httpStatus: 503, finalUrl: "https://archive.ph/abc" }), finalizeArticle: async () => ({ ok: false, reason: "no <html> element in response body" }) });
+		expect(await crawlAndFinalize({ url: URL_UNDER_TEST, retainResponseBody: true })).toEqual({ status: "failed", reason: "no <html> element in response body", finalUrl: "https://archive.ph/abc" });
+	});
+});
+
+
+it("preserves raw evaluation for conditional refreshes without changing conditional fetch or error handling", async () => {
+	const raw = "<html><body>Raw response before reader finalization</body></html>";
+	const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>().mockResolvedValue({ status: "fetched", html: raw, bodyHash: "a".repeat(64) });
+	const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle: okFinalize });
+	await expect(crawlAndFinalize({ url: URL_UNDER_TEST, includeEvaluationHtml: true, etag: "etag", previousBodyHash: "b".repeat(64) })).resolves.toMatchObject({ status: "fetched", article: stubFinalizedArticle, evaluationHtml: raw });
+	expect(crawlArticle).toHaveBeenCalledWith({ url: URL_UNDER_TEST, etag: "etag", lastModified: undefined, previousBodyHash: "b".repeat(64), fetchThumbnail: true });
 });

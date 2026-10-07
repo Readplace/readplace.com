@@ -1,3 +1,4 @@
+import { newSaveAttemptId } from "@packages/domain/article";
 import type { DispatchEffect } from "@packages/domain/article-aggregate";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import {
@@ -45,6 +46,7 @@ export function initLambdaEffectDispatcher(deps: {
 					effect.submitter
 						? {
 								url: effect.url,
+								saveAttemptId: newSaveAttemptId(),
 								userId: effect.submitter.userId,
 								provenance: effect.submitter.provenance,
 								readlist: DEFAULT_READLIST_SLUG,
@@ -52,6 +54,7 @@ export function initLambdaEffectDispatcher(deps: {
 							}
 						: {
 								url: effect.url,
+								saveAttemptId: newSaveAttemptId(),
 								...(effect.rawHtml !== undefined ? { rawHtml: effect.rawHtml } : {}),
 							},
 				);

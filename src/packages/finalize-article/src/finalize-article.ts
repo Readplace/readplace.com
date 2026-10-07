@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { ParseHtml } from "@packages/article-parser";
 import {
 	escapeHtmlText,
@@ -10,7 +9,8 @@ import {
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { imageSavedFromHostExcerpt } from "@packages/domain/article";
 import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
-import type { PutImageObject } from "./put-image-object.types";
+import { mediaFilename } from "./media-filename";
+import type { PutImageObject, MediaWriteContext } from "./put-image-object.types";
 import { estimatedReadTimeFromWordCount } from "./estimated-read-time";
 import { isBareImageCapture } from "./is-bare-image-capture";
 import { stripOversizedInlineImages } from "./strip-inline-image-data";
@@ -30,11 +30,17 @@ export type FinalizedArticle = {
 	};
 };
 
+export const UNREADABLE_ARTICLE: FinalizedArticle = {
+	html: "",
+	metadata: { title: "", siteName: "", excerpt: "", wordCount: 0, estimatedReadTime: 0 },
+};
+
 export type FinalizeArticleResult =
 	| { ok: true; article: FinalizedArticle }
 	| { ok: false; reason: string };
 
 export type FinalizeArticle = (input: {
+	writeContext?: MediaWriteContext;
 	url: string;
 	documentUrl: string;
 	html: string;
@@ -97,6 +103,7 @@ export function initFinalizeArticle(deps: {
 		if (input.mediaType === "image" || isBareImageCapture({ html: input.html, candidates, url: input.documentUrl })) {
 			return finalizeImageArticle({
 				url: input.url,
+				writeContext: input.writeContext,
 				documentUrl: input.documentUrl,
 				candidates,
 				resolvedThumbnail: input.resolvedThumbnail,
@@ -119,7 +126,7 @@ export function initFinalizeArticle(deps: {
 		if (!parseResult.ok) return { ok: false, reason: parseResult.reason };
 
 		const { article } = parseResult;
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(input.url);
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(input.writeContext?.url ?? input.url);
 
 			/* Drop multi-MB inline base64 images before the body is persisted as the
 	 * tier source; downstream finalize handlers re-load the whole source and
@@ -129,6 +136,7 @@ export function initFinalizeArticle(deps: {
 
 		const media = await downloadMedia({
 			html: content,
+			writeContext: input.writeContext,
 			referer: input.documentUrl,
 			articleResourceUniqueId,
 		});
@@ -138,6 +146,7 @@ export function initFinalizeArticle(deps: {
 		const imageUrl = thumbnailImage
 			? await uploadThumbnail({
 					thumbnailImage,
+					writeContext: input.writeContext,
 					articleResourceUniqueId,
 					putImageObject,
 					imagesCdnBaseUrl,
@@ -172,6 +181,7 @@ export function initFinalizeArticle(deps: {
  * failure propagates and fails the save.
  */
 async function finalizeImageArticle(args: {
+	writeContext?: MediaWriteContext;
 	url: string;
 	documentUrl: string;
 	candidates: string[];
@@ -183,12 +193,12 @@ async function finalizeImageArticle(args: {
 	const { url, documentUrl, candidates, resolvedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
 	const { hostname, pathname } = new URL(url);
 	const title = imageTitleFromPathname(pathname) || hostname;
-	const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+	const articleResourceUniqueId = ArticleResourceUniqueId.parse(args.writeContext?.url ?? url);
 
 	const thumbnail = resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: documentUrl }));
 	const image = thumbnail.image;
 	const imageUrl = image
-		? await uploadThumbnail({ thumbnailImage: image, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl })
+		? await uploadThumbnail({ writeContext: args.writeContext, thumbnailImage: image, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl })
 		: (firstUsableCandidate({ candidates, thumbnail }) ?? documentUrl);
 
 	return {
@@ -224,15 +234,15 @@ function imageTitleFromPathname(pathname: string): string {
 }
 
 async function uploadThumbnail(args: {
+	writeContext?: MediaWriteContext;
 	thumbnailImage: ThumbnailImage;
 	articleResourceUniqueId: ArticleResourceUniqueId;
 	putImageObject: PutImageObject;
 	imagesCdnBaseUrl: string;
 }): Promise<string> {
 	const { thumbnailImage, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl } = args;
-	const hash = createHash("sha256").update(thumbnailImage.url).digest("hex").slice(0, 16);
-	const filename = `${hash}${thumbnailImage.extension}`;
+	const filename = mediaFilename({ sourceUrl: thumbnailImage.url, body: thumbnailImage.body, extension: thumbnailImage.extension, writeContext: args.writeContext });
 	const key = articleResourceUniqueId.toS3ImageKey(filename);
-	await putImageObject({ key, body: thumbnailImage.body, contentType: thumbnailImage.contentType });
+	await putImageObject({ key, body: thumbnailImage.body, contentType: thumbnailImage.contentType, writeContext: args.writeContext });
 	return articleResourceUniqueId.toImageCdnUrl({ baseUrl: imagesCdnBaseUrl, filename });
 }

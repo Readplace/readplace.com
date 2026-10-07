@@ -7,6 +7,7 @@ import {
 	MAX_BULK_PAGE_CONTENT_BYTES,
 	ArticleStatusSchema,
 	MinutesSchema,
+	newSaveAttemptId,
 } from "./article.schema";
 
 describe("SaveArticleInputSchema", () => {
@@ -103,5 +104,15 @@ describe("MinutesSchema", () => {
 
 	it("rejects non-numbers", () => {
 		expect(MinutesSchema.safeParse("seven").success).toBe(false);
+	});
+});
+
+describe("newSaveAttemptId", () => {
+	it("mints a distinct uuid for every save attempt", () => {
+		const first = newSaveAttemptId();
+		const second = newSaveAttemptId();
+
+		expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+		expect(second).not.toBe(first);
 	});
 });

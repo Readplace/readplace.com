@@ -1,5 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex } from "@noble/hashes/utils";
+import { toCanonicalHostUrl } from "./equivalent-hosts";
 import { stripTrackingParams } from "./strip-tracking-params";
 
 const MAX_ENCODED_SEGMENT_LENGTH = 900;
@@ -30,14 +31,17 @@ export class ArticleResourceUniqueId {
 	toS3ImageKey(filename: string): string {
 		return `content/${toS3KeySegment(this.value)}/images/${filename}`;
 	}
-	toS3PendingHtmlKey(): string {
-		return `pending-html/${toS3KeySegment(this.value)}.html`;
+	toS3PendingHtmlKey(saveAttemptId: string): string {
+		return `pending-html/${toS3KeySegment(this.value)}/${toS3KeySegment(saveAttemptId)}.html`;
 	}
-	toS3PendingPdfKey(): string {
-		return `pending-pdf/${toS3KeySegment(this.value)}.pdf`;
+	toS3PendingPdfKey(saveAttemptId: string): string {
+		return `pending-pdf/${toS3KeySegment(this.value)}/${toS3KeySegment(saveAttemptId)}.pdf`;
 	}
-	toS3RefreshHtmlKey(): string {
-		return `refresh-html/${toS3KeySegment(this.value)}.html`;
+	toS3RefreshHtmlKey(saveAttemptId: string): string {
+		return `refresh-html/${toS3KeySegment(this.value)}/${toS3KeySegment(saveAttemptId)}.html`;
+	}
+	toS3RefreshEvaluationHtmlKey(saveAttemptId: string): string {
+		return `${this.toS3RefreshHtmlKey(saveAttemptId)}.evaluation`;
 	}
 	toS3SourceKey({ tier }: { tier: string }): string {
 		return `articles/${toS3KeySegment(this.value)}/sources/${tier}.html`;
@@ -50,6 +54,12 @@ export class ArticleResourceUniqueId {
 	}
 	toS3SourcesPrefix(): string {
 		return `articles/${toS3KeySegment(this.value)}/sources/`;
+	}
+	toS3CandidatesPrefix({ tier }: { tier: string }): string {
+		return `${this.toS3SourceKey({ tier })}.candidates/`;
+	}
+	toS3MediaOwnersPrefix(): string {
+		return `${this.toS3SourcesPrefix()}media-owners/`;
 	}
 	toS3ContentVersionsPrefix(): string {
 		return `content-versions/${toS3KeySegment(this.value)}/`;
@@ -64,6 +74,10 @@ export class ArticleResourceUniqueId {
 	toString(): string {
 		return this.value;
 	}
+}
+
+export function canonicalIdentityOf(url: string): string {
+	return ArticleResourceUniqueId.parse(toCanonicalHostUrl(url)).value;
 }
 
 export function toCrawlVersionMinuteId(iso: string): string {

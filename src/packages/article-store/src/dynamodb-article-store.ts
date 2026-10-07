@@ -11,6 +11,9 @@ import type {
 	AggregateField,
 	Article,
 	ArticleStore,
+	CanonicalCommit,
+	ContentSelectionSnapshot,
+	SelectionExpected,
 	CrawlState,
 	SummaryState,
 } from "@packages/domain/article-aggregate";
@@ -21,16 +24,14 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { prepareCanonicalCommit, prepareSelectionCondition } from "./canonical-commit";
+import { VerificationFields } from "./verified-content";
 
 /**
  * Row schema for the Article aggregate. Each attribute is `dynamoField`
  * because legacy rows may be missing any of these (pre-state-machine rows,
  * rows that were saved before a particular field existed). The aggregate
  * fills in defaults at the mapping boundary.
- *
- * Fields outside this schema (routeId, originalUrl, content, contentSourceTier)
- * are owned by separate writers and are *not* touched by the aggregate save —
- * the UpdateExpression below only writes the attributes the aggregate models.
  */
 const ArticleAggregateRow = z.object({
 	title: dynamoField(z.string()),
@@ -60,6 +61,10 @@ const ArticleAggregateRow = z.object({
 	summaryAutoHealAttempts: dynamoField(z.number()),
 	summaryAutoHealLastAttemptAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
+	contentSelectionRevision: dynamoField(z.number()),
+	contentLocation: dynamoField(z.string()),
+	...VerificationFields,
+	sourceOriginalUrl: dynamoField(z.string()),
 });
 
 type RowShape = z.infer<typeof ArticleAggregateRow>;
@@ -183,6 +188,21 @@ function rowToArticle(url: string, row: RowShape): Article {
 		summary: rowToSummaryState(row),
 		summaryAutoHeal,
 		readerAvailableAt: row.readerAvailableAt,
+		contentSelection: contentSelectionFromRow(row),
+	};
+}
+
+function contentSelectionFromRow(row: RowShape): ContentSelectionSnapshot {
+	return {
+		revision: row.contentSelectionRevision,
+		contentLocation: row.contentLocation,
+		candidateId: row.canonicalCandidateId,
+		tier: row.contentSourceTier,
+		displayUrl: row.displayUrl,
+		contentSourceUrl: row.contentSourceUrl,
+		directContentBeforePin: row.directContentBeforePin,
+		sourceOriginalUrl: row.sourceOriginalUrl,
+		revokedCandidateIds: row.revokedCandidateIds === undefined ? undefined : [...row.revokedCandidateIds],
 	};
 }
 
@@ -362,40 +382,45 @@ function appendReaderAvailabilityClauses(
 function buildSaveCommand(params: {
 	article: Article;
 	writes: readonly AggregateField[];
+	canonicalCommit?: CanonicalCommit;
+	selectionExpected?: SelectionExpected;
 }): {
 	UpdateExpression: string;
 	ExpressionAttributeValues: Record<string, unknown>;
+	ConditionExpression: string;
 } {
 	const sets: string[] = [];
 	const removes: string[] = [];
 	const values: Record<string, unknown> = {};
 
-	const writesSet = new Set<AggregateField>(params.writes);
-	if (writesSet.has("metadata")) {
-		appendMetadataClauses(params.article, sets, values);
-	}
-	/* c8 ignore start -- V8 block-coverage phantom on the call expression, see bcoe/c8#319 */
-	if (writesSet.has("freshness")) {
-		appendFreshnessClauses(params.article, sets, values);
-	}
-	/* c8 ignore stop */
-	if (writesSet.has("summary")) {
-		appendSummaryClauses(params.article, sets, removes, values);
-	}
-	if (writesSet.has("crawl")) {
-		appendCrawlClauses(params.article, sets, removes, values);
-	}
-	if (writesSet.has("summaryAutoHeal")) {
-		appendSummaryAutoHealClauses(params.article, sets, removes, values);
-	}
-	if (writesSet.has("readerAvailability")) {
-		appendReaderAvailabilityClauses(params.article, sets, values);
+	const appendClauses: Record<AggregateField, () => void> = {
+		metadata: () => appendMetadataClauses(params.article, sets, values),
+		freshness: () => appendFreshnessClauses(params.article, sets, values),
+		summary: () => appendSummaryClauses(params.article, sets, removes, values),
+		crawl: () => appendCrawlClauses(params.article, sets, removes, values),
+		summaryAutoHeal: () => appendSummaryAutoHealClauses(params.article, sets, removes, values),
+		readerAvailability: () => appendReaderAvailabilityClauses(params.article, sets, values),
+	};
+	for (const field of new Set(params.writes)) {
+		appendClauses[field]();
 	}
 
+	const conditions = ["attribute_not_exists(purgedAt)"];
+	if (params.canonicalCommit !== undefined) {
+		const commit = prepareCanonicalCommit(params.canonicalCommit);
+		sets.push(...commit.sets);
+		conditions.push(...commit.conditions);
+		Object.assign(values, commit.values);
+	}
+	if (params.selectionExpected !== undefined) {
+		const expected = prepareSelectionCondition(params.selectionExpected.snapshot);
+		conditions.push(...expected.conditions);
+		Object.assign(values, expected.values);
+	}
 	const setClause = `SET ${sets.join(", ")}`;
 	const removeClause = removes.length > 0 ? ` REMOVE ${removes.join(", ")}` : "";
 	const UpdateExpression = setClause + removeClause;
-	return { UpdateExpression, ExpressionAttributeValues: values };
+	return { UpdateExpression, ExpressionAttributeValues: values, ConditionExpression: conditions.join(" AND ") };
 }
 
 export function initDynamoDbArticleStore(deps: {
@@ -413,30 +438,32 @@ export function initDynamoDbArticleStore(deps: {
 			const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 			const row = await table.get(
 				{ url: articleResourceUniqueId.value },
-				{ projection: AGGREGATE_FIELDS },
+				{ projection: AGGREGATE_FIELDS, consistentRead: true },
 			);
 			if (!row) return undefined;
 			return rowToArticle(url, row);
 		},
-		save: async ({ article, writes }) => {
+		save: async ({ article, writes, canonicalCommit, selectionExpected }) => {
 			const articleResourceUniqueId = ArticleResourceUniqueId.parse(article.url);
-			const { UpdateExpression, ExpressionAttributeValues } = buildSaveCommand({
+			const { UpdateExpression, ExpressionAttributeValues, ConditionExpression } = buildSaveCommand({
 				article,
 				writes,
+				canonicalCommit,
+				selectionExpected,
 			});
 			/* A purged (tombstoned) row must never be resurrected by an in-flight or
-			 * DLQ-redriven transition. The condition makes such a save a swallowed
-			 * no-op instead of a retry loop; a fresh save clears purgedAt first, so
+			 * DLQ-redriven transition; a fresh save clears purgedAt first, so
 			 * post-revival transitions pass again. */
 			try {
 				await table.update({
 					Key: { url: articleResourceUniqueId.value },
 					UpdateExpression,
-					ConditionExpression: "attribute_not_exists(purgedAt)",
+					ConditionExpression,
 					ExpressionAttributeValues,
+					ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 				});
 			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return;
+				if (error instanceof ConditionalCheckFailedException && (error.Item?.purgedAt !== undefined || (canonicalCommit === undefined && selectionExpected === undefined))) return;
 				throw error;
 			}
 		},

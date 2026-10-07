@@ -1,6 +1,7 @@
 import { GetObjectCommand, NoSuchKey } from "@aws-sdk/client-s3";
 import assert from "node:assert";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
+import type { ReadContentLocation } from "./read-content-location";
 
 // Narrow to just the GetObject response shape we actually consume — broader than
 // GetObjectCommandOutput, so S3Client.send is structurally assignable, and tests
@@ -11,14 +12,15 @@ export type S3GetObject = (cmd: GetObjectCommand) => Promise<{
 
 export function initS3ReadContent(deps: {
 	send: S3GetObject;
-	bucketName: string;
+	readContentLocation: ReadContentLocation;
 }): ContentProvider {
-	const { send, bucketName } = deps;
+	const { send, readContentLocation } = deps;
 
 	return async (articleResourceUniqueId) => {
-		const key = articleResourceUniqueId.toS3ContentKey();
+		const location = await readContentLocation(articleResourceUniqueId);
+		if (location === undefined) return undefined;
 		try {
-			const result = await send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
+			const result = await send(new GetObjectCommand({ Bucket: location.bucket, Key: location.key }));
 			assert(result.Body, "S3 GetObject response must have a Body");
 			return await result.Body.transformToString("utf-8");
 		} catch (error) {

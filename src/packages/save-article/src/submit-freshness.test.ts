@@ -23,7 +23,7 @@ function createFreshness(overrides: Partial<FreshnessDeps> = {}) {
 	return initSubmitFreshness({
 		findArticleByUrl: jest.fn().mockResolvedValue(null),
 		findArticleCrawlStatus: jest.fn().mockResolvedValue({ status: "ready" }),
-		resolveSaveIdentity: async (url) => ({ url }),
+		resolveSaveIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		publishStaleCheckRequested: jest.fn().mockResolvedValue(undefined),
 		...overrides,
 	});
@@ -36,7 +36,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: "https://example.com/post" });
 
-		expect(freshness).toEqual({ action: "new", identity: { url: "https://example.com/post" } });
+		expect(freshness).toEqual({ action: "new", identity: { status: "resolved", originalUrl: "https://example.com/post", url: "https://example.com/post" } });
 		expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 	});
 
@@ -51,7 +51,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "new", identity: { url: canonicalUrl } });
+		expect(freshness).toEqual({ action: "new", identity: { status: "resolved", originalUrl: canonicalUrl, url: canonicalUrl } });
 		expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 	});
 
@@ -65,7 +65,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "new", identity: { url: canonicalUrl } });
+		expect(freshness).toEqual({ action: "new", identity: { status: "resolved", originalUrl: canonicalUrl, url: canonicalUrl } });
 		expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 	});
 
@@ -77,7 +77,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "new", identity: { url: canonicalUrl } });
+		expect(freshness).toEqual({ action: "new", identity: { status: "resolved", originalUrl: canonicalUrl, url: canonicalUrl } });
 	});
 
 	it("verdicts 'skip' for a crawl-ready article and hands staleness to the async stale-check pipeline", async () => {
@@ -89,7 +89,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "skip", identity: { url: canonicalUrl } });
+		expect(freshness).toEqual({ action: "skip", identity: { status: "resolved", originalUrl: canonicalUrl, url: canonicalUrl } });
 		expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: canonicalUrl });
 	});
 
@@ -103,7 +103,7 @@ describe("initSubmitFreshness", () => {
 
 		const freshness = await refreshArticleIfStale({ url: canonicalUrl });
 
-		expect(freshness).toEqual({ action: "skip", identity: { url: canonicalUrl } });
+		expect(freshness).toEqual({ action: "skip", identity: { status: "resolved", originalUrl: canonicalUrl, url: canonicalUrl } });
 		expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: canonicalUrl });
 	});
 
@@ -112,7 +112,7 @@ describe("initSubmitFreshness", () => {
 		const publishStaleCheckRequested = jest.fn().mockResolvedValue(undefined);
 		const { refreshArticleIfStale } = createFreshness({
 			findArticleByUrl,
-			resolveSaveIdentity: async () => ({ url: canonicalUrl }),
+			resolveSaveIdentity: async () => ({ status: "resolved", url: canonicalUrl, originalUrl: canonicalUrl }),
 			publishStaleCheckRequested,
 		});
 
@@ -124,7 +124,7 @@ describe("initSubmitFreshness", () => {
 
 	describe("an archive capture keyed on its original", () => {
 		const snapshot = "https://web.archive.org/web/20081203185222/https://example.com/canonical";
-		const keyedOnOriginal = async () => ({ url: canonicalUrl, contentSourceUrl: snapshot });
+		const keyedOnOriginal = async () => ({ status: "resolved" as const, url: canonicalUrl, originalUrl: canonicalUrl, contentSourceUrl: snapshot, sourceOriginalUrl: canonicalUrl });
 
 		it.each([
 			{ status: "failed" as const, reason: "x" },
@@ -138,7 +138,7 @@ describe("initSubmitFreshness", () => {
 				publishStaleCheckRequested,
 			});
 
-			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new", identity: { url: canonicalUrl, contentSourceUrl: snapshot } });
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new", identity: { status: "resolved", originalUrl: canonicalUrl, url: canonicalUrl, contentSourceUrl: snapshot, sourceOriginalUrl: canonicalUrl } });
 			expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 		});
 
@@ -150,14 +150,27 @@ describe("initSubmitFreshness", () => {
 				publishStaleCheckRequested,
 			});
 
-			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "skip", identity: { url: canonicalUrl, contentSourceUrl: snapshot } });
-			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: canonicalUrl });
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "skip", identity: { status: "resolved", originalUrl: canonicalUrl, url: canonicalUrl, contentSourceUrl: snapshot, sourceOriginalUrl: canonicalUrl } });
+			expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 		});
 
 		it("verdicts 'new' when the original has no row yet", async () => {
 			const { refreshArticleIfStale } = createFreshness({ resolveSaveIdentity: keyedOnOriginal });
 
-			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new", identity: { url: canonicalUrl, contentSourceUrl: snapshot } });
+			expect(await refreshArticleIfStale({ url: snapshot })).toEqual({ action: "new", identity: { status: "resolved", originalUrl: canonicalUrl, url: canonicalUrl, contentSourceUrl: snapshot, sourceOriginalUrl: canonicalUrl } });
 		});
 	});
+});
+
+
+it("does not query article state or publish freshness events for an unresolved wrapper", async () => {
+	const findArticleByUrl = jest.fn();
+	const findArticleCrawlStatus = jest.fn();
+	const publishStaleCheckRequested = jest.fn();
+	const identity = { status: "unresolved" as const };
+	const { refreshArticleIfStale } = createFreshness({ findArticleByUrl, findArticleCrawlStatus, publishStaleCheckRequested, resolveSaveIdentity: async () => identity });
+	expect(await refreshArticleIfStale({ url: "https://archive.ph/abc" })).toEqual({ action: "unresolved", identity });
+	expect(findArticleByUrl).not.toHaveBeenCalled();
+	expect(findArticleCrawlStatus).not.toHaveBeenCalled();
+	expect(publishStaleCheckRequested).not.toHaveBeenCalled();
 });

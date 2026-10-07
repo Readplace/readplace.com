@@ -54,9 +54,10 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName: requireEnv("EVENT_BUS_NAME"),
 });
 
+const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const readEmailContent = initS3ReadContent({
 	send: (cmd) => s3Client.send(cmd),
-	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
+	readContentLocation: async (id) => ({ bucket: contentBucketName, key: id.toS3ContentKey() }),
 });
 
 const application = express()

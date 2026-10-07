@@ -26,6 +26,18 @@ describe("extensionFromContentType", () => {
 		).toBe(".tiff");
 	});
 
+	it("lowercases the URL pathname extension so stored image keys stay lowercase alphanumeric", () => {
+		expect(
+			extensionFromContentType({ contentType: "image/jpg", url: "https://cdn.example.com/IMG_1.JPG" }),
+		).toBe(".jpg");
+	});
+
+	it("returns .bin when the URL pathname extension is not alphanumeric", () => {
+		expect(
+			extensionFromContentType({ contentType: "image/x-custom", url: "https://cdn.example.com/a.jp_g" }),
+		).toBe(".bin");
+	});
+
 	it("returns .bin when the MIME type is unknown and the URL has no extension", () => {
 		expect(
 			extensionFromContentType({ contentType: "image/x-custom", url: "https://cdn.example.com/image" }),

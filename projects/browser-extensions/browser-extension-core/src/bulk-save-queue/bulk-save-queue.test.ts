@@ -79,6 +79,7 @@ function createFakeSession(respond: (chunk: BulkSavePage[]) => BulkChunkSummary 
 function allCreated(chunk: BulkSavePage[]): BulkChunkSummary {
 	return {
 		saved: chunk.length,
+		queued: 0,
 		skipped: 0,
 		failed: 0,
 		tooBig: [],
@@ -124,6 +125,7 @@ describe("initBulkSaveQueue savePages", () => {
 		const result = await queue.savePages({ pages: [] });
 
 		expect(result).toEqual({
+			queued: 0,
 			saved: 0,
 			skipped: 0,
 			failed: 0,
@@ -166,6 +168,7 @@ describe("initBulkSaveQueue savePages", () => {
 		const { queue, jobs, scheduler } = createQueue({
 			respond: (chunk) => ({
 				saved: chunk.length - 1,
+				queued: 0,
 				skipped: 0,
 				failed: 1,
 				tooBig: [],
@@ -193,6 +196,7 @@ describe("initBulkSaveQueue savePages", () => {
 		const { queue } = createQueue({
 			respond: (chunk) => ({
 				saved: chunk.length,
+				queued: 0,
 				skipped: 0,
 				failed: 0,
 				tooBig: [],
@@ -214,6 +218,7 @@ describe("initBulkSaveQueue savePages", () => {
 		const { queue, jobs } = createQueue({
 			respond: (chunk) => ({
 				saved: chunk.length - 1,
+				queued: 0,
 				skipped: 0,
 				failed: 1,
 				tooBig: [],
@@ -272,6 +277,7 @@ describe("initBulkSaveQueue savePages", () => {
 		const { queue, jobs, payloads } = createQueue({
 			respond: (chunk) => ({
 				saved: 0,
+				queued: 0,
 				skipped: 0,
 				failed: chunk.length,
 				tooBig: [],
@@ -400,6 +406,7 @@ describe("initBulkSaveQueue resume", () => {
 		const { queue, jobs, scheduler, notifications } = createQueue({
 			respond: (chunk) => ({
 				saved: 0,
+				queued: 0,
 				skipped: 0,
 				failed: chunk.length,
 				tooBig: [],
@@ -429,6 +436,7 @@ describe("initBulkSaveQueue resume", () => {
 				if (seeding) throw new Error("boom");
 				return {
 					saved: chunk.length - 1,
+					queued: 0,
 					skipped: 0,
 					failed: 1,
 					tooBig: [],
@@ -625,4 +633,12 @@ describe("initBulkSaveQueue purge", () => {
 		expect(result.unauthorized).toBe(true);
 		expect(storedJobs(jobs)).toEqual([]);
 	});
+});
+
+
+it("settles queued wrappers without scheduling browser retries", async () => {
+	const { queue, jobs } = createQueue({ respond: (chunk) => ({ saved: chunk.length, queued: chunk.length, skipped: 0, failed: 0, tooBig: [], skippedUrls: [], results: chunk.map((page) => ({ url: page.url, outcome: "created", code: "queued" })) }) });
+	const result = await queue.savePages({ pages: urlOnlyPages(21) });
+	expect(result).toMatchObject({ saved: 0, queued: 21, failed: 0, pendingRetry: 0 });
+	expect(storedJobs(jobs)).toEqual([]);
 });

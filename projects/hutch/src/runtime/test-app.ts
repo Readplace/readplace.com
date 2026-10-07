@@ -1,7 +1,7 @@
 import express, { type Express } from "express";
 import type { StarterReport } from "./domain/engagement/starter-report";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget } from "@packages/save-article";
+import type { HutchLogger } from "@packages/hutch-logger";
+import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import type {
@@ -123,6 +123,16 @@ function flattenFixtureToAppDependencies(
 	analyticsBundle: AnalyticsBundle,
 	subscriptionBundle: SubscriptionEventsBundle,
 ): Parameters<typeof createApp>[0] {
+	const saveIdentityDeps = {
+		validateUrl: fixture.shared.validateSaveableUrl,
+		findIdentityRow: fixture.articleStore.findIdentityRow,
+		claimAlias: fixture.articleStore.claimAlias,
+		now: fixture.shared.now,
+	};
+	const resolveSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: neverResolveWrapperTarget });
+	const resolveNetworkSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: fixture.wrapperTarget.resolveWrapperTarget });
+	const refreshWithIdentity = (resolveSaveIdentity: ResolveSaveIdentity) =>
+		initRefreshWithSaveIdentity({ resolveSaveIdentity, refreshArticleIfStale: fixture.freshness.refreshArticleIfStale }).refreshArticleIfStale;
 	return {
 		validateSaveableUrl: withUnwrapPreprocessing(
 			fixture.shared.validateSaveableUrl,
@@ -227,25 +237,14 @@ function flattenFixtureToAppDependencies(
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		findGeneratedSummaries: batchFromSingular(fixture.summary.findGeneratedSummary),
 		markSummaryPending: fixture.summary.markSummaryPending,
-		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
-		refreshArticleIfStaleStored: fixture.freshness.refreshArticleIfStale,
+		refreshArticleIfStale: refreshWithIdentity(resolveNetworkSaveIdentity),
+		refreshArticleIfStaleStored: refreshWithIdentity(resolveSaveIdentity),
 		resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: fixture.articleStore.findIdentityRow }),
-		resolveSaveIdentity: initResolveSaveIdentity({
-			findIdentityRow: fixture.articleStore.findIdentityRow,
-			claimAlias: fixture.articleStore.claimAlias,
-			resolveWrapperTarget: neverResolveWrapperTarget,
-			now: fixture.shared.now,
-			logger: noopLogger,
-		}),
-		resolveFirstVisitIdentity: initResolveSaveIdentity({
-			findIdentityRow: fixture.articleStore.findIdentityRow,
-			claimAlias: fixture.articleStore.claimAlias,
-			resolveWrapperTarget: fixture.wrapperTarget.resolveWrapperTarget,
-			now: fixture.shared.now,
-			logger: noopLogger,
-		}),
+		findIdentityRow: fixture.articleStore.findIdentityRow,
+		resolveFirstVisitIdentity: resolveNetworkSaveIdentity,
 		resolveWrapperTarget: fixture.wrapperTarget.resolveWrapperTarget,
 		pinContentSource: fixture.articleStore.pinContentSource,
+		findContentSourceUrl: fixture.articleStore.findContentSourceUrl,
 		oauthModel: fixture.oauth.oauthModel,
 		revokeAllUserOAuthTokens: fixture.oauth.revokeAllUserOAuthTokens,
 		validateAccessToken: fixture.oauth.validateAccessToken,

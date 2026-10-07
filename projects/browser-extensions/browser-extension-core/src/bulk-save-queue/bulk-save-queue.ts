@@ -36,6 +36,7 @@ type PassReport = BulkSaveResult & {
 
 function emptyReport(): PassReport {
 	return {
+		queued: 0,
 		saved: 0,
 		skipped: 0,
 		failed: 0,
@@ -256,7 +257,8 @@ export function initBulkSaveQueue(deps: {
 			try {
 				const bulk = await session.sendChunk(chunk);
 				progressed = true;
-				report.saved += bulk.saved;
+				report.saved += bulk.saved - bulk.queued;
+				report.queued += bulk.queued;
 				report.skipped += bulk.skipped;
 				report.tooBig.push(...bulk.tooBig);
 				report.skippedUrls.push(...bulk.skippedUrls);

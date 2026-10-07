@@ -7,6 +7,7 @@ import {
 	initDynamoDbGeneratedSummary,
 	initCanonicalAliasStore,
 	initReadArticleContent,
+	initReadContentLocation,
 	initS3ReadContent,
 } from "@packages/article-store";
 import {
@@ -90,18 +91,21 @@ const { prepareSnapshot } = initHnSnapshot({
 	fetch: globalThis.fetch,
 	validateSaveableUrl: withNewSavePreparation(validateSaveableUrl),
 	resolveSaveIdentity: initResolveSaveIdentity({
+		validateUrl: validateSaveableUrl,
 		findIdentityRow: aliases.findIdentityRow,
 		claimAlias: aliases.claimAlias,
 		resolveWrapperTarget: neverResolveWrapperTarget,
 		now: () => new Date(),
-		logger,
 	}),
 	findArticleByUrl: articleStore.findArticleByUrl,
 	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 	readArticleContent: initReadArticleContent({
 		storageProviderQueryOrder: [
+			initS3ReadContent({
+				send: (command) => s3.send(command),
+				readContentLocation: initReadContentLocation({ client: dynamoClient, tableName: articlesTable, bucketName: contentBucketName }),
+			}),
 			articleStore.readContent,
-			initS3ReadContent({ send: (command) => s3.send(command), bucketName: contentBucketName }),
 		],
 		logError: (message, error) => logger.error(message, { error }),
 	}),

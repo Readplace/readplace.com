@@ -1,11 +1,11 @@
-import { calculateReadTime } from "@packages/domain/article";
+import { newSaveAttemptId, calculateReadTime, isArchiveHost } from "@packages/domain/article";
 import type { MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
+import type { ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
 import type { PinContentSource, SaveArticleGlobally } from "@packages/provider-contracts/article-store";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
-import type { SaveIdentity } from "./resolve-save-identity";
 
-export type StartAnonymousCrawl = (identity: SaveIdentity) => Promise<void>;
+export type StartAnonymousCrawl = (identity: ResolvedSaveIdentity) => Promise<void>;
 
 export interface StartAnonymousCrawlDependencies {
 	saveArticleGlobally: SaveArticleGlobally;
@@ -17,7 +17,8 @@ export interface StartAnonymousCrawlDependencies {
 }
 
 export function initStartAnonymousCrawl(deps: StartAnonymousCrawlDependencies): StartAnonymousCrawl {
-	return async ({ url, contentSourceUrl }) => {
+	return async (identity) => {
+		const { url } = identity;
 		const host = new URL(url).hostname;
 		await deps.saveArticleGlobally({
 			url,
@@ -25,14 +26,16 @@ export function initStartAnonymousCrawl(deps: StartAnonymousCrawlDependencies): 
 			estimatedReadTime: calculateReadTime(0),
 			savedAt: deps.now(),
 		});
-		if (contentSourceUrl !== undefined) {
-			await deps.pinContentSource({ articleUrl: url, contentSourceUrl });
-		}
 		await deps.markCrawlPending({ url });
 		await deps.markSummaryPending({ url });
-		await deps.publishSaveAnonymousLink({ url });
-		if (contentSourceUrl !== undefined) {
-			await deps.publishSaveAnonymousLink({ url, captureUrl: contentSourceUrl });
+		if (identity.contentSourceUrl !== undefined && isArchiveHost(identity.contentSourceUrl)) {
+			await deps.pinContentSource({ articleUrl: url, contentSourceUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl });
 		}
+		await deps.publishSaveAnonymousLink({
+			url,
+			captureUrl: identity.contentSourceUrl,
+			sourceOriginalUrl: identity.sourceOriginalUrl,
+			saveAttemptId: newSaveAttemptId(),
+		});
 	};
 }

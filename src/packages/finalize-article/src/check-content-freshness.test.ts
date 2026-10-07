@@ -17,7 +17,7 @@ function createDeps(overrides?: Record<string, unknown>) {
 		}),
 		publishRefreshArticleContent: async () => {},
 		publishUpdateFetchTimestamp: async () => {},
-		resolveCanonicalIdentity: async (url: string) => url,
+		resolveCanonicalIdentity: async (url: string) => ({ url, originalUrl: url }),
 		now: () => new Date("2026-03-20T10:00:00Z"),
 		staleTtlMs: 86400000,
 		...overrides,
@@ -37,7 +37,7 @@ describe("refreshArticleIfStale", () => {
 	it("resolves an adopted terminal URL onto its alias target before checking freshness", async () => {
 		const checkedUrls: string[] = [];
 		const deps = createDeps({
-			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+			resolveCanonicalIdentity: async () => ({ url: "https://example.com/canonical", originalUrl: "https://example.com/canonical" }),
 			findArticleFreshness: async (url: string) => {
 				checkedUrls.push(url);
 				return null;
@@ -290,4 +290,18 @@ describe("refreshArticleIfStale", () => {
 
 		expect(result.action).toBe("skip");
 	});
+});
+
+
+it("fetches an adopted original and preserves actual source and evaluation provenance under the old storage key", async () => {
+	const storedUrl = "https://old.example/article";
+	const originalUrl = "https://example.com/article";
+	const sourceUrl = "https://example.com/article?edition=2";
+	const evaluationHtml = "<html><body>Raw evaluation</body></html>";
+	const crawlArticle = jest.fn(async () => ({ status: "fetched" as const, html: "<p>Article</p>", evaluationHtml, finalUrl: sourceUrl, bodyHash: "a".repeat(64) }));
+	const publishRefreshArticleContent = jest.fn();
+	const { refreshArticleIfStale } = initRefreshArticleIfStale(createDeps({ findArticleFreshness: async () => ({ contentFetchedAt: "2025-01-01T00:00:00.000Z" }), resolveCanonicalIdentity: async () => ({ url: storedUrl, originalUrl }), crawlArticle, publishRefreshArticleContent }));
+	await expect(refreshArticleIfStale({ url: storedUrl })).resolves.toMatchObject({ action: "refreshed" });
+	expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({ url: originalUrl }));
+	expect(publishRefreshArticleContent).toHaveBeenCalledWith(expect.objectContaining({ url: storedUrl, sourceOriginalUrl: originalUrl, sourceUrl, evaluationHtml }));
 });
