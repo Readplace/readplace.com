@@ -10,6 +10,7 @@ import {
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 } from "../forward-analytics-lambda";
 import { buildObservabilityFilterPattern } from "../observability-filter";
+import { assertLambdaEnvironmentFits } from "./lambda-environment-size";
 
 const esbuildLoaders: Record<string, Loader> = { ".ts": "ts" };
 const bundledExtensions = Object.keys(esbuildLoaders);
@@ -302,7 +303,16 @@ export class HutchLambda extends pulumi.ComponentResource {
 		}
 
 		const hasEnvironment = Object.keys(args.environment).length > 0;
-		const environmentArg = hasEnvironment ? { environment: { variables: args.environment } } : {};
+		const environmentArg = hasEnvironment
+			? {
+					environment: {
+						variables: pulumi.output(args.environment).apply((variables) => {
+							assertLambdaEnvironmentFits({ lambdaName, variables });
+							return variables;
+						}),
+					},
+				}
+			: {};
 
 		const layersArg = args.layers?.length ? { layers: args.layers } : {};
 		const architecturesArg = args.architectures?.length
