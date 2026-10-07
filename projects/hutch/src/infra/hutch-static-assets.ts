@@ -1,10 +1,11 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
 import * as path from "node:path";
 import { HutchCertificate, HutchS3PublicRead } from "@packages/hutch-infra-components/infra";
+import { CloudFrontInvalidation } from "./cloudfront-invalidation";
 
 export interface StaticDomainEntry {
 	domain: string;
@@ -42,59 +43,6 @@ function walkStaticAssets(rootAbs: string): Array<{ key: string; absolutePath: s
 	}
 	files.sort((a, b) => a.key.localeCompare(b.key));
 	return files;
-}
-
-interface InvalidationInputs {
-	distributionId: string;
-	triggerHash: string;
-}
-
-const invalidationProvider: pulumi.dynamic.ResourceProvider = {
-	async create(inputs: InvalidationInputs) {
-		const { CloudFrontClient, CreateInvalidationCommand } = await import("@aws-sdk/client-cloudfront");
-		const client = new CloudFrontClient({});
-		const result = await client.send(
-			new CreateInvalidationCommand({
-				DistributionId: inputs.distributionId,
-				InvalidationBatch: {
-					CallerReference: `pulumi-${Date.now()}-${randomUUID()}`,
-					Paths: { Quantity: 1, Items: ["/*"] },
-				},
-			}),
-		);
-		assert(result.Invalidation?.Id, "CreateInvalidation did not return an Invalidation.Id");
-		return {
-			id: result.Invalidation.Id,
-			outs: { distributionId: inputs.distributionId, triggerHash: inputs.triggerHash },
-		};
-	},
-	async update(_id: string, _olds: InvalidationInputs, news: InvalidationInputs) {
-		const { CloudFrontClient, CreateInvalidationCommand } = await import("@aws-sdk/client-cloudfront");
-		const client = new CloudFrontClient({});
-		await client.send(
-			new CreateInvalidationCommand({
-				DistributionId: news.distributionId,
-				InvalidationBatch: {
-					CallerReference: `pulumi-${Date.now()}-${randomUUID()}`,
-					Paths: { Quantity: 1, Items: ["/*"] },
-				},
-			}),
-		);
-		return { outs: { distributionId: news.distributionId, triggerHash: news.triggerHash } };
-	},
-	async diff(_id: string, olds: InvalidationInputs, news: InvalidationInputs) {
-		return { changes: olds.triggerHash !== news.triggerHash };
-	},
-};
-
-class CloudFrontInvalidation extends pulumi.dynamic.Resource {
-	constructor(
-		name: string,
-		args: { distributionId: pulumi.Input<string>; triggerHash: pulumi.Input<string> },
-		opts?: pulumi.CustomResourceOptions,
-	) {
-		super(invalidationProvider, name, args, opts);
-	}
 }
 
 /**
@@ -283,6 +231,7 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 				{
 					distributionId: distribution.id,
 					triggerHash,
+					paths: ["/*"],
 				},
 				{ parent: this, dependsOn: bucketObjects },
 			);

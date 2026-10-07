@@ -7,12 +7,15 @@ import {
 	VIEWER_IP_HEADER,
 	VIEWER_PATH_HEADER,
 } from "@packages/viewer-identity";
+import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 
 const AWS_MANAGED_CACHING_DISABLED_POLICY_ID = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad";
 const AWS_MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID = "b689b0a8-53d0-40ab-baf2-68738e2966ac";
 
 const EVERY_HTTP_METHOD = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"];
 const ONLY_CACHEABLE_METHODS = ["GET", "HEAD"];
+
+const CLIENT_BUNDLE_EDGE_MAX_SECONDS = 300;
 
 const SERVER_TIMING_SAMPLED_PERCENT_OF_RESPONSES = 5;
 const ORIGIN_CONNECTION_REUSE_SECONDS = 60;
@@ -103,6 +106,28 @@ export class HutchSsrCdn extends pulumi.ComponentResource {
 			{ parent: this },
 		);
 
+		const honourOriginCacheControl = new aws.cloudfront.CachePolicy(
+			`${name}-client-dist`,
+			{
+				name: `${name}-client-dist`,
+				minTtl: 0,
+				defaultTtl: 0,
+				maxTtl: CLIENT_BUNDLE_EDGE_MAX_SECONDS,
+				parametersInCacheKeyAndForwardedToOrigin: {
+					cookiesConfig: { cookieBehavior: "none" },
+					headersConfig: { headerBehavior: "none" },
+					queryStringsConfig: { queryStringBehavior: "none" },
+					enableAcceptEncodingGzip: true,
+					enableAcceptEncodingBrotli: true,
+				},
+			},
+			{ parent: this },
+		);
+
+		const viewerRequestFunctions = [
+			{ eventType: "viewer-request", functionArn: stateViewerAddressAndHost.arn },
+		];
+
 		const distribution = new aws.cloudfront.Distribution(
 			`${name}-cdn`,
 			{
@@ -141,10 +166,22 @@ export class HutchSsrCdn extends pulumi.ComponentResource {
 					originRequestPolicyId: AWS_MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,
 					responseHeadersPolicyId: sampleOriginConnectTiming.id,
 					compress: false,
-					functionAssociations: [
-						{ eventType: "viewer-request", functionArn: stateViewerAddressAndHost.arn },
-					],
+					functionAssociations: viewerRequestFunctions,
 				},
+				orderedCacheBehaviors: [
+					{
+						pathPattern: `${CLIENT_DIST_MOUNT_PATH}/*`,
+						targetOriginId: "ssr-origin",
+						viewerProtocolPolicy: "redirect-to-https",
+						allowedMethods: ONLY_CACHEABLE_METHODS,
+						cachedMethods: ONLY_CACHEABLE_METHODS,
+						cachePolicyId: honourOriginCacheControl.id,
+						originRequestPolicyId: AWS_MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,
+						responseHeadersPolicyId: sampleOriginConnectTiming.id,
+						compress: false,
+						functionAssociations: viewerRequestFunctions,
+					},
+				],
 				restrictions: { geoRestriction: { restrictionType: "none" } },
 				viewerCertificate: {
 					acmCertificateArn: validated.certificateArn,

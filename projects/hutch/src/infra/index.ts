@@ -1,7 +1,9 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSharedDlq, HutchSQS, HutchSQSBackedLambda, HutchDLQEventHandler, HutchStripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/hutch-infra-components/infra";
 import {
@@ -38,6 +40,7 @@ import {
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
+import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, firstPartyRefreshRefusedPattern } from "../runtime/observability/metric-filters";
@@ -52,6 +55,7 @@ import { AgentDiscoveryDns } from "./agent-discovery-dns";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
 import { HutchSsrCdn } from "./hutch-ssr-cdn";
+import { CloudFrontInvalidation } from "./cloudfront-invalidation";
 import { OutboundMailAuth } from "./outbound-mail-auth";
 import { requireEnv } from "@packages/require-env";
 
@@ -496,6 +500,32 @@ const ssrCdnDistribution = ssrCdn
 			edgeSecret: ssrEdgeSecret,
 		})
 	: undefined;
+
+function hashDirectoryContents(rootAbs: string): string {
+	const files = readdirSync(rootAbs, { recursive: true, withFileTypes: true })
+		.filter((entry) => entry.isFile())
+		.map((entry) => join(entry.parentPath, entry.name))
+		.sort();
+	assert(files.length > 0, `${rootAbs} contains no files`);
+	const hasher = createHash("sha256");
+	for (const file of files) {
+		hasher.update(relative(rootAbs, file));
+		hasher.update(readFileSync(file));
+	}
+	return hasher.digest("hex");
+}
+
+if (ssrCdnDistribution) {
+	new CloudFrontInvalidation(
+		"hutch-ssr-client-dist-invalidation",
+		{
+			distributionId: ssrCdnDistribution.distributionId,
+			triggerHash: hashDirectoryContents(resolve(__dirname, "../runtime/web/client-dist")),
+			paths: [`${CLIENT_DIST_MOUNT_PATH}/*`],
+		},
+		{ dependsOn: [lambda] },
+	);
+}
 
 const ssrCdnDnsAlias =
 	ssrCdnDistribution && ssrCdn?.dnsTarget === "cloudfront"
