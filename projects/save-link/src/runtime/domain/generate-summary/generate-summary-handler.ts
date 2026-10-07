@@ -7,6 +7,7 @@ import {
 	markSummarySkipped,
 	summaryMatchesCanonical,
 	type LoadArticle,
+	type SelectionExpected,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import { GenerateSummaryCommand } from "./index";
@@ -40,7 +41,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 
 				/* `failed` is retryable on redrive so a new attempt re-runs the AI. */
 				const existing = await loadArticle(command.url);
-				const selectionExpected = { snapshot: existing?.contentSelection };
+				const selectionExpected: SelectionExpected = { scope: "canonical-content", snapshot: existing?.contentSelection };
 				const candidateRevoked = isCanonicalCandidateRevoked(existing?.contentSelection);
 				const validReadySummary = existing?.summary.kind === "ready" &&
 					summaryMatchesCanonical({ candidateId: existing.contentSelection?.candidateId, summarySourceContentHash: existing.summary.sourceContentHash, canonicalContentHash: existing.freshness.canonicalContentHash });

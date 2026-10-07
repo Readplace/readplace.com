@@ -113,6 +113,48 @@ describe("initPrepareContentSelection", () => {
 		expect(result.outcome).toBe("retained");
 	});
 
+	it("serves the reader's capture as an article's first content without consulting the judge", async () => {
+		const capture = source("tier-0", "capture");
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+		const { prepare } = setup({ listAvailableTierSources: async () => [capture], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+		expect(select).not.toHaveBeenCalled();
+		expect(result.selected?.metadata.id).toBe("capture");
+		expect(result.outcome).toBe("selected");
+		expect(result.reason).toBe("the reader's capture is the article's first content");
+		expect(result.readableIds.has(cid("capture"))).toBe(true);
+		expect(result.audit).toBeUndefined();
+	});
+
+	it("does not serve a blank first capture", async () => {
+		const blank = source("tier-0", "blank", { html: " " });
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+		const { prepare } = setup({ listAvailableTierSources: async () => [blank], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("blank") }] });
+
+		expect(select).not.toHaveBeenCalled();
+		expect(result.outcome).toBe("no-readable");
+	});
+
+	it("still judges a lone capture once the article holds committed content", async () => {
+		const capture = source("tier-0", "capture");
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+			.mockResolvedValue({ kind: "none", reason: "The capture is a challenge page" });
+		const { prepare } = setup({
+			loadArticle: async () => article({ contentSelection: { revision: 2, tier: "tier-1", candidateId: cid("gone") }, freshness: { contentFetchedAt: NOW, canonicalContentHash: "committed" } }),
+			listAvailableTierSources: async () => [capture],
+			selectMostCompleteContent: select,
+		});
+
+		const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+		expect(select).toHaveBeenCalledTimes(1);
+		expect(result.outcome).toBe("no-readable");
+	});
+
 	it("retains a verified earlier canonical when all fresh responses are unreadable", async () => {
 		const previous = source("tier-0", "previous");
 		previous.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");

@@ -123,7 +123,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, {
 			url: URL,
-			selectionExpected: { snapshot: undefined },
+			selectionExpected: { scope: "canonical-content", snapshot: undefined },
 			input: {
 				summary: "A summary.",
 				excerpt: "A blurb.",
@@ -290,7 +290,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
-			selectionExpected: { snapshot: undefined },
+			selectionExpected: { scope: "canonical-content", snapshot: undefined },
 			input: { reason: "content-too-short", now: NOW.toISOString() },
 		});
 	});
@@ -341,7 +341,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
-			selectionExpected: { snapshot: undefined },
+			selectionExpected: { scope: "canonical-content", snapshot: undefined },
 			input: { reason: "declined", now: NOW.toISOString() },
 		});
 	});
@@ -413,7 +413,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
-			selectionExpected: { snapshot: undefined },
+			selectionExpected: { scope: "canonical-content", snapshot: undefined },
 			input: { reason: "crawl-failed", now: NOW.toISOString() },
 		});
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
@@ -431,7 +431,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
-			selectionExpected: { snapshot: undefined },
+			selectionExpected: { scope: "canonical-content", snapshot: undefined },
 			input: { reason: "crawl-unsupported", now: NOW.toISOString() },
 		});
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
@@ -500,6 +500,22 @@ describe("initGenerateSummaryHandler", () => {
 		expect(await handler(createSqsEvent({ url }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect((await store.load(url))?.summary.kind).toBe("pending");
 		expect(effects).toEqual([]);
+	});
+
+	it("records the summary when a competing selector re-committed the same canonical while it was generating", async () => {
+		const url = "https://example.com/re-selected";
+		const content = "<p>Same canonical content</p>";
+		const canonical = { candidateId: cid("same"), contentLocation: "s3://bucket/same.html" };
+		const store = initInMemoryArticleStore();
+		store.seed({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(content) }, contentSelection: { revision: 1, ...canonical } });
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {} });
+		const { handler } = createHandler({ loadArticle: store.load, transitionAndPersist, findArticleContent: async () => ({ content }), summarizeArticle: async () => {
+			store.seed({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(content) }, contentSelection: { revision: 2, ...canonical } });
+			return { kind: "ready", summary: "Summary", excerpt: "Excerpt", inputTokens: 1, outputTokens: 1 };
+		} });
+
+		expect(await handler(createSqsEvent({ url }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		expect((await store.load(url))?.summary.kind).toBe("ready");
 	});
 
 	it("retries before generation if the pointer read returns a different body from the loaded snapshot", async () => {

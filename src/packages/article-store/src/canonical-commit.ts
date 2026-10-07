@@ -1,15 +1,10 @@
-import type { CanonicalCommit, ContentSelectionSnapshot } from "@packages/domain/article-aggregate";
+import type { CanonicalCommit, ContentSelectionSnapshot, SelectionExpected } from "@packages/domain/article-aggregate";
 
-export function prepareSelectionCondition(snapshot: ContentSelectionSnapshot | undefined): { conditions: string[]; values: Record<string, unknown> } {
+type Condition = { conditions: string[]; values: Record<string, unknown> };
+
+function expectAttributes(expectedFields: Record<string, unknown>): Condition {
 	const values: Record<string, unknown> = {};
 	const conditions: string[] = [];
-	const expectedFields = {
-		contentSelectionRevision: snapshot?.revision,
-		contentLocation: snapshot?.contentLocation,
-		displayUrl: snapshot?.displayUrl,
-		contentSourceUrl: snapshot?.contentSourceUrl,
-		sourceOriginalUrl: snapshot?.sourceOriginalUrl,
-	};
 	for (const [name, expected] of Object.entries(expectedFields)) {
 		if (expected === undefined) {
 			conditions.push(`attribute_not_exists(${name})`);
@@ -20,6 +15,26 @@ export function prepareSelectionCondition(snapshot: ContentSelectionSnapshot | u
 		}
 	}
 	return { conditions, values };
+}
+
+function prepareSelectionCondition(snapshot: ContentSelectionSnapshot | undefined): Condition {
+	return expectAttributes({
+		contentSelectionRevision: snapshot?.revision,
+		contentLocation: snapshot?.contentLocation,
+		displayUrl: snapshot?.displayUrl,
+		contentSourceUrl: snapshot?.contentSourceUrl,
+		sourceOriginalUrl: snapshot?.sourceOriginalUrl,
+	});
+}
+
+function prepareCanonicalContentCondition(snapshot: ContentSelectionSnapshot | undefined): Condition {
+	const expected = expectAttributes({ canonicalCandidateId: snapshot?.candidateId, contentLocation: snapshot?.contentLocation });
+	if (snapshot?.candidateId !== undefined) expected.conditions.push("NOT contains(revokedCandidateIds, :expected_canonicalCandidateId)");
+	return expected;
+}
+
+export function prepareExpectedSelection(expected: SelectionExpected): Condition {
+	return expected.scope === "canonical-content" ? prepareCanonicalContentCondition(expected.snapshot) : prepareSelectionCondition(expected.snapshot);
 }
 
 export function prepareCanonicalCommit(commit: CanonicalCommit): {

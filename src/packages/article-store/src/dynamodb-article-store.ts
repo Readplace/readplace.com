@@ -24,7 +24,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { prepareCanonicalCommit, prepareSelectionCondition } from "./canonical-commit";
+import { prepareCanonicalCommit, prepareExpectedSelection } from "./canonical-commit";
 import { VerificationFields } from "./verified-content";
 
 /**
@@ -413,7 +413,7 @@ function buildSaveCommand(params: {
 		Object.assign(values, commit.values);
 	}
 	if (params.selectionExpected !== undefined) {
-		const expected = prepareSelectionCondition(params.selectionExpected.snapshot);
+		const expected = prepareExpectedSelection(params.selectionExpected);
 		conditions.push(...expected.conditions);
 		Object.assign(values, expected.values);
 	}

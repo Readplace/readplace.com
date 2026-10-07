@@ -1,8 +1,9 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type {
-	AggregateField,
-	Article,
-	ArticleStore,
+import {
+	type AggregateField,
+	type Article,
+	type ArticleStore,
+	isCanonicalCandidateRevoked,
 } from "@packages/domain/article-aggregate";
 
 interface SavedCall {
@@ -36,7 +37,11 @@ export function initInMemoryArticleStore(): ArticleStore & {
 		save: async ({ article, writes, canonicalCommit, selectionExpected }) => {
 			const current = rows.get(key(article.url));
 			const expected = canonicalCommit === undefined ? selectionExpected : { snapshot: canonicalCommit.expected };
-			if (expected !== undefined) {
+			if (expected?.scope === "canonical-content") {
+				const selection = current?.contentSelection;
+				const sameCanonical = selection?.candidateId === expected.snapshot?.candidateId && selection?.contentLocation === expected.snapshot?.contentLocation;
+				if (!sameCanonical || isCanonicalCandidateRevoked(selection)) throw new Error("canonical content changed");
+			} else if (expected !== undefined) {
 				for (const field of ["revision", "contentLocation", "displayUrl", "contentSourceUrl", "sourceOriginalUrl"] as const) {
 					if (current?.contentSelection?.[field] !== expected.snapshot?.[field]) throw new Error("content selection changed");
 				}

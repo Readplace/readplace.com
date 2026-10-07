@@ -38,6 +38,20 @@ function isSuccessStatus(httpStatus: number | undefined): boolean {
 	return httpStatus === undefined || (httpStatus >= 200 && httpStatus < 300);
 }
 
+function firstCaptureOf(params: { article: Article; sources: readonly VerifiedTierSource[] }): VerifiedTierSource | undefined {
+	const [only] = params.sources;
+	const isFirstContent = params.article.freshness.canonicalContentHash === undefined;
+	return only !== undefined && params.sources.length === 1 && isFirstContent && only.metadata.kind === "extension" ? only : undefined;
+}
+
+async function judgeCandidates(params: { sources: readonly VerifiedTierSource[]; originalUrl: string; selectMostCompleteContent: SelectMostCompleteContent }) {
+	if (params.sources.length === 0) return { kind: "none", reason: "no verified candidates", readability: [] } as const;
+	return params.selectMostCompleteContent({
+		url: params.originalUrl,
+		candidates: params.sources.map((source) => ({ id: source.metadata.id, tier: source.tier, title: source.metadata.title, wordCount: source.metadata.wordCount, html: source.evaluationHtml ?? source.html, httpStatus: source.metadata.httpStatus })),
+	});
+}
+
 export function initPrepareContentSelection(deps: {
 	loadArticle: LoadArticle;
 	readCanonicalContent: FindArticleContent;
@@ -95,10 +109,10 @@ export function initPrepareContentSelection(deps: {
 			}
 		}
 		const previous = sources.find((source) => source.metadata.id === (canonical?.id ?? legacyCanonicalId) && candidateIsReadable(source));
-		const decision = sources.length === 0 ? { kind: "none", reason: "no verified candidates", readability: [] } as const : await deps.selectMostCompleteContent({
-			url: originalUrl,
-			candidates: sources.map((source) => ({ id: source.metadata.id, tier: source.tier, title: source.metadata.title, wordCount: source.metadata.wordCount, html: source.evaluationHtml ?? source.html, httpStatus: source.metadata.httpStatus })),
-		});
+		const firstCapture = firstCaptureOf({ article, sources });
+		const decision = firstCapture !== undefined
+			? { kind: "winner", candidateId: firstCapture.metadata.id, reason: "the reader's capture is the article's first content", readability: [{ candidateId: firstCapture.metadata.id, readable: true }] } as const
+			: await judgeCandidates({ sources, originalUrl, selectMostCompleteContent: deps.selectMostCompleteContent });
 		const audit = "audit" in decision ? decision.audit : undefined;
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
 			sources: tied,

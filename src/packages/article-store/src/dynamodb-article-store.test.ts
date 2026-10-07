@@ -1540,6 +1540,32 @@ describe("atomic canonical selection", () => {
 		await expect(store.save({ article: buildArticle({ crawl: { kind: "failed", reason: { kind: "parse-error", detail: "no readable article" } } }), writes: ["crawl"], selectionExpected: { snapshot: undefined } })).rejects.toThrow("new readable candidate committed");
 		expect(capturedCommand(received).input.ConditionExpression).toContain("attribute_not_exists(contentLocation)");
 	});
+
+	it("guards a summary on the canonical candidate it summarised, not on the selection revision", async () => {
+		let received: unknown;
+		const client = createFakeClient((command) => { received = command; return {}; });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		const snapshot = { revision: 3, candidateId: CandidateIdSchema.parse("current"), contentLocation: "s3://content/current.html", displayUrl: URL };
+		await store.save({ article: buildArticle({ summary: { kind: "ready", summary: "Summary" } }), writes: ["summary"], selectionExpected: { scope: "canonical-content", snapshot } });
+		const command = capturedCommand(received).input;
+		expect(command.ConditionExpression).toContain("canonicalCandidateId = :expected_canonicalCandidateId");
+		expect(command.ConditionExpression).toContain("contentLocation = :expected_contentLocation");
+		expect(command.ConditionExpression).toContain("NOT contains(revokedCandidateIds, :expected_canonicalCandidateId)");
+		expect(command.ConditionExpression).not.toContain("contentSelectionRevision");
+		expect(command.ConditionExpression).not.toContain("displayUrl");
+		expect(command.ExpressionAttributeValues?.[":expected_canonicalCandidateId"]).toBe("current");
+	});
+
+	it("guards a summary of a row without a canonical candidate on that candidate staying absent", async () => {
+		let received: unknown;
+		const client = createFakeClient((command) => { received = command; return {}; });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		await store.save({ article: buildArticle({ summary: { kind: "ready", summary: "Summary" } }), writes: ["summary"], selectionExpected: { scope: "canonical-content", snapshot: undefined } });
+		const command = capturedCommand(received).input;
+		expect(command.ConditionExpression).toContain("attribute_not_exists(canonicalCandidateId)");
+		expect(command.ConditionExpression).toContain("attribute_not_exists(contentLocation)");
+		expect(command.ConditionExpression).not.toContain("revokedCandidateIds");
+	});
 	it.each([
 		{ name: "a canonical commit", guard: { canonicalCommit: { expected: undefined, contentLocation: "s3://content/late.html", candidateId: CandidateIdSchema.parse("late"), originalUrl: URL, tier: "tier-1" as const } } },
 		{ name: "a no-readable terminalization", guard: { selectionExpected: { snapshot: undefined } } },

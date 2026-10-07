@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { CandidateIdSchema } from "@packages/domain/article";
 import type { Article } from "@packages/domain/article-aggregate";
 import { initInMemoryArticleStore } from "./in-memory-article-store";
 
@@ -97,5 +98,35 @@ describe("initInMemoryArticleStore", () => {
 
 		assert.equal(store.savedCalls.length, 1);
 		assert.deepEqual([...(store.savedCalls[0]?.writes ?? [])], ["crawl", "summary"]);
+	});
+
+	describe("a save guarded on the canonical content", () => {
+		const url = "https://example.com/guarded";
+		const canonical = { candidateId: CandidateIdSchema.parse("same"), contentLocation: "s3://bucket/same.html" };
+		const guarded = (store: ReturnType<typeof initInMemoryArticleStore>, snapshot: Article["contentSelection"]) =>
+			store.save({ article: buildArticle(url, { kind: "ready", summary: "Summary" }), writes: ["summary"], selectionExpected: { scope: "canonical-content", snapshot } });
+
+		it("lands when only the selection revision moved", async () => {
+			const store = initInMemoryArticleStore();
+			store.seed({ ...buildArticle(url), contentSelection: { revision: 2, ...canonical } });
+
+			await guarded(store, { revision: 1, ...canonical });
+
+			assert.equal((await store.load(url))?.summary.kind, "ready");
+		});
+
+		it("fails when another candidate became canonical", async () => {
+			const store = initInMemoryArticleStore();
+			store.seed({ ...buildArticle(url), contentSelection: { revision: 2, candidateId: CandidateIdSchema.parse("other"), contentLocation: "s3://bucket/other.html" } });
+
+			await assert.rejects(guarded(store, { revision: 1, ...canonical }), /canonical content changed/);
+		});
+
+		it("fails when the canonical candidate was revoked", async () => {
+			const store = initInMemoryArticleStore();
+			store.seed({ ...buildArticle(url), contentSelection: { revision: 1, ...canonical, revokedCandidateIds: [canonical.candidateId] } });
+
+			await assert.rejects(guarded(store, { revision: 1, ...canonical }), /canonical content changed/);
+		});
 	});
 });
