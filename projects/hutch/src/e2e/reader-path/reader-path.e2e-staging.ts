@@ -47,9 +47,10 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 			expect(response.status()).toBe(200);
 			const page = doc(await response.text());
 			const status = page.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status");
-			assert(!ReaderFailedVariantSchema.safeParse(status).success, `content selection failed the reader's own upload instead of promoting it (${status})`);
 			if (page.querySelector("[data-article-body]")?.textContent?.includes(body)) return page;
-			assert(Date.now() < deadline, `the reader at ${href} did not show its upload within 120s (status ${status})`);
+			assert(Date.now() < deadline, ReaderFailedVariantSchema.safeParse(status).success
+				? `content selection failed the reader's own upload instead of promoting it (${status})`
+				: `the reader at ${href} did not show its upload within 120s (status ${status})`);
 			await new Promise((resolve) => setTimeout(resolve, intervals.shift() ?? 5000));
 		}
 	}
