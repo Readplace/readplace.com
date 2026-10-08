@@ -1,7 +1,5 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
-import { initStarterReport } from "../domain/engagement/starter-report";
-import { initS3StarterRollout } from "./hn-snapshot/s3-starter-rollout";
 import {
 	initRecordEngagementActivity,
 	type EngagementEvent,
@@ -481,15 +479,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 	};
 
 	return {
-		getStarterReport: initStarterReport({
-			findRollout: initS3StarterRollout({
-				bucketName: contentBucketName,
-				get: (command) => s3Client.send(command),
-				put: (command) => s3Client.send(command),
-			}).findRollout,
-			listAccounts: engagementStarter.listStarterObservations,
-			now: () => new Date(),
-		}),
 		recordEngagementActivity: initRecordEngagementActivity({
 			state: engagementStarter,
 			logger: HutchLogger.fromJSON<EngagementEvent>(),

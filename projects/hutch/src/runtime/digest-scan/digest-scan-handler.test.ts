@@ -12,6 +12,7 @@ const NOW = new Date("2026-09-30T00:00:00.000Z");
 function createHandler(overrides: Partial<DigestScanDeps> = {}) {
 	const deps: DigestScanDeps = {
 		prepareStarterSnapshot: async () => {},
+		logStarterReport: async () => {},
 		listUserIdsByStatus: jest.fn().mockResolvedValue([]),
 		dispatchSendUserDigest: jest.fn().mockResolvedValue(undefined),
 		logger: noopLogger,
@@ -39,11 +40,14 @@ async function seedOneUserPerStatus() {
 }
 
 describe("initDigestScanHandler", () => {
-	it("prepares the starter snapshot once per tick before dispatching digests", async () => {
+	it("prepares the starter snapshot and logs the starter report once per tick before dispatching digests", async () => {
 		const calls: string[] = [];
 		const { handler } = createHandler({
 			prepareStarterSnapshot: async () => {
 				calls.push("prepare");
+			},
+			logStarterReport: async () => {
+				calls.push("report");
 			},
 			listUserIdsByStatus: jest.fn().mockResolvedValue([UserIdSchema.parse("reader")]),
 			dispatchSendUserDigest: async ({ userId }) => {
@@ -53,7 +57,23 @@ describe("initDigestScanHandler", () => {
 
 		await handler(buildSqsEvent([{ messageId: "tick", body: TRIGGER }]), buildLambdaContext(), () => {});
 
-		expect(calls).toEqual(["prepare", "dispatch:reader"]);
+		expect(calls).toEqual(["prepare", "report", "dispatch:reader"]);
+	});
+	it("continues existing digests when the starter report cannot be computed", async () => {
+		const { handler, deps } = createHandler({
+			logStarterReport: async () => {
+				throw new Error("onboarding table throttled");
+			},
+			listUserIdsByStatus: jest.fn().mockResolvedValue([UserIdSchema.parse("reader")]),
+		});
+		expect(
+			await handler(
+				buildSqsEvent([{ messageId: "tick", body: TRIGGER }]),
+				buildLambdaContext(),
+				() => {},
+			),
+		).toEqual({ batchItemFailures: [] });
+		expect(deps.dispatchSendUserDigest).toHaveBeenCalledWith({ userId: "reader" });
 	});
 	it("continues existing digests when HN preparation is temporarily unavailable", async () => {
 		const { handler, deps } = createHandler({

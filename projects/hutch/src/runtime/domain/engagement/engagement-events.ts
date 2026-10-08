@@ -13,6 +13,7 @@ export const ENGAGEMENT_EVENTS = {
 	failure: "starter_failure",
 	sent: "starter_sent",
 	activity: "engagement_activity",
+	report: "starter_report",
 } as const;
 
 export interface EngagementEvent {

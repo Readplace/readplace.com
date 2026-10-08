@@ -1,5 +1,4 @@
 import express, { type Express } from "express";
-import type { StarterReport } from "./domain/engagement/starter-report";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
@@ -79,7 +78,6 @@ export { loginAgent } from "@packages/web-test-harness";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 
 interface TestAppOverrides {
-	getStarterReport?: () => Promise<StarterReport | undefined>;
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
 	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
@@ -211,7 +209,6 @@ function flattenFixtureToAppDependencies(
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
 		deleteReadlistDefinition: fixture.articleStore.deleteReadlistDefinition,
 		markSummaryToggled: fixture.articleStore.markSummaryToggled,
-		getStarterReport: async () => undefined,
 		recordEngagementActivity: fixture.engagementStarter.recordEngagementActivity,
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,

@@ -1,6 +1,5 @@
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
 import { initRecordImportRequest } from "./domain/engagement/record-import-request";
-import type { StarterReport } from "./domain/engagement/starter-report";
 import { refreshContext } from "./oauth-refresh/evidence";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
@@ -323,7 +322,6 @@ export const PORT = requireEnv("PORT");
 const noop = () => {};
 
 interface AppDependencies {
-	getStarterReport: () => Promise<StarterReport | undefined>;
 	recordEngagementActivity: RecordEngagementActivity;
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -1587,7 +1585,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.get(
 		"/admin",
 		...initAdminIndexHandlers({
-			getStarterReport: deps.getStarterReport,
 			findUserByEmail: deps.findUserByEmail,
 			adminEmails: deps.adminEmails,
 			buildBannerState,

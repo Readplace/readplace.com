@@ -4,75 +4,13 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { useTestServer } from "../../../test-app";
-import { UserIdSchema } from "@packages/domain/user";
-import { initStarterReport } from "../../../domain/engagement/starter-report";
-import type { StarterRollout } from "../../../domain/engagement/starter-policy";
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
 const USER_EMAIL = "alex@example.com";
 const USER_PASSWORD = "password456";
 
-const ROLLOUT: StarterRollout = {
-	campaignId: "hn-starter-v1",
-	observationStartedAt: "2026-10-07T12:00:00.000Z",
-	enrollmentStartedAt: "2026-10-10T12:00:00.000Z",
-	deploymentSha: "sha",
-	excludedUserIds: [],
-	treatmentPercent: 80,
-	personalArticleLimit: 5,
-	inactivityHours: 72,
-	firstReviewDay: 42,
-	reviewEnrollmentDays: 28,
-};
-
 const useApp = useTestServer();
-const useReportApp = useTestServer({
-	getStarterReport: initStarterReport({
-		listAccounts: async () => [
-			{
-				userId: UserIdSchema.parse("trial-reader"),
-				engagement: {
-					activityRevision: 1,
-					assignment: {
-						campaignId: "hn-starter-v1",
-						arm: "treatment",
-						assignedAt: "2026-10-10T12:00:00.000Z",
-						tier: "trial",
-						accountCohort: "new",
-					},
-				},
-			},
-		],
-		now: () => new Date("2026-11-21T12:00:00.000Z"),
-		findRollout: async () => ROLLOUT,
-	}),
-});
-const useComparedReportApp = useTestServer({
-	getStarterReport: initStarterReport({
-		listAccounts: async () =>
-			(["treatment", "comparison"] as const).flatMap((arm) =>
-				Array.from({ length: arm === "treatment" ? 70 : 80 }, (_, index) => ({
-					userId: UserIdSchema.parse(`${arm}-${index}`),
-					engagement: {
-						activityRevision: 1,
-						assignment: {
-							campaignId: ROLLOUT.campaignId,
-							arm,
-							assignedAt: ROLLOUT.enrollmentStartedAt,
-							tier: "trial" as const,
-							accountCohort: "new" as const,
-						},
-						activatedAt:
-							index < (arm === "treatment" ? 56 : 48) ? ROLLOUT.enrollmentStartedAt : undefined,
-					},
-				})),
-			),
-		now: () => new Date("2026-11-21T12:00:00.000Z"),
-		findRollout: async () => ROLLOUT,
-	}),
-});
-
 function buildHarness(fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN)) {
 	return useApp({
 		...fixture,
@@ -90,48 +28,6 @@ async function loginAs(input: { server: Server; email: string; password: string 
 }
 
 describe("GET /admin", () => {
-	it("shows the review with raw assigned denominators, cohorts and an inconclusive conclusion", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useReportApp({
-			...fixture,
-			admin: { ...fixture.admin, adminEmails: [ADMIN_EMAIL] },
-		});
-		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-		const agent = await loginAs({
-			server: harness.server,
-			email: ADMIN_EMAIL,
-			password: ADMIN_PASSWORD,
-		});
-		const response = await agent.get("/admin");
-		const report = new JSDOM(response.text).window.document.querySelector(
-			"[data-test-starter-report]",
-		);
-		assert(report);
-		expect(report.textContent).toContain("inconclusive");
-		expect(report.textContent).toContain("trial/new");
-		expect(report.textContent).toContain("1 assigned");
-		expect(report.textContent).toContain("95%");
-	});
-	it("shows the review's difference interval in percentage points", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useComparedReportApp({
-			...fixture,
-			admin: { ...fixture.admin, adminEmails: [ADMIN_EMAIL] },
-		});
-		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-		const agent = await loginAs({
-			server: harness.server,
-			email: ADMIN_EMAIL,
-			password: ADMIN_PASSWORD,
-		});
-		const document = new JSDOM((await agent.get("/admin")).text).window.document;
-		expect(
-			["low", "high"].map(
-				(bound) =>
-					document.querySelector(`[data-test-starter-difference-${bound}]`)?.textContent,
-			),
-		).toEqual(["5.24", "33.39"]);
-	});
 	it("links an admin to every operator tool with its click tracked", async () => {
 		const harness = buildHarness();
 		await harness.auth.createUser({

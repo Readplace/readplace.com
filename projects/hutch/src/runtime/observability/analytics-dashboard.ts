@@ -1145,7 +1145,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 282, width: 8, height: 4,
+			x: index * 8, y: 296, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1327,6 +1327,50 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			].join(" "),
 			x: 12, y: 274, width: 12, height: 8,
 			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Hacker News starter — latest experiment report (logged every 6 hours)",
+			logGroupNames: analyticsSource,
+			query: [
+				`filter stream = "${STREAMS.analytics}" and event = "${ENGAGEMENT_EVENTS.report}" and cohort = "all"`,
+				"| stats latest(@timestamp) as as_of, latest(conclusion) as verdict, latest(formal_review_due) as review_due,",
+				"latest(difference_pp) as diff_pp, latest(ci_low_pp) as ci_low, latest(ci_high_pp) as ci_high, latest(fisher_p) as p_value,",
+				"latest(treatment.activated) as t_activated, latest(treatment.mature) as t_mature, latest(treatment.immature) as t_immature, latest(treatment.assigned) as t_assigned,",
+				"latest(comparison.activated) as c_activated, latest(comparison.mature) as c_mature, latest(comparison.immature) as c_immature, latest(comparison.assigned) as c_assigned,",
+				"latest(treatment.inserted) as t_inserted, latest(treatment.insertionFailed) as t_insertion_failed, latest(treatment.sent) as t_sent, latest(treatment.suppressed) as t_suppressed, latest(treatment.review) as t_review",
+				"by campaign_id",
+			].join(" "),
+			x: 0, y: 282, width: 24, height: 6,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Hacker News starter — latest report by tier and account cohort",
+			logGroupNames: analyticsSource,
+			query: [
+				`filter stream = "${STREAMS.analytics}" and event = "${ENGAGEMENT_EVENTS.report}" and cohort != "all"`,
+				"| stats latest(@timestamp) as as_of,",
+				"latest(treatment.activated) as t_activated, latest(treatment.mature) as t_mature, latest(treatment.assigned) as t_assigned,",
+				"latest(comparison.activated) as c_activated, latest(comparison.mature) as c_mature, latest(comparison.assigned) as c_assigned",
+				"by campaign_id, cohort",
+				"| sort cohort asc",
+			].join(" "),
+			x: 0, y: 288, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Hacker News starter — activated and mature accounts by arm over time",
+			logGroupNames: analyticsSource,
+			query: [
+				`filter stream = "${STREAMS.analytics}" and event = "${ENGAGEMENT_EVENTS.report}" and cohort = "all"`,
+				"| stats max(treatment.activated) as treatment_activated, max(treatment.mature) as treatment_mature,",
+				"max(comparison.activated) as comparison_activated, max(comparison.mature) as comparison_mature",
+				"by bin(6h)",
+			].join(" "),
+			x: 12, y: 288, width: 12, height: 8,
+			view: "timeSeries",
 		}),
 	);
 	return { widgets };

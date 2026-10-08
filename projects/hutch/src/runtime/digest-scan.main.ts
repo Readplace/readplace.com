@@ -3,6 +3,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { z } from "zod";
 import {
 	initDynamoDbArticleCrawl,
+	initDynamoDbEngagementStarter,
 	initDynamoDbSavedArticleStore,
 	initDynamoDbGeneratedSummary,
 	initCanonicalAliasStore,
@@ -25,6 +26,11 @@ import { initS3HnSnapshot } from "./providers/hn-snapshot/s3-hn-snapshot";
 import { initS3StarterRollout } from "./providers/hn-snapshot/s3-starter-rollout";
 import { initHnSnapshot } from "./domain/engagement/hn-snapshot";
 import { initPrepareStarterSnapshot } from "./domain/engagement/prepare-starter-snapshot";
+import { initStarterReport } from "./domain/engagement/starter-report";
+import {
+	initLogStarterReport,
+	type StarterReportLine,
+} from "./domain/engagement/log-starter-report";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -55,10 +61,11 @@ const logger = HutchLogger.from(consoleLogger);
 const s3 = new S3Client({});
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
+const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
 const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
-	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+	userArticlesTableName: userArticlesTable,
 	logger,
 	now: () => new Date(),
 });
@@ -132,6 +139,20 @@ export const handler = initDigestScanHandler({
 		excludedUserIds: z
 			.array(z.string())
 			.parse(JSON.parse(requireEnv("ENGAGEMENT_EXCLUDED_USER_IDS"))),
+		now: () => new Date(),
+	}),
+	logStarterReport: initLogStarterReport({
+		getStarterReport: initStarterReport({
+			findRollout: rollout.findRollout,
+			listAccounts: initDynamoDbEngagementStarter({
+				client: dynamoClient,
+				onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
+				notificationsTableName: requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE"),
+				userArticlesTableName: userArticlesTable,
+			}).listStarterObservations,
+			now: () => new Date(),
+		}),
+		logger: HutchLogger.fromJSON<StarterReportLine>(),
 		now: () => new Date(),
 	}),
 	listUserIdsByStatus,

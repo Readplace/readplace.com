@@ -29,6 +29,9 @@ interface UnfilteredWidget {
 const METRIC_COUNTER_REASON =
 	"Renders a CloudWatch metric filled by a LogMetricFilter, which matches a line at ingest and increments a counter. The exclusion is expressible in that pattern language, and it fits: factored as ($.visitor_id NOT EXISTS || ($.visitor_id != \"…\" && …)), today's 9 visitor and 7 user ids come to 988 of the 1,024 characters CloudWatch allows, and aws logs test-metric-filter confirms that pattern drops an internal visitor while keeping both an ordinary visitor and a line carrying no visitor_id. It is left off by choice rather than by that ceiling. A filter pattern applies at ingest and never retroactively, so each identity added would silently redefine what the series had been counting, turning a config edit into a step change nobody could distinguish from real traffic — and the list has grown three times in recent work, with no room for another id of either kind before the pattern crosses 1,024 regardless. A constant, disclosed overcount beats a series whose definition moves.";
 
+const STARTER_REPORT_REASON =
+	"Reads the starter_report line the digest-scan tick logs every 6 hours: one aggregate per campaign and cohort, carrying neither visitor_id nor user_id, so there is no identity to prune. Internal accounts never enter it in the first place, because enrollment skips every ENGAGEMENT_EXCLUDED_USER_IDS account before assigning an arm.";
+
 const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 	{
 		title: "Recent errors (logError + parse-errors, whole fleet)",
@@ -76,6 +79,18 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 		title: "Gmail terminal failures by reason",
 		reason:
 			"Reads the errors funnel, not the analytics group — the same operational view as the fleet errors table, subset to the two Gmail terminal-failure events. Those lines carry a userId but no visitor_id, and an internal account's failure is still a real failure worth seeing, so this is an operational breakdown, not an audience count.",
+	},
+	{
+		title: "Hacker News starter — latest experiment report (logged every 6 hours)",
+		reason: STARTER_REPORT_REASON,
+	},
+	{
+		title: "Hacker News starter — latest report by tier and account cohort",
+		reason: STARTER_REPORT_REASON,
+	},
+	{
+		title: "Hacker News starter — activated and mature accounts by arm over time",
+		reason: STARTER_REPORT_REASON,
 	},
 ];
 

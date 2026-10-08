@@ -892,6 +892,14 @@ const digestScanDynamodb = new HutchDynamoDBAccess("digest-scan-dynamodb", {
 	actions: ["dynamodb:Query", "dynamodb:GetItem"],
 });
 
+const digestScanStarterReportDynamodb = new HutchDynamoDBAccess("digest-scan-starter-report", {
+	tables: [
+		{ arn: storage.onboardingTable.arn, includeIndexes: true },
+		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
+	],
+	actions: ["dynamodb:Query", "dynamodb:BatchGetItem"],
+});
+
 const digestScanArticlesWrite = new HutchDynamoDBAccess("digest-scan-articles-write", {
 	tables: [{ arn: storage.articlesTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:PutItem", "dynamodb:UpdateItem"],
@@ -908,6 +916,8 @@ const digestScanLambda = new HutchLambda("digest-scan", {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
+		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		ENGAGEMENT_DEPLOYMENT_SHA: engagementDeploymentSha,
 		ENGAGEMENT_EXCLUDED_USER_IDS: JSON.stringify(excludedUserIds),
@@ -916,6 +926,7 @@ const digestScanLambda = new HutchLambda("digest-scan", {
 	policies: [
 		...digestScanDynamodb.policies,
 		...digestScanArticlesWrite.policies,
+		...digestScanStarterReportDynamodb.policies,
 		...HutchS3ReadWrite.readPoliciesForBucket("digest-scan-content", contentBucketName),
 		{
 			name: "digest-scan-manifests-write",

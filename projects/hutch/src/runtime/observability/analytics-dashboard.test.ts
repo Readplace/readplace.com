@@ -87,9 +87,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 64 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 3 starter) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 67 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(64);
+		expect(body.widgets).toHaveLength(67);
 	});
 
 	it("counts EPUB visitor/article pairs after a public render or directly from the owner reader, preferring click labels over historical pageviews", () => {
@@ -126,6 +126,18 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(String(widget.properties.query)).toContain(
 			"| stats count(*) as actions, count_distinct(user_id) as accounts by campaign_id, arm, activity_kind, marked_read, on_suggestion",
 		);
+	});
+
+	it("reads the latest whole-experiment starter report and keeps cohorts on their own widget", () => {
+		const queries = buildBody()
+			.widgets.filter(({ properties }) => String(properties.query).includes('event = "starter_report"'))
+			.map(({ properties }) => String(properties.query));
+
+		expect(queries).toHaveLength(3);
+		expect(queries.filter((query) => query.includes('cohort = "all"'))).toHaveLength(2);
+		expect(queries.filter((query) => query.includes('cohort != "all"'))).toHaveLength(1);
+		expect(queries[0]).toContain("latest(conclusion) as verdict");
+		expect(queries[2]).toContain("by bin(6h)");
 	});
 
 	describe("Queue digest widgets", () => {

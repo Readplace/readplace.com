@@ -620,7 +620,6 @@ export function initDevProviders(input: { appOrigin: string }) {
 		resolveWrapperTarget,
 		pinContentSource: articleStore.pinContentSource,
 		findContentSourceUrl: articleStore.findContentSourceUrl,
-		getStarterReport: async () => undefined,
 		recordEngagementActivity: engagementStarter.recordEngagementActivity,
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
