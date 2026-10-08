@@ -21,6 +21,7 @@ export default createPlaywrightConfig({
 	galleryDir: './test-results/screenshot-gallery',
 	baseURL: serverUrl,
 	retries: 0,
+	workers: 2,
 	headless: process.env.HEADLESS === 'true',
 	video: 'off',
 	launchOptions: {},

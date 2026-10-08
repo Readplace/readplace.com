@@ -703,6 +703,7 @@ export function initInMemoryArticleStore(): {
 		id: ReaderArticleHashId,
 		userId: UserId,
 		status: ArticleStatus,
+		readAt: Date,
 	): SavedArticle | null => {
 		const article = findArticleByRouteId(id);
 		if (!article) return null;
@@ -713,7 +714,7 @@ export function initInMemoryArticleStore(): {
 
 		ua.status = status;
 		if (status === "read") {
-			ua.readAt = ua.readAt ?? new Date();
+			ua.readAt = ua.readAt ?? readAt;
 		} else {
 			ua.readAt = undefined;
 		}
@@ -722,7 +723,7 @@ export function initInMemoryArticleStore(): {
 	};
 
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) =>
-		updateStatusIn(undefined, id, userId, status);
+		updateStatusIn(undefined, id, userId, status, new Date());
 
 	const setReadlistArticleStatus = async (params: {
 		id: ReaderArticleHashId;
@@ -730,7 +731,7 @@ export function initInMemoryArticleStore(): {
 		readlist: ReadlistSlug;
 		status: ArticleStatus;
 	}): Promise<void> => {
-		const updated = updateStatusIn(params.readlist, params.id, params.userId, params.status);
+		const updated = updateStatusIn(params.readlist, params.id, params.userId, params.status, new Date());
 		assert(updated, "setReadlistArticleStatus needs the readlist to already hold the article");
 	};
 
@@ -741,12 +742,13 @@ export function initInMemoryArticleStore(): {
 		status,
 	}) => {
 		const addressedReadlist = addressed === DEFAULT_READLIST_SLUG ? undefined : addressed;
-		const updated = updateStatusIn(addressedReadlist, id, userId, status);
+		const readAt = new Date();
+		const updated = updateStatusIn(addressedReadlist, id, userId, status, readAt);
 		if (!updated) return null;
 		const saves = await listUserSavesForUrl({ userId, url: updated.url });
 		for (const save of saves) {
 			if (save.readlist === addressedReadlist) continue;
-			updateStatusIn(save.readlist, id, userId, status);
+			updateStatusIn(save.readlist, id, userId, status, readAt);
 		}
 		return updated;
 	};

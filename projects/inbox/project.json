@@ -29,6 +29,7 @@
     },
     "test-with-coverage": {
       "dependsOn": ["compile"],
+      "parallelism": false,
       "outputs": [
         "{projectRoot}/coverage",
         "{projectRoot}/playwright-report",
