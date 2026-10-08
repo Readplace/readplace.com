@@ -48,6 +48,7 @@ import {
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
+import { OWN_CAPTURE_FAILED_METRIC } from "../runtime/domain/select-content/comparison-log";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "../runtime/domain/generate-summary/max-receive-count";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "../runtime/domain/submit-link/max-receive-count";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
@@ -1148,6 +1149,43 @@ const selectMostCompleteContentLambdaWithSQS = new HutchSQSBackedLambda(SAVE_LIN
 });
 
 eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWithSQS);
+
+new aws.cloudwatch.LogMetricFilter("select-content-own-capture-failed-filter", {
+	name: "select-content-own-capture-failed",
+	logGroupName: selectMostCompleteContentLambda.logGroupName,
+	pattern: OWN_CAPTURE_FAILED_METRIC.filterPattern,
+	metricTransformation: {
+		name: OWN_CAPTURE_FAILED_METRIC.name,
+		namespace: OWN_CAPTURE_FAILED_METRIC.namespace,
+		value: "1",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
+const ownCaptureFailedTopic = new aws.sns.Topic("select-content-own-capture-failed-topic", {
+	name: "select-content-own-capture-failed-topic",
+});
+
+new aws.sns.TopicSubscription("select-content-own-capture-failed-alert-email", {
+	topic: ownCaptureFailedTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("select-content-own-capture-failed-alarm", {
+	name: "select-content-own-capture-failed-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: OWN_CAPTURE_FAILED_METRIC.name,
+	namespace: OWN_CAPTURE_FAILED_METRIC.namespace,
+	period: 3600,
+	statistic: "Sum",
+	threshold: config.requireNumber("selectContentOwnCaptureFailedThreshold"),
+	treatMissingData: "notBreaching",
+	alarmDescription: "Content selection failed a reader's own readable capture (CLAUDE.md: a reader's own capture is never failed by the judge)",
+	alarmActions: [ownCaptureFailedTopic.arn],
+});
 
 // --- RemoveMyContentCommand handler ---
 // Content-removal orchestrator. Deletes the S3 objects the removing user

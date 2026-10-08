@@ -12,6 +12,7 @@ import type { Tier } from "./tier.types";
 import type { ListAvailableTierSources, CandidateReference } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent, SelectionAudit } from "./select-content";
 import { chooseTiedCandidate } from "./resolve-tie";
+import { COMPARISON_COMPLETED } from "./comparison-log";
 import { candidateProvenance } from "./candidate-provenance";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
@@ -161,7 +162,7 @@ export function initLogContentSelection(deps: { logger: HutchLogger }): (params:
 }) => void {
 	return (params) => {
 		const { selection } = params;
-		deps.logger.info(`[ArchiveSaveAttempt] comparison completed ${JSON.stringify({
+		deps.logger.info(`${COMPARISON_COMPLETED} ${JSON.stringify({
 			saveAttemptId: params.saveAttemptId,
 			url: selection.originalUrl,
 			candidates: selection.sources.map((source) => ({

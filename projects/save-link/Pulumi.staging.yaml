@@ -4,6 +4,7 @@ config:
     - '572337278115'
   save-link:platformStack: organization/platform/staging
   save-link:alertEmail: readplace+staging@readplace.com
+  save-link:selectContentOwnCaptureFailedThreshold: 1
   save-link:articlesTableName: hutch-articles-cda0a08
   save-link:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-articles-cda0a08
   save-link:userArticlesTableName: hutch-user-articles-8226beb

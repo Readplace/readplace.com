@@ -4,6 +4,7 @@ import { noopLogger } from "@packages/hutch-logger";
 import type { Article } from "@packages/domain/article-aggregate";
 import { candidateProvenance } from "./candidate-provenance";
 import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
+import { OWN_CAPTURE_FAILED_METRIC } from "./comparison-log";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { TierSource, VerifiedTierSource } from "./tier-source.types";
 
@@ -469,6 +470,22 @@ describe("initLogContentSelection", () => {
 		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare({ url: URL }) });
 
 		expect(info).toHaveBeenCalledWith(expect.stringContaining('"outcome":"no-readable","selectionRule":"judge","reason":"The live page is the article","ownCaptureFailed":true'));
+	});
+
+	it("writes a breach line that every term of the own-capture alarm's filter matches", async () => {
+		const blankLive = source("tier-1", "blank-live", { html: "<div></div>" });
+		blankLive.metadata.wordCount = 0;
+		const { prepare } = setup({
+			listAvailableTierSources: async () => [source("tier-0", "capture"), blankLive],
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("blank-live"), reason: "The live page is the article" }),
+		});
+		const info = jest.fn();
+
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare({ url: URL }) });
+
+		const line = String(info.mock.calls[0]?.[0]);
+		expect(OWN_CAPTURE_FAILED_METRIC.terms.filter((term) => !line.includes(term))).toEqual([]);
+		expect(OWN_CAPTURE_FAILED_METRIC.filterPattern).toBe('"[ArchiveSaveAttempt] comparison completed" "\\"ownCaptureFailed\\":true"');
 	});
 
 	it("correlates the exact fresh CAPTCHA and retained prior winner without claiming challenge readability", async () => {
