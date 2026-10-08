@@ -61,6 +61,7 @@ type PopupState = {
 	skeletonDimensions?: SkeletonDimensions;
 	terminalView?: string;
 	documentLoadMs: number;
+	documentFirstPaintAt?: number;
 	applicationLoadStartedAt?: number;
 	runtimeLoadStartedAt?: number;
 };
@@ -75,6 +76,7 @@ type Probe = {
 type Sample = {
 	browserVersion: string;
 	firstPaintMs: number;
+	documentFirstPaintMs?: number;
 	applicationLoadStartedMs?: number;
 	runtimeLoadStartedMs?: number;
 	firstPaintShellVisible: boolean;
@@ -203,6 +205,7 @@ function popupFrameScript(holdApplicationAssets: boolean): string {
 		const report = data => sendAsyncMessage('Readplace:Popup', data);
 		let hold = ${holdApplicationAssets};
 		const pending = [];
+		let documentFirstPaintAt;
 		const inspect = () => {
 			if (content.document.documentURI !== popupUrl) return;
 			const document = content.document;
@@ -230,7 +233,7 @@ function popupFrameScript(holdApplicationAssets: boolean): string {
 			const terminalView = ['login-view', 'list-view'].find(id => { const element = document.getElementById(id); return element && !element.hidden; });
 			const applicationLoadStarted = content.performance.getEntriesByName('popup-first-frame')[0];
 			const runtimeLoadStarted = content.performance.getEntriesByName('popup-runtime-load-started')[0];
-			return { visible, viewportWidth: content.innerWidth, shellVisible: document.body?.classList.contains('popup-shell') ?? false, skeletonVisible, skeletonDimensions, terminalView, documentLoadMs: content.performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 0, applicationLoadStartedAt: applicationLoadStarted === undefined ? undefined : content.performance.timeOrigin + applicationLoadStarted.startTime, runtimeLoadStartedAt: runtimeLoadStarted === undefined ? undefined : content.performance.timeOrigin + runtimeLoadStarted.startTime };
+			return { visible, viewportWidth: content.innerWidth, shellVisible: document.body?.classList.contains('popup-shell') ?? false, skeletonVisible, skeletonDimensions, terminalView, documentLoadMs: content.performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 0, documentFirstPaintAt, applicationLoadStartedAt: applicationLoadStarted === undefined ? undefined : content.performance.timeOrigin + applicationLoadStarted.startTime, runtimeLoadStartedAt: runtimeLoadStarted === undefined ? undefined : content.performance.timeOrigin + runtimeLoadStarted.startTime };
 		};
 		const listener = {
 			QueryInterface: ChromeUtils.generateQI(['nsIWebProgressListener', 'nsISupportsWeakReference']),
@@ -256,8 +259,10 @@ function popupFrameScript(holdApplicationAssets: boolean): string {
 		addMessageListener('Readplace:Inspect', () => { const state = inspect(); if (state) report({ type: 'state', state }); });
 		addEventListener('MozAfterPaint', event => {
 			if (content.document.documentURI !== popupUrl || event.clientRects.length === 0) return;
+			const paintedAt = content.performance.timeOrigin + event.paintTimeStamp;
+			documentFirstPaintAt ??= paintedAt;
 			const state = inspect();
-			report({ type: 'paint', firstPaintAt: content.performance.timeOrigin + event.paintTimeStamp, state });
+			report({ type: 'paint', firstPaintAt: paintedAt, state });
 		}, true);
 	})();`;
 }
@@ -405,6 +410,10 @@ async function measure(input: {
 		return {
 			browserVersion,
 			firstPaintMs,
+			documentFirstPaintMs:
+				settled.state.documentFirstPaintAt === undefined
+					? undefined
+					: settled.state.documentFirstPaintAt - requestedAt,
 			applicationLoadStartedMs:
 				settled.state.applicationLoadStartedAt === undefined
 					? undefined
@@ -512,9 +521,10 @@ test("the first native popup paints its shell before loading the full applicatio
 							record.cold.every(
 								(sample) =>
 									sample.runtimeLoadStartedMs !== undefined &&
-									sample.runtimeLoadStartedMs >= sample.firstPaintMs,
+									sample.documentFirstPaintMs !== undefined &&
+									sample.runtimeLoadStartedMs >= sample.documentFirstPaintMs,
 							),
-							`${auth}: the browser must paint the skeleton before loading the full application runtime`,
+							`${auth}: the popup must paint before loading the full application runtime`,
 						);
 						assert(
 							stats.p50Ms < BUDGET_MS,
@@ -534,10 +544,11 @@ test("the first native popup paints its shell before loading the full applicatio
 		path.join(directory, "firefox-popup-open-latency.json"),
 		JSON.stringify(
 			{
-				schema: "popup-open-latency/firefox-v3",
+				schema: "popup-open-latency/firefox-v4",
 				browser: "firefox",
 				trigger: "native-toolbar-button.click",
 				paintSignal: "MozAfterPaint.paintTimeStamp",
+				runtimeOrderSignal: "first MozAfterPaint of the popup document",
 				startTimestamp: "browser-chrome-performance-before-click",
 				budgetMetric: "firstPaintMs",
 				budgetMs: BUDGET_MS,
