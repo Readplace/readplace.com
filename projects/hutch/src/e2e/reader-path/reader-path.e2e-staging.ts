@@ -6,6 +6,7 @@ import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { test, expect, request as playwrightRequest, type APIRequestContext } from "@playwright/test";
 import { JSDOM } from "jsdom";
 import { strFromU8, unzipSync } from "fflate";
+import { ReaderFailedVariantSchema } from "@packages/article-state-types";
 
 const ORIGIN = "https://readplace-staging.com";
 const SIREN = "application/vnd.siren+json";
@@ -39,14 +40,18 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 		expect(strFromU8(files[opf])).toContain(title);
 	}
 	async function readyReader(client: APIRequestContext, href: string, body: string) {
-		let html = "";
-		await expect.poll(async () => {
+		const intervals = [1000, 2000];
+		const deadline = Date.now() + 120000;
+		for (;;) {
 			const response = await client.get(href);
 			expect(response.status()).toBe(200);
-			html = await response.text();
-			return doc(html).querySelector("[data-article-body]")?.textContent ?? html;
-		}, { timeout: 120000, intervals: [1000, 2000, 5000] }).toContain(body);
-		return doc(html);
+			const page = doc(await response.text());
+			const status = page.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status");
+			assert(!ReaderFailedVariantSchema.safeParse(status).success, `content selection failed the reader's own upload instead of promoting it (${status})`);
+			if (page.querySelector("[data-article-body]")?.textContent?.includes(body)) return page;
+			assert(Date.now() < deadline, `the reader at ${href} did not show its upload within 120s (status ${status})`);
+			await new Promise((resolve) => setTimeout(resolve, intervals.shift() ?? 5000));
+		}
 	}
 	try {
 		const email = `reader-path-${run}@example.com`;
