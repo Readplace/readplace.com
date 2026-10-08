@@ -31,7 +31,6 @@
     "test:e2e:staging": "playwright test --config playwright.config.staging.ts",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "update-visual-baselines": "node scripts/update-visual-baselines.js",
-    "copy-gmail-mappings": "node scripts/copy-gmail-mappings.js",
     "compile": "rm -rf dist && tsc && node scripts/build-client-bundles.js && node scripts/copy-static-assets.js",
     "check-unused-css": "node scripts/check-unused-css.js",
     "generate-brand-assets": "node scripts/generate-brand-assets.mjs",
