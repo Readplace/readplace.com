@@ -135,18 +135,16 @@ export function parseClient(value: unknown): InstallClient {
 	return aliased;
 }
 
-async function fetchDownloadUrl(latestPointerUrl: string, buildDownloadUrl: (filename: string) => string): Promise<string | null> {
-	const response = await fetch(latestPointerUrl);
-	if (!response.ok) return null;
-	const filename = (await response.text()).trim();
-	if (!filename) return null;
-	return buildDownloadUrl(filename);
-}
+export type FetchFirefoxDownloadUrl = () => Promise<string | null>;
 
-export async function fetchFirefoxDownloadUrl(): Promise<string | null> {
-	return fetchDownloadUrl(FIREFOX_LATEST_POINTER_URL, (filename) =>
-		firefoxS3Config.getExtensionDownloadUrl({ stage: "prod", filename }),
-	);
+export function initFetchFirefoxDownloadUrl(deps: { fetch: typeof fetch }): FetchFirefoxDownloadUrl {
+	return async () => {
+		const response = await deps.fetch(FIREFOX_LATEST_POINTER_URL);
+		if (!response.ok) return null;
+		const filename = (await response.text()).trim();
+		if (!filename) return null;
+		return firefoxS3Config.getExtensionDownloadUrl({ stage: "prod", filename });
+	};
 }
 
 /** Whether this panel needs the self-hosted EXTENSION pointer fetched before it

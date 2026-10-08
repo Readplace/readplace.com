@@ -8,14 +8,18 @@ import {
 	InstallPage,
 	type InstallClient,
 	parseClient,
-	fetchFirefoxDownloadUrl,
+	type FetchFirefoxDownloadUrl,
 	isSelfHostedDownload,
 	revealsHiddenTabs,
 } from "./install.component";
 
-export function initInstallRoutes(deps: { buildBannerState: BuildBannerState; staticBaseUrl: string }): Router {
+export function initInstallRoutes(deps: {
+	buildBannerState: BuildBannerState;
+	staticBaseUrl: string;
+	fetchFirefoxDownloadUrl: FetchFirefoxDownloadUrl;
+}): Router {
 	const router = express.Router();
-	const { buildBannerState, staticBaseUrl } = deps;
+	const { buildBannerState, staticBaseUrl, fetchFirefoxDownloadUrl } = deps;
 
 	router.get("/install", redirectToDetectedClient);
 

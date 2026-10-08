@@ -295,7 +295,7 @@ import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
 import { initResolveReaderProvenance } from "./web/shared/article-body/article-header/resolve-reader-provenance";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
-import { initInstallRoutes } from "./web/pages/install";
+import { initInstallRoutes, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { initIntegrationsRoutes } from "./web/pages/integrations";
 import type { GmailIntegrationProviders } from "./web/pages/integrations/gmail-integration.types";
 import { initAdminIndexHandlers } from "./web/pages/admin/admin-index.page";
@@ -329,6 +329,7 @@ interface AppDependencies {
 	appOrigin: string;
 	staticBaseUrl: string;
 	hashPassword: (password: string) => Promise<string>;
+	fetchFirefoxDownloadUrl: FetchFirefoxDownloadUrl;
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
@@ -1187,7 +1188,13 @@ export function createApp(dependencies: AppDependencies): Express {
 		});
 	}
 
-	app.use(initInstallRoutes({ buildBannerState, staticBaseUrl }));
+	app.use(
+		initInstallRoutes({
+			buildBannerState,
+			staticBaseUrl,
+			fetchFirefoxDownloadUrl: dependencies.fetchFirefoxDownloadUrl,
+		}),
+	);
 
 	/** Same-origin dismissal endpoint for the site-wide changelog banner; served
 	 * here on $default even when the close button is clicked on a /blog page. */

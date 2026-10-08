@@ -6,6 +6,7 @@ import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import { initProdProviders } from "./providers/prod-providers";
+import { initFetchFirefoxDownloadUrl } from "./web/pages/install";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
@@ -24,6 +25,7 @@ type AssemblyProvidedKeys =
 	| "appOrigin"
 	| "staticBaseUrl"
 	| "hashPassword"
+	| "fetchFirefoxDownloadUrl"
 	| "adminEmails"
 	| "recrawlServiceToken"
 	| "baseUrl"
@@ -72,6 +74,7 @@ export function assembleReadplaceApp(input: {
 		appOrigin,
 		staticBaseUrl,
 		hashPassword,
+		fetchFirefoxDownloadUrl: initFetchFirefoxDownloadUrl({ fetch }),
 		...providers,
 		countUsers: initCachedUserCount({ countUsers: providers.countUsers, now: () => Date.now(), ttlMs: 60_000 }),
 		adminEmails,

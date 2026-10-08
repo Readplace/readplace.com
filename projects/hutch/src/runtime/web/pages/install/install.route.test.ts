@@ -4,37 +4,37 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import request from "supertest";
-import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
+import {
+	BROWSER_REQUEST_HEADERS,
+	TEST_FIREFOX_XPI_FILENAME,
+	fakeFirefoxPointerFetch,
+	useTestServer,
+} from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import { initFetchFirefoxDownloadUrl } from "./install.component";
 
-const TEST_XPI_FILENAME = "abc123-1.0.0.xpi";
 const INSTALL_CLIENT_SCRIPT = "/client-dist/install.client.js";
 
-let fetchSpy: jest.SpyInstance;
-
-function mockFirefoxAvailable(): jest.SpyInstance {
-	return jest.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
-		const urlStr = url.toString();
-		if (urlStr.includes("hutch-extension-prod")) {
-			return new Response(TEST_XPI_FILENAME, { status: 200 });
-		}
-		return new Response("Not Found", { status: 404 });
-	});
-}
-
-beforeEach(() => {
-	fetchSpy = mockFirefoxAvailable();
-});
-
-afterEach(() => {
-	jest.restoreAllMocks();
-});
-
 const useApp = useTestServer();
+const useAppWithoutFirefoxBuild = useTestServer({
+	fetchFirefoxDownloadUrl: initFetchFirefoxDownloadUrl({
+		fetch: fakeFirefoxPointerFetch("Not Found", 404),
+	}),
+});
+const useAppWithEmptyFirefoxPointer = useTestServer({
+	fetchFirefoxDownloadUrl: initFetchFirefoxDownloadUrl({ fetch: fakeFirefoxPointerFetch("") }),
+});
+let firefoxPointerLookups = 0;
+const useAppCountingFirefoxPointerLookups = useTestServer({
+	fetchFirefoxDownloadUrl: async () => {
+		firefoxPointerLookups += 1;
+		return null;
+	},
+});
 
 function load(text: string): Document {
 	return new JSDOM(text).window.document;
@@ -272,18 +272,16 @@ describe("GET /install", () => {
 
 		const cta = doc.querySelector('[data-test-cta="download-firefox"]');
 		expect(cta?.getAttribute("href")).toBe(
-			firefoxS3Config.getExtensionDownloadUrl({ stage: "prod", filename: TEST_XPI_FILENAME }),
+			firefoxS3Config.getExtensionDownloadUrl({ stage: "prod", filename: TEST_FIREFOX_XPI_FILENAME }),
 		);
 	});
 
 	it("should not request the Firefox latest-pointer on non-firefox panels", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		firefoxPointerLookups = 0;
+		const harness = useAppCountingFirefoxPointerLookups(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		await request(harness.server).get("/install?client=claude");
 
-		const requestedFirefoxPointer = fetchSpy.mock.calls.some(([url]) =>
-			String(url).includes("hutch-extension-prod"),
-		);
-		expect(requestedFirefoxPointer).toBe(false);
+		expect(firefoxPointerLookups).toBe(0);
 	});
 
 	it("should order the browser panel as CTA, then recording, then outro", async () => {
@@ -304,12 +302,7 @@ describe("GET /install", () => {
 	});
 
 	it("should show the Firefox unavailable message when Firefox latest.txt returns 404", async () => {
-		jest.restoreAllMocks();
-		jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
-			return new Response("Not Found", { status: 404 });
-		});
-
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useAppWithoutFirefoxBuild(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = load(response.text);
 
@@ -321,12 +314,7 @@ describe("GET /install", () => {
 	});
 
 	it("should show the Firefox unavailable message when latest.txt returns empty body", async () => {
-		jest.restoreAllMocks();
-		jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
-			return new Response("", { status: 200 });
-		});
-
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useAppWithEmptyFirefoxPointer(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = load(response.text);
 

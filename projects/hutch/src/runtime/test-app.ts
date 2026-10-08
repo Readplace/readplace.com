@@ -28,6 +28,7 @@ import type {
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { createApp } from "./server";
+import { initFetchFirefoxDownloadUrl, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
@@ -81,6 +82,15 @@ interface TestAppOverrides {
 	getStarterReport?: () => Promise<StarterReport | undefined>;
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
+	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
+}
+
+export const TEST_FIREFOX_XPI_FILENAME = "abc123-1.0.0.xpi";
+
+/** Answers the Firefox latest-pointer lookup the way the S3 pointer object
+ * would, so the install page never leaves the process under test. */
+export function fakeFirefoxPointerFetch(body: string, status = 200): typeof fetch {
+	return async () => new Response(body, { status });
 }
 
 export interface AnalyticsBundle {
@@ -338,6 +348,9 @@ function flattenFixtureToAppDependencies(
 		salt: "test-analytics-salt",
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
+		}),
+		fetchFirefoxDownloadUrl: initFetchFirefoxDownloadUrl({
+			fetch: fakeFirefoxPointerFetch(TEST_FIREFOX_XPI_FILENAME),
 		}),
 	};
 }
