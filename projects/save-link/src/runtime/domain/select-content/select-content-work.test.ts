@@ -181,6 +181,19 @@ describe("initSelectContentWork", () => {
 		expect(events).toEqual(["commit", "completion"]);
 	});
 
+	it("promotes the reader's capture instead of failing the save when the judge finds neither it nor this save's 404 page readable", async () => {
+		const capture = source("tier-0");
+		const notFound = source();
+		notFound.metadata.httpStatus = 404;
+		const { work, deps, events } = setup({ listAvailableTierSources: async () => [capture, notFound], selectMostCompleteContent: async () => ({ kind: "none", reason: "Both are error pages" }) });
+		await work({ ...request, candidates: [{ id: cid("tier-0"), tier: "tier-0" }, { id: cid("tier-1"), tier: "tier-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalledWith(markNoReadableArticle, expect.anything());
+		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({ url: URL, source: capture });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, expect.objectContaining({ input: expect.objectContaining({ tier: "tier-0" }) }));
+		expect(deps.recordCrawlVersion).toHaveBeenCalledTimes(1);
+		expect(events).toEqual(["upload", "commit", "version", "completion"]);
+	});
+
 	it.each([
 		{ httpStatus: 403, reason: { kind: "blocked", cause: "edge-block" } },
 		{ httpStatus: 429, reason: { kind: "blocked", cause: "rate-limited" } },

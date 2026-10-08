@@ -58,7 +58,7 @@ describe("archive attempt orchestration", () => {
 			loadArticle: async () => ({ url, metadata: liveSource.metadata, freshness: { contentFetchedAt: now().toISOString() }, estimatedReadTime: 1, crawl: { kind: "ready" }, summary: { kind: "ready", summary: "Existing summary" }, summaryAutoHeal: { attempts: 0 } }),
 			listAvailableTierSources: async () => stored, resolveOriginalUrl: async () => url, verifyWrapperSource,
 			...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger }),
-		})({ url, candidates: attempt.candidates });
+		})({ url, saveAttemptId: params.saveAttemptId, candidates: attempt.candidates });
 		expect(selection.selected?.metadata.kind).toBe("live");
 		const info = jest.fn();
 		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: params.saveAttemptId, selection, liveAttempt: attempt.liveAttempt });

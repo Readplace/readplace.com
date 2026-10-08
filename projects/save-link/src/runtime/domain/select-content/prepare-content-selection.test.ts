@@ -12,6 +12,7 @@ const cid = (id: string) => CandidateIdSchema.parse(id);
 const URL = "https://example.com/article";
 const ARCHIVE = "https://archive.ph/abc12";
 const NOW = "2026-10-05T00:00:00.000Z";
+const FRESH = SaveAttemptIdSchema.parse("fresh");
 const baseMetadata = { title: "Article", siteName: "example.com", excerpt: "Article excerpt", wordCount: 100, estimatedReadTime: 1 };
 
 function source(tier: TierSource["tier"], id: string, overrides: Partial<VerifiedTierSource> = {}): VerifiedTierSource {
@@ -19,12 +20,36 @@ function source(tier: TierSource["tier"], id: string, overrides: Partial<Verifie
 	return {
 		tier, html,
 		metadata: { ...candidateProvenance({
-			metadata: baseMetadata, html, evaluationHtml: overrides.evaluationHtml ?? html, attemptId: SaveAttemptIdSchema.parse("fresh"),
+			metadata: baseMetadata, html, evaluationHtml: overrides.evaluationHtml ?? html, attemptId: FRESH,
 			originalUrl: URL, sourceUrl: tier === "tier-2" ? ARCHIVE : URL,
 			kind: tier === "tier-2" ? "wrapper" : tier === "tier-0" ? "extension" : "live", fetchedAt: NOW,
 		}), id: cid(id) },
 		...overrides,
 	};
+}
+
+function notFoundLive(): VerifiedTierSource {
+	const live = source("tier-1", "not-found", { html: "<p>Page not found</p>" });
+	live.metadata.httpStatus = 404;
+	return live;
+}
+
+function blankCapture(): VerifiedTierSource {
+	const capture = source("tier-0", "blank", { html: "", evaluationHtml: "<html><body><p>Raw page the parser could not read</p></body></html>" });
+	capture.metadata.wordCount = 0;
+	return capture;
+}
+
+function earlierCapture(): VerifiedTierSource {
+	const capture = source("tier-0", "earlier-capture");
+	capture.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+	return capture;
+}
+
+function wrapperHostCapture(): VerifiedTierSource {
+	const capture = source("tier-0", "archive-capture");
+	capture.metadata.sourceUrl = ARCHIVE;
+	return capture;
 }
 
 function article(overrides: Partial<Article> = {}): Article {
@@ -48,7 +73,8 @@ function setup(overrides: Partial<Dependencies> = {}) {
 		const decision = await deps.selectMostCompleteContent(params);
 		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ ...decision, readability: params.candidates.map((candidate) => ({ candidateId: candidate.id, readable: decision.kind === "winner" ? candidate.id === decision.candidateId : decision.kind === "tie" && decision.candidateIds.includes(candidate.id) })) }) } }] }), logger: noopLogger }).selectMostCompleteContent(params);
 	};
-	return { prepare: initPrepareContentSelection({ ...deps, selectMostCompleteContent }), deps };
+	const prepare = initPrepareContentSelection({ ...deps, selectMostCompleteContent });
+	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId">) => prepare({ ...params, saveAttemptId: FRESH }), deps };
 }
 
 describe("initPrepareContentSelection", () => {
@@ -124,6 +150,7 @@ describe("initPrepareContentSelection", () => {
 		expect(result.selected?.metadata.id).toBe("capture");
 		expect(result.outcome).toBe("selected");
 		expect(result.reason).toBe("the reader's capture is the article's first content");
+		expect(result.selectionRule).toBe("first-capture");
 		expect(result.readableIds.has(cid("capture"))).toBe(true);
 		expect(result.audit).toBeUndefined();
 	});
@@ -155,6 +182,74 @@ describe("initPrepareContentSelection", () => {
 		expect(result.outcome).toBe("no-readable");
 	});
 
+	it("selects the reader's fresh capture over a none verdict when the article has no content yet", async () => {
+		const capture = source("tier-0", "capture");
+		const notFound = source("tier-1", "not-found");
+		notFound.metadata.httpStatus = 404;
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+			.mockResolvedValue({ kind: "none", reason: "Both are error pages" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [capture, notFound], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }, { tier: "tier-1", id: cid("not-found") }] });
+
+		expect(select).toHaveBeenCalledTimes(1);
+		expect(result.selected?.metadata.id).toBe("capture");
+		expect(result.outcome).toBe("selected");
+		expect(result.selectionRule).toBe("own-capture-over-verdict");
+		expect(result.reason).toBe("Both are error pages");
+		expect(result.readableIds.size).toBe(0);
+		expect(result.ownCaptureFailed).toBe(false);
+	});
+
+	it.each([
+		{ label: "a live-only bot check", sources: () => [source("tier-1", "bot-check", { html: "<p>Verify you are human</p>" })], loaded: article() },
+		{ label: "a blank capture", sources: () => [blankCapture(), notFoundLive()], loaded: article() },
+		{ label: "a capture from an earlier attempt", sources: () => [earlierCapture(), notFoundLive()], loaded: article() },
+		{ label: "a capture of a wrapper page", sources: () => [wrapperHostCapture(), notFoundLive()], loaded: article() },
+		{
+			label: "a capture for an article that already holds content", sources: () => [source("tier-0", "capture"), notFoundLive()],
+			loaded: article({ contentSelection: { revision: 2, tier: "tier-1", candidateId: cid("gone") }, freshness: { contentFetchedAt: NOW, canonicalContentHash: "committed" } }),
+		},
+	])("leaves a none verdict over $label unselected", async ({ sources, loaded }) => {
+		const { prepare } = setup({ loadArticle: async () => loaded, listAvailableTierSources: async () => sources() });
+
+		const result = await prepare({ url: URL });
+
+		expect(result.outcome).toBe("no-readable");
+		expect(result.selectionRule).toBe("judge");
+		expect(result.ownCaptureFailed).toBe(false);
+	});
+
+	it("retains a readable earlier canonical over the reader's fresh capture when the judge finds neither readable", async () => {
+		const previous = source("tier-1", "previous");
+		previous.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+		const { prepare } = setup({
+			loadArticle: async () => article({ contentSelection: { revision: 1, tier: "tier-1", candidateId: cid("previous") } }),
+			listAvailableTierSources: async () => [previous, source("tier-0", "capture")],
+		});
+
+		const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+		expect(result.outcome).toBe("retained");
+		expect(result.selected?.metadata.id).toBe("previous");
+		expect(result.selectionRule).toBe("judge");
+	});
+
+	it("flags the reader's readable capture as failed when the judge's winner is blank", async () => {
+		const blankLive = source("tier-1", "blank-live", { html: "<div></div>" });
+		blankLive.metadata.wordCount = 0;
+		const { prepare } = setup({
+			listAvailableTierSources: async () => [source("tier-0", "capture"), blankLive],
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("blank-live"), reason: "The live page is the article" }),
+		});
+
+		const result = await prepare({ url: URL });
+
+		expect(result.outcome).toBe("no-readable");
+		expect(result.selectionRule).toBe("judge");
+		expect(result.ownCaptureFailed).toBe(true);
+	});
+
 	it("retains a verified earlier canonical when all fresh responses are unreadable", async () => {
 		const previous = source("tier-0", "previous");
 		previous.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
@@ -184,7 +279,7 @@ describe("initPrepareContentSelection", () => {
 		expect(selection.readableIds).toEqual(new Set());
 		expect(selection.audit?.responseStatus).toBe("completed");
 		const info = jest.fn();
-		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: SaveAttemptIdSchema.parse("fresh"), selection, liveAttempt: { outcome: "no-body" } });
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection, liveAttempt: { outcome: "no-body" } });
 		expect(info).toHaveBeenCalledWith(expect.stringContaining('"readable":false,"fresh":true'));
 		expect(info).toHaveBeenCalledWith(expect.stringContaining('"selectedCandidateId":"same-wrapper","outcome":"retained"'));
 	});
@@ -323,8 +418,9 @@ describe("initPrepareContentSelection", () => {
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [live],
 			selectMostCompleteContent: rejectingJudge, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
-		const result = await prepare({ url: URL, candidates: [{ tier: "tier-1", id: cid("live") }] });
+		const result = await prepare({ url: URL, saveAttemptId: FRESH, candidates: [{ tier: "tier-1", id: cid("live") }] });
 		expect(result.audit?.responseStatus).toBe("rejected");
+		expect(result.selectionRule).toBe("provider-rejected-fallback");
 		expect(result.outcome).toBe(expected.outcome);
 		expect(result.selected?.metadata.id).toBe(expected.id);
 	});
@@ -338,7 +434,7 @@ describe("initPrepareContentSelection", () => {
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [blank],
 			selectMostCompleteContent: rejectingJudge, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
-		expect((await prepare({ url: URL })).outcome).toBe("no-readable");
+		expect((await prepare({ url: URL, saveAttemptId: FRESH })).outcome).toBe("no-readable");
 	});
 
 	it("requires an existing aggregate before evaluating content", async () => {
@@ -348,6 +444,33 @@ describe("initPrepareContentSelection", () => {
 });
 
 describe("initLogContentSelection", () => {
+	it("reports the selection rule, the judge's reason and an honest readability for a capture selected over a none verdict", async () => {
+		const capture = source("tier-0", "capture");
+		const { prepare } = setup({ listAvailableTierSources: async () => [capture, notFoundLive()] });
+		const selection = await prepare({ url: URL });
+		const info = jest.fn();
+
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection });
+
+		const logged = JSON.parse(String(info.mock.calls[0]?.[0]).split("comparison completed ")[1]);
+		expect(logged).toMatchObject({ selectedCandidateId: "capture", outcome: "selected", selectionRule: "own-capture-over-verdict", reason: "No readable article", ownCaptureFailed: false });
+		expect(logged.candidates.find((candidate: { id: string }) => candidate.id === "capture")).toMatchObject({ readable: false, fresh: true });
+	});
+
+	it("reports a reader's readable capture that selection failed", async () => {
+		const blankLive = source("tier-1", "blank-live", { html: "<div></div>" });
+		blankLive.metadata.wordCount = 0;
+		const { prepare } = setup({
+			listAvailableTierSources: async () => [source("tier-0", "capture"), blankLive],
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("blank-live"), reason: "The live page is the article" }),
+		});
+		const info = jest.fn();
+
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare({ url: URL }) });
+
+		expect(info).toHaveBeenCalledWith(expect.stringContaining('"outcome":"no-readable","selectionRule":"judge","reason":"The live page is the article","ownCaptureFailed":true'));
+	});
+
 	it("correlates the exact fresh CAPTCHA and retained prior winner without claiming challenge readability", async () => {
 		const previous = source("tier-0", "previous");
 		previous.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
@@ -357,7 +480,7 @@ describe("initLogContentSelection", () => {
 		const { prepare } = setup({ loadArticle: async () => article({ contentSelection: { tier: "tier-0", candidateId: cid("previous") } }), listAvailableTierSources: async () => [previous, wrapper] });
 		const selection = await prepare({ url: URL });
 		const info = jest.fn();
-		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: SaveAttemptIdSchema.parse("fresh"), selection, liveAttempt: { outcome: "no-body" } });
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection, liveAttempt: { outcome: "no-body" } });
 		expect(info).toHaveBeenCalledWith(expect.stringContaining(JSON.stringify({ id: "captcha", kind: "wrapper", originalUrl: URL, sourceUrl: ARCHIVE, contentHash: wrapper.metadata.contentHash, httpStatus: 403, readable: false, fresh: true, fetchedAt: NOW, evaluationLocation: wrapper.metadata.evaluationLocation })));
 		expect(info).toHaveBeenCalledWith(expect.stringContaining('"selectedCandidateId":"previous","outcome":"retained"'));
 	});

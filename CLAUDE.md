@@ -32,6 +32,25 @@ Workflow for a canary failure:
 
 One exception: when the origin refuses our egress outright — every transport leg blocked, no mitigation that reaches it — comment the entry out together with the evidence, and treat reaching that origin as its own work. A commented entry still records that a real save path is broken; a deleted one records nothing.
 
+### A reader's own capture is never failed by the judge
+
+A tier-0 candidate (a browser-extension capture, an iOS share, a `save-content` upload, a PDF upload, a Gmail newsletter body) is the page the reader saw and chose to keep. The model that ranks candidates during content selection may not turn a readable one into a failed save. Its `none` verdict is terminal: the crawl is marked failed and nothing retries it. When every candidate set started going through the judge on 2026-10-07, it rejected the staging reader-path upload in about 30% of runs. The same path was open for real captures saved alongside a live 403 or 404 page.
+
+Content selection enforces this with two rules (grep the save-link select-content module for the comparison log line's `selectionRule` values):
+
+| Rule | When it applies | What happens |
+|---|---|---|
+| `first-capture` | A lone capture is the article's first content | It is served without asking the judge |
+| `own-capture-over-verdict` | The judge answers `none`, there is no committed content and no earlier canonical, and this save's attempt holds a readable capture that is not of a wrapper host | The capture is selected anyway |
+
+**Boundary:** once an article holds committed content, a capture is still judged, so a co-saver's unreadable capture cannot replace a readable canonical. A capture may end `no-readable` only when the deterministic readability check rejects it (a blank body, or no words and no media) or when it falls outside the boundary above.
+
+**Guards:**
+- An invariant test in the select-content module runs every tier-0 producer against every judge outcome. The test file is named for this rule.
+- The comparison log line carries `ownCaptureFailed`, which reports any remaining breach.
+
+Do not remove either rule to "let the judge decide".
+
 ### Gmail sender discovery is a deliberate Lambda self-loop
 
 The Gmail discovery worker pages through a mailbox by re-entering its own queue: each page publishes a progress event that routes back to the same queue, and the progress branch dispatches the next page command to that queue directly (the discovery Lambda's composition root — grep the main app's runtime for `GMAIL_DISCOVERY_QUEUE_URL`). Lambda's recursive-loop detection follows that chain and cut it after roughly 16 invocations in production on 2026-09-12, which meant a mailbox of more than about eight pages could never finish loading. The Lambda is therefore provisioned with recursive-loop detection set to **Allow** (the shared Lambda component's opt-in input that creates the `FunctionRecursionConfig` resource — grep the infra-components package for it). Do not remove it, and do not "fix" a stalled discovery by restructuring the continuation into a longer chain of hops: termination is guaranteed by the page token running out, the generation fence on every page claim, and the DLQ consumer that marks an exhausted run failed.
