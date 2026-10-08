@@ -309,7 +309,7 @@ describe("toAccountViewModel — actions", () => {
 
 	it("error-payment-method state exposes no actions (support email lives in the body copy)", () => {
 		const vm = toAccountViewModel(
-			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "subscription-cancelled" },
+			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "subscription-cancelled", plan: undefined },
 			{ ...baseQuery, errorPaymentMethod: true },
 			now,
 		);
@@ -368,6 +368,18 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.statusDateTail, ".");
 		const keys = vm.actions.map((a) => a.key);
 		assert.deepEqual(keys, ["reactivate-form"]);
+	});
+
+	it("re-offers a returning reader the plan their cancelled subscription carried after a failed checkout, where the plan chooser opens again", () => {
+		const vm = toAccountViewModel(
+			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "subscription-cancelled", plan: "triennial" },
+			{ ...baseQuery, errorSubscribeFailed: true },
+			now,
+		);
+
+		assert.equal(vm.state, "error-subscribe-failed");
+		assert.deepEqual(vm.actions.map((a) => a.popoverTarget), ["subscribe-plans"]);
+		assert.equal(vm.checkedPlan, "triennial");
 	});
 });
 

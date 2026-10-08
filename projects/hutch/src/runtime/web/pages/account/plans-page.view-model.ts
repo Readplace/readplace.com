@@ -1,9 +1,10 @@
 import assert from "node:assert";
-import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
+import type { BillingPlan, SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { type EffectiveAccess, resolveEffectiveAccess } from "@packages/subscription-access";
 import { PLANS_PAGE_TERMS, type PlansPageTerms } from "@packages/web-analytics";
 import { type LocalTime, toAbsoluteDateTime } from "@packages/web-shell";
 import { payCutoff, trialEndToPreserve } from "../../../domain/stripe/stripe-trial-config";
+import { planChargedWithoutChoice } from "../../shared/subscribe-plans/subscribe-plans.component";
 import type { SubscribeBranchKey } from "./account.page";
 
 interface PlansPageTermsNote {
@@ -15,6 +16,7 @@ export interface PlansPageViewModel {
 	terms: PlansPageTerms;
 	tier: EffectiveAccess["tier"];
 	termsNote: PlansPageTermsNote;
+	checkedPlan: BillingPlan;
 }
 
 export type PlansPageOutcome =
@@ -47,12 +49,14 @@ type PlansPageOutcomeFor = (input: { row: SubscriptionRecord | undefined; now: D
 const PLANS_PAGE_OUTCOMES: Record<SubscribeBranchKey, PlansPageOutcomeFor> = {
 	trialing: ({ row, now }) => {
 		assert(row, "the trialing branch requires a subscription row");
-		const tier = resolveEffectiveAccess(row, now).tier;
+		const access = resolveEffectiveAccess(row, now);
+		const tier = access.tier;
+		const checkedPlan = planChargedWithoutChoice(access);
 		const preservedTrialEnd = trialEndToPreserve({ row, now });
 		if (preservedTrialEnd === undefined) {
 			return {
 				kind: "render",
-				viewModel: { terms: PLANS_PAGE_TERMS.chargeToday, tier, termsNote: CHARGE_TODAY_NOTE },
+				viewModel: { terms: PLANS_PAGE_TERMS.chargeToday, tier, termsNote: CHARGE_TODAY_NOTE, checkedPlan },
 			};
 		}
 		return {
@@ -61,17 +65,20 @@ const PLANS_PAGE_OUTCOMES: Record<SubscribeBranchKey, PlansPageOutcomeFor> = {
 				terms: PLANS_PAGE_TERMS.trialPreserved,
 				tier,
 				termsNote: trialPreservedNote(preservedTrialEnd),
+				checkedPlan,
 			},
 		};
 	},
 	cancelled: ({ row, now }) => {
 		assert(row, "the cancelled branch requires a subscription row");
+		const access = resolveEffectiveAccess(row, now);
 		return {
 			kind: "render",
 			viewModel: {
 				terms: PLANS_PAGE_TERMS.chargeToday,
-				tier: resolveEffectiveAccess(row, now).tier,
+				tier: access.tier,
 				termsNote: row.customerId ? CARD_ON_FILE_NOTE : CHARGE_TODAY_NOTE,
+				checkedPlan: planChargedWithoutChoice(access),
 			},
 		};
 	},

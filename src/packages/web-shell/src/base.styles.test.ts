@@ -331,6 +331,7 @@ describe("CHIP_STYLES", () => {
 		".chip--badge",
 		".chip--large",
 		".chip--status",
+		".chip--tab",
 		".chip--accent",
 		".chip--badge.chip--accent",
 		".chip--error",
@@ -363,6 +364,7 @@ describe("CHIP_STYLES", () => {
 		[".chip--badge", "1px 6px", "22px"],
 		[".chip--large", "4px 12px", "34px"],
 		[".chip--status", "4px 12px", "34px"],
+		[".chip--tab", "0 12px", "25px"],
 	])("sizes %s with %s padding to a %s minimum height", (selector, padding, minHeight) => {
 		const rule = ruleBody(CHIP_STYLES, selector);
 		expect(declaredValue(rule, "padding")).toBe(padding);
@@ -373,6 +375,14 @@ describe("CHIP_STYLES", () => {
 		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip--badge.chip--accent"), "color")).toBe(
 			"var(--primary-text-on-tint)",
 		);
+	});
+
+	it("fills a tab badge with the amber that carries its white label at AA, squared where it meets its box", () => {
+		const rule = ruleBody(CHIP_STYLES, ".chip--tab");
+		expect(declaredValue(rule, "background")).toBe("var(--primary)");
+		expect(declaredValue(rule, "border-color")).toBe("var(--primary)");
+		expect(declaredValue(rule, "color")).toBe("var(--primary-foreground)");
+		expect(declaredValue(rule, "border-radius")).toBe("var(--radius) var(--radius) 0 0");
 	});
 
 	it("insets the remove control's focus ring, so it stays legible on the accent tint", () => {

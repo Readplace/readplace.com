@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
 import type {
+	BillingPlan,
 	FindSubscriptionByUserId,
 	SubscriptionRecord,
 } from "@packages/provider-contracts/subscription-providers";
@@ -24,12 +25,20 @@ export type FullAccessTier =
  * callers can branch on it for non-user-facing concerns (e.g. analytics, or a
  * future one-click Subscribe upgrade for cancelled users with a Stripe
  * customer record). */
-export type InactiveAccess = {
-	tier: "inactive";
-	access: "read-only";
-	banner: "inactive";
-	reason: "trial-expired" | "subscription-cancelled";
-};
+export type InactiveAccess =
+	| {
+			tier: "inactive";
+			access: "read-only";
+			banner: "inactive";
+			reason: "trial-expired";
+		}
+	| {
+			tier: "inactive";
+			access: "read-only";
+			banner: "inactive";
+			reason: "subscription-cancelled";
+			plan: BillingPlan | undefined;
+		};
 
 export type EffectiveAccess = FullAccessTier | InactiveAccess;
 
@@ -61,6 +70,7 @@ export function resolveEffectiveAccess(
 				access: "read-only",
 				banner: "inactive",
 				reason: "subscription-cancelled",
+				plan: row.plan,
 			};
 		}
 		case "trialing": {
@@ -86,6 +96,7 @@ export function resolveEffectiveAccess(
 				access: "read-only",
 				banner: "inactive",
 				reason: "subscription-cancelled",
+				plan: row.plan,
 			};
 	}
 }

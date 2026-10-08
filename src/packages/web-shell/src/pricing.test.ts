@@ -26,6 +26,15 @@ describe("PRICING_PLANS", () => {
 		expect(PRICING_PLANS.triennial.billedNote).toBe("$108 billed once every 3 years");
 	});
 
+	it("states the charge before its cadence on a plan row", () => {
+		expect(PRICING_PLANS.monthly.billedLine).toBe("Billed $10 every month");
+		expect(PRICING_PLANS.yearly.billedLine).toBe("Billed $60 once a year");
+		expect(PRICING_PLANS.triennial.billedLine).toBe("Billed $108 every 3 years");
+		expect(PRICING_PLANS.monthly.billedLine).toContain(PRICING_PLANS.monthly.totalDisplay);
+		expect(PRICING_PLANS.yearly.billedLine).toContain(PRICING_PLANS.yearly.totalDisplay);
+		expect(PRICING_PLANS.triennial.billedLine).toContain(PRICING_PLANS.triennial.totalDisplay);
+	});
+
 	it("derives each monthly figure from the amount actually charged, so the two cannot drift", () => {
 		expect(Number(PRICING_PLANS.monthly.monthlyAmount) * 1).toBe(
 			Number(PRICING_PLANS.monthly.totalAmount),
@@ -96,6 +105,11 @@ describe("PRICING_PANELS", () => {
 			PRICING_PLANS.monthly.billedNote,
 			PRICING_PLANS.yearly.billedNote,
 			PRICING_PLANS.triennial.billedNote,
+		]);
+		expect(PRICING_PANELS.map((panel) => panel.billedLine)).toEqual([
+			PRICING_PLANS.monthly.billedLine,
+			PRICING_PLANS.yearly.billedLine,
+			PRICING_PLANS.triennial.billedLine,
 		]);
 		expect(PRICING_PANELS.map((panel) => panel.name)).toEqual([
 			"Monthly",

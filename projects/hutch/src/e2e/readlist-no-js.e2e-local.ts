@@ -180,6 +180,35 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(page.locator('[data-test-form="login"]')).toBeVisible({ timeout: SETTLE_MS });
 	});
 
+	test("a trialing reader picks a plan and posts it with scripts off", async ({ page }, testInfo) => {
+		const email = `readlist-no-js-${testInfo.workerIndex}-${Date.now()}-plans@example.com`;
+		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email, password: PASSWORD, verified: true },
+		});
+		assert.equal(created.status(), 201, "the e2e user fixture must create the reader");
+		const { userId } = CreatedUser.parse(await created.json());
+		const trialing = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: { userId, state: "trialing" },
+		});
+		assert.equal(trialing.status(), 201, "the subscription-state seed endpoint must answer 201");
+		await loginAs(page, email);
+		const panel = page.locator('[data-test-confirm-popover="subscribe-plans"]');
+
+		await page.locator('[data-test-action="subscribe-plans-open"]').click();
+		await expect(panel).toBeVisible();
+		await panel.locator('input[name="plan"][value="monthly"]').check();
+		const [subscribe] = await Promise.all([
+			page.waitForRequest("**/account/subscribe?*"),
+			panel.locator('[data-test-action="subscribe-plans-submit"]').click(),
+		]);
+
+		expect(subscribe.method()).toBe("POST");
+		expect(new URL(subscribe.url()).search).toBe(
+			"?utm_source=queue-banner&utm_medium=internal&utm_content=choose-plan",
+		);
+		expect(subscribe.postData()).toBe("plan=monthly");
+	});
+
 	test("the readlist switcher opens and switches readlist with no script", async ({ page }, testInfo) => {
 		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-switcher`);
 		await loginAs(page, email);

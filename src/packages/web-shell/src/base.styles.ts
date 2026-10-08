@@ -709,6 +709,19 @@ export const CHIP_STYLES = `
 		white-space: nowrap;
 	}
 
+	.chip--tab {
+		min-height: 25px;
+		padding: 0 12px;
+		border-color: var(--primary);
+		border-radius: var(--radius) var(--radius) 0 0;
+		background: var(--primary);
+		color: var(--primary-foreground);
+		font-size: var(--text-sm);
+		font-weight: 600;
+		line-height: 1.2;
+		white-space: nowrap;
+	}
+
 	.chip--accent {
 		border-color: var(--color-brand);
 		background: var(--color-brand-light);

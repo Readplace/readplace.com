@@ -139,7 +139,7 @@ export function AccountPage(
 				},
 				cardHtml: renderAccountCard(vm),
 				subscribePlansHtml: vm.actions.some((action) => action.popoverTarget !== undefined)
-					? renderSubscribePlansPopover({ source: "account" })
+					? renderSubscribePlansPopover({ source: "account", checkedPlan: vm.checkedPlan })
 					: "",
 				email: page.email,
 				appearance: page.appearance,

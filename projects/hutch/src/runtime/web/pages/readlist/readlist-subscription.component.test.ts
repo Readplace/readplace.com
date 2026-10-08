@@ -15,12 +15,13 @@ const TRIAL_BANNER: SubscriptionBannerState = {
 	daysLeft: 3,
 	daysLeftWord: "days",
 	remaining: { days: 3, hours: 4, minutes: 5, seconds: 6, totalMs: 271_506_000 },
+	checkedPlan: "yearly",
 };
 const CANCELLATION_BANNER: SubscriptionBannerState = {
 	state: "cancellation-scheduled",
 	cancellationEffectiveAt: CANCELLATION_EFFECTIVE_AT,
 };
-const INACTIVE_BANNER: SubscriptionBannerState = { state: "inactive" };
+const INACTIVE_BANNER: SubscriptionBannerState = { state: "inactive", checkedPlan: "yearly" };
 const NONE_BANNER: SubscriptionBannerState = { state: "none" };
 
 function display(banner: SubscriptionBannerState): Document {

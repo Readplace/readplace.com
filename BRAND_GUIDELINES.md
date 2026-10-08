@@ -200,10 +200,12 @@ Panels, cards, lists and dialogs have **no display type**. Product text takes on
 | Field error | `--text-xs` | 500 | `--error-text` |
 | Pagination | `--text-md` | 500 info and numbers · 400 Previous/Next · 600 current | `--ink-pagination`; the current page `--foreground` |
 | Chip · badge | `--text-xs` | 500 | per [tone](#chips-tags-and-badges) |
+| Tab badge | `--text-sm` | 600 | `--primary-foreground` on `--primary` |
 | Large tag | `--text-sm` | 500 | per [tone](#chips-tags-and-badges) |
 | Status chip | `--text-xs` | 600 | `--foreground` |
 | Figure (stat tile) | `--text-md` | 600, tabular | `--foreground` |
 | Stat tile label | `--text-sm` (18px line) | 400 | `--muted-foreground` |
+| Plan price | `1.5rem` (24px, no token: the one product figure above `--text-lg`) | 600, tabular | `--foreground`; its "/month" unit `--text-sm`/400 `--foreground` |
 
 **13px, 15px and 17px are off the scale.** The designed components (list rows, empty states, tabs, dialogs, menus, alerts, the rail) move onto these roles one component at a time; where a section below still quotes 13, 15 or 17px, or an ink or weight the tables here replace, that is the component's value today, and the next change to that component moves it to its role here. Stylesheets for pages with no design already name the tokens, with no 13/15/17px literal.
 
@@ -223,7 +225,7 @@ Buttons and inputs take their sizes from their own tokens (see [Buttons](#button
 ### Typography Rules
 
 - **Product headings are sans; the serif is the display voice.** Every heading in the product's working area — panel and card titles, rail headings, list headers, empty states, alerts, dialog titles — uses `var(--font-sans)` at weight 600 in `--foreground`. This covers **every page a reader operates**, signed-in pages and logged-out tools (import, login) alike. `var(--font-serif)` is the display voice: the wordmark, the reader view's article title, and display headings on editorial and marketing pages (home, landing pages, blog). A saved article's title or an email subject shown in a list is sans, like the rest of the list. Declare the font on the heading's own selector so the choice is explicit, not inherited — a heading that inherits the body sans is a drift, not a choice, and the serif stack must never be inlined (one source of truth, like colours).
-- **Weight carries hierarchy.** Inter is loaded at 400–700, and each weight has one job. **400** is prose, excerpts, metadata, neutral labels, and an inactive line tab. **500** is navigation a reader moves through (header, rail and menu rows), field labels, tags and badges. **600** is headings, titles, counts, button labels, announcement bars, status chips, stand-alone figures (the 16/600 stat tile, the 24/600 plan price), and the open tab or current page number. **700** is the wordmark and avatar initials. Never set **800** — Inter is not loaded at that weight. Where a weight step does the job, do not reach for a bigger size.
+- **Weight carries hierarchy.** Inter is loaded at 400–700, and each weight has one job. **400** is prose, excerpts, metadata, neutral labels, and an inactive line tab. **500** is navigation a reader moves through (header, rail and menu rows), field labels, tags and badges. **600** is headings, titles, counts, button labels, announcement bars, status chips, the tab badge, stand-alone figures (the 16/600 stat tile, the 24/600 plan price), and the open tab or current page number. **700** is the wordmark and avatar initials. Never set **800** — Inter is not loaded at that weight. Where a weight step does the job, do not reach for a bigger size.
 - **Sizes are fixed per role at every width.** A phone gets the same sizes as a desktop and the layout reflows; there is no phone step-down (the design explorations' 18→14, 16→14 and 14→12 steps are not built).
 - **A heading brings its own lede.** A panel title (16px/600, `--foreground`) is followed 2–8px below by a lede one or two steps smaller (13–14px/400, `--muted-foreground`). Empty states use 18px over 14px. An alert's title and message are 14px/600 over 14px/400, both `--foreground`; a dialog body uses 14px/400 `--muted-foreground`.
 - **A page with persistent navigation names its place through that navigation, not a display title.** Where a rail or tab selection already shows where the reader is, the page renders no visible `h1`: the document `<title>` names the place (`All — Readplace`), and each panel's own `h2` starts the outline.
@@ -394,15 +396,15 @@ Amber at rest is kept for calls to action, links in prose, and the active sideba
 |---|---|---|---|
 | Small | `6px` | `--radius-sm` | S buttons, icon-only buttons, images inside a card, skeleton bars, thumbnails |
 | Default | `8px` | `--radius` | L and M buttons, inputs, rail rows and the other readlist-row consumers (the design's selected-row corner fits 8–8.5px, not 12), alerts and callouts (standalone or nested), toasts, pagination targets and the current-page cell, a header destination's hover; and boxes nested inside a card or dialog (tiles, bordered lists) |
-| Medium | `12px` | `--radius-md` | Dropdown and row menus |
+| Medium | `12px` | `--radius-md` | Dropdown and row menus, and plan-choice rows |
 | Large | `16px` | `--radius-lg` | Cards and panels everywhere, and dialogs |
 | Pill | `999px` | `--radius-pill` | Chips and progress bars |
 
-**Corners step down one size per level of nesting** (card or dialog 16 → nested box, text field or control 8 → S control 6), so an inner corner is never rounder than its container. A tile set into a card (a stat or countdown box) is enclosed by 1px `var(--border)` and fills with `--muted`, reading as recessed. An image in a card takes `--radius-sm` and `object-fit: cover`, no border. Pick the token by what the element *is*, not by how prominent it should look.
+**Corners step down one size per level of nesting** (card or dialog 16 → nested box, text field or control 8 → S control 6), so an inner corner is never rounder than its container. Plan-choice rows are the one exception: they keep the designed 12px (`--radius-md`) inside the 16px dialog. A tile set into a card (a stat or countdown box) is enclosed by 1px `var(--border)` and fills with `--muted`, reading as recessed. An image in a card takes `--radius-sm` and `object-fit: cover`, no border. Pick the token by what the element *is*, not by how prominent it should look.
 
 Every card follows `--radius-lg` to 16px. Menus move onto the values above in their own pass, and until then their sections below quote the token they read today.
 
-**Pills are for chips and progress bars only.** A chip (status chips, tags and badges, all non-interactive labels) and a progress bar are pills (`--radius-pill`). A tag that can be removed stays a non-interactive pill; its remove × is a separate icon-only button inside it (`--radius-sm` hover square, ≥36px square target, sr-only "Remove from {name}"), and the pill itself is never the click target. Anything else you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards — stays on the radius tokens. This isn't a social app. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots, step markers and radio rings. A checkbox's 5px corner is glyph geometry, not a radius token.
+**Pills are for chips and progress bars only.** A chip (status chips, tags and badges, all non-interactive labels) and a progress bar are pills (`--radius-pill`). A [tab badge](#chips-tags-and-badges) is attached to a box, so it is the one non-pill badge. A tag that can be removed stays a non-interactive pill; its remove × is a separate icon-only button inside it (`--radius-sm` hover square, ≥36px square target, sr-only "Remove from {name}"), and the pill itself is never the click target. Anything else you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards — stays on the radius tokens. This isn't a social app. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots, step markers and radio rings. A checkbox's 5px corner is glyph geometry, not a radius token.
 
 A card laid out in a grid is a fully-enclosed box — `1px solid var(--border)` plus a `--radius*` corner. A vertical divided list lives *inside* one enclosed card (see [Lists](#lists)); its hairlines never run bare on the page ground. Reserve a bottom-border-only separator for a divided list, never a grid tile, which reads as half-drawn beside its neighbours.
 
@@ -498,6 +500,7 @@ A dialog is the shared confirm panel, opened as a native popover, and every trig
 - **Body** is `--text-sm` (14px)/22px in `--muted-foreground`, with 24px below it. A list of what the action will touch is a bordered box (1px `--border`, `--radius`) of 56px rows with 24px readlist icons and hairline dividers.
 - **Illustration.** A confirmation of a consequential action may carry a 64px-tall [illustration](#illustrations) at the top padding edge, centred 20px above the title line box (about 24px above its glyphs). Its body is centred and capped at 408px. A dialog that only edits (rename) has none and is left-aligned: label above the field, inline error below, buttons last.
 - **Buttons** follow [Pairing](#pairing): the dismiss comes first, the commit last.
+- **Plan choice.** The plans are one radio group of bordered rows 12px apart. Each row has 16px padding, `--radius-md` corners and a `--card` fill that hovers to `--neutral-hover`, and holds the radio, the plan name (`--text-sm`/600) over its billed line (`--text-sm` in `--muted-foreground`), and the monthly figure on the right. One commit trails **Cancel**. Only the option a no-choice charge would use starts checked: a returning reader's previous plan, otherwise `DEFAULT_BILLING_PLAN`; the featured option is marked by a [tab badge](#chips-tags-and-badges) and a `--primary` border, and being featured never checks it. The figure drops under the text when the plan form is 348px wide or narrower (phones up to 430px in the dialog). The same form renders inline on `/account/plans`, with no Cancel and named by the page heading.
 - **Advisory.** The save tip is illustrated and centred, with no `x` close control; Esc and the backdrop close it. A Tertiary continue control comes before the Primary install action. When the reader already has a capture client, the continue control stands alone as the Primary.
 
 ### Alerts and Status
@@ -521,7 +524,7 @@ A **status chip** carries its state's tint fill, a 1px mark border (`--color-err
 
 > **Source of truth:** `CHIP_STYLES` in `@packages/web-shell`, injected into every `<head>`. A page stylesheet adds layout only (a margin, its place in a row), never fill, ink, border, type or radius.
 
-One pill family: a 1px border, `--radius-pill`, a declared 1.25 line box, and 8px between a label and an icon. Height is a `min-height`, so a one-line chip lands exactly on its size and a long name wraps readably.
+One pill family: a 1px border, `--radius-pill`, a declared 1.25 line box, and 8px between a label and an icon. The tab badge is the one exception: `--radius` top corners over square bottom corners, on a 1.2 line box. Height is a `min-height`, so a one-line chip lands exactly on its size and a long name wraps readably.
 
 | Class | Height | Type | Wraps? | Used for |
 |---|---|---|---|---|
@@ -529,6 +532,7 @@ One pill family: a 1px border, `--radius-pill`, a declared 1.25 line box, and 8p
 | `.chip--badge` | 22px | 12px/500 | no | a short bounded label ("Current", "Me", "Beta") |
 | `.chip--large` | 34px | 14px/500 | yes | the reader's tags, including the removable readlist tag |
 | `.chip--status` | 34px | 12px/600 | no | a [status chip](#alerts-and-status) |
+| `.chip--tab` | 25px | 14px/600 | no | a tab badge ("Most popular"): `--primary` fill and border under `--primary-foreground`, 12px inline padding, `--radius` top corners, attached to the top-left of a bordered box whose top-left corner goes square |
 
 | Tone | Class | Fill / border / ink |
 |---|---|---|
@@ -723,6 +727,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 - **Zero is an answer; unknown is silence.** Show "(0)" and "0 Saved Articles". A count Readplace can't back yet is left off, leaving the bare label ("Unread", "To Read") — never a placeholder number.
 - **Tab counts** read "Label (N)" and cap at "99+" (`formatTabCountLabel`). A count arriving later reserves the width of its widest form so the row doesn't move.
 - **Progress** reads "N of M" ("Showing 2 of 2", "Saved 12 of 50") or "N% complete".
+- **A plan row's charge** reads "Billed $60 once a year" (`billedLine`); prose keeps "$60 billed once a year" (`billedNote`).
 - **Formats:** thousands take a comma ("10,000"), a read time reads "3 min read" with no tilde, dates read "Mar 1, 2027" (`toAbsoluteDate`), prices "$3/month". Numbers that tick or sit in tiles use tabular numerals. A number in a limit comes from the constant that enforces it, never a copied literal.
 
 ### UI Copy Patterns
@@ -734,6 +739,7 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 | Confirmations (status) | Toast: "Marked as read", with an **Undo** action | "Awesome! Successfully saved to your library!" |
 | Errors | Title: "Readlist limit reached" · Body: "You can create up to 7 readlists. Delete an existing readlist before creating a new one." | "Oops! Something went wrong" |
 | Decisions (confirm dialogs) | Title: "Delete this article?" · Body: "This article will be removed from your readlist. You can save it again later." · Buttons: **Delete and don't ask again** / **Delete article** | "Are you sure?" · **OK** / **Cancel** |
+| Plan choice | Title: "Choose your plan" · Body: "Get full access to Readplace. Cancel anytime, and everything you've already saved stays readable." · Row: "Yearly" / "Billed $60 once a year" / "$5/month" · Buttons: **Cancel** / **Subscribe now** | **Subscribe Now** in Title Case, or a commit button per plan |
 | Loading / in progress | The control's label becomes "Saving…"; a skeleton carries "Saving…"; an overrun says "Taking a while — open on example.com" | "Hang tight! We're fetching your stuff!" |
 | Onboarding steps | Step: "Get articles from email" · Why: "Forward a newsletter, or any email with links in it, and the links are saved here for you to read." · Progress: "Saved 12 of 50" | "Welcome to the future of reading!" |
 

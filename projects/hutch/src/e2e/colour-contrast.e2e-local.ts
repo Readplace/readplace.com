@@ -526,6 +526,31 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 	});
 });
 
+test.describe("Plan choice holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the open subscribe plans dialog clears its contrast minimum", async ({ page }, testInfo) => {
+		const email = `colour-contrast-plans-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createChipReader(page, email);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: { userId, state: "trialing" },
+		});
+		assert.equal(seeded.status(), 201);
+		await loginChipReader(page, email);
+		const panel = '[data-test-confirm-popover="subscribe-plans"]';
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await page.locator('[data-test-action="subscribe-plans-open"]').click({ timeout: SETTLE_MS });
+			await expect(page.locator(`${panel}:popover-open`)).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: panel, theme, view: "queue/subscribe-plans" });
+			await page.keyboard.press("Escape");
+			await expect(page.locator(`${panel}:popover-open`)).toBeHidden({ timeout: SETTLE_MS });
+		}
+	});
+});
+
 const GMAIL_ROOT = "main.gmail";
 const ADMIN_INDEX_ROOT = "main.admin-index";
 const ADMIN_NEWSLETTERS_ROOT = "main.admin-newsletters";

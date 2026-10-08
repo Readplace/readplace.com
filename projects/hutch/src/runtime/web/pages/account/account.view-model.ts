@@ -2,6 +2,7 @@ import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
 import { APPEARANCE_PREFERENCES, type AppearancePreference } from "@packages/domain/user";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import type { EffectiveAccess } from "@packages/subscription-access";
 import {
@@ -17,7 +18,10 @@ import {
 	PLATFORM_QUERY,
 } from "../../onboarding/native-client";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
-import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
+import {
+	SUBSCRIBE_PLANS_POPOVER_ID,
+	planChargedWithoutChoice,
+} from "../../shared/subscribe-plans/subscribe-plans.component";
 import {
 	ACCOUNT_APPEARANCE_URL,
 	ACCOUNT_CANCEL_URL,
@@ -107,6 +111,7 @@ export interface AccountViewModel {
 	stateIsErrorPaymentMethod: boolean;
 	stateIsErrorSubscribeFailed: boolean;
 	actions: AccountAction[];
+	checkedPlan: BillingPlan;
 	/** The irreversible "delete account" control. Kept out of the state-dependent
 	 * `actions` array so the danger zone renders in every subscription state. */
 	dangerAction: AccountAction;
@@ -406,7 +411,7 @@ export function buildCardSectionViewModel(input: CardSectionInput): CardSectionV
 
 type AccountCardBase = Omit<
 	AccountViewModel,
-	"dangerConfirmation" | "statusLine" | "statusDate" | "statusDateTail"
+	"dangerConfirmation" | "checkedPlan" | "statusLine" | "statusDate" | "statusDateTail"
 >;
 
 function baseFor(state: AccountCardState, actions: AccountAction[]): AccountCardBase {
@@ -434,6 +439,7 @@ export function toAccountViewModel(
 ): AccountViewModel {
 	return {
 		...stateViewModel(access, queryState, now, nextCharge),
+		checkedPlan: planChargedWithoutChoice(access),
 		dangerConfirmation: {
 			phrase: DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 			pattern: DELETE_CONFIRMATION_PATTERN,
@@ -465,7 +471,7 @@ function stateViewModel(
 	queryState: AccountUrlState,
 	now: Date,
 	nextCharge: SubscriptionNextCharge | undefined,
-): Omit<AccountViewModel, "dangerConfirmation"> {
+): Omit<AccountViewModel, "dangerConfirmation" | "checkedPlan"> {
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
 	if (queryState.errorPaymentMethod) {

@@ -127,6 +127,18 @@ describe("toPlansPageOutcome", () => {
 			assert.equal(viewModel.terms, "charge_today");
 			assert.equal(termsText(viewModel), "Your first charge is today.");
 		});
+
+		it("starts the reader on the plan their cancelled subscription carried, as a subscribe naming none would charge", () => {
+			const viewModel = rendered(
+				toPlansPageOutcome({
+					branch: "cancelled",
+					row: row({ status: "cancelled", customerId: "cus_on_file", plan: "monthly" }),
+					now: new Date("2026-10-01T09:00:00.000Z"),
+				}),
+			);
+
+			assert.equal(viewModel.checkedPlan, "monthly");
+		});
 	});
 
 	describe("a reader with nothing to choose", () => {

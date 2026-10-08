@@ -14,10 +14,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { CHECKOUT_VARIANTS } from "../../../observability/events";
-import {
-	SUBSCRIBE_PLANS_POPOVER_ID,
-	renderSubscribePlansGrid,
-} from "../../shared/subscribe-plans/subscribe-plans.component";
+import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { ACCOUNT_CANCEL_MAX_POLLS } from "./account.view-model";
 
 function card(id: string, isPrimary: boolean, last4: string): SavedCard {
@@ -88,6 +85,16 @@ function subscribePlanKeys(doc: Document): string[] {
 			`[data-test-confirm-popover="subscribe-plans"] [data-test-plan]`,
 		),
 	).map((panel) => panel.getAttribute("data-test-plan") ?? "");
+}
+
+function checkedSubscribePlanKeys(doc: Document): string[] {
+	return Array.from(
+		doc.querySelectorAll<HTMLInputElement>(
+			`[data-test-confirm-popover="subscribe-plans"] input[name="plan"]`,
+		),
+	)
+		.filter((radio) => radio.checked)
+		.map((radio) => radio.value);
 }
 
 describe("GET /account (unauthenticated)", () => {
@@ -330,6 +337,7 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 		// No in-app purchase path: no Subscribe form, no card management section.
 		expect(actionKeys(doc)).toEqual([]);
 		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+		expect(confirmPopoverKeys(doc)).toEqual([]);
 		// Apple requires in-app account deletion to stay reachable.
 		assert(
 			doc.querySelector("[data-test-account-danger]"),
@@ -537,6 +545,7 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		// Guideline 3.1.1 holds off the shell marker alone: no Subscribe CTA, no cards.
 		expect(actionKeys(doc)).toEqual([]);
 		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+		expect(confirmPopoverKeys(doc)).toEqual([]);
 	});
 
 	it("keeps the full web shell for a store build that predates the marker — it sends platform=ios alone and cannot drive a deep link", async () => {
@@ -596,6 +605,7 @@ describe("GET /account?error=subscribe_failed", () => {
 				el.getAttribute("data-test-account-action"),
 			),
 		).toContain("subscribe");
+		expect(confirmPopoverKeys(doc)).toEqual(["subscribe-plans"]);
 	});
 });
 
@@ -725,7 +735,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		const fallback = findAction(doc, "subscribe");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
 		expect(confirmPopoverKeys(doc)).toEqual(["subscribe-plans"]);
-		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
+		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
 	}
 
 	it("offers a trialing user the three-plan chooser: the trigger opens the popover and the subscribe form stays as the no-JS fallback", async () => {
@@ -758,6 +768,28 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 
 		expect(response.status).toBe(200);
 		expectPlanChooser(new JSDOM(response.text).window.document);
+	});
+
+	it("starts a returning reader's chooser on the plan their cancelled subscription carried, the plan the no-JS fallback charges", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "cancelled-monthly-plans@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_monthly",
+			customerId: "cus_was_monthly",
+			plan: "monthly",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+		await agent.post(findAction(doc, "subscribe").getAttribute("action") ?? "");
+
+		expect(checkedSubscribePlanKeys(doc)).toEqual(["monthly"]);
+		expect(subscriptionBilling.createdSubscriptions().map((s) => s.priceId)).toEqual([
+			"price_test_monthly",
+		]);
 	});
 
 	it("renders no plan popover for an active subscriber — the page's popover key list carries exactly what the card's actions declare", async () => {
@@ -1697,11 +1729,11 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 });
 
 describe("POST /account/subscribe (where the plan was chosen)", () => {
-	function yearlyFormAction(html: string): string {
-		const form = new JSDOM(html).window.document.querySelector("[data-test-plan='yearly'] form");
-		assert(form, "the plan grid must post the yearly plan through a form");
+	function planFormAction(html: string): string {
+		const form = new JSDOM(html).window.document.querySelector('[data-test-form="subscribe-plans"]');
+		assert(form, "the page must offer the plans through the plan form");
 		const action = form.getAttribute("action");
-		assert(action, "the yearly plan form must carry an action");
+		assert(action, "the plan form must carry an action");
 		return action;
 	}
 
@@ -1719,11 +1751,11 @@ describe("POST /account/subscribe (where the plan was chosen)", () => {
 		return { agent, entrySources };
 	}
 
-	it("records the plans page as the checkout's entry source when the reader chose a plan from its grid", async () => {
+	it("records the plans page as the checkout's entry source when the reader chose a plan from its form", async () => {
 		const { agent, entrySources } = await trialingReader("entry-plans-page@example.com");
 
-		const action = yearlyFormAction(renderSubscribePlansGrid({ source: "plans-page" }));
-		const response = await agent.post(action).type("form").send({ plan: "yearly" });
+		const page = await agent.get("/account/plans");
+		const response = await agent.post(planFormAction(page.text)).type("form").send({ plan: "yearly" });
 
 		expect(response.status).toBe(303);
 		expect(entrySources()).toEqual(["plans-page"]);
@@ -1733,7 +1765,7 @@ describe("POST /account/subscribe (where the plan was chosen)", () => {
 		const { agent, entrySources } = await trialingReader("entry-account@example.com");
 
 		const page = await agent.get("/account");
-		const response = await agent.post(yearlyFormAction(page.text)).type("form").send({ plan: "yearly" });
+		const response = await agent.post(planFormAction(page.text)).type("form").send({ plan: "yearly" });
 
 		expect(response.status).toBe(303);
 		expect(entrySources()).toEqual(["account"]);

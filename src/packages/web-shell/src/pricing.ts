@@ -10,6 +10,7 @@ export interface PricingPlan {
 	readonly totalAmount: string;
 	readonly totalDisplay: string;
 	readonly billedNote: string;
+	readonly billedLine: string;
 }
 
 function toPricingPlan(input: {
@@ -17,6 +18,7 @@ function toPricingPlan(input: {
 	totalUsd: number;
 	months: number;
 	billedAs: string;
+	cadence: string;
 }): PricingPlan {
 	const monthlyAmount = `${input.totalUsd / input.months}`;
 	const totalAmount = `${input.totalUsd}`;
@@ -28,6 +30,7 @@ function toPricingPlan(input: {
 		totalAmount,
 		totalDisplay,
 		billedNote: `${totalDisplay} ${input.billedAs}`,
+		billedLine: `Billed ${totalDisplay} ${input.cadence}`,
 	};
 }
 
@@ -37,18 +40,21 @@ export const PRICING_PLANS: Record<BillingPlan, PricingPlan> = {
 		totalUsd: 10,
 		months: 1,
 		billedAs: "billed monthly",
+		cadence: "every month",
 	}),
 	yearly: toPricingPlan({
 		name: "Yearly",
 		totalUsd: 60,
 		months: 12,
 		billedAs: "billed once a year",
+		cadence: "once a year",
 	}),
 	triennial: toPricingPlan({
 		name: "Every 3 years",
 		totalUsd: 108,
 		months: 36,
 		billedAs: "billed once every 3 years",
+		cadence: "every 3 years",
 	}),
 };
 
@@ -61,6 +67,7 @@ export interface PricingPanel {
 	readonly name: string;
 	readonly monthlyDisplay: string;
 	readonly billedNote: string;
+	readonly billedLine: string;
 	readonly featured: boolean;
 	readonly badge?: string;
 }
@@ -73,6 +80,7 @@ export const PRICING_PANELS: readonly PricingPanel[] = BILLING_PLANS.map((key) =
 		name: plan.name,
 		monthlyDisplay: plan.monthlyDisplay,
 		billedNote: plan.billedNote,
+		billedLine: plan.billedLine,
 		featured,
 		...(featured ? { badge: FEATURED_PLAN_BADGE } : {}),
 	};

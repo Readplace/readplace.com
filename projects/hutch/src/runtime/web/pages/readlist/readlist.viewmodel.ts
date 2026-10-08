@@ -15,6 +15,7 @@ import {
 	toRelativeOrDate,
 } from "@packages/web-shell";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import {
 	type PickedExcerpt,
 	pickExcerpt,
@@ -22,6 +23,7 @@ import {
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { ComponentError } from "../../shared/component-error.types";
+import { planChargedWithoutChoice } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { MAX_POLLS } from "@packages/web-shell";
 import { buildCardPollUrl } from "./readlist-card/readlist-card-poll-url";
 import {
@@ -41,9 +43,15 @@ import type { EffectiveAccess } from "@packages/subscription-access";
 
 export type SubscriptionBannerState =
 	| { state: "none" }
-	| { state: "trial-countdown"; daysLeft: number; daysLeftWord: "day" | "days"; remaining: TrialRemaining }
+	| {
+			state: "trial-countdown";
+			daysLeft: number;
+			daysLeftWord: "day" | "days";
+			remaining: TrialRemaining;
+			checkedPlan: BillingPlan;
+		}
 	| { state: "cancellation-scheduled"; cancellationEffectiveAt: LocalTime }
-	| { state: "inactive" };
+	| { state: "inactive"; checkedPlan: BillingPlan };
 
 export interface ArticleActionField {
 	name: string;
@@ -140,6 +148,7 @@ function toSubscriptionBannerState(access: EffectiveAccess, now: Date): Subscrip
 				daysLeft,
 				daysLeftWord,
 				remaining: formatTrialRemaining(access.trialEndsAt, now),
+				checkedPlan: planChargedWithoutChoice(access),
 			};
 		}
 		case "cancellation-scheduled":
@@ -148,7 +157,7 @@ function toSubscriptionBannerState(access: EffectiveAccess, now: Date): Subscrip
 				cancellationEffectiveAt: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
 			};
 		case "inactive":
-			return { state: "inactive" };
+			return { state: "inactive", checkedPlan: planChargedWithoutChoice(access) };
 	}
 }
 

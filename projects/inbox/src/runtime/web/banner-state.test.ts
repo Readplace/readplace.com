@@ -65,6 +65,7 @@ describe("initBuildBannerState", () => {
 			access: "read-only",
 			banner: "inactive",
 			reason: "subscription-cancelled",
+			plan: undefined,
 		};
 
 		const buildExpired = initBuildBannerState({

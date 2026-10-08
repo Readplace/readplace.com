@@ -392,7 +392,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			.join("\n"),
 		subscribePlansHtml:
 			banner.state === "trial-countdown" || banner.state === "inactive"
-				? renderSubscribePlansPopover({ source: "queue-banner" })
+				? renderSubscribePlansPopover({ source: "queue-banner", checkedPlan: banner.checkedPlan })
 				: "",
 		saveTipHtml: options.saveTip.html,
 		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),

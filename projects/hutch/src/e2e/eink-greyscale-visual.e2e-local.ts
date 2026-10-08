@@ -392,6 +392,30 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 		});
 
+		test(`the subscribe plans dialog keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, userId } = await createEinkUser(
+				page,
+				`subscribe-plans-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			const subscription = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+				data: { userId, state: "trialing" },
+			});
+			assert.equal(subscription.status(), 201);
+			await loginAs(page, email);
+			await page.click('[data-test-action="subscribe-plans-open"]');
+			const panel = page.locator('[data-test-confirm-popover="subscribe-plans"]:popover-open');
+			await expect(panel).toBeVisible();
+			await settle(page, '[data-test-confirm-popover="subscribe-plans"]:popover-open');
+
+			const box = await measuredBox(page, '[data-test-confirm-popover="subscribe-plans"]:popover-open');
+			assert.equal(Math.round(box.width), 600);
+			await expect(panel).toHaveScreenshot(
+				`eink-subscribe-plans-dialog-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
 		test(`the status toast keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email, articleId } = await seedReaderAndReadlist(

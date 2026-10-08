@@ -123,7 +123,7 @@ describe("GET /account/plans (inside the app)", () => {
 		const response = await agent.get(`/account/plans${query}`);
 		const account = await agent.get(response.headers.location);
 
-		expect(anyPlanKeys(onTheWeb.text)).toEqual(["monthly", "yearly", "triennial"]);
+		expect(anyPlanKeys(onTheWeb.text)).toEqual(["yearly", "monthly", "triennial"]);
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(location);
 		expect(account.status).toBe(200);
@@ -133,9 +133,9 @@ describe("GET /account/plans (inside the app)", () => {
 });
 
 describe("GET /account/plans (trialing, the trial can still be kept)", () => {
-	it("shows the three plans as forms that post to the subscribe route from the plans page", async () => {
+	it("shows the three plans as one form that posts the checked plan to the subscribe route from the plans page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, userId } = await signedInReader(harness, "plans-grid@example.com");
+		const { agent, userId } = await signedInReader(harness, "plans-form@example.com");
 		harness.subscriptionProviders.seedRow(
 			subscriptionRow(userId, {
 				status: "trialing",
@@ -147,12 +147,27 @@ describe("GET /account/plans (trialing, the trial can still be kept)", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		expect(planKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
-		const forms = Array.from(doc.querySelectorAll("[data-test-plans-page] [data-test-plan] form"));
-		expect(forms.map((form) => form.getAttribute("method"))).toEqual(["POST", "POST", "POST"]);
+		expect(planKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
+		const forms = Array.from(doc.querySelectorAll('[data-test-plans-page] [data-test-form="subscribe-plans"]'));
+		expect(forms.map((form) => form.getAttribute("method"))).toEqual(["POST"]);
+		const [form] = forms;
+		assert(form, "the plans page must render its plan form");
+		const action = new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect(action.pathname).toBe("/account/subscribe");
+		expect(action.searchParams.get("utm_source")).toBe("plans-page");
+		expect(action.searchParams.get("utm_content")).toBe("choose-plan");
+		const radios = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="plan"]'));
+		expect(radios.map((radio) => radio.value)).toEqual(["yearly", "monthly", "triennial"]);
+		expect(radios.filter((radio) => radio.checked).map((radio) => radio.value)).toEqual(["yearly"]);
 		expect(
-			forms.map((form) => new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN).searchParams.get("utm_source")),
-		).toEqual(["plans-page", "plans-page", "plans-page"]);
+			Array.from(form.querySelectorAll("[data-test-action]")).map((control) => control.getAttribute("data-test-action")),
+		).toEqual(["subscribe-plans-submit"]);
+		const group = form.querySelector("fieldset");
+		assert(group, "the plans must be one named group");
+		const heading = doc.getElementById(group.getAttribute("aria-labelledby") ?? "");
+		assert(heading, "the plan group must be named by an element on the page");
+		expect(heading.classList.contains("plans-page__title")).toBe(true);
+		expect(heading.textContent).toBe("Choose a plan");
 	});
 
 	it("promises no charge until the trial ends for a plan chosen before the checkout cutoff", async () => {
@@ -274,7 +289,7 @@ describe("GET /account/plans (the first charge is today)", () => {
 		const doc = new JSDOM(response.text).window.document;
 		expect(termsOf(doc).getAttribute("data-test-plans-terms")).toBe("charge_today");
 		expect(termsOf(doc).textContent).toBe("Your first charge is today.");
-		expect(planKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
+		expect(planKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
 		expect(plansPageViews(harness)).toEqual([
 			expect.objectContaining({ user_id: userId, tier, terms: "charge_today" }),
 		]);
@@ -293,9 +308,32 @@ describe("GET /account/plans (the first charge is today)", () => {
 		const doc = new JSDOM(response.text).window.document;
 		expect(termsOf(doc).getAttribute("data-test-plans-terms")).toBe("charge_today");
 		expect(termsOf(doc).textContent).toBe("Choosing a plan charges your card on file today.");
-		expect(planKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
+		expect(planKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
 		expect(plansPageViews(harness)).toEqual([
 			expect.objectContaining({ user_id: userId, tier: "inactive", terms: "charge_today" }),
+		]);
+	});
+
+	it("starts a returning reader on the plan their cancelled subscription carried, so an untouched submit charges the plan they had", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await signedInReader(harness, "plans-cancelled-monthly@example.com");
+		harness.subscriptionProviders.seedRow(
+			subscriptionRow(userId, { status: "cancelled", customerId: "cus_plans_monthly", plan: "monthly" }),
+		);
+
+		const response = await agent.get(PAY_DIGEST_CLICK);
+		const form = new JSDOM(response.text).window.document.querySelector(
+			'[data-test-plans-page] [data-test-form="subscribe-plans"]',
+		);
+		assert(form, "the plans page must render its plan form");
+		const checked = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="plan"]'))
+			.filter((radio) => radio.checked)
+			.map((radio) => radio.value);
+		await agent.post(form.getAttribute("action") ?? "").type("form").send({ plan: checked[0] });
+
+		expect(checked).toEqual(["monthly"]);
+		expect(harness.subscriptionBilling.createdSubscriptions().map((s) => s.priceId)).toEqual([
+			"price_test_monthly",
 		]);
 	});
 

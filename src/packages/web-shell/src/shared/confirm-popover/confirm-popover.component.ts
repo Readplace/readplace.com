@@ -20,7 +20,6 @@ export interface ConfirmPopover {
 	lead?: string;
 	openBeaconUrl?: string;
 	close?: { beaconUrl?: string };
-	wide?: boolean;
 	illustrationHtml?: string;
 	/** One .confirm-popover__actions element; forms with only buttons also use .confirm-popover__buttons, with dismiss before commit. */
 	actionsHtml: string;

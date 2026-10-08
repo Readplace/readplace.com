@@ -611,6 +611,7 @@ describe("ReadlistPage", () => {
 				daysLeft: 2,
 				daysLeftWord: "days",
 				remaining: { days: 2, hours: 0, minutes: 0, seconds: 0, totalMs: 0 },
+				checkedPlan: "yearly",
 			},
 		});
 
@@ -618,7 +619,7 @@ describe("ReadlistPage", () => {
 	});
 
 	it("offers the subscribe-plans popover once the subscription has gone inactive", () => {
-		const doc = pageDoc({ subscriptionBanner: { state: "inactive" } });
+		const doc = pageDoc({ subscriptionBanner: { state: "inactive", checkedPlan: "yearly" } });
 
 		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
 	});

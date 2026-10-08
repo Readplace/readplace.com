@@ -4,7 +4,7 @@
 }
 
 .plans-page__layout {
-  max-width: calc(880px + 2 * var(--page-gutter));
+  max-width: calc(600px + 2 * var(--page-gutter));
   margin: 0 auto;
   padding: var(--page-top) var(--page-gutter) 64px;
 }

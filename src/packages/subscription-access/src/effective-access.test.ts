@@ -101,6 +101,7 @@ describe("initGetEffectiveAccess", () => {
 			access: "read-only",
 			banner: "inactive",
 			reason: "subscription-cancelled",
+			plan: undefined,
 		});
 	});
 
@@ -150,6 +151,7 @@ describe("initGetEffectiveAccess", () => {
 			access: "read-only",
 			banner: "inactive",
 			reason: "subscription-cancelled",
+			plan: undefined,
 		});
 	});
 
@@ -215,5 +217,33 @@ describe("resolveEffectiveAccess", () => {
 			banner: "inactive",
 			reason: "trial-expired",
 		});
+	});
+
+	it("carries the plan an ended subscription was billed on, whether it was cancelled outright or its scheduled cancellation took effect", () => {
+		const endedMonthly: SubscriptionRecord = {
+			userId: USER_ID,
+			provider: "stripe",
+			status: "cancelled",
+			subscriptionId: "sub_ended_monthly",
+			customerId: "cus_ended_monthly",
+			plan: "monthly",
+			createdAt: "2026-04-23T12:00:00.000Z",
+			updatedAt: "2026-05-20T12:00:00.000Z",
+		};
+		const lapsedMonthly: SubscriptionRecord = {
+			...endedMonthly,
+			status: "pending_cancellation",
+			cancellationEffectiveAt: new Date(NOW.getTime() - ONE_DAY_MS).toISOString(),
+		};
+		const returningMonthly = {
+			tier: "inactive",
+			access: "read-only",
+			banner: "inactive",
+			reason: "subscription-cancelled",
+			plan: "monthly",
+		};
+
+		assert.deepEqual(resolveEffectiveAccess(endedMonthly, NOW), returningMonthly);
+		assert.deepEqual(resolveEffectiveAccess(lapsedMonthly, NOW), returningMonthly);
 	});
 });

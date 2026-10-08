@@ -23,6 +23,16 @@ function subscribePlanKeys(doc: Document): string[] {
 	).map((panel) => panel.getAttribute("data-test-plan") ?? "");
 }
 
+function checkedSubscribePlanKeys(doc: Document): string[] {
+	return Array.from(
+		doc.querySelectorAll<HTMLInputElement>(
+			`[data-test-confirm-popover="subscribe-plans"] input[name="plan"]`,
+		),
+	)
+		.filter((radio) => radio.checked)
+		.map((radio) => radio.value);
+}
+
 function subscribeCtaPair(banner: Element, fallbackKey: "subscribe" | "resubscribe") {
 	const trigger = banner.querySelector('[data-test-action="subscribe-plans-open"]');
 	const fallback = banner.querySelector(`[data-test-action="${fallbackKey}"]`);
@@ -82,7 +92,7 @@ describe("Readlist page banner state", () => {
 		expect(fallback.textContent).toBe(SUBSCRIBE_CTA_LABEL);
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
 		expect(fallback.getAttribute("href")).toContain("utm_content=subscribe");
-		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
+		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
 	});
 
 	it("disables the save form after the trial window ends", async () => {
@@ -119,7 +129,7 @@ describe("Readlist page banner state", () => {
 		assert(ctaHref, "resubscribe CTA must have an href");
 		expect(ctaHref).toContain("/account");
 		expect(ctaHref).toContain("utm_content=resubscribe");
-		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
+		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
 	});
 
 	it("shows cancellation-scheduled banner with full access when pending_cancellation is before effectiveAt", async () => {
@@ -195,7 +205,24 @@ describe("Readlist page banner state", () => {
 		assert(ctaHref, "inactive banner CTA must have an href");
 		expect(ctaHref).toContain("/account");
 		expect(ctaHref).toContain("utm_content=resubscribe");
-		expect(subscribePlanKeys(doc)).toEqual(["monthly", "yearly", "triennial"]);
+		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
+	});
+
+	it("starts a returning reader's plan chooser on the plan their cancelled subscription carried", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "cancelled-monthly@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_monthly",
+			customerId: "cus_was_monthly",
+			plan: "monthly",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.get("/queue");
+
+		expect(checkedSubscribePlanKeys(new JSDOM(response.text).window.document)).toEqual(["monthly"]);
 	});
 });
 
