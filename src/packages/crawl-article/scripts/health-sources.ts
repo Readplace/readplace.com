@@ -16,6 +16,8 @@
  * legitimately has no thumbnail (e.g. X/Twitter via oembed returns synthetic
  * HTML with no meta tags).
  */
+import { randomUUID } from "node:crypto";
+
 export interface HealthSource {
 	label: string;
 	url: string;
@@ -35,12 +37,20 @@ export interface HealthSource {
 
 export type SaveHealthSource = HealthSource & {
 	expectedDestinationUrl: string;
-	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean } | { kind: "direct" };
+	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean } | { kind: "direct" } | { kind: "upload"; title: string; html: string };
 };
 
 export type ArchiveSaveHealthSource = SaveHealthSource & {
 	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean };
 };
+
+export type UploadHealthSource = SaveHealthSource & {
+	save: { kind: "upload"; title: string; html: string };
+};
+
+const UPLOAD_RUN = randomUUID();
+const UPLOAD_URL = `https://readplace.com/crawl-canary/upload/${UPLOAD_RUN}`;
+const UPLOAD_MARKER = `Crawl canary upload ${UPLOAD_RUN} kept the reader's own capture.`;
 
 export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 	// Cloudflare refuses this URL to our datacenter egress: on 2026-08-13 every
@@ -275,6 +285,18 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		},
 		expectedContent: "he had had to carry the ice and glassware",
 		expectedDestinationUrl: "https://hex.ooo/library/last_question.html",
+		expectsThumbnail: false,
+	},
+	{
+		label: "Reader upload (Siren save-content)",
+		url: UPLOAD_URL,
+		save: {
+			kind: "upload",
+			title: `Crawl canary upload ${UPLOAD_RUN}`,
+			html: `<html><head><title>Crawl canary upload ${UPLOAD_RUN}</title></head><body><article><h1>Crawl canary upload</h1><p>${UPLOAD_MARKER}</p><p>${"This page is uploaded by the daily crawl canary to prove that content selection keeps what a reader saved. ".repeat(20)}</p></article></body></html>`,
+		},
+		expectedContent: UPLOAD_MARKER,
+		expectedDestinationUrl: UPLOAD_URL,
 		expectsThumbnail: false,
 	},
 	{

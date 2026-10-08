@@ -47,7 +47,8 @@ Content selection enforces this with two rules (grep the save-link select-conten
 
 **Guards:**
 - An invariant test in the select-content module runs every tier-0 producer against every judge outcome. The test file is named for this rule.
-- The comparison log line carries `ownCaptureFailed`, which reports any remaining breach.
+- The comparison log line carries `ownCaptureFailed`, which reports any remaining breach. The `select-content-own-capture-failed-alarm` CloudWatch alarm emails the alert address on the first one.
+- The daily Tier 1+ canary uploads a page through `save-content` and fails unless that upload is the content selected.
 
 Do not remove either rule to "let the judge decide".
 

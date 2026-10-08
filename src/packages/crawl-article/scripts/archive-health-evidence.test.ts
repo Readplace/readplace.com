@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { initArchiveHealthEvidence } from "./archive-health-evidence";
-import type { ArchiveSaveHealthSource } from "./health-sources";
+import type { ArchiveSaveHealthSource, UploadHealthSource } from "./health-sources";
 
 const ATTEMPT = "12c9f733-a806-4734-9d76-2d466e41d473";
 const ORIGINAL = "https://example.com/article";
@@ -140,6 +140,8 @@ it("does not pass fallback health when the provider rejected the request or did 
 	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => ARTICLE });
 	const rejected = message().replace('"responseStatus":"completed"', '"responseStatus":"rejected"');
 	await expect(evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [rejected] })).rejects.toThrow("valid comparison");
+	const unjudged = message().replace(/,"audit":\{.*\}\}/, "}");
+	await expect(evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [unjudged] })).rejects.toThrow("valid comparison");
 	const omitted = message().replace('"judgedCandidates":[{"id":"new-wrapper"', '"judgedCandidates":[{"id":"old-wrapper"');
 	await expect(evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [omitted] })).rejects.toThrow("actual judge request");
 });
@@ -148,4 +150,40 @@ it("rejects candidates from a different original and selected IDs absent from th
 	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => ARTICLE });
 	await expect(evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [message({ candidates: [candidate({ originalUrl: "https://other.example/article" })] })] })).rejects.toThrow("different original");
 	await expect(evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [message({ selectedCandidateId: "missing" })] })).rejects.toThrow("actually selected or retained");
+});
+
+const UPLOAD_URL = "https://readplace.com/crawl-canary/upload/run";
+const UPLOADED = "<html><body><p>Crawl canary upload run kept the reader's own capture.</p></body></html>";
+const uploadSource: UploadHealthSource = {
+	label: "Upload", url: UPLOAD_URL, expectedDestinationUrl: UPLOAD_URL, expectedContent: "kept", expectsThumbnail: false,
+	save: { kind: "upload", title: "Upload", html: UPLOADED },
+};
+
+function uploadMessage(input: { url?: string; outcome?: string; selectedCandidateId?: string; ownCaptureFailed?: boolean; candidates?: ReturnType<typeof candidate>[] } = {}) {
+	return `[ArchiveSaveAttempt] comparison completed ${JSON.stringify({
+		saveAttemptId: ATTEMPT, url: input.url ?? UPLOAD_URL,
+		candidates: input.candidates ?? [candidate({ id: "capture", kind: "extension", html: UPLOADED, originalUrl: UPLOAD_URL, sourceUrl: UPLOAD_URL })],
+		selectedCandidateId: input.selectedCandidateId ?? "capture", outcome: input.outcome ?? "selected",
+		selectionRule: "first-capture", reason: "the reader's capture is the article's first content", ownCaptureFailed: input.ownCaptureFailed ?? false,
+	})}`;
+}
+
+it("reports the reader's upload selected as itself, without a judge audit on a first capture", () => {
+	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => "" });
+	expect(evidence.verifyUpload({ source: uploadSource, messages: ["unrelated log", uploadMessage({ url: ORIGINAL }), uploadMessage()] })).toEqual({
+		label: "Upload", saveAttemptId: ATTEMPT, originalUrl: UPLOAD_URL, outcome: "selected", selectionRule: "first-capture",
+		selected: { id: "capture", kind: "extension", fresh: true, contentHash: createHash("sha256").update(UPLOADED).digest("hex") },
+	});
+	expect(evidence.verifyUpload({ source: uploadSource, messages: [uploadMessage({ url: ORIGINAL })] })).toBeUndefined();
+});
+
+it.each([
+	{ label: "no capture of this upload", message: () => uploadMessage({ candidates: [] }), error: "exactly this upload's capture" },
+	{ label: "different bytes", message: () => uploadMessage({ candidates: [candidate({ id: "capture", kind: "extension", html: "<p>other</p>", originalUrl: UPLOAD_URL, sourceUrl: UPLOAD_URL })] }), error: "uploaded bytes" },
+	{ label: "a failed own capture", message: () => uploadMessage({ ownCaptureFailed: true }), error: "failed the reader's own upload" },
+	{ label: "nothing readable", message: () => uploadMessage({ outcome: "no-readable" }), error: "found nothing readable" },
+	{ label: "another candidate selected", message: () => uploadMessage({ selectedCandidateId: "live" }), error: "must be the content selected" },
+])("fails the upload when selection reports $label", ({ message: build, error }) => {
+	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => "" });
+	expect(() => evidence.verifyUpload({ source: uploadSource, messages: [build()] })).toThrow(error);
 });

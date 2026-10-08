@@ -38,6 +38,36 @@ it("logs in once with existing credentials, keeps its session and discovers the 
 	expect(calls[3].init).toMatchObject({ method: "POST", redirect: "manual", headers: { cookie: "hutch_sid=canary-session" } });
 });
 
+it("uploads the reader's page through the Siren save-content action with its session", async () => {
+	const { client, calls } = clientFor([
+		new Response(LOGIN),
+		new Response("", { status: 303, headers: { location: "/queue", "set-cookie": "hutch_sid=canary-session; HttpOnly; Secure" } }),
+		new Response(JSON.stringify({ actions: [{ name: "save", href: "/queue/save" }, { name: "save-content", href: "/queue/save-content" }] })),
+		new Response("{}", { status: 201 }),
+	]);
+	await client.login();
+	await client.upload({ url: "https://readplace.com/crawl-canary/upload/run", title: "Upload", html: "<p>marker</p>" });
+	expect(calls.slice(2).map(({ url, init }) => [url, init.method, init.headers])).toEqual([
+		["https://readplace.example/queue", "GET", { cookie: "hutch_sid=canary-session", accept: "application/vnd.siren+json" }],
+		["https://readplace.example/queue/save-content", "POST", { cookie: "hutch_sid=canary-session", accept: "application/vnd.siren+json" }],
+	]);
+	const body = calls[3].init.body;
+	assert(body instanceof FormData);
+	expect([body.get("url"), body.get("title"), body.get("mediaType")]).toEqual(["https://readplace.com/crawl-canary/upload/run", "Upload", "text/html"]);
+	const content = body.get("content");
+	assert(content instanceof Blob);
+	expect(await content.text()).toBe("<p>marker</p>");
+});
+
+it.each([
+	{ label: "the Siren collection redirects to login", responses: () => [new Response("", { status: 302 })], error: "Siren collection must load" },
+	{ label: "save-content is not advertised", responses: () => [new Response(JSON.stringify({ actions: [] }))], error: "must advertise save-content" },
+	{ label: "the upload is refused", responses: () => [new Response(JSON.stringify({ actions: [{ name: "save-content", href: "/queue/save-content" }] })), new Response("", { status: 402 })], error: "upload must be accepted" },
+])("fails the upload when $label", async ({ responses, error }) => {
+	const { client } = clientFor(responses());
+	await expect(client.upload({ url: "https://readplace.com/crawl-canary/upload/run", title: "Upload", html: "<p>marker</p>" })).rejects.toThrow(error);
+});
+
 it("refuses a cross-origin login action before sending credentials", async () => {
 	const { client, calls } = clientFor([new Response(LOGIN.replace("/login?source=canary", "https://other.example/login"))]);
 	await expect(client.login()).rejects.toThrow("configured origin");

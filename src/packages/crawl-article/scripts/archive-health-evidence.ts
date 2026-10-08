@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { createHash } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { z } from "zod";
-import type { ArchiveSaveHealthSource } from "./health-sources";
+import type { ArchiveSaveHealthSource, UploadHealthSource } from "./health-sources";
 
 const COMPLETION_PREFIX = "[ArchiveSaveAttempt] comparison completed ";
 const Candidate = z.object({
@@ -22,13 +22,24 @@ const Completion = z.object({
 	candidates: z.array(Candidate),
 	selectedCandidateId: z.string().optional(),
 	outcome: z.enum(["selected", "retained", "no-readable"]),
+	selectionRule: z.string().optional(),
+	ownCaptureFailed: z.boolean().optional(),
 	liveAttempt: z.object({ outcome: z.enum(["body", "no-body", "deferred"]) }).optional(),
 	audit: z.object({
 		judgedCandidates: z.array(z.object({ id: z.string(), contentHash: z.string().regex(/^[a-f0-9]{64}$/) })),
 		promptHash: z.string().regex(/^[a-f0-9]{64}$/),
 		responseStatus: z.enum(["completed", "rejected"]),
-	}),
+	}).optional(),
 });
+
+export type UploadHealthReport = {
+	label: string;
+	saveAttemptId: string;
+	originalUrl: string;
+	outcome: "selected" | "retained";
+	selectionRule: string | undefined;
+	selected: { id: string; kind: "live" | "wrapper" | "extension"; fresh: boolean; contentHash: string };
+};
 
 export type ArchiveHealthReport = {
 	label: string;
@@ -46,13 +57,14 @@ export type ArchiveHealthReport = {
 export function initArchiveHealthEvidence(deps: {
 	readEvaluation: (location: string) => Promise<string>;
 }) {
+	const completionsIn = (messages: readonly string[]) => messages.flatMap((message) => {
+		const index = message.indexOf(COMPLETION_PREFIX);
+		if (index < 0) return [];
+		return [Completion.parse(JSON.parse(message.slice(index + COMPLETION_PREFIX.length)))];
+	});
+
 	const findCompletion = (input: { messages: readonly string[]; saveAttemptId: string }) => {
-		const matching = input.messages.flatMap((message) => {
-			const index = message.indexOf(COMPLETION_PREFIX);
-			if (index < 0) return [];
-			const completion = Completion.parse(JSON.parse(message.slice(index + COMPLETION_PREFIX.length)));
-			return completion.saveAttemptId === input.saveAttemptId ? [completion] : [];
-		});
+		const matching = completionsIn(input.messages).filter((completion) => completion.saveAttemptId === input.saveAttemptId);
 		return matching.filter((completion) =>
 			completion.candidates.some((candidate) => candidate.kind === "live" && candidate.fresh)
 			|| completion.liveAttempt?.outcome === "no-body",
@@ -74,8 +86,9 @@ export function initArchiveHealthEvidence(deps: {
 		const wrappers = completion.candidates.filter((candidate) => candidate.kind === "wrapper" && candidate.fresh);
 		assert.equal(wrappers.length, 1, "judge must consider this save's current wrapper response, including a CAPTCHA body (the capture fetch or its source verification failed)");
 		const wrapper = wrappers[0];
-		assert.equal(completion.audit.responseStatus, "completed", "judge must complete a valid comparison; rejected or invalid responses cannot make fallback health pass");
-		assert(completion.audit.judgedCandidates.some((candidate) => candidate.id === wrapper.id && candidate.contentHash === wrapper.contentHash),
+		const audit = completion.audit;
+		assert(audit?.responseStatus === "completed", "judge must complete a valid comparison; rejected or invalid responses cannot make fallback health pass");
+		assert(audit.judgedCandidates.some((candidate) => candidate.id === wrapper.id && candidate.contentHash === wrapper.contentHash),
 			"current wrapper ID and body hash must be present in the actual judge request");
 		assert.equal(wrapper.sourceUrl, input.source.save.captureUrl, "save must fetch the requested capture; a calendar save must request the latest capture");
 		assert(wrapper.evaluationLocation, "current wrapper must provide its immutable evaluation artifact");
@@ -97,12 +110,33 @@ export function initArchiveHealthEvidence(deps: {
 			captureUrl: wrapper.sourceUrl,
 			captureHttpStatus: wrapper.httpStatus,
 			captureContentHash: wrapper.contentHash,
-			comparisonPromptHash: completion.audit.promptHash,
+			comparisonPromptHash: audit.promptHash,
 			freshArchive: wrapper.readable && containsArticle ? "article-confirmed" : "article-not-confirmed",
 			outcome: completion.outcome,
 			selected: { id: selected.id, kind: selected.kind, fresh: selected.fresh, contentHash: selected.contentHash },
 		};
 	};
 
-	return { verify };
+	const verifyUpload = (input: { source: UploadHealthSource; messages: readonly string[] }): UploadHealthReport | undefined => {
+		const originalId = ArticleResourceUniqueId.parse(input.source.expectedDestinationUrl).value;
+		const completion = completionsIn(input.messages).filter((candidate) => ArticleResourceUniqueId.parse(candidate.url).value === originalId).at(-1);
+		if (completion === undefined) return undefined;
+		const captures = completion.candidates.filter((candidate) => candidate.kind === "extension" && candidate.fresh);
+		assert.equal(captures.length, 1, "selection must consider exactly this upload's capture");
+		const capture = captures[0];
+		assert.equal(capture.contentHash, createHash("sha256").update(input.source.save.html).digest("hex"), "the stored capture must be the uploaded bytes");
+		assert.equal(completion.ownCaptureFailed, false, "content selection failed the reader's own upload");
+		assert(completion.outcome !== "no-readable", "content selection found nothing readable in the reader's own upload");
+		assert.equal(completion.selectedCandidateId, capture.id, "the reader's upload must be the content selected");
+		return {
+			label: input.source.label,
+			saveAttemptId: completion.saveAttemptId,
+			originalUrl: input.source.expectedDestinationUrl,
+			outcome: completion.outcome,
+			selectionRule: completion.selectionRule,
+			selected: { id: capture.id, kind: capture.kind, fresh: capture.fresh, contentHash: capture.contentHash },
+		};
+	};
+
+	return { verify, verifyUpload };
 }
