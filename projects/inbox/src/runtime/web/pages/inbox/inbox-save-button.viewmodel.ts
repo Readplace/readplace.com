@@ -15,17 +15,17 @@ const SAVE_BUTTON_COPY: Record<
 > = {
 	saved: {
 		label: "Save again",
-		ariaLabelPrefix: "Saved to queue — save again",
+		ariaLabelPrefix: "Saved to All — save again",
 		iconName: "check",
 	},
 	saving: {
 		label: "Saving…",
-		ariaLabelPrefix: "Saving to queue",
+		ariaLabelPrefix: "Saving to All",
 		iconName: undefined,
 	},
 	unsaved: {
-		label: "Save to queue",
-		ariaLabelPrefix: "Save to queue",
+		label: "Save to All",
+		ariaLabelPrefix: "Save to All",
 		iconName: undefined,
 	},
 };

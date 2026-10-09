@@ -127,7 +127,7 @@ describe("toInboxExcludedLinkViewModel", () => {
 
 		expect(vm.pollUrl).toBeUndefined();
 		expect(saveActionOf(vm).saveState).toBe("unsaved");
-		expect(saveActionOf(vm).label).toBe("Save to queue");
+		expect(saveActionOf(vm).label).toBe("Save to All");
 	});
 
 	it("renders a page render of an already-saved row as saved, still without polling", () => {
@@ -145,7 +145,7 @@ describe("toInboxExcludedLinkViewModel", () => {
 		expect(saveActionOf(vm)).toEqual(
 			expect.objectContaining({
 				label: "Saving…",
-				ariaLabel: `Saving to queue: ${URL}`,
+				ariaLabel: `Saving to All: ${URL}`,
 				saveState: "saving",
 				iconName: undefined,
 			}),
@@ -164,7 +164,7 @@ describe("toInboxExcludedLinkViewModel", () => {
 
 		expect(vm.pollUrl).toBeUndefined();
 		expect(saveActionOf(vm).saveState).toBe("unsaved");
-		expect(saveActionOf(vm).label).toBe("Save to queue");
+		expect(saveActionOf(vm).label).toBe("Save to All");
 	});
 
 	it("gives up rather than claim Saving… forever once the settle budget is spent", () => {

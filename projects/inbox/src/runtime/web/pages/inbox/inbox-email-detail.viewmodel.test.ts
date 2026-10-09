@@ -538,8 +538,8 @@ describe("toInboxEmailDetailViewModel", () => {
 				actions: [
 					{
 						key: "save",
-						label: "Save to queue",
-						ariaLabel: "Save to queue: https://news.example.com/unsub",
+						label: "Save to All",
+						ariaLabel: "Save to All: https://news.example.com/unsub",
 						saveState: "unsaved",
 						iconName: undefined,
 						buttonId: "inbox-skipped-0001-save",
@@ -558,8 +558,8 @@ describe("toInboxEmailDetailViewModel", () => {
 				actions: [
 					{
 						key: "save",
-						label: "Save to queue",
-						ariaLabel: "Save to queue: https://sponsor.example.com/deal",
+						label: "Save to All",
+						ariaLabel: "Save to All: https://sponsor.example.com/deal",
 						saveState: "unsaved",
 						iconName: undefined,
 						buttonId: "inbox-skipped-0002-save",
@@ -645,7 +645,7 @@ describe("toInboxEmailDetailViewModel", () => {
 
 	it("confirms a save in the present tense — the route publishes, a subscriber writes the queue", () => {
 		expect(withConfirmation({ savedConfirmed: true }).statusToastMessage).toBe(
-			"Adding to your queue…",
+			"Adding to All…",
 		);
 	});
 
@@ -653,7 +653,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(
 			withConfirmation({ savedConfirmed: true, feedbackConfirmed: true })
 				.statusToastMessage,
-		).toBe("Adding to your queue…");
+		).toBe("Adding to All…");
 	});
 
 	it("labels an excluded link without a recorded reason generically", () => {
@@ -700,7 +700,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.links[0].actions).toEqual([
 			expect.objectContaining({
 				label: "Save again",
-				ariaLabel: "Saved to queue \u2014 save again: https://example.com/post",
+				ariaLabel: "Saved to All \u2014 save again: https://example.com/post",
 				saveState: "saved",
 				iconName: "check",
 				href: `/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
@@ -720,8 +720,8 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.excluded.links[0].actions).toEqual([
 			expect.objectContaining({
-				label: "Save to queue",
-				ariaLabel: "Save to queue: https://example.com/post",
+				label: "Save to All",
+				ariaLabel: "Save to All: https://example.com/post",
 				saveState: "unsaved",
 				iconName: undefined,
 			}),
@@ -744,7 +744,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				action.saveState,
 				action.label,
 			]),
-		).toEqual([["unsaved", "Save to queue"]]);
+		).toEqual([["unsaved", "Save to All"]]);
 	});
 
 	it("withholds the save action from a skipped link whose URL is unsaveable", () => {

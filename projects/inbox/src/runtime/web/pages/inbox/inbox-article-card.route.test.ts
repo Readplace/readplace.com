@@ -396,7 +396,7 @@ describe("Inbox link card route", () => {
 
 			const save = saveButton(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
-			expect(save.textContent?.trim()).toBe("Save to queue");
+			expect(save.textContent?.trim()).toBe("Save to All");
 			expect(Array.from(save.classList)).toEqual(
 				expect.arrayContaining(["btn", "btn--secondary", "btn--m"]),
 			);
@@ -432,7 +432,7 @@ describe("Inbox link card route", () => {
 			expect([
 				labelStack.getAttribute("data-reserve-1"),
 				labelStack.getAttribute("data-reserve-2"),
-			]).toEqual(["Saving…", "Save to queue"]);
+			]).toEqual(["Saving…", "Save to All"]);
 		});
 
 		it("returns to unsaved once the reader deletes the article from their queue", async () => {
@@ -455,7 +455,7 @@ describe("Inbox link card route", () => {
 
 			const save = saveButton(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
-			expect(save.textContent?.trim()).toBe("Save to queue");
+			expect(save.textContent?.trim()).toBe("Save to All");
 		});
 
 		it("keeps a saved link's button posting the same save route, so re-saving still works", async () => {
@@ -576,7 +576,7 @@ describe("Inbox link card route", () => {
 			expect([
 				labelStack.getAttribute("data-reserve-1"),
 				labelStack.getAttribute("data-reserve-2"),
-			]).toEqual(["Save again", "Save to queue"]);
+			]).toEqual(["Save again", "Save to All"]);
 		});
 
 		it("treats a junk cursor as the start of the settle budget instead of polling unbounded", async () => {
@@ -623,7 +623,7 @@ describe("Inbox link card route", () => {
 			expect(save.textContent?.trim()).toBe("Save again");
 			const live = liveStatusOf(response.text);
 			expect(live.getAttribute("hx-swap-oob")).toBe("innerHTML");
-			expect(live.textContent).toBe("Saved to your queue: https://example.com/post");
+			expect(live.textContent).toBe("Saved to All: https://example.com/post");
 		});
 
 		it("offers the save again and announces the outcome once the save is recorded as failed", async () => {
@@ -643,7 +643,7 @@ describe("Inbox link card route", () => {
 			expect(cardOf(response.text).hasAttribute("hx-get")).toBe(false);
 			const save = saveButtonOf(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
-			expect(save.textContent?.trim()).toBe("Save to queue");
+			expect(save.textContent?.trim()).toBe("Save to All");
 			expect(liveStatusOf(response.text).textContent).toBe(
 				"Couldn't save https://example.com/post",
 			);

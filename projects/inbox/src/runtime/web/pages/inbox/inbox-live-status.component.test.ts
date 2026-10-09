@@ -85,7 +85,7 @@ describe("buildSaveSettledAnnouncement", () => {
 	it("confirms the queue write once the read model records it", () => {
 		expect(
 			buildSaveSettledAnnouncement({ saveState: "saved", url: "https://example.com/post" }),
-		).toBe("Saved to your queue: https://example.com/post");
+		).toBe("Saved to All: https://example.com/post");
 	});
 
 	it("says the save is over rather than leaving it sounding in flight when it failed", () => {

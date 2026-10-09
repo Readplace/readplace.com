@@ -144,7 +144,7 @@ describe("Inbox skipped row fragment route", () => {
 		expect([
 			labelStack.getAttribute("data-reserve-1"),
 			labelStack.getAttribute("data-reserve-2"),
-		]).toEqual(["Save again", "Save to queue"]);
+		]).toEqual(["Save again", "Save to All"]);
 		expect(button.querySelector(".in-flight-dots")?.getAttribute("aria-hidden")).toBe("true");
 	});
 
@@ -193,7 +193,7 @@ describe("Inbox skipped row fragment route", () => {
 		const live = doc.querySelector("[data-test-inbox-live-status]");
 		assert(live, "a settled save must carry the out-of-band announcement");
 		expect(live.getAttribute("hx-swap-oob")).toBe("innerHTML");
-		expect(live.textContent).toBe(`Saved to your queue: ${LINK_URL}`);
+		expect(live.textContent).toBe(`Saved to All: ${LINK_URL}`);
 	});
 
 	it("offers the save again and announces the outcome once the save is recorded as failed", async () => {
@@ -209,7 +209,7 @@ describe("Inbox skipped row fragment route", () => {
 		expect(row.hasAttribute("hx-get")).toBe(false);
 		const button = saveButton(row);
 		expect(button.getAttribute("data-test-save-state")).toBe("unsaved");
-		expect(button.textContent?.trim()).toBe("Save to queue");
+		expect(button.textContent?.trim()).toBe("Save to All");
 		const live = new JSDOM(response.text).window.document.querySelector(
 			"[data-test-inbox-live-status]",
 		);

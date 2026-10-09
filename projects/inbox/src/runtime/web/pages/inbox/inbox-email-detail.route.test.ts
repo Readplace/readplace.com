@@ -814,7 +814,7 @@ describe("Inbox email detail Skipped tab", () => {
 		expect(excludedRow.querySelector("[data-test-inbox-feedback-include]")).toBeNull();
 
 		const saveButton = excludedRow.querySelector("[data-test-inbox-excluded-save]");
-		assert(saveButton, "a saveable skipped row must offer Save to queue");
+		assert(saveButton, "a saveable skipped row must offer Save to All");
 		expect(saveButton.getAttribute("id")).toBe("inbox-skipped-0001-save");
 		const saveForm = saveButton.closest("form");
 		assert(saveForm, "save must submit as a form");
@@ -857,7 +857,7 @@ describe("Inbox email detail Skipped tab", () => {
 		expect(saveButton.textContent?.trim()).toBe("Save again");
 		expect(saveButton.classList.contains("inbox-excluded-link__save-button--saved")).toBe(true);
 		expect(saveButton.getAttribute("aria-label")).toBe(
-			"Saved to queue \u2014 save again: https://sponsor.example.com/deal",
+			"Saved to All \u2014 save again: https://sponsor.example.com/deal",
 		);
 		const saveForm = saveButton.closest("form");
 		assert(saveForm, "a saved skipped row still submits the same save form");
@@ -885,7 +885,7 @@ describe("Inbox email detail Skipped tab", () => {
 		const saveButton = doc.querySelector("[data-test-inbox-excluded-save]");
 		assert(saveButton, "a saveable skipped row must offer its save button");
 		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
-		expect(saveButton.textContent?.trim()).toBe("Save to queue");
+		expect(saveButton.textContent?.trim()).toBe("Save to All");
 		expect(saveButton.classList.contains("btn--secondary")).toBe(true);
 	});
 
@@ -914,7 +914,7 @@ describe("Inbox email detail Skipped tab", () => {
 		const saveButton = doc.querySelector("[data-test-inbox-excluded-save]");
 		assert(saveButton, "a failed skipped row must still offer its save button");
 		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
-		expect(saveButton.textContent?.trim()).toBe("Save to queue");
+		expect(saveButton.textContent?.trim()).toBe("Save to All");
 	});
 
 	it("says nothing was skipped when every link was kept", async () => {

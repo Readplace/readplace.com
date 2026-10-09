@@ -39,7 +39,7 @@ export function buildCardResolvedAnnouncement(input: {
 }
 
 const SAVE_SETTLED_PREFIXES: Record<InboxLinkSaveState, string> = {
-	saved: "Saved to your queue: ",
+	saved: "Saved to All: ",
 	failed: "Couldn't save ",
 };
 

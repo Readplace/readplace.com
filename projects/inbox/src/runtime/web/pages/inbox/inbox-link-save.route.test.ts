@@ -171,7 +171,7 @@ describe("Inbox link save route", () => {
 		// Present tense: the route only publishes SubmitLinkCommand — the queue row
 		// is written by a downstream subscriber.
 		expect(doc.querySelector("[data-test-toast-message]")?.textContent?.trim()).toBe(
-			"Adding to your queue…",
+			"Adding to All…",
 		);
 		// data-dismiss is what the global toast script reads to fade the toast out,
 		// so a stale flag can't pin it on screen.
@@ -604,7 +604,7 @@ describe("Inbox link save route answering htmx in place", () => {
 			"[data-test-inbox-live-status]",
 		);
 		assert(live, "a save that settled inside the request must announce itself");
-		expect(live.textContent).toBe("Saved to your queue: https://example.com/post");
+		expect(live.textContent).toBe("Saved to All: https://example.com/post");
 	});
 
 	it("retracts a kept card's recorded failure before retrying, so the retry reads as in flight rather than dead", async () => {
@@ -647,7 +647,7 @@ describe("Inbox link save route answering htmx in place", () => {
 			"[data-test-inbox-live-status]",
 		);
 		assert(live, "a save that settled inside the request must announce itself");
-		expect(live.textContent).toBe("Saved to your queue: https://example.com/post");
+		expect(live.textContent).toBe("Saved to All: https://example.com/post");
 	});
 
 	it("retracts a recorded failure before retrying, so the retry reads as in flight rather than dead", async () => {

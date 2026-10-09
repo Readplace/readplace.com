@@ -20,7 +20,7 @@ const OPENING_BEFORE = "The first email to your Readplace inbox at ";
 const OPENING_AFTER = " just came through.";
 
 const PARAGRAPH =
-	"From here on, every email sent to that address shows up in your inbox, and Readplace pulls the article links out of it and adds them to your queue so you can read them later.";
+	"From here on, every email sent to that address shows up in your inbox, and Readplace pulls the article links out of it and adds them to All, your main readlist, so you can read them later.";
 
 interface InboxFirstArrivalEmailParams {
 	founderAvatarUrl: string;

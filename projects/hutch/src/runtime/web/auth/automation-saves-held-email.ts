@@ -29,7 +29,7 @@ interface AutomationSavesHeldEmailComponent {
 const CTA_LABEL = "See the articles waiting";
 
 const OPENING_AFTER =
-	" just arrived, but the articles didn't go into your queue - your subscription is read-only, so saving is paused.";
+	" just arrived, but the articles weren't saved to All - your subscription is read-only, so saving is paused.";
 
 function openingFragments(inboxAddress: string | undefined): {
 	before: string;

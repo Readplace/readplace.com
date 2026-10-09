@@ -55,8 +55,7 @@ export interface InboxSavedLinkStore {
 	 * A dead letter does NOT prove nothing was queued: the accept phase writes the
 	 * reader's queue row first and several calls after it can still throw, so a
 	 * record can fail all its receives with the article sitting in the queue the
-	 * whole time. Letting the failure win would strand that link reading
-	 * "Save to queue" forever, since no later fact corrects it. Saved wins. */
+	 * whole time. Saved wins. */
 	markLinkSaveFailed: (input: { userId: UserId; url: string }) => Promise<void>;
 	/** Drop the record for one URL after its queue row was deleted, restoring the
 	 * absence that means "not saved" — rather than recording a third state, so

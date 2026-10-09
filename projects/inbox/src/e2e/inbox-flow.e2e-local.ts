@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
-import { expect, test } from "@packages/e2e-harness";
+import { expect, measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 
 /** A fixed instant rather than a boot-relative offset: the list renders a
  * wall-clock-relative label, so a seeded "1 hour ago" would drift between runs. */
@@ -65,6 +65,8 @@ test.describe("Inbox article cards", () => {
 
 		const saveControl = page.locator("#inbox-card-0000 [data-test-save-state]");
 		await expect(saveControl).toHaveAttribute("data-test-save-state", "unsaved");
+		await waitForBrandFonts(page, ["Inter"]);
+		const unsavedBox = await measuredBox(page, "#inbox-card-0000 [data-test-save-state]");
 
 		await saveControl.click();
 
@@ -73,6 +75,11 @@ test.describe("Inbox article cards", () => {
 			"saved",
 		);
 		await expect(page.locator("#inbox-card-0000 [data-test-save-state]")).toContainText("Save again");
+		const savedBox = await measuredBox(page, "#inbox-card-0000 [data-test-save-state]");
+		assert.ok(
+			Math.abs(savedBox.width - unsavedBox.width) <= 0.5,
+			`the save button must keep its width once saved, measured unsaved=${unsavedBox.width} saved=${savedBox.width}`,
+		);
 		expect(page.url()).toBe(urlBeforeSave);
 	});
 });
@@ -97,6 +104,8 @@ test.describe("Inbox skipped links", () => {
 		const urlBeforeSave = page.url();
 		const saveControl = page.locator("#inbox-skipped-0000 [data-test-save-state]");
 		await expect(saveControl).toHaveAttribute("data-test-save-state", "unsaved");
+		await waitForBrandFonts(page, ["Inter"]);
+		const unsavedBox = await measuredBox(page, "#inbox-skipped-0000 [data-test-save-state]");
 
 		await saveControl.click();
 
@@ -106,6 +115,11 @@ test.describe("Inbox skipped links", () => {
 		);
 		await expect(page.locator("#inbox-skipped-0000 [data-test-save-state]")).toContainText(
 			"Save again",
+		);
+		const savedBox = await measuredBox(page, "#inbox-skipped-0000 [data-test-save-state]");
+		assert.ok(
+			Math.abs(savedBox.width - unsavedBox.width) <= 0.5,
+			`the skipped row's save button must keep its width once saved, measured unsaved=${unsavedBox.width} saved=${savedBox.width}`,
 		);
 		expect(page.url()).toBe(urlBeforeSave);
 	});

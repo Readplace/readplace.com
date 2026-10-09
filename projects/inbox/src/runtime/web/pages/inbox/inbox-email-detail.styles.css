@@ -316,6 +316,11 @@
   color: var(--inbox-saved-check);
 }
 
+.inbox-article-card__action-button:not(.inbox-article-card__action-button--saved) .btn__label-stack::before,
+.inbox-excluded-link__save-button:not(.inbox-excluded-link__save-button--saved) .btn__label-stack::before {
+  padding-inline-start: calc(1em + 4px);
+}
+
 .inbox-article-card__action-button--saving,
 .inbox-excluded-link__save-button--saving {
   cursor: progress;
