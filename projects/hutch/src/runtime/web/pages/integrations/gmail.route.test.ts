@@ -304,6 +304,22 @@ describe("GMail Newsletters page", () => {
 		expect(account.getAttribute("data-gmail-account-state")).toBe("hidden");
 	});
 
+	it("says what Gmail forwards and where each issue lands, with a tracked link to Inbox", async () => {
+		const { agent } = await connectedAgent();
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const lede = doc.querySelector("[data-test-gmail-lede]");
+		assert(lede, "the lede renders in the page head");
+		expect(lede.textContent).toBe(
+			"Readplace sets Gmail to forward copies of the newsletters you add, and nothing else. Each issue appears in your Inbox, and what you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick.",
+		);
+		const inbox = lede.querySelector("a");
+		assert(inbox, "the lede links to Inbox");
+		expect(inbox.textContent).toBe("Inbox");
+		expect(inbox.getAttribute("href")).toBe("/inbox?utm_source=integrations-gmail&utm_medium=internal&utm_content=inbox");
+	});
+
 	it("preserves the selected FROM and notification presentation through login", async () => {
 		const { harness } = harnessWithGmail();
 		const agent = request.agent(harness.server);
