@@ -51,9 +51,9 @@ const ROUTING_ACTIONS: Record<
 
 const DESCRIPTIONS: Record<"unset" | "set", (label: string) => string> = {
 	unset: (label) =>
-		`Newsletters sent to these inboxes are saved to ${label} instead of ${DEFAULT_READLIST_LABEL}.`,
+		`Articles from newsletters sent to these inboxes are saved to ${DEFAULT_READLIST_LABEL} and ${label}.`,
 	set: (label) =>
-		`Newsletters sent to these inboxes are saved to ${label} instead of ${DEFAULT_READLIST_LABEL}, keeping only the links that fit its purpose.`,
+		`Articles from newsletters sent to these inboxes are saved to ${DEFAULT_READLIST_LABEL} and ${label}, keeping only the links that fit its purpose.`,
 };
 
 export interface ReadlistInboxRow {

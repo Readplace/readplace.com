@@ -222,11 +222,11 @@ describe("buildReadlistInboxes", () => {
 		expect(described).toEqual(["news", "tech"]);
 	});
 
-	it("says newsletters sent to the inboxes are saved here instead of All", () => {
+	it("says articles from newsletters sent to the inboxes are saved to All and here", () => {
 		const doc = renderInboxes({ inboxes: [] });
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Newsletters sent to these inboxes are saved to Work Reading instead of All.",
+			"Articles from newsletters sent to these inboxes are saved to All and Work Reading.",
 		);
 	});
 
@@ -234,7 +234,7 @@ describe("buildReadlistInboxes", () => {
 		const doc = renderInboxes({ inboxes: [], purpose: "Essays on how teams ship." });
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Newsletters sent to these inboxes are saved to Work Reading instead of All, keeping only the links that fit its purpose.",
+			"Articles from newsletters sent to these inboxes are saved to All and Work Reading, keeping only the links that fit its purpose.",
 		);
 	});
 
