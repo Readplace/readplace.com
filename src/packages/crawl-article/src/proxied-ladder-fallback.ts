@@ -1,7 +1,8 @@
 import { callerHasGivenUp, createCrawlBudget } from "./crawl-budget";
+import { isFastlyClientChallenge } from "./fastly-client-challenge";
 import type { OnRedirect } from "./follow-redirects";
 import { isBlockClassError, isBlockClassResponse } from "./persona-fallback";
-import type { LadderFetch } from "./transport-ladder";
+import { bufferedCopyOf, type LadderFetch } from "./transport-ladder";
 
 /**
  * Run the whole direct-egress ladder first and, only when it ends blocked or
@@ -60,8 +61,13 @@ export function withProxiedLadderFallback(deps: {
 		let directOutcome: DirectOutcome;
 		try {
 			const response = await directFetch(url, { headers, onRedirect: captureDirectHop, budget: directBudget });
-			if (!isProxyWorthyResponse(response)) return response;
-			directOutcome = { response };
+			if (isProxyWorthyResponse(response)) {
+				directOutcome = { response };
+			} else if (await isFastlyClientChallenge(response)) {
+				directOutcome = { response: await bufferedCopyOf(response) };
+			} else {
+				return response;
+			}
 		} catch (error) {
 			if (!isProxyWorthyError(error)) throw error;
 			directOutcome = { thrown: error };

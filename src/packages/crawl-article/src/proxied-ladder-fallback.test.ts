@@ -93,6 +93,29 @@ function stamped(status: number, url: string): Response {
 	return response;
 }
 
+const HTML = { "content-type": "text/html; charset=utf-8" };
+
+const CLIENT_CHALLENGE_HTML = [
+	"<!DOCTYPE html>",
+	'<html lang="en">',
+	"  <head>",
+	'    <link href="/_fs-ch-1T1wmsGaOgGaSxcX/assets/styles.css" rel="stylesheet" />',
+	"    <title>Client Challenge</title>",
+	"  </head>",
+	"  <body>",
+	'    <div id="loading-error" role="alert" aria-live="polite">',
+	"      A required part of this site couldn’t load.",
+	"    </div>",
+	"  </body>",
+	"</html>",
+].join("\n");
+
+function clientChallengeServedAt(url: string): Response {
+	const response = new Response(CLIENT_CHALLENGE_HTML, { status: 200, headers: HTML });
+	Object.defineProperty(response, "url", { value: url, configurable: true });
+	return response;
+}
+
 describe("withProxiedLadderFallback", () => {
 	it("returns a direct answer untouched and never runs the proxied pass", async () => {
 		const harness = makeHarness({ direct: async () => new Response("direct", { status: 200 }) });
@@ -501,5 +524,84 @@ describe("withProxiedLadderFallback", () => {
 		await harness.fetchIt({ onRedirect: (hop) => hops.push(hop) });
 		expect(hops).toEqual([{ fromUrl: ENTRY_URL, toUrl: DEST_URL }]);
 		expect(harness.proxyUrls).toEqual([DEST_URL]);
+	});
+
+	it("overturns a direct client-challenge 200 with the proxied pass", async () => {
+		const harness = makeHarness({
+			direct: async () => clientChallengeServedAt(ENTRY_URL),
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		const response = await harness.fetchIt();
+		expect(await response.text()).toBe("via proxy");
+		expect(harness.proxyUrls).toEqual([ENTRY_URL]);
+	});
+
+	it("reads the challenge to its end before the proxied pass runs, freeing its connection", async () => {
+		const challenge = clientChallengeServedAt(ENTRY_URL);
+		const challengeReadWhenProxied: boolean[] = [];
+		const harness = makeHarness({
+			direct: async () => challenge,
+			proxy: [
+				async () => {
+					challengeReadWhenProxied.push(challenge.bodyUsed);
+					return new Response("via proxy", { status: 200 });
+				},
+			],
+		});
+		await harness.fetchIt();
+		expect(challengeReadWhenProxied).toEqual([true]);
+	});
+
+	it("aims the proxied pass at the redirect terminal that served the challenge", async () => {
+		const harness = makeHarness({
+			direct: async (_controller, _clock, onRedirect) => {
+				onRedirect?.({ fromUrl: ENTRY_URL, toUrl: DEST_URL });
+				return clientChallengeServedAt(DEST_URL);
+			},
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		await harness.fetchIt();
+		expect(harness.proxyUrls).toEqual([DEST_URL]);
+	});
+
+	it("surfaces the challenge readable, at the url that served it, when both proxied attempts answer a gateway status", async () => {
+		const harness = makeHarness({
+			direct: async (_controller, _clock, onRedirect) => {
+				onRedirect?.({ fromUrl: ENTRY_URL, toUrl: DEST_URL });
+				return clientChallengeServedAt(DEST_URL);
+			},
+			proxy: [async () => gateway(502), async () => gateway(502)],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(response.url).toBe(DEST_URL);
+		expect(await response.text()).toBe(CLIENT_CHALLENGE_HTML);
+		expect(harness.proxyBudgets).toHaveLength(2);
+	});
+
+	it("returns a direct HTML article as the same answer, body intact, without a proxied pass", async () => {
+		const articleHtml = `<!DOCTYPE html><html><head><title>Whale falls | Nature</title></head><body>${"<p>The whale falls lie along the abyssal plain.</p>".repeat(2000)}</body></html>`;
+		const article = new Response(articleHtml, { status: 200, headers: HTML });
+		const harness = makeHarness({ direct: async () => article });
+		const response = await harness.fetchIt();
+		expect(response).toBe(article);
+		expect(await response.text()).toBe(articleHtml);
+		expect(harness.proxyBudgets).toHaveLength(0);
+	});
+
+	it("rethrows a direct HTML body that fails while it is inspected, without a proxied pass", async () => {
+		const harness = makeHarness({
+			direct: async () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						pull(controller) {
+							controller.error(new TypeError("terminated"));
+						},
+					}),
+					{ status: 200, headers: HTML },
+				),
+		});
+		await expect(harness.fetchIt()).rejects.toThrow("terminated");
+		expect(harness.proxyBudgets).toHaveLength(0);
 	});
 });

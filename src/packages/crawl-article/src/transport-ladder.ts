@@ -60,7 +60,7 @@ function unlockerErrorOf(headers: Headers): Record<string, string> | undefined {
 	return Object.keys(captured).length === 0 ? undefined : captured;
 }
 
-async function bufferedCopyOf(response: Response): Promise<Response> {
+export async function bufferedCopyOf(response: Response): Promise<Response> {
 	const copy = new Response(await response.arrayBuffer(), {
 		status: response.status,
 		statusText: response.statusText,
