@@ -185,7 +185,7 @@ function gmailRow(connection: GmailConnection | undefined): IntegrationRowViewMo
 	return {
 		key: "gmail",
 		name: "Newsletters from Gmail",
-		description: "Send newsletters from Gmail to your readlists.",
+		description: "Choose which newsletters Gmail forwards to Readplace and the readlists each one goes to.",
 		iconName: "mail",
 		beta: true,
 		accountEmail: connection?.accountEmail,

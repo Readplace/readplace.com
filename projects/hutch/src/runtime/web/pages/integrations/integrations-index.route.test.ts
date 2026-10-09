@@ -61,7 +61,7 @@ describe("GET /newsletters", () => {
 		expect(status.textContent).toBe("Not set up");
 	});
 
-	it("names the Gmail card Newsletters from Gmail and says it sends newsletters to readlists", async () => {
+	it("names the Gmail card Newsletters from Gmail and says the reader chooses the newsletters and their readlists", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -69,7 +69,7 @@ describe("GET /newsletters", () => {
 		assert(gmail, "the Gmail row must render");
 
 		expect(gmail.querySelector(".integrations__name")?.firstChild?.textContent?.trim()).toBe("Newsletters from Gmail");
-		expect(gmail.querySelector(".integrations__description")?.textContent).toBe("Send newsletters from Gmail to your readlists.");
+		expect(gmail.querySelector(".integrations__description")?.textContent).toBe("Choose which newsletters Gmail forwards to Readplace and the readlists each one goes to.");
 	});
 
 	it("tags only the Gmail card as Beta", async () => {
