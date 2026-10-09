@@ -32,7 +32,7 @@ export function initResolveSaveIdentity(deps: ResolveSaveIdentityDependencies): 
 	const resolveOriginal = initResolveWrapperOriginal(deps);
 	return async (submittedUrl) => {
 		const recovered = await resolveOriginal({ url: submittedUrl, useStoredBinding: true });
-		if (recovered.status === "unresolved") return recovered;
+		if (recovered.status !== "resolved") return { status: "unresolved" };
 		const row = await deps.findIdentityRow(recovered.originalUrl);
 		const url = row.kind === "alias" ? row.targetUrl : recovered.originalUrl;
 		const owner = row.kind === "alias" ? await deps.findIdentityRow(url) : row;

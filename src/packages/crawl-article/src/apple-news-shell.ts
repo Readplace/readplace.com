@@ -44,7 +44,7 @@ export function initFetchAppleNewsShell(deps: { crawlFetch: CrawlFetch }): Fetch
 	};
 }
 
-export type ResolveAppleNewsStoryUrl = (url: string, init: { signal: AbortSignal }) => Promise<string | undefined>;
+export type ResolveAppleNewsStoryUrl = (url: string, init: { signal: AbortSignal }) => Promise<AppleNewsShell>;
 
 export function initResolveAppleNewsStoryUrl(deps: {
 	crawlFetch: CrawlFetch;
@@ -53,10 +53,9 @@ export function initResolveAppleNewsStoryUrl(deps: {
 	const fetchShell = initFetchAppleNewsShell({ crawlFetch: deps.crawlFetch });
 	return async (url, init) => {
 		const shell = await fetchShell(url, init);
-		if (shell.kind === "story") return shell.url;
 		if (shell.kind === "unavailable") {
 			deps.logError(`[CrawlArticle] apple.news shell HTTP ${shell.status} for ${url}`);
 		}
-		return undefined;
+		return shell;
 	};
 }

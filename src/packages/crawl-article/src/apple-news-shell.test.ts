@@ -92,28 +92,28 @@ describe("initResolveAppleNewsStoryUrl", () => {
 			logError: () => {},
 		});
 
-		assert.equal(await resolve(SHELL_URL, { signal }), STORY_URL);
+		assert.deepEqual(await resolve(SHELL_URL, { signal }), { kind: "story", url: STORY_URL });
 	});
 
-	it("returns undefined without logging when the shell carries no story URL", async () => {
+	it("reports a shell that names no story, without logging", async () => {
 		const logged: string[] = [];
 		const resolve = initResolveAppleNewsStoryUrl({
 			crawlFetch: stubCrawlFetch(() => okHtml(shellWithRedirectScript(""))),
 			logError: (message) => logged.push(message),
 		});
 
-		assert.equal(await resolve(SHELL_URL, { signal }), undefined);
+		assert.deepEqual(await resolve(SHELL_URL, { signal }), { kind: "no-story-url" });
 		assert.deepEqual(logged, []);
 	});
 
-	it("logs and returns undefined when the shell is unavailable", async () => {
+	it("logs and reports an unavailable shell", async () => {
 		const logged: string[] = [];
 		const resolve = initResolveAppleNewsStoryUrl({
 			crawlFetch: stubCrawlFetch(() => new Response(null, { status: 503 })),
 			logError: (message) => logged.push(message),
 		});
 
-		assert.equal(await resolve(SHELL_URL, { signal }), undefined);
+		assert.deepEqual(await resolve(SHELL_URL, { signal }), { kind: "unavailable", status: 503 });
 		assert.deepEqual(logged, [`[CrawlArticle] apple.news shell HTTP 503 for ${SHELL_URL}`]);
 	});
 

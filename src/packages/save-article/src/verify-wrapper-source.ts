@@ -17,7 +17,7 @@ export function initVerifyWrapperSource(deps: {
 	const resolveOriginal = initResolveWrapperOriginal({ ...deps, validateUrl: validateSaveableUrl });
 	return async ({ articleUrl, sourceUrl, claimedOriginalUrl }) => {
 		const source = await resolveOriginal({ url: sourceUrl, useStoredBinding: false });
-		if (source.status === "unresolved" || source.contentSourceUrl === undefined) return undefined;
+		if (source.status !== "resolved" || source.contentSourceUrl === undefined) return undefined;
 		const row = await deps.findIdentityRow(articleUrl);
 		if (row.kind !== "article") return undefined;
 		const originalUrl = row.originalUrl ?? articleUrl;

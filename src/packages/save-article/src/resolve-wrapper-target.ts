@@ -3,7 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 
 export type ResolvedWrapperTarget = { url: string; contentSourceUrl?: string };
 
-export type ResolveWrapperTarget = (url: string) => Promise<ResolvedWrapperTarget | undefined>;
+export type ResolveWrapperTarget = (url: string) => Promise<ResolvedWrapperTarget | { ownOriginal: true } | undefined>;
 
 export const neverResolveWrapperTarget: ResolveWrapperTarget = async () => undefined;
 
@@ -12,7 +12,10 @@ export type FetchRedirectHop = (
 	init: { headers: Record<string, string>; signal: AbortSignal },
 ) => Promise<Response>;
 
-export type ResolveAppleNewsStoryUrl = (url: string, init: { signal: AbortSignal }) => Promise<string | undefined>;
+export type ResolveAppleNewsStoryUrl = (
+	url: string,
+	init: { signal: AbortSignal },
+) => Promise<{ kind: "story"; url: string } | { kind: "no-story-url" } | { kind: "unavailable" }>;
 
 export const WRAPPER_RESOLVE_BUDGETS = { hopBudgetMs: 3000, totalBudgetMs: 6000 } as const;
 
@@ -26,9 +29,10 @@ type Outcome =
 	| "non-http-location"
 	| "hop-budget-exhausted"
 	| "no-story-url"
+	| "shell-unavailable"
 	| "no-memento-original";
 
-type Resolution = { target?: string; contentSourceUrl?: string; outcome: Outcome; hops: number };
+type Resolution = { target?: string; contentSourceUrl?: string; ownOriginal?: true; outcome: Outcome; hops: number };
 
 function parseHttpLocation(location: string, base: string): string | undefined {
 	let parsed: URL;
@@ -82,9 +86,10 @@ export function initResolveWrapperTarget(deps: {
 	};
 
 	const resolveStory = async (url: string, deadline: AbortSignal): Promise<Resolution> => {
-		const story = await deps.resolveAppleNewsStoryUrl(url, { signal: deadline });
-		if (story === undefined) return { outcome: "no-story-url", hops: 1 };
-		return { target: story, outcome: "resolved", hops: 1 };
+		const shell = await deps.resolveAppleNewsStoryUrl(url, { signal: deadline });
+		if (shell.kind === "story") return { target: shell.url, outcome: "resolved", hops: 1 };
+		if (shell.kind === "no-story-url") return { ownOriginal: true, outcome: "no-story-url", hops: 1 };
+		return { outcome: "shell-unavailable", hops: 1 };
 	};
 
 	const readMementoOriginal = async (url: string, deadline: AbortSignal): Promise<Resolution> => {
@@ -130,6 +135,7 @@ export function initResolveWrapperTarget(deps: {
 					outcome: resolution.outcome,
 				}),
 			);
+			if (resolution.ownOriginal === true) return { ownOriginal: true };
 			return resolution.target === undefined ? undefined : { url: resolution.target, contentSourceUrl: resolution.contentSourceUrl };
 		} catch (error) {
 			deps.logger.warn(

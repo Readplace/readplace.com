@@ -323,6 +323,40 @@ describe("initPrepareContentSelection", () => {
 		expect(verify).toHaveBeenCalledTimes(1);
 	});
 
+	const APPLE = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA";
+
+	it("selects a live candidate fetched from an Apple News link that is its own original", async () => {
+		const html = "<p>Apple News Format story</p>";
+		const anf: VerifiedTierSource = { tier: "tier-1", html, metadata: { ...candidateProvenance({ metadata: baseMetadata, html, evaluationHtml: html, attemptId: FRESH, originalUrl: APPLE, sourceUrl: APPLE, kind: "live", fetchedAt: NOW }), id: cid("anf") } };
+		const verify = jest.fn<ReturnType<Dependencies["verifyWrapperSource"]>, Parameters<Dependencies["verifyWrapperSource"]>>().mockResolvedValue(undefined);
+		const { prepare } = setup({
+			loadArticle: async () => article({ url: APPLE }),
+			resolveOriginalUrl: async () => APPLE,
+			listAvailableTierSources: async () => [anf],
+			verifyWrapperSource: verify,
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("anf"), reason: "The story" }),
+		});
+		const result = await prepare({ url: APPLE, candidates: [{ id: cid("anf"), tier: "tier-1" }] });
+		expect(result.outcome).toBe("selected");
+		expect(result.selected?.metadata.id).toBe("anf");
+		expect(verify).not.toHaveBeenCalled();
+	});
+
+	it("offers no legacy direct candidate for an article whose original is an Apple News link", async () => {
+		const legacy: TierSource = { tier: "tier-1", html: "<p>Legacy Apple News render</p>", metadata: baseMetadata };
+		const readCanonicalContent = jest.fn<ReturnType<Dependencies["readCanonicalContent"]>, Parameters<Dependencies["readCanonicalContent"]>>().mockResolvedValue({ content: legacy.html });
+		const { prepare } = setup({
+			loadArticle: async () => article({ url: APPLE, contentSelection: { tier: "tier-1" }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(legacy.html) } }),
+			resolveOriginalUrl: async () => APPLE,
+			listAvailableTierSources: async () => [legacy],
+			readCanonicalContent,
+		});
+		const result = await prepare({ url: APPLE });
+		expect(result.outcome).toBe("no-readable");
+		expect(result.sources).toEqual([]);
+		expect(readCanonicalContent).not.toHaveBeenCalled();
+	});
+
 	it("retains legacy direct canonical bytes only when their hash matches the stored canonical", async () => {
 		const legacy: TierSource = { tier: "tier-1", html: "<p>Legacy direct article</p>", metadata: baseMetadata };
 		const { prepare } = setup({

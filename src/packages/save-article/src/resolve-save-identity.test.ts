@@ -1,7 +1,7 @@
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { IdentityRow } from "@packages/provider-contracts/article-store";
 import { cleanWrapperTarget, initResolveSaveIdentity } from "./resolve-save-identity";
-import type { ResolvedWrapperTarget } from "./resolve-wrapper-target";
+import type { ResolveWrapperTarget, ResolvedWrapperTarget } from "./resolve-wrapper-target";
 
 const ORIGINAL = "https://publisher.example/article";
 const TRACKER = "https://javascriptweekly.com/link/100000/rss";
@@ -10,7 +10,7 @@ const WAYBACK = `https://web.archive.org/web/20260000000000*/${ORIGINAL}`;
 
 function harness(options: {
 	rows?: Record<string, IdentityRow | undefined>;
-	targets?: Record<string, ResolvedWrapperTarget>;
+	targets?: Record<string, Awaited<ReturnType<ResolveWrapperTarget>>>;
 	occupied?: IdentityRow;
 } = {}) {
 	const rows = { ...options.rows };
@@ -38,6 +38,17 @@ function resolved(url: string, source?: string) {
 }
 
 describe("save identity", () => {
+	const APPLE = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA";
+	it.each<Record<string, IdentityRow>>([
+		{},
+		{ [APPLE]: { kind: "article" } },
+		{ [APPLE]: { kind: "alias", targetUrl: ORIGINAL }, [ORIGINAL]: { kind: "article" } },
+	])("still refuses to save an Apple News link whose shell names no story: %j", async (rows) => {
+		const h = harness({ rows, targets: { [APPLE]: { ownOriginal: true } } });
+		expect(await h.resolve(APPLE)).toEqual({ status: "unresolved" });
+		expect(h.claims).toEqual([]);
+	});
+
 	it("keeps a plain original", async () => {
 		const h = harness();
 		expect(await h.resolve(ORIGINAL)).toEqual(resolved(ORIGINAL));

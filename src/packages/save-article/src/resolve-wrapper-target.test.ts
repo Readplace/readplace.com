@@ -212,7 +212,7 @@ describe("initResolveWrapperTarget", () => {
 			const { resolve, lines } = createResolver({
 				resolveAppleNewsStoryUrl: async (url, init) => {
 					received = { url, signal: init.signal };
-					return "https://www.abc.net.au/news/story";
+					return { kind: "story", url: "https://www.abc.net.au/news/story" };
 				},
 			});
 
@@ -229,11 +229,18 @@ describe("initResolveWrapperTarget", () => {
 			});
 		});
 
-		it("gives up when the shell carries no story URL", async () => {
-			const { resolve, lines } = createResolver({ resolveAppleNewsStoryUrl: async () => undefined });
+		it("answers that an Apple News link whose shell names no story is its own original", async () => {
+			const { resolve, lines } = createResolver({ resolveAppleNewsStoryUrl: async () => ({ kind: "no-story-url" }) });
+
+			expect(await resolve(APPLE)).toEqual({ ownOriginal: true });
+			expect(parsedLine(lines)).toEqual({ stream: "wrapper-resolve", family: "apple-news", wrapperHost: "apple.news", hops: 1, outcome: "no-story-url" });
+		});
+
+		it("stays unresolved while the Apple News shell is unavailable", async () => {
+			const { resolve, lines } = createResolver({ resolveAppleNewsStoryUrl: async () => ({ kind: "unavailable" }) });
 
 			expect(await resolve(APPLE)).toBeUndefined();
-			expect(parsedLine(lines)).toMatchObject({ outcome: "no-story-url" });
+			expect(parsedLine(lines)).toMatchObject({ outcome: "shell-unavailable" });
 		});
 	});
 

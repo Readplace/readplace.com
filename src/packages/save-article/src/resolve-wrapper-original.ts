@@ -12,6 +12,7 @@ import type { ResolveWrapperTarget } from "./resolve-wrapper-target";
 
 type OriginalResult =
 	| { status: "resolved"; originalUrl: string; contentSourceUrl?: string }
+	| { status: "own-original"; originalUrl: string }
 	| UnresolvedSaveIdentity;
 
 export function initResolveWrapperOriginal(deps: {
@@ -57,6 +58,7 @@ export function initResolveWrapperOriginal(deps: {
 			if (target === undefined) {
 				return { status: "unresolved" };
 			}
+			if ("ownOriginal" in target) return { status: "own-original", originalUrl: current };
 			contentSourceUrl ??= target.contentSourceUrl ?? current;
 			current = stripRedirectAddedParams({ wrapperUrl: current, targetUrl: target.url });
 		}

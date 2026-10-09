@@ -230,7 +230,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArtic
 		}
 		if (articleUrl !== requestedUrl && wrapperFamilyOf(requestedUrl) !== undefined) {
 			const target = await deps.resolveWrapperTarget(requestedUrl);
-			if (target === undefined) {
+			if (target === undefined || "ownOriginal" in target) {
 				res.status(502).type("text/plain").send("The wrapper could not be resolved to an article.");
 				return;
 			}

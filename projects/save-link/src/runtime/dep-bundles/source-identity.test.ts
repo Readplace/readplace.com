@@ -12,6 +12,24 @@ describe("worker source identity", () => {
 		expect(await bundle.resolveOriginalUrl("https://example.com/post")).toBe("https://example.com/post");
 		await expect(bundle.resolveOriginalUrl("https://archive.ph/unknown")).rejects.toThrow("candidate original identity is unresolved");
 	});
+
+	const APPLE = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA?articleList=Aa2vGyZWlSfaFMqEGY0e4xQ,AbxPgQQdpQSy-ERx2g-kQZA&campaign_id=E101";
+	const appleBundle = (shell: () => Response) => initSourceIdentityDepBundle({
+		findIdentityRow: async (url) => url === APPLE ? { kind: "article", url, originalUrl: url } : { kind: "absent" },
+		repairWrapperIdentity: async () => { throw new Error("own original must not repair identity"); },
+		crawlFetch: async () => shell(),
+		logger: noopLogger,
+	});
+
+	it("keeps an Apple News story whose shell names no publisher URL on its own link", async () => {
+		const bundle = appleBundle(() => new Response("<html><body><script>redirectToUrl(url)</script></body></html>", { status: 200 }));
+		expect(await bundle.resolveOriginalUrl(APPLE)).toBe(APPLE);
+		expect(await bundle.prepareArticleIdentity(APPLE)).toEqual({ status: "resolved", url: APPLE, originalUrl: APPLE });
+	});
+
+	it("keeps an Apple News story unresolved while its shell is unavailable", async () => {
+		await expect(appleBundle(() => new Response(null, { status: 503 })).resolveOriginalUrl(APPLE)).rejects.toThrow("candidate original identity is unresolved");
+	});
 });
 
 describe("selection source identity", () => {

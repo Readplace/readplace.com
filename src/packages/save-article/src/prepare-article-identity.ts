@@ -1,3 +1,4 @@
+import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
 import { isArchiveHost, isWrapperUrl, validateSaveableUrl } from "@packages/domain/article";
 import type { SaveIdentityResult } from "@packages/provider-contracts/article-freshness";
 import type { FindIdentityRow, RepairWrapperIdentity } from "@packages/provider-contracts/article-store";
@@ -23,6 +24,11 @@ export function initPrepareArticleIdentity(deps: {
 		}
 		const recovered = await resolveOriginal({ url: effective, useStoredBinding: false });
 		if (recovered.status === "unresolved") return recovered;
+		if (recovered.status === "own-original") {
+			return canonicalIdentityOf(recovered.originalUrl) === canonicalIdentityOf(effective)
+				? { status: "resolved", url: articleUrl, originalUrl: effective }
+				: { status: "unresolved" };
+		}
 		const repaired = await deps.repairWrapperIdentity({ articleUrl, expectedOriginalUrl: effective, originalUrl: recovered.originalUrl, contentSourceUrl: recovered.contentSourceUrl !== undefined && isArchiveHost(recovered.contentSourceUrl) ? recovered.contentSourceUrl : undefined });
 		if (!repaired) return { status: "unresolved" };
 		const identity = { status: "resolved", url: articleUrl, originalUrl: recovered.originalUrl } as const;

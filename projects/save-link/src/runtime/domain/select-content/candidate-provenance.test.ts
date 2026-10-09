@@ -19,5 +19,10 @@ describe("candidate provenance", () => {
 		await expect(missing("https://example.com/a")).rejects.toThrow("existing article");
 		const wrapper = initResolveCandidateOriginal({ findIdentityRow: async () => ({ kind: "article" }) });
 		await expect(wrapper("https://web.archive.org/web/20081203/https://example.com/a")).rejects.toThrow("wrapper cannot");
+		await expect(wrapper("https://javascriptweekly.com/link/100000/rss")).rejects.toThrow("wrapper cannot");
+	});
+	it("accepts an Apple News link kept as its own original", async () => {
+		const apple = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA";
+		expect(await initResolveCandidateOriginal({ findIdentityRow: async () => ({ kind: "article" }) })(apple)).toBe(apple);
 	});
 });

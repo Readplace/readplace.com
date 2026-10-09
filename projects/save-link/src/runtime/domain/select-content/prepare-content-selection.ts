@@ -76,7 +76,7 @@ export function initPrepareContentSelection(deps: {
 		const loaded = await deps.listAvailableTierSources(url, { candidates, canonical });
 		const sources: VerifiedTierSource[] = [];
 		const directContentUnpinned = expected?.contentSourceUrl === undefined || expected.directContentBeforePin === true;
-		const legacyDirectTier = expected?.candidateId === undefined && directContentUnpinned && expected?.tier !== "tier-2" &&
+		const legacyDirectTier = !isWrapperUrl(originalUrl) && expected?.candidateId === undefined && directContentUnpinned && expected?.tier !== "tier-2" &&
 			article.freshness.canonicalContentHash !== undefined &&
 			(expected?.displayUrl === undefined || !isWrapperUrl(expected.displayUrl)) ? expected?.tier : undefined;
 		let legacyCanonicalId: CandidateId | undefined;
@@ -95,7 +95,7 @@ export function initPrepareContentSelection(deps: {
 			if (canonicalIdentityOf(metadata.originalUrl) !== canonicalIdentityOf(originalUrl)) continue;
 			if (createHash("sha256").update(source.evaluationHtml ?? source.html).digest("hex") !== metadata.contentHash) continue;
 			if (metadata.kind !== KIND_BY_TIER[source.tier]) continue;
-			if (metadata.id !== canonical?.id && (metadata.kind === "wrapper" || isWrapperUrl(metadata.sourceUrl))) {
+			if (metadata.id !== canonical?.id && (metadata.kind === "wrapper" || (isWrapperUrl(metadata.sourceUrl) && canonicalIdentityOf(metadata.sourceUrl) !== canonicalIdentityOf(originalUrl)))) {
 				const verified = await deps.verifyWrapperSource({ articleUrl: url, sourceUrl: metadata.sourceUrl, claimedOriginalUrl: metadata.originalUrl });
 				if (verified === undefined) continue;
 			}

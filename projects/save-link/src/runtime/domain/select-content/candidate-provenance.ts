@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import assert from "node:assert";
-import { CandidateIdSchema, type SaveAttemptId, isWrapperUrl } from "@packages/domain/article";
+import { CandidateIdSchema, type SaveAttemptId, isWrapperUrl, wrapperFamilyOf } from "@packages/domain/article";
 import type { FindIdentityRow } from "@packages/provider-contracts/article-store";
 import type { CandidateProvenance, TierSourceMetadata } from "./tier-source.types";
 
@@ -37,7 +37,7 @@ export function initResolveCandidateOriginal(deps: { findIdentityRow: FindIdenti
 		const row = await deps.findIdentityRow(url);
 		assert(row.kind === "article", "candidate must belong to an existing article");
 		const originalUrl = row.originalUrl ?? url;
-		assert(!isWrapperUrl(originalUrl), "a wrapper cannot be the article identity");
+		assert(!isWrapperUrl(originalUrl) || wrapperFamilyOf(originalUrl) === "apple-news", "a wrapper cannot be the article identity");
 		return originalUrl;
 	};
 }

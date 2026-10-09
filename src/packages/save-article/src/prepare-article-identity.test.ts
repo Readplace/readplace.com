@@ -42,9 +42,20 @@ it.each<IdentityRow>([{ kind: "absent" }, { kind: "alias", targetUrl: ORIGINAL }
 it("refuses a persisted unsafe original", async () => {
 	expect(await harness({ kind: "article", originalUrl: "http://localhost/a" }).prepare(ARCHIVE)).toEqual({ status: "unresolved" });
 });
-it.each(["https://archive.ph/abc", "https://web.archive.org/about"])("keeps unavailable originals unresolved %s", async (url) => {
+it.each(["https://archive.ph/abc", "https://web.archive.org/about", "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA"])("keeps unavailable originals unresolved %s", async (url) => {
 	const h = harness({ kind: "article" });
 	expect(await h.prepare(url)).toEqual({ status: "unresolved" });
+	expect(h.repairs).toEqual([]);
+});
+const APPLE = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA";
+it("keeps an Apple News story with no web original on its own link without repairing the row", async () => {
+	const h = harness({ kind: "article" }, true, async () => ({ ownOriginal: true }));
+	expect(await h.prepare(APPLE)).toEqual({ status: "resolved", url: APPLE, originalUrl: APPLE });
+	expect(h.repairs).toEqual([]);
+});
+it("keeps a tracker row unresolved when its chain ends at an Apple News story with no web original", async () => {
+	const h = harness({ kind: "article" }, true, async (url) => url.startsWith("https://apple.news/") ? { ownOriginal: true } : { url: APPLE });
+	expect(await h.prepare("https://share.google/abc")).toEqual({ status: "unresolved" });
 	expect(h.repairs).toEqual([]);
 });
 it("rejects a concurrent identity change", async () => {
