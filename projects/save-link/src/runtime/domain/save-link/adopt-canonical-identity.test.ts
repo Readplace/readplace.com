@@ -62,6 +62,45 @@ describe("adoptableTerminal", () => {
 		expect(adoptableTerminal({ ...crawlFailed, finalUrl })).toBeUndefined();
 	});
 
+	it.each([
+		[
+			"a publisher SSO transit hop",
+			"https://site.com/page.html",
+			"https://idp.site.com/transit?redirect_uri=https%3A%2F%2Fsite.com%2Fpage.html&code=7c1e5f0a",
+		],
+		[
+			"the SSO transit hop of the publisher page a DOI resolved to",
+			"https://doi.org/10.1000/182",
+			"https://idp.publisher.com/transit?redirect_uri=https%3A%2F%2Fpublisher.com%2Farticles%2F10.1000-182&code=7c1e5f0a",
+		],
+		[
+			"a sign-in page that continues to the saved page",
+			"https://site.com/page.html",
+			"https://accounts.site.com/v3/signin/identifier?continue=https://site.com/page.html&followup=https://site.com/page.html",
+		],
+		[
+			"a login page that returns to the saved page",
+			"https://site.com/page.html",
+			"https://site.com/accounts/login/?next=https%3A%2F%2Fsite.com%2Fpage.html",
+		],
+		[
+			"a consent page naming the page it interrupted",
+			"https://site.com/page.html",
+			"https://site.com/consent/choice.html?from=https%3A%2F%2Fsite.com%2Fpage.html",
+		],
+	])("rejects %s — a detour that names where it sends the reader next is not the article's new home", (_label, url, finalUrl) => {
+		expect(adoptableTerminal({ ...base, url, finalUrl })).toBeUndefined();
+		expect(adoptableTerminal({ ...crawlFailed, url, finalUrl })).toBeUndefined();
+	});
+
+	it.each([
+		["only ordinary values", "https://other.com/page?id=7&utm_source=x"],
+		["a URN rather than a web URL", "https://other.com/page?id=urn:isbn:0451450523"],
+	])("still adopts a terminal whose query holds %s", (_label, finalUrl) => {
+		expect(adoptableTerminal({ ...base, finalUrl })).toBe(finalUrl);
+		expect(adoptableTerminal({ ...crawlFailed, finalUrl })).toBe(finalUrl);
+	});
+
 	it("adopts a failed crawl's terminal — there is no content to weigh, only the redirect chain", () => {
 		expect(adoptableTerminal(crawlFailed)).toBe("https://site.com/page");
 	});

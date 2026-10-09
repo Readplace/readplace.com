@@ -4,6 +4,7 @@ import type {
 	ReconcileStubMetadata,
 } from "@packages/article-store";
 import { isWrapperUrl } from "@packages/domain/article";
+import { parseHttpUrl } from "@packages/domain/inbox";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { matchingSiteRuleUrl, type SiteRules } from "@packages/site-rules";
 
@@ -34,6 +35,10 @@ export type AdoptCanonicalIdentity = (params: {
 	/** Admin recrawls re-fetch an existing article and must not (re-)adopt. */
 	recrawl?: boolean;
 }) => Promise<void>;
+
+function carriesReturnUrl(url: string): boolean {
+	return [...new URL(url).searchParams.values()].some((value) => parseHttpUrl(value) !== undefined);
+}
 
 /**
  * The redirect terminal to adopt, or `undefined` when a gate rejects it. Pure so
@@ -67,6 +72,7 @@ export function adoptableTerminal(params: {
 	if (canonicalIdentityOf(finalUrl) === canonicalIdentityOf(url)) return undefined;
 	if (isSiteRuleUrl(finalUrl)) return undefined;
 	if (isWrapperUrl(finalUrl)) return undefined;
+	if (carriesReturnUrl(finalUrl)) return undefined;
 	return finalUrl;
 }
 
