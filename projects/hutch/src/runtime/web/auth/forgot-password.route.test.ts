@@ -87,6 +87,55 @@ describe("Forgot password", () => {
 			expect(sent[0].html).toContain("reset-password?token&#x3D;");
 		});
 
+		it("sends the reset email before it answers", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				email: {
+					...fixture.email,
+					sendEmail: async (message) => {
+						await new Promise((resolve) => setTimeout(resolve, 50));
+						await fixture.email.sendEmail(message);
+					},
+				},
+			});
+			await harness.auth.createUser({ email: "user@example.com", password: "password123" });
+
+			await request(harness.server)
+				.post("/forgot-password")
+				.type("form")
+				.send({ email: "user@example.com" });
+
+			expect(harness.email.getSentEmails().map((sent) => sent.to)).toEqual(["user@example.com"]);
+		});
+
+		it("answers with the same confirmation page and logs the failure when the reset email cannot be sent", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const loggedErrors: string[] = [];
+			const harness = useApp({
+				...fixture,
+				email: {
+					...fixture.email,
+					sendEmail: async () => { throw new Error("Email service down"); },
+				},
+				shared: {
+					...fixture.shared,
+					logError: (message) => { loggedErrors.push(message); },
+				},
+			});
+			await harness.auth.createUser({ email: "user@example.com", password: "password123" });
+
+			const response = await request(harness.server)
+				.post("/forgot-password")
+				.type("form")
+				.send({ email: "user@example.com" });
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("h1")?.textContent).toBe("Check your email");
+			expect(loggedErrors).toEqual(["[Email] Password reset email failed"]);
+		});
+
 		it("should not send email for non-existing user", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { email } = harness;

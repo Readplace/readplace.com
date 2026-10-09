@@ -73,9 +73,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		const { email } = parsed.data;
 
-		sendComponent(req, res, Base(ForgotPasswordPage({ sent: true }), bannerStateFromRequest(req)));
-
-		deps.userExistsByEmail(email)
+		await deps.userExistsByEmail(email)
 			.then(async (exists) => {
 				if (!exists) return;
 				const token = await deps.createPasswordResetToken({ email });
@@ -92,6 +90,8 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 			.catch((err) => {
 				deps.logError("[Email] Password reset email failed", err instanceof Error ? err : new Error(String(err)));
 			});
+
+		sendComponent(req, res, Base(ForgotPasswordPage({ sent: true }), bannerStateFromRequest(req)));
 	});
 
 	router.get("/reset-password", (req: Request, res: Response) => {
