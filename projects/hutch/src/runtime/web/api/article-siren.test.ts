@@ -68,7 +68,6 @@ describe("toArticleSubEntity", () => {
 				siteName: "Example",
 				excerpt: "First paragraph...",
 				imageUrl: "https://example.com/image.jpg",
-				estimatedReadTimeMinutes: 5,
 				readTime: { value: "5", label: "5 min read" },
 				status: "unread",
 				savedAt: "2026-03-04T10:00:00.000Z",
@@ -93,7 +92,7 @@ describe("toArticleSubEntity", () => {
 		});
 	});
 
-	it("withholds both read-time keys while the crawl has not landed — a stub's minutes are synthetic", () => {
+	it("withholds the read time while the crawl has not landed — a stub's minutes are synthetic", () => {
 		const subEntity = toArticleSubEntity(
 			makeArticle({
 				metadata: {
@@ -106,13 +105,10 @@ describe("toArticleSubEntity", () => {
 			}),
 		);
 
-		expect([
-			subEntity.properties?.estimatedReadTimeMinutes,
-			subEntity.properties?.readTime,
-		]).toEqual([null, null]);
+		expect(subEntity.properties?.readTime).toBeNull();
 	});
 
-	it("emits the read time as both the legacy minutes and the server-authored label once words are counted", () => {
+	it("emits the server-authored read time once words are counted", () => {
 		const subEntity = toArticleSubEntity(
 			makeArticle({
 				metadata: {
@@ -125,10 +121,7 @@ describe("toArticleSubEntity", () => {
 			}),
 		);
 
-		expect([
-			subEntity.properties?.estimatedReadTimeMinutes,
-			subEntity.properties?.readTime,
-		]).toEqual([3, { value: "3", label: "3 min read" }]);
+		expect(subEntity.properties?.readTime).toEqual({ value: "3", label: "3 min read" });
 	});
 
 	it("does not advertise a delete action — deletion is website-only", () => {

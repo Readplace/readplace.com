@@ -42,7 +42,6 @@ export function toArticleSubEntity(
 			siteName: article.metadata.siteName,
 			excerpt: article.metadata.excerpt,
 			imageUrl: article.metadata.imageUrl ?? null,
-			estimatedReadTimeMinutes: readTime ? article.estimatedReadTime : null,
 			readTime: readTime ?? null,
 			status: article.status,
 			savedAt: article.savedAt.toISOString(),

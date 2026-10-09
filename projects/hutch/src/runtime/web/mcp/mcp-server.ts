@@ -90,7 +90,6 @@ export interface McpArticle {
 	readonly excerpt: string;
 	readonly wordCount: number;
 	readonly imageUrl?: string;
-	readonly estimatedReadTime?: number;
 	readonly readTime?: DisplayableReadTime;
 	readonly status: ArticleStatus;
 	readonly savedAt: string;

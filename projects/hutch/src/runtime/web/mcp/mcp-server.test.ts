@@ -49,7 +49,6 @@ function mcpArticle(overrides: Partial<McpArticle> = {}): McpArticle {
 		siteName: "Example",
 		excerpt: "",
 		wordCount: 10,
-		estimatedReadTime: 1,
 		readTime: { value: "1", label: "1 min read" },
 		status: "unread",
 		savedAt: "2026-01-01T00:00:00.000Z",

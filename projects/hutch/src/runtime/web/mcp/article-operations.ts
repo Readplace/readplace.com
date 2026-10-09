@@ -65,7 +65,7 @@ export function toMcpArticle(
 			? { imageUrl: article.metadata.imageUrl }
 			: {}),
 		...(readTime !== undefined
-			? { estimatedReadTime: article.estimatedReadTime, readTime }
+			? { readTime }
 			: {}),
 		status: article.status,
 		savedAt: article.savedAt.toISOString(),

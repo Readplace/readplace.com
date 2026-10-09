@@ -1600,8 +1600,6 @@ class ReadplaceApiTest {
 		): String {
 			fun field(key: String, value: String?): String =
 				if (value != null) "\"$key\": \"$value\"" else "\"$key\": null"
-			fun numField(key: String, value: Int?): String =
-				if (value != null) "\"$key\": $value" else "\"$key\": null"
 			val readTimeField = if (readTime != null) {
 				"\"readTime\": { \"value\": \"$readTime\", \"label\": \"~$readTime min read\" }"
 			} else {
@@ -1622,7 +1620,6 @@ class ReadplaceApiTest {
 						${field("siteName", siteName)},
 						${field("excerpt", excerpt)},
 						${field("imageUrl", imageUrl)},
-						${numField("estimatedReadTimeMinutes", readTime)},
 						$readTimeField,
 						"status": "$status",
 						"savedAt": "$savedAt",

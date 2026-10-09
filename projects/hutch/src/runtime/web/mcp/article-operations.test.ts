@@ -121,7 +121,6 @@ describe("toMcpArticle", () => {
 			excerpt: "An excerpt",
 			wordCount: 400,
 			imageUrl: "https://example.com/i.png",
-			estimatedReadTime: 2,
 			readTime: { value: "2", label: "2 min read" },
 			status: "read",
 			savedAt: "2026-01-01T00:00:00.000Z",
@@ -162,10 +161,7 @@ describe("toMcpArticle", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 		});
 		const mcpArticle = toMcpArticle(article, []);
-		expect([
-			Object.hasOwn(mcpArticle, "estimatedReadTime"),
-			Object.hasOwn(mcpArticle, "readTime"),
-		]).toEqual([false, false]);
+		expect(Object.hasOwn(mcpArticle, "readTime")).toBe(false);
 	});
 });
 

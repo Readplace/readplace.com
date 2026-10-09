@@ -178,7 +178,6 @@ final class SirenDecodingTests: XCTestCase {
 		let json = """
 		{ "properties": {
 			"id": "x", "url": "https://example.com/x",
-			"estimatedReadTimeMinutes": 12,
 			"readTime": { "value": "12", "label": "~12 min read" }
 		} }
 		"""
@@ -191,7 +190,7 @@ final class SirenDecodingTests: XCTestCase {
 
 	func testArticleWithoutReadTimeHasNoReadTimeLabel() throws {
 		let json = """
-		{ "properties": { "id": "x", "url": "https://example.com/x", "estimatedReadTimeMinutes": 12 } }
+		{ "properties": { "id": "x", "url": "https://example.com/x" } }
 		"""
 		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
 		XCTAssertNil(

@@ -224,9 +224,6 @@ enum Fixtures {
 		func field(_ key: String, _ value: String?) -> String {
 			value.map { "\"\(key)\": \"\($0)\"" } ?? "\"\(key)\": null"
 		}
-		func numField(_ key: String, _ value: Int?) -> String {
-			value.map { "\"\(key)\": \($0)" } ?? "\"\(key)\": null"
-		}
 		func readTimeField(_ minutes: Int?) -> String {
 			minutes.map { "\"readTime\": { \"value\": \"\($0)\", \"label\": \"~\($0) min read\" }" } ?? "\"readTime\": null"
 		}
@@ -247,7 +244,6 @@ enum Fixtures {
 				\(field("siteName", siteName)),
 				\(field("excerpt", excerpt)),
 				\(field("imageUrl", imageUrl)),
-				\(numField("estimatedReadTimeMinutes", readTime)),
 				\(readTimeField(readTime)),
 				"status": "\(status)",
 				"savedAt": "\(savedAt)",

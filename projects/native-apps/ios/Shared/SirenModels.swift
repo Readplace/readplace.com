@@ -138,7 +138,6 @@ struct ArticleProperties: Decodable {
 	let excerpt: String?
 	let wordCount: Int?
 	let imageUrl: String?
-	let estimatedReadTimeMinutes: Int?
 	let readTime: ReadTimeProperty?
 	let status: String?
 	let savedAt: String?
@@ -155,7 +154,7 @@ struct ArticleProperties: Decodable {
 
 extension ArticleProperties {
 	private enum CodingKeys: String, CodingKey {
-		case id, url, title, siteName, excerpt, wordCount, imageUrl, estimatedReadTimeMinutes
+		case id, url, title, siteName, excerpt, wordCount, imageUrl
 		case readTime, status, savedAt, readAt, isRead, contentVersion, messages
 	}
 
@@ -168,7 +167,6 @@ extension ArticleProperties {
 		excerpt = try container.decodeIfPresent(String.self, forKey: .excerpt)
 		wordCount = try container.decodeIfPresent(Int.self, forKey: .wordCount)
 		imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
-		estimatedReadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedReadTimeMinutes)
 		readTime = try container.decodeIfPresent(ReadTimeProperty.self, forKey: .readTime)
 		status = try container.decodeIfPresent(String.self, forKey: .status)
 		savedAt = try container.decodeIfPresent(String.self, forKey: .savedAt)
