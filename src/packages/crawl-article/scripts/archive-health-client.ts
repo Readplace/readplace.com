@@ -1,10 +1,13 @@
 import assert from "node:assert";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { parseHTML } from "linkedom";
 import { z } from "zod";
 
 const SIREN = "application/vnd.siren+json";
 const SirenCollection = z.object({ actions: z.array(z.object({ name: z.string(), href: z.string() })) });
+const TokenGrant = z.object({ access_token: z.string(), refresh_token: z.string() });
+const CANARY_OAUTH_CLIENT_ID = "hutch-chrome-extension";
 
 type HealthFetch = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -23,12 +26,14 @@ export function initArchiveHealthClient(deps: {
 		return url.toString();
 	};
 
-	const request = async (input: { href: string; method: "GET" | "POST"; body?: URLSearchParams | FormData; accept?: string }): Promise<Response> => {
-		const cookie = [...cookies].map(([name, value]) => `${name}=${value}`).join("; ");
+	const request = async (input: { href: string; method: "GET" | "POST"; body?: URLSearchParams | FormData; accept?: string; authorization?: string }): Promise<Response> => {
+		const headers: Record<string, string> = { cookie: [...cookies].map(([name, value]) => `${name}=${value}`).join("; ") };
+		if (input.accept !== undefined) headers.accept = input.accept;
+		if (input.authorization !== undefined) headers.authorization = input.authorization;
 		const response = await deps.fetch(sameOriginUrl(input.href), {
 			method: input.method,
 			redirect: "manual",
-			headers: input.accept === undefined ? { cookie } : { cookie, accept: input.accept },
+			headers,
 			body: input.body,
 		});
 		for (const cookie of response.headers.getSetCookie()) {
@@ -88,19 +93,56 @@ export function initArchiveHealthClient(deps: {
 		return attempt;
 	};
 
+	const grantAccessToken = async (): Promise<{ accessToken: string; refreshToken: string }> => {
+		const verifier = randomBytes(32).toString("base64url");
+		const redirectUri = new URL("/oauth/callback", origin).toString();
+		const authorize = new URLSearchParams({
+			client_id: CANARY_OAUTH_CLIENT_ID,
+			redirect_uri: redirectUri,
+			response_type: "code",
+			code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+			code_challenge_method: "S256",
+			state: randomUUID(),
+		});
+		const consent = formFrom({ html: await readPage(`/oauth/authorize?${authorize}`), selector: 'form[action^="/oauth/authorize"]' });
+		consent.body.set("action", "approve");
+		const approved = await request({ ...consent, method: "POST" });
+		const location = approved.headers.get("location");
+		assert(location, "canary OAuth consent must redirect to its callback");
+		await approved.text();
+		const code = new URL(sameOriginUrl(location)).searchParams.get("code");
+		assert(code, "canary OAuth consent must return an authorization code");
+		const exchanged = await request({
+			href: "/oauth/token",
+			method: "POST",
+			body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: redirectUri, client_id: CANARY_OAUTH_CLIENT_ID, code_verifier: verifier }),
+		});
+		assert.equal(exchanged.status, 200, "canary OAuth token exchange must succeed");
+		const grant = TokenGrant.parse(await exchanged.json());
+		return { accessToken: grant.access_token, refreshToken: grant.refresh_token };
+	};
+
 	const upload = async (input: { url: string; title: string; html: string }): Promise<void> => {
-		const collection = await request({ href: "/queue", method: "GET", accept: SIREN });
-		assert.equal(collection.status, 200, "canary Siren collection must load without an auth redirect");
-		const action = SirenCollection.parse(await collection.json()).actions.find((candidate) => candidate.name === "save-content");
-		assert(action, "authenticated Siren collection must advertise save-content");
-		const body = new FormData();
-		body.set("url", input.url);
-		body.set("title", input.title);
-		body.set("mediaType", "text/html");
-		body.set("content", new Blob([input.html], { type: "text/html" }), "article.html");
-		const response = await request({ href: action.href, method: "POST", body, accept: SIREN });
-		assert.equal(response.status, 201, "canary upload must be accepted");
-		await response.text();
+		const grant = await grantAccessToken();
+		try {
+			const siren = { accept: SIREN, authorization: `Bearer ${grant.accessToken}` };
+			const collection = await request({ href: "/queue", method: "GET", ...siren });
+			assert.equal(collection.status, 200, "canary Siren collection must load with its granted token");
+			const action = SirenCollection.parse(await collection.json()).actions.find((candidate) => candidate.name === "save-content");
+			assert(action, "authenticated Siren collection must advertise save-content");
+			const body = new FormData();
+			body.set("url", input.url);
+			body.set("title", input.title);
+			body.set("mediaType", "text/html");
+			body.set("content", new Blob([input.html], { type: "text/html" }), "article.html");
+			const response = await request({ href: action.href, method: "POST", body, ...siren });
+			assert.equal(response.status, 201, "canary upload must be accepted");
+			await response.text();
+		} finally {
+			const revoked = await request({ href: "/oauth/revoke", method: "POST", body: new URLSearchParams({ token: grant.refreshToken }) });
+			assert.equal(revoked.status, 200, "canary must revoke the token it granted itself");
+			await revoked.text();
+		}
 	};
 
 	const findOnlyCard = async (originalUrl: string): Promise<string | undefined> => {

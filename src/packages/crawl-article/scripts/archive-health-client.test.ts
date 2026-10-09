@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { initArchiveHealthClient } from "./archive-health-client";
 
 const LOGIN = '<form method="POST" action="/login?source=canary" data-test-form="login"><input type="hidden" name="csrf" value="token"></form>';
@@ -38,34 +39,74 @@ it("logs in once with existing credentials, keeps its session and discovers the 
 	expect(calls[3].init).toMatchObject({ method: "POST", redirect: "manual", headers: { cookie: "hutch_sid=canary-session" } });
 });
 
-it("uploads the reader's page through the Siren save-content action with its session", async () => {
+const CONSENT = '<form method="POST" action="/oauth/authorize?utm_source=oauth-authorize"><input type="hidden" name="client_id" value="hutch-chrome-extension"><input type="hidden" name="code_challenge" value="challenge"></form>';
+const loggedIn = () => [
+	new Response(LOGIN),
+	new Response("", { status: 303, headers: { location: "/queue", "set-cookie": "hutch_sid=canary-session; HttpOnly; Secure" } }),
+];
+const granted = () => [
+	new Response(CONSENT),
+	new Response("", { status: 302, headers: { location: "https://readplace.example/oauth/callback?code=auth-code&state=s" } }),
+	new Response(JSON.stringify({ access_token: "access-token", refresh_token: "refresh-token", token_type: "Bearer", expires_in: 3599 })),
+];
+const UPLOAD = { url: "https://readplace.com/crawl-canary/upload/run", title: "Upload", html: "<p>marker</p>" };
+
+it("uploads the reader's page through the Siren save-content action with a token its session grants, then revokes the token", async () => {
 	const { client, calls } = clientFor([
-		new Response(LOGIN),
-		new Response("", { status: 303, headers: { location: "/queue", "set-cookie": "hutch_sid=canary-session; HttpOnly; Secure" } }),
+		...loggedIn(),
+		...granted(),
 		new Response(JSON.stringify({ actions: [{ name: "save", href: "/queue/save" }, { name: "save-content", href: "/queue/save-content" }] })),
 		new Response("{}", { status: 201 }),
+		new Response("{}"),
 	]);
 	await client.login();
-	await client.upload({ url: "https://readplace.com/crawl-canary/upload/run", title: "Upload", html: "<p>marker</p>" });
-	expect(calls.slice(2).map(({ url, init }) => [url, init.method, init.headers])).toEqual([
-		["https://readplace.example/queue", "GET", { cookie: "hutch_sid=canary-session", accept: "application/vnd.siren+json" }],
-		["https://readplace.example/queue/save-content", "POST", { cookie: "hutch_sid=canary-session", accept: "application/vnd.siren+json" }],
+	await client.upload(UPLOAD);
+
+	const authorize = new URL(calls[2].url);
+	expect([authorize.pathname, authorize.searchParams.get("client_id"), authorize.searchParams.get("redirect_uri"), authorize.searchParams.get("response_type"), authorize.searchParams.get("code_challenge_method")])
+		.toEqual(["/oauth/authorize", "hutch-chrome-extension", "https://readplace.example/oauth/callback", "code", "S256"]);
+	expect(authorize.searchParams.get("state")).toEqual(expect.any(String));
+	expect(calls[3]).toMatchObject({ url: "https://readplace.example/oauth/authorize?utm_source=oauth-authorize", init: { method: "POST", headers: { cookie: "hutch_sid=canary-session" } } });
+	expect(new URLSearchParams(calls[3].init.body?.toString()).get("action")).toBe("approve");
+	const token = new URLSearchParams(calls[4].init.body?.toString());
+	expect([calls[4].url, token.get("grant_type"), token.get("code"), token.get("redirect_uri"), token.get("client_id")])
+		.toEqual(["https://readplace.example/oauth/token", "authorization_code", "auth-code", "https://readplace.example/oauth/callback", "hutch-chrome-extension"]);
+	const verifier = token.get("code_verifier");
+	assert(verifier);
+	expect(createHash("sha256").update(verifier).digest("base64url")).toBe(authorize.searchParams.get("code_challenge"));
+
+	const bearer = { cookie: "hutch_sid=canary-session", accept: "application/vnd.siren+json", authorization: "Bearer access-token" };
+	expect(calls.slice(5, 7).map(({ url, init }) => [url, init.method, init.headers])).toEqual([
+		["https://readplace.example/queue", "GET", bearer],
+		["https://readplace.example/queue/save-content", "POST", bearer],
 	]);
-	const body = calls[3].init.body;
+	const body = calls[6].init.body;
 	assert(body instanceof FormData);
 	expect([body.get("url"), body.get("title"), body.get("mediaType")]).toEqual(["https://readplace.com/crawl-canary/upload/run", "Upload", "text/html"]);
 	const content = body.get("content");
 	assert(content instanceof Blob);
 	expect(await content.text()).toBe("<p>marker</p>");
+	expect([calls[7].url, calls[7].init.method, calls[7].init.body?.toString()]).toEqual(["https://readplace.example/oauth/revoke", "POST", "token=refresh-token"]);
 });
 
 it.each([
-	{ label: "the Siren collection redirects to login", responses: () => [new Response("", { status: 302 })], error: "Siren collection must load" },
+	{ label: "the Siren collection refuses the token", responses: () => [new Response("", { status: 401 })], error: "Siren collection must load" },
 	{ label: "save-content is not advertised", responses: () => [new Response(JSON.stringify({ actions: [] }))], error: "must advertise save-content" },
 	{ label: "the upload is refused", responses: () => [new Response(JSON.stringify({ actions: [{ name: "save-content", href: "/queue/save-content" }] })), new Response("", { status: 402 })], error: "upload must be accepted" },
-])("fails the upload when $label", async ({ responses, error }) => {
-	const { client } = clientFor(responses());
-	await expect(client.upload({ url: "https://readplace.com/crawl-canary/upload/run", title: "Upload", html: "<p>marker</p>" })).rejects.toThrow(error);
+])("fails the upload when $label, still revoking its token", async ({ responses, error }) => {
+	const { client, calls } = clientFor([...granted(), ...responses(), new Response("{}")]);
+	await expect(client.upload(UPLOAD)).rejects.toThrow(error);
+	expect(calls.at(-1)?.url).toBe("https://readplace.example/oauth/revoke");
+});
+
+it.each([
+	{ label: "consent does not return an authorization code", responses: () => [new Response(CONSENT), new Response("", { status: 302, headers: { location: "https://readplace.example/oauth/callback?error=invalid_request" } })], error: "consent must return an authorization code" },
+	{ label: "consent does not redirect", responses: () => [new Response(CONSENT), new Response("Bad Request", { status: 400 })], error: "consent must redirect" },
+	{ label: "the token exchange is refused", responses: () => [new Response(CONSENT), new Response("", { status: 302, headers: { location: "https://readplace.example/oauth/callback?code=auth-code" } }), new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 })], error: "token exchange must succeed" },
+])("fails the upload before saving when $label", async ({ responses, error }) => {
+	const { client, calls } = clientFor(responses());
+	await expect(client.upload(UPLOAD)).rejects.toThrow(error);
+	expect(calls.map(({ url }) => new URL(url).pathname)).not.toContain("/queue/save-content");
 });
 
 it("refuses a cross-origin login action before sending credentials", async () => {
