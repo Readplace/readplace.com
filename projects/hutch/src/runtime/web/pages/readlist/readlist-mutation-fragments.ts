@@ -28,6 +28,30 @@ export function renderStatusToast(toast: StatusToastModel): string {
 	});
 }
 
+interface MoveToastModel {
+	message: string;
+	undoUrl: string;
+	undoFields: { from: string; to: string };
+}
+
+export function renderMoveToast(toast: MoveToastModel): string {
+	return renderToast({
+		message: toast.message,
+		dismissMs: STATUS_TOAST_DISMISS_MS,
+		actions: [
+			{
+				method: "POST",
+				url: withInternalTracking(toast.undoUrl, { source: "queue-toast", content: "undo-move" }),
+				label: "Undo",
+				fields: [
+					{ name: "from", value: toast.undoFields.from },
+					{ name: "to", value: toast.undoFields.to },
+				],
+			},
+		],
+	});
+}
+
 /** The readlist's out-of-band counts loader. The readlist page renders it inert
  * (`oob` false); the mutation response re-arms an identical span carrying
  * `hx-swap-oob` so htmx re-fires its `load` trigger and the badge/page-count

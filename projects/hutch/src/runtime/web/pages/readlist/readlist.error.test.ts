@@ -1,10 +1,16 @@
-import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST,
+	READLIST_LABEL_MAX_LENGTH,
+	READLIST_MAX_PER_USER,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import {
 	READLIST_CREATE_REJECTIONS,
 	READLIST_RENAME_REJECTIONS,
 	collectStatusFlashParams,
 	httpErrorMessageMapping,
 	importFlashMapping,
+	moveFlashMapping,
 	readlistErrorFlashMapping,
 	saveFormRejectionMessage,
 	saveableUrlErrorCodeMapping,
@@ -218,5 +224,62 @@ describe("collectStatusFlashParams", () => {
 
 	it("returns an empty list when the status flash params are absent", () => {
 		expect(collectStatusFlashParams({})).toEqual([]);
+	});
+
+	it("carries the three move flash pairs too, so a move that empties the last page still confirms itself", () => {
+		expect(
+			collectStatusFlashParams({ moved_article: "abc", moved_from: "default", moved_to: "finance", page: "2" }),
+		).toEqual([
+			["moved_article", "abc"],
+			["moved_from", "default"],
+			["moved_to", "finance"],
+		]);
+	});
+});
+
+describe("moveFlashMapping", () => {
+	const articleId = "0123456789abcdef0123456789abcdef";
+	const finance = { slug: ReadlistSlugSchema.parse("finance"), label: "Finance & Tax" };
+	const weekend = { slug: ReadlistSlugSchema.parse("weekend"), label: "Weekend" };
+	const readlists = [DEFAULT_READLIST, finance, weekend];
+
+	it("confirms an add from All and undoes it by taking the article back out of that readlist", () => {
+		expect(
+			moveFlashMapping({ moved_article: articleId, moved_from: "default", moved_to: "finance" }, readlists),
+		).toEqual({ articleId, message: "Added to Finance & Tax", undoFrom: "finance", undoTo: "default" });
+	});
+
+	it("confirms an article taken back out to All and undoes it by adding it again", () => {
+		expect(
+			moveFlashMapping({ moved_article: articleId, moved_from: "finance", moved_to: "default" }, readlists),
+		).toEqual({ articleId, message: "Removed from Finance & Tax", undoFrom: "default", undoTo: "finance" });
+	});
+
+	it("confirms a move between custom readlists and undoes it by moving the article back", () => {
+		expect(
+			moveFlashMapping({ moved_article: articleId, moved_from: "weekend", moved_to: "finance" }, readlists),
+		).toEqual({ articleId, message: "Moved to Finance & Tax", undoFrom: "finance", undoTo: "weekend" });
+	});
+
+	it("answers no flash when a move key is missing", () => {
+		expect(moveFlashMapping({ moved_article: articleId, moved_from: "weekend" }, readlists)).toBeUndefined();
+	});
+
+	it("answers no flash for an article id that cannot land in a form action", () => {
+		expect(
+			moveFlashMapping({ moved_article: "../../logout", moved_from: "weekend", moved_to: "finance" }, readlists),
+		).toBeUndefined();
+	});
+
+	it("answers no flash when the source is not one of the reader's readlists, such as one deleted since the move", () => {
+		expect(
+			moveFlashMapping({ moved_article: articleId, moved_from: "gone", moved_to: "finance" }, readlists),
+		).toBeUndefined();
+	});
+
+	it("answers no flash when the destination is not one of the reader's readlists", () => {
+		expect(
+			moveFlashMapping({ moved_article: articleId, moved_from: "weekend", moved_to: "gone" }, readlists),
+		).toBeUndefined();
 	});
 });

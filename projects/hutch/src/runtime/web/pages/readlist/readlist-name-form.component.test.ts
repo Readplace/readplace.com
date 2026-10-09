@@ -18,6 +18,7 @@ function nameForm(overrides: Partial<Parameters<typeof renderReadlistNameForm>[0
 			value: "Weekend Reads",
 			commitLabel: "Save",
 			failureMessage: "Couldn't rename the readlist.",
+			hiddenFields: [],
 			...overrides,
 		})}</div>`,
 	).window.document;
@@ -109,6 +110,38 @@ describe("renderReadlistNameForm", () => {
 		expect(input.getAttribute("aria-describedby")).toBe("weekend-dialog-name-error");
 		expect(error.id).toBe("weekend-dialog-name-error");
 		expect(error.getAttribute("role")).toBe("alert");
+	});
+
+	it("posts the caller's hidden fields ahead of the label, in the order given", () => {
+		const form = formOf(
+			nameForm({
+				hiddenFields: [
+					{ name: "from", value: "work" },
+					{ name: "note", value: '"Finance" & <Tax>' },
+				],
+			}),
+		);
+
+		expect(
+			[...form.children]
+				.slice(0, 3)
+				.map((child) => [
+					child.tagName.toLowerCase(),
+					child.getAttribute("type"),
+					child.getAttribute("name"),
+					child.getAttribute("value"),
+				]),
+		).toEqual([
+			["input", "hidden", "from", "work"],
+			["input", "hidden", "note", '"Finance" & <Tax>'],
+			["label", null, null, null],
+		]);
+	});
+
+	it("opens straight on the label when the caller posts no hidden field", () => {
+		const form = formOf(nameForm({ hiddenFields: [] }));
+
+		expect([...form.children].map((child) => child.tagName.toLowerCase())).toEqual(["label", "input", "p", "div"]);
 	});
 
 	it("puts Cancel before the commit, which holds its label and the in-flight dots", () => {

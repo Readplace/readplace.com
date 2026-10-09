@@ -2,6 +2,7 @@ import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
+	renderMoveToast,
 	renderReadlistCountsTrigger,
 	renderReadlistMutationFragment,
 	renderStatusToast,
@@ -42,6 +43,41 @@ describe("renderStatusToast", () => {
 			form?.querySelector("input[name='status']")?.getAttribute("value"),
 			"unread",
 		);
+	});
+});
+
+describe("renderMoveToast", () => {
+	it("renders the confirmation, dismiss delay and a tracked Undo that posts the inverse move", () => {
+		const doc = parse(
+			renderMoveToast({
+				message: "Moved to Finance & Tax",
+				undoUrl: "/queue/abc123/move?queue=weekend",
+				undoFields: { from: "finance", to: "weekend" },
+			}),
+		);
+
+		const toast = doc.querySelector("[data-test-toast]");
+		assert(toast, "toast must render");
+		assert.equal(toast.getAttribute("data-dismiss"), "6000");
+		assert.equal(doc.querySelector("[data-test-toast-message]")?.textContent, "Moved to Finance & Tax");
+		const form = doc.querySelector("[data-test-toast-action]")?.closest("form");
+		assert(form, "the Undo must be a form");
+		assert.equal(form.getAttribute("method"), "POST");
+		assert.equal(
+			form.getAttribute("action"),
+			"/queue/abc123/move?queue=weekend&utm_source=queue-toast&utm_medium=internal&utm_content=undo-move",
+		);
+		assert.deepEqual(
+			Array.from(form.querySelectorAll("input[type='hidden']"), (input) => [
+				input.getAttribute("name"),
+				input.getAttribute("value"),
+			]),
+			[
+				["from", "finance"],
+				["to", "weekend"],
+			],
+		);
+		assert.equal(doc.querySelector("[data-test-toast-action]")?.getAttribute("aria-label"), "Undo");
 	});
 });
 

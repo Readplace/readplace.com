@@ -50,6 +50,8 @@ const CARD = "[data-test-article]";
 const CARD_MENU = "[data-test-article-menu]";
 const CARD_MENU_TOGGLE = '[data-test-action="article-menu"]';
 const CARD_DELETE_TRIGGER = '[data-test-action="delete"]';
+const CARD_MOVE_TRIGGER = '[data-test-action="move"]';
+const MOVE_CANCEL = '[data-test-action="move-cancel"]';
 const LISTING = `${MAIN} .readlist-listing`;
 const READ_TAB = `${MAIN} [data-test-filter="read"]`;
 const SORT_LINK = `${MAIN} [data-test-sort]`;
@@ -603,6 +605,42 @@ test.describe("Dismissing a menu dialog returns focus to the kebab that opened i
 		await toggle.click();
 		await trigger.click();
 		await page.mouse.click(5, 5);
+		await expect(popover).toBeHidden();
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
+	});
+
+	test("returns focus to the card kebab after the move dialog is dismissed", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-card-move-focus-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUserWithArticles(page, email);
+		await loginAs(page, email);
+		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Finance" } });
+		assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+		await openReadlist(page);
+		await seededReadlistSettled(page);
+
+		const card = page.locator(CARD).first();
+		const menu = card.locator(CARD_MENU);
+		const toggle = menu.locator(CARD_MENU_TOGGLE);
+		const summary = menu.locator("summary").first();
+		const trigger = card.locator(CARD_MOVE_TRIGGER);
+		const popoverId = await trigger.getAttribute("popovertarget");
+		assert.ok(popoverId, "the card's move trigger must reference its dialog");
+		const popover = page.locator(`[id="${popoverId}"]`);
+
+		await toggle.click();
+		await trigger.click();
+		await expect(popover).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(popover).toBeHidden();
+		await expect(menu).toHaveJSProperty("open", false);
+		await expect(summary).toBeFocused();
+
+		await toggle.click();
+		await trigger.click();
+		await popover.locator(MOVE_CANCEL).click();
 		await expect(popover).toBeHidden();
 		await expect(menu).toHaveJSProperty("open", false);
 		await expect(summary).toBeFocused();

@@ -33,6 +33,11 @@ export {
 	type ReadlistMigrationRejection,
 } from "./readlist-migration";
 export {
+	decideReadlistArticleMove,
+	type ReadlistArticleMoveDecision,
+	type ReadlistArticleMoveRejection,
+} from "./readlist-article-move";
+export {
 	READLIST_PURPOSE_MAX_LENGTH,
 	ReadlistPurposeSchema,
 	parseReadlistPurpose,

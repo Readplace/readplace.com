@@ -33,6 +33,10 @@ function createDialogMarkup(): string {
 	return `${LIVE_REGION}<div id="readlist-create" popover data-test-dialog="create"><form data-readlist-name-form data-readlist-name-failure="Couldn't create the readlist." data-test-form="readlist-create" action="/queue/queues?queue=all" hx-post="/queue/queues?queue=all"><input name="label" value="Ideas &amp; Inspiration"><p data-readlist-name-error></p><button type="submit">Create readlist</button></form></div>`;
 }
 
+function createAndMoveDialogMarkup(): string {
+	return `${LIVE_REGION}<div id="readlist-create-move-abc" popover data-test-dialog="create-move"><form data-readlist-name-form data-readlist-name-failure="Couldn't create the readlist." data-test-form="readlist-create-move" action="/queue/abc/move?queue=work" hx-post="/queue/abc/move?queue=work"><input type="hidden" name="from" value="work"><input name="label" value="Finance"><p data-readlist-name-error></p><button type="submit">Create readlist</button></form></div>`;
+}
+
 function unrelatedMarkup(): string {
 	return `${LIVE_REGION}<form data-test-form="unrelated" action="/somewhere" hx-post="/somewhere"><input name="x" value="y"><button type="submit">Go</button></form><a href="/queue/abc/view" data-test-card-link>Read</a>`;
 }
@@ -149,6 +153,10 @@ function init(bodyHtml: string) {
 				"the name form must carry its name input",
 			).getAttribute("aria-invalid"),
 		announced: () => element("#toast-live-region", "the shell mounts a live region on every page").textContent,
+		invalidFields: () =>
+			Array.from(document.querySelectorAll("form[data-readlist-name-form] input[aria-invalid]"), (input) =>
+				input.getAttribute("name"),
+			),
 	};
 }
 
@@ -230,6 +238,25 @@ describe("initReadlist", () => {
 		expect(detail.shouldSwap).toBe(false);
 		expect(app.errorText()).toBe("Couldn't rename the readlist.");
 		expect(app.inputInvalid()).toBe("true");
+	});
+
+	it("marks only the name field invalid, never the hidden field ahead of it, when an answer stays out of the dialog", () => {
+		const app = init(createAndMoveDialogMarkup());
+
+		const detail = app.answerBeforeSwap(app.nameForm(), answered({ status: 403, body: "Forbidden" }));
+
+		expect(detail.shouldSwap).toBe(false);
+		expect(app.errorText()).toBe("Couldn't create the readlist.");
+		expect(app.invalidFields()).toEqual(["label"]);
+	});
+
+	it("marks only the name field invalid, never the hidden field ahead of it, when the request never reaches the server", () => {
+		const app = init(createAndMoveDialogMarkup());
+
+		app.failToSend(app.nameForm());
+
+		expect(app.errorText()).toBe("Couldn't create the readlist.");
+		expect(app.invalidFields()).toEqual(["label"]);
 	});
 
 	it("says the rename failed when the request never reaches the server", () => {

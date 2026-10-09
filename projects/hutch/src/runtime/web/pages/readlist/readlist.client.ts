@@ -43,7 +43,7 @@ function answerOf(event: Event): { status: unknown; body: unknown; location: unk
 function showFailure(form: Element): void {
 	const error = form.querySelector(`[${NAME_ERROR_ATTR}]`);
 	assert(error, "a name form always carries its error line");
-	const input = form.querySelector("input[name]");
+	const input = form.querySelector('input[name]:not([type="hidden"])');
 	assert(input, "a name form always carries its named input");
 	const failure = form.getAttribute(NAME_FAILURE_ATTR);
 	assert(failure, "a name form always carries its failure message");

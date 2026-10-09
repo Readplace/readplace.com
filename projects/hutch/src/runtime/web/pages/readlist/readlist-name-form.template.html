@@ -1,4 +1,7 @@
 <form class="confirm-popover__actions readlist-name-form" method="POST" action="{{action}}" hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-readlist-name-form data-readlist-name-failure="{{failureMessage}}" data-test-form="{{key}}">
+  {{#each hiddenFields}}
+  <input type="hidden" name="{{name}}" value="{{value}}">
+  {{/each}}
   <label class="form-field__label" for="{{inputId}}">{{fieldLabel}}</label>
   <input class="form-input" id="{{inputId}}" type="text" name="{{field}}" value="{{value}}" placeholder="{{placeholder}}" maxlength="{{maxLength}}" required autocomplete="off" aria-describedby="{{inputId}}-error"{{#if error}} aria-invalid="true" autofocus{{/if}} data-test-{{key}}-input>
   <p class="form-field__error" id="{{inputId}}-error" role="alert" data-readlist-name-error data-test-{{key}}-error>{{error}}</p>

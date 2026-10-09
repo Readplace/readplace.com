@@ -14,6 +14,10 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("trash")).toBe(iconSvg("trash"));
 	});
 
+	it("resolves the folder-input icon the card menu names its move affordance with", () => {
+		expect(findIconSvg("folder-input")).toBe(iconSvg("folder-input"));
+	});
+
 	it("resolves the ellipsis icons a row menu names its overflow affordance with", () => {
 		expect(findIconSvg("ellipsis")).toBe(iconSvg("ellipsis"));
 		expect(findIconSvg("ellipsis-vertical")).toBe(iconSvg("ellipsis-vertical"));
@@ -62,6 +66,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"file",
 	"file-down",
 	"folder",
+	"folder-input",
 	"inbox",
 	"info",
 	"link",

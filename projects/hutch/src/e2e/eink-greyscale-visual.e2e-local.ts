@@ -148,6 +148,14 @@ async function seedPendingSummary(
 	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
 }
 
+async function createReadlist(page: Page, label: string): Promise<string> {
+	const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
+	assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+	const slug = new URL(created.url()).searchParams.get("queue");
+	assert(slug, "creating a readlist must land the reader on it");
+	return slug;
+}
+
 async function loginAs(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
@@ -394,6 +402,38 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			assert.equal(Math.round(box.width), 600);
 			await expect(panel).toHaveScreenshot(
 				`eink-delete-article-dialog-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the move dialog keeps its selected row in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, articleId } = await seedReaderAndReadlist(
+				page,
+				`move-dialog-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await createReadlist(page, "Ideas & Inspiration");
+			await createReadlist(page, "Finance");
+			const weekend = await createReadlist(page, "Weekend");
+			const filed = await page.request.post(`${BASE_URL}/queue/${articleId}/assign`, {
+				form: { queue: weekend, returnTo: "/queue" },
+			});
+			assert.equal(filed.status(), 200, "filing the article into a readlist must land back on the listing");
+			await page.goto(`${BASE_URL}/queue?queue=${weekend}`, { waitUntil: "domcontentloaded" });
+			const card = page.locator(`[data-test-article="${articleId}"]`);
+			await card.locator('[data-test-action="article-menu"]').click();
+			await card.locator('[data-test-action="move"]').click();
+			const panel = page.locator('[data-test-confirm-popover="move"]:popover-open');
+			await expect(panel).toBeVisible();
+			await panel.locator("[data-test-move-destination]").first().click();
+			await expect(panel.locator('input[name="to"]').first()).toBeChecked();
+			await settle(page, '[data-test-confirm-popover="move"]:popover-open');
+
+			const box = await measuredBox(page, '[data-test-confirm-popover="move"]:popover-open');
+			assert.equal(Math.round(box.width), 600);
+			await expect(panel).toHaveScreenshot(
+				`eink-readlist-move-dialog-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

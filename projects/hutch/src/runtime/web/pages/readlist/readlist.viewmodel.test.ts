@@ -509,3 +509,173 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 		expect(readerVersion(earlier.readerHref)).not.toBe(readerVersion(later.readerHref));
 	});
 });
+
+describe("toReadlistViewModel — move", () => {
+	const work = { slug: ReadlistSlugSchema.parse("work"), label: "Work" };
+	const finance = { slug: ReadlistSlugSchema.parse("finance"), label: "Finance & Tax" };
+	const weekend = { slug: ReadlistSlugSchema.parse("weekend"), label: "Weekend" };
+	const readlists = [DEFAULT_READLIST, work, finance, weekend];
+	const onWork = { ...DEFAULT_FILTERS, readlist: work.slug };
+
+	function customReadlists(count: number) {
+		return Array.from({ length: count }, (_, index) => ({
+			slug: ReadlistSlugSchema.parse(`shelf-${index + 1}`),
+			label: `Shelf ${index + 1}`,
+		}));
+	}
+
+	it("offers no move without the reader's readlists", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, { now: NOW });
+
+		expect(vm.articles[0].move).toBeUndefined();
+	});
+
+	it("adds an article on All to each custom readlist that does not hold it yet, in rail order", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readlists,
+			savesByUrl: new Map([[ARTICLE_URL, [{}, { readlist: finance.slug }]]]),
+		});
+
+		expect(vm.articles[0].move).toEqual({
+			articleId: ARTICLE_ID,
+			popoverId: `readlist-move-${ARTICLE_ID}`,
+			mode: "add",
+			from: DEFAULT_READLIST_SLUG,
+			url: `/queue/${ARTICLE_ID}/move`,
+			destinations: [work, weekend],
+			create: { popoverId: `readlist-create-move-${ARTICLE_ID}` },
+			opens: `readlist-move-${ARTICLE_ID}`,
+		});
+	});
+
+	it("moves an article out of a custom readlist to the others that do not hold it, keeping the return query", () => {
+		const filters = { readlist: work.slug, tab: "done" as const, order: "asc" as const, page: 2 };
+		const vm = toReadlistViewModel(makeResult([makeArticle({ status: "read" })]), filters, {
+			now: NOW,
+			readlists,
+			savesByUrl: new Map([[ARTICLE_URL, [{}, { readlist: work.slug }, { readlist: weekend.slug }]]]),
+		});
+
+		expect(vm.articles[0].move).toEqual({
+			articleId: ARTICLE_ID,
+			popoverId: `readlist-move-${ARTICLE_ID}`,
+			mode: "move",
+			from: work.slug,
+			url: `/queue/${ARTICLE_ID}/move?queue=work&tab=done&order=asc&page=2`,
+			destinations: [finance],
+			create: { popoverId: `readlist-create-move-${ARTICLE_ID}` },
+			opens: `readlist-move-${ARTICLE_ID}`,
+		});
+	});
+
+	it("leaves out the readlist being viewed even when no membership was fetched for the article", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
+			now: NOW,
+			readlists,
+			savesByUrl: new Map(),
+		});
+
+		expect(vm.articles[0].move?.destinations).toEqual([finance, weekend]);
+	});
+
+	it("opens the create dialog straight from the item for a reader whose only readlist is All", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readlists: [DEFAULT_READLIST],
+		});
+
+		expect(vm.articles[0].move).toEqual({
+			articleId: ARTICLE_ID,
+			popoverId: `readlist-move-${ARTICLE_ID}`,
+			mode: "add",
+			from: DEFAULT_READLIST_SLUG,
+			url: `/queue/${ARTICLE_ID}/move`,
+			destinations: [],
+			create: { popoverId: `readlist-create-move-${ARTICLE_ID}` },
+			opens: `readlist-create-move-${ARTICLE_ID}`,
+		});
+	});
+
+	it("opens the create dialog straight from the item once every other custom readlist holds the article", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
+			now: NOW,
+			readlists,
+			savesByUrl: new Map([
+				[ARTICLE_URL, [{}, { readlist: work.slug }, { readlist: finance.slug }, { readlist: weekend.slug }]],
+			]),
+		});
+
+		expect(vm.articles[0].move?.destinations).toEqual([]);
+		expect(vm.articles[0].move?.opens).toBe(`readlist-create-move-${ARTICLE_ID}`);
+	});
+
+	it("offers to create a readlist while the reader has fewer custom readlists than the cap", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readlists: [DEFAULT_READLIST, ...customReadlists(6)],
+		});
+
+		expect(vm.articles[0].move?.create).toEqual({ popoverId: `readlist-create-move-${ARTICLE_ID}` });
+		expect(vm.articles[0].move?.destinations).toHaveLength(6);
+	});
+
+	it("keeps the chooser but drops the create row once the reader is at the cap", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readlists: [DEFAULT_READLIST, ...customReadlists(7)],
+		});
+
+		expect(vm.articles[0].move?.create).toBeUndefined();
+		expect(vm.articles[0].move?.destinations).toHaveLength(7);
+		expect(vm.articles[0].move?.opens).toBe(`readlist-move-${ARTICLE_ID}`);
+	});
+
+	it("offers no move at the cap once every other custom readlist holds the article", () => {
+		const shelves = customReadlists(7);
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), { ...DEFAULT_FILTERS, readlist: shelves[0].slug }, {
+			now: NOW,
+			readlists: [DEFAULT_READLIST, ...shelves],
+			savesByUrl: new Map([[ARTICLE_URL, [{}, ...shelves.map((shelf) => ({ readlist: shelf.slug }))]]]),
+		});
+
+		expect(vm.articles[0].move).toBeUndefined();
+	});
+
+	it("offers no move to a read-only account", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readlists,
+			savesByUrl: new Map([[ARTICLE_URL, [{}]]]),
+			effectiveAccess: { tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" },
+		});
+
+		expect(vm.accessIsReadOnly).toBe(true);
+		expect(vm.articles[0].move).toBeUndefined();
+	});
+
+	it("leaves moveFlash undefined when not provided", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, { now: NOW });
+
+		expect(vm.moveFlash).toBeUndefined();
+	});
+
+	it("builds the move toast's Undo against the move route, keeping the page the reader was on", () => {
+		const filters = { readlist: work.slug, tab: "done" as const, order: "asc" as const, page: 2 };
+		const vm = toReadlistViewModel(makeResult([makeArticle({ status: "read" })]), filters, {
+			now: NOW,
+			moveFlash: {
+				articleId: ARTICLE_ID,
+				message: "Moved to Finance & Tax",
+				undoFrom: finance.slug,
+				undoTo: work.slug,
+			},
+		});
+
+		expect(vm.moveFlash).toEqual({
+			message: "Moved to Finance & Tax",
+			undoUrl: `/queue/${ARTICLE_ID}/move?queue=work&tab=done&order=asc&page=2`,
+			undoFields: { from: "finance", to: "work" },
+		});
+	});
+});

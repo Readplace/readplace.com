@@ -162,6 +162,23 @@ for (const viewport of VIEWPORTS) {
 			});
 		});
 
+		test("creating a readlist from a card's Add keeps the page where it was", async ({ page }, testInfo) => {
+			const ids = await openToReadListing(page, `${testInfo.workerIndex}-${Date.now()}`);
+			const articleId = ids[Math.floor(ids.length / 2)];
+			const card = `[data-test-article="${articleId}"]`;
+			const dialog = `#readlist-create-move-${articleId}`;
+			await page.click(`${card} [data-test-action="article-menu"]`);
+			await page.click(`${card} [data-test-action="move"]`);
+			await page.waitForSelector(`${dialog}:popover-open`);
+			await page.locator(`${dialog} input[name="label"]`).fill("Finance");
+
+			await expectSwapKeepsScroll(page, {
+				scrollTarget: card,
+				control: `${dialog} [data-test-action="readlist-create-move-save"]`,
+				arrived: () => expect(page.locator("#status-toast [data-test-toast-message]")).toHaveText("Added to Finance"),
+			});
+		});
+
 		test("the readlist cap lands at the top like a page load", async ({ page }, testInfo) => {
 			const ids = await openToReadListing(page, `${testInfo.workerIndex}-${Date.now()}`);
 			for (let made = 1; made <= READLIST_MAX_PER_USER; made++) {

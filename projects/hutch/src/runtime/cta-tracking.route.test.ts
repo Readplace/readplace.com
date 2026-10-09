@@ -130,6 +130,10 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const readerHref = new JSDOM(queue.text).window.document
 			.querySelector("[data-test-article-title]")
 			?.getAttribute("href");
+		const articleId = new JSDOM(queue.text).window.document
+			.querySelector("[data-test-article]")
+			?.getAttribute("data-test-article");
+		assert(articleId, "the saved article must be listed");
 		const madeReadlist = new URL(
 			(await agent.post("/queue/queues").type("form").send({ label: "New Readlist" })).headers.location,
 			TEST_APP_ORIGIN,
@@ -139,6 +143,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 					`/queue?queue=${madeReadlist}&feature=pref`,
 					`/queue/queues/${madeReadlist}/preferences?feature=pref`,
 					`/queue/queues/${madeReadlist}/preferences/inboxes?feature=pref`,
+					`/queue?moved_article=${articleId}&moved_from=default&moved_to=${madeReadlist}`,
 				]
 			: [];
 
@@ -153,7 +158,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		}
 
 		expect(readerHref).toContain("/view");
-		expect(readlistPaths.length).toBe(3);
+		expect(readlistPaths.length).toBe(4);
 		expect(untracked).toEqual([]);
 	});
 

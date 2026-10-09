@@ -14,6 +14,7 @@ function dialog(): Document {
 			popoverId: READLIST_CREATE_POPOVER_ID,
 			key: "readlist-create",
 			action: readlistCreateAction("/queue/queues?queue=work"),
+			hiddenFields: [],
 		})}</div>`,
 	).window.document;
 }
@@ -60,11 +61,51 @@ describe("renderReadlistCreate", () => {
 	it("holds the same form the create route re-renders when it refuses a name", () => {
 		const action = readlistCreateAction("/queue/queues?queue=work");
 
-		const html = renderReadlistCreate({ popoverId: READLIST_CREATE_POPOVER_ID, key: "readlist-create", action });
+		const html = renderReadlistCreate({
+			popoverId: READLIST_CREATE_POPOVER_ID,
+			key: "readlist-create",
+			action,
+			hiddenFields: [],
+		});
 
 		expect(html).toContain(
-			renderReadlistCreateForm({ popoverId: READLIST_CREATE_POPOVER_ID, key: "readlist-create", action, value: "" }),
+			renderReadlistCreateForm({
+				popoverId: READLIST_CREATE_POPOVER_ID,
+				key: "readlist-create",
+				action,
+				value: "",
+				hiddenFields: [],
+			}),
 		);
+	});
+
+	it("posts the caller's hidden fields from the dialog and from the form the route re-renders", () => {
+		const hiddenFields = [{ name: "from", value: "work" }];
+		const hiddenOf = (html: string) => {
+			const form = new JSDOM(`<div>${html}</div>`).window.document.querySelector("form");
+			assert(form, "the create form must render");
+			return [...form.querySelectorAll('input[type="hidden"]')].map((input) => [
+				input.getAttribute("name"),
+				input.getAttribute("value"),
+			]);
+		};
+
+		const dialogFields = hiddenOf(
+			renderReadlistCreate({ popoverId: "readlist-create-move-abc", key: "readlist-create-move", action: "/queue/abc/move", hiddenFields }),
+		);
+		const refusedFields = hiddenOf(
+			renderReadlistCreateForm({
+				popoverId: "readlist-create-move-abc",
+				key: "readlist-create-move",
+				action: "/queue/abc/move",
+				value: "All",
+				error: "That name is reserved.",
+				hiddenFields,
+			}),
+		);
+
+		expect(dialogFields).toEqual([["from", "work"]]);
+		expect(refusedFields).toEqual([["from", "work"]]);
 	});
 
 	it("posts to the create route, tagged for funnel attribution, and carries its own failure text", () => {

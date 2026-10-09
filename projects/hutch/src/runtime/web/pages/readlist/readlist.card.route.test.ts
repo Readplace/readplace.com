@@ -294,3 +294,110 @@ describe("Readlist routes", () => {
 		});
 	});
 });
+
+describe("GET /queue/:id/card — the move item", () => {
+	type TestAgent = Awaited<ReturnType<typeof loginAgent>>;
+
+	function parse(html: string): Document {
+		return new JSDOM(html).window.document;
+	}
+
+	async function createReadlist(agent: TestAgent, label: string): Promise<string> {
+		const response = await agent.post("/queue/queues").type("form").send({ label });
+		const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
+		assert(slug, "creating a readlist must land the reader on it");
+		return slug;
+	}
+
+	async function saveArticle(agent: TestAgent, url: string): Promise<string> {
+		await agent.post("/queue/save").type("form").send({ url });
+		const card = Array.from(parse((await agent.get("/queue")).text).querySelectorAll("[data-test-article]")).find(
+			(el) => el.querySelector("[data-test-article-url]")?.getAttribute("href") === url,
+		);
+		const id = card?.getAttribute("data-test-article");
+		assert(id, `the card for ${url} must render`);
+		return id;
+	}
+
+	async function fileInto(agent: TestAgent, input: { articleId: string; readlist: string }): Promise<void> {
+		const response = await agent
+			.post(`/queue/${input.articleId}/assign`)
+			.type("form")
+			.send({ queue: input.readlist, returnTo: "/queue" });
+		expect(response.status).toBe(303);
+	}
+
+	function moveItem(doc: Document): { opens: string | null; label: string | null } {
+		const trigger = doc.querySelector('[data-test-article-menu] [data-test-action="move"]');
+		assert(trigger, "the card must offer a move");
+		return { opens: trigger.getAttribute("popovertarget"), label: trigger.textContent };
+	}
+
+	function menuControls(doc: Document): (string | null)[] {
+		return Array.from(doc.querySelectorAll("[data-test-article-menu] .menu__panel [data-test-action]"), (control) =>
+			control.getAttribute("data-test-action"),
+		);
+	}
+
+	it("renders the listing's move item, in the custom and the All wording, without a dialog of its own", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const weekend = await createReadlist(agent, "Weekend");
+		await createReadlist(agent, "Finance");
+		const articleId = await saveArticle(agent, "https://example.com/polled");
+		await fileInto(agent, { articleId, readlist: weekend });
+
+		const onWeekend = parse((await agent.get(`/queue?queue=${weekend}`)).text);
+		const onAll = parse((await agent.get("/queue")).text);
+		const polledOnWeekend = parse((await agent.get(`/queue/${articleId}/card?queue=${weekend}&poll=2`)).text);
+		const polledOnAll = parse((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
+
+		expect(moveItem(polledOnWeekend)).toEqual(moveItem(onWeekend));
+		expect(moveItem(polledOnAll)).toEqual(moveItem(onAll));
+		expect([moveItem(polledOnWeekend).label, moveItem(polledOnAll).label]).toEqual([
+			"Move to readlist",
+			"Add to readlist",
+		]);
+		expect(
+			polledOnWeekend.querySelectorAll(
+				'[data-test-confirm-popover="move"], [data-test-confirm-popover="readlist-create-move"]',
+			),
+		).toHaveLength(0);
+	});
+
+	it("renders no move item for a read-only account", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await createReadlist(agent, "Finance");
+		const articleId = await saveArticle(agent, "https://example.com/polled-read-only");
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the signed-in reader must exist");
+		await harness.subscriptionProviders.upsertActive({
+			userId: user.userId,
+			subscriptionId: "sub_card",
+			customerId: "cus_card",
+		});
+		await harness.subscriptionProviders.markCancelledByUserId({ userId: user.userId });
+
+		const polled = parse((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
+
+		expect(menuControls(polled)).toEqual(["delete-fallback", "delete"]);
+	});
+
+	it("builds the move item from the memberships the article holds now", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const finance = await createReadlist(agent, "Finance");
+		const articleId = await saveArticle(agent, "https://example.com/polled-fresh");
+		const listed = moveItem(parse((await agent.get("/queue")).text));
+		await fileInto(agent, { articleId, readlist: finance });
+
+		const polled = parse((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
+
+		expect([listed.opens, moveItem(polled).opens]).toEqual([
+			`readlist-move-${articleId}`,
+			`readlist-create-move-${articleId}`,
+		]);
+		expect(menuControls(polled)).toEqual(["move", "delete-fallback", "delete"]);
+	});
+});

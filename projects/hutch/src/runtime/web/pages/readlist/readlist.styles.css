@@ -181,7 +181,8 @@
 }
 
 .readlist-nav__rename-fallback,
-.readlist-nav__create-form {
+.readlist-nav__create-form,
+.readlist-article__move-fallback {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -960,6 +961,67 @@
 
 .confirm-popover--illustrated .readlist-migrate .confirm-popover__buttons {
   justify-content: flex-end;
+}
+
+.readlist .readlist-move {
+  gap: 24px;
+}
+
+.readlist-move__list,
+.readlist-move__options {
+  display: flex;
+  flex-direction: column;
+}
+
+.readlist-move__options {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.readlist-move__option {
+  cursor: pointer;
+}
+
+.readlist-move__option > .readlist-row__main,
+.readlist-move__create {
+  min-height: 56px;
+  padding-block: 16px;
+}
+
+.readlist-move__radio-slot {
+  display: inline-flex;
+  justify-content: center;
+  width: 36px;
+}
+
+.readlist-move__option:not(:has(.readlist-move__radio:checked)):hover,
+.readlist-move__create-row:hover {
+  background: var(--muted);
+}
+
+.readlist-move__option:has(.readlist-move__radio:checked) {
+  background: var(--secondary);
+  color: var(--primary-text-on-tint);
+}
+
+.readlist-move__option:has(.readlist-move__radio:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.readlist-move__create {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.readlist-move__create:hover {
+  color: var(--foreground);
 }
 
 .readlist .confirm-popover__actions.wizard__form {

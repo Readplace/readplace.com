@@ -6,7 +6,13 @@ import {
 	type SaveableUrlErrorCode,
 } from "@packages/domain/article";
 import type { IconName } from "@packages/ui-icons";
-import type { ReadlistRef } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	READLIST_MAX_PER_USER,
+	type ReadlistRef,
+	type ReadlistSlug,
+	readlistsHoldingArticle,
+} from "@packages/domain/readlist";
 import {
 	type LocalTime,
 	type TrialRemaining,
@@ -34,11 +40,16 @@ import {
 	markStatusConfirmPopoverId,
 	type MarkStatusConfirmViewModel,
 } from "./mark-status-confirm.component";
+import {
+	type ArticleMoveViewModel,
+	moveCreatePopoverId,
+	moveDialogPopoverId,
+} from "./readlist-card/move-dialog.component";
 import { isCardTerminal } from "./readlist-card/is-card-terminal";
 import type { ReadlistUrlState } from "./readlist.url";
 import { buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
 import { computeArticleContentVersion } from "../../shared/article-content-version";
-import type { StatusFlash } from "./readlist.error";
+import type { MoveFlash, StatusFlash } from "./readlist.error";
 import type { EffectiveAccess } from "@packages/subscription-access";
 
 export type SubscriptionBannerState =
@@ -85,6 +96,7 @@ export interface ReadlistArticleViewModel {
 	actions: ArticleAction[];
 	deleteConfirm?: DeleteConfirmViewModel;
 	markStatusConfirm?: MarkStatusConfirmViewModel;
+	move?: ArticleMoveViewModel;
 	/**
 	 * Set when the row's crawl/summary state machines are still in flight.
 	 * The card renders an htmx poll against this URL every 3s; once both
@@ -126,6 +138,11 @@ export interface ReadlistViewModel {
 		message: string;
 		undoUrl: string;
 		undoStatus: "read" | "unread";
+	};
+	moveFlash?: {
+		message: string;
+		undoUrl: string;
+		undoFields: { from: ReadlistSlug; to: ReadlistSlug };
 	};
 	subscriptionBanner: SubscriptionBannerState;
 	accessIsReadOnly: boolean;
@@ -223,6 +240,46 @@ function toDeleteAction(params: {
 	};
 }
 
+interface ArticleFiling {
+	readlists: readonly ReadlistRef[];
+	saves: readonly { readlist?: ReadlistSlug }[] | undefined;
+	accessIsReadOnly: boolean;
+}
+
+function toArticleMove(input: {
+	articleId: string;
+	from: ReadlistSlug;
+	returnQuery: string;
+	filing: ArticleFiling | undefined;
+}): ArticleMoveViewModel | undefined {
+	const { filing } = input;
+	if (filing === undefined || filing.accessIsReadOnly) return undefined;
+	const custom = filing.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
+	const holders = new Set(
+		readlistsHoldingArticle({ saves: filing.saves ?? [], readlists: filing.readlists }).map(
+			(readlist) => readlist.slug,
+		),
+	);
+	const destinations = custom
+		.filter((readlist) => readlist.slug !== input.from && !holders.has(readlist.slug))
+		.map((readlist) => ({ slug: readlist.slug, label: readlist.label }));
+	const create =
+		custom.length < READLIST_MAX_PER_USER ? { popoverId: moveCreatePopoverId(input.articleId) } : undefined;
+	const popoverId = moveDialogPopoverId(input.articleId);
+	const opens = destinations.length > 0 ? popoverId : create?.popoverId;
+	if (opens === undefined) return undefined;
+	return {
+		articleId: input.articleId,
+		popoverId,
+		mode: input.from === DEFAULT_READLIST_SLUG ? "add" : "move",
+		from: input.from,
+		url: `/queue/${input.articleId}/move${input.returnQuery}`,
+		destinations,
+		...(create === undefined ? {} : { create }),
+		opens,
+	};
+}
+
 function versionedReaderHref(input: {
 	articleId: string;
 	returnQuery: string;
@@ -246,6 +303,7 @@ export function toReadlistArticleViewModel(params: {
 	 * including on render paths that never read the signal, so an unknown answer
 	 * still asks before deleting. */
 	deleteAcknowledged?: boolean;
+	filing?: ArticleFiling;
 }): ReadlistArticleViewModel {
 	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
 	const pollCount = params.pollCount ?? 1;
@@ -295,6 +353,7 @@ export function toReadlistArticleViewModel(params: {
 			? {}
 			: { deleteConfirm: { articleId: id, popoverId: deleteConfirmId, url: deleteAction.url } }),
 		markStatusConfirm,
+		move: toArticleMove({ articleId: id, from: filters.readlist, returnQuery, filing: params.filing }),
 		cardPollUrl,
 		readerHref: versionedReaderHref({
 			articleId: id,
@@ -320,6 +379,9 @@ export function toReadlistViewModel(
 		effectiveAccess?: EffectiveAccess;
 		confirmReadlistsByUrl?: ReadonlyMap<string, readonly ReadlistRef[]>;
 		deleteAcknowledged?: boolean;
+		readlists?: readonly ReadlistRef[];
+		savesByUrl?: ReadonlyMap<string, readonly { readlist?: ReadlistSlug }[]>;
+		moveFlash?: MoveFlash;
 	},
 ): ReadlistViewModel {
 	const now = options?.now ?? new Date();
@@ -348,6 +410,14 @@ export function toReadlistViewModel(
 				maxPolls: MAX_POLLS,
 				confirmReadlists: options?.confirmReadlistsByUrl?.get(a.url),
 				deleteAcknowledged: options?.deleteAcknowledged,
+				filing:
+					options?.readlists === undefined
+						? undefined
+						: {
+								readlists: options.readlists,
+								saves: options.savesByUrl?.get(a.url),
+								accessIsReadOnly: access.access === "read-only",
+							},
 			}),
 		),
 		filters,
@@ -373,6 +443,13 @@ export function toReadlistViewModel(
 				undoUrl: `/queue/${options.statusFlash.undoArticleId}/status${returnQuery}`,
 				undoStatus: options.statusFlash.undoStatus,
 			}
+			: undefined,
+		moveFlash: options?.moveFlash
+			? {
+					message: options.moveFlash.message,
+					undoUrl: `/queue/${options.moveFlash.articleId}/move${returnQuery}`,
+					undoFields: { from: options.moveFlash.undoFrom, to: options.moveFlash.undoTo },
+				}
 			: undefined,
 		subscriptionBanner: toSubscriptionBannerState(access, now),
 		accessIsReadOnly: access.access === "read-only",

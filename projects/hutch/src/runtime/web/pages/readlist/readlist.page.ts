@@ -175,6 +175,7 @@ import {
 	ReadlistSlugSchema,
 	type ReadlistSlug,
 	type ReadlistRef,
+	decideReadlistArticleMove,
 	decideReadlistDelete,
 	decideReadlistMigration,
 	decideReadlistRename,
@@ -201,11 +202,12 @@ import { collectUtmParams } from "../../shared/utm";
 import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
-import type { HttpErrorMessageMapping, StatusFlash } from "./readlist.error";
-import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import type { HttpErrorMessageMapping, MoveFlash, StatusFlash } from "./readlist.error";
+import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
 import { READLIST_CREATE_POPOVER_ID, renderReadlistCreateForm } from "./readlist-create.component";
 import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-rename.component";
-import { hxLocationToMain } from "../../hx-location";
+import { moveCreatePopoverId, renderMoveCreateForm } from "./readlist-card/move-dialog.component";
+import { type HxLocationScroll, hxLocationToMain } from "../../hx-location";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -294,7 +296,7 @@ function readImportSkippedFlash(
 }
 
 type ReadlistNaming =
-	| { landing: string; announcement?: string }
+	| { landing: string; scroll: HxLocationScroll; announcement?: string }
 	| { refusal: string; form: () => string };
 
 function answerReadlistNaming(
@@ -311,7 +313,10 @@ function answerReadlistNaming(
 		res.status(422).type("html").send(naming.form());
 		return;
 	}
-	res.set("HX-Location", hxLocationToMain({ path: naming.landing, source: `#${answer.dialogId}` }));
+	res.set(
+		"HX-Location",
+		hxLocationToMain({ path: naming.landing, source: `#${answer.dialogId}`, scroll: naming.scroll }),
+	);
 	if (naming.announcement === undefined) {
 		res.status(204).end();
 		return;
@@ -741,6 +746,10 @@ const NATIVE_APP_SIGNAL_PLATFORM = {
 } as const satisfies Record<Platform, NativeAppPlatform | undefined>;
 
 const ISSUE_LINK_SAVED_PARAM = "issue_link_saved";
+const ArticleMoveBodySchema = z.union([
+	z.object({ from: ReadlistSlugSchema, to: ReadlistSlugSchema }),
+	z.object({ from: ReadlistSlugSchema, label: z.string() }),
+]);
 const SAVE_ATTEMPT_ID_HEADER = "x-readplace-save-attempt-id";
 
 export function initReadlistRoutes(deps: ReadlistDependencies): Router {
@@ -1507,18 +1516,27 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		};
 	};
 
-	const markStatusConfirmReadlistsFor = async (params: {
+	const savesAcrossReadlists = async (params: {
 		userId: UserId;
 		context: ReadlistContext;
 		urls: readonly string[];
-		acknowledgedAt: Date | undefined;
-	}): Promise<ReadonlyMap<string, readonly ReadlistRef[]> | undefined> => {
+	}): Promise<ReadonlyMap<string, readonly { readlist?: ReadlistSlug }[]> | undefined> => {
 		if (params.context.readlists.length <= 1) return undefined;
-		if (params.acknowledgedAt !== undefined) return undefined;
-		const savesByUrl = await deps.listUserSavesForUrls({
+		return deps.listUserSavesForUrls({
 			userId: params.userId,
 			urls: params.urls,
+			readlists: params.context.readlists.map((readlist) => readlist.slug),
 		});
+	};
+
+	const markStatusConfirmReadlistsFor = (params: {
+		context: ReadlistContext;
+		urls: readonly string[];
+		savesByUrl: ReadonlyMap<string, readonly { readlist?: ReadlistSlug }[]> | undefined;
+		acknowledgedAt: Date | undefined;
+	}): ReadonlyMap<string, readonly ReadlistRef[]> | undefined => {
+		const { savesByUrl } = params;
+		if (savesByUrl === undefined || params.acknowledgedAt !== undefined) return undefined;
 		return new Map(
 			params.urls.map((url) => [
 				url,
@@ -1558,12 +1576,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			saveErrorCode?: SaveableUrlErrorCode;
 			importFlash?: string;
 			statusFlash?: StatusFlash;
+			moveFlash?: MoveFlash;
 			importSkipped?: ImportSkippedViewModel;
 			saveUrl?: string;
 		},
 	): Promise<void> => {
 		const effectiveAccessPromise = deps.getEffectiveAccess(input.userId);
-		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, signals, nonEmptyReadlists] =
+		const urls = input.result.articles.map((article) => article.url);
+		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, signals, nonEmptyReadlists, savesByUrl] =
 			await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
@@ -1575,11 +1595,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				}),
 				effectiveAccessPromise.then((access) => resolveOnboardingSignals(req, input.userId, access)),
 				findNonEmptyReadlists({ userId: input.userId, readlists: input.context.readlists }),
+				savesAcrossReadlists({ userId: input.userId, context: input.context, urls }),
 			]);
-		const confirmReadlistsByUrl = await markStatusConfirmReadlistsFor({
-			userId: input.userId,
+		const confirmReadlistsByUrl = markStatusConfirmReadlistsFor({
 			context: input.context,
-			urls: input.result.articles.map((article) => article.url),
+			urls,
+			savesByUrl,
 			acknowledgedAt: signals.markReadAcrossQueuesAckedAt,
 		});
 		const vm = toReadlistViewModel(input.result, input.context.state, {
@@ -1594,6 +1615,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			now: deps.now(),
 			confirmReadlistsByUrl,
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
+			readlists: input.context.readlists,
+			savesByUrl,
+			moveFlash: input.moveFlash,
 		});
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
@@ -1793,6 +1817,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		if (saveError) res.set("HX-Reswap", "outerHTML show:none");
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
+		const moveFlash = moveFlashMapping(req.query, context.readlists);
 		const importSkipped = readImportSkippedFlash(req, res);
 		await renderReadlistListing(req, res, {
 			userId,
@@ -1802,6 +1827,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			saveErrorCode,
 			importFlash,
 			statusFlash,
+			moveFlash,
 			importSkipped,
 			saveUrl: filterUrl,
 		});
@@ -2465,18 +2491,22 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					action: req.originalUrl,
 					value: label,
 					error: READLIST_CREATE_REJECTIONS[reason].message,
+					hiddenFields: [],
 				}),
 		});
 		const naming = ((): ReadlistNaming => {
 			switch (outcome.status) {
 				case "ok":
 					if (!outcome.created) return refused("name-taken");
-					return { landing: buildReadlistUrl({ readlist: outcome.readlist.slug }) };
+					return { landing: buildReadlistUrl({ readlist: outcome.readlist.slug }), scroll: "top" };
 				case "invalid-name":
 				case "reserved-name":
 					return refused(outcome.status);
 				case "limit-reached":
-					return { landing: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]) };
+					return {
+						landing: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]),
+						scroll: "top",
+					};
 			}
 		})();
 
@@ -2505,7 +2535,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			if (!decision.ok) {
 				const { reason } = decision;
 				if (reason === "unknown-readlist") {
-					answer({ landing: gone });
+					answer({ landing: gone, scroll: "top" });
 					return;
 				}
 				answer({
@@ -2526,11 +2556,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				label: decision.label,
 			});
 			if (!renamed) {
-				answer({ landing: gone });
+				answer({ landing: gone, scroll: "top" });
 				return;
 			}
 			answer({
 				landing: buildReadlistUrl({ readlist: decision.slug }),
+				scroll: "top",
 				announcement: `Readlist renamed to ${decision.label}.`,
 			});
 		},
@@ -2932,11 +2963,16 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		 * still polling when the reader silences the delete confirmation would
 		 * otherwise come back pointing at a panel the page no longer renders,
 		 * leaving its Delete button inert. */
-		const signals = await deps.getOnboardingSignals({ userId });
-		const confirmReadlistsByUrl = await markStatusConfirmReadlistsFor({
-			userId,
-			context: await resolveReadlistContext(req, userId),
+		const [signals, context, access] = await Promise.all([
+			deps.getOnboardingSignals({ userId }),
+			resolveReadlistContext(req, userId),
+			deps.getEffectiveAccess(userId),
+		]);
+		const savesByUrl = await savesAcrossReadlists({ userId, context, urls: [article.url] });
+		const confirmReadlistsByUrl = markStatusConfirmReadlistsFor({
+			context,
 			urls: [article.url],
+			savesByUrl,
 			acknowledgedAt: signals.markReadAcrossQueuesAckedAt,
 		});
 		const articleVm = toReadlistArticleViewModel({
@@ -2950,6 +2986,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			maxPolls: MAX_POLLS,
 			confirmReadlists: confirmReadlistsByUrl?.get(article.url),
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
+			filing: {
+				readlists: context.readlists,
+				saves: savesByUrl?.get(article.url),
+				accessIsReadOnly: access.access === "read-only",
+			},
 		});
 		const cardOptions = { isFirst: false, deviceClass: classifyDeviceClass(req.get("user-agent")) };
 		const html = renderReadlistCard(toReadlistCardDisplayModel(articleVm, cardOptions));
@@ -3108,6 +3149,119 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 		res.redirect(303, safeReturnPath(req.body.returnTo));
 	});
+
+	router.post(
+		"/:id/move",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request<{ id: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+			const parsedBody = ArticleMoveBodySchema.safeParse(req.body);
+			if (!parsedId.success || !parsedBody.success) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const articleId = parsedId.data;
+			const body = parsedBody.data;
+			const { from } = body;
+			const dialogId = moveCreatePopoverId(articleId.value);
+			const context = await resolveReadlistContext(req, userId);
+			const land = (landing: { path: string; scroll: HxLocationScroll }): void => {
+				if ("label" in body) {
+					answerReadlistNaming(req, res, { dialogId, naming: { landing: landing.path, scroll: landing.scroll } });
+					return;
+				}
+				res.redirect(303, landing.path);
+			};
+			const quietLanding = { path: buildReadlistUrl(context.state), scroll: "stay-put" } as const;
+			const url = await deps.findArticleUrlById(articleId);
+			if (url === null) {
+				land(quietLanding);
+				return;
+			}
+			const saves = await deps.listUserSavesForUrl({ userId, url });
+			const holders = readlistsHoldingArticle({ saves, readlists: context.readlists });
+			if (!holders.some((readlist) => readlist.slug === from)) {
+				land(quietLanding);
+				return;
+			}
+			const moveInto = async (destination: {
+				to: ReadlistSlug;
+				readlists: readonly ReadlistRef[];
+			}): Promise<void> => {
+				const decision = decideReadlistArticleMove({
+					from,
+					to: destination.to,
+					readlists: destination.readlists,
+					saves,
+				});
+				if (!decision.ok) {
+					land(
+						decision.reason === "unknown-readlist"
+							? {
+									path: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_UNKNOWN_READLIST]]),
+									scroll: "top",
+								}
+							: quietLanding,
+					);
+					return;
+				}
+				if (decision.copyInto !== undefined) {
+					await deps.addArticleToReadlist({ userId, readlist: decision.copyInto, from, url });
+				}
+				if (decision.removeFrom !== undefined) {
+					await deleteArticleFromReadlistFor(decision.removeFrom)({ articleId, userId });
+				}
+				land({
+					path: buildReadlistUrl(context.state, [
+						...collectUtmParams(req.query),
+						["moved_article", articleId.value],
+						["moved_from", from],
+						["moved_to", destination.to],
+					]),
+					scroll: "stay-put",
+				});
+			};
+			if (!("label" in body)) {
+				await moveInto({ to: body.to, readlists: context.readlists });
+				return;
+			}
+			const refuse = (reason: ReadlistCreateDialogRejection): void =>
+				answerReadlistNaming(req, res, {
+					dialogId,
+					naming: {
+						refusal: buildReadlistUrl(context.state, [["queue_error", `create_${reason}`]]),
+						form: () =>
+							renderMoveCreateForm({
+								articleId: articleId.value,
+								action: req.originalUrl,
+								from,
+								value: body.label,
+								error: READLIST_CREATE_REJECTIONS[reason].message,
+							}),
+					},
+				});
+			const outcome = await deps.upsertReadlist({ userId, name: body.label });
+			switch (outcome.status) {
+				case "ok":
+					if (!outcome.created) {
+						refuse("name-taken");
+						return;
+					}
+					await moveInto({ to: outcome.readlist.slug, readlists: [...context.readlists, outcome.readlist] });
+					return;
+				case "invalid-name":
+				case "reserved-name":
+					refuse(outcome.status);
+					return;
+				case "limit-reached":
+					land({ path: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]), scroll: "top" });
+					return;
+			}
+		},
+	);
 
 	/** Remove one crawl-version snapshot the viewer authored. Guardless (only
 	 * dualAuth + resolveVerificationStatus, matching `/delete`): removing content

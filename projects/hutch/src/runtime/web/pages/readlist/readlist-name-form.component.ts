@@ -25,6 +25,7 @@ export function renderReadlistNameForm(input: {
 	commitLabel: string;
 	failureMessage: string;
 	error?: string;
+	hiddenFields: readonly { name: string; value: string }[];
 }): string {
 	return render(TEMPLATE, {
 		...input,

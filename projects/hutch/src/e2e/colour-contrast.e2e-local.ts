@@ -184,6 +184,21 @@ async function auditDeleteConfirmation(
 	});
 }
 
+async function auditMoveDialog(page: Page, where: { theme: string; view: string }): Promise<void> {
+	const dialog = page.locator('[data-test-confirm-popover="move"]:popover-open');
+	await page.locator('[data-test-action="article-menu"]').first().click({ timeout: SETTLE_MS });
+	await page.locator('[data-test-action="move"]').first().click({ timeout: SETTLE_MS });
+	await expect(dialog).toBeVisible({ timeout: SETTLE_MS });
+	await dialog.locator("[data-test-move-destination]").first().click();
+	await expect(dialog.locator('input[name="to"]').first()).toBeChecked();
+	await page.mouse.move(0, 0);
+
+	assertContrast(await stableMeasurements(page, READLIST_ROOT), { ...where, view: `${where.view}/move-dialog` });
+
+	await page.keyboard.press("Escape");
+	await expect(dialog).toBeHidden({ timeout: SETTLE_MS });
+}
+
 async function auditCreateReadlistDialog(
 	page: Page,
 	where: { theme: string; view: string },
@@ -225,6 +240,7 @@ async function auditReadlistQueue(page: Page, where: { theme: string; view: stri
 	assertContrast(measurements, where);
 
 	await auditDeleteConfirmation(page, where);
+	await auditMoveDialog(page, where);
 }
 
 async function auditAnnouncementBars(
@@ -302,6 +318,8 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 		const readerUrl = new URL(readerHref, BASE_URL).toString();
 		const articleId = new URL(readerHref, BASE_URL).pathname.match(/^\/queue\/([^/]+)\/view$/)?.[1];
 		assert(articleId, "a saved card must link to a reader with an article id");
+		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Finance" } });
+		assert.equal(created.status(), 200, "a readlist must exist for the cards to offer a move");
 
 		const viewUrls = {
 			"to-read": `${BASE_URL}/queue`,

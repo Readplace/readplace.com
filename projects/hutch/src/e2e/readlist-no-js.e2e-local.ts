@@ -144,6 +144,43 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		});
 	});
 
+	test("moving an article works as plain form submits", async ({ page }, testInfo) => {
+		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-move`);
+		await loginAs(page, email);
+		const articleId = await page.locator("[data-test-article]").first().getAttribute("data-test-article");
+		assert(articleId, "the seeded article must be listed");
+		const slugs: string[] = [];
+		for (const label of ["Weekend", "Finance"]) {
+			const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
+			assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+			const slug = new URL(created.url()).searchParams.get("queue");
+			assert(slug, "creating a readlist must land the reader on it");
+			slugs.push(slug);
+		}
+		const [weekend, finance] = slugs;
+		const filed = await page.request.post(`${BASE_URL}/queue/${articleId}/assign`, {
+			form: { queue: weekend, returnTo: "/queue" },
+		});
+		assert.equal(filed.status(), 200, "filing the article into a readlist must land back on the listing");
+
+		await page.goto(`${BASE_URL}/queue?queue=${weekend}`, { waitUntil: "domcontentloaded" });
+		await page.locator(`[data-test-article="${articleId}"] [data-test-action="article-menu"]`).click();
+		await page.locator(`[data-test-article="${articleId}"] [data-test-action="move"]`).click();
+		const dialog = page.locator(`#readlist-move-${articleId}`);
+		await expect(dialog).toBeVisible();
+		await dialog.locator(`input[name="to"][value="${finance}"]`).check();
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			dialog.locator('[data-test-action="move-confirm"]').click(),
+		]);
+
+		await expect(page.locator("body.page-readlist")).toBeVisible({ timeout: SETTLE_MS });
+		await expect(page.locator("[data-test-toast-message]")).toHaveText("Moved to Finance");
+		await expect(page.locator("[data-test-article]")).toHaveCount(0);
+		await page.goto(`${BASE_URL}/queue?queue=${finance}`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(`[data-test-article="${articleId}"]`)).toHaveCount(1, { timeout: SETTLE_MS });
+	});
+
 	test("the listing count keeps its noun and shows no bar when the total is deferred", async ({
 		page,
 	}, testInfo) => {

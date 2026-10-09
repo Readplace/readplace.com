@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { iconSvg } from "@packages/ui-icons";
 import type { DeviceClass } from "@packages/web-analytics";
 import { JSDOM } from "jsdom";
 import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
+import { type ArticleMoveViewModel, moveCreatePopoverId, moveDialogPopoverId } from "./move-dialog.component";
 import {
 	type ReadlistCardDisplayModel,
 	renderReadlistCard,
@@ -67,6 +70,34 @@ const DELETE_ACTION: ArticleAction = {
 	confirmPopoverId: "readlist-delete-confirm-abc123",
 };
 const { confirmPopoverId: _deletePopoverId, ...UNCONFIRMED_DELETE_ACTION } = DELETE_ACTION;
+const MOVE: ArticleMoveViewModel = {
+	articleId: "abc123",
+	popoverId: moveDialogPopoverId("abc123"),
+	mode: "move",
+	from: ReadlistSlugSchema.parse("work"),
+	url: "/queue/abc123/move?queue=work",
+	destinations: [{ slug: ReadlistSlugSchema.parse("finance"), label: "Finance" }],
+	create: { popoverId: moveCreatePopoverId("abc123") },
+	opens: moveDialogPopoverId("abc123"),
+};
+
+function menuPanel(doc: Document): Element {
+	const panel = doc.querySelector("[data-test-article-menu] .menu__panel");
+	assert(panel, "the card must render its ••• menu panel");
+	return panel;
+}
+
+function menuControls(doc: Document): (string | null)[] {
+	return Array.from(menuPanel(doc).querySelectorAll("[data-test-action]"), (control) =>
+		control.getAttribute("data-test-action"),
+	);
+}
+
+function glyph(name: "folder-input" | "trash"): string {
+	const svg = parse(iconSvg(name)).querySelector("svg");
+	assert(svg, `the ${name} icon must be an svg drawing`);
+	return svg.innerHTML;
+}
 
 describe("renderReadlistCard", () => {
 	it("opens the reader from exactly the title and the excerpt, each with its own tracking", () => {
@@ -212,6 +243,54 @@ describe("renderReadlistCard", () => {
 		const fallbackForm = fallback.closest("form");
 		assert(fallbackForm, "the fallback must submit through a form");
 		expect(fallbackForm.classList.contains("readlist-article__fallback")).toBe(true);
+	});
+
+	it("lists the move item ahead of Delete when Delete asks first", () => {
+		const doc = parse(
+			renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION], move: MOVE }), { isFirst: false })),
+		);
+
+		expect(menuControls(doc)).toEqual(["move-fallback", "move", "delete-fallback", "delete"]);
+	});
+
+	it("lists the move item ahead of Delete when Delete posts straight away", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(makeViewModel({ actions: [UNCONFIRMED_DELETE_ACTION], move: MOVE }), { isFirst: false }),
+			),
+		);
+
+		expect(menuControls(doc)).toEqual(["move-fallback", "move", "delete"]);
+	});
+
+	it("draws the move item with folder-input while Delete keeps its trash glyph", () => {
+		const doc = parse(
+			renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION], move: MOVE }), { isFirst: false })),
+		);
+
+		const move = menuPanel(doc).querySelector('[data-test-action="move"]');
+		const remove = menuPanel(doc).querySelector('[data-test-action="delete"]');
+		assert(move, "the move item must be present");
+		assert(remove, "the delete item must be present");
+		expect(move.querySelector("svg")?.innerHTML).toBe(glyph("folder-input"));
+		expect(remove.querySelector("svg")?.innerHTML).toBe(glyph("trash"));
+	});
+
+	it("points the move item at the dialog the page renders for the article", () => {
+		const doc = parse(
+			renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION], move: MOVE }), { isFirst: false })),
+		);
+
+		const move = menuPanel(doc).querySelector('[data-test-action="move"]');
+		assert(move, "the move item must be present");
+		expect(move.getAttribute("popovertarget")).toBe("readlist-move-abc123");
+		expect(move.parentElement).toBe(menuPanel(doc));
+	});
+
+	it("offers only Delete when the article has nowhere to move to", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION] }), { isFirst: false })));
+
+		expect(menuControls(doc)).toEqual(["delete-fallback", "delete"]);
 	});
 
 	it("re-polls itself at the URL the view model gave it", () => {

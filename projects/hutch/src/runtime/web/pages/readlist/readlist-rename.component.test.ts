@@ -70,6 +70,13 @@ describe("renderReadlistRename", () => {
 		expect(label.textContent).toBe("Readlist name");
 	});
 
+	it("posts nothing but the name, so its form opens straight on the label", () => {
+		const form = panel().querySelector("form");
+
+		assert(form, "the panel must post through a form");
+		expect([...form.children].map((child) => child.tagName.toLowerCase())).toEqual(["label", "input", "p", "div"]);
+	});
+
 	it("commits with Save", () => {
 		const doc = panel();
 

@@ -1,12 +1,21 @@
-import { SaveableUrlErrorCodeSchema, type SaveableUrlErrorCode } from "@packages/domain/article";
 import {
+	ReaderArticleHashIdSchema,
+	SaveableUrlErrorCodeSchema,
+	type SaveableUrlErrorCode,
+} from "@packages/domain/article";
+import {
+	DEFAULT_READLIST_SLUG,
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
 	READLIST_PURPOSE_MAX_LENGTH,
 	type ReadlistCreateRejection,
+	type ReadlistRef,
 	type ReadlistRenameRejection,
+	type ReadlistSlug,
+	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import type { Request } from "express";
+import { z } from "zod";
 
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
 	save_failed: "Couldn't save this article. Try again.",
@@ -141,9 +150,60 @@ export const statusFlashMapping = (
  * redirect — e.g. the out-of-bounds page clamp in GET /queue — carries the Undo
  * toast across the extra hop. statusFlashMapping renders them. */
 export function collectStatusFlashParams(query: Request["query"]): [string, string][] {
-	return (["status_changed", "status_article"] as const).flatMap((key): [string, string][] => {
-		const value = query[key];
-		return typeof value === "string" ? [[key, value]] : [];
+	return (["status_changed", "status_article", "moved_article", "moved_from", "moved_to"] as const).flatMap(
+		(key): [string, string][] => {
+			const value = query[key];
+			return typeof value === "string" ? [[key, value]] : [];
+		},
+	);
+}
+
+export interface MoveFlash {
+	articleId: string;
+	message: string;
+	undoFrom: ReadlistSlug;
+	undoTo: ReadlistSlug;
+}
+
+const MoveFlashQuerySchema = z.object({
+	moved_article: ReaderArticleHashIdSchema,
+	moved_from: ReadlistSlugSchema,
+	moved_to: ReadlistSlugSchema,
+});
+
+function moveFlashCopy(move: { from: ReadlistRef; to: ReadlistRef }): Omit<MoveFlash, "articleId"> {
+	if (move.from.slug === DEFAULT_READLIST_SLUG) {
+		return { message: `Added to ${move.to.label}`, undoFrom: move.to.slug, undoTo: DEFAULT_READLIST_SLUG };
+	}
+	if (move.to.slug === DEFAULT_READLIST_SLUG) {
+		return { message: `Removed from ${move.from.label}`, undoFrom: DEFAULT_READLIST_SLUG, undoTo: move.from.slug };
+	}
+	return { message: `Moved to ${move.to.label}`, undoFrom: move.to.slug, undoTo: move.from.slug };
+}
+
+function moveFlashFor(input: {
+	articleId: string;
+	from: ReadlistSlug;
+	to: ReadlistSlug;
+	readlists: readonly ReadlistRef[];
+}): MoveFlash | undefined {
+	const from = input.readlists.find((readlist) => readlist.slug === input.from);
+	const to = input.readlists.find((readlist) => readlist.slug === input.to);
+	if (from === undefined || to === undefined) return undefined;
+	return { articleId: input.articleId, ...moveFlashCopy({ from, to }) };
+}
+
+export function moveFlashMapping(
+	query: Record<string, unknown>,
+	readlists: readonly ReadlistRef[],
+): MoveFlash | undefined {
+	const parsed = MoveFlashQuerySchema.safeParse(query);
+	if (!parsed.success) return undefined;
+	return moveFlashFor({
+		articleId: parsed.data.moved_article.value,
+		from: parsed.data.moved_from,
+		to: parsed.data.moved_to,
+		readlists,
 	});
 }
 

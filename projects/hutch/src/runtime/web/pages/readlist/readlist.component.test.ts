@@ -6,6 +6,7 @@ import { JSDOM } from "jsdom";
 import type { InstallableClientOnboarding, OnboardingContext } from "../../onboarding/onboarding.types";
 import type { ReadlistRailViewModel } from "./readlist-rail";
 import { deleteConfirmPopoverId } from "./readlist-card/delete-confirm.component";
+import { moveCreatePopoverId, moveDialogPopoverId } from "./readlist-card/move-dialog.component";
 import { markStatusConfirmPopoverId } from "./mark-status-confirm.component";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { READLIST_CREATE_PATH, type ReadlistUrlState } from "./readlist.url";
@@ -711,6 +712,91 @@ describe("ReadlistPage", () => {
 		const action = doc.querySelector("[data-test-toast-action]")?.closest("form");
 		assert(action, "the status toast must post its Undo through a form");
 		expect(urlParams(action.getAttribute("action")).get("utm_content")).toBe("undo");
+	});
+
+	it("renders each card's move and create dialogs inside main, outside the cards", () => {
+		const finance: Readlist = { slug: ReadlistSlugSchema.parse("finance"), label: "Finance" };
+		const movable: ReadlistArticleViewModel = {
+			...CONFIRMED_ARTICLE,
+			move: {
+				articleId: "abc123",
+				popoverId: moveDialogPopoverId("abc123"),
+				mode: "add",
+				from: DEFAULT_READLIST_SLUG,
+				url: "/queue/abc123/move",
+				destinations: [finance],
+				create: { popoverId: moveCreatePopoverId("abc123") },
+				opens: moveDialogPopoverId("abc123"),
+			},
+		};
+		const doc = pageDoc({ articles: [movable, PLAIN_ARTICLE], isEmpty: false });
+
+		const dialogs = Array.from(
+			doc.querySelectorAll('[data-test-confirm-popover="move"], [data-test-confirm-popover="readlist-create-move"]'),
+		);
+		expect(dialogs.map((dialog) => dialog.id)).toEqual(["readlist-move-abc123", "readlist-create-move-abc123"]);
+		expect(dialogs.map((dialog) => [dialog.closest("main")?.tagName, dialog.closest("[data-test-article]")])).toEqual([
+			["MAIN", null],
+			["MAIN", null],
+		]);
+		expect(doc.getElementById("readlist-move-abc123-lead")?.textContent).toBe("Article: Article Title");
+	});
+
+	it("renders only the create dialog for a card with nowhere left to move to", () => {
+		const createOnly: ReadlistArticleViewModel = {
+			...PLAIN_ARTICLE,
+			move: {
+				articleId: "def456",
+				popoverId: moveDialogPopoverId("def456"),
+				mode: "add",
+				from: DEFAULT_READLIST_SLUG,
+				url: "/queue/def456/move",
+				destinations: [],
+				create: { popoverId: moveCreatePopoverId("def456") },
+				opens: moveCreatePopoverId("def456"),
+			},
+		};
+		const doc = pageDoc({ articles: [createOnly], isEmpty: false });
+
+		expect(
+			Array.from(
+				doc.querySelectorAll('[data-test-confirm-popover="move"], [data-test-confirm-popover="readlist-create-move"]'),
+				(dialog) => dialog.id,
+			),
+		).toEqual(["readlist-create-move-def456"]);
+	});
+
+	it("puts the move toast in the status toast mount with an Undo that posts the inverse move", () => {
+		const doc = pageDoc({
+			moveFlash: {
+				message: "Added to Finance",
+				undoUrl: "/queue/abc123/move",
+				undoFields: { from: ReadlistSlugSchema.parse("finance"), to: DEFAULT_READLIST_SLUG },
+			},
+		});
+
+		const mount = doc.getElementById("status-toast");
+		assert(mount, "the page must keep its status toast mount");
+		expect(mount.querySelector("[data-test-toast-message]")?.textContent).toBe("Added to Finance");
+		const action = mount.querySelector("[data-test-toast-action]")?.closest("form");
+		assert(action, "the move toast must post its Undo through a form");
+		expect(urlParams(action.getAttribute("action")).get("utm_content")).toBe("undo-move");
+		expect(
+			Array.from(action.querySelectorAll("input[type='hidden']"), (input) => [
+				input.getAttribute("name"),
+				input.getAttribute("value"),
+			]),
+		).toEqual([
+			["from", "finance"],
+			["to", "default"],
+		]);
+	});
+
+	it("leaves the status toast mount empty when nothing changed", () => {
+		const mount = pageDoc().getElementById("status-toast");
+
+		assert(mount, "the page must keep its status toast mount");
+		expect(mount.innerHTML).toBe("");
 	});
 
 	it("resubmits a pending save once the page loads, only when a save is actually pending", () => {

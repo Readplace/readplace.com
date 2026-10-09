@@ -4,6 +4,7 @@
     <details class="menu readlist-article__menu" data-test-article-menu>
       <summary class="menu__toggle" data-test-action="article-menu">{{icon "ellipsis"}}<span class="sr-only">More options for {{title}}</span></summary>
       <div class="menu__panel">
+        {{{moveMenuHtml}}}
         {{#each menuActions}}
         <form method="{{method}}" action="{{url}}" class="readlist-article__menu-form{{fallbackClass}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
           {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}

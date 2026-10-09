@@ -4,6 +4,7 @@ import { render, renderInFlightDots, withInternalTracking } from "@packages/web-
 import type { DeviceClass } from "@packages/web-analytics";
 
 import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
+import { renderMoveMenuItems } from "./move-dialog.component";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-card.template.html"), "utf-8");
 
@@ -37,6 +38,7 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	statusTriggers: DesignCardTrigger[];
 	menuActions: DesignCardAction[];
 	menuTriggers: DesignCardTrigger[];
+	moveMenuHtml: string;
 }
 
 const STATUS_LOADER_HTML = renderInFlightDots("readlist-article__action-btn-loader in-flight-dots");
@@ -110,6 +112,7 @@ export function toReadlistCardDisplayModel(
 		statusTriggers: statusActions.flatMap(toTrigger),
 		menuActions: deleteActions.map(toAction),
 		menuTriggers: deleteActions.flatMap(toTrigger),
+		moveMenuHtml: article.move === undefined ? "" : renderMoveMenuItems({ move: article.move }),
 	};
 }
 

@@ -14,6 +14,7 @@ export function renderReadlistCreateForm(input: {
 	action: string;
 	value: string;
 	error?: string;
+	hiddenFields: readonly { name: string; value: string }[];
 }): string {
 	return renderReadlistNameForm({
 		key: input.key,
@@ -24,6 +25,7 @@ export function renderReadlistCreateForm(input: {
 		commitLabel: "Create readlist",
 		failureMessage: "Couldn't create the readlist.",
 		error: input.error,
+		hiddenFields: input.hiddenFields,
 	});
 }
 
@@ -31,6 +33,7 @@ export function renderReadlistCreate(input: {
 	popoverId: string;
 	key: string;
 	action: string;
+	hiddenFields: readonly { name: string; value: string }[];
 }): string {
 	return renderConfirmPopover({
 		id: input.popoverId,

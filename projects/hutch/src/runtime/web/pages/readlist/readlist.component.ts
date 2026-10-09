@@ -29,8 +29,13 @@ import {
 } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
+import { renderMoveDialogs } from "./readlist-card/move-dialog.component";
 import { renderReadlistDeleteConfirm } from "./readlist-delete-confirm.component";
-import { renderReadlistCountsTrigger, renderStatusToast } from "./readlist-mutation-fragments";
+import {
+	renderMoveToast,
+	renderReadlistCountsTrigger,
+	renderStatusToast,
+} from "./readlist-mutation-fragments";
 import { readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import {
 	renderReadlistSaveSkeleton,
@@ -219,6 +224,7 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 			popoverId: READLIST_CREATE_POPOVER_ID,
 			key: "readlist-create",
 			action: readlistCreateAction(rail.newReadlistAction),
+			hiddenFields: [],
 		}),
 	};
 }
@@ -243,6 +249,12 @@ function offlineDownloadControl(input: { filters: ReadlistUrlState; isEmpty: boo
 		),
 		stateClass: offered ? "readlist-listing__offline--offered" : "readlist-listing__offline--withheld",
 	};
+}
+
+function flashToastHtml(vm: ReadlistViewModel): string {
+	if (vm.statusFlash) return renderStatusToast(vm.statusFlash);
+	if (vm.moveFlash) return renderMoveToast(vm.moveFlash);
+	return "";
 }
 
 function firstByteTotal(vm: ReadlistViewModel): number | undefined {
@@ -296,9 +308,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 							},
 						},
 		}),
-		statusToastHtml: vm.statusFlash
-			? renderStatusToast(vm.statusFlash)
-			: "",
+		statusToastHtml: flashToastHtml(vm),
 		saveCardHtml: renderReadlistSave(
 			toReadlistSaveDisplayModel({
 				filters,
@@ -383,6 +393,11 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 								illustrationHtml: renderIllustration("trash-can"),
 							}),
 						],
+			)
+			.join("\n"),
+		moveDialogsHtml: articles
+			.flatMap((article) =>
+				article.move === undefined ? [] : renderMoveDialogs({ move: article.move, title: article.title }),
 			)
 			.join("\n"),
 		markStatusConfirmsHtml: articles

@@ -84,6 +84,7 @@ const CARD_MARK_READ = '[data-test-action="mark-read"]';
 const CARD_MENU_SUMMARY = '[data-test-action="article-menu"]';
 const CARD_MENU_PANEL = "[data-test-article-menu]";
 const CARD_DELETE = '[data-test-action="delete"]';
+const CARD_MOVE = '[data-test-action="move"]';
 const NAV_USER = "[data-test-nav-user]";
 const NAV_USER_MENU = `${NAV_USER} .nav__user-menu`;
 const CARD_TIME = ".readlist-article__time";
@@ -93,6 +94,12 @@ const DELETE_ARTICLE_POPOVER = '[data-test-confirm-popover="delete"]';
 const OPEN_DELETE_ARTICLE_POPOVER = `${DELETE_ARTICLE_POPOVER}:popover-open`;
 const DELETE_ARTICLE_NEVER = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm-never"]`;
 const DELETE_ARTICLE_CONFIRM = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm"]`;
+const OPEN_MOVE_ARTICLE_POPOVER = '[data-test-confirm-popover="move"]:popover-open';
+const MOVE_ARTICLE_FORM = `${OPEN_MOVE_ARTICLE_POPOVER} [data-test-form="readlist-move"]`;
+const MOVE_ARTICLE_DESTINATION = `${OPEN_MOVE_ARTICLE_POPOVER} [data-test-move-destination]`;
+const MOVE_ARTICLE_CREATE = `${OPEN_MOVE_ARTICLE_POPOVER} [data-test-action="move-create"]`;
+const MOVE_ARTICLE_CANCEL = `${OPEN_MOVE_ARTICLE_POPOVER} [data-test-action="move-cancel"]`;
+const MOVE_ARTICLE_CONFIRM = `${OPEN_MOVE_ARTICLE_POPOVER} [data-test-action="move-confirm"]`;
 const MARK_STATUS_CONFIRM_BUTTON = '[data-test-action="mark-status-confirm"]';
 const EMPTY = "[data-test-empty-readlist]";
 const LISTING = "[data-test-listing]";
@@ -327,7 +334,7 @@ async function cardMenuGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: `${FIRST_CARD} .menu__panel`,
 		toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
-		rows: 1,
+		rows: 2,
 	});
 }
 
@@ -336,7 +343,7 @@ async function cardMenuPhoneGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: `${FIRST_CARD} .menu__panel`,
 		toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
-		rows: 1,
+		rows: 2,
 	});
 	const viewport = page.viewportSize();
 	assert(viewport, "the phone menu needs a fixed viewport");
@@ -689,6 +696,47 @@ async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
 	await stackedDialogButtons(page, OPEN_DELETE_ARTICLE_POPOVER, DELETE_ARTICLE_NEVER, DELETE_ARTICLE_CONFIRM);
 }
 
+async function moveArticleDialogGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const panel = await measuredBox(page, OPEN_MOVE_ARTICLE_POPOVER);
+	const form = await measuredBox(page, MOVE_ARTICLE_FORM);
+	const cancel = await measuredBox(page, MOVE_ARTICLE_CANCEL);
+	const commit = await measuredBox(page, MOVE_ARTICLE_CONFIRM);
+	assertDialogMeasurement({ description: "the move dialog's width", actual: panel.width, expected: 600, tolerance: 1 });
+	const rows = page.locator(`${MOVE_ARTICLE_DESTINATION}, ${MOVE_ARTICLE_CREATE}`);
+	await expect(rows).toHaveCount(3);
+	for (const row of await rows.all()) {
+		const box = await row.boundingBox();
+		assert.ok(box, "a visible move-dialog row must have a box");
+		assertDialogMeasurement({ description: "a move-dialog row's height", actual: box.height, expected: 56, tolerance: 0.5 });
+	}
+	assertDialogMeasurement({ description: "Cancel's top", actual: cancel.y, expected: commit.y, tolerance: 0.5 });
+	assertDialogMeasurement({
+		description: "the commit button's left edge",
+		actual: commit.x,
+		expected: cancel.x + cancel.width + 8,
+		tolerance: 0.5,
+	});
+	assertDialogMeasurement({
+		description: "the commit button's right edge",
+		actual: commit.x + commit.width,
+		expected: form.x + form.width,
+		tolerance: 1,
+	});
+}
+
+async function moveArticleDialogPhoneGeometry(page: Page): Promise<void> {
+	await neverScrollsSideways(page);
+	const viewport = page.viewportSize();
+	assert(viewport, "the phone dialog needs a fixed viewport");
+	const panel = await measuredBox(page, OPEN_MOVE_ARTICLE_POPOVER);
+	assert.ok(
+		panel.x >= 16 && panel.x + panel.width <= viewport.width - 16,
+		`the move dialog must keep the 16px screen gutters, measured ${JSON.stringify(panel)}`,
+	);
+	await stackedDialogButtons(page, OPEN_MOVE_ARTICLE_POPOVER, MOVE_ARTICLE_CANCEL, MOVE_ARTICLE_CONFIRM);
+}
+
 async function chipIsHigh(page: Page, selector: string, height: number): Promise<void> {
 	const chip = await measuredBox(page, selector);
 	assert.ok(near(chip.height, height), `${selector} must be ${height}px high, measured ${chip.height}px`);
@@ -1024,6 +1072,34 @@ async function openTwoReadlistsWithAFiledArticle(
 	return { first, second };
 }
 
+async function createReadlist(page: Page, label: string): Promise<string> {
+	const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
+	assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+	const slug = new URL(created.url()).searchParams.get("queue");
+	assert(slug, "creating a readlist must land the reader on it");
+	return slug;
+}
+
+async function fileAnArticleBesideTwoReadlists(page: Page, email: string): Promise<{ weekend: string }> {
+	const userId = await createVerifiedUser(page, email);
+	const articleId = await seedCrawledArticle(page, {
+		url: `https://example.com/readlist-move-article-${email}`,
+		title: "An article filed into a readlist",
+		savedAt: "2026-07-12T09:14:00.000Z",
+		excerpt: "A fixed excerpt for the move-article dialog baseline.",
+		userId,
+	});
+	await loginAs(page, email);
+	await createReadlist(page, "Ideas & Inspiration");
+	await createReadlist(page, "Finance");
+	const weekend = await createReadlist(page, "Weekend");
+	const filed = await page.request.post(`${BASE_URL}/queue/${articleId}/assign`, {
+		form: { queue: weekend, returnTo: "/queue" },
+	});
+	assert.equal(filed.status(), 200, "filing the article into a readlist must land back on the listing");
+	return { weekend };
+}
+
 function moveOrDeleteDialog(input: {
 	first: string;
 	openRail: (page: Page) => Promise<void>;
@@ -1076,6 +1152,29 @@ async function deleteArticleDialogSettled(page: Page): Promise<void> {
 	await expect(page.locator(`${FIRST_CARD} ${CARD_MENU_PANEL}`)).toHaveAttribute("open", "");
 	await page.click(`${FIRST_CARD} ${CARD_DELETE}`);
 	await page.waitForSelector(OPEN_DELETE_ARTICLE_POPOVER);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function openMoveArticleDialog(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await page.click(`${FIRST_CARD} ${CARD_MENU_SUMMARY}`);
+	await expect(page.locator(`${FIRST_CARD} ${CARD_MENU_PANEL}`)).toHaveAttribute("open", "");
+	await page.click(`${FIRST_CARD} ${CARD_MOVE}`);
+	await page.waitForSelector(OPEN_MOVE_ARTICLE_POPOVER);
+}
+
+async function moveArticleDialogSettled(page: Page): Promise<void> {
+	await openMoveArticleDialog(page);
+	await page.locator(MOVE_ARTICLE_DESTINATION).first().click();
+	await expect(page.locator(`${MOVE_ARTICLE_DESTINATION} input[name="to"]`).first()).toBeChecked();
+	await page.mouse.move(0, 0);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function addArticleDialogSettled(page: Page): Promise<void> {
+	await openMoveArticleDialog(page);
+	await page.mouse.move(0, 0);
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
@@ -1332,6 +1431,27 @@ const DELETE_ARTICLE_DIALOG_PHONE: VisualCheckpoint = {
 	...DELETE_ARTICLE_DIALOG,
 	name: "readlist-delete-article-dialog-phone",
 	geometry: deleteArticleDialogPhoneGeometry,
+};
+
+const MOVE_ARTICLE_DIALOG: VisualCheckpoint = {
+	name: "readlist-move-article-dialog",
+	settled: moveArticleDialogSettled,
+	geometry: moveArticleDialogGeometry,
+	target: OPEN_MOVE_ARTICLE_POPOVER,
+	capture: "element",
+	pinnedText: [],
+};
+
+const MOVE_ARTICLE_DIALOG_PHONE: VisualCheckpoint = {
+	...MOVE_ARTICLE_DIALOG,
+	name: "readlist-move-article-dialog-phone",
+	geometry: moveArticleDialogPhoneGeometry,
+};
+
+const ADD_ARTICLE_DIALOG: VisualCheckpoint = {
+	...MOVE_ARTICLE_DIALOG,
+	name: "readlist-add-article-dialog",
+	settled: addArticleDialogSettled,
 };
 
 const ALERT_LIMIT: VisualCheckpoint = {
@@ -1903,6 +2023,26 @@ test.describe("Readlist card menu", () => {
 			assert.notEqual(backdrop.blur, "none");
 		});
 	}
+
+	for (const theme of THEMES) {
+		test(`opens the move dialog from a custom readlist's card menu (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-move-article-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const { weekend } = await fileAnArticleBesideTwoReadlists(page, email);
+			await gotoReadlistQueue(page, `?queue=${weekend}`);
+
+			await captureCheckpoint(page, withTheme(MOVE_ARTICLE_DIALOG, theme));
+		});
+	}
+
+	test("opens the add dialog from a card menu on All (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const email = `readlist-add-article-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await fileAnArticleBesideTwoReadlists(page, email);
+		await gotoReadlistQueue(page, "");
+
+		await captureCheckpoint(page, withTheme(ADD_ARTICLE_DIALOG, "light"));
+	});
 });
 
 test.describe("Readlist card menu on a phone", () => {
@@ -1962,6 +2102,14 @@ test.describe("Readlist dialogs on a phone", () => {
 		await loginAs(page, email);
 		await gotoReadlistQueue(page, "");
 		await captureCheckpoint(page, DELETE_ARTICLE_DIALOG_PHONE);
+	});
+
+	test("stacks Move above Cancel in the move dialog", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const email = `readlist-move-article-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const { weekend } = await fileAnArticleBesideTwoReadlists(page, email);
+		await gotoReadlistQueue(page, `?queue=${weekend}`);
+		await captureCheckpoint(page, MOVE_ARTICLE_DIALOG_PHONE);
 	});
 
 	test("stacks Delete readlist above Cancel under the move-or-delete field", async ({ page }, testInfo) => {

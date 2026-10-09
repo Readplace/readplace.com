@@ -571,3 +571,71 @@ test.describe("Destructive account actions hold their WCAG contrast in both them
 		}
 	});
 });
+
+test.describe("Move dialog interaction states hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("a move-dialog row keeps its ink under hover and rings the whole row on focus", async ({ page }, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `move-contrast-${stampId}@example.com`);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/move-contrast-${stampId}`,
+				title: "An article to move",
+				content: "<p>Seeded body for the move dialog contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A fixed summary.", excerpt: "A fixed excerpt." },
+			},
+		});
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		for (const label of ["Finance", "Weekend"]) {
+			const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
+			assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+		}
+		const dialog = `#readlist-move-${articleId}`;
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await page.locator('[data-test-action="article-menu"]').click();
+		await page.locator('[data-test-action="move"]').click();
+		await page.waitForSelector(`${dialog}:popover-open`);
+		await page.keyboard.press("Tab");
+		await page.keyboard.press("Space");
+		const firstRow = page.locator(`${dialog} [data-test-move-destination]`).first();
+		const radio = firstRow.locator('input[type="radio"]');
+		await expect(radio).toBeFocused();
+		await expect(radio).toBeChecked();
+		await expect.poll(() => radio.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+		const slug = await firstRow.getAttribute("data-test-move-destination");
+		assert(slug, "every move-dialog row names the readlist it moves the article to");
+		const client = await auditContext(page);
+		await stamp(page, { selector: `${dialog} [data-test-move-destination="${slug}"]`, auditId: "move-row" });
+		await stamp(page, { selector: `${dialog} [data-test-move-destination="${slug}"] input`, auditId: "move-radio" });
+		await stamp(page, {
+			selector: `${dialog} [data-test-move-destination]:not([data-test-move-destination="${slug}"])`,
+			auditId: "move-row-unselected",
+		});
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			const focused = await measure(page, client, "move-row", []);
+			const ownRing = await measure(page, client, "move-radio", []);
+			const rest = await measure(page, client, "move-row-unselected", []);
+			const hover = await measure(page, client, "move-row-unselected", ["hover"]);
+			assert.equal(focused.outline.width, 2, `${theme}/queue/move: the row ring must be 2px wide`);
+			assert.equal(focused.outline.offset, 2, `${theme}/queue/move: the row ring must sit 2px outside the row`);
+			assert.notEqual(focused.outline.style, "none", `${theme}/queue/move: the row ring must be visible`);
+			assert.notEqual(ownRing.outline.style, "none", `${theme}/queue/move: the radio must keep its own focus ring`);
+			const panel: Neighbour = { name: "panel", colour: focused.surface };
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				const view = `${theme}/queue/move/${lensName}`;
+				assert.ok(
+					edgeContrast({ edge: focused.outline.colour, against: panel, lens }) >= NON_TEXT_MINIMUM,
+					edgeShortfall({ edge: focused.outline.colour, against: panel, lens, view }),
+				);
+				assert.deepEqual(lens(hover.text), lens(rest.text), selectedInkShortfall({ rest, hover, view }));
+				assert.ok(labelContrast(hover, lens) >= textMinimum(hover), labelShortfall(hover, lens, view));
+			}
+		}
+	});
+});

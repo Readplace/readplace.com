@@ -35,6 +35,7 @@ export function renderReadlistRenameForm(input: {
 		commitLabel: "Save",
 		failureMessage: "Couldn't rename the readlist.",
 		error: input.error,
+		hiddenFields: [],
 	});
 }
 
