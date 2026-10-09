@@ -226,18 +226,18 @@ export const GMAIL_CONFIRM_FAILED_MESSAGES: Record<GmailConfirmFailureReason, st
 export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, { message: string; awaitingConfirmation?: string; variant: AlertVariant }> = {
 	connected: { message: "Gmail is connected.", variant: "success" },
 	confirmed: { message: "Forwarding confirmed.", variant: "success" },
-	sender_removed: { message: "Mapping removed. Articles you already saved stay in your readlists.", variant: "success" },
+	sender_removed: { message: "Newsletter removed. Articles you already saved stay in your readlists.", variant: "success" },
 	sender_mapped: {
-		message: "Mapping saved. Gmail will forward new mail from this sender.",
-		awaitingConfirmation: "Mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.",
+		message: "Newsletter added. Gmail will forward its new issues, and what you chose to save goes to All and any readlists you picked.",
+		awaitingConfirmation: "Newsletter added. Its new issues will be forwarded once Gmail confirms the forwarding address.",
 		variant: "success",
 	},
 	sender_remapped: {
-		message: "Mapping updated. New mail from this sender goes to All and your selected readlists.",
-		awaitingConfirmation: "Mapping updated. New mail from this sender will be forwarded once Gmail confirms the forwarding address.",
+		message: "Newsletter updated. From its next issue, what you chose to save goes to All and any readlists you picked.",
+		awaitingConfirmation: "Newsletter updated. Its new issues will be forwarded once Gmail confirms the forwarding address.",
 		variant: "success",
 	},
-	readlist_created: { message: "Readlist created. Save the mapping to use it.", variant: "success" },
+	readlist_created: { message: "Readlist created. Save the newsletter to use it.", variant: "success" },
 	readlist_reused: { message: "You already have a readlist with that name, so I chose it.", variant: "info" },
 	import_started: { message: "Importing unread messages from the last 30 days.", variant: "success" },
 	import_permission_needed: { message: "To import unread messages, give Readplace permission to read them in Gmail.", variant: "info" },
@@ -276,7 +276,7 @@ function checkingForNewMessages(input: GmailPageInput): boolean {
 function discoveryStatus(input: GmailPageInput, discovering: boolean): { lead: string; checked: string | undefined } {
 	const count = input.discovery.checkedMessageCount;
 	if (input.discovery.requiresReconnect) {
-		return { lead: input.canConnectGmail ? "Reconnect Gmail to continue loading senders. Your existing mappings stay in place." : GMAIL_UPGRADE_MESSAGE, checked: undefined };
+		return { lead: input.canConnectGmail ? "Reconnect Gmail to continue loading senders. The newsletters you set up stay in place." : GMAIL_UPGRADE_MESSAGE, checked: undefined };
 	}
 	if (discovering && input.pollCount >= GMAIL_DISCOVERY_MAX_POLLS) {
 		return { lead: "Still checking. ", checked: checkedLabel(count, " so far…") };
@@ -440,7 +440,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		}),
 		metadataReconnect: gmailConnectionPrompt({
 			canConnectGmail: input.canConnectGmail,
-			message: "Reconnect Gmail to choose senders from your mailbox. Your existing mappings stay in place.",
+			message: "Reconnect Gmail to choose senders from your mailbox. The newsletters you set up stay in place.",
 			content: "grant-sender-access", label: "Reconnect Gmail", variant: commitVariant, fields: [],
 		}),
 		showStep,

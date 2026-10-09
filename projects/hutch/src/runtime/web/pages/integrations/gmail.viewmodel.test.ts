@@ -88,7 +88,7 @@ describe("GMail Newsletters calls to action", () => {
 		const requiresReconnect: GmailPageInput["discovery"] = { state: "failed", mode: "full", checkedMessageCount: 0, requiresReconnect: true };
 		const alone = toGmailPageViewModel(input({ discovery: requiresReconnect }));
 		assert.equal(alone.chooser.reconnectActions[0]?.variant, "primary");
-		assert.equal(alone.chooser.statusLead, "Reconnect Gmail to continue loading senders. Your existing mappings stay in place.");
+		assert.equal(alone.chooser.statusLead, "Reconnect Gmail to continue loading senders. The newsletters you set up stay in place.");
 		assert.equal(alone.chooser.checkedLabel, undefined);
 		assert.equal(alone.showMetadataReconnect, true);
 		assert.equal(alone.showSenders, false);
@@ -263,7 +263,7 @@ describe("GMail Newsletters readlist choice", () => {
 
 	it("keeps a notice's ordinary copy during Step 2 when it has no confirmation variant", () => {
 		const vm = toGmailPageViewModel(input({ connection: connection({ forwardingConfirmedAt: undefined }), notice: "readlist_created" }));
-		assert.deepEqual(vm.notices, [{ key: "readlist_created", message: "Readlist created. Save the mapping to use it.", variant: "success" }]);
+		assert.deepEqual(vm.notices, [{ key: "readlist_created", message: "Readlist created. Save the newsletter to use it.", variant: "success" }]);
 	});
 });
 

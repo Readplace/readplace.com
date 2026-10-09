@@ -3,7 +3,7 @@ title: "Introducing GMail integration"
 description: "A newsletter you chose arrives in Gmail between a receipt and a calendar invite, and gets cleared with the rest. Connect Gmail to Readplace, point a sender at a readlist, and each new issue lands there summarized, either as the issue itself or as the articles it links to, sorted out from the packaging. The subscription keeps its address, the mail stays unread, and connecting reads mail headers, not mail."
 slug: "introducing-gmail-integration"
 date: "2026-10-03"
-lastModified: "2026-10-06"
+lastModified: "2026-10-10"
 author: "Fayner Brack"
 keywords: "gmail integration, read gmail newsletters, gmail newsletter reader, save newsletters to read later, newsletter to read it later app, connect gmail to read it later, newsletter overload, gmail newsletters to readlist, readplace"
 tags: ["changelog"]
@@ -57,7 +57,7 @@ A fresh mapping offers one exception, off until ticked: "Import unread messages 
 
 Forwarding copies. The issues keep arriving in Gmail, unread state intact, at the address the subscription was made with years ago. Readplace archives nothing there and marks nothing read.
 
-Removing a mapping stops the forwarding for that sender and keeps what was already saved. The notice on the page commits to it: "Mapping removed. Articles you already saved stay in your readlists."
+Removing a mapping stops the forwarding for that sender and keeps what was already saved. The notice on the page commits to it: "Newsletter removed. Articles you already saved stay in your readlists."
 
 ## A month of backlog on day 1
 

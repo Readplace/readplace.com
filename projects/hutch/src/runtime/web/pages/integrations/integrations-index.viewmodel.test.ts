@@ -303,7 +303,7 @@ describe("toIntegrationsIndexViewModel", () => {
 		],
 		[
 			"oauth_metadata_scope",
-			"Reconnect Gmail and allow Readplace to read message headers so you can choose senders from your mailbox. Existing mappings stay in place.",
+			"Reconnect Gmail and allow Readplace to read message headers so you can choose senders from your mailbox. The newsletters you set up stay in place.",
 		],
 	])("says the right thing for %s", (error, message) => {
 		const vm = indexViewModel({ connection: undefined, error });

@@ -912,7 +912,7 @@ describe("Choose a readlist", () => {
 		expect(definitions.map((definition) => definition.label)).toEqual(["Science"]);
 		expect(params).toEqual({ notice: "readlist_created", search: "dan", sender: TLDR, readlist: definitions[0]?.slug, discovery: "started" });
 		const doc = load((await agent.get(created.headers.location)).text);
-		expect(doc.querySelector('[data-test-alert="readlist_created"]')?.textContent).toBe("Readlist created. Save the mapping to use it.");
+		expect(doc.querySelector('[data-test-alert="readlist_created"]')?.textContent).toBe("Readlist created. Save the newsletter to use it.");
 		expect(doc.querySelector("#gmail-readlist-choice")?.textContent).toBe("All, Science");
 
 		const reused = await agent.post(CREATE_READLIST).type("form").send({ sender: TLDR, readlist_name: "science" });
@@ -970,7 +970,7 @@ describe("Save a newsletter to a readlist", () => {
 		const mapped = row(doc, MORNING);
 		expect(mapped.querySelector("[data-test-gmail-mapping-source]")?.textContent).toBe(`Morning Brew${MORNING}`);
 		expect(mapped.querySelector("[data-test-gmail-mapping-destination]")?.textContent).toBe("Saved to All");
-		expect(doc.querySelector('[data-test-alert="sender_mapped"]')?.textContent).toBe("Mapping saved. Gmail will forward new mail from this sender.");
+		expect(doc.querySelector('[data-test-alert="sender_mapped"]')?.textContent).toBe("Newsletter added. Gmail will forward its new issues, and what you chose to save goes to All and any readlists you picked.");
 	});
 
 	it("reuses one readlist address for every newsletter sent to the same custom readlist", async () => {
@@ -1084,7 +1084,7 @@ describe("Save a newsletter to a readlist", () => {
 		expect({ state: (await findJob(jobId))?.state, reason: (await findJob(jobId))?.cancelReason }).toEqual({ state: "cancelled", reason: "destination-changed" });
 		expect(gmail.importStartRequests).toEqual([]);
 		const doc = load((await agent.get(moved.headers.location)).text);
-		expect(doc.querySelector('[data-test-alert="sender_remapped"]')?.textContent).toBe("Mapping updated. New mail from this sender goes to All and your selected readlists.");
+		expect(doc.querySelector('[data-test-alert="sender_remapped"]')?.textContent).toBe("Newsletter updated. From its next issue, what you chose to save goes to All and any readlists you picked.");
 	});
 
 	it("keeps the picker state, including the import choice, when validation fails", async () => {
@@ -1149,7 +1149,7 @@ describe("Save a newsletter to a readlist", () => {
 		const notice = doc.querySelector('[data-test-alert="sender_mapped"]');
 		assert(notice);
 		expect(notice.getAttribute("data-test-alert-variant")).toBe("success");
-		expect(notice.textContent).toBe("Mapping saved. New mail from this sender will be forwarded once Gmail confirms the forwarding address.");
+		expect(notice.textContent).toBe("Newsletter added. Its new issues will be forwarded once Gmail confirms the forwarding address.");
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }]);
 	});
 
@@ -1220,7 +1220,7 @@ describe("Save a newsletter to a readlist", () => {
 			doc.querySelector('[data-test-alert="sender_mapped"]')?.textContent,
 			doc.querySelector('[data-test-alert="import_in_progress"]')?.textContent,
 		]).toEqual([
-			"Mapping saved. Gmail will forward new mail from this sender.",
+			"Newsletter added. Gmail will forward its new issues, and what you chose to save goes to All and any readlists you picked.",
 			"An import for this newsletter is already underway. Wait for it to finish, or cancel it first.",
 		]);
 	});
@@ -1338,7 +1338,7 @@ describe("Your newsletters", () => {
 	it("shows an empty list before any newsletter is mapped", async () => {
 		const { agent } = await connectedAgent();
 		const doc = load((await agent.get(GMAIL)).text);
-		expect(doc.querySelector("[data-test-gmail-mappings-empty]")?.textContent).toBe("No newsletters mapped yet. Choose a newsletter above.");
+		expect(doc.querySelector("[data-test-gmail-mappings-empty]")?.textContent).toBe("No newsletters yet. Choose a newsletter above.");
 		expect(doc.querySelector("[data-test-gmail-filter-message]")?.textContent).toBe("No forwarding rule in Gmail yet.");
 	});
 
@@ -1652,7 +1652,7 @@ describe("Remove a newsletter", () => {
 		expect((await gmail.bundle.findInboxAddress(destination))?.disabledAt).toBeUndefined();
 		const doc = load((await agent.get(removed.headers.location)).text);
 		expect(Array.from(doc.querySelectorAll("[data-test-gmail-mapping-row]"), (el) => el.getAttribute("data-test-gmail-mapping-row"))).toEqual([MORNING]);
-		expect(doc.querySelector('[data-test-alert="sender_removed"]')?.textContent).toBe("Mapping removed. Articles you already saved stay in your readlists.");
+		expect(doc.querySelector('[data-test-alert="sender_removed"]')?.textContent).toBe("Newsletter removed. Articles you already saved stay in your readlists.");
 	});
 
 	it("rejects a malformed removal", async () => {

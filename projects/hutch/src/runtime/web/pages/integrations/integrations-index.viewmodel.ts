@@ -152,7 +152,7 @@ export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
 	oauth_scope:
 		"Readplace needs permission to manage forwarding rules. Connect again and leave that permission ticked.",
 	oauth_metadata_scope:
-		"Reconnect Gmail and allow Readplace to read message headers so you can choose senders from your mailbox. Existing mappings stay in place.",
+		"Reconnect Gmail and allow Readplace to read message headers so you can choose senders from your mailbox. The newsletters you set up stay in place.",
 	oauth_metadata_scope_first_connect:
 		"Readplace needs permission to read message headers so you can choose senders from your mailbox. Connect again and leave that permission ticked.",
 	oauth_account_changed: "Disconnect your current Gmail account before connecting a different one.",
@@ -163,7 +163,7 @@ export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
 
 export const GMAIL_NOTICES: Record<string, string> = {
 	gmail_disconnected:
-		"Gmail is disconnecting. I'm removing the Readplace filter and Readplace's access to your Google account. I can't remove the forwarding address, so in Gmail open Settings, See all settings, then Forwarding and POP/IMAP, and remove the address that starts with gmail-. If a filter forwarding to that address is still listed under Filters and Blocked Addresses, delete it too. Readplace keeps your newsletter mappings for this Gmail account, so they come back when you connect it again.",
+		"Gmail is disconnecting. I'm removing the Readplace filter and Readplace's access to your Google account. I can't remove the forwarding address, so in Gmail open Settings, See all settings, then Forwarding and POP/IMAP, and remove the address that starts with gmail-. If a filter forwarding to that address is still listed under Filters and Blocked Addresses, delete it too. Readplace keeps the newsletters you set up for this Gmail account, so they come back when you connect it again.",
 };
 
 function alertsFor(error: string | undefined): IntegrationsAlertViewModel[] {
