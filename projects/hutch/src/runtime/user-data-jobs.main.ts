@@ -18,7 +18,6 @@ import {
 	initDynamoDbReadlistDefinitions,
 	initDynamoDbSavedArticleStore,
 } from "@packages/article-store";
-import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
@@ -84,11 +83,6 @@ const engagementState = initDynamoDbEngagementStarter({
 const readlistDefinitions = initDynamoDbReadlistDefinitions({
 	client: dynamoClient,
 	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
-});
-
-const digestQueue = initDynamoDbDigestQueue({
-	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_DIGEST_QUEUE_TABLE"),
 });
 
 const readerReadyState = initDynamoDbReaderReadyState({
@@ -302,7 +296,6 @@ export const handler = initHandleByDetailType({
 				purgeArticleContent,
 				tombstoneArticle,
 				now,
-				deleteDigestByUser: digestQueue.deleteDigestByUser,
 				withdrawStarterAssignment: engagementState.withdrawStarterAssignment,
 				deleteReaderReadyState: readerReadyState.deleteReaderReadyState,
 				deleteOnboarding: onboarding.deleteOnboarding,

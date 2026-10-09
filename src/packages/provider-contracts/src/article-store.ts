@@ -171,9 +171,7 @@ export type FindArticleCrawlVersions = (
 ) => Promise<ArticleCrawlVersion[]>;
 
 /** Stamp the per-user reader-view presence signal: the owner opened or polled
- * the reader for this article. Set server-side on every reader open/poll; the
- * reader-ready notifier emails only when `viewedAt` is set AND `viewedAt <
- * readerAvailableAt` (present while the body was still unavailable). */
+ * the reader for this article. Set server-side on every reader open/poll. */
 export type MarkArticleViewed = (params: {
 	userId: UserId;
 	url: string;
@@ -205,9 +203,7 @@ export interface UserArticleByUrl {
 	viewedAt?: Date;
 }
 
-/** Reverse lookup: every saver of a URL, via the `url-index` GSI (never a Scan).
- * The reader-ready fan-out uses it to decide which savers had opened the
- * reader. */
+/** Reverse lookup: every saver of a URL, via the `url-index` GSI (never a Scan). */
 export type FindUserArticlesByUrl = (
 	url: string,
 ) => Promise<UserArticleByUrl[]>;

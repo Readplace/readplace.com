@@ -2320,7 +2320,7 @@ Not sent when:
 > - Sends dropped for reserved test domains still count in queue_digest_sent analytics `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:37`.
 > - The template's developer HTML comment ships inside every article card of the real email `projects/hutch/src/runtime/web/queue-digest-email.template.html:28`.
 > - The shared reply line 'If you have any questions, please reply to this email' has no closing period in both the HTML and text parts `projects/hutch/src/runtime/web/email-copy.ts:2`.
-> - The public blog post still describes the older email (only articles opened while still loading, at most every 6 hours, a button per row) `projects/blog-site/src/runtime/web/pages/blog/posts/one-email-for-every-ready-article.md:3`, and the reader-ready fan-out still writes to the digest-queue table, which this sender never reads `projects/hutch/src/runtime/reader-ready-fanout.main.ts:33`.
+> - The public blog post still describes the older email (only articles opened while still loading, at most every 6 hours, a button per row) `projects/blog-site/src/runtime/web/pages/blog/posts/one-email-for-every-ready-article.md:3`.
 
 ### Message
 

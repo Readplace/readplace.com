@@ -24,7 +24,6 @@ import type {
 	PurgeArticleContent,
 	TombstoneArticle,
 } from "@packages/article-store";
-import type { DeleteDigestByUser } from "@packages/provider-contracts/digest-queue";
 import type { DeleteReaderReadyState } from "@packages/provider-contracts/reader-ready-state";
 import type { DeleteOnboarding } from "@packages/provider-contracts/onboarding-signals";
 import type { EngagementStarterState } from "@packages/provider-contracts/engagement-starter";
@@ -87,7 +86,6 @@ export interface DeleteAccountHandlerDependencies {
 	purgeArticleContent: PurgeArticleContent;
 	tombstoneArticle: TombstoneArticle;
 	now: () => Date;
-	deleteDigestByUser: DeleteDigestByUser;
 	withdrawStarterAssignment: EngagementStarterState["withdrawStarterAssignment"];
 	deleteReaderReadyState: DeleteReaderReadyState;
 	deleteOnboarding: DeleteOnboarding;
@@ -182,7 +180,6 @@ async function processCommand(
 		}
 	}
 	await deps.deleteAllUserArticles(userId);
-	await deps.deleteDigestByUser(userId);
 	await deps.withdrawStarterAssignment(userId);
 	await deps.deleteReaderReadyState(userId);
 	await deps.deleteOnboarding({ userId });

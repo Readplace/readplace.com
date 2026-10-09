@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_deploy_delta" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_deploy_delta" name="deploy-delta" isExecutable="false">
+    <bpmn:serviceTask id="n_DEPLOY" name="CI deploy of the hutch stack staging, then prod">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_UFN" name="user-data-jobs-handler environment loses DYNAMODB_DIGEST_QUEUE_TABLE, new code">
+      <bpmn:incoming>f_0</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_UPOL" name="user-data-jobs DynamoDB role policy loses the digest-queue table ARN">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_DRULE" name="EventBridge rule and target reader-view-loading-succeeded">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_DQP" name="queue policy and DLQ policy reader-view-loading-succeeded">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_DESM" name="event source mapping reader-ready-fanout">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_DFN" name="Lambda reader-ready-fanout-handler role, basic execution, 3 inline policies, log subscription filter">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="n_DQ" name="reader-ready-fanout-q and reader-ready-fanout-dlq">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="n_DALARM" name="DLQ alarm, SNS topic and email subscription">
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:intermediateCatchEvent id="n_DTABLE" name="DynamoDB hutch-digest-queue-staging and -prod no deletion protection, no PITR">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:dataStoreReference id="n_RETAIN" name="log group /aws/lambda/reader-ready-fanout-handler retained: leaves state, stays in AWS"></bpmn:dataStoreReference>
+    <bpmn:sequenceFlow id="f_0" name="updates apply first" sourceRef="n_DEPLOY" targetRef="n_UFN" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_DEPLOY" targetRef="n_UPOL" />
+    <bpmn:sequenceFlow id="f_2" name="delivery" sourceRef="n_DEPLOY" targetRef="n_DRULE" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_DRULE" targetRef="n_DQP" />
+    <bpmn:sequenceFlow id="f_4" name="worker" sourceRef="n_DEPLOY" targetRef="n_DESM" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_DESM" targetRef="n_DFN" />
+    <bpmn:sequenceFlow id="f_6" name="queues and alerting" sourceRef="n_DEPLOY" targetRef="n_DQ" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_DQ" targetRef="n_DALARM" />
+    <bpmn:sequenceFlow id="f_8" name="the table goes after everything that names it" sourceRef="n_DFN" targetRef="n_DTABLE" />
+    <bpmn:sequenceFlow id="f_9" name="no longer names it" sourceRef="n_UPOL" targetRef="n_DTABLE" />
+    <bpmn:association id="f_10" sourceRef="n_DFN" targetRef="n_RETAIN" associationDirection="One" />
+    <bpmn:group id="grp_0" />
+    <bpmn:group id="grp_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_deploy_delta">
+    <bpmndi:BPMNPlane id="Plane_deploy_delta" bpmnElement="Process_deploy_delta">
+      <bpmndi:BPMNShape id="n_DEPLOY_di" bpmnElement="n_DEPLOY">
+        <dc:Bounds x="467.01" y="28" width="169.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UFN_di" bpmnElement="n_UFN">
+        <dc:Bounds x="28" y="154.75" width="214" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UPOL_di" bpmnElement="n_UPOL">
+        <dc:Bounds x="278" y="154.75" width="190.5" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DRULE_di" bpmnElement="n_DRULE">
+        <dc:Bounds x="504.5" y="154.75" width="197.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DQP_di" bpmnElement="n_DQP">
+        <dc:Bounds x="216.63" y="313.5" width="197.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DESM_di" bpmnElement="n_DESM">
+        <dc:Bounds x="737.75" y="170.75" width="162.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DFN_di" bpmnElement="n_DFN">
+        <dc:Bounds x="450.13" y="297.5" width="212.25" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DQ_di" bpmnElement="n_DQ">
+        <dc:Bounds x="985.63" y="154" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DALARM_di" bpmnElement="n_DALARM">
+        <dc:Bounds x="698.38" y="321.5" width="188.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DTABLE_di" bpmnElement="n_DTABLE">
+        <dc:Bounds x="391.97" y="455.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RETAIN_di" bpmnElement="n_RETAIN">
+        <dc:Bounds x="552.29" y="458.75" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_0_di" bpmnElement="grp_0">
+        <dc:Bounds x="16" y="142.75" width="464.5" height="108" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_1_di" bpmnElement="grp_1">
+        <dc:Bounds x="204.63" y="142" width="882.63" height="438" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="551.63" y="96" />
+        <di:waypoint x="551.63" y="125.38" />
+        <di:waypoint x="135" y="125.38" />
+        <di:waypoint x="135" y="154.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="551.63" y="96" />
+        <di:waypoint x="551.63" y="125.38" />
+        <di:waypoint x="373.25" y="125.38" />
+        <di:waypoint x="373.25" y="154.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="551.63" y="96" />
+        <di:waypoint x="551.63" y="125.38" />
+        <di:waypoint x="603.13" y="125.38" />
+        <di:waypoint x="603.13" y="154.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="603.13" y="238.75" />
+        <di:waypoint x="603.13" y="276.13" />
+        <di:waypoint x="315.38" y="276.13" />
+        <di:waypoint x="315.38" y="313.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="551.63" y="96" />
+        <di:waypoint x="551.63" y="133.38" />
+        <di:waypoint x="818.88" y="133.38" />
+        <di:waypoint x="818.88" y="170.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="818.88" y="222.75" />
+        <di:waypoint x="818.88" y="260.13" />
+        <di:waypoint x="556.26" y="260.13" />
+        <di:waypoint x="556.26" y="297.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="551.63" y="96" />
+        <di:waypoint x="551.63" y="125" />
+        <di:waypoint x="1005.63" y="125" />
+        <di:waypoint x="1005.63" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="1005.63" y="194" />
+        <di:waypoint x="1005.63" y="257.75" />
+        <di:waypoint x="792.51" y="257.75" />
+        <di:waypoint x="792.51" y="321.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="556.26" y="397.5" />
+        <di:waypoint x="556.26" y="426.5" />
+        <di:waypoint x="411.97" y="426.5" />
+        <di:waypoint x="411.97" y="455.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="373.25" y="238.75" />
+        <di:waypoint x="373.25" y="347.13" />
+        <di:waypoint x="411.97" y="347.13" />
+        <di:waypoint x="411.97" y="455.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="556.26" y="397.5" />
+        <di:waypoint x="556.26" y="428.13" />
+        <di:waypoint x="647.29" y="428.13" />
+        <di:waypoint x="647.29" y="458.75" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

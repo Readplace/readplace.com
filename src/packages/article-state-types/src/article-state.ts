@@ -30,8 +30,7 @@ export type ReaderStatus = z.infer<typeof ReaderStatusSchema>;
  * source of truth for "is the reader view done?" — the domain effect emission
  * (mark-summary-ready / mark-summary-skipped) and the web reader/queue
  * rendering derive it here so future content-completeness
- * rules extend in one place. The reader-ready notifier acts on the published
- * succeeded event downstream, so it consumes the fact rather than re-deriving.
+ * rules extend in one place.
  */
 export const ReaderViewStatusSchema = z.enum(["loading", "succeeded", "failed"]);
 export type ReaderViewStatus = z.infer<typeof ReaderViewStatusSchema>;

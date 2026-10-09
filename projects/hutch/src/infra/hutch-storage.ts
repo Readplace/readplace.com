@@ -15,7 +15,6 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly onboardingTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
-	public readonly digestQueueTable: aws.dynamodb.Table;
 	public readonly gmailCredentialsTable: aws.dynamodb.Table;
 	public readonly gmailConnectionsTable: aws.dynamodb.Table;
 	public readonly gmailDiscoveryTable: aws.dynamodb.Table;
@@ -37,7 +36,6 @@ export class HutchStorage extends pulumi.ComponentResource {
 		subscriptionProviders: string;
 		onboarding: string;
 		rateLimits: string;
-		digestQueue: string;
 		gmailCredentials: string;
 		gmailConnections: string;
 		gmailDiscovery: string;
@@ -92,7 +90,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 					rangeKey: "readAt",
 					projectionType: "ALL",
 				},
-				/* Reverse lookup for reader-ready fan-out: every saver of a URL.
+				/* Reverse lookup: every saver of a URL.
 				 * `url` is on every item already, so no backfill. */
 				{
 					name: "url-index",
@@ -296,24 +294,6 @@ export class HutchStorage extends pulumi.ComponentResource {
 			billingMode: "PAY_PER_REQUEST",
 			hashKey: "pk",
 			attributes: [{ name: "pk", type: "S" }],
-			ttl: {
-				attributeName: "expiresAt",
-				enabled: true,
-			},
-		}, { parent: this });
-
-		/* Per-(user, article) reader-ready digest queue. Rows are appended by the
-		 * reader-ready fan-out. Ephemeral by definition — no deletion protection or
-		 * point-in-time recovery. */
-		this.digestQueueTable = new aws.dynamodb.Table(`hutch-digest-queue`, {
-			name: args.tableNames.digestQueue,
-			billingMode: "PAY_PER_REQUEST",
-			hashKey: "userId",
-			rangeKey: "url",
-			attributes: [
-				{ name: "userId", type: "S" },
-				{ name: "url", type: "S" },
-			],
 			ttl: {
 				attributeName: "expiresAt",
 				enabled: true,

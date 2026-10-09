@@ -33,7 +33,6 @@ import {
 	SendFirstInboxEmailNoticeCommand,
 	StartGmailHistoryImportCommand,
 	SubmitNewsletterSenderCommand,
-	ReaderViewLoadingSucceeded,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
 	SubscriptionChargeFailedEvent,
@@ -117,7 +116,6 @@ const tableNames = {
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
 	onboarding: config.require("dynamodbOnboardingTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),
-	digestQueue: config.require("dynamodbDigestQueueTable"),
 	gmailCredentials: config.require("dynamodbGmailCredentialsTable"),
 	gmailConnections: config.require("dynamodbGmailConnectionsTable"),
 	gmailDiscovery: config.require("dynamodbGmailDiscoveryTable"),
@@ -659,7 +657,6 @@ const userDataJobsDynamodb = new HutchDynamoDBAccess("user-data-jobs-dynamodb", 
 		// a single-saver URL after purging its content.
 		{ arn: storage.articlesTable.arn, includeIndexes: false },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
-		{ arn: storage.digestQueueTable.arn, includeIndexes: false },
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
@@ -750,7 +747,6 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
-		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
 		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
@@ -1112,50 +1108,6 @@ new aws.cloudwatch.MetricAlarm("gmail-connection-cap-alarm", {
 		"Gmail connections are approaching Google's 100-test-user cap for an unverified restricted-scope client",
 	alarmActions: [gmailConnectionCapTopic.arn],
 });
-
-// --- Reader-ready fan-out ---
-const readerReadyFanoutQueue = new HutchSQS("reader-ready-fanout", {
-	visibilityTimeoutSeconds: 120,
-});
-
-const readerReadyFanoutDynamodb = new HutchDynamoDBAccess("reader-ready-fanout-dynamodb", {
-	// Query the url-index (includeIndexes) to reverse-look-up every saver. Read-only:
-	// the fan-out records nothing on the per-user row.
-	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: true }],
-	actions: ["dynamodb:Query"],
-});
-
-const readerReadyFanoutDigestDynamodb = new HutchDynamoDBAccess("reader-ready-fanout-digest-dynamodb", {
-	// Append eligible savers' articles to the digest queue.
-	tables: [{ arn: storage.digestQueueTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:PutItem"],
-});
-
-const readerReadyFanoutLambda = new HutchLambda("reader-ready-fanout", {
-	entryPoint: "./src/runtime/reader-ready-fanout.main.ts",
-	outputDir: ".lib/reader-ready-fanout",
-	assetDir: "./src/runtime",
-	memorySize: 512,
-	timeout: 60,
-	environment: {
-		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
-		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
-		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
-	},
-	policies: [
-		...readerReadyFanoutDynamodb.policies,
-		...readerReadyFanoutDigestDynamodb.policies,
-	],
-});
-
-const readerReadyFanoutWithSQS = new HutchSQSBackedLambda("reader-ready-fanout", {
-	lambda: readerReadyFanoutLambda,
-	queue: readerReadyFanoutQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-eventBus.subscribe(ReaderViewLoadingSucceeded, readerReadyFanoutWithSQS);
 
 // --- Stripe Webhook Receiver ---
 // Receives HTTP POST from Stripe via API Gateway, verifies the HMAC signature,

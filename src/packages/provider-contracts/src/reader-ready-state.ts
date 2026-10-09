@@ -12,9 +12,7 @@ export type ReaderReadyEmailSlotClaim =
 	| { claimed: true; redelivery: true; claimedAt: Date; urls: readonly string[] };
 
 /** Atomically claim the per-user reader-ready email cooldown slot. Succeeds when
- * no email has been sent within `cooldownMs`, writing `now` as the new slot; the
- * conditional write is the volume cap that survives concurrent fan-out
- * deliveries.
+ * no email has been sent within `cooldownMs`, writing `now` as the new slot.
  *
  * When the slot is already held inside its cooldown, the caller normally
  * drops-and-logs — except where the holder is `messageId` itself, which means

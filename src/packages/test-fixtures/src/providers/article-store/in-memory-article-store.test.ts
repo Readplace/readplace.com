@@ -1736,7 +1736,7 @@ describe("initInMemoryArticleStore", () => {
 			assert.ok(saved.id);
 		});
 
-		it("keeps a readlist copy out of the reader-ready fan-out", async () => {
+		it("keeps a readlist copy out of the savers found by URL", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 

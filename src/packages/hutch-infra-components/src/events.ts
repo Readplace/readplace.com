@@ -903,9 +903,8 @@ export type SendFirstInboxEmailNoticeDetail = z.infer<
  * `readerAvailableAt` instead; `succeededAt` carries no such ordering guarantee.
  *
  * `hasSummary` is true only for ready summaries; a skipped summary still
- * succeeds the reader view but carries no summary to announce. The reader-ready
- * fan-out Lambda subscribes and queues a digest row for every saver of this URL
- * who had opened the reader. `contentSourceTier` is optional — a reserved slot a
+ * succeeds the reader view but carries no summary to announce.
+ * `contentSourceTier` is optional — a reserved slot a
  * "loaded with a more complete version" notification can use to distinguish
  * tiers — so consumers must tolerate its absence. */
 export const ReaderViewLoadingSucceeded = defineEvent({

@@ -42,7 +42,6 @@ config:
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod
   hutch:dynamodbOnboardingTable: hutch-onboarding-prod
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-prod
-  hutch:dynamodbDigestQueueTable: hutch-digest-queue-prod
   hutch:dynamodbGmailCredentialsTable: hutch-gmail-credentials-prod
   hutch:dynamodbGmailConnectionsTable: hutch-gmail-connections-prod
   hutch:dynamodbGmailDiscoveryTable: hutch-gmail-discovery-prod

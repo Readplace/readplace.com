@@ -83,7 +83,6 @@ function buildSubject() {
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
 	const deleteSubscriptionCalls: UserId[] = [];
-	const deleteDigestByUserCalls: UserId[] = [];
 	const trialEndCalls: UserId[] = [];
 	const deferredCancelCalls: UserId[] = [];
 	const trialFeedbackCalls: UserId[] = [];
@@ -252,9 +251,6 @@ function buildSubject() {
 			tombstoneCalls.push({ url, at });
 		},
 		now: () => SEED_NOW,
-		deleteDigestByUser: async (userId: UserId) => {
-			deleteDigestByUserCalls.push(userId);
-		},
 		withdrawStarterAssignment: engagement.withdrawStarterAssignment,
 		deleteReaderReadyState: readerReady.deleteReaderReadyState,
 		deleteOnboarding: onboarding.deleteOnboarding,
@@ -299,7 +295,6 @@ function buildSubject() {
 		identities,
 		deleteCustomerCalls,
 		deleteSubscriptionCalls,
-		deleteDigestByUserCalls,
 		trialEndCalls,
 		deferredCancelCalls,
 		trialFeedbackCalls,
@@ -573,7 +568,6 @@ describe("delete-account handler", () => {
 
 		// Victim: every store now returns empty / none.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId, includeTotal: true })).total, 0);
-		assert.deepEqual(s.deleteDigestByUserCalls, [victim.userId]);
 		assert.equal(await readerReadySlotPresent(s, victim.userId), false);
 		assert.deepEqual(await s.onboarding.getOnboardingSignals({ userId: victim.userId }), {
 			nativeApp: {

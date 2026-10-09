@@ -15,8 +15,7 @@ export function initSqsCommandDispatcher<C extends HutchCommand<z.ZodTypeAny>>(d
 	/** Optional per-message delivery delay (0–900s, the SQS maximum). Passed
 	 * straight through to `SendMessageCommand.DelaySeconds`; `undefined`
 	 * serialises identically to omitting it, so existing callers are
-	 * unaffected. Used by the reader-ready fan-out (300s) so a present user's
-	 * final in-reader poll lands before the notify gate runs. */
+	 * unaffected. */
 	delaySeconds?: number;
 }): { dispatch: DispatchCommand<C> } {
 	const { sqsClient, queueUrl, command, delaySeconds } = deps;
