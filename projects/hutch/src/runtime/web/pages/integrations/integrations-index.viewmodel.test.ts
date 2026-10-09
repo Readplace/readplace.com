@@ -174,7 +174,7 @@ describe("toIntegrationsIndexViewModel", () => {
 		});
 
 		assert.equal(gmail.statusKey, "ready-to-filter");
-		assert.equal(gmail.statusLabel, "Connected");
+		assert.equal(gmail.statusLabel, "Not forwarding yet");
 		assert.deepEqual(
 			gmail.actions.map((a) => [a.key, a.method, a.href, a.variant]),
 			[[

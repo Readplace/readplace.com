@@ -77,7 +77,7 @@ const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	"filter-failed": "Needs attention",
 	"confirm-failed": "Needs attention",
 	"awaiting-confirmation": "Step 2 of 2",
-	"ready-to-filter": "Connected",
+	"ready-to-filter": "Not forwarding yet",
 	filtering: "Connected",
 };
 

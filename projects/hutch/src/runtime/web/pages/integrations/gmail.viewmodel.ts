@@ -183,7 +183,7 @@ const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	disconnected: "Not connected", disconnecting: "Disconnecting…", revoked: "Reconnect needed",
 	"filter-failed": "Needs attention", "confirm-failed": "Needs attention",
 	"awaiting-confirmation": "Step 2 of 2",
-	"ready-to-filter": "Connected", filtering: "Forwarding",
+	"ready-to-filter": "Not forwarding yet", filtering: "Forwarding",
 };
 
 const GMAIL_POLL_STATE_BY_STATE: Record<GmailConnectionState, GmailPollState | undefined> = {
