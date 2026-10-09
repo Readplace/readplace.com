@@ -1,4 +1,4 @@
-import { SaveAttemptIdSchema, calculateReadTime } from "@packages/domain/article";
+import { SaveAttemptIdSchema, calculateReadTime, toArticleTopics } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	createFakeSummaryProvider,
@@ -38,6 +38,7 @@ describe("createFakeSummaryProvider", () => {
 		expect(await findGeneratedSummary(url)).toEqual({
 			status: "ready",
 			summary: `Fake summary for ${url}.`,
+			topics: [],
 		});
 	});
 
@@ -52,6 +53,7 @@ describe("createFakeSummaryProvider", () => {
 		expect(await findGeneratedSummary(url)).toEqual({
 			status: "ready",
 			summary: `Fake summary for ${url}.`,
+			topics: [],
 		});
 	});
 
@@ -61,16 +63,17 @@ describe("createFakeSummaryProvider", () => {
 		expect(await findGeneratedSummary("https://example.com/never-saved")).toBeUndefined();
 	});
 
-	it("markSummaryReady writes the supplied summary and excerpt", async () => {
+	it("markSummaryReady writes the supplied summary, excerpt and topics", async () => {
 		const { findGeneratedSummary, markSummaryReady } = createFakeSummaryProvider();
 		const url = "https://example.com/article";
 
-		markSummaryReady({ url, summary: "Manual summary", excerpt: "Lead." });
+		markSummaryReady({ url, summary: "Manual summary", excerpt: "Lead.", topics: toArticleTopics(["Fintech", "Trends"]) });
 
 		expect(await findGeneratedSummary(url)).toEqual({
 			status: "ready",
 			summary: "Manual summary",
 			excerpt: "Lead.",
+			topics: ["Fintech", "Trends"],
 		});
 	});
 });

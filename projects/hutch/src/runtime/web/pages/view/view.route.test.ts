@@ -1495,6 +1495,7 @@ describe("View routes", () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({
 				status: "ready",
 				summary: "Key points from the article.",
+				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -1774,6 +1775,7 @@ describe("View routes", () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({
 				status: "ready",
 				summary: "Fragment summary.",
+				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({

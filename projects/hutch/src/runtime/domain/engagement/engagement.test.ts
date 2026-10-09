@@ -74,6 +74,7 @@ async function subject(
 		await summaries.markSummaryReady({
 			url: pick.url,
 			summary: "A useful summary of this article.",
+			topics: [],
 		});
 	}
 	const contact: UserContact = {

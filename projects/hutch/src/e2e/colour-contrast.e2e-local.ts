@@ -570,6 +570,32 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 			await auditRoot(page, { root: ".crawl-bookmark", theme, view: "chip/crawl-badges" });
 		}
 	});
+
+	test("the readlist card's topic tags clear their contrast minimum", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-chip-topics-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const topics = ["Productivity", "Focus", "Lifestyle"];
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-topics-${run}`,
+				title: "Topic tags on a readlist card",
+				content: "<p>Seeded body for the topic contrast sweep.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary.", topics },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		await loginChipReader(page, email);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-article-topic]")).toHaveText(topics, { timeout: SETTLE_MS });
+			await auditRoot(page, { root: "[data-test-article-topics]", theme, view: "chip/topic-tags" });
+		}
+	});
 });
 
 test.describe("Plan choice holds its WCAG contrast in both themes", () => {

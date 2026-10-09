@@ -1,8 +1,8 @@
-import type { SummaryStage } from "@packages/domain/article";
+import type { ArticleTopic, SummaryStage } from "@packages/domain/article";
 
 export type GeneratedSummary =
 	| { status: "pending"; stage?: SummaryStage }
-	| { status: "ready"; summary: string; excerpt?: string }
+	| { status: "ready"; summary: string; excerpt?: string; topics: readonly ArticleTopic[] }
 	| { status: "failed"; reason: string }
 	| { status: "skipped"; reason?: string };
 

@@ -673,6 +673,7 @@ describe("View routes", () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({
 				status: "ready",
 				summary: "Cached summary.",
+				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -940,6 +941,7 @@ describe("View routes", () => {
 				status: "ready",
 				summary: STORED_SUMMARY,
 				excerpt: "Re: your invoice is attached",
+				topics: [],
 			});
 			const harness = useApp({
 				...fixture,

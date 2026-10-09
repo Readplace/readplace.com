@@ -6,6 +6,7 @@ import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
 import {
 	calculateReadTime,
 	SaveProvenanceSchema,
+	toArticleTopics,
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
@@ -459,7 +460,13 @@ const SeedCrawledArticleBody = z.object({
 	savedAt: z.string().optional(),
 	provenance: SaveProvenanceSchema.default({ kind: 'web' }),
 	excerpt: z.string().default('Seeded for the crawl-bookmark visual test.'),
-	generatedSummary: z.object({ summary: z.string(), excerpt: z.string() }).optional(),
+	generatedSummary: z
+		.object({
+			summary: z.string(),
+			excerpt: z.string(),
+			topics: z.array(z.string()).default([]).transform(toArticleTopics),
+		})
+		.optional(),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)

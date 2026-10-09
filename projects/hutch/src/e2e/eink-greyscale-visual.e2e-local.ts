@@ -67,6 +67,7 @@ const READLIST_ARTICLES = [
 		title: "The second article in the readlist",
 		savedAt: "2026-07-11T09:14:00.000Z",
 		excerpt: "A fixed excerpt, long enough to occupy the two lines a real card excerpt occupies.",
+		topics: ["Productivity", "Focus", "Lifestyle"],
 	},
 	{
 		slug: "eink-greyscale-third",
@@ -99,7 +100,7 @@ async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email
 				savedAt: article.savedAt,
 				savedByUserId: userId,
 				excerpt: article.excerpt,
-				generatedSummary: { summary: "Seeded summary.", excerpt: article.excerpt },
+				generatedSummary: { summary: "Seeded summary.", excerpt: article.excerpt, topics: article.topics },
 			},
 		});
 		assert.equal(seeded.status(), 201, "the seed endpoint must create the readlist article");

@@ -95,7 +95,7 @@ describe("Save tip — the public view", () => {
 	it("leaves the call to action ungated once the reader view has succeeded", async () => {
 		const harness = harnessFor({
 			crawl: async () => ({ status: "ready" }),
-			summary: async () => ({ status: "ready", summary: "TLDR." }),
+			summary: async () => ({ status: "ready", summary: "TLDR.", topics: [] }),
 		});
 
 		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);

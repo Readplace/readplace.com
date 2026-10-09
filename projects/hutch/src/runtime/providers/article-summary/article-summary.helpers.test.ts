@@ -10,6 +10,7 @@ describe("pickExcerpt", () => {
 					status: "ready",
 					summary: "Long AI summary covering many points.",
 					excerpt: "Short decision-helper blurb.",
+					topics: [],
 				},
 				"Parsed excerpt.",
 			),
@@ -19,7 +20,7 @@ describe("pickExcerpt", () => {
 	it("returns the fallback when status is ready but excerpt is absent (does not use summary text)", () => {
 		expect(
 			pickExcerpt(
-				{ status: "ready", summary: "Long AI summary covering many points." },
+				{ status: "ready", summary: "Long AI summary covering many points.", topics: [] },
 				"Parsed excerpt.",
 			),
 		).toEqual(PARSED);
@@ -28,7 +29,7 @@ describe("pickExcerpt", () => {
 	it("returns the fallback when status is ready but excerpt is the empty string", () => {
 		expect(
 			pickExcerpt(
-				{ status: "ready", summary: "AI summary.", excerpt: "" },
+				{ status: "ready", summary: "AI summary.", excerpt: "", topics: [] },
 				"Parsed excerpt.",
 			),
 		).toEqual(PARSED);
@@ -56,7 +57,7 @@ describe("pickExcerpt", () => {
 		expect(pickExcerpt(undefined, "Parsed excerpt.").source).toBe("parsed");
 		expect(
 			pickExcerpt(
-				{ status: "ready", summary: "AI summary.", excerpt: "Blurb." },
+				{ status: "ready", summary: "AI summary.", excerpt: "Blurb.", topics: [] },
 				"Parsed excerpt.",
 			).source,
 		).toBe("generated");

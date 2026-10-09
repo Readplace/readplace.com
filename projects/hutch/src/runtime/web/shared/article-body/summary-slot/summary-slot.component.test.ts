@@ -10,7 +10,7 @@ function parse(html: string) {
 describe("renderSummarySlot", () => {
 	it("returns only the slot HTML (no outer page)", () => {
 		const html = renderSummarySlot({
-			summary: { status: "ready", summary: "Point." },
+			summary: { status: "ready", summary: "Point.", topics: [] },
 			summaryOpen: false,
 		});
 
@@ -21,7 +21,7 @@ describe("renderSummarySlot", () => {
 	it("routes status=ready to the ready component", () => {
 		const doc = parse(
 			renderSummarySlot({
-				summary: { status: "ready", summary: "Key points." },
+				summary: { status: "ready", summary: "Key points.", topics: [] },
 				summaryOpen: true,
 			}),
 		);
@@ -37,7 +37,7 @@ describe("renderSummarySlot", () => {
 	it("forwards a ready summary's excerpt into the collapsed preview", () => {
 		const doc = parse(
 			renderSummarySlot({
-				summary: { status: "ready", summary: "The full summary.", excerpt: "The teaser." },
+				summary: { status: "ready", summary: "The full summary.", excerpt: "The teaser.", topics: [] },
 				summaryOpen: false,
 			}),
 		);

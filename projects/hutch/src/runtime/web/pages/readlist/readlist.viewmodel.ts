@@ -1,6 +1,7 @@
 import {
 	displayableReadTime,
 	isNonArticleHost,
+	type ArticleTopic,
 	type DisplayableReadTime,
 	type SavedArticle,
 	type SaveableUrlErrorCode,
@@ -89,6 +90,7 @@ export interface ReadlistArticleViewModel {
 	siteName: string;
 	excerpt: string;
 	excerptSource: PickedExcerpt["source"];
+	topics: readonly ArticleTopic[];
 	url: string;
 	status: string;
 	readTime: DisplayableReadTime | undefined;
@@ -337,6 +339,7 @@ export function toReadlistArticleViewModel(params: {
 		siteName: article.metadata.siteName,
 		excerpt: excerpt.text,
 		excerptSource: excerpt.source,
+		topics: summary?.status === "ready" ? summary.topics : [],
 		url: article.destinationUrl,
 		status: article.status,
 		suggestionLabel:

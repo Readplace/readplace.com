@@ -3,7 +3,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { noopLogger } from "@packages/hutch-logger";
-import { calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
+import { type ArticleTopic, calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
 import type {
 	BotDefenseEvent,
 	ConversionEvent,
@@ -124,7 +124,7 @@ export const createNoopLogError = (): ((msg: string, err?: Error) => void) =>
 export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
-	markSummaryReady: (params: { url: string; summary: string; excerpt: string }) => void;
+	markSummaryReady: (params: { url: string; summary: string; excerpt: string; topics: readonly ArticleTopic[] }) => void;
 } {
 	// Test-only fake for the Deepseek-backed summary generation. Local E2E
 	// doesn't call a real LLM, so we simulate the pending → ready transition
@@ -141,7 +141,7 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 			const count = (reads.get(id) ?? 0) + 1;
 			reads.set(id, count);
 			if (count >= opts.readyAfterReads) {
-				state.set(id, { status: "ready", summary: `Fake summary for ${url}.` });
+				state.set(id, { status: "ready", summary: `Fake summary for ${url}.`, topics: [] });
 			}
 		}
 		return state.get(id);
@@ -152,9 +152,9 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 		state.set(id, { status: "pending" });
 		reads.set(id, 0);
 	};
-	const markSummaryReady = ({ url, summary, excerpt }: { url: string; summary: string; excerpt: string }) => {
+	const markSummaryReady = ({ url, summary, excerpt, topics }: { url: string; summary: string; excerpt: string; topics: readonly ArticleTopic[] }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
-		state.set(id, { status: "ready", summary, excerpt });
+		state.set(id, { status: "ready", summary, excerpt, topics });
 		reads.set(id, 0);
 	};
 	return { findGeneratedSummary, markSummaryPending, markSummaryReady };

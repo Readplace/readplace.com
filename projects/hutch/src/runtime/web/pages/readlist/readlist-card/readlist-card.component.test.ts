@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { toArticleTopics } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
 import type { DeviceClass } from "@packages/web-analytics";
@@ -18,6 +19,7 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		siteName: "example.com",
 		excerpt: "An excerpt.",
 		excerptSource: "generated",
+		topics: [],
 		url: "https://example.com/article",
 		status: "unread",
 		readTime: { value: "3", label: "3 min read" },
@@ -417,6 +419,69 @@ describe("renderReadlistCard", () => {
 		assert(readTime, "the read-time part must always be rendered");
 		expect(readTime.textContent).toBe("3 min read");
 		expect(readTime.classList.contains("readlist-article__read-time--empty")).toBe(false);
+	});
+
+	it("lists each topic as a chip in a list named Topics", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(makeViewModel({ topics: toArticleTopics(["Productivity", "Focus", "Lifestyle"]) }), {
+					isFirst: false,
+				}),
+			),
+		);
+
+		const list = doc.querySelector("[data-test-article-topics]");
+		assert(list, "the topics list must always be rendered");
+		expect(list.getAttribute("aria-label")).toBe("Topics");
+		expect(list.classList.contains("readlist-article__topics--empty")).toBe(false);
+		const topics = Array.from(list.querySelectorAll("[data-test-article-topic]"));
+		expect(topics.map((topic) => [topic.tagName, topic.className, topic.textContent])).toEqual([
+			["LI", "chip", "Productivity"],
+			["LI", "chip", "Focus"],
+			["LI", "chip", "Lifestyle"],
+		]);
+	});
+
+	it("marks the topics list empty when the article has no topics", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel({ topics: [] }), { isFirst: false })));
+
+		const list = doc.querySelector("[data-test-article-topics]");
+		assert(list, "the topics list must always be rendered");
+		expect(list.classList.contains("readlist-article__topics--empty")).toBe(true);
+		const topics = Array.from(list.querySelectorAll("[data-test-article-topic]"));
+		expect(topics.map((topic) => topic.textContent)).toEqual([]);
+	});
+
+	it("places the topics list as the last line above the foot", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(
+					makeViewModel({
+						topics: toArticleTopics(["Productivity"]),
+						suggestionLabel: "Added by Readplace from Hacker News",
+					}),
+					{ isFirst: false },
+				),
+			),
+		);
+
+		const list = doc.querySelector("[data-test-article-topics]");
+		const foot = doc.querySelector("[data-test-article-foot]");
+		assert(list, "the topics list must always be rendered");
+		assert(foot, "the foot must always be rendered");
+		expect(list.nextElementSibling).toBe(foot);
+		expect(list.previousElementSibling?.hasAttribute("data-test-suggestion-label")).toBe(true);
+	});
+
+	it("renders a topic label as text, never as markup", () => {
+		const doc = parse(
+			renderReadlistCard(display(makeViewModel({ topics: toArticleTopics(["<b>Bold</b>"]) }), { isFirst: false })),
+		);
+
+		const topic = doc.querySelector("[data-test-article-topic]");
+		assert(topic, "the topic must be rendered");
+		expect(topic.textContent).toBe("<b>Bold</b>");
+		expect(topic.children).toHaveLength(0);
 	});
 
 	it("clamps a crawler-parsed excerpt, which is unbounded page prose rather than a teaser", () => {

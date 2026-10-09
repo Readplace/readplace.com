@@ -496,7 +496,7 @@ describe("starter readlist", () => {
 				savedAt: NOW,
 			});
 			await fixture.articleStore.setReaderAvailableAt({ url: pick.url, at: NOW });
-			summary.markSummaryReady({ url: pick.url, summary: "A useful summary.", excerpt: "" });
+			summary.markSummaryReady({ url: pick.url, summary: "A useful summary.", excerpt: "", topics: [] });
 		}
 		const pack = {
 			campaignId: "hn-starter-v1",

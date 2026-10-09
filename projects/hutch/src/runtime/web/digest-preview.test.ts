@@ -6,6 +6,7 @@ describe("buildDigestPreview", () => {
 			status: "ready",
 			summary: "The full summary body.",
 			excerpt: "A tidy   excerpt.",
+			topics: [],
 		});
 
 		expect(preview).toBe("A tidy excerpt.");
@@ -14,14 +15,14 @@ describe("buildDigestPreview", () => {
 	it("falls back to the summary, truncated to the excerpt-sized budget, when there is no excerpt", () => {
 		const summary = Array.from({ length: 60 }, (_, i) => `word${i}`).join(" ");
 
-		const preview = buildDigestPreview({ status: "ready", summary });
+		const preview = buildDigestPreview({ status: "ready", summary, topics: [] });
 
 		expect(preview.length).toBeLessThanOrEqual(200);
 		expect(preview.endsWith("…")).toBe(true);
 	});
 
 	it("returns a short summary untruncated when it already fits the budget", () => {
-		const preview = buildDigestPreview({ status: "ready", summary: "Short   summary   body." });
+		const preview = buildDigestPreview({ status: "ready", summary: "Short   summary   body.", topics: [] });
 
 		expect(preview).toBe("Short summary body.");
 	});

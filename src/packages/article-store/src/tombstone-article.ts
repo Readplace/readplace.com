@@ -21,6 +21,7 @@ export const CONTENT_BEARING_COLUMNS = [
 	"summaryInputTokens",
 	"summaryOutputTokens",
 	"summarySourceContentHash",
+	"summaryTopics",
 	"summaryFailureReason",
 	"summaryPendingSince",
 	"summaryStage",

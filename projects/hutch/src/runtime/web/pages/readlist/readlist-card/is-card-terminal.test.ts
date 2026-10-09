@@ -20,6 +20,7 @@ describe("isCardTerminal", () => {
 		const summary: GeneratedSummary = {
 			status: "ready",
 			summary: "TL;DR.",
+			topics: [],
 		};
 		expect(isCardTerminal(crawl, summary)).toBe(true);
 	});

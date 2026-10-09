@@ -541,6 +541,19 @@
   color: var(--primary-text);
 }
 
+.readlist-article__topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readlist-article__topics--empty {
+  display: none;
+}
+
 .readlist-article__foot {
   display: flex;
   flex-wrap: wrap;

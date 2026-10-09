@@ -151,6 +151,7 @@ async function saveReadyArticle(subject: Subject, input: { url: string; title: s
 		url: input.url,
 		summary: `${input.title} summary.`,
 		excerpt: `${input.title} teaser.`,
+		topics: [],
 	});
 }
 
@@ -355,7 +356,7 @@ describe("initSendQueueDigestHandler", () => {
 				savedAt: DAY_OLD_SAVE,
 			});
 			await subject.articleStore.setReaderAvailableAt({ url, at: DAY_OLD_SAVE });
-			await subject.summaries.markSummaryReady({ url, summary: "Summary" });
+			await subject.summaries.markSummaryReady({ url, summary: "Summary", topics: [] });
 		}
 		await subject.run();
 		expect(cardTitlesOf(onlySentEmail(subject).text)).toEqual(["gmail"]);
@@ -640,7 +641,7 @@ describe("initSendQueueDigestHandler", () => {
 			[
 				"its reader view never loaded",
 				async (subject) => {
-					await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Summarised." });
+					await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Summarised.", topics: [] });
 				},
 				{},
 			],
@@ -648,7 +649,7 @@ describe("initSendQueueDigestHandler", () => {
 				"its content was purged",
 				async (subject) => {
 					await subject.articleStore.setReaderAvailableAt({ url: NOT_READY_URL, at: hoursBefore(40) });
-					await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Gone." });
+					await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Gone.", topics: [] });
 					await subject.articleStore.setPurgedAt({ url: NOT_READY_URL, at: hoursBefore(2) });
 				},
 				{},
@@ -710,7 +711,7 @@ describe("initSendQueueDigestHandler", () => {
 			await saveArticle(subject, { url: NOT_READY_URL, title: "Loading", savedAt: hoursBefore(40) });
 			await subject.run();
 			await subject.articleStore.setReaderAvailableAt({ url: NOT_READY_URL, at: hoursBefore(1) });
-			await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Loaded.", excerpt: "Loaded teaser." });
+			await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Loaded.", excerpt: "Loaded teaser.", topics: [] });
 			const nextTick = new Date(SEND_INSTANT.getTime() + 48 * HOUR_MS);
 			subject.clock.now = nextTick;
 

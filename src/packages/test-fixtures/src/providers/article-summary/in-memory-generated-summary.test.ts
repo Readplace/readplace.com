@@ -1,3 +1,4 @@
+import { toArticleTopics } from "@packages/domain/article";
 import { initInMemoryGeneratedSummary } from "./in-memory-generated-summary";
 
 const URL = "https://example.com/article";
@@ -20,12 +21,13 @@ describe("initInMemoryGeneratedSummary", () => {
 
 		it("does not regress a row that has already gone ready", async () => {
 			const store = initInMemoryGeneratedSummary();
-			await store.markSummaryReady({ url: URL, summary: "S" });
+			await store.markSummaryReady({ url: URL, summary: "S", topics: [] });
 			await store.markSummaryPending({ url: URL });
 
 			expect(await store.findGeneratedSummary(URL)).toEqual({
 				status: "ready",
 				summary: "S",
+				topics: [],
 			});
 		});
 
@@ -42,28 +44,31 @@ describe("initInMemoryGeneratedSummary", () => {
 	});
 
 	describe("markSummaryReady", () => {
-		it("writes the summary and excerpt", async () => {
+		it("writes the summary, excerpt and topics", async () => {
 			const store = initInMemoryGeneratedSummary();
 			await store.markSummaryReady({
 				url: URL,
 				summary: "Long summary text",
 				excerpt: "Lead.",
+				topics: toArticleTopics(["Productivity", "Focus"]),
 			});
 
 			expect(await store.findGeneratedSummary(URL)).toEqual({
 				status: "ready",
 				summary: "Long summary text",
 				excerpt: "Lead.",
+				topics: ["Productivity", "Focus"],
 			});
 		});
 
 		it("omits excerpt when not supplied", async () => {
 			const store = initInMemoryGeneratedSummary();
-			await store.markSummaryReady({ url: URL, summary: "Only summary" });
+			await store.markSummaryReady({ url: URL, summary: "Only summary", topics: [] });
 
 			expect(await store.findGeneratedSummary(URL)).toEqual({
 				status: "ready",
 				summary: "Only summary",
+				topics: [],
 			});
 		});
 	});

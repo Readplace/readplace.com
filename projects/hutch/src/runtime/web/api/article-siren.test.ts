@@ -40,7 +40,7 @@ describe("toArticleSubEntity", () => {
 	it("advertises the content version the web reader link carries, from the article, its crawl and its summary", () => {
 		const article = makeArticle({ contentFetchedAt: new Date("2026-03-05T10:00:00.000Z") });
 		const crawl: ArticleCrawl = { status: "ready" };
-		const summary = { status: "ready" as const, summary: "A summary." };
+		const summary = { status: "ready" as const, summary: "A summary.", topics: [] };
 
 		expect(toArticleSubEntity(article, { crawl, summary }).properties?.contentVersion).toBe(
 			computeArticleContentVersion({ article, crawl, summary }),

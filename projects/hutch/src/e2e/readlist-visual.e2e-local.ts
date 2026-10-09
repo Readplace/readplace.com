@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
-import { NEXT_READ_MINIMUM_SAVES } from "@packages/domain/article";
+import { MAX_ARTICLE_TOPIC_LENGTH, NEXT_READ_MINIMUM_SAVES } from "@packages/domain/article";
 import { READLIST_LABEL_MAX_LENGTH } from "@packages/domain/readlist";
 import {
 	captureCheckpoint,
@@ -44,6 +44,8 @@ const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleW
 const SEEDED_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const UNBROKEN_WORD = "Supercalifragilisticexpialidociousandthensomemoretokeepgoing";
 const LONGEST_READLIST_NAME = "Longestpossiblereadlist".padEnd(READLIST_LABEL_MAX_LENGTH, "x");
+const LONGEST_TOPICS = ["Sustainable urban design", "Behavioural neuroscience", "International trade laws"];
+const SEEDED_TOPICS = ["Productivity", "Focus", "Lifestyle"];
 const RENAME_INPUT = "[data-test-readlist-rename-input]";
 const RENAME_SAVE = '[data-test-action="readlist-rename-save"]';
 
@@ -152,6 +154,7 @@ async function seedCrawledArticle(
 		savedAt: string;
 		excerpt: string;
 		userId: string;
+		topics?: string[];
 	},
 ): Promise<string> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
@@ -166,6 +169,7 @@ async function seedCrawledArticle(
 			generatedSummary: {
 				summary: "Seeded summary for the readlist visual baseline.",
 				excerpt: input.excerpt,
+				topics: input.topics,
 			},
 		},
 	});
@@ -175,7 +179,7 @@ async function seedCrawledArticle(
 
 function seededArticles(
 	stamp: string,
-): { url: string; title: string; savedAt: string; excerpt: string }[] {
+): { url: string; title: string; savedAt: string; excerpt: string; topics?: string[] }[] {
 	return [
 		{
 			url: `https://example.com/readlist-second-${stamp}`,
@@ -190,6 +194,7 @@ function seededArticles(
 			savedAt: "2026-07-12T09:14:00.000Z",
 			excerpt:
 				"A fixed excerpt for the readlist visual baseline, long enough to occupy the card's excerpt lines.",
+			topics: SEEDED_TOPICS,
 		},
 	];
 }
@@ -516,6 +521,38 @@ async function foldedGuideGeometry(page: Page): Promise<void> {
 
 function near(actual: number, expected: number): boolean {
 	return Math.abs(actual - expected) <= 1;
+}
+
+async function topicRowGeometry(page: Page, viewport: { width: number; height: number }): Promise<void> {
+	await page.setViewportSize(viewport);
+	await neverScrollsSideways(page);
+	const excerpt = await measuredBox(page, `${ARTICLE} [data-test-article-excerpt]`);
+	const row = await measuredBox(page, `${ARTICLE} [data-test-article-topics]`);
+	const foot = await measuredBox(page, `${ARTICLE} [data-test-article-foot]`);
+	const chips = await Promise.all(
+		[1, 2, 3].map((position) => measuredBox(page, `${ARTICLE} [data-test-article-topic]:nth-child(${position})`)),
+	);
+	for (const chip of chips) {
+		assert.ok(near(chip.height, 26), `a topic chip must be 26px tall at ${viewport.width}px, measured ${chip.height}px`);
+	}
+	for (const [left, right] of [
+		[chips[0], chips[1]],
+		[chips[1], chips[2]],
+	]) {
+		const gap = right.x - (left.x + left.width);
+		assert.ok(near(gap, 4), `neighbouring topic chips must sit 4px apart at ${viewport.width}px, measured ${gap}px`);
+		assert.ok(near(right.y, left.y), `the three topic chips must share one line at ${viewport.width}px`);
+	}
+	const underExcerpt = row.y - (excerpt.y + excerpt.height);
+	assert.ok(
+		near(underExcerpt, 12),
+		`the topics row must start 12px under the excerpt at ${viewport.width}px, measured ${underExcerpt}px`,
+	);
+	const aboveFoot = foot.y - (row.y + row.height);
+	assert.ok(
+		near(aboveFoot, 16),
+		`the foot must start 16px under the topics row at ${viewport.width}px, measured ${aboveFoot}px`,
+	);
 }
 
 async function renameDialogGeometry(page: Page): Promise<void> {
@@ -1752,6 +1789,31 @@ test.describe("Readlist page (seeded articles)", () => {
 	}
 });
 
+test.describe("Readlist card topics", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("lays a card's topic chips 26px tall, 4px apart, 12px under the excerpt and 16px above the foot", async ({ page }, testInfo) => {
+		const email = `readlist-card-topics-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedCrawledArticle(page, {
+			userId,
+			url: `https://example.com/readlist-topics-${email}`,
+			title: "The article with three topics",
+			savedAt: "2026-07-12T09:14:00.000Z",
+			excerpt: "A fixed excerpt for the topic row geometry.",
+			topics: SEEDED_TOPICS,
+		});
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await waitForBrandFonts(page, ["Inter"]);
+		await expect(page.locator(`${ARTICLE} [data-test-article-topic]`)).toHaveText(SEEDED_TOPICS);
+
+		for (const viewport of [DESKTOP, PHONE]) {
+			await topicRowGeometry(page, viewport);
+		}
+	});
+});
+
 test.describe("Readlist page (custom readlist)", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
@@ -2579,9 +2641,12 @@ test.describe("Readlist page reflow", () => {
 			title: UNBROKEN_WORD,
 			savedAt: "2026-07-12T09:14:00.000Z",
 			excerpt: UNBROKEN_WORD,
+			topics: LONGEST_TOPICS,
 		});
 		await loginAs(page, email);
 		await gotoReadlistQueue(page, "");
+		expect(LONGEST_TOPICS.map((topic) => topic.length)).toEqual(LONGEST_TOPICS.map(() => MAX_ARTICLE_TOPIC_LENGTH));
+		await expect(page.locator(`${ARTICLE} [data-test-article-topic]`)).toHaveText(LONGEST_TOPICS);
 
 		for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, { width: 768, height: 900 }, DESKTOP]) {
 			await page.setViewportSize(viewport);

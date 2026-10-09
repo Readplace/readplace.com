@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { toArticleTopics } from "../../article/article-topic";
 import type { Article } from "../article.types";
 import { markSummaryReady } from "./mark-summary-ready";
 
@@ -76,6 +77,40 @@ describe("markSummaryReady", () => {
 			article.summary.kind === "ready" ? article.summary.sourceContentHash : "present",
 			undefined,
 		);
+	});
+
+	it("records the topics named with the summary on the ready summary", () => {
+		const topics = toArticleTopics(["Productivity", "Focus", "Lifestyle"]);
+
+		const { article } = markSummaryReady(buildArticle(), {
+			summary: "AI-generated summary",
+			excerpt: "AI-generated excerpt",
+			inputTokens: 1,
+			outputTokens: 1,
+			now: NOW,
+			topics,
+		});
+
+		assert.deepEqual(article.summary, {
+			kind: "ready",
+			summary: "AI-generated summary",
+			excerpt: "AI-generated excerpt",
+			inputTokens: 1,
+			outputTokens: 1,
+			topics: ["Productivity", "Focus", "Lifestyle"],
+		});
+	});
+
+	it("leaves topics off the ready summary when the summary came without usable ones", () => {
+		const { article } = markSummaryReady(buildArticle(), {
+			summary: "AI-generated summary",
+			excerpt: "AI-generated excerpt",
+			inputTokens: 1,
+			outputTokens: 1,
+			now: NOW,
+		});
+
+		assert.deepEqual(Object.keys(article.summary).sort(), ["excerpt", "inputTokens", "kind", "outputTokens", "summary"]);
 	});
 
 	it("emits publish-summary-generated then publish-reader-view-loading-succeeded carrying url, token counts, succeededAt and hasSummary=true", () => {

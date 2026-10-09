@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { toArticleTopics } from "@packages/domain/article";
 import {
 	CrawlFailureReasonSchema,
 	CrawlStatusSchema,
@@ -56,6 +57,7 @@ const ArticleAggregateRow = z.object({
 	summaryInputTokens: dynamoField(z.number()),
 	summaryOutputTokens: dynamoField(z.number()),
 	summarySourceContentHash: dynamoField(z.string()),
+	summaryTopics: dynamoField(z.array(z.string())),
 	summaryFailureReason: dynamoField(z.string()),
 	summarySkippedReason: dynamoField(z.string()),
 	summaryAutoHealAttempts: dynamoField(z.number()),
@@ -137,6 +139,8 @@ function rowToSummaryState(row: RowShape): SummaryState {
 			ready.outputTokens = row.summaryOutputTokens;
 		if (row.summarySourceContentHash !== undefined)
 			ready.sourceContentHash = row.summarySourceContentHash;
+		if (row.summaryTopics !== undefined)
+			ready.topics = toArticleTopics(row.summaryTopics);
 		return ready;
 	}
 	if (row.summaryStatus === "failed") {
@@ -263,6 +267,7 @@ function appendSummaryClauses(
 			"summaryInputTokens",
 			"summaryOutputTokens",
 			"summarySourceContentHash",
+			"summaryTopics",
 			"summaryStage",
 			"summaryFailureReason",
 			"summarySkippedReason",
@@ -289,6 +294,12 @@ function appendSummaryClauses(
 			"summaryPendingSince",
 			"summaryStage",
 		);
+		if (article.summary.topics === undefined) {
+			removes.push("summaryTopics");
+		} else {
+			sets.push("summaryTopics = :summaryTopics");
+			values[":summaryTopics"] = article.summary.topics;
+		}
 		return;
 	}
 	if (article.summary.kind === "failed") {

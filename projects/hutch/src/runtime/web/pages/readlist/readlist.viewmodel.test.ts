@@ -3,7 +3,7 @@ import type {
 	Minutes,
 	SavedArticle,
 } from "@packages/domain/article";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ReaderArticleHashId, toArticleTopics } from "@packages/domain/article";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
@@ -332,6 +332,7 @@ describe("toReadlistViewModel", () => {
 					status: "ready",
 					summary: "AI-generated summary.",
 					excerpt: "Decision-helper blurb.",
+					topics: [],
 				},
 			],
 		]);
@@ -346,7 +347,7 @@ describe("toReadlistViewModel", () => {
 	it("should fall back to the metadata excerpt (not the AI summary) when the AI excerpt is absent (legacy ready row)", () => {
 		const article = makeArticle();
 		const summaryByUrl = new Map<string, GeneratedSummary | undefined>([
-			[ARTICLE_URL, { status: "ready", summary: "Long AI summary." }],
+			[ARTICLE_URL, { status: "ready", summary: "Long AI summary.", topics: [] }],
 		]);
 		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, {
 			now: NOW,
@@ -434,10 +435,47 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 		const vm = toReadlistArticleViewModel({
 			...baseParams,
 			crawl: { status: "ready" },
-			summary: { status: "ready", summary: "ok" },
+			summary: { status: "ready", summary: "ok", topics: [] },
 			pollCount: 4,
 		});
 		expect(vm.isStalePending).toBe(false);
+	});
+});
+
+describe("toReadlistArticleViewModel — topics", () => {
+	const baseParams = {
+		article: makeArticle(),
+		now: NOW,
+		returnQuery: "",
+		crawl: { status: "ready" as const },
+		filters: DEFAULT_FILTERS,
+		maxPolls: 3,
+	};
+
+	it("carries the topics of a ready summary in the order they were named", () => {
+		const vm = toReadlistArticleViewModel({
+			...baseParams,
+			summary: {
+				status: "ready",
+				summary: "AI-generated summary.",
+				topics: toArticleTopics(["Productivity", "Focus", "Lifestyle"]),
+			},
+		});
+
+		expect(vm.topics).toEqual(["Productivity", "Focus", "Lifestyle"]);
+	});
+
+	const summariesWithoutTopics: Array<[string, GeneratedSummary | undefined]> = [
+		["absent", undefined],
+		["pending", { status: "pending" }],
+		["failed", { status: "failed", reason: "model-error" }],
+		["skipped", { status: "skipped", reason: "content-too-short" }],
+	];
+
+	it.each(summariesWithoutTopics)("has no topics when the summary is %s", (_label, summary) => {
+		const vm = toReadlistArticleViewModel({ ...baseParams, summary });
+
+		expect(vm.topics).toEqual([]);
 	});
 });
 
@@ -485,7 +523,7 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			maxPolls: 3,
 		};
 		const pending = toReadlistArticleViewModel({ ...base, summary: undefined });
-		const ready = toReadlistArticleViewModel({ ...base, summary: { status: "ready", summary: "TL;DR" } });
+		const ready = toReadlistArticleViewModel({ ...base, summary: { status: "ready", summary: "TL;DR", topics: [] } });
 		expect(readerVersion(pending.readerHref)).not.toBe(readerVersion(ready.readerHref));
 	});
 

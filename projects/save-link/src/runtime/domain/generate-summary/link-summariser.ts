@@ -6,6 +6,12 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
+import {
+	MAX_ARTICLE_TOPICS,
+	MAX_ARTICLE_TOPIC_LENGTH,
+	toArticleTopics,
+	type ArticleTopic,
+} from "@packages/domain/article";
 import { DEEPSEEK_CONTEXT_TOKENS } from "../select-content/deepseek-limits";
 
 const SUMMARY_MAX_OUTPUT_TOKENS = 10240;
@@ -18,7 +24,9 @@ const SUMMARIZE_PROMPT = readFileSync(
 	"utf-8",
 )
 	.replaceAll("{{MAX_SUMMARY_LENGTH}}", String(MAX_SUMMARY_LENGTH))
-	.replaceAll("{{MAX_EXCERPT_LENGTH}}", String(MAX_EXCERPT_LENGTH));
+	.replaceAll("{{MAX_EXCERPT_LENGTH}}", String(MAX_EXCERPT_LENGTH))
+	.replaceAll("{{MAX_ARTICLE_TOPICS}}", String(MAX_ARTICLE_TOPICS))
+	.replaceAll("{{MAX_ARTICLE_TOPIC_LENGTH}}", String(MAX_ARTICLE_TOPIC_LENGTH));
 
 assert(
 	!/\{\{[A-Z_]+\}\}/u.test(SUMMARIZE_PROMPT),
@@ -30,11 +38,16 @@ const SummaryPayload = z.object({
 	excerpt: z.string().optional(),
 });
 
+const TopicsPayload = z.object({
+	topics: z.array(z.string()),
+});
+
 export type SummarizeResult =
 	| {
 			kind: "ready";
 			summary: string;
 			excerpt: string;
+			topics?: readonly ArticleTopic[];
 			inputTokens: number;
 			outputTokens: number;
 			cacheHitInputTokens?: number;
@@ -98,7 +111,8 @@ export function initLinkSummariser(deps: {
 			return { kind: "no-text-block" };
 		}
 
-		const parsed = SummaryPayload.parse(JSON.parse(textBlock.text));
+		const payload: unknown = JSON.parse(textBlock.text);
+		const parsed = SummaryPayload.parse(payload);
 		const summary = parsed.summary.trim();
 		if (summary === "Summary not available.") {
 			deps.logger.info("[summarize] model returned the refusal sentinel", {
@@ -117,10 +131,17 @@ export function initLinkSummariser(deps: {
 		}
 		const excerpt = written ? written : clipExcerpt(summary.replace(/\s+/gu, " "));
 
+		const namedTopics = TopicsPayload.safeParse(payload);
+		if (!namedTopics.success) {
+			deps.logger.info("[summarize] no usable topics in response", { url: params.url });
+		}
+		const topics = namedTopics.success ? toArticleTopics(namedTopics.data.topics) : undefined;
+
 		return {
 			kind: "ready",
 			summary,
 			excerpt,
+			topics,
 			inputTokens: response.usage.input_tokens,
 			outputTokens: response.usage.output_tokens,
 			cacheHitInputTokens: response.usage.cache_hit_input_tokens,

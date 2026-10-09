@@ -20,7 +20,12 @@
   {{#if excerpt}}<a class="readlist-article__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader>{{excerpt}}</a>{{/if}}
   {{#if isStalePending}}<p class="readlist-article__stale" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
   <p class="readlist-article__suggestion{{suggestionHiddenClass}}" data-test-suggestion-label>{{suggestionLabel}}</p>
-  <div class="readlist-article__foot">
+  <ul class="readlist-article__topics{{topicsEmptyClass}}" aria-label="Topics" data-test-article-topics>
+    {{#each topics}}
+    <li class="chip" data-test-article-topic>{{this}}</li>
+    {{/each}}
+  </ul>
+  <div class="readlist-article__foot" data-test-article-foot>
     <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>Processing</span></p>
     <div class="readlist-article__meta{{metaHiddenClass}}">
       <a class="readlist-article__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" title="{{siteName}}" data-test-article-url data-reader-field="site">{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></a>

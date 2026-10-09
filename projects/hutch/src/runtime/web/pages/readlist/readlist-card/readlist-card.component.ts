@@ -31,6 +31,7 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	cardStatus: "pending" | "terminal";
 	processingHiddenClass: string;
 	metaHiddenClass: string;
+	topicsEmptyClass: string;
 	urlEmptyClass: string;
 	readTimeLabel: string;
 	readTimeEmptyClass: string;
@@ -105,6 +106,7 @@ export function toReadlistCardDisplayModel(
 		cardStatus: isProcessing ? "pending" : "terminal",
 		processingHiddenClass: isProcessing ? "" : " readlist-article__processing--hidden",
 		metaHiddenClass: isProcessing ? " readlist-article__meta--hidden" : "",
+		topicsEmptyClass: article.topics.length === 0 ? " readlist-article__topics--empty" : "",
 		urlEmptyClass: article.siteName ? "" : " readlist-article__site--empty",
 		readTimeLabel: article.readTime?.label ?? "",
 		readTimeEmptyClass: article.readTime ? "" : " readlist-article__read-time--empty",

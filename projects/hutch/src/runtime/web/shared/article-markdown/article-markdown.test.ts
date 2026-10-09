@@ -56,6 +56,7 @@ describe("articleMarkdown", () => {
 						status: "ready",
 						summary: "First point.\n\nSecond point.",
 						excerpt: "Generated blurb.",
+						topics: [],
 					},
 				}),
 			);
@@ -96,6 +97,7 @@ describe("articleMarkdown", () => {
 					status: "ready",
 					summary: "First point.\n\nSecond point.",
 					excerpt: "Generated blurb.",
+					topics: [],
 				},
 			});
 
@@ -264,7 +266,7 @@ describe("articleMarkdown", () => {
 				appOrigin: APP_ORIGIN,
 				crawl: { status: "ready" },
 				content: "<p>Body copy.</p>",
-				summary: { status: "ready", summary },
+				summary: { status: "ready", summary, topics: [] },
 			});
 
 			expect(markdown).toBe(
@@ -343,7 +345,7 @@ describe("articleMarkdown", () => {
 				label: "a failed crawl while a ready summary is still stored",
 				crawl: { status: "failed", reason: "blocked" },
 				content: "<p>Older body.</p>",
-				summary: { status: "ready", summary: "Older point." },
+				summary: { status: "ready", summary: "Older point.", topics: [] },
 				frontmatter: { readplace_content_status: "failed" },
 				body: "",
 			},
@@ -373,7 +375,7 @@ describe("articleMarkdown", () => {
 				label: "a pending crawl while a ready summary is already stored",
 				crawl: { status: "pending" },
 				content: undefined,
-				summary: { status: "ready", summary: "Older point." },
+				summary: { status: "ready", summary: "Older point.", topics: [] },
 				frontmatter: {
 					readplace_content_status: "processing",
 					readplace_summary_status: "ready",
@@ -523,6 +525,7 @@ describe("articleMarkdown", () => {
 						status: "ready",
 						summary: "Stored summary that must not show.",
 						excerpt: "Stored blurb that must not show.",
+						topics: [],
 					},
 				}),
 			);
@@ -683,25 +686,25 @@ describe("articleMarkdown", () => {
 			{
 				label: "the generated excerpt of a ready summary over the parsed one",
 				excerpt: "Parsed blurb.",
-				summary: { status: "ready", summary: "Gist.", excerpt: "Generated blurb." },
+				summary: { status: "ready", summary: "Gist.", excerpt: "Generated blurb.", topics: [] },
 				frontmatter: { description: "Generated blurb." },
 			},
 			{
 				label: "the parsed excerpt when the ready summary's excerpt is empty",
 				excerpt: "Parsed blurb.",
-				summary: { status: "ready", summary: "Gist.", excerpt: "" },
+				summary: { status: "ready", summary: "Gist.", excerpt: "", topics: [] },
 				frontmatter: { description: "Parsed blurb." },
 			},
 			{
 				label: "the parsed excerpt when the ready summary has no excerpt",
 				excerpt: "Parsed blurb.",
-				summary: { status: "ready", summary: "Gist." },
+				summary: { status: "ready", summary: "Gist.", topics: [] },
 				frontmatter: { description: "Parsed blurb." },
 			},
 			{
 				label: "no description when the ready summary's excerpt and the parsed one are both empty",
 				excerpt: "",
-				summary: { status: "ready", summary: "Gist.", excerpt: "" },
+				summary: { status: "ready", summary: "Gist.", excerpt: "", topics: [] },
 				frontmatter: {},
 			},
 		];
@@ -773,7 +776,7 @@ describe("articleMarkdown", () => {
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
 					content: "<p>Body copy.</p>",
-					summary: { status: "ready", summary, excerpt: "Generated blurb." },
+					summary: { status: "ready", summary, excerpt: "Generated blurb.", topics: [] },
 				}),
 			);
 

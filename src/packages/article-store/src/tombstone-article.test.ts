@@ -48,6 +48,7 @@ describe("initTombstoneArticle", () => {
 			"crawlVersions",
 			"summary",
 			"summaryExcerpt",
+			"summaryTopics",
 			"canonicalContentHash",
 			"bodyHash",
 			"etag",

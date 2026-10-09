@@ -1,4 +1,4 @@
-import { CandidateIdSchema } from "@packages/domain/article";
+import { CandidateIdSchema, toArticleTopics } from "@packages/domain/article";
 import type { AggregateField, Article } from "@packages/domain/article-aggregate";
 import {
 	ConditionalCheckFailedException,
@@ -139,6 +139,46 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 				summaryAutoHeal: { attempts: 0 },
 				contentSelection: {},
+			});
+		});
+
+		it("loads the topics stored with a ready summary", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "ready",
+					summaryStatus: "ready",
+					summary: "Stored summary",
+					summaryTopics: ["Productivity", "Focus", "Lifestyle"],
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			const article = await store.load(URL);
+
+			expect(article?.summary).toEqual({
+				kind: "ready",
+				summary: "Stored summary",
+				topics: ["Productivity", "Focus", "Lifestyle"],
+			});
+		});
+
+		it("still loads a ready summary whose stored topics include a label the topic rules now refuse, without that label", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "ready",
+					summaryStatus: "ready",
+					summary: "Stored summary",
+					summaryTopics: ["Personal finance", "Behavioural economics now"],
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			const article = await store.load(URL);
+
+			expect(article?.summary).toEqual({
+				kind: "ready",
+				summary: "Stored summary",
+				topics: ["Personal finance"],
 			});
 		});
 
@@ -1095,6 +1135,78 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.UpdateExpression).toMatch(
 				/REMOVE.*summarySourceContentHash/,
 			);
+		});
+
+		it("writes the topics of a ready summary", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			await store.save({
+				article: buildArticle({
+					summary: { kind: "ready", summary: "abc", topics: toArticleTopics(["Fintech", "Personal finance"]) },
+				}),
+				writes: ["summary"],
+			});
+
+			const command = capturedCommand(received);
+			expect(command.input.UpdateExpression).toContain("summaryTopics = :summaryTopics");
+			expect(command.input.ExpressionAttributeValues?.[":summaryTopics"]).toEqual(["Fintech", "Personal finance"]);
+		});
+
+		it("writes an empty topic list when the model named no topics", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			await store.save({
+				article: buildArticle({ summary: { kind: "ready", summary: "abc", topics: [] } }),
+				writes: ["summary"],
+			});
+
+			const command = capturedCommand(received);
+			expect(command.input.UpdateExpression).toContain("summaryTopics = :summaryTopics");
+			expect(command.input.ExpressionAttributeValues?.[":summaryTopics"]).toEqual([]);
+		});
+
+		it("removes the stored topics when a ready summary arrives without usable ones, so it never keeps the topics of the summary it replaces", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			await store.save({
+				article: buildArticle({ summary: { kind: "ready", summary: "abc" } }),
+				writes: ["summary"],
+			});
+
+			const command = capturedCommand(received);
+			expect(command.input.UpdateExpression).toMatch(/REMOVE.*summaryTopics/);
+		});
+
+		it("removes the stored topics when the summary goes back to pending", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			await store.save({
+				article: buildArticle({ summary: { kind: "pending", pendingSince: PENDING_SINCE } }),
+				writes: ["summary"],
+			});
+
+			const command = capturedCommand(received);
+			expect(command.input.UpdateExpression).toMatch(/REMOVE.*summaryTopics/);
 		});
 
 		it("encodes missing freshness fields as nulls so DynamoDB stores them as null (not the prior value)", async () => {

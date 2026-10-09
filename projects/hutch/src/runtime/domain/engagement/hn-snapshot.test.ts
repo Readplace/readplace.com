@@ -72,7 +72,7 @@ function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
 		await articles.setReaderAvailableAt({ url, at: clock.now });
 		await articles.writeContent({ url, content: "<p>Readable article</p>" });
 	};
-	const summarised = (url: string) => summaries.markSummaryReady({ url, summary: "Ready summary" });
+	const summarised = (url: string) => summaries.markSummaryReady({ url, summary: "Ready summary", topics: [] });
 	const savedByReader = async (url: string) => {
 		await articles.saveArticleGlobally({
 			url,

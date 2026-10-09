@@ -36,6 +36,7 @@ function buildHarness(useServer: typeof useApp = useApp): ReturnType<typeof useA
 	const findGeneratedSummary = async () => ({
 		status: "ready" as const,
 		summary: "Key points distilled into a brief summary.",
+		topics: [],
 	});
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });

@@ -9,9 +9,11 @@ import {
 	createFakePublishLinkSaved,
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
+	createFakeSummaryProvider,
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import { toArticleTopics } from "@packages/domain/article";
 
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { FindArticlesQuery } from "@packages/provider-contracts/article-store";
@@ -130,6 +132,44 @@ describe("Readlist routes", () => {
 
 			expect(recorded).toHaveLength(1);
 			expect(recorded[0]).toMatchObject({ excludeContent: true });
+		});
+	});
+
+	describe("Topics on each card", () => {
+		it("lists each card's own topics, and none on a card whose summary named none", async () => {
+			const summary = createFakeSummaryProvider();
+			const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/with-topics" });
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/without-topics" });
+			summary.markSummaryReady({
+				url: "https://example.com/with-topics",
+				summary: "How a household budget survives working from home.",
+				excerpt: "Budgeting for remote work.",
+				topics: toArticleTopics(["Personal finance", "Remote work"]),
+			});
+			summary.markSummaryReady({
+				url: "https://example.com/without-topics",
+				summary: "A page with no clear subject.",
+				excerpt: "No clear subject.",
+				topics: [],
+			});
+
+			const response = await agent.get("/queue");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const cards = Array.from(doc.querySelectorAll("[data-test-article-list] .readlist-article"));
+			const topicsByUrl = Object.fromEntries(
+				cards.map((card) => [
+					card.querySelector("[data-test-article-url]")?.getAttribute("href"),
+					Array.from(card.querySelectorAll("[data-test-article-topic]")).map((topic) => topic.textContent),
+				]),
+			);
+			expect(topicsByUrl).toEqual({
+				"https://example.com/with-topics": ["Personal finance", "Remote work"],
+				"https://example.com/without-topics": [],
+			});
 		});
 	});
 

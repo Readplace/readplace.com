@@ -873,6 +873,7 @@ describe("Readlist routes", () => {
 			const findGeneratedSummary = async () => ({
 				status: "ready" as const,
 				summary: "Key points from the article distilled into a brief summary.",
+				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
@@ -1373,6 +1374,7 @@ describe("Readlist routes", () => {
 			const findGeneratedSummary = async () => ({
 				status: "ready" as const,
 				summary: "Fragment ready summary.",
+				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
@@ -1839,7 +1841,7 @@ describe("Readlist routes", () => {
 				...fixture,
 				summary: {
 					...fixture.summary,
-					findGeneratedSummary: async () => ({ status: "ready", summary: STORED_SUMMARY }),
+					findGeneratedSummary: async () => ({ status: "ready", summary: STORED_SUMMARY, topics: [] }),
 				},
 			});
 			const agent = await loginAgent(harness.server, harness.auth);

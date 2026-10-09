@@ -9,9 +9,11 @@ import {
 	createFakePublishLinkSaved,
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
+	createFakeSummaryProvider,
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import { toArticleTopics } from "@packages/domain/article";
 import { MAX_POLLS } from "@packages/web-shell";
 
 const useApp = useTestServer();
@@ -34,6 +36,7 @@ describe("Readlist routes", () => {
 			const findGeneratedSummary = async () => ({
 				status: "ready" as const,
 				summary: "Ready summary.",
+				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
@@ -269,6 +272,37 @@ describe("Readlist routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const card = doc.querySelector(".readlist-article");
 			assert(card, "card fragment must be rendered when ETag does not match");
+		});
+
+		it("GET /queue/:id/card lands the topics with the summary, past the pending card's ETag", async () => {
+			const summary = createFakeSummaryProvider();
+			const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/card-topics" });
+			const articleId = await getFirstArticleId(agent);
+
+			const pending = await agent.get(`/queue/${articleId}/card?poll=1`);
+			const pendingEtag = pending.headers.etag;
+			assert(pendingEtag, "the pending card must carry an ETag");
+			const pendingList = new JSDOM(pending.text).window.document.querySelector("[data-test-article-topics]");
+			assert(pendingList, "the pending card must render its topics list");
+			expect(pendingList.classList.contains("readlist-article__topics--empty")).toBe(true);
+
+			summary.markSummaryReady({
+				url: "https://example.com/card-topics",
+				summary: "Deep work protects the hours that matter.",
+				excerpt: "Protect your focus.",
+				topics: toArticleTopics(["Productivity", "Focus", "Lifestyle"]),
+			});
+			const ready = await agent.get(`/queue/${articleId}/card?poll=2`).set("If-None-Match", pendingEtag);
+
+			expect(ready.status).toBe(200);
+			const readyList = new JSDOM(ready.text).window.document.querySelector("[data-test-article-topics]");
+			assert(readyList, "the ready card must render its topics list");
+			expect(readyList.classList.contains("readlist-article__topics--empty")).toBe(false);
+			expect(
+				Array.from(readyList.querySelectorAll("[data-test-article-topic]")).map((topic) => topic.textContent),
+			).toEqual(["Productivity", "Focus", "Lifestyle"]);
 		});
 
 		it("GET /queue/:id/card preserves filter context (tab/order/page) on the next-poll URL", async () => {

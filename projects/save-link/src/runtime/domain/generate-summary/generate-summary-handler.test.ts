@@ -1,4 +1,5 @@
-import { CandidateIdSchema } from "@packages/domain/article";
+import assert from "node:assert/strict";
+import { CandidateIdSchema, toArticleTopics } from "@packages/domain/article";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-aggregate";
 import {
@@ -133,6 +134,33 @@ describe("initGenerateSummaryHandler", () => {
 				now: NOW.toISOString(),
 			},
 		});
+	});
+
+	it("persists the topics the summariser named on the ready summary", async () => {
+		const url = "https://example.com/topics";
+		const content = "<p>Topic-rich content</p>";
+		const store = initInMemoryArticleStore();
+		store.seed(pendingArticle(url));
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {} });
+		const { handler } = createHandler({
+			loadArticle: store.load,
+			transitionAndPersist,
+			findArticleContent: async () => ({ content }),
+			summarizeArticle: async () => ({
+				kind: "ready",
+				summary: "A summary.",
+				excerpt: "A blurb.",
+				topics: toArticleTopics(["Remote work", "Culture", "Collaboration"]),
+				inputTokens: 1,
+				outputTokens: 1,
+			}),
+		});
+
+		expect(await handler(createSqsEvent({ url }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+
+		const summary = (await store.load(url))?.summary;
+		assert(summary?.kind === "ready", "the summary must have landed ready");
+		expect(summary.topics).toEqual(["Remote work", "Culture", "Collaboration"]);
 	});
 
 	it("logs the cache hit/miss split of the input tokens the summary cost", async () => {

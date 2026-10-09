@@ -4,6 +4,7 @@ import type {
 	SummaryFailureReason,
 } from "@packages/article-state-types";
 import type { ArticleMetadata } from "../article/article.types";
+import type { ArticleTopic } from "../article/article-topic";
 import type { CrawlStage, SummaryStage } from "../article/progress-mapping";
 import type { ContentSelectionSnapshot } from "./content-selection.types";
 
@@ -43,6 +44,7 @@ export type SummaryState =
 			 * a later caller (admin recrawl, refresh) can compare to the current
 			 * canonical hash and detect "content is unchanged — keep this summary". */
 			sourceContentHash?: string;
+			topics?: readonly ArticleTopic[];
 		}
 	| { kind: "failed"; reason: SummaryFailureReason }
 	| { kind: "skipped"; reason?: string };

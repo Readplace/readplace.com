@@ -100,7 +100,7 @@ function readerPage(bodyHtml: string, outside = ""): string {
 
 function finishedArticle(content: string): string {
 	return (
-		renderSummarySlot({ crawl: { status: "ready" }, content, summary: { status: "ready", summary: "Key points." } }) +
+		renderSummarySlot({ crawl: { status: "ready" }, content, summary: { status: "ready", summary: "Key points.", topics: [] } }) +
 		renderReaderSlot({ crawl: { status: "ready" }, content, url: ARTICLE_URL, appOrigin: ORIGIN })
 	);
 }

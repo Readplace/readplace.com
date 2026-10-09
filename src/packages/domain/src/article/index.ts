@@ -103,3 +103,9 @@ export {
 	NEXT_READ_MINIMUM_SAVES,
 	hasEnoughSavesForNextRead,
 } from "./next-read-minimum";
+export {
+	MAX_ARTICLE_TOPICS,
+	MAX_ARTICLE_TOPIC_LENGTH,
+	toArticleTopics,
+	type ArticleTopic,
+} from "./article-topic";

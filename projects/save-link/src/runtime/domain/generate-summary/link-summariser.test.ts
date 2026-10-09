@@ -1,10 +1,11 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
+import { MAX_ARTICLE_TOPICS, MAX_ARTICLE_TOPIC_LENGTH } from "@packages/domain/article";
 import { initLinkSummariser } from "./link-summariser";
 import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 
-function createStubCreateMessage(payload: { summary: string; excerpt?: string }): CreateAiMessage {
+function createStubCreateMessage(payload: { summary: string; excerpt?: string; topics?: unknown }): CreateAiMessage {
 	return async () => ({
 		content: [{ type: "text", text: JSON.stringify(payload) }],
 		usage: { input_tokens: 50, output_tokens: 10, cache_hit_input_tokens: 32, cache_miss_input_tokens: 18 },
@@ -42,6 +43,89 @@ describe("initLinkSummariser", () => {
 			outputTokens: 10,
 			cacheHitInputTokens: 32,
 			cacheMissInputTokens: 18,
+		});
+	});
+
+	it("returns the topics the model named with the summary, normalised by the topic rules", async () => {
+		const createMessage = createStubCreateMessage({
+			summary: "A good summary.",
+			excerpt: "Quick blurb.",
+			topics: ["  Personal   finance ", "Fintech", "fintech", "Others", "Trends", "Habits"],
+		});
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({
+			url: "https://example.com/topics",
+			textContent: "A long article with lots of content.",
+		});
+
+		expect(result).toEqual({
+			kind: "ready",
+			summary: "A good summary.",
+			excerpt: "Quick blurb.",
+			topics: ["Personal finance", "Fintech", "Trends"],
+			inputTokens: 50,
+			outputTokens: 10,
+			cacheHitInputTokens: 32,
+			cacheMissInputTokens: 18,
+		});
+	});
+
+	it("returns an empty topic list when the model named none", async () => {
+		const createMessage = createStubCreateMessage({ summary: "A good summary.", excerpt: "Quick blurb.", topics: [] });
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({
+			url: "https://example.com/no-subject",
+			textContent: "A long article with lots of content.",
+		});
+
+		expect(result.kind).toBe("ready");
+		if (result.kind !== "ready") throw new Error("unreachable");
+		expect(result.topics).toEqual([]);
+	});
+
+	it.each([
+		{ shape: "no topics field", payload: { summary: "A good summary.", excerpt: "Quick blurb." } },
+		{ shape: "topics that are not a list", payload: { summary: "A good summary.", excerpt: "Quick blurb.", topics: "Fintech" } },
+		{ shape: "topics that are not text", payload: { summary: "A good summary.", excerpt: "Quick blurb.", topics: [42] } },
+	])("keeps the summary and logs when the response carries $shape, so a topics slip never fails a summary", async ({ payload }) => {
+		const createMessage = createStubCreateMessage(payload);
+		const info = jest.fn();
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: { ...noopLogger, info },
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({
+			url: "https://example.com/slip",
+			textContent: "A long article with lots of content.",
+		});
+
+		expect(result.kind).toBe("ready");
+		if (result.kind !== "ready") throw new Error("unreachable");
+		expect(result.summary).toBe("A good summary.");
+		expect(result.topics).toBeUndefined();
+		expect(info).toHaveBeenCalledWith("[summarize] no usable topics in response", {
+			url: "https://example.com/slip",
 		});
 	});
 
@@ -297,6 +381,25 @@ describe("initLinkSummariser", () => {
 		const { system } = createMessage.mock.calls[0][0];
 		expect(system).not.toMatch(/\{\{[A-Z_]+\}\}/u);
 		expect(system).toContain(`Do not exceed ${MAX_EXCERPT_LENGTH} characters under any circumstances.`);
+	});
+
+	it("asks for the topics with the topic cap and length the topic rules enforce", async () => {
+		const createMessage = jest.fn(createStubCreateMessage({ summary: "S.", excerpt: "E.", topics: [] }));
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		await summarizeArticle({ url: "https://example.com/x", textContent: "Long content." });
+
+		const { system } = createMessage.mock.calls[0][0];
+		expect(system).toContain(`TOPICS\nName 1 to ${MAX_ARTICLE_TOPICS} topics the article is about`);
+		expect(system).toContain(`Keep each topic to ${MAX_ARTICLE_TOPIC_LENGTH} characters or fewer.`);
+		expect(system).toContain('"topics": ["<topic>", "<topic>"]');
 	});
 
 	it("flattens paragraph breaks out of a derived excerpt, which must be a single blurb", async () => {

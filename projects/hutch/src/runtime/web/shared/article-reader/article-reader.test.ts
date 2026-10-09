@@ -140,7 +140,7 @@ describe("initArticleReader", () => {
 		it("maps the crawl-version log to newest-first short-datetime LocalTimes", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 				contentFetchedAt: "2026-03-26T14:32:00.000Z",
 				crawlVersions: [
@@ -170,7 +170,7 @@ describe("initArticleReader", () => {
 			}));
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 				contentFetchedAt: "2026-03-26T14:32:00.000Z",
 				crawlVersions: stored,
@@ -201,7 +201,7 @@ describe("initArticleReader", () => {
 		it("falls back to a single crawlVersions element from contentFetchedAt when the version log is empty", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 				contentFetchedAt: "2026-03-26T14:32:00.000Z",
 			});
@@ -411,7 +411,7 @@ describe("initArticleReader", () => {
 		it("hides the bar once both pipelines are terminal", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -463,7 +463,7 @@ describe("initArticleReader", () => {
 		it("omits summaryPollUrl when the summary is ready", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -475,7 +475,7 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.summaryPollUrl).toBeUndefined();
-			expect(result.summary).toEqual({ status: "ready", summary: "TL;DR" });
+			expect(result.summary).toEqual({ status: "ready", summary: "TL;DR", topics: [] });
 		});
 
 		it("omits readerPollUrl when the crawl has failed", async () => {
@@ -522,7 +522,7 @@ describe("initArticleReader", () => {
 		it("emits readerPollUrl when crawl is undefined with no content (read-after-write race)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: undefined,
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -541,7 +541,7 @@ describe("initArticleReader", () => {
 		it("omits readerPollUrl when crawl is undefined but content is present (legacy row)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: undefined,
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -558,7 +558,7 @@ describe("initArticleReader", () => {
 		it("emits readerPollUrl when crawl is ready but content is undefined (promotion race)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -626,7 +626,7 @@ describe("initArticleReader", () => {
 		it("does not flag readerViewFailed once the reader view has succeeded", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -725,7 +725,7 @@ describe("initArticleReader", () => {
 		it("renders a ready summary expanded (summaryOpen: true) and stops polling", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 			});
 			const reader = initArticleReader(deps);
 
@@ -754,7 +754,7 @@ describe("initArticleReader", () => {
 		it("renders a ready summary collapsed when the reader is configured summaryOpen: false (internal reader)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				summaryOpen: false,
 			});
 			const reader = initArticleReader(deps);
@@ -1361,7 +1361,7 @@ describe("initArticleReader", () => {
 		it("handleSummaryPoll emits an OOB reader slot with hx-get when crawl has gone pending while summary is settling", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending", stage: "crawl-fetching" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -1390,7 +1390,7 @@ describe("initArticleReader", () => {
 		it("handleReaderPoll emits a terminal OOB summary slot (no hx-get) when summary is already ready — keeps the chain idempotent", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -1419,7 +1419,7 @@ describe("initArticleReader", () => {
 		it("handleSummaryPoll emits a terminal OOB reader slot (no hx-get) when crawl is ready and content is present", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -1542,7 +1542,7 @@ describe("initArticleReader", () => {
 		it("stops the loop once the capture has healed the row: the ready fragment carries no hx-get even with the flag still set", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>Captured body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -1761,7 +1761,7 @@ describe("initArticleReader", () => {
 		it("omits the fragment once the reader view has succeeded (crawl and summary ready)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -1802,7 +1802,7 @@ describe("initArticleReader", () => {
 		it("resolves to a state carrying nothing the crawl produced, with both poll chains disarmed", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "Your inbox has 42 unread messages." },
+				summary: { status: "ready", summary: "Your inbox has 42 unread messages.", topics: [] },
 				content: "<p>Re: your invoice</p>",
 				contentFetchedAt: "2026-04-25T11:00:00.000Z",
 				crawlVersions: [{ crawledAtMinute: "2026-04-25T11:00", authorUserId: undefined }],
@@ -1832,7 +1832,7 @@ describe("initArticleReader", () => {
 		it("answers a reader poll with the terminal notice, a collapsed summary and no further tick", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "Your inbox has 42 unread messages." },
+				summary: { status: "ready", summary: "Your inbox has 42 unread messages.", topics: [] },
 				content: "<p>Re: your invoice</p>",
 			});
 			const reader = initArticleReader(deps);

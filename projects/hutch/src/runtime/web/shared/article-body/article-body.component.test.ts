@@ -55,7 +55,7 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: "<p>Body</p>",
-			summary: { status: "ready", summary: "Key points." },
+			summary: { status: "ready", summary: "Key points.", topics: [] },
 		});
 		const doc = parse(html);
 

@@ -1,4 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import type { ArticleTopic } from "@packages/domain/article";
 import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
@@ -9,6 +10,7 @@ export type InMemoryMarkSummaryReady = (params: {
 	url: string;
 	summary: string;
 	excerpt?: string;
+	topics: readonly ArticleTopic[];
 }) => Promise<void>;
 
 export type InMemoryMarkSummarySkipped = (params: {
@@ -36,11 +38,11 @@ export function initInMemoryGeneratedSummary(): {
 		states.set(id.value, { status: "pending" });
 	};
 
-	const markSummaryReady: InMemoryMarkSummaryReady = async ({ url, summary, excerpt }) => {
+	const markSummaryReady: InMemoryMarkSummaryReady = async ({ url, summary, excerpt, topics }) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		const ready: GeneratedSummary = excerpt
-			? { status: "ready", summary, excerpt }
-			: { status: "ready", summary };
+			? { status: "ready", summary, excerpt, topics }
+			: { status: "ready", summary, topics };
 		states.set(id.value, ready);
 	};
 

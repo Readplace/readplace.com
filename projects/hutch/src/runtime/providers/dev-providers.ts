@@ -384,7 +384,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		await summaryStore.markSummaryPending({ url: params.url });
 		const summary = devSummariseInline({ html: params.html });
 		if (summary.kind === "ready") {
-			await summaryStore.markSummaryReady({ url: params.url, summary: summary.summary, excerpt: summary.excerpt });
+			await summaryStore.markSummaryReady({ url: params.url, summary: summary.summary, excerpt: summary.excerpt, topics: [] });
 			return;
 		}
 		await summaryStore.markSummarySkipped({ url: params.url, reason: summary.reason });

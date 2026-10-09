@@ -63,6 +63,7 @@ function buildFixture(now: () => Date): TestAppFixture {
 				status: "ready",
 				summary: "A concise summary.",
 				excerpt: "Lead line.",
+				topics: [],
 			}),
 		},
 		events: {

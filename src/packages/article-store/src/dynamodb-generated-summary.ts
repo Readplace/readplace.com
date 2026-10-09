@@ -8,6 +8,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { toArticleTopics } from "@packages/domain/article";
 import { summaryMatchesCanonical } from "@packages/domain/article-aggregate";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
@@ -25,6 +26,7 @@ const ArticleSummaryRow = z.object({
 	canonicalContentHash: dynamoField(z.string()),
 	summarySourceContentHash: dynamoField(z.string()),
 	summaryExcerpt: dynamoField(z.string()),
+	summaryTopics: dynamoField(z.array(z.string())),
 	summaryStatus: dynamoField(SummaryStatusSchema),
 	summaryFailureReason: dynamoField(z.string()),
 	// Plain string on read for forward-compat with future codes; UI mapper
@@ -37,15 +39,19 @@ const ArticleSummaryRow = z.object({
 
 type ArticleSummaryRowShape = z.infer<typeof ArticleSummaryRow>;
 
-function readyFromRow(
-	summary: string,
-	excerpt: string | undefined,
-): { status: "ready"; summary: string; excerpt?: string } {
-	const ready: { status: "ready"; summary: string; excerpt?: string } = {
+type ReadySummary = Extract<GeneratedSummary, { status: "ready" }>;
+
+function readyFromRow(stored: {
+	summary: string;
+	excerpt: string | undefined;
+	topics: readonly string[] | undefined;
+}): ReadySummary {
+	const ready: ReadySummary = {
 		status: "ready",
-		summary,
+		summary: stored.summary,
+		topics: stored.topics === undefined ? [] : toArticleTopics(stored.topics),
 	};
-	if (excerpt) ready.excerpt = excerpt;
+	if (stored.excerpt) ready.excerpt = stored.excerpt;
 	return ready;
 }
 
@@ -76,14 +82,14 @@ function rowToGeneratedSummary(
 		// status (or vice versa) — fail loud here so the inconsistency surfaces
 		// instead of degrading silently to a forever-polling reader UI.
 		assert(row.summary, "summaryStatus=ready row must carry a summary");
-		return readyFromRow(row.summary, row.summaryExcerpt);
+		return readyFromRow({ summary: row.summary, excerpt: row.summaryExcerpt, topics: row.summaryTopics });
 	}
 	// Legacy row (summaryStatus absent). A backfilled `summary` column means the
 	// row pre-dates the state machine but carried a pre-computed summary — expose
 	// as ready. Otherwise return undefined so the caller can re-prime the pipeline
 	// rather than rendering a stuck pending row that polls forever.
 	if (!row.summary) return undefined;
-	return readyFromRow(row.summary, row.summaryExcerpt);
+	return readyFromRow({ summary: row.summary, excerpt: row.summaryExcerpt, topics: row.summaryTopics });
 }
 
 // Loose schema for the batch read: batchGetFromTable runs `schema.parse` on

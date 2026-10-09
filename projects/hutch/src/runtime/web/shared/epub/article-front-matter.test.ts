@@ -44,6 +44,7 @@ describe("articleFrontMatterXhtml", () => {
 					status: "ready",
 					summary: "First point.\n\nSecond point.",
 					excerpt: "Generated blurb.",
+					topics: [],
 				},
 			}),
 		).toBe(
@@ -52,8 +53,8 @@ describe("articleFrontMatterXhtml", () => {
 	});
 
 	const readyWithoutExcerpt: { label: string; summary: GeneratedSummary }[] = [
-		{ label: "absent", summary: { status: "ready", summary: "Gist." } },
-		{ label: "empty", summary: { status: "ready", summary: "Gist.", excerpt: "" } },
+		{ label: "absent", summary: { status: "ready", summary: "Gist.", topics: [] } },
+		{ label: "empty", summary: { status: "ready", summary: "Gist.", excerpt: "", topics: [] } },
 	];
 
 	it.each(readyWithoutExcerpt)(
@@ -78,7 +79,7 @@ describe("articleFrontMatterXhtml", () => {
 				title: "Hello World",
 				siteName: "example.com",
 				excerpt: "",
-				summary: { status: "ready", summary: "Gist." },
+				summary: { status: "ready", summary: "Gist.", topics: [] },
 			}),
 		).toBe("<h1>Hello World</h1><p>example.com</p><h2>Summary (TL;DR)</h2><p>Gist.</p><hr />");
 	});
@@ -89,7 +90,7 @@ describe("articleFrontMatterXhtml", () => {
 				title: "Tom & Jerry <3",
 				siteName: "a<b",
 				excerpt: "ignored",
-				summary: { status: "ready", summary: "p > q", excerpt: "x & y" },
+				summary: { status: "ready", summary: "p > q", excerpt: "x & y", topics: [] },
 			}),
 		).toBe(
 			"<h1>Tom &amp; Jerry &lt;3</h1><p>a&lt;b</p><p>x &amp; y</p><h2>Summary (TL;DR)</h2><p>p &gt; q</p><hr />",
