@@ -3,7 +3,13 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher } from "./page-interactions";
+import {
+	clickAndWaitForPageReload,
+	fileArticleIntoReadlist,
+	nameNewReadlist,
+	openReadlistSwitcher,
+	renameableSlugs,
+} from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -27,7 +33,8 @@ const RENAME_POPOVER = '[data-test-confirm-popover="readlist-rename"]';
 const RENAME_INPUT = "[data-test-readlist-rename-input]";
 const RENAME_SAVE = '[data-test-action="readlist-rename-save"]';
 const RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
-const DELETE_DISMISS = '[data-test-action="readlist-delete-dismiss"]';
+const DELETE_POPOVER = '[data-test-confirm-popover="readlist-delete"]';
+const DELETE_CANCEL = '[data-test-action="readlist-delete-cancel"]';
 const CREATE_POPOVER = '[data-test-confirm-popover="readlist-create"]';
 const CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
 const CARD = "[data-test-article]";
@@ -68,6 +75,7 @@ const VOLATILE_CHROME = [
 ];
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
+const SeededArticle = z.object({ ok: z.literal(true), articleId: z.string() });
 
 async function createUser(page: Page, email: string): Promise<string> {
 	const response = await page.request.post(`${BASE_URL}/e2e/users`, {
@@ -77,8 +85,9 @@ async function createUser(page: Page, email: string): Promise<string> {
 	return CreatedUser.parse(await response.json()).userId;
 }
 
-async function createUserWithArticles(page: Page, email: string): Promise<void> {
+async function createUserWithArticles(page: Page, email: string): Promise<string[]> {
 	const userId = await createUser(page, email);
+	const articleIds: string[] = [];
 	for (const article of SEEDED_ARTICLES) {
 		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 			data: {
@@ -93,7 +102,9 @@ async function createUserWithArticles(page: Page, email: string): Promise<void> 
 			},
 		});
 		assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
+		articleIds.push(SeededArticle.parse(await seeded.json()).articleId);
 	}
+	return articleIds;
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
@@ -125,16 +136,6 @@ async function renameTo(page: Page, name: string): Promise<void> {
 	await page.locator(RENAME_INPUT).first().fill(name);
 	await clickAndWaitForPageReload(page, page.locator(RENAME_SAVE).first());
 	await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText(name);
-}
-
-function renameableSlugs(page: Page): Promise<string[]> {
-	return page.evaluate(
-		([menu, trigger]) =>
-			Array.from(document.querySelectorAll(menu))
-				.filter((each) => each.querySelector(trigger) !== null)
-				.map((each) => each.getAttribute("data-test-readlist-menu") ?? ""),
-		[READLIST_MENU, RENAME_TRIGGER] as const,
-	);
 }
 
 async function seededReadlistSettled(page: Page): Promise<void> {
@@ -196,6 +197,36 @@ test.describe("The readlists rail", () => {
 		await clickAndWaitForPageReload(page, confirm);
 
 		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("New Readlist 2");
+		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
+	});
+
+	test("moves a readlist's articles to the readlist offered by default before deleting it", async ({
+		page,
+	}, testInfo) => {
+		const email = `readlist-rail-delete-move-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const [articleId] = await createUserWithArticles(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await makeReadlist(page, "Ideas & Inspiration");
+		await makeReadlist(page, "Finance");
+		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
+		const [first, second] = await renameableSlugs(page);
+
+		await fileArticleIntoReadlist(page, { articleId, readlistSlug: first });
+		await openReadlist(page);
+
+		const menu = page.locator(`[data-test-readlist-menu="${first}"]`);
+		await menu.locator(READLIST_MENU_TOGGLE).click();
+		await menu.locator(DELETE_TRIGGER).click();
+		const panel = page.locator(`${DELETE_POPOVER}[data-test-confirm-subject="${first}"]:popover-open`);
+		await expect(panel.locator(".confirm-popover__title")).toHaveText("Move or delete articles");
+		await expect(panel.locator("[data-test-migrate-select]")).toHaveValue(second);
+
+		await clickAndWaitForPageReload(page, panel.locator('[data-test-action="readlist-delete-confirm"]'));
+		await clickAndWaitForPageReload(page, page.locator(`${MAIN} [data-test-readlist="${second}"]`));
+		await expect(page.locator(ACTIVE_RAIL_LINK)).toHaveAttribute("data-test-readlist", second);
+
+		await expect(page.locator(`[data-test-article="${articleId}"]`)).toHaveCount(1);
 		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
 	});
 
@@ -418,7 +449,7 @@ test.describe("Dismissing a menu dialog returns focus to the kebab that opened i
 
 		await toggle.click();
 		await menu.locator(DELETE_TRIGGER).click();
-		await page.locator(DELETE_DISMISS).click();
+		await page.locator(DELETE_CANCEL).click();
 		await expect(menu).toHaveJSProperty("open", false);
 		await expect(summary).toBeFocused();
 	});

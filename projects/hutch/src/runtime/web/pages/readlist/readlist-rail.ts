@@ -1,3 +1,4 @@
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { ReadlistContext } from "./readlist-context";
 import type { Readlist } from "./readlist.nav";
 import { readlistErrorFlashMapping } from "./readlist.error";
@@ -8,6 +9,7 @@ export interface ReadlistRailViewModel {
 	activeReadlist: Readlist;
 	newReadlistAction: string;
 	canCreate: boolean;
+	nonEmptyReadlists: readonly ReadlistSlug[];
 	errorFlash?: string;
 }
 
@@ -15,12 +17,14 @@ export function buildReadlistRail(input: {
 	query: Record<string, unknown>;
 	context: ReadlistContext;
 	accessIsReadOnly: boolean;
+	nonEmptyReadlists: readonly ReadlistSlug[];
 }): ReadlistRailViewModel {
 	return {
 		readlists: input.context.readlists,
 		activeReadlist: input.context.activeReadlist,
 		newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(input.context.state)}`,
 		canCreate: !input.accessIsReadOnly,
+		nonEmptyReadlists: input.nonEmptyReadlists,
 		errorFlash: readlistErrorFlashMapping(input.query),
 	};
 }

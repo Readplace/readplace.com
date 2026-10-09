@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
-import { MinutesSchema } from "@packages/domain/article";
-import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { loginAgent, useTestServer } from "../../../test-app";
+import { seedInto } from "../../test-helpers/readlist-seed";
 
 const useApp = useTestServer();
 
 type TestAgent = Awaited<ReturnType<typeof loginAgent>>;
-type TestHarness = ReturnType<typeof useApp>;
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
@@ -61,20 +60,6 @@ async function saveFrom(agent: TestAgent, readlist: string, url: string) {
 	return agent.post(`/queue/save?queue=${readlist}`).type("form").send({ url });
 }
 
-async function seedInto(harness: TestHarness, readlist: string, url: string) {
-	const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
-	assert(userId, "seeded login user must exist");
-	return harness.articleStore.saveReadlistArticle({
-		userId,
-		readlist: ReadlistSlugSchema.parse(readlist),
-		url,
-		metadata: { title: url, siteName: "example.com", excerpt: "", wordCount: 0 },
-		estimatedReadTime: MinutesSchema.parse(0),
-		provenance: { kind: "web" },
-		savedAt: new Date(),
-	});
-}
-
 function saveCardIn(doc: Document): Element {
 	const card = doc.querySelector("[data-test-save-card]");
 	assert(card, "the readlist page must render the save card");
@@ -95,6 +80,14 @@ function migrateTargetsOf(panel: Element): (string | null)[] {
 	return Array.from(panel.querySelectorAll("[data-test-migrate-target]"), (el) =>
 		el.getAttribute("data-test-migrate-target"),
 	);
+}
+
+function deleteConfirmTitles(doc: Document): (string | null)[] {
+	return deleteConfirmPanels(doc).map((panel) => {
+		const title = doc.getElementById(`${panel.id}-title`);
+		assert(title, "every delete confirmation must carry a title");
+		return title.textContent;
+	});
 }
 
 function deleteFallbackActions(doc: Document): string[] {
@@ -386,7 +379,7 @@ describe("a URL saved into more than one readlist", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
 		await save(agent, "https://example.com/a");
-		await seedInto(harness, readlist, "https://example.com/a");
+		await seedInto(harness, { readlist, url: "https://example.com/a" });
 
 		const onDefault = parse((await agent.get("/queue")).text);
 		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
@@ -400,7 +393,7 @@ describe("a URL saved into more than one readlist", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
 		await save(agent, "https://example.com/a");
-		await seedInto(harness, readlist, "https://example.com/a");
+		await seedInto(harness, { readlist, url: "https://example.com/a" });
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
@@ -420,7 +413,7 @@ describe("a URL saved into more than one readlist", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
 		await save(agent, "https://example.com/a");
-		await seedInto(harness, readlist, "https://example.com/a");
+		await seedInto(harness, { readlist, url: "https://example.com/a" });
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
@@ -438,7 +431,7 @@ describe("a URL saved into more than one readlist", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
 		await save(agent, "https://example.com/a");
-		await seedInto(harness, readlist, "https://example.com/a");
+		await seedInto(harness, { readlist, url: "https://example.com/a" });
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
@@ -464,7 +457,7 @@ describe("a URL saved into more than one readlist", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
 		await save(agent, "https://example.com/a");
-		await seedInto(harness, readlist, "https://example.com/a");
+		await seedInto(harness, { readlist, url: "https://example.com/a" });
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
@@ -490,7 +483,7 @@ describe("a URL saved into more than one readlist", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
 		await save(agent, "https://example.com/a");
-		await seedInto(harness, readlist, "https://example.com/a");
+		await seedInto(harness, { readlist, url: "https://example.com/a" });
 		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
 		assert(articleId, "the saved article must render a card");
 
@@ -508,7 +501,7 @@ describe("a readlist the reader opened", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
 		await save(agent, "https://example.com/default-only");
-		await seedInto(harness, readlist, "https://example.com/work-only");
+		await seedInto(harness, { readlist, url: "https://example.com/work-only" });
 
 		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 		expect(
@@ -579,7 +572,7 @@ describe("a readlist the reader opened", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
-		await seedInto(harness, readlist, "https://example.com/only-here");
+		await seedInto(harness, { readlist, url: "https://example.com/only-here" });
 		const doc = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 		const readerHref = doc.querySelector("[data-test-article-title]")?.getAttribute("href");
 		assert(readerHref, "the card title must link to the reader");
@@ -594,7 +587,7 @@ describe("a readlist the reader opened", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const ownerAgent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(ownerAgent, "New Readlist");
-		await seedInto(harness, readlist, "https://example.com/mcp-only-here");
+		await seedInto(harness, { readlist, url: "https://example.com/mcp-only-here" });
 		const articleId = articleIds(parse((await ownerAgent.get(`/queue?queue=${readlist}`)).text))[0];
 		assert(articleId, "the named readlist must contain the MCP article");
 
@@ -631,7 +624,7 @@ describe("the readlist every reader is given", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
-		await seedInto(harness, readlist, "https://example.com/work-only");
+		await seedInto(harness, { readlist, url: "https://example.com/work-only" });
 
 		const doc = parse((await agent.get("/queue")).text);
 
@@ -666,7 +659,7 @@ describe("the readlist every reader is given", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
-		await seedInto(harness, readlist, "https://example.com/work-only");
+		await seedInto(harness, { readlist, url: "https://example.com/work-only" });
 
 		expect(articleIds(parse((await agent.get("/queue")).text))).toEqual([]);
 		expect(
@@ -690,11 +683,35 @@ describe("the readlists the reader made, seen from the rail", () => {
 			`readlist-remove-confirm-${second}`,
 		]);
 		expect(panels.map((panel) => panel.getAttribute("id"))).toEqual(deleteTriggerTargets(doc));
-		expect(panels.map(migrateTargetsOf)).toEqual([[second], [first]]);
+		expect(panels.map(migrateTargetsOf)).toEqual([[], []]);
 		expect(deleteFallbackActions(doc)).toEqual([
 			`/queue/queues/${first}/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist`,
 			`/queue/queues/${second}/delete?utm_source=queue-nav&utm_medium=internal&utm_content=delete-readlist`,
 		]);
+	});
+
+	it("asks where the articles go for a readlist that holds some, offering the other readlist first", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const first = await createReadlistAndOpen(agent, "Ideas & Inspiration");
+		const second = await createReadlistAndOpen(agent, "Finance");
+		await seedInto(harness, { readlist: first, url: "https://example.com/filed-first" });
+
+		const doc = parse((await agent.get("/queue")).text);
+
+		expect(deleteConfirmTitles(doc)).toEqual(["Move or delete articles", "Delete this readlist?"]);
+		expect(deleteConfirmPanels(doc).map(migrateTargetsOf)).toEqual([[second], []]);
+	});
+
+	it("keeps the plain question for a readlist with articles when no other readlist could take them", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const readlist = await createReadlistAndOpen(agent, "Ideas & Inspiration");
+		await seedInto(harness, { readlist, url: "https://example.com/filed-alone" });
+
+		const doc = parse((await agent.get("/queue")).text);
+
+		expect(deleteConfirmTitles(doc)).toEqual(["Delete this readlist?"]);
 	});
 
 	it("carries the readlist being viewed on every delete", async () => {

@@ -12,47 +12,74 @@ export interface ReadlistDeleteDestination {
 	label: string;
 }
 
-const READLIST_DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-	<div class="readlist-migrate {{visibilityClass}}" data-test-readlist-migrate>
-		<label class="readlist-migrate__label" for="{{selectId}}">Move its articles to</label>
-		<select class="readlist-migrate__select" id="{{selectId}}" name="migrate_to" data-test-migrate-select>
-			<option value="">Nowhere, delete them too</option>
-			{{#each destinations}}
-			<option value="{{slug}}" data-test-migrate-target="{{slug}}">{{label}}</option>
-			{{/each}}
-		</select>
-	</div>
-	<button class="btn btn--primary" type="submit" data-test-action="readlist-delete-confirm">
-		<span class="readlist-delete__cta-label readlist-delete__cta-label--delete">Confirm Deletion</span>
-		<span class="readlist-delete__cta-label readlist-delete__cta-label--migrate">Move and Delete</span>
-	</button>
+interface ReadlistDeleteQuestion {
+	title: string;
+	body: string;
+	actionsTemplate: string;
+}
+
+const PLAIN_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+	<button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="readlist-delete-cancel">Cancel</button>
+	<button class="btn btn--primary" type="submit" data-test-action="readlist-delete-confirm">Delete readlist</button>
 </form>`;
 
+const MOVE_OR_DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions readlist-migrate" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+	<div class="form-field">
+		<label class="form-field__label" for="{{selectId}}">Move articles to</label>
+		<div class="form-input form-input--within form-input--select">
+			<select class="form-input__control" id="{{selectId}}" name="migrate_to" data-test-migrate-select>
+				{{#each destinations}}
+				<option value="{{slug}}" data-test-migrate-target="{{slug}}">{{label}}</option>
+				{{/each}}
+				<option value="">Nowhere, delete them too</option>
+			</select>
+			<span class="form-input__chevron">{{icon "chevron-down"}}</span>
+		</div>
+	</div>
+	<div class="confirm-popover__buttons">
+		<button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="readlist-delete-cancel">Cancel</button>
+		<button class="btn btn--primary" type="submit" data-test-action="readlist-delete-confirm">Delete readlist</button>
+	</div>
+</form>`;
+
+const PLAIN_QUESTION: ReadlistDeleteQuestion = {
+	title: "Delete this readlist?",
+	body: `This readlist will be permanently deleted. Articles saved in ${DEFAULT_READLIST.label} will remain in your library.`,
+	actionsTemplate: PLAIN_ACTIONS_TEMPLATE,
+};
+
+const MOVE_OR_DELETE_QUESTION: ReadlistDeleteQuestion = {
+	title: "Move or delete articles",
+	body: "Before deleting this readlist, choose whether to move its articles to another readlist or delete them.",
+	actionsTemplate: MOVE_OR_DELETE_ACTIONS_TEMPLATE,
+};
+
 export function renderReadlistDeleteConfirm(input: {
-	popoverId: string;
+	slug: ReadlistSlug;
 	url: string;
 	label: string;
 	destinations: readonly ReadlistDeleteDestination[];
-	illustrationHtml?: string;
+	holdsArticles: boolean;
+	illustrationHtml: string;
 }): string {
-	const offersMigration = input.destinations.length > 0;
+	const popoverId = readlistDeleteConfirmPopoverId(input.slug);
+	const question =
+		input.holdsArticles && input.destinations.length > 0 ? MOVE_OR_DELETE_QUESTION : PLAIN_QUESTION;
 	return renderConfirmPopover({
-		id: input.popoverId,
+		id: popoverId,
 		key: "readlist-delete",
-		close: {},
-		title: "Delete this readlist?",
-		illustrationHtml: input.illustrationHtml,
-		body: offersMigration
-			? `Deleting takes this readlist's copies with it. Move them to another readlist to keep them together, or leave them behind and keep only what ${DEFAULT_READLIST.label} already holds.`
-			: `Deleting takes this readlist's copies with it. Anything you also saved in ${DEFAULT_READLIST.label} stays there.`,
+		subject: input.slug,
+		title: question.title,
+		body: question.body,
 		lead: `Readlist: ${input.label}`,
-		actionsHtml: render(READLIST_DELETE_CONFIRM_ACTIONS_TEMPLATE, {
+		illustrationHtml: input.illustrationHtml,
+		actionsHtml: render(question.actionsTemplate, {
 			url: withInternalTracking(input.url, {
 				source: "queue-nav",
 				content: "queue-delete",
 			}),
-			visibilityClass: offersMigration ? "readlist-migrate--visible" : "readlist-migrate--hidden",
-			selectId: `${input.popoverId}-destination`,
+			popoverId,
+			selectId: `${popoverId}-destination`,
 			destinations: input.destinations,
 		}),
 	});

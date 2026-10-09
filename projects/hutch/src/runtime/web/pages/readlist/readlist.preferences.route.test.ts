@@ -10,6 +10,7 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { loginAgent, useTestServer } from "../../../test-app";
+import { seedInto } from "../../test-helpers/readlist-seed";
 
 const useApp = useTestServer();
 
@@ -312,6 +313,23 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+	});
+
+	it("offers the move-or-delete choice from the preferences page too", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const first = await createReadlist(agent, "Ideas & Inspiration");
+		const second = await createReadlist(agent, "Finance");
+		await seedInto(harness, { readlist: first, url: "https://example.com/filed-first" });
+
+		const doc = parse((await agent.get(preferencesPath(second))).text);
+
+		const titles = Array.from(doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]'), (panel) => {
+			const title = doc.getElementById(`${panel.id}-title`);
+			assert(title, "every delete confirmation must carry a title");
+			return title.textContent;
+		});
+		expect(titles).toEqual(["Move or delete articles", "Delete this readlist?"]);
 	});
 });
 

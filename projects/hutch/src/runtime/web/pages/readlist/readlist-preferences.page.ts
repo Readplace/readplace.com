@@ -25,6 +25,7 @@ import type { BuildBannerState } from "../../banner-state";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import { readerReadlists } from "./readlist-context";
+import type { FindNonEmptyReadlists } from "./readlist-holdings";
 import { preferencesUrl, readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
 import { buildReadlistRail } from "./readlist-rail";
@@ -65,6 +66,7 @@ export function initReadlistPreferencesRoutes(deps: {
 	getEffectiveAccess: GetEffectiveAccess;
 	buildBannerState: BuildBannerState;
 	requireWriteAccess: RequestHandler;
+	findNonEmptyReadlists: FindNonEmptyReadlists;
 }): Router {
 	const router = express.Router();
 
@@ -88,15 +90,17 @@ export function initReadlistPreferencesRoutes(deps: {
 		}
 
 		const parsed = PreferencesQuerySchema.parse(req.query);
-		const [access, inboxes] = await Promise.all([
+		const readlists = readerReadlists(definitions);
+		const [access, inboxes, nonEmptyReadlists] = await Promise.all([
 			deps.getEffectiveAccess(userId),
 			deps.listInboxAddresses(userId),
+			deps.findNonEmptyReadlists({ userId, readlists }),
 		]);
 		const activeReadlist = { slug: definition.slug, label: definition.label };
 		const context = {
 			state: { readlist: definition.slug, tab: "queue", page: 1 } as const,
 			activeReadlist,
-			readlists: readerReadlists(definitions),
+			readlists,
 		};
 		const draft = parsed.purpose;
 		const error: PreferencesError =
@@ -112,6 +116,7 @@ export function initReadlistPreferencesRoutes(deps: {
 						query: req.query,
 						context,
 						accessIsReadOnly: access.access === "read-only",
+						nonEmptyReadlists,
 					}),
 					values: { purpose: draft ?? definition.purpose },
 					wizardOpen: draft !== undefined || error.purposeError !== undefined,

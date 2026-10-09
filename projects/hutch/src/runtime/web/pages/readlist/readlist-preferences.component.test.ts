@@ -40,6 +40,7 @@ function page(overrides: {
 			activeReadlist: { slug: WORK, label: "Work Reading" },
 			newReadlistAction: "/queue/queues",
 			canCreate: overrides.canCreate ?? true,
+			nonEmptyReadlists: [],
 		},
 		values: { purpose: overrides.purpose },
 		wizardOpen: overrides.wizardOpen ?? false,

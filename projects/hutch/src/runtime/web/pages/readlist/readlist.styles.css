@@ -942,47 +942,6 @@
   visibility: hidden;
 }
 
-.readlist-migrate--visible {
-  display: flex;
-}
-
-.readlist-migrate--hidden {
-  display: none;
-}
-
-.readlist-migrate {
-  flex-direction: column;
-  gap: 8px;
-}
-
-.readlist-migrate__label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.readlist-migrate__select {
-  width: 100%;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.readlist-migrate__select:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.readlist-delete__cta-label--migrate {
-  display: none;
-}
-
 @supports selector(:has(*)) {
   .readlist-listing:has(.readlist-save-skeleton--armed.htmx-request) .readlist-listing__header--hidden {
     display: flex;
@@ -992,19 +951,15 @@
     display: flex;
     visibility: hidden;
   }
-
-  .confirm-popover__actions:has(.readlist-migrate__select option:not([value=""]):checked) .readlist-delete__cta-label--delete {
-    display: none;
-  }
-
-  .confirm-popover__actions:has(.readlist-migrate__select option:not([value=""]):checked) .readlist-delete__cta-label--migrate {
-    display: inline;
-  }
 }
 
 .readlist .readlist-migrate {
-  width: 100%;
+  gap: 24px;
   text-align: left;
+}
+
+.confirm-popover--illustrated .readlist-migrate .confirm-popover__buttons {
+  justify-content: flex-end;
 }
 
 .readlist .confirm-popover__actions.wizard__form {

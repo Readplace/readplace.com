@@ -12,7 +12,13 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
-import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher } from "./page-interactions";
+import {
+	clickAndWaitForPageReload,
+	fileArticleIntoReadlist,
+	nameNewReadlist,
+	openReadlistSwitcher,
+	renameableSlugs,
+} from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -388,6 +394,37 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			assert.equal(Math.round(box.width), 600);
 			await expect(panel).toHaveScreenshot(
 				`eink-delete-article-dialog-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the move-or-delete dialog keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, articleId } = await seedReaderAndReadlist(
+				page,
+				`move-or-delete-dialog-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await openReadlistSwitcher(page);
+			await clickAndWaitForPageReload(page, await nameNewReadlist(page, "Ideas & Inspiration"));
+			await openReadlistSwitcher(page);
+			await clickAndWaitForPageReload(page, await nameNewReadlist(page, "Finance"));
+			await expect(page.locator(`${READLIST_RAIL} [data-test-readlist]`)).toHaveCount(3);
+			const [first] = await renameableSlugs(page);
+			await fileArticleIntoReadlist(page, { articleId, readlistSlug: first });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await openReadlistSwitcher(page);
+			const menu = page.locator(`[data-test-readlist-menu="${first}"]`);
+			await menu.locator('[data-test-action="readlist-menu"]').click();
+			await menu.locator('[data-test-action="readlist-delete"]').click();
+			const panel = page.locator('[data-test-confirm-popover="readlist-delete"]:popover-open');
+			await expect(panel).toBeVisible();
+			await settle(page, '[data-test-confirm-popover="readlist-delete"]:popover-open');
+
+			const box = await measuredBox(page, '[data-test-confirm-popover="readlist-delete"]:popover-open');
+			assert.equal(Math.round(box.width), 600);
+			await expect(panel).toHaveScreenshot(
+				`eink-readlist-delete-migrate-dialog-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

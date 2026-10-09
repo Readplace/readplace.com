@@ -29,10 +29,7 @@ import {
 } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
-import {
-	readlistDeleteConfirmPopoverId,
-	renderReadlistDeleteConfirm,
-} from "./readlist-delete-confirm.component";
+import { renderReadlistDeleteConfirm } from "./readlist-delete-confirm.component";
 import { renderReadlistCountsTrigger, renderStatusToast } from "./readlist-mutation-fragments";
 import { readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import {
@@ -206,10 +203,11 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 		deleteConfirms: owned
 			.map((readlist) =>
 				renderReadlistDeleteConfirm({
-					popoverId: readlistDeleteConfirmPopoverId(readlist.slug),
+					slug: readlist.slug,
 					url: `${readlistDeletePath(readlist.slug)}${returnQuery}`,
 					label: readlist.label,
 					destinations: owned.filter((other) => other.slug !== readlist.slug),
+					holdsArticles: rail.nonEmptyReadlists.includes(readlist.slug),
 					illustrationHtml: renderIllustration("trash-can"),
 				}),
 			)

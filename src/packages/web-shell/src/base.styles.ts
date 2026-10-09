@@ -585,6 +585,27 @@ export const FORM_CONTROL_STYLES = `
 		outline: none;
 	}
 
+	.form-input--select {
+		position: relative;
+	}
+
+	.form-input--select .form-input__control {
+		appearance: none;
+		padding-inline-end: 48px;
+		cursor: pointer;
+	}
+
+	.form-input__chevron {
+		position: absolute;
+		inset-block: 0;
+		inset-inline-end: 12px;
+		display: flex;
+		align-items: center;
+		font-size: 20px;
+		color: var(--foreground);
+		pointer-events: none;
+	}
+
 	.form-input[aria-invalid="true"] {
 		border-color: var(--color-error);
 	}

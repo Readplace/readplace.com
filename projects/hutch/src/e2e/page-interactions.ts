@@ -105,3 +105,24 @@ export async function nameNewReadlist(page: Page, name: string): Promise<Locator
 	await dialog.locator('input[name="label"]').fill(name)
 	return dialog.locator('[data-test-action="readlist-create-save"]')
 }
+
+export async function fileArticleIntoReadlist(
+	page: Page,
+	input: { articleId: string; readlistSlug: string },
+): Promise<void> {
+	await page.goto(new URL(`/queue/${input.articleId}/view`, page.url()).href, { waitUntil: 'domcontentloaded' })
+	await page.waitForSelector('body.page-reader')
+	await page.click('summary[data-test-readlists-trigger]', { timeout: 15000 })
+	await page.click(`button[data-test-assign-readlist="${input.readlistSlug}"]`, { timeout: 15000 })
+	await page.waitForSelector(`#article-header [data-test-readlist-tag="${input.readlistSlug}"]`)
+}
+
+export function renameableSlugs(page: Page): Promise<string[]> {
+	return page.evaluate(
+		([menu, trigger]) =>
+			Array.from(document.querySelectorAll(menu))
+				.filter((each) => each.querySelector(trigger) !== null)
+				.map((each) => each.getAttribute('data-test-readlist-menu') ?? ''),
+		['[data-test-readlist-menu]', '[data-test-action="readlist-rename"]'] as const,
+	)
+}

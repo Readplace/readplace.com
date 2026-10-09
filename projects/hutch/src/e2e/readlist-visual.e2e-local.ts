@@ -20,7 +20,14 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
-import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher, railIsOpen } from "./page-interactions";
+import {
+	clickAndWaitForPageReload,
+	fileArticleIntoReadlist,
+	nameNewReadlist,
+	openReadlistSwitcher,
+	railIsOpen,
+	renameableSlugs,
+} from "./page-interactions";
 import { growRailToFitOpenFlyout } from "./readlist.browser";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 
@@ -57,6 +64,8 @@ const READLIST_RENAME_POPOVER = '[data-test-confirm-popover="readlist-rename"]';
 const READLIST_DELETE_POPOVER = '[data-test-confirm-popover="readlist-delete"]';
 const READLIST_RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
 const READLIST_DELETE_CONFIRM = '[data-test-action="readlist-delete-confirm"]';
+const READLIST_DELETE_CANCEL = '[data-test-action="readlist-delete-cancel"]';
+const OPEN_READLIST_DELETE_POPOVER = `${READLIST_DELETE_POPOVER}:popover-open`;
 const READLIST_CREATE_POPOVER = '[data-test-confirm-popover="readlist-create"]';
 const READLIST_CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
 const READLIST_CREATE_SAVE = '[data-test-action="readlist-create-save"]';
@@ -526,11 +535,115 @@ async function createDialogGeometry(page: Page): Promise<void> {
 
 async function deleteReadlistDialogGeometry(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
-	const panel = await measuredBox(page, READLIST_DELETE_POPOVER);
-	const commit = await measuredBox(page, READLIST_DELETE_CONFIRM);
+	const panel = await measuredBox(page, OPEN_READLIST_DELETE_POPOVER);
+	const cancel = await measuredBox(page, `${OPEN_READLIST_DELETE_POPOVER} ${READLIST_DELETE_CANCEL}`);
+	const commit = await measuredBox(page, `${OPEN_READLIST_DELETE_POPOVER} ${READLIST_DELETE_CONFIRM}`);
 	assert.ok(near(panel.width, 600));
-	assert.ok(near(commit.x, panel.x + 33));
-	assert.ok(near(commit.x + commit.width, panel.x + panel.width - 33));
+	assert.ok(near(panel.height, 298), `the plain delete dialog must be 298px tall, measured ${panel.height}px`);
+	assert.ok(near(cancel.y, commit.y));
+	assert.ok(near(commit.x, cancel.x + cancel.width + 8));
+	const leftSlack = cancel.x - panel.x;
+	const rightSlack = panel.x + panel.width - (commit.x + commit.width);
+	assert.ok(near(leftSlack, rightSlack));
+	const headerActions = await page
+		.locator(`${OPEN_READLIST_DELETE_POPOVER} .confirm-popover__header [data-test-action]`)
+		.evaluateAll((actions) => actions.map((action) => action.getAttribute("data-test-action")));
+	assert.deepEqual(headerActions, [], "the delete dialog backs out through Cancel, not a close control");
+}
+
+function openDeleteReadlistDialog(slug: string): string {
+	return `${READLIST_DELETE_POPOVER}[data-test-confirm-subject="${slug}"]:popover-open`;
+}
+
+function assertDialogMeasurement(input: {
+	description: string;
+	actual: number;
+	expected: number;
+	tolerance: number;
+}): void {
+	assert.ok(
+		Math.abs(input.actual - input.expected) <= input.tolerance,
+		`${input.description} must be ${input.expected}px (±${input.tolerance}), measured ${input.actual}px`,
+	);
+}
+
+async function selectDrawsItsOwnChevron(page: Page, dialog: string): Promise<void> {
+	const field = await measuredBox(page, `${dialog} .form-input--select`);
+	const slot = await measuredBox(page, `${dialog} .form-input__chevron`);
+	const glyph = await measuredBox(page, `${dialog} .form-input__chevron svg`);
+	assertDialogMeasurement({ description: "the chevron's width", actual: glyph.width, expected: 20, tolerance: 0.5 });
+	assertDialogMeasurement({ description: "the chevron's height", actual: glyph.height, expected: 20, tolerance: 0.5 });
+	assertDialogMeasurement({
+		description: "the chevron's right edge",
+		actual: glyph.x + glyph.width,
+		expected: field.x + field.width - 13,
+		tolerance: 1,
+	});
+	assertDialogMeasurement({
+		description: "the chevron slot's top",
+		actual: slot.y,
+		expected: field.y + 1,
+		tolerance: 0.5,
+	});
+	assertDialogMeasurement({
+		description: "the chevron slot's bottom",
+		actual: slot.y + slot.height,
+		expected: field.y + field.height - 1,
+		tolerance: 0.5,
+	});
+	const endPadding = await page
+		.locator(`${dialog} [data-test-migrate-select]`)
+		.evaluate((select) => getComputedStyle(select).paddingRight);
+	assert.equal(endPadding, "48px", "the select must keep its value clear of the chevron");
+}
+
+async function moveOrDeleteDialogGeometry(page: Page, dialog: string): Promise<void> {
+	const panel = await measuredBox(page, dialog);
+	const label = await measuredBox(page, `${dialog} .form-field__label`);
+	const field = await measuredBox(page, `${dialog} .form-input--select`);
+	const row = await measuredBox(page, `${dialog} .confirm-popover__buttons`);
+	const cancel = await measuredBox(page, `${dialog} ${READLIST_DELETE_CANCEL}`);
+	const commit = await measuredBox(page, `${dialog} ${READLIST_DELETE_CONFIRM}`);
+	const contentLeft = panel.x + 33;
+	assertDialogMeasurement({ description: "the label's left edge", actual: label.x, expected: contentLeft, tolerance: 0.5 });
+	assertDialogMeasurement({ description: "the select's left edge", actual: field.x, expected: contentLeft, tolerance: 0.5 });
+	assertDialogMeasurement({ description: "the select's width", actual: field.width, expected: 534, tolerance: 0.5 });
+	assertDialogMeasurement({
+		description: "Delete readlist's right edge",
+		actual: commit.x + commit.width,
+		expected: field.x + field.width,
+		tolerance: 0.5,
+	});
+	assertDialogMeasurement({
+		description: "Delete readlist's left edge",
+		actual: commit.x,
+		expected: cancel.x + cancel.width + 8,
+		tolerance: 0.5,
+	});
+	assertDialogMeasurement({
+		description: "the button row's top",
+		actual: row.y,
+		expected: field.y + field.height + 24,
+		tolerance: 1,
+	});
+	await selectDrawsItsOwnChevron(page, dialog);
+	assertDialogMeasurement({ description: "the dialog's height", actual: panel.height, expected: 395, tolerance: 1 });
+}
+
+async function moveOrDeleteDialogPhoneGeometry(page: Page, dialog: string): Promise<void> {
+	await stackedDialogButtons(
+		page,
+		dialog,
+		`${dialog} ${READLIST_DELETE_CANCEL}`,
+		`${dialog} ${READLIST_DELETE_CONFIRM}`,
+	);
+	const panel = await measuredBox(page, dialog);
+	const field = await measuredBox(page, `${dialog} .form-input--select`);
+	assert.ok(near(field.x, panel.x + 25), `the select must start at the content edge, measured ${field.x}px`);
+	assert.ok(
+		near(field.x + field.width, panel.x + panel.width - 25),
+		`the select must end at the content edge, measured ${field.x + field.width}px`,
+	);
 }
 
 async function deleteArticleDialogGeometry(page: Page): Promise<void> {
@@ -736,6 +849,12 @@ async function listingHeaderHidden(page: Page): Promise<void> {
 	await expect(page.locator(LISTING_HEADER)).toHaveClass(/readlist-listing__header--hidden/);
 }
 
+async function binAtDrawnSize(page: Page, scope: string): Promise<void> {
+	const art = await measuredBox(page, `${scope} [data-test-illustration="trash-can"]`);
+	assert.equal(Math.round(art.width), 46, `the bin must keep its drawn width, measured ${art.width}px`);
+	assert.equal(Math.round(art.height), 64, `the bin must keep its drawn height, measured ${art.height}px`);
+}
+
 async function emptyArtAtDrawnSize(page: Page): Promise<void> {
 	const art = await measuredBox(page, EMPTY_ART);
 	assert.equal(Math.round(art.width), 80, `the empty-state art must keep its drawn width, measured ${art.width}px`);
@@ -874,8 +993,61 @@ async function deleteReadlistDialogSettled(page: Page): Promise<void> {
 	await page.click(READLIST_MENU_SUMMARY);
 	await expect(page.locator(READLIST_MENU_PANEL)).toHaveAttribute("open", "");
 	await page.click(READLIST_MENU_DELETE);
-	await page.waitForSelector(`${READLIST_DELETE_POPOVER}:popover-open`);
+	await page.waitForSelector(OPEN_READLIST_DELETE_POPOVER);
 	await waitForBrandFonts(page, ["Inter"]);
+	await binAtDrawnSize(page, OPEN_READLIST_DELETE_POPOVER);
+}
+
+async function openTwoReadlistsWithAFiledArticle(
+	page: Page,
+	input: { email: string; openRail: (page: Page) => Promise<void> },
+): Promise<{ first: string; second: string }> {
+	const userId = await createVerifiedUser(page, input.email);
+	const articleId = await seedCrawledArticle(page, {
+		url: `https://example.com/readlist-move-or-delete-${input.email}`,
+		title: "An article filed into a readlist",
+		savedAt: "2026-07-12T09:14:00.000Z",
+		excerpt: "A fixed excerpt for the move-or-delete dialog baseline.",
+		userId,
+	});
+	await loginAs(page, input.email);
+	await gotoReadlistQueue(page, "");
+	await input.openRail(page);
+	await clickAndWaitForCounts(page, await nameNewReadlist(page, "Ideas & Inspiration"));
+	await input.openRail(page);
+	await clickAndWaitForCounts(page, await nameNewReadlist(page, "Finance"));
+	await expect(page.locator(`${RAIL} [data-test-readlist]`)).toHaveCount(3);
+	const [first, second] = await renameableSlugs(page);
+	await fileArticleIntoReadlist(page, { articleId, readlistSlug: first });
+	await gotoReadlistQueue(page, "");
+	return { first, second };
+}
+
+function moveOrDeleteDialog(input: {
+	first: string;
+	openRail: (page: Page) => Promise<void>;
+}): VisualCheckpoint {
+	const dialog = openDeleteReadlistDialog(input.first);
+	const menu = `[data-test-readlist-menu="${input.first}"]`;
+	return {
+		name: "readlist-delete-readlist-migrate-dialog",
+		settled: async (page) => {
+			await waitForBrandFonts(page, ["Inter"]);
+			await neutralise(page);
+			await input.openRail(page);
+			await page.click(`${menu} ${READLIST_MENU_SUMMARY}`);
+			await expect(page.locator(menu)).toHaveAttribute("open", "");
+			await page.click(`${menu} ${READLIST_MENU_DELETE}`);
+			await page.waitForSelector(dialog);
+			await page.mouse.move(0, 0);
+			await waitForBrandFonts(page, ["Inter"]);
+			await binAtDrawnSize(page, dialog);
+		},
+		geometry: (page) => moveOrDeleteDialogGeometry(page, dialog),
+		target: dialog,
+		capture: "element",
+		pinnedText: [],
+	};
 }
 
 async function cardMenuOpenSettled(page: Page): Promise<void> {
@@ -1651,6 +1823,18 @@ test.describe("Readlist rail menu", () => {
 			await captureCheckpoint(page, withTheme(DELETE_READLIST_DIALOG, theme));
 		});
 	}
+
+	for (const theme of THEMES) {
+		test(`asks where the articles go before deleting a readlist that holds some (${theme})`, async ({
+			page,
+		}, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-delete-migrate-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const { first } = await openTwoReadlistsWithAFiledArticle(page, { email, openRail: railIsOpen });
+
+			await captureCheckpoint(page, withTheme(moveOrDeleteDialog({ first, openRail: railIsOpen }), theme));
+		});
+	}
 });
 
 test.describe("Readlist create dialog", () => {
@@ -1777,6 +1961,17 @@ test.describe("Readlist dialogs on a phone", () => {
 		await loginAs(page, email);
 		await gotoReadlistQueue(page, "");
 		await captureCheckpoint(page, DELETE_ARTICLE_DIALOG_PHONE);
+	});
+
+	test("stacks Delete readlist above Cancel under the move-or-delete field", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const email = `readlist-delete-migrate-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const { first } = await openTwoReadlistsWithAFiledArticle(page, { email, openRail: openReadlistSwitcher });
+		await captureCheckpoint(page, {
+			...moveOrDeleteDialog({ first, openRail: openReadlistSwitcher }),
+			name: "readlist-delete-readlist-migrate-dialog-phone",
+			geometry: (each) => moveOrDeleteDialogPhoneGeometry(each, openDeleteReadlistDialog(first)),
+		});
 	});
 });
 
@@ -2299,6 +2494,31 @@ test.describe("Readlist rail at the name cap", () => {
 			await page.setViewportSize(viewport);
 			await neverScrollsSideways(page);
 		}
+	});
+});
+
+test.describe("Readlist move-or-delete dialog at the reflow minimum", () => {
+	test.use({ timezoneId: "UTC", viewport: WCAG_REFLOW_MINIMUM });
+
+	test("keeps the move-or-delete dialog inside a 320px screen", async ({ page }, testInfo) => {
+		const email = `readlist-delete-migrate-reflow-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const { first } = await openTwoReadlistsWithAFiledArticle(page, { email, openRail: openReadlistSwitcher });
+		await moveOrDeleteDialog({ first, openRail: openReadlistSwitcher }).settled(page);
+
+		const dialog = openDeleteReadlistDialog(first);
+		await neverScrollsSideways(page);
+		const panel = await measuredBox(page, dialog);
+		const field = await measuredBox(page, `${dialog} .form-input--select`);
+		const cancel = await measuredBox(page, `${dialog} ${READLIST_DELETE_CANCEL}`);
+		const commit = await measuredBox(page, `${dialog} ${READLIST_DELETE_CONFIRM}`);
+		assert.ok(
+			field.x + field.width <= panel.x + panel.width - 25 + 1,
+			`the select must end inside the content edge, measured select=${JSON.stringify(field)} panel=${JSON.stringify(panel)}`,
+		);
+		assert.ok(
+			near(cancel.y, commit.y + commit.height + 8),
+			`Cancel must stack 8px under Delete readlist, measured cancel=${JSON.stringify(cancel)} commit=${JSON.stringify(commit)}`,
+		);
 	});
 });
 

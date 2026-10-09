@@ -9,23 +9,47 @@ import {
 
 const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
 const PERSONAL = ReadlistSlugSchema.parse("e5f6a7b8");
+const PLAIN_BODY = "This readlist will be permanently deleted. Articles saved in All will remain in your library.";
+const MOVE_OR_DELETE_BODY =
+	"Before deleting this readlist, choose whether to move its articles to another readlist or delete them.";
 
-function panelFor(destinations: readonly ReadlistDeleteDestination[]) {
+function panelFor(input: { holdsArticles: boolean; destinations: readonly ReadlistDeleteDestination[] }) {
 	const { document } = parseHTML(
 		`<div>${renderReadlistDeleteConfirm({
-			popoverId: readlistDeleteConfirmPopoverId(WORK),
+			slug: WORK,
 			url: `/queue/queues/${WORK}/delete`,
 			label: "Work Reading",
-			destinations,
+			destinations: input.destinations,
+			holdsArticles: input.holdsArticles,
+			illustrationHtml: "<svg data-test-trash-illustration></svg>",
 		})}</div>`,
 	);
 	return document;
 }
 
-function offeredDestinations(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-test-migrate-target]"), (option) =>
-		option.getAttribute("data-test-migrate-target"),
+function movableArticles(): Document {
+	return panelFor({ holdsArticles: true, destinations: [{ slug: PERSONAL, label: "Personal" }] });
+}
+
+function textOf(doc: Document, id: string): string | null {
+	const element = doc.getElementById(id);
+	assert(element, `the panel must render #${id}`);
+	return element.textContent;
+}
+
+function formControls(doc: Document): (string | null)[] {
+	const form = doc.querySelector("form");
+	assert(form, "the confirmation must post through a form");
+	return Array.from(
+		form.querySelectorAll("select, button"),
+		(control) => control.getAttribute("name") ?? control.getAttribute("data-test-action"),
 	);
+}
+
+function commitOf(doc: Document): Element {
+	const commit = doc.querySelector("[data-test-action='readlist-delete-confirm']");
+	assert(commit, "the delete form must carry its commit");
+	return commit;
 }
 
 describe("readlistDeleteConfirmPopoverId", () => {
@@ -35,81 +59,86 @@ describe("readlistDeleteConfirmPopoverId", () => {
 });
 
 describe("renderReadlistDeleteConfirm", () => {
-	it("offers every other readlist the reader owns as somewhere the articles can go", () => {
-		const doc = panelFor([{ slug: PERSONAL, label: "Personal" }]);
+	it("asks the plain question when the readlist holds nothing to move", () => {
+		const doc = panelFor({ holdsArticles: false, destinations: [{ slug: PERSONAL, label: "Personal" }] });
 
-		expect(offeredDestinations(doc)).toEqual(["e5f6a7b8"]);
-		const picker = doc.querySelector("[data-test-readlist-migrate]");
-		assert(picker, "the panel must render the destination list");
-		expect(picker.classList.contains("readlist-migrate--visible")).toBe(true);
+		expect(textOf(doc, "readlist-remove-confirm-a1b2c3d4-title")).toBe("Delete this readlist?");
+		expect(textOf(doc, "readlist-remove-confirm-a1b2c3d4-body")).toBe(PLAIN_BODY);
+		expect(formControls(doc)).toEqual(["readlist-delete-cancel", "readlist-delete-confirm"]);
 	});
 
-	it("withholds the picker when the reader has no second readlist to hand the articles to", () => {
-		const doc = panelFor([]);
+	it("asks the plain question when no other readlist could take the articles", () => {
+		const doc = panelFor({ holdsArticles: true, destinations: [] });
 
-		expect(offeredDestinations(doc)).toEqual([]);
-		const picker = doc.querySelector("[data-test-readlist-migrate]");
-		assert(picker, "the panel must render the destination list");
-		expect(picker.classList.contains("readlist-migrate--hidden")).toBe(true);
+		expect(textOf(doc, "readlist-remove-confirm-a1b2c3d4-title")).toBe("Delete this readlist?");
+		expect(formControls(doc)).toEqual(["readlist-delete-cancel", "readlist-delete-confirm"]);
 	});
 
-	it("starts on leaving the articles behind, so confirming without a choice deletes as it always did", () => {
-		const doc = panelFor([{ slug: PERSONAL, label: "Personal" }]);
+	it("asks where the articles go when the readlist holds some and another readlist can take them", () => {
+		const doc = movableArticles();
 
-		const options = Array.from(
-			doc.querySelectorAll("[data-test-migrate-select] option"),
-			(option) => option.getAttribute("value"),
-		);
-		expect(options).toEqual(["", "e5f6a7b8"]);
+		expect(textOf(doc, "readlist-remove-confirm-a1b2c3d4-title")).toBe("Move or delete articles");
+		expect(textOf(doc, "readlist-remove-confirm-a1b2c3d4-body")).toBe(MOVE_OR_DELETE_BODY);
+		expect(formControls(doc)).toEqual(["migrate_to", "readlist-delete-cancel", "readlist-delete-confirm"]);
+	});
+
+	it("offers every other readlist first and deleting them last, so an untouched choice moves them", () => {
+		const options = Array.from(movableArticles().querySelectorAll("[data-test-migrate-select] option"));
+
+		expect(options.map((option) => option.getAttribute("value"))).toEqual(["e5f6a7b8", ""]);
+		expect(options.map((option) => option.textContent)).toEqual(["Personal", "Nowhere, delete them too"]);
 	});
 
 	it("labels the dropdown for the field it names, so a screen reader reads the two together", () => {
-		const doc = panelFor([{ slug: PERSONAL, label: "Personal" }]);
+		const doc = movableArticles();
 
 		const select = doc.querySelector("[data-test-migrate-select]");
-		const label = doc.querySelector(".readlist-migrate__label");
 		assert(select, "the panel must render the destination dropdown");
+		const label = doc.querySelector(`label[for="${select.getAttribute("id")}"]`);
 		assert(label, "the dropdown must be labelled");
-		expect(label.getAttribute("for")).toBe(select.getAttribute("id"));
+		expect(label.textContent).toBe("Move articles to");
 		expect(select.getAttribute("name")).toBe("migrate_to");
 	});
 
-	it("carries both wordings for the one confirm control, so picking a readlist renames it", () => {
-		const doc = panelFor([{ slug: PERSONAL, label: "Personal" }]);
+	it("commits with one wording whatever the reader picks", () => {
+		const plain = panelFor({ holdsArticles: false, destinations: [] });
 
-		const labels = Array.from(
-			doc.querySelectorAll("[data-test-action='readlist-delete-confirm'] span"),
-			(label) => label.textContent,
-		);
-		expect(labels).toEqual(["Confirm Deletion", "Move and Delete"]);
-		const commit = doc.querySelector("[data-test-action='readlist-delete-confirm']");
-		assert(commit, "the delete form must carry its commit");
-		expect(commit.classList.contains("btn--primary")).toBe(true);
-		expect([...doc.querySelectorAll(".confirm-popover__header [data-test-action]")].map((action) => action.getAttribute("data-test-action"))).toEqual(["readlist-delete-dismiss"]);
+		expect([commitOf(plain).textContent, commitOf(movableArticles()).textContent]).toEqual([
+			"Delete readlist",
+			"Delete readlist",
+		]);
+		expect(commitOf(plain).getAttribute("type")).toBe("submit");
 	});
 
-	it("tells the reader the copies go with the readlist, and that another readlist can keep them", () => {
-		const doc = panelFor([{ slug: PERSONAL, label: "Personal" }]);
-
-		const body = doc.getElementById("readlist-remove-confirm-a1b2c3d4-body");
-		assert(body, "the panel must say what deleting does");
-		expect(body.textContent).toBe(
-			"Deleting takes this readlist's copies with it. Move them to another readlist to keep them together, or leave them behind and keep only what All already holds.",
-		);
+	it("backs out through Cancel without posting", () => {
+		for (const doc of [panelFor({ holdsArticles: false, destinations: [] }), movableArticles()]) {
+			const cancel = doc.querySelector("[data-test-action='readlist-delete-cancel']");
+			assert(cancel, "the panel must offer Cancel");
+			expect(cancel.getAttribute("type")).toBe("button");
+			expect(cancel.getAttribute("popovertarget")).toBe("readlist-remove-confirm-a1b2c3d4");
+			expect(cancel.getAttribute("popovertargetaction")).toBe("hide");
+		}
 	});
 
-	it("drops the offer of another readlist from the wording when there is none", () => {
-		const doc = panelFor([]);
+	it("offers no close control of its own", () => {
+		const header = movableArticles().querySelector(".confirm-popover__header");
+		assert(header, "the panel must render its header");
 
-		const body = doc.getElementById("readlist-remove-confirm-a1b2c3d4-body");
-		assert(body, "the panel must say what deleting does");
-		expect(body.textContent).toBe(
-			"Deleting takes this readlist's copies with it. Anything you also saved in All stays there.",
-		);
+		expect(
+			Array.from(header.querySelectorAll("[data-test-action]"), (action) => action.getAttribute("data-test-action")),
+		).toEqual([]);
+	});
+
+	it("names the readlist it deletes for tests that tell panels apart", () => {
+		const panel = movableArticles().querySelector("[data-test-confirm-popover='readlist-delete']");
+		assert(panel, "the panel must render");
+
+		expect(panel.getAttribute("data-test-confirm-subject")).toBe("a1b2c3d4");
+		expect(panel.getAttribute("id")).toBe("readlist-remove-confirm-a1b2c3d4");
 	});
 
 	it("names the readlist for a screen reader without repeating it on screen", () => {
-		const doc = panelFor([]);
+		const doc = movableArticles();
 
 		const lead = doc.getElementById("readlist-remove-confirm-a1b2c3d4-lead");
 		assert(lead, "the panel must name the readlist it is about");
@@ -118,7 +147,7 @@ describe("renderReadlistDeleteConfirm", () => {
 	});
 
 	it("stamps the internal tracking the rail's delete control carries", () => {
-		const form = panelFor([]).querySelector("form");
+		const form = movableArticles().querySelector("form");
 
 		assert(form, "the confirmation must post through a form");
 		const action = form.getAttribute("action") ?? "";
@@ -127,30 +156,12 @@ describe("renderReadlistDeleteConfirm", () => {
 		expect(action).toContain("utm_content=queue-delete");
 	});
 
-	it("illustrates the panel when the caller supplies artwork", () => {
-		const { document } = parseHTML(
-			`<div>${renderReadlistDeleteConfirm({
-				popoverId: readlistDeleteConfirmPopoverId(WORK),
-				url: `/queue/queues/${WORK}/delete`,
-				label: "Work Reading",
-				destinations: [],
-				illustrationHtml: "<svg data-test-trash-illustration></svg>",
-			})}</div>`,
-		);
-
-		const panel = document.querySelector(".confirm-popover");
-		assert(panel, "the panel must render");
-		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(true);
-		expect(document.querySelectorAll(".confirm-popover__illustration svg[data-test-trash-illustration]")).toHaveLength(
-			1,
-		);
-	});
-
-	it("omits the illustration modifier when the caller supplies no artwork", () => {
-		const doc = panelFor([]);
+	it("illustrates the panel with the artwork the caller supplies", () => {
+		const doc = panelFor({ holdsArticles: false, destinations: [] });
 
 		const panel = doc.querySelector(".confirm-popover");
 		assert(panel, "the panel must render");
-		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(false);
+		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(true);
+		expect(doc.querySelectorAll(".confirm-popover__illustration svg[data-test-trash-illustration]")).toHaveLength(1);
 	});
 });

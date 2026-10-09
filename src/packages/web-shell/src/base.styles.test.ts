@@ -239,6 +239,16 @@ describe("FORM_CONTROL_STYLES", () => {
 		expect(control).toContain("padding: var(--input-padding);");
 	});
 
+	it("draws a select's own chevron, clear of its value, and leaves the click to the select", () => {
+		expect(formControlRule(".form-input--select")).toContain("position: relative;");
+		const select = formControlRule(".form-input--select .form-input__control");
+		expect(select).toContain("appearance: none;");
+		expect(select).toContain("padding-inline-end: 48px;");
+		const chevron = formControlRule(".form-input__chevron");
+		expect(chevron).toContain("pointer-events: none;");
+		expect(chevron).toContain("color: var(--foreground);");
+	});
+
 	it("lets a marketing field show its paired button's outline instead of the field edge", () => {
 		const focus = formControlRule(".form-input--cta-ring:focus");
 		expect(focus).toContain("border-color: var(--input);");

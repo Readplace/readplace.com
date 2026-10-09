@@ -195,6 +195,7 @@ import {
 	renderReadlistCounts,
 	toReadlistCountsDisplayModel,
 } from "./readlist-counts.component";
+import { initFindNonEmptyReadlists } from "./readlist-holdings";
 import { initReadlistPreferencesRoutes } from "./readlist-preferences.page";
 import { buildReadlistRail } from "./readlist-rail";
 import { collectUtmParams } from "../../shared/utm";
@@ -753,6 +754,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * handler below runs today's code path byte for byte unless a reader addressed
 	 * one of their own readlists. */
 	const storeFor = (readlist: ReadlistSlug) => readlistScopedStore(deps, readlist);
+
+	const findNonEmptyReadlists = initFindNonEmptyReadlists({ countReadlistArticles: deps.countReadlistArticles });
 
 	const purgeReadlistArticles = async (params: {
 		userId: UserId;
@@ -1353,6 +1356,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			getEffectiveAccess: deps.getEffectiveAccess,
 			buildBannerState: deps.buildBannerState,
 			requireWriteAccess: deps.requireWriteAccess,
+			findNonEmptyReadlists,
 		}),
 	);
 
@@ -1531,7 +1535,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		},
 	): Promise<void> => {
 		const effectiveAccessPromise = deps.getEffectiveAccess(input.userId);
-		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, signals] =
+		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, signals, nonEmptyReadlists] =
 			await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
@@ -1542,6 +1546,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					result: input.result,
 				}),
 				effectiveAccessPromise.then((access) => resolveOnboardingSignals(req, input.userId, access)),
+				findNonEmptyReadlists({ userId: input.userId, readlists: input.context.readlists }),
 			]);
 		const confirmReadlistsByUrl = await markStatusConfirmReadlistsFor({
 			userId: input.userId,
@@ -1564,7 +1569,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
-		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
+		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
 		const page = ReadlistPage(vm, { ...pageOptions, query: req.query });
 		res.vary("Cookie");
 		sendComponent(

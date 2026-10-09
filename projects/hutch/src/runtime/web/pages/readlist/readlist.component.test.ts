@@ -21,6 +21,7 @@ const RAIL: ReadlistRailViewModel = {
 	activeReadlist: DEFAULT_READLIST,
 	newReadlistAction: READLIST_CREATE_PATH,
 	canCreate: true,
+	nonEmptyReadlists: [],
 };
 const DEFAULT_FILTERS: ReadlistUrlState = { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 };
 
@@ -653,6 +654,20 @@ describe("ReadlistPage", () => {
 		expect(readlistConfirm.classList.contains("confirm-popover--illustrated")).toBe(true);
 		expect(articleConfirm.querySelectorAll('.confirm-popover__illustration [data-test-illustration="trash-can"]')).toHaveLength(1);
 		expect(readlistConfirm.querySelectorAll('.confirm-popover__illustration [data-test-illustration="trash-can"]')).toHaveLength(1);
+	});
+
+	it("asks where the articles go only for the readlists the rail says hold some", () => {
+		const finance: Readlist = { slug: ReadlistSlugSchema.parse("finance"), label: "Finance" };
+		const doc = pageDoc(
+			{},
+			{ rail: { ...RAIL, readlists: [DEFAULT_READLIST, WORK, finance], nonEmptyReadlists: [WORK.slug] } },
+		);
+
+		const titles = Array.from(
+			doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]'),
+			(panel) => doc.getElementById(`${panel.id}-title`)?.textContent,
+		);
+		expect(titles).toEqual(["Move or delete articles", "Delete this readlist?"]);
 	});
 
 	it("leads the empty readlist with the book and lightbulb", () => {
