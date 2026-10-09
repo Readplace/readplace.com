@@ -95,6 +95,10 @@ export function readlistPreferencesInboxesPath(readlist: ReadlistSlug): string {
 	return `${readlistPreferencesPath(readlist)}/inboxes`;
 }
 
+export function readlistPurposeDeletePath(readlist: ReadlistSlug): string {
+	return `${readlistPreferencesPath(readlist)}/purpose/delete`;
+}
+
 export function readlistDeletePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/delete`;
 }

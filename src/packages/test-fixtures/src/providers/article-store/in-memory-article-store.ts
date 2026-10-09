@@ -23,6 +23,7 @@ import type {
 	FindSavedUrls,
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
+	ClearReadlistDefinitionPurpose,
 	CountArticlesByUser,
 	CountReadlistArticles,
 	CreateReadlistDefinition,
@@ -187,6 +188,7 @@ export function initInMemoryArticleStore(): {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
@@ -785,6 +787,14 @@ export function initInMemoryArticleStore(): {
 		return { updated: true };
 	};
 
+	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (!definition) return { cleared: false };
+		definition.purpose = undefined;
+		return { cleared: true };
+	};
+
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		return { deleted: readlistDefinitions.delete(readlistDefinitionKey(params.userId, params.slug)) };
@@ -1091,6 +1101,7 @@ export function initInMemoryArticleStore(): {
 		listReadlistDefinitions,
 		renameReadlistDefinition,
 		setReadlistDefinitionPurpose,
+		clearReadlistDefinitionPurpose,
 		getSummaryToggleState,
 		readContent,
 		writeContent,

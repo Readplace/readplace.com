@@ -597,6 +597,43 @@ test.describe("Plan choice holds its WCAG contrast in both themes", () => {
 	});
 });
 
+test.describe("Readlist preferences colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("every rendered preferences surface clears its contrast minimum", async ({ page }, testInfo) => {
+		const email = `colour-contrast-preferences-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createChipReader(page, email);
+		await loginChipReader(page, email);
+		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Weekend" } });
+		assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+		const slug = new URL(created.url()).searchParams.get("queue");
+		assert(slug, "creating a readlist must land the reader on it");
+		const preferencesUrl = `${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`;
+		const preferences = "[data-test-readlist-preferences]";
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(preferencesUrl, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(preferences)).toHaveAttribute("data-test-preferences-state", "unset");
+			await auditRoot(page, { root: preferences, theme, view: "preferences/unset" });
+		}
+
+		const saved = await page.request.post(preferencesUrl, {
+			form: { purpose: "Long-form essays about how teams actually ship software." },
+		});
+		assert.equal(saved.status(), 200, "a saved purpose must land back on the preferences tab");
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(preferencesUrl, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(preferences)).toHaveAttribute("data-test-preferences-state", "set");
+			await auditRoot(page, { root: preferences, theme, view: "preferences/set" });
+			await page.locator('[data-test-action="readlist-preferences-menu"]').click({ timeout: SETTLE_MS });
+			await expect(page.locator('[data-test-action="readlist-preferences-edit"]')).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: preferences, theme, view: "preferences/menu-open" });
+		}
+	});
+});
+
 const GMAIL_ROOT = "main.gmail";
 const ADMIN_INDEX_ROOT = "main.admin-index";
 const ADMIN_NEWSLETTERS_ROOT = "main.admin-newsletters";

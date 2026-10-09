@@ -1,6 +1,10 @@
-<form class="{{formClass}}" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-wizard="{{key}}" data-test-wizard-step="{{stepId}}" data-test-wizard-surface="{{surface}}">
-  {{{fieldHtml}}}
-  <p class="{{errorClass}}" id="{{errorId}}" role="alert" data-test-wizard-error>{{error}}</p>
-  <button class="btn btn--primary" type="submit" data-test-action="{{saveTestAction}}">{{submitLabel}}</button>
-  {{{cancelHtml}}}
+<form class="{{formClass}}" method="POST" action="{{action}}" {{{submitAttributes}}} data-test-wizard="{{key}}" data-test-wizard-step="{{stepId}}" data-test-wizard-surface="{{surface}}">
+  <div class="form-field">
+    {{{fieldHtml}}}
+    <p class="form-field__error" id="{{errorId}}" role="alert" data-readlist-name-error data-test-wizard-error>{{error}}</p>
+  </div>
+  <div class="{{buttonsClass}}">
+    {{{cancelHtml}}}
+    <button class="btn btn--primary wizard__save" type="submit" data-test-action="{{saveTestAction}}"><span class="wizard__save-label">{{submitLabel}}</span>{{{loaderHtml}}}</button>
+  </div>
 </form>

@@ -417,6 +417,64 @@ describe("setReadlistDefinitionPurpose", () => {
 	});
 });
 
+describe("clearReadlistDefinitionPurpose", () => {
+	it("removes only the purpose, on a row that must already exist", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { clearReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{}], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await clearReadlistDefinitionPurpose({ userId: USER, slug: WORK })).toEqual({
+			cleared: true,
+		});
+		expect(commands[0].name).toBe("UpdateCommand");
+		expect(commands[0].input).toMatchObject({
+			TableName: TABLE,
+			Key: { userId: USER, url: "readplace:queue-def/work" },
+			UpdateExpression: "REMOVE #purpose",
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
+		});
+	});
+
+	it("reports a readlist that no longer has a definition row", async () => {
+		const { clearReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw conditionalCheckFailed();
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await clearReadlistDefinitionPurpose({ userId: USER, slug: WORK })).toEqual({
+			cleared: false,
+		});
+	});
+
+	it("lets an unexpected storage failure surface", async () => {
+		const { clearReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw new Error("throttled");
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		await expect(clearReadlistDefinitionPurpose({ userId: USER, slug: WORK })).rejects.toThrow(
+			"throttled",
+		);
+	});
+});
+
 describe("deleteReadlistDefinition", () => {
 	it("drops the row, on a row that must already exist", async () => {
 		const commands: { name: string; input: Record<string, unknown> }[] = [];

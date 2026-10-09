@@ -37,6 +37,8 @@ const READLIST_TABS = "[data-test-filters]";
 const READLIST_RAIL = ".readlist__rail";
 const READLIST_SAVE_CARD = "[data-test-save-card]";
 const SETUP_GUIDE = "[data-test-setup-guide]";
+const READLIST_LAYOUT = ".readlist__layout";
+const READLIST_PREFERENCES = "[data-test-readlist-preferences]";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
 const VOLATILE_CHROME = [
@@ -560,6 +562,32 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			assert.equal(Math.round(art.height), 64);
 			await expect(page.locator("[data-test-listing]")).toHaveScreenshot(
 				`eink-readlist-empty-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the readlist preferences keep their contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await createEinkUser(
+				page,
+				`readlist-preferences-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			const slug = await createReadlist(page, "Weekend");
+			const saved = await page.request.post(`${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`, {
+				form: { purpose: "Long-form essays about how teams actually ship software, kept for a slow weekend read." },
+			});
+			assert.equal(saved.status(), 200, "a saved purpose must land back on the preferences tab");
+			await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(READLIST_PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
+			await expect(page.locator(SETUP_GUIDE)).toBeVisible();
+			await page.locator('[data-test-action="readlist-preferences-menu"]').click();
+			await expect(page.locator('[data-test-preferences-menu]')).toHaveAttribute("open", "");
+			await expect(page.locator('[data-test-action="readlist-preferences-edit"]')).toBeVisible();
+			await settle(page, READLIST_LAYOUT);
+
+			await expect(page.locator(READLIST_LAYOUT)).toHaveScreenshot(
+				`eink-readlist-preferences-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

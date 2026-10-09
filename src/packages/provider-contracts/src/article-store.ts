@@ -292,6 +292,11 @@ export type SetReadlistDefinitionPurpose = (params: {
 	purpose: string;
 }) => Promise<{ updated: boolean }>;
 
+export type ClearReadlistDefinitionPurpose = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+}) => Promise<{ cleared: boolean }>;
+
 export type DeleteReadlistDefinition = (params: {
 	userId: UserId;
 	slug: ReadlistSlug;

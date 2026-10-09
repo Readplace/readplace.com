@@ -58,6 +58,7 @@ import type {
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
 	MarkArticleViewed,
@@ -207,7 +208,8 @@ import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, type ReadlistCreateDi
 import { READLIST_CREATE_POPOVER_ID, renderReadlistCreateForm } from "./readlist-create.component";
 import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-rename.component";
 import { moveCreatePopoverId, renderMoveCreateForm } from "./readlist-card/move-dialog.component";
-import { type HxLocationScroll, hxLocationToMain } from "../../hx-location";
+import type { HxLocationScroll } from "../../hx-location";
+import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -293,35 +295,6 @@ function readImportSkippedFlash(
 		})),
 		andMore: decoded.andMore,
 	};
-}
-
-type ReadlistNaming =
-	| { landing: string; scroll: HxLocationScroll; announcement?: string }
-	| { refusal: string; form: () => string };
-
-function answerReadlistNaming(
-	req: Request,
-	res: Response,
-	answer: { dialogId: string; naming: ReadlistNaming },
-): void {
-	const { naming } = answer;
-	if (req.get("HX-Request") !== "true") {
-		res.redirect(303, "landing" in naming ? naming.landing : naming.refusal);
-		return;
-	}
-	if (!("landing" in naming)) {
-		res.status(422).type("html").send(naming.form());
-		return;
-	}
-	res.set(
-		"HX-Location",
-		hxLocationToMain({ path: naming.landing, source: `#${answer.dialogId}`, scroll: naming.scroll }),
-	);
-	if (naming.announcement === undefined) {
-		res.status(204).end();
-		return;
-	}
-	res.type("text/plain").send(naming.announcement);
 }
 
 function markExtensionSavedArticle(res: Response): void {
@@ -425,6 +398,7 @@ interface ReadlistDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
@@ -1384,18 +1358,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
-	router.use(
-		initReadlistPreferencesRoutes({
-			listReadlistDefinitions: deps.listReadlistDefinitions,
-			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
-			listInboxAddresses: deps.listInboxAddresses,
-			setInboxAddressReadlist: deps.setInboxAddressReadlist,
-			getEffectiveAccess: deps.getEffectiveAccess,
-			buildBannerState: deps.buildBannerState,
-			requireWriteAccess: deps.requireWriteAccess,
-			findNonEmptyReadlists,
-		}),
-	);
 
 	/** Resolves how far the account is toward the Next Read minimum, capped at it.
 	 * Once the milestone is stamped the answer is the cap and no count is issued,
@@ -1515,6 +1477,23 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			},
 		};
 	};
+
+	router.use(
+		initReadlistPreferencesRoutes({
+			listReadlistDefinitions: deps.listReadlistDefinitions,
+			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
+			listInboxAddresses: deps.listInboxAddresses,
+			setInboxAddressReadlist: deps.setInboxAddressReadlist,
+			getEffectiveAccess: deps.getEffectiveAccess,
+			buildBannerState: deps.buildBannerState,
+			requireWriteAccess: deps.requireWriteAccess,
+			findNonEmptyReadlists,
+			now: deps.now,
+			resolveOnboarding: async (req, userId, access) =>
+				(await resolveOnboardingSignals(req, userId, access)).onboarding,
+		}),
+	);
 
 	const savesAcrossReadlists = async (params: {
 		userId: UserId;

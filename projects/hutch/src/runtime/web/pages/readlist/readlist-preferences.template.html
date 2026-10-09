@@ -3,22 +3,62 @@
         <div class="readlist__rail">
           {{{readlistNavHtml}}}
         </div>
-        <div class="readlist__main">
-          {{{alertHtml}}}
-          {{{tabsHtml}}}
-          <section class="readlist-listing {{panelClass}}" aria-labelledby="readlist-preferences-title" data-test-readlist-preferences data-test-preferences-state="{{state}}">
-            <h2 class="sr-only" id="readlist-preferences-title">Preferences for {{readlistLabel}}</h2>
-            <button class="btn btn--primary readlist-preferences__setup readlist-preferences__trigger" type="button" popovertarget="{{wizardPopoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-setup">{{setupLabel}}</button>
-            <button class="readlist-preferences__purpose readlist-preferences__trigger" type="button" popovertarget="{{wizardPopoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-edit"><span class="readlist-preferences__purpose-text" data-test-preferences-purpose>{{purposeText}}</span>{{icon "pencil"}}<span class="sr-only">Edit purpose</span></button>
-            <div class="readlist-preferences__fallback">
-              {{{wizardInlineHtml}}}
-            </div>
-          </section>
-          {{{inboxesHtml}}}
+        <div class="readlist__main readlist__main--interleaved">
+          <div class="readlist__lead">
+            {{{alertHtml}}}
+            {{{saveCardHtml}}}
+          </div>
+          <div class="readlist__browse">
+            {{{tabsHtml}}}
+            <section class="readlist-listing {{panelClass}}" aria-labelledby="readlist-preferences-title" data-test-readlist-preferences data-test-preferences-state="{{state}}">
+              <h2 class="sr-only" id="readlist-preferences-title">Preferences for {{readlistLabel}}</h2>
+              <div class="readlist-preferences__unset">
+                <div class="readlist-empty" data-test-preferences-empty>
+                  <div class="readlist-empty__illustration">{{{setupIllustrationHtml}}}</div>
+                  <h3 class="readlist-empty__title">Set up your readlist</h3>
+                  <p class="readlist-empty__text">Personalise this readlist by choosing what you want to read in it.</p>
+                  {{#each setupActions}}
+                  <button class="btn btn--neutral readlist-empty__cta" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-setup">Set up readlist</button>
+                  {{/each}}
+                </div>
+              </div>
+              <div class="readlist-preferences__set">
+                <p class="readlist-preferences__purpose" data-test-preferences-purpose>{{purposeText}}</p>
+                {{#each menus}}
+                <details class="menu readlist-preferences__menu" data-test-preferences-menu>
+                  <summary class="menu__toggle" data-test-action="readlist-preferences-menu">{{icon "ellipsis"}}<span class="sr-only">More options for this purpose</span></summary>
+                  <div class="menu__panel">
+                    {{#each triggers}}
+                    <button class="menu__item readlist-preferences__menu-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{icon iconName}}<span>{{text}}</span></button>
+                    {{/each}}
+                    {{#each actions}}
+                    <form class="readlist-preferences__menu-fallback" method="POST" action="{{url}}" hx-boost="false">
+                      <button class="menu__item" type="submit" data-test-action="{{testAction}}">{{icon iconName}}<span>{{text}}</span></button>
+                    </form>
+                    {{/each}}
+                  </div>
+                </details>
+                {{/each}}
+              </div>
+              {{#each inlineWizards}}
+              <div class="readlist-preferences__fallback">
+                {{{this}}}
+              </div>
+              {{/each}}
+            </section>
+            {{{inboxesHtml}}}
+          </div>
+        </div>
+        <div class="readlist__side">
+          {{{subscriptionHtml}}}
+          {{{onboardingHtml}}}
         </div>
       </div>
       {{{readlistRenamesHtml}}}
       {{{readlistCreateHtml}}}
       {{{readlistDeleteConfirmHtml}}}
       {{{wizardPopoverHtml}}}
+      {{{purposeDeleteConfirmHtml}}}
+      {{{subscribePlansHtml}}}
+      {{{saveTipHtml}}}
     </main>

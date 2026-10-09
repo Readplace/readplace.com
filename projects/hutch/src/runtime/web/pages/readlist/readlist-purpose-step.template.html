@@ -1,2 +1,2 @@
-<label class="sr-only" for="{{fieldId}}">Purpose</label>
-<textarea class="form-input form-input--multiline" id="{{fieldId}}" name="purpose" rows="5" required maxlength="{{maxLength}}" placeholder="This readlist purpose is …" aria-describedby="{{errorId}}"{{#if invalid}} aria-invalid="true"{{/if}} data-test-field="purpose">{{purpose}}</textarea>
+<label class="form-field__label" for="{{fieldId}}">Readlist purpose</label>
+<textarea class="form-input form-input--multiline" id="{{fieldId}}" name="purpose" rows="4" required maxlength="{{maxLength}}" placeholder="This readlist purpose is…" aria-describedby="{{errorId}}"{{#if invalid}} aria-invalid="true" autofocus{{/if}} data-test-field="purpose">{{purpose}}</textarea>

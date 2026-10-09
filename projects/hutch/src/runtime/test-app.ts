@@ -206,6 +206,7 @@ function flattenFixtureToAppDependencies(
 		listReadlistDefinitions: fixture.articleStore.listReadlistDefinitions,
 		renameReadlistDefinition: fixture.articleStore.renameReadlistDefinition,
 		setReadlistDefinitionPurpose: fixture.articleStore.setReadlistDefinitionPurpose,
+		clearReadlistDefinitionPurpose: fixture.articleStore.clearReadlistDefinitionPurpose,
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
 		deleteReadlistDefinition: fixture.articleStore.deleteReadlistDefinition,
 		markSummaryToggled: fixture.articleStore.markSummaryToggled,

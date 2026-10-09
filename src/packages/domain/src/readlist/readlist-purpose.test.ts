@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "./readlist-name.schema";
-import { decideReadlistPurpose } from "./readlist-purpose";
+import { decideReadlistPurpose, decideReadlistPurposeClear } from "./readlist-purpose";
 import { READLIST_PURPOSE_MAX_LENGTH } from "./readlist-purpose.schema";
 
 const slug = (value: string) => ReadlistSlugSchema.parse(value);
@@ -61,5 +61,28 @@ describe("decideReadlistPurpose", () => {
 			decideReadlistPurpose({ slug: slug("ffffffff"), purpose: "Mine", readlists }),
 			{ ok: false, reason: "unknown-readlist" },
 		);
+	});
+});
+
+describe("decideReadlistPurposeClear", () => {
+	it("clears the purpose of a readlist the reader made", () => {
+		assert.deepEqual(decideReadlistPurposeClear({ slug: slug("e5f6a7b8"), readlists }), {
+			ok: true,
+			slug: "e5f6a7b8",
+		});
+	});
+
+	it("refuses the built-in readlist, which has no purpose to clear", () => {
+		assert.deepEqual(decideReadlistPurposeClear({ slug: DEFAULT_READLIST_SLUG, readlists }), {
+			ok: false,
+			reason: "unknown-readlist",
+		});
+	});
+
+	it("refuses a readlist the reader does not have", () => {
+		assert.deepEqual(decideReadlistPurposeClear({ slug: slug("ffffffff"), readlists }), {
+			ok: false,
+			reason: "unknown-readlist",
+		});
 	});
 });

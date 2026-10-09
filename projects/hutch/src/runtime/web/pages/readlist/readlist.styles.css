@@ -1024,17 +1024,6 @@
   color: var(--foreground);
 }
 
-.readlist .confirm-popover__actions.wizard__form {
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-}
-
-.readlist .confirm-popover__actions.wizard__form .btn {
-  width: 100%;
-  flex: 0 0 auto;
-}
-
 .readlist-article__suggestion {
   display: block;
   color: var(--muted-foreground);

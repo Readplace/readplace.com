@@ -1,5 +1,7 @@
 export type WizardSurface = "popover" | "inline";
 
+export type WizardHeading = { kind: "step" } | { kind: "task"; title: string };
+
 export interface WizardField {
 	idPrefix: string;
 	errorId: string;

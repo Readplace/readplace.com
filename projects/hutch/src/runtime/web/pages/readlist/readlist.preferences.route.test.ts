@@ -9,6 +9,7 @@ import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { z } from "zod";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { seedInto } from "../../test-helpers/readlist-seed";
 
@@ -47,6 +48,62 @@ function filterTabs(doc: Document): (string | null)[] {
 
 function savePurpose(agent: TestAgent, slug: string, purpose: string) {
 	return agent.post(preferencesPath(slug)).type("form").send({ purpose });
+}
+
+const HxLocationSchema = z
+	.object({ path: z.string(), source: z.string(), target: z.string(), select: z.string(), swap: z.string() })
+	.strict();
+
+function hxLocation(response: { headers: Record<string, string> }): z.infer<typeof HxLocationSchema> {
+	const header = response.headers["hx-location"];
+	assert(header, "the dialog's answer must tell htmx where to land");
+	return HxLocationSchema.parse(JSON.parse(header));
+}
+
+async function wizardAction(agent: TestAgent, path: string): Promise<string> {
+	const doc = parse((await agent.get(path)).text);
+	const form = doc.querySelector('form[data-test-wizard-surface="popover"]');
+	assert(form, "the preferences page must render the wizard's dialog form");
+	const action = form.getAttribute("action");
+	assert(action, "the dialog form must post somewhere");
+	return action;
+}
+
+function savePurposeFromDialog(agent: TestAgent, action: string, purpose: string) {
+	return agent.post(action).set("HX-Request", "true").type("form").send({ purpose });
+}
+
+function refusedWizardForm(response: { text: string }) {
+	const body = new JSDOM(response.text).window.document.body;
+	expect(Array.from(body.children, (child) => child.getAttribute("data-test-wizard-surface"))).toEqual([
+		"popover",
+	]);
+	const form = body.querySelector('form[data-test-wizard-surface="popover"]');
+	assert(form, "a refused purpose must answer with the dialog's form");
+	const textarea = form.querySelector('[data-test-field="purpose"]');
+	assert(textarea, "the re-rendered form must carry the purpose field");
+	return {
+		action: form.getAttribute("action"),
+		post: form.getAttribute("hx-post"),
+		value: textarea.textContent,
+		invalid: textarea.getAttribute("aria-invalid"),
+		autofocus: textarea.hasAttribute("autofocus"),
+		error: form.querySelector("[data-test-wizard-error]")?.textContent,
+	};
+}
+
+function purposeDeletePath(slug: string): string {
+	return `${preferencesPath(slug)}/purpose/delete`;
+}
+
+function deletePurpose(agent: TestAgent, slug: string) {
+	return agent.post(purposeDeletePath(slug));
+}
+
+function inboxesDescription(doc: Document): string | null {
+	const description = doc.querySelector("[data-test-inboxes-description]");
+	assert(description, "the inboxes section must describe where newsletters go");
+	return description.textContent;
 }
 
 function panel(doc: Document): Element {
@@ -140,17 +197,47 @@ function alertOf(doc: Document): { visible: boolean; title: string | undefined; 
 }
 
 describe("GET /queue/queues/:slug/preferences", () => {
-	it("keeps the preferences column together when the readlist blocks interleave on phones", async () => {
+	it("interleaves its column with the setup guide on phones, the way the listing does", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 		const main = doc.querySelector(".readlist__main");
 		assert(main, "preferences must render its own main column");
-		expect(main.className).toBe("readlist__main");
+		expect(main.className).toBe("readlist__main readlist__main--interleaved");
 		expect(Array.from(main.children, (child) => child.className.split(" ")[0])).toEqual([
-			"alert", "underline-tabs", "readlist-listing", "readlist-listing",
+			"readlist__lead",
+			"readlist__browse",
 		]);
+		const lead = main.querySelector(".readlist__lead");
+		assert(lead, "the column must lead with the alert and the save card");
+		const LEAD_PARTS = ['[data-test-alert="readlist"]', "[data-test-save-card]"];
+		expect(Array.from(lead.children, (child) => LEAD_PARTS.find((part) => child.matches(part)))).toEqual(
+			LEAD_PARTS,
+		);
+		const browse = main.querySelector(".readlist__browse");
+		assert(browse, "the column must browse the tabs, the panel and the inboxes");
+		const BROWSE_PARTS = ["[data-test-filters]", "[data-test-readlist-preferences]", "[data-test-readlist-inboxes]"];
+		expect(Array.from(browse.children, (child) => BROWSE_PARTS.find((part) => child.matches(part)))).toEqual(
+			BROWSE_PARTS,
+		);
+	});
+
+	it("wraps the panel in the readlist chrome: the save card posting to /queue/save and the setup guide beside it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		const saveForm = doc.querySelector('[data-test-save-card] form[data-test-form="save-article"]');
+		assert(saveForm, "the preferences page must offer the save card");
+		expect(saveForm.getAttribute("action")).toBe(
+			"/queue/save?utm_source=queue&utm_medium=internal&utm_content=save",
+		);
+		const side = doc.querySelector(".readlist__side");
+		assert(side, "the preferences page must render the side column");
+		expect(side.querySelectorAll("[data-test-setup-guide]")).toHaveLength(1);
 	});
 
 	it("offers to set the readlist up while it has no purpose", async () => {
@@ -161,9 +248,16 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
-		const setup = doc.querySelector('[data-test-action="readlist-preferences-setup"]');
+		const empty = panel(doc).querySelector("[data-test-preferences-empty]");
+		assert(empty, "the unset state must show the set-up card");
+		expect(empty.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
+		expect(empty.querySelector(".readlist-empty__text")?.textContent).toBe(
+			"Personalise this readlist by choosing what you want to read in it.",
+		);
+		const setup = empty.querySelector('[data-test-action="readlist-preferences-setup"]');
 		assert(setup, "the unset state must offer the set-up call to action");
-		expect(setup.textContent).toBe("Set up New Readlist");
+		expect(setup.textContent).toBe("Set up readlist");
+		expect(setup.getAttribute("popovertarget")).toBe("readlist-preferences-wizard");
 		expect(field(doc, "popover").textContent).toBe("");
 	});
 
@@ -177,6 +271,16 @@ describe("GET /queue/queues/:slug/preferences", () => {
 
 		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("set");
 		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+		const menu = panel(doc).querySelector("[data-test-preferences-menu]");
+		assert(menu, "the set state must offer the purpose's options menu");
+		expect(
+			Array.from(menu.querySelectorAll("[data-test-action]"), (control) => control.getAttribute("data-test-action")),
+		).toEqual([
+			"readlist-preferences-menu",
+			"readlist-preferences-edit",
+			"readlist-preferences-delete",
+			"readlist-preferences-delete-fallback",
+		]);
 		expect(field(doc, "popover").textContent).toBe(PURPOSE);
 		expect(field(doc, "inline").textContent).toBe(PURPOSE);
 	});
@@ -313,6 +417,26 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+		expect(panel(doc).classList.contains("readlist-preferences--read-only")).toBe(true);
+		expect(
+			doc.querySelectorAll(
+				'[data-test-action="readlist-preferences-setup"], [data-test-preferences-menu], [data-test-wizard], [data-test-confirm-popover="readlist-purpose-delete"]',
+			),
+		).toHaveLength(0);
+	});
+
+	it("shows a read-only reader the unset card with nothing to set it up with", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await makeReadOnly(harness);
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		const empty = panel(doc).querySelector("[data-test-preferences-empty]");
+		assert(empty, "a read-only reader still sees the unset card");
+		expect(empty.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
+		expect(empty.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
 	});
 
 	it("offers the move-or-delete choice from the preferences page too", async () => {
@@ -390,7 +514,6 @@ describe("POST /queue/queues/:slug/preferences", () => {
 			'[data-test-wizard-surface="popover"] [data-test-wizard-error]',
 		);
 		assert(error, "the refused save must explain itself on the panel");
-		expect(error.className).toContain("wizard__error--visible");
 		expect(error.textContent).toBe(
 			"Say what this readlist is for, in up to 10,000 characters.",
 		);
@@ -505,6 +628,230 @@ describe("POST /queue/queues/:slug/preferences", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toContain("/login");
+	});
+
+	it("refuses whitespace in the dialog itself, handing back its form with the text kept and the reason under it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const action = await wizardAction(agent, preferencesPath(slug));
+
+		const response = await savePurposeFromDialog(agent, action, "   ");
+
+		expect(response.status).toBe(422);
+		expect(response.headers["content-type"]).toBe("text/html; charset=utf-8");
+		expect(refusedWizardForm(response)).toEqual({
+			action,
+			post: action,
+			value: "   ",
+			invalid: "true",
+			autofocus: true,
+			error: "Say what this readlist is for, in up to 10,000 characters.",
+		});
+	});
+
+	it("refuses an oversized purpose in the dialog itself, keeping every character typed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const action = await wizardAction(agent, preferencesPath(slug));
+		const oversized = "a".repeat(READLIST_PURPOSE_MAX_LENGTH + 1);
+
+		const response = await savePurposeFromDialog(agent, action, oversized);
+
+		expect(response.status).toBe(422);
+		expect(refusedWizardForm(response).value).toBe(oversized);
+	});
+
+	it("lands a purpose saved from the dialog back on the tab without moving the page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const action = await wizardAction(agent, preferencesPath(slug));
+
+		const response = await savePurposeFromDialog(agent, action, PURPOSE);
+
+		expect(response.status).toBe(204);
+		expect(hxLocation(response)).toEqual({
+			path: preferencesPath(slug),
+			source: "#readlist-preferences-wizard",
+			target: "main",
+			select: "main",
+			swap: "outerHTML show:none",
+		});
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+	});
+
+	it("keeps the feature on the dialog's landing, so the saved purpose lands on a page that still has the tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const action = await wizardAction(agent, withPreferencesFeature(preferencesPath(slug)));
+
+		const response = await savePurposeFromDialog(agent, action, PURPOSE);
+
+		expect(hxLocation(response).path).toBe(withPreferencesFeature(preferencesPath(slug)));
+	});
+
+	it.each([
+		["the built-in readlist", "default"],
+		["a readlist the reader does not have", "a1b2c3d4"],
+		["a malformed readlist id", "Not A Slug"],
+	])("sends the dialog to the not-found alert for %s", async (_case, slug) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await savePurposeFromDialog(agent, preferencesPath(slug), PURPOSE);
+
+		expect(response.status).toBe(204);
+		expect(hxLocation(response)).toEqual({
+			path: "/queue?queue_error=unknown_readlist",
+			source: "#readlist-preferences-wizard",
+			target: "main",
+			select: "main",
+			swap: "outerHTML show:none scroll:html:top",
+		});
+	});
+
+	it("sends the dialog to the not-found alert when the readlist disappears between the check and the write", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				setReadlistDefinitionPurpose: async () => ({ updated: false }),
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await savePurposeFromDialog(agent, preferencesPath(slug), PURPOSE);
+
+		expect(response.status).toBe(204);
+		expect(hxLocation(response).path).toBe("/queue?queue_error=unknown_readlist");
+	});
+});
+
+describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
+	it("clears the purpose and lands the reader on the tab, ready to set one up again", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+
+		const response = await deletePurpose(agent, slug);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(preferencesPath(slug));
+		const doc = parse((await agent.get(response.headers.location)).text);
+		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
+		expect(field(doc, "popover").textContent).toBe("");
+	});
+
+	it("keeps the feature on the redirect, so the cleared purpose lands on a page that still has the tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+
+		const response = await agent.post(withPreferencesFeature(purposeDeletePath(slug)));
+
+		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(filterTabs(parse((await agent.get(response.headers.location)).text))).toEqual([
+			"unread",
+			"read",
+			"preferences",
+		]);
+	});
+
+	it.each([
+		["the built-in readlist, which has no purpose to clear", "default"],
+		["a readlist the reader does not have", "a1b2c3d4"],
+		["a malformed readlist id", "Not A Slug"],
+	])("refuses %s", async (_case, slug) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await deletePurpose(agent, slug);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+	});
+
+	it("refuses a readlist that disappears between the check and the write", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				clearReadlistDefinitionPurpose: async () => ({ cleared: false }),
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await deletePurpose(agent, slug);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+	});
+
+	it("turns a read-only reader away, keeping the purpose", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+		await makeReadOnly(harness);
+
+		const response = await deletePurpose(agent, slug);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+	});
+
+	it("asks a signed-out visitor to log in rather than clearing anything", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).post(purposeDeletePath("a1b2c3d4"));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toContain("/login");
+	});
+
+	it("leaves another readlist's purpose in place", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const cleared = await createReadlist(agent, "New Readlist");
+		const kept = await createReadlist(agent, "New Readlist 2");
+		await savePurpose(agent, cleared, PURPOSE);
+		await savePurpose(agent, kept, "Weekend reading only.");
+
+		await deletePurpose(agent, cleared);
+
+		const doc = parse((await agent.get(preferencesPath(kept))).text);
+		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("set");
+		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe("Weekend reading only.");
+	});
+
+	it("stops promising its inboxes a filter once the purpose is gone", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await mintInbox(fixture, { userId: await readerId(harness), name: "news", readlist: slug });
+		await savePurpose(agent, slug, PURPOSE);
+		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
+			"Newsletters sent to these inboxes are saved to New Readlist instead of All, keeping only the links that fit its purpose.",
+		);
+
+		await deletePurpose(agent, slug);
+
+		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
+			"Newsletters sent to these inboxes are saved to New Readlist instead of All.",
+		);
 	});
 });
 

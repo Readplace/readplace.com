@@ -1895,6 +1895,35 @@ describe("initInMemoryArticleStore", () => {
 			).toEqual({ renamed: false });
 		});
 
+		it("clears a readlist's purpose and keeps the readlist", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+			await store.setReadlistDefinitionPurpose({
+				userId: USER_A,
+				slug: WORK,
+				purpose: "Essays on how teams actually ship.",
+			});
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.purpose)).toEqual([
+				"Essays on how teams actually ship.",
+			]);
+
+			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({
+				cleared: true,
+			});
+			expect(
+				(await store.listReadlistDefinitions(USER_A)).map((d) => [d.slug, d.label, d.purpose]),
+			).toEqual([["work", "Work", undefined]]);
+		});
+
+		it("reports a readlist the reader does not hold as uncleared", async () => {
+			const store = initInMemoryArticleStore();
+
+			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({
+				cleared: false,
+			});
+		});
+
 		it("drops the definition it deletes and leaves the reader's others", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");

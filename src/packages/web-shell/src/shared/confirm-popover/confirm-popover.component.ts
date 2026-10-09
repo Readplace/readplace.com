@@ -15,6 +15,7 @@ export interface ConfirmPopover {
 	 * per row and the key alone cannot tell them apart. */
 	subject?: string;
 	title: string;
+	subheading?: string;
 	body: string;
 	bodyItems?: readonly { label: string; icon: IconName }[];
 	lead?: string;
@@ -27,10 +28,13 @@ export interface ConfirmPopover {
 
 function describedFields(popover: ConfirmPopover) {
 	const lead = popover.lead;
+	const subheadings = popover.subheading === undefined ? [] : [popover.subheading];
 	const hasItems = popover.bodyItems !== undefined;
 	return {
 		closeControls: popover.close === undefined ? [] : [{ beaconUrl: popover.close.beaconUrl }],
+		subheadings,
 		describedBy: [
+			...subheadings.map(() => `${popover.id}-subheading`),
 			...(lead === undefined ? [] : [`${popover.id}-lead`]),
 			`${popover.id}-body`,
 			...(hasItems ? [`${popover.id}-items`] : []),

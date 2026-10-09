@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { resolveWizardStep } from "./wizard";
-import { renderWizard } from "./wizard.component";
-import { defineWizardStep, type WizardSteps } from "./wizard.types";
+import { WIZARD_STYLES, type WizardRender, renderWizard } from "./wizard.component";
+import { defineWizardStep, type WizardHeading, type WizardSteps } from "./wizard.types";
 
 interface SignupViewModel {
 	handle: string;
@@ -17,7 +17,7 @@ const HANDLE_STEP = step({
 	description: "The name other readers see.",
 	viewModel: ["handle"],
 	template: ({ values, field }) =>
-		`<input name="handle" id="${field.idPrefix}-handle" aria-describedby="${field.errorId}" value="${values.handle ?? ""}" data-test-field="handle">`,
+		`<input name="handle" id="${field.idPrefix}-handle" aria-describedby="${field.errorId}"${field.invalid ? ' aria-invalid="true"' : ""} value="${values.handle ?? ""}" data-test-field="handle">`,
 });
 
 const BIO_STEP = step({
@@ -31,18 +31,37 @@ const BIO_STEP = step({
 
 const STEPS: WizardSteps<SignupViewModel> = [HANDLE_STEP, BIO_STEP];
 
-function render(values: Partial<SignupViewModel>, error?: string): Document {
-	const wizard = renderWizard({
+const FAILURE = "Couldn't save your profile.";
+
+function renderSurfaces(input: {
+	values: Partial<SignupViewModel>;
+	error?: string;
+	heading?: WizardHeading;
+}): WizardRender {
+	return renderWizard({
 		id: "signup-wizard",
 		key: "signup",
 		steps: STEPS,
-		values,
+		values: input.values,
 		action: "/signup/wizard?utm_source=signup",
 		cancelHref: "/signup?utm_source=signup",
 		submitLabel: "Save",
-		error,
+		heading: input.heading ?? { kind: "step" },
+		failureMessage: FAILURE,
+		error: input.error,
 	});
+}
+
+function render(values: Partial<SignupViewModel>, error?: string, heading?: WizardHeading): Document {
+	const wizard = renderSurfaces({ values, error, heading });
 	return new JSDOM(`<main>${wizard.popoverHtml}${wizard.inlineHtml}</main>`).window.document;
+}
+
+function testActions(row: Element | null): (string | null)[] {
+	assert(row, "every surface must lay its choices on a row");
+	return Array.from(row.querySelectorAll("[data-test-action]"), (control) =>
+		control.getAttribute("data-test-action"),
+	);
 }
 
 function form(doc: Document, surface: "popover" | "inline"): Element {
@@ -97,23 +116,22 @@ describe("renderWizard", () => {
 		expect(doc.getElementById(errorId)?.getAttribute("data-test-wizard-error")).toBe("");
 	});
 
-	it("keeps the error paragraph in the DOM and hidden while nothing is wrong", () => {
+	it("keeps the error paragraph in the DOM and empty while nothing is wrong", () => {
 		const doc = render({});
 		const error = doc.querySelector('[data-test-wizard-surface="popover"] [data-test-wizard-error]');
 		assert(error, "the error paragraph must render whether or not there is an error");
 
-		expect(error.className).toBe("form-field__error wizard__error--hidden");
+		expect(error.className).toBe("form-field__error");
 		expect(error.textContent).toBe("");
+		expect(
+			Array.from(doc.querySelectorAll('[data-test-field="handle"]'), (field) => field.getAttribute("aria-invalid")),
+		).toEqual([null, null]);
 	});
 
 	it("shows the same message on both surfaces when the answer was refused", () => {
 		const doc = render({}, "Say something first.");
 		const errors = Array.from(doc.querySelectorAll("[data-test-wizard-error]"));
 
-		expect(errors.map((error) => error.className)).toEqual([
-			"form-field__error wizard__error--visible",
-			"form-field__error wizard__error--visible",
-		]);
 		expect(errors.map((error) => error.textContent)).toEqual([
 			"Say something first.",
 			"Say something first.",
@@ -124,6 +142,7 @@ describe("renderWizard", () => {
 		const doc = render({}, "Say something first.");
 		const fields = Array.from(doc.querySelectorAll('[data-test-field="handle"]'));
 
+		expect(fields.map((field) => field.getAttribute("aria-invalid"))).toEqual(["true", "true"]);
 		expect(fields.map((field) => field.getAttribute("aria-describedby"))).toEqual([
 			"signup-wizard-popover-error",
 			"signup-wizard-inline-error",
@@ -168,7 +187,115 @@ describe("renderWizard", () => {
 		assert(inline, "the inline surface must render its own titled section");
 
 		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe(BIO_STEP.title);
+		expect(panel.querySelectorAll(".confirm-popover__subheading")).toHaveLength(0);
 		expect(inline.querySelector(".wizard__title")?.textContent).toBe(BIO_STEP.title);
+		expect(inline.querySelectorAll(".wizard__subheading")).toHaveLength(0);
 		expect(inline.querySelector(".wizard__description")?.textContent).toBe(BIO_STEP.description);
+	});
+
+	it("titles the dialog with the task and asks the step's question under it, on both surfaces", () => {
+		const doc = render({ handle: "ada" }, undefined, { kind: "task", title: "Edit your profile" });
+		const panel = doc.querySelector('[data-test-confirm-popover="signup"]');
+		const inline = doc.querySelector('[data-test-wizard-inline="signup"]');
+		assert(panel, "the popover surface must render the shared confirmation frame");
+		assert(inline, "the inline surface must render its own titled section");
+
+		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe("Edit your profile");
+		expect(Array.from(panel.querySelectorAll(".confirm-popover__subheading"), (h) => h.textContent)).toEqual([
+			BIO_STEP.title,
+		]);
+		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(BIO_STEP.description);
+		expect(inline.querySelector(".wizard__title")?.textContent).toBe("Edit your profile");
+		expect(Array.from(inline.querySelectorAll(".wizard__subheading"), (h) => h.textContent)).toEqual([
+			BIO_STEP.title,
+		]);
+		expect(inline.querySelector(".wizard__description")?.textContent).toBe(BIO_STEP.description);
+	});
+
+	it("offers Cancel before Save on both surfaces, each in the neutral look", () => {
+		const doc = render({});
+
+		expect(testActions(form(doc, "popover").querySelector(".confirm-popover__buttons"))).toEqual([
+			"signup-cancel",
+			"signup-save",
+		]);
+		expect(testActions(form(doc, "inline").querySelector(".wizard__buttons"))).toEqual([
+			"signup-cancel-fallback",
+			"signup-save-fallback",
+		]);
+		expect(
+			Array.from(doc.querySelectorAll('[data-test-action^="signup-cancel"]'), (cancel) => cancel.className),
+		).toEqual(["btn btn--neutral", "btn btn--neutral"]);
+	});
+
+	it("lays each surface's choices on its own row, last in the form", () => {
+		const doc = render({});
+
+		expect(form(doc, "popover").lastElementChild?.className).toBe("confirm-popover__buttons");
+		expect(form(doc, "inline").lastElementChild?.className).toBe("wizard__buttons");
+		expect(WIZARD_STYLES).toContain(".wizard__buttons {");
+	});
+
+	it("refuses in place only from the popover, and posts the inline fallback as a plain form", () => {
+		const doc = render({});
+		const popover = form(doc, "popover");
+		const inline = form(doc, "inline");
+		const ATTRIBUTES = [
+			"method",
+			"action",
+			"hx-post",
+			"hx-target",
+			"hx-swap",
+			"hx-sync",
+			"hx-boost",
+			"hx-select",
+			"data-readlist-name-form",
+			"data-readlist-name-failure",
+		];
+		const attributesOf = (element: Element) =>
+			Object.fromEntries(
+				ATTRIBUTES.filter((name) => element.hasAttribute(name)).map((name) => [name, element.getAttribute(name)]),
+			);
+
+		expect(attributesOf(popover)).toEqual({
+			method: "POST",
+			action: "/signup/wizard?utm_source=signup",
+			"hx-post": "/signup/wizard?utm_source=signup",
+			"hx-target": "this",
+			"hx-swap": "outerHTML show:none",
+			"hx-sync": "closest [popover]:drop",
+			"data-readlist-name-form": "",
+			"data-readlist-name-failure": FAILURE,
+		});
+		expect(popover.querySelectorAll("[data-test-wizard-error][data-readlist-name-error]")).toHaveLength(1);
+		expect(attributesOf(inline)).toEqual({
+			method: "POST",
+			action: "/signup/wizard?utm_source=signup",
+			"hx-boost": "false",
+		});
+	});
+
+	it("hands back the popover form on its own, for a refusal to swap into the open dialog", () => {
+		const wizard = renderSurfaces({ values: {}, error: "Say something first." });
+		const body = new JSDOM(wizard.popoverFormHtml).window.document.body;
+
+		expect(wizard.popoverHtml).toContain(wizard.popoverFormHtml);
+		expect(Array.from(body.children, (child) => child.getAttribute("data-test-wizard-surface"))).toEqual([
+			"popover",
+		]);
+		expect(body.querySelector("[data-test-wizard-error]")?.textContent).toBe("Say something first.");
+	});
+
+	it("swaps Save's label for the in-flight dots while its request runs", () => {
+		const doc = render({});
+		const save = doc.querySelector('[data-test-action="signup-save"]');
+		assert(save, "the popover must offer its save control");
+
+		expect(Array.from(save.children, (child) => child.className)).toEqual([
+			"wizard__save-label",
+			"wizard__save-loader in-flight-dots",
+		]);
+		expect(WIZARD_STYLES).toContain(".htmx-request .wizard__save-label {");
+		expect(WIZARD_STYLES).toContain(".htmx-request .wizard__save-loader {");
 	});
 });

@@ -246,6 +246,40 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		expect(subscribe.postData()).toBe("plan=monthly");
 	});
 
+	test("a purpose is set and deleted as plain form submits", async ({ page }, testInfo) => {
+		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-purpose`);
+		await loginAs(page, email);
+		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Weekend" } });
+		assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+		const slug = new URL(created.url()).searchParams.get("queue");
+		assert(slug, "creating a readlist must land the reader on it");
+		await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`, { waitUntil: "domcontentloaded" });
+		const preferences = page.locator("[data-test-readlist-preferences]");
+		await expect(preferences).toHaveAttribute("data-test-preferences-state", "unset");
+
+		await page.locator('[data-test-action="readlist-preferences-setup"]').click();
+		const wizard = page.locator('[data-test-confirm-popover="readlist-preferences"]');
+		await expect(wizard).toBeVisible();
+		await wizard.locator('[data-test-field="purpose"]').fill("Essays on how teams ship software.");
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			wizard.locator('[data-test-action="readlist-preferences-save"]').click(),
+		]);
+		await expect(preferences).toHaveAttribute("data-test-preferences-state", "set", { timeout: SETTLE_MS });
+		await expect(page.locator("[data-test-preferences-purpose]")).toHaveText("Essays on how teams ship software.");
+
+		await page.locator('[data-test-action="readlist-preferences-menu"]').click();
+		await page.locator('[data-test-action="readlist-preferences-delete"]').click();
+		const confirm = page.locator('[data-test-confirm-popover="readlist-purpose-delete"]');
+		await expect(confirm).toBeVisible();
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			confirm.locator('[data-test-action="readlist-purpose-delete-confirm"]').click(),
+		]);
+		await expect(preferences).toHaveAttribute("data-test-preferences-state", "unset", { timeout: SETTLE_MS });
+		await expect(page.locator('[data-test-confirm-popover="readlist-preferences"] [data-test-field="purpose"]')).toHaveValue("");
+	});
+
 	test("the readlist switcher opens, creates a readlist from the dialog as a plain form submit, and switches readlist with no script", async ({ page }, testInfo) => {
 		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-switcher`);
 		await loginAs(page, email);

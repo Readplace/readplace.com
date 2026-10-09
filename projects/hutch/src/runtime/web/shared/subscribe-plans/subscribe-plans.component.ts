@@ -17,7 +17,12 @@ export { SUBSCRIBE_PLANS_STYLES } from "./subscribe-plans.styles";
 
 export const SUBSCRIBE_PLANS_POPOVER_ID = "subscribe-plans";
 
-export const SUBSCRIBE_PLANS_SOURCES = ["queue-banner", "account", "plans-page"] as const;
+export const SUBSCRIBE_PLANS_SOURCES = [
+	"queue-banner",
+	"account",
+	"plans-page",
+	"queue-preferences-banner",
+] as const;
 
 export type SubscribePlansSource = (typeof SUBSCRIBE_PLANS_SOURCES)[number];
 

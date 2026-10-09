@@ -2,7 +2,7 @@ export interface ReadlistDeps {
 	document: Document;
 }
 
-const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu";
+const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu, .readlist-preferences__menu";
 const NAME_FORM_SELECTOR = "form[data-readlist-name-form]";
 const NAME_ERROR_ATTR = "data-readlist-name-error";
 const NAME_FAILURE_ATTR = "data-readlist-name-failure";
@@ -43,12 +43,12 @@ function answerOf(event: Event): { status: unknown; body: unknown; location: unk
 function showFailure(form: Element): void {
 	const error = form.querySelector(`[${NAME_ERROR_ATTR}]`);
 	assert(error, "a name form always carries its error line");
-	const input = form.querySelector('input[name]:not([type="hidden"])');
-	assert(input, "a name form always carries its named input");
+	const field = form.querySelector('input[name]:not([type="hidden"]), textarea[name]');
+	assert(field, "a name form always carries its named field");
 	const failure = form.getAttribute(NAME_FAILURE_ATTR);
 	assert(failure, "a name form always carries its failure message");
 	error.textContent = failure;
-	input.setAttribute("aria-invalid", "true");
+	field.setAttribute("aria-invalid", "true");
 }
 
 function announce(document: Document, message: string): void {

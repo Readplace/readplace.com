@@ -12,6 +12,7 @@ import {
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import type {
+	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	ListReadlistDefinitions,
@@ -33,6 +34,7 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	client: DynamoDBDocumentClient;
 	userArticlesTableName: string;
 }): {
+	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
@@ -139,6 +141,22 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		}
 	};
 
+	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		try {
+			await readlistDefinitions.update({
+				Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+				UpdateExpression: "REMOVE #purpose",
+				ConditionExpression: "attribute_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
+			});
+			return { cleared: true };
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return { cleared: false };
+			throw error;
+		}
+	};
+
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		try {
@@ -155,6 +173,7 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	};
 
 	return {
+		clearReadlistDefinitionPurpose,
 		createReadlistDefinition,
 		deleteReadlistDefinition,
 		listReadlistDefinitions,

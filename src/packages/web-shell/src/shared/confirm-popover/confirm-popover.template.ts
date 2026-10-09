@@ -3,6 +3,7 @@ export const CONFIRM_POPOVER_TEMPLATE = `<div class="confirm-popover{{#if illust
 		<h2 class="confirm-popover__title" id="{{id}}-title">{{title}}</h2>
 		{{#each closeControls}}<button class="confirm-popover__close" type="button" popovertarget="{{../id}}" popovertargetaction="hide" data-test-action="{{../key}}-dismiss"{{#if beaconUrl}} data-beacon-url="{{beaconUrl}}"{{/if}}>{{icon "x"}}<span class="sr-only">Close</span></button>{{/each}}
 	</div>
+	{{#each subheadings}}<h3 class="confirm-popover__subheading" id="{{../id}}-subheading">{{this}}</h3>{{/each}}
 	{{#if lead}}<p class="sr-only" id="{{id}}-lead">{{lead}}</p>{{/if}}
 	<p class="confirm-popover__body" id="{{id}}-body">{{body}}</p>
 	{{#if bodyItems}}<ul class="confirm-popover__items" id="{{id}}-items">{{#each bodyItems}}<li class="confirm-popover__item">{{icon icon}}<span class="confirm-popover__item-label">{{label}}</span></li>{{/each}}</ul>{{/if}}

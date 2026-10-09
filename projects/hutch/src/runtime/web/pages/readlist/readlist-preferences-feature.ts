@@ -4,6 +4,7 @@ import type { ReadlistSlug } from "@packages/domain/readlist";
 import {
 	readlistPreferencesInboxesPath,
 	readlistPreferencesPath,
+	readlistPurposeDeletePath,
 	type LinkParams,
 } from "./readlist.url";
 
@@ -46,6 +47,13 @@ export function preferencesUrl(input: {
 export function preferencesInboxesUrl(input: { slug: ReadlistSlug; enabled: boolean }): string {
 	return withPreferencesFeature({
 		path: readlistPreferencesInboxesPath(input.slug),
+		enabled: input.enabled,
+	});
+}
+
+export function purposeDeleteUrl(input: { slug: ReadlistSlug; enabled: boolean }): string {
+	return withPreferencesFeature({
+		path: readlistPurposeDeletePath(input.slug),
 		enabled: input.enabled,
 	});
 }

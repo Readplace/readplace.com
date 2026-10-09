@@ -159,6 +159,41 @@ describe("renderConfirmPopover", () => {
 		expect(lead.className).toBe("sr-only");
 	});
 
+	it("asks the question under a task title and describes the panel by it before the body", () => {
+		const doc = renderPanel({
+			title: "Edit readlist purpose",
+			subheading: "What's this readlist for?",
+		});
+
+		const panel = doc.querySelector(".confirm-popover");
+		assert(panel, "panel must be rendered");
+		const subheadings = panel.querySelectorAll(".confirm-popover__subheading");
+		expect(subheadings).toHaveLength(1);
+		const [subheading] = subheadings;
+		expect(subheading.tagName).toBe("H3");
+		expect(subheading.id).toBe("thing-confirm-42-subheading");
+		expect(subheading.textContent).toBe("What's this readlist for?");
+		const before = subheading.previousElementSibling;
+		assert(before, "the subheading must follow the header");
+		expect(before.className).toBe("confirm-popover__header");
+		const after = subheading.nextElementSibling;
+		assert(after, "the body must follow the subheading");
+		expect(after.id).toBe("thing-confirm-42-body");
+		expect(panel.getAttribute("aria-describedby")).toBe(
+			"thing-confirm-42-subheading thing-confirm-42-body",
+		);
+		expect(CONFIRM_POPOVER_STYLES).toContain(`.${subheading.className} {`);
+	});
+
+	it("renders no subheading when the title asks the question itself", () => {
+		const doc = renderPanel();
+
+		const panel = doc.querySelector(".confirm-popover");
+		assert(panel, "panel must be rendered");
+		expect(panel.querySelectorAll(".confirm-popover__subheading")).toHaveLength(0);
+		expect(panel.getAttribute("aria-describedby")).toBe("thing-confirm-42-body");
+	});
+
 	it("names the decision on the panel and omits an unrequested close control", () => {
 		const doc = renderPanel();
 

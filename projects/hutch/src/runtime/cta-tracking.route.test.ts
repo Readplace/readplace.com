@@ -138,14 +138,24 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			(await agent.post("/queue/queues").type("form").send({ label: "New Readlist" })).headers.location,
 			TEST_APP_ORIGIN,
 		).searchParams.get("queue");
-		const readlistPaths = madeReadlist
-			? [
-					`/queue?queue=${madeReadlist}&feature=pref`,
-					`/queue/queues/${madeReadlist}/preferences?feature=pref`,
-					`/queue/queues/${madeReadlist}/preferences/inboxes?feature=pref`,
-					`/queue?moved_article=${articleId}&moved_from=default&moved_to=${madeReadlist}`,
-				]
-			: [];
+		const describedReadlist = new URL(
+			(await agent.post("/queue/queues").type("form").send({ label: "Described Readlist" })).headers.location,
+			TEST_APP_ORIGIN,
+		).searchParams.get("queue");
+		await agent
+			.post(`/queue/queues/${describedReadlist}/preferences`)
+			.type("form")
+			.send({ purpose: "Essays on how teams actually ship." });
+		const readlistPaths =
+			madeReadlist && describedReadlist
+				? [
+						`/queue?queue=${madeReadlist}&feature=pref`,
+						`/queue/queues/${madeReadlist}/preferences?feature=pref`,
+						`/queue/queues/${madeReadlist}/preferences/inboxes?feature=pref`,
+						`/queue?moved_article=${articleId}&moved_from=default&moved_to=${madeReadlist}`,
+						`/queue/queues/${describedReadlist}/preferences?feature=pref`,
+					]
+				: [];
 
 		const untracked: string[] = [];
 		for (const path of [
@@ -158,7 +168,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		}
 
 		expect(readerHref).toContain("/view");
-		expect(readlistPaths.length).toBe(4);
+		expect(readlistPaths.length).toBe(5);
 		expect(untracked).toEqual([]);
 	});
 

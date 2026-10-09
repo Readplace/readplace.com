@@ -1,58 +1,60 @@
 .readlist-preferences {
-  padding: 20px 24px;
+  overflow: visible;
 }
 
-.readlist-preferences__trigger {
+.readlist-preferences__unset {
   display: none;
 }
 
-.readlist-preferences__setup {
-  width: 100%;
-  overflow-wrap: anywhere;
+.readlist-preferences__set {
+  display: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 24px;
+  align-items: start;
+  padding: 24px;
+}
+
+.readlist-preferences--set .readlist-preferences__set {
+  display: grid;
 }
 
 .readlist-preferences__purpose {
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-  padding: var(--input-padding);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  font: inherit;
-  color: var(--foreground);
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.readlist-preferences__purpose:hover {
-  background: var(--muted);
-}
-
-.readlist-preferences__purpose svg {
-  flex: 0 0 auto;
-  width: 1rem;
-  height: 1rem;
-  color: var(--muted-foreground);
-}
-
-.readlist-preferences__purpose-text {
-  flex: 1 1 auto;
-  font-size: var(--input-font-size);
+  margin: 0;
+  font-size: 1rem;
   line-height: 1.5;
+  color: var(--foreground);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 
+.readlist-preferences__menu {
+  margin: -6px -6px 0 0;
+}
+
+.readlist-preferences__menu-trigger {
+  display: none;
+}
+
+.readlist-preferences__menu-fallback {
+  display: block;
+}
+
+.readlist-preferences__fallback {
+  padding: 24px;
+}
+
 @supports selector(:popover-open) {
-  .readlist-preferences--unset .readlist-preferences__setup {
-    display: inline-flex;
+  .readlist-preferences--unset .readlist-preferences__unset {
+    display: block;
   }
 
-  .readlist-preferences--set .readlist-preferences__purpose {
+  .readlist-preferences__menu-trigger {
     display: flex;
+  }
+
+  .readlist-preferences__menu-fallback {
+    display: none;
   }
 
   .readlist-preferences .readlist-preferences__fallback {
@@ -60,11 +62,16 @@
   }
 }
 
-.readlist-preferences--wizard-open .readlist-preferences__trigger {
+.readlist-preferences--wizard-open .readlist-preferences__unset,
+.readlist-preferences--wizard-open .readlist-preferences__set {
   display: none;
 }
 
 .readlist-preferences--wizard-open .readlist-preferences__fallback {
+  display: block;
+}
+
+.readlist-preferences--read-only.readlist-preferences--unset .readlist-preferences__unset {
   display: block;
 }
 

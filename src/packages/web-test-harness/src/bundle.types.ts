@@ -117,6 +117,7 @@ import type {
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	ClearReadlistDefinitionPurpose,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
@@ -392,6 +393,7 @@ export interface ArticleStoreBundle {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
 		lastSummaryClosedAt?: Date;

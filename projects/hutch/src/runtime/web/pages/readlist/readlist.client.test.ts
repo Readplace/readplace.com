@@ -37,6 +37,19 @@ function createAndMoveDialogMarkup(): string {
 	return `${LIVE_REGION}<div id="readlist-create-move-abc" popover data-test-dialog="create-move"><form data-readlist-name-form data-readlist-name-failure="Couldn't create the readlist." data-test-form="readlist-create-move" action="/queue/abc/move?queue=work" hx-post="/queue/abc/move?queue=work"><input type="hidden" name="from" value="work"><input name="label" value="Finance"><p data-readlist-name-error></p><button type="submit">Create readlist</button></form></div>`;
 }
 
+function purposeDialogMarkup(): string {
+	return `${LIVE_REGION}<div id="readlist-preferences-wizard" popover data-test-dialog="purpose"><form method="POST" action="/queue/queues/work/preferences" hx-post="/queue/queues/work/preferences" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-readlist-name-form data-readlist-name-failure="Couldn't save the purpose." data-test-wizard="readlist-preferences"><div class="form-field"><label for="readlist-preferences-wizard-purpose">Readlist purpose</label><textarea id="readlist-preferences-wizard-purpose" name="purpose">Essays on how teams ship.</textarea><p data-readlist-name-error></p></div><button type="submit">Save</button></form></div>`;
+}
+
+function purposeMenuMarkup(): string {
+	return `
+		<details class="menu readlist-preferences__menu" open data-test-preferences-menu><summary class="menu__toggle" data-test-action="readlist-preferences-menu">More options for this purpose</summary><div class="menu__panel"><button class="menu__item" type="button" popovertarget="readlist-preferences-wizard">Edit</button><button class="menu__item" type="button" popovertarget="readlist-purpose-delete">Delete</button></div></details>
+		<button type="button" data-test-outside>Elsewhere</button>
+		<div id="readlist-preferences-wizard" popover data-test-dialog="purpose"><button type="button">Cancel</button></div>
+		<div id="readlist-purpose-delete" popover data-test-dialog="purpose-delete"><button type="button">Cancel</button></div>
+	`;
+}
+
 function unrelatedMarkup(): string {
 	return `${LIVE_REGION}<form data-test-form="unrelated" action="/somewhere" hx-post="/somewhere"><input name="x" value="y"><button type="submit">Go</button></form><a href="/queue/abc/view" data-test-card-link>Read</a>`;
 }
@@ -118,6 +131,15 @@ function init(bodyHtml: string) {
 		cardMenu,
 		navSummary: () => element<HTMLElement>("[data-test-readlist-menu='work'] summary", "the readlist menu opens from a summary"),
 		cardSummary: () => element<HTMLElement>("[data-test-article-menu] summary", "the card menu opens from a summary"),
+		purposeMenu: () =>
+			element<HTMLDetailsElement>("[data-test-preferences-menu]", "the purpose menu must be in the document"),
+		purposeSummary: () =>
+			element<HTMLElement>("[data-test-preferences-menu] summary", "the purpose menu opens from a summary"),
+		purposeInvalid: () =>
+			element(
+				"form[data-readlist-name-form] textarea[name='purpose']",
+				"the purpose form must carry its purpose field",
+			).getAttribute("aria-invalid"),
 		outside: () => element<HTMLElement>("[data-test-outside]", "an outside control must be in the document"),
 		activeElement: () => document.activeElement,
 		focusInDialog: (name: string) =>
@@ -313,6 +335,57 @@ describe("initReadlist", () => {
 		expect(detail.shouldSwap).toBe(true);
 		expect(app.announced()).toBe("");
 		expect(app.listenerErrors()).toEqual([]);
+	});
+
+	it("lets htmx swap a refused purpose's form into the dialog", () => {
+		const app = init(purposeDialogMarkup());
+
+		const detail = app.answerBeforeSwap(
+			app.nameForm(),
+			answered({ status: 422, body: "<form data-readlist-name-form></form>" }),
+		);
+
+		expect(detail.shouldSwap).toBe(true);
+		expect(app.errorText()).toBe("");
+		expect(app.purposeInvalid()).toBe(null);
+	});
+
+	it("keeps a followed redirect's whole page out of the purpose dialog and says the save failed", () => {
+		const app = init(purposeDialogMarkup());
+
+		const detail = app.answerBeforeSwap(
+			app.nameForm(),
+			answered({ status: 200, body: "<!DOCTYPE html><html><body>Log in</body></html>" }),
+		);
+
+		expect(detail.shouldSwap).toBe(false);
+		expect(app.errorText()).toBe("Couldn't save the purpose.");
+		expect(app.purposeInvalid()).toBe("true");
+	});
+
+	it("says the purpose was not saved when the request never reaches the server", () => {
+		const app = init(purposeDialogMarkup());
+
+		app.failToSend(app.nameForm());
+
+		expect(app.errorText()).toBe("Couldn't save the purpose.");
+		expect(app.purposeInvalid()).toBe("true");
+	});
+
+	it("closes an open purpose menu when the reader clicks outside it", () => {
+		const app = init(purposeMenuMarkup());
+
+		app.clickOutside();
+
+		expect(app.purposeMenu().open).toBe(false);
+	});
+
+	it("returns focus to the purpose menu's summary when a dialog it opened closes", () => {
+		const app = init(purposeMenuMarkup());
+
+		app.closeDialog("purpose-delete");
+
+		expect(app.activeElement()).toBe(app.purposeSummary());
 	});
 
 	it("refuses to show a failure on a name form that has lost its failure text", () => {

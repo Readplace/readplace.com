@@ -112,6 +112,16 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	text-wrap: balance;
 }
 
+.confirm-popover__subheading {
+	margin: 18px 0 4px;
+	font-family: var(--font-sans);
+	font-size: var(--text-lg);
+	font-weight: 600;
+	line-height: 28px;
+	color: var(--foreground);
+	text-wrap: balance;
+}
+
 .confirm-popover__close {
 	position: absolute;
 	top: 14px;

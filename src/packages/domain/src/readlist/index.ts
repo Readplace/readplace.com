@@ -44,6 +44,8 @@ export {
 } from "./readlist-purpose.schema";
 export {
 	decideReadlistPurpose,
+	decideReadlistPurposeClear,
+	type ReadlistPurposeClearDecision,
 	type ReadlistPurposeDecision,
 	type ReadlistPurposeRejection,
 } from "./readlist-purpose";

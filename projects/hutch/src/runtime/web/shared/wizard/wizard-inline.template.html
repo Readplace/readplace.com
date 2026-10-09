@@ -1,5 +1,6 @@
 <section class="wizard" aria-labelledby="{{titleId}}" data-test-wizard-inline="{{key}}">
   <h2 class="wizard__title" id="{{titleId}}">{{title}}</h2>
+  {{#each subheadings}}<h3 class="wizard__subheading">{{this}}</h3>{{/each}}
   <p class="wizard__description">{{description}}</p>
   {{{formHtml}}}
 </section>

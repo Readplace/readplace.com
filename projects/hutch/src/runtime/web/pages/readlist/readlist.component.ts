@@ -25,6 +25,7 @@ import { buildExtensionInstallUrl, type PitchablePlatform } from "../../onboardi
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import {
 	SUBSCRIBE_PLANS_STYLES,
+	type SubscribePlansSource,
 	renderSubscribePlansPopover,
 } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
@@ -52,7 +53,7 @@ import {
 	readlistDeletePath,
 	readlistReturnQuery,
 } from "./readlist.url";
-import type { ReadlistViewModel } from "./readlist.viewmodel";
+import type { ReadlistViewModel, SubscriptionBannerState } from "./readlist.viewmodel";
 import { readlistAlertFor } from "./readlist-alerts";
 import { renderReadlistCard, toReadlistCardDisplayModel } from "./readlist-card/readlist-card.component";
 import { showingLabel } from "./readlist-counts.component";
@@ -91,7 +92,7 @@ export function readlistPageScripts(cspNonce: CspNonce): string {
 	].join("\n");
 }
 
-interface ReadlistOnboarding {
+export interface ReadlistOnboarding {
 	context: OnboardingContext;
 	dismissed: boolean;
 	completedBefore: boolean;
@@ -229,6 +230,28 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 	};
 }
 
+export function readlistSideColumn(input: {
+	banner: SubscriptionBannerState;
+	onboarding: ReadlistOnboarding;
+	returnQuery: string;
+	subscribeSource: SubscribePlansSource;
+}): { subscriptionHtml: string; onboardingHtml: string; subscribePlansHtml: string } {
+	const { banner, onboarding } = input;
+	return {
+		subscriptionHtml: renderReadlistSubscription(toReadlistSubscriptionDisplayModel(banner)),
+		onboardingHtml: OnboardingChecklist(onboarding.context, {
+			dismissed: onboarding.dismissed,
+			completedBefore: onboarding.completedBefore,
+			completionUnearned: onboarding.completionUnearned,
+			returnQuery: input.returnQuery,
+		}),
+		subscribePlansHtml:
+			banner.state === "trial-countdown" || banner.state === "inactive"
+				? renderSubscribePlansPopover({ source: input.subscribeSource, checkedPlan: banner.checkedPlan })
+				: "",
+	};
+}
+
 function installClientOf(context: OnboardingContext): DeviceClient {
 	return context.hasInstallableClient
 		? { platform: context.platform, installed: context.installed }
@@ -272,8 +295,13 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			? { label: "Newest first", iconName: "arrow-down" }
 			: { label: "Oldest first", iconName: "arrow-up" };
 	const alert = readlistAlertFor(options.query);
-	const banner = vm.subscriptionBanner;
 	const panels = readlistPanels(options.rail);
+	const side = readlistSideColumn({
+		banner: vm.subscriptionBanner,
+		onboarding: options.onboarding,
+		returnQuery: readlistReturnQuery(filters),
+		subscribeSource: "queue-banner",
+	});
 	const empty = emptyState({
 		tab: filters.tab,
 		readlistHoldsArticles: options.readlistHoldsArticles,
@@ -372,13 +400,8 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				})
 			: undefined,
 		currentPage: vm.currentPage,
-		subscriptionHtml: renderReadlistSubscription(toReadlistSubscriptionDisplayModel(banner)),
-		onboardingHtml: OnboardingChecklist(options.onboarding.context, {
-			dismissed: options.onboarding.dismissed,
-			completedBefore: options.onboarding.completedBefore,
-			completionUnearned: options.onboarding.completionUnearned,
-			returnQuery: readlistReturnQuery(filters),
-		}),
+		subscriptionHtml: side.subscriptionHtml,
+		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,
 		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
@@ -413,10 +436,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 						],
 			)
 			.join("\n"),
-		subscribePlansHtml:
-			banner.state === "trial-countdown" || banner.state === "inactive"
-				? renderSubscribePlansPopover({ source: "queue-banner", checkedPlan: banner.checkedPlan })
-				: "",
+		subscribePlansHtml: side.subscribePlansHtml,
 		saveTipHtml: options.saveTip.html,
 		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
 	});

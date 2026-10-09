@@ -154,7 +154,7 @@ function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number
 	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
 }
 
-function toSubscriptionBannerState(access: EffectiveAccess, now: Date): SubscriptionBannerState {
+export function toSubscriptionBannerState(access: EffectiveAccess, now: Date): SubscriptionBannerState {
 	switch (access.banner) {
 		case "none":
 			return { state: "none" };

@@ -23,8 +23,8 @@ const step = defineWizardStep<ReadlistPreferencesWizardViewModel>();
 export const READLIST_PREFERENCES_STEPS: WizardSteps<ReadlistPreferencesWizardViewModel> = [
 	step({
 		id: "purpose",
-		title: "What's the purpose of this readlist?",
-		description: "A sentence or two on what you keep here.",
+		title: "What's this readlist for?",
+		description: "Describe what you want to save here. This helps keep your readlist focused.",
 		viewModel: ["purpose"],
 		template: ({ values, field }) =>
 			render(PURPOSE_STEP_TEMPLATE, {
