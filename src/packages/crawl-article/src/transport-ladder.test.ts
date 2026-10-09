@@ -262,6 +262,19 @@ describe("runTransportLadder", () => {
 		expect(attempts.map((a) => a.outcome)).toEqual(["escalated", "escalated"]);
 	});
 
+	it("returns the blocked answer with its body, status, headers and url still readable", async () => {
+		const captcha = new Response("<title>CAPTCHA</title>", { status: 429, headers: { "content-type": "text/html" } });
+		Object.defineProperty(captcha, "url", { value: "https://archive.li/abc" });
+		const ladder = ladderOf([{ name: "primary", maxRunMs: 50, fetch: async () => captcha }], []);
+
+		const response = await ladder("https://archive.ph/abc", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(429);
+		expect(response.headers.get("content-type")).toBe("text/html");
+		expect(response.url).toBe("https://archive.li/abc");
+		expect(await response.text()).toBe("<title>CAPTCHA</title>");
+	});
+
 	it("returns an earlier leg's block-class response when every later leg only times out", async () => {
 		const attempts: LegAttempt[] = [];
 		const ladder = ladderOf(

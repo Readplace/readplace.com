@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { callerHasGivenUp, type CrawlBudget, type LegDeadline } from "./crawl-budget";
-import type { OnRedirect } from "./follow-redirects";
+import { type OnRedirect, withResolvedUrl } from "./follow-redirects";
 
 /**
  * Edge vendors spell the same bot-deny verdict: Cloudflare as a 403 managed
@@ -60,6 +60,15 @@ function unlockerErrorOf(headers: Headers): Record<string, string> | undefined {
 	return Object.keys(captured).length === 0 ? undefined : captured;
 }
 
+async function bufferedCopyOf(response: Response): Promise<Response> {
+	const copy = new Response(await response.arrayBuffer(), {
+		status: response.status,
+		statusText: response.statusText,
+		headers: response.headers,
+	});
+	return withResolvedUrl(copy, response.url);
+}
+
 export function runTransportLadder(deps: {
 	legs: readonly Leg[];
 	logAttempt: (attempt: LegAttempt) => void;
@@ -94,7 +103,7 @@ export function runTransportLadder(deps: {
 					});
 					return response;
 				}
-				await response.text();
+				const buffered = await bufferedCopyOf(response);
 				logAttempt({
 					leg: leg.name,
 					outcome: "escalated",
@@ -102,7 +111,7 @@ export function runTransportLadder(deps: {
 					status: response.status,
 					unlockerError,
 				});
-				lastResponse = response;
+				lastResponse = buffered;
 			} catch (error) {
 				if (error instanceof Error && lastError !== undefined) error.cause = lastError;
 				const elapsedMs = now() - startedAt;

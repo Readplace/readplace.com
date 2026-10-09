@@ -81,7 +81,7 @@ export function redirectable(baseFetch: RedirectableFetch, label: string): Redir
  * as an own property so callers read the real post-redirect URL off `.url` on
  * every transport, exactly as they already do for undici responses.
  */
-function withResolvedUrl(response: Response, url: string): Response {
+export function withResolvedUrl(response: Response, url: string): Response {
 	Object.defineProperty(response, "url", { value: url, configurable: true });
 	return response;
 }
