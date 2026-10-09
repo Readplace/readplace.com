@@ -59,9 +59,9 @@ describe("toInboxEmailsViewModel", () => {
 		const { empty } = build([]);
 
 		expect(empty?.key).toBe("no-mail");
-		expect(empty?.title).toBe("No forwarded emails yet");
+		expect(empty?.title).toBe("No emails yet");
 		expect(empty?.body).toBe(
-			"Forward a newsletter to one of your custom emails and it'll appear here.",
+			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into All.",
 		);
 		expect(empty?.actions).toEqual([]);
 		expect(empty?.addresses).toEqual([ADDRESS]);
@@ -79,8 +79,10 @@ describe("toInboxEmailsViewModel", () => {
 		const { empty } = build([], []);
 
 		expect(empty?.key).toBe("no-address");
-		expect(empty?.title).toBe("No forwarded emails yet");
-		expect(empty?.body).toBe("You don't have a custom email to send them to.");
+		expect(empty?.title).toBe("No emails yet");
+		expect(empty?.body).toBe(
+			"Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into All.",
+		);
 		expect(empty?.actions).toEqual([
 			{
 				key: "create-first-address",

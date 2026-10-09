@@ -73,8 +73,8 @@ export interface InboxEmailsViewModel {
 const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-address": {
 		key: "no-address",
-		title: "No forwarded emails yet",
-		body: "You don't have a custom email to send them to.",
+		title: "No emails yet",
+		body: "Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into All.",
 		actions: [
 			{
 				key: "create-first-address",
@@ -89,8 +89,8 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	},
 	"no-mail": {
 		key: "no-mail",
-		title: "No forwarded emails yet",
-		body: "Forward a newsletter to one of your custom emails and it'll appear here.",
+		title: "No emails yet",
+		body: "Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into All.",
 		actions: [],
 		addresses: [],
 	},

@@ -131,10 +131,10 @@ describe("Inbox emails list route", () => {
 		assert(empty, "empty state must render");
 		expect(empty.getAttribute("data-test-inbox-empty-state")).toBe("no-address");
 		expect(empty.querySelector("[data-test-inbox-emails-empty-title]")?.textContent).toBe(
-			"No forwarded emails yet",
+			"No emails yet",
 		);
 		expect(empty.querySelector("[data-test-inbox-emails-empty-body]")?.textContent).toBe(
-			"You don't have a custom email to send them to.",
+			"Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into All.",
 		);
 		const ctas = Array.from(empty.querySelectorAll("[data-test-inbox-emails-empty-cta]"));
 		expect(ctas.map((cta) => cta.getAttribute("data-test-inbox-emails-empty-cta"))).toEqual([
@@ -146,7 +146,7 @@ describe("Inbox emails list route", () => {
 		expect(ctas[0].textContent).toBe("Create my first custom email");
 	});
 
-	it("tells a reader who already has an address to forward mail instead, offering it to copy in place", async () => {
+	it("tells a reader who already has a custom email to subscribe with it, offering it to copy in place", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -166,10 +166,10 @@ describe("Inbox emails list route", () => {
 		assert(empty, "empty state must render");
 		expect(empty.getAttribute("data-test-inbox-empty-state")).toBe("no-mail");
 		expect(empty.querySelector("[data-test-inbox-emails-empty-title]")?.textContent).toBe(
-			"No forwarded emails yet",
+			"No emails yet",
 		);
 		expect(empty.querySelector("[data-test-inbox-emails-empty-body]")?.textContent).toBe(
-			"Forward a newsletter to one of your custom emails and it'll appear here.",
+			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into All.",
 		);
 		expect(
 			Array.from(empty.querySelectorAll("[data-test-inbox-emails-empty-cta]")).map((cta) =>
@@ -532,7 +532,7 @@ describe("Inbox emails list route", () => {
 			const doc = new JSDOM(followed.text).window.document;
 			const empty = doc.querySelector("[data-test-inbox-emails-empty]");
 			assert(empty, "empty state must render after the clamp");
-			expect(empty.textContent).toContain("No forwarded emails yet");
+			expect(empty.textContent).toContain("No emails yet");
 		});
 
 		it("renders the newest page for a legacy ?page= URL", async () => {
