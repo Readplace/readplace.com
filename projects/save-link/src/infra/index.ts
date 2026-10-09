@@ -241,8 +241,7 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 
 // Simple-only crawl Lambda: HTML + oembed only, PDFs dispatched to the
 // dedicated comprehensive-crawl-command Lambda. The timeout has to clear the
-// crawler's own worst case — a proxied crawl budgets 100s for headers and 180s
-// for the body — plus the readability parse. SQS visibility stays above the
+// crawler's own worst case plus the readability parse. SQS visibility stays above the
 // Lambda timeout so a message cannot reappear while an invocation still holds
 // it.
 //
@@ -383,7 +382,7 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 	// linkedom + Readability is ~80× the HTML source, which is what bounds the
 	// 28 MB body cap (MAX_HTML_BYTES) rather than the other way round.
 	memorySize: 3008,
-	timeout: 300,
+	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -457,7 +456,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	outputDir: ".lib/submit-link",
 	assetDir: "./src",
 	memorySize: 3008,
-	timeout: 300,
+	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -561,7 +560,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	assetDir: "./src",
 	// 3008 MB — the account's per-function memory ceiling.
 	memorySize: 3008,
-	timeout: 300,
+	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -609,7 +608,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	assetDir: "./src",
 	// 3008 MB — the account's per-function memory ceiling.
 	memorySize: 3008,
-	timeout: 300,
+	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -1058,7 +1057,7 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	assetDir: "./src",
 	// 3008 MB — the account's per-function memory ceiling.
 	memorySize: 3008,
-	timeout: 300,
+	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -1545,7 +1544,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 	assetDir: "./src",
 			// 3008 MB — the account's per-function memory ceiling.
 	memorySize: 3008,
-	timeout: 300,
+	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		...crawlEgressProxyEnvironment,

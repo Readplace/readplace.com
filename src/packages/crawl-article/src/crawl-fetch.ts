@@ -21,7 +21,7 @@ const CURL_LEG_MAX_MS = 3000;
  * 29s and 42s to first byte on consecutive fetches. The cap is sized past that
  * spread, because a proxied leg that times out discards a page the unlocker
  * actually delivered. */
-const PROXY_PRIMARY_MAX_MILLISECONDS = 55_000;
+const PROXY_PRIMARY_MAX_MILLISECONDS = 100_000;
 const PROXY_RETRY_MIN_MILLISECONDS = 15_000;
 const PROXY_RESERVE_MILLISECONDS = PROXY_PRIMARY_MAX_MILLISECONDS + PROXY_RETRY_MIN_MILLISECONDS;
 

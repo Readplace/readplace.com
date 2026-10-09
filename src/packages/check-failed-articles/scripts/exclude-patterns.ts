@@ -168,7 +168,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/mindsetworks\.com\/index\.html$/i,
 	// The `/Science/` section pages (saved with both capitalisations) do not
 	// resolve — the fetch never lands.
-	/^https:\/\/www\.mindsetworks\.com\/[Ss]cience\/$/i,
+	/^https:\/\/www\.mindsetworks\.com\/[Ss]cience\/?$/i,
 	// (e) Edge firewall / bot-wall that answers datacenter egress with a
 	// challenge or error instead of content (202 JS-challenge, 401 bot-check,
 	// 403 edge ACL, 503) — the same residential-egress requirement as the USDA

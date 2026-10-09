@@ -517,6 +517,7 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		{ url: "https://mindsetworks.com/index.html", excluded: true, label: "mindsetworks index.html redirect stub" },
 		{ url: "https://www.mindsetworks.com/Science/", excluded: true, label: "mindsetworks Science section (capitalised, stored shape)" },
 		{ url: "https://www.mindsetworks.com/science/", excluded: true, label: "mindsetworks science section (lowercase, stored shape)" },
+		{ url: "https://www.mindsetworks.com/science", excluded: true, label: "mindsetworks science section (slashless, stored shape)" },
 		{ url: "https://mindsetworks.com/", excluded: false, label: "mindsetworks homepage — should NOT match" },
 		{ url: "https://www.mindsetworks.com/Math/", excluded: false, label: "mindsetworks other section — should NOT match" },
 		// (e) Edge firewall / bot-wall blocking datacenter egress.

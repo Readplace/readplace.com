@@ -42,9 +42,7 @@ const DEFAULT_FETCH_TIMEOUTS = { headersMs: 30000, bodyMs: 180000 } as const;
  * second pass, where the default leaves no room for the latter. Reading the
  * body is unaffected by which egress delivered it.
  *
- * This is what sets the floor under the crawl Lambdas' timeout: 100 + 180 is a
- * 280 s worst case, so a handler running a proxied crawl needs more than the
- * 240 s an unproxied one was sized for.
+ * This is what sets the floor under the crawl Lambdas' timeout.
  */
 export const PROXIED_FETCH_TIMEOUTS = {
 	headersMs: PROXIED_CRAWL_HEADERS_MILLISECONDS,

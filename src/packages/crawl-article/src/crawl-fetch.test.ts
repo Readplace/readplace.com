@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { initCrawlFetch } from "./crawl-fetch";
+import { initCrawlFetch, PROXIED_CRAWL_HEADERS_MILLISECONDS } from "./crawl-fetch";
 
 const stubFetch: typeof fetch = async () => new Response("ok");
 
@@ -167,6 +167,59 @@ describe("initCrawlFetch", () => {
 
 		assert.equal(response.status, 403);
 		assert.equal(primaryCalls, 1);
+	});
+
+	describe("with the proxied crawl's header budget", () => {
+		beforeEach(() => {
+			jest.useFakeTimers();
+		});
+
+		afterEach(() => {
+			jest.useRealTimers();
+		});
+
+		it("waits out an unlocker that takes 88.4s to clear a challenge, instead of discarding it for the direct block", async () => {
+			const SLOWEST_MEASURED_UNLOCK_MILLISECONDS = 88_400;
+			let primaryCalls = 0;
+			const challengedThenSlowlyUnlocked: typeof fetch = (_input, init) => {
+				primaryCalls += 1;
+				if (primaryCalls === 1) return Promise.resolve(new Response("challenge", { status: 403 }));
+				return new Promise((resolve, reject) => {
+					const signal = init?.signal;
+					assert(signal, "every leg receives a deadline");
+					const unlocked = setTimeout(
+						() => resolve(new Response("<html>article</html>")),
+						SLOWEST_MEASURED_UNLOCK_MILLISECONDS,
+					);
+					signal.addEventListener(
+						"abort",
+						() => {
+							clearTimeout(unlocked);
+							reject(signal.reason);
+						},
+						{ once: true },
+					);
+				});
+			};
+			const challenged = async (): Promise<Response> => new Response("challenge", { status: 403 });
+			const crawlFetch = initCrawlFetch({
+				fetch: challengedThenSlowlyUnlocked,
+				personas: [{ name: "test", headers: { "user-agent": "test" } }],
+				isBlocked: () => false,
+				logInfo: () => {},
+				fetchH2: challenged,
+				fetchCurl: challenged,
+				proxyUrl: "http://proxy.example:8080",
+			});
+
+			const pending = crawlFetch("https://example.com", { budgetMs: PROXIED_CRAWL_HEADERS_MILLISECONDS });
+			await jest.advanceTimersByTimeAsync(PROXIED_CRAWL_HEADERS_MILLISECONDS);
+			const response = await pending;
+
+			assert.equal(response.status, 200);
+			assert.equal(await response.text(), "<html>article</html>");
+			assert.equal(primaryCalls, 2);
+		});
 	});
 
 	it("does not run a proxied pass when no proxyUrl is configured", async () => {
