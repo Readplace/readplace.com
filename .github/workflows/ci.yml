@@ -594,7 +594,7 @@ jobs:
         run: make test
 
       - name: Upload the test result bundle
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ios-xcresult-${{ github.run_id }}-${{ github.run_attempt }}
