@@ -14,6 +14,7 @@ import { initDynamoDbAuth } from "./auth/dynamodb-auth";
 import { parseDynamoTables } from "./dynamodb-tables";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import {
+	initDynamoDbCanaryReports,
 	initDynamoDbEngagementStarter,
 	initDynamoDbReadlistDefinitions,
 	initDynamoDbSavedArticleStore,
@@ -529,6 +530,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		gmailIntegration,
 		readNewsletterCatalog: newsletterCatalog.readCatalog,
 		writeNewsletterCatalog: newsletterCatalog.writeCatalog,
+		findCanaryReport: initDynamoDbCanaryReports({ client, tableName: tables.canaryReports }).findCanaryReport,
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,

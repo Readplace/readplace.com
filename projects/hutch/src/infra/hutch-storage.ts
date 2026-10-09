@@ -21,6 +21,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly gmailMonitoringTable: aws.dynamodb.Table;
 	public readonly gmailHistoryImportsTable: aws.dynamodb.Table;
 	public readonly gmailMappingsTable: aws.dynamodb.Table;
+	public readonly canaryReportsTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
@@ -42,6 +43,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		gmailMonitoring: string;
 		gmailHistoryImports: string;
 		gmailMappings: string;
+		canaryReports: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
 
@@ -346,6 +348,16 @@ export class HutchStorage extends pulumi.ComponentResource {
 					projectionType: "ALL",
 				},
 			],
+		}, { parent: this });
+
+		this.canaryReportsTable = new aws.dynamodb.Table("hutch-canary-reports", {
+			name: args.tableNames.canaryReports,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "reportId",
+			rangeKey: "rowIndex",
+			attributes: [{ name: "reportId", type: "S" }, { name: "rowIndex", type: "N" }],
 		}, { parent: this });
 
 		this.registerOutputs();

@@ -22,6 +22,7 @@ import type {
 } from "@packages/domain/gmail";
 import type { NewsletterCatalogSeed } from "@packages/domain/newsletter-catalog";
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
+import type { FindCanaryReport, SaveCanaryReport } from "@packages/provider-contracts/canary-report";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	ArticleMetadata,
@@ -687,6 +688,7 @@ export interface TestAppFixture {
 	newsletterCatalog: NewsletterCatalogBundle;
 	apple: AppleAuthBundle;
 	admin: AdminBundle;
+	canaryReports: { saveCanaryReport: SaveCanaryReport; findCanaryReport: FindCanaryReport };
 	importSession: ImportSessionBundle;
 	inboxAddress: InboxAddressBundle;
 	inboxEmail: InboxEmailBundle;

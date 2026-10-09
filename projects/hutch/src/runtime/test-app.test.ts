@@ -74,6 +74,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			newsletterCatalog: fixture.newsletterCatalog,
 			apple: fixture.apple,
 			admin: fixture.admin,
+			canaryReports: fixture.canaryReports,
 			importSession: fixture.importSession,
 			inboxAddress: fixture.inboxAddress,
 			inboxEmail: fixture.inboxEmail,

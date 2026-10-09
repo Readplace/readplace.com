@@ -27,6 +27,7 @@ const DynamoTablesSchema = z.strictObject({
 	gmailSenders: TableName,
 	gmailMappings: TableName,
 	gmailHistoryImports: TableName,
+	canaryReports: TableName,
 });
 
 export type DynamoTables = z.infer<typeof DynamoTablesSchema>;

@@ -71,7 +71,6 @@ export interface FailedRow {
 	reasons: Partial<Record<FailedAxis, string>>;
 	savedAt: string;
 	contentFetchedAt: string | undefined;
-	recrawlUrl: string;
 }
 
 /* The articles table completes a real scan in under 10 pages. Crossing 50
@@ -153,7 +152,6 @@ function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
 export async function collectFailedRows(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-	origin: string;
 	now: () => Date;
 	lookbackDays: number;
 	excludePatterns: readonly RegExp[];
@@ -188,7 +186,6 @@ export async function collectFailedRows(deps: {
 				reasons,
 				savedAt: row.savedAt,
 				contentFetchedAt: row.contentFetchedAt,
-				recrawlUrl: `${deps.origin}/admin/recrawl?url=${encodeURIComponent(effectiveUrl)}`,
 			});
 		}
 		lastEvaluatedKey = page.lastEvaluatedKey;

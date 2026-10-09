@@ -300,6 +300,7 @@ import { initIntegrationsRoutes } from "./web/pages/integrations";
 import type { GmailIntegrationProviders } from "./web/pages/integrations/gmail-integration.types";
 import { initAdminIndexHandlers } from "./web/pages/admin/admin-index.page";
 import { initAdminNewslettersRoutes } from "./web/pages/admin/admin-newsletters.page";
+import { initAdminCanaryReportRoutes } from "./web/pages/admin/canary-report.page";
 import { initMoveGmailMappingsOnReadlistDelete } from "./domain/gmail/move-gmail-mappings-on-readlist-delete";
 import { initUpdateNewsletterCatalog } from "./domain/newsletter-catalog/update-newsletter-catalog";
 import {
@@ -308,6 +309,7 @@ import {
 	initNewsletterDetectorChain,
 } from "@packages/domain/newsletter-catalog";
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
+import { CANARY_REPORTS_PATH, type FindCanaryReport } from "@packages/provider-contracts/canary-report";
 import { LANDING_PAGE_CONTENT, LandingPage, landingPageLastModified } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
@@ -361,6 +363,7 @@ interface AppDependencies {
 	readNewsletterCatalog: ReadNewsletterCatalog;
 	writeNewsletterCatalog: WriteNewsletterCatalog;
 	newsletterCatalogSeed: NewsletterCatalogSeed;
+	findCanaryReport: FindCanaryReport;
 	appleAuth: {
 		exchangeAppleCode: ExchangeAppleCode;
 		clientId: string;
@@ -1581,6 +1584,15 @@ export function createApp(dependencies: AppDependencies): Express {
 			newsletterCatalogSeed: deps.newsletterCatalogSeed,
 			now: deps.now,
 			logError: deps.logError,
+			buildBannerState,
+		}),
+	);
+	app.use(
+		CANARY_REPORTS_PATH,
+		initAdminCanaryReportRoutes({
+			findUserByEmail: deps.findUserByEmail,
+			adminEmails: deps.adminEmails,
+			findCanaryReport: deps.findCanaryReport,
 			buildBannerState,
 		}),
 	);

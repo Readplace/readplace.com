@@ -41,6 +41,10 @@
       "types": "./dist/providers/auth/index.d.ts",
       "default": "./dist/providers/auth/index.js"
     },
+    "./providers/canary-report": {
+      "types": "./dist/providers/canary-report/index.d.ts",
+      "default": "./dist/providers/canary-report/index.js"
+    },
     "./providers/email": {
       "types": "./dist/providers/email/index.d.ts",
       "default": "./dist/providers/email/index.js"
@@ -219,6 +223,9 @@
       ],
       "providers/auth": [
         "./dist/providers/auth/index.d.ts"
+      ],
+      "providers/canary-report": [
+        "./dist/providers/canary-report/index.d.ts"
       ],
       "providers/email": [
         "./dist/providers/email/index.d.ts"

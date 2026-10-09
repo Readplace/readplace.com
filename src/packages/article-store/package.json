@@ -1,7 +1,7 @@
 {
   "name": "@packages/article-store",
   "version": "1.0.0",
-  "description": "DynamoDB-backed storage adapter for the Article aggregate; consumed by save-link and hutch.",
+  "description": "DynamoDB-backed storage adapter for the Article aggregate and the canary reports table; consumed by save-link, hutch and the article canaries.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,

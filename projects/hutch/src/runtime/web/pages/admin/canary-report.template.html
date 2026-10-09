@@ -1,0 +1,43 @@
+<main class="admin-canary-report" data-test-admin-canary-report="{{canary}}">
+  <div class="admin-canary-report__layout">
+    <header class="admin-canary-report__header">
+      <h1 class="admin-canary-report__title">{{title}}</h1>
+      <dl class="admin-canary-report__context">
+        <dt class="admin-canary-report__term">Run</dt>
+        <dd class="admin-canary-report__value"><a class="admin-canary-report__run" href="{{runUrl}}" rel="noopener noreferrer" data-test-canary-report-run>{{runUrl}}</a></dd>
+        <dt class="admin-canary-report__term">Created</dt>
+        <dd class="admin-canary-report__value" data-test-canary-report-created>{{createdAt}}</dd>
+        <dt class="admin-canary-report__term">Rows</dt>
+        <dd class="admin-canary-report__value" data-test-canary-report-row-count>{{rowCount}}</dd>
+      </dl>
+    </header>
+    <ol class="admin-canary-report__rows">
+      {{#each rows}}
+      <li class="admin-canary-report__row" data-test-canary-report-row="{{rowIndex}}">
+        <div class="admin-canary-report__heading">
+          <span class="admin-canary-report__number" data-test-canary-report-number>{{rowIndex}}</span>
+          {{#if href}}
+          <a class="admin-canary-report__url" href="{{href}}" rel="noopener noreferrer" data-test-canary-report-original="link">{{url}}</a>
+          {{else}}
+          <span class="admin-canary-report__url" data-test-canary-report-original="text">{{url}}</span>
+          {{/if}}
+        </div>
+        <ul class="admin-canary-report__labels">
+          {{#each labels}}
+          <li class="chip chip--badge" data-test-canary-report-label>{{this}}</li>
+          {{/each}}
+        </ul>
+        <p class="admin-canary-report__detail" data-test-canary-report-detail>{{detail}}</p>
+        <p class="admin-canary-report__times" data-test-canary-report-times>saved {{savedAt}} · fetched {{contentFetchedAt}}</p>
+        <form class="admin-canary-report__recrawl" method="GET" action="/admin/recrawl" data-test-canary-report-recrawl>
+          <input type="hidden" name="url" value="{{url}}">
+          <input type="hidden" name="utm_source" value="admin-canary-report">
+          <input type="hidden" name="utm_medium" value="internal">
+          <input type="hidden" name="utm_content" value="recrawl">
+          <button type="submit" class="btn btn--secondary btn--s" aria-label="Recrawl row {{rowIndex}}">Recrawl</button>
+        </form>
+      </li>
+      {{/each}}
+    </ol>
+  </div>
+</main>

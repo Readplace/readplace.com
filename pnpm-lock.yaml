@@ -1176,9 +1176,15 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
+      '@packages/article-store':
+        specifier: workspace:*
+        version: link:../article-store
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../hutch-storage-client
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
       '@packages/require-env':
         specifier: workspace:*
         version: link:../require-env
@@ -1198,9 +1204,15 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
+      '@packages/article-store':
+        specifier: workspace:*
+        version: link:../article-store
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../hutch-storage-client
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
       '@packages/require-env':
         specifier: workspace:*
         version: link:../require-env

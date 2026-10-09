@@ -21,6 +21,7 @@ import { initCancelGmailHistoryImports } from "../domain/gmail/cancel-gmail-hist
 import { initUpdateNewsletterCatalog } from "../domain/newsletter-catalog/update-newsletter-catalog";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
+import { initInMemoryCanaryReports } from "@packages/test-fixtures/providers/canary-report";
 import { GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { mergeSubmittedSender } from "@packages/domain/newsletter-catalog";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
@@ -572,6 +573,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		gmailIntegration,
 		readNewsletterCatalog: newsletterCatalog.readCatalog,
 		writeNewsletterCatalog: newsletterCatalog.writeCatalog,
+		findCanaryReport: initInMemoryCanaryReports().findCanaryReport,
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens,

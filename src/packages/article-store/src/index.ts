@@ -55,3 +55,4 @@ export {
 	initDynamoDbEngagementActivity,
 	initDynamoDbEngagementStarter,
 } from "./dynamodb-engagement-starter";
+export { initDynamoDbCanaryReports } from "./dynamodb-canary-reports";

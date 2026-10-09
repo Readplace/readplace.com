@@ -11,9 +11,9 @@ This canary is a **debug worklist**, not a pass/fail health check. The script al
 
 ## Your Task
 
-1. **Read the issue body.** Each failed row is listed as `[<axes>] <url> — <axis>: <stored reason>; saved: <ts>; fetched: <ts>; recrawl: <admin-url>`. The axes tell you which state machine terminated unsuccessfully.
+1. **Read the issue, then its report.** The issue holds counts only: rows per axis and per stored-reason kind, plus a **Report (admins only)** link. Each row's URL, axes, stored reason, saved and fetched times and a Recrawl button are on that report page, which needs a browser signed in as an admin. The axes tell you which state machine terminated unsuccessfully.
 
-2. **Group by root cause.** Multiple rows usually share the same cause — a single Cloudflare fingerprint change can fail hundreds of URLs. Cluster the list before recommending fixes:
+2. **Group by root cause.** Multiple rows usually share the same cause — a single Cloudflare fingerprint change can fail hundreds of URLs. Cluster the report's rows before recommending fixes:
    - By **failure-reason kind** (`http-error:403`, `non-html-content:application/pdf`, `exhausted-retries`, `crawl-failed`, etc.).
    - By **host/domain** (`medium.com`, `substack.com`, `nytimes.com`).
    - By **axis** (crawl vs summary).
@@ -23,6 +23,8 @@ This canary is a **debug worklist**, not a pass/fail health check. The script al
 ## Important Guidelines
 
 - Follow ALL CLAUDE.md guidelines.
+- **Never copy a reader's URL, user id or token into an issue, comment, commit or log line.** The repository is public. Cite a row by its number on the report, and name a host only when the host itself is the finding.
+- **Read the report's rows, and any row's production record, in a local session or an admin's browser, never through `@claude` in GitHub Actions.** The `@claude` listener's run log shows every tool result, and that log is public.
 - **The stored `crawl-failed` / `summary-failed` reason strings on each row are the most direct signal of root cause.** Read them before reaching for logs. The schemas live in `src/packages/article-state-types/` (`CrawlFailureReasonSchema`, `SummaryFailureReasonSchema`).
 - **Never edit `src/packages/check-failed-articles/scripts/exclude-patterns.ts` to make the canary quiet.** Each entry must represent a class of URL that is genuinely unsupported by product policy. Adding a fixable failure URL silently hides the regression and tomorrow's cron emits a shorter (misleading) list.
 - **Never raise `FAILED_ARTICLES_LOOKBACK_DAYS` to hide a backlog.** That env var is for the operator to narrow the worklist once the historical tail is processed, not a way to make the next scan smaller without doing the work.

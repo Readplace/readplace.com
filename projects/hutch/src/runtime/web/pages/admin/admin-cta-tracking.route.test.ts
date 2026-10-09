@@ -1,6 +1,7 @@
 import request from "supertest";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import { type NewsletterCatalogRecord, type NewsletterStatus, NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
+import { CanaryReportSourceSchema } from "@packages/provider-contracts/canary-report";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
 import { describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-harness";
@@ -46,6 +47,7 @@ const ADMIN_PATHS = [
 	"/admin/newsletters?correct=issue2%40letters.example",
 	"/admin/recrawl",
 	"/admin/extend-trial",
+	"/admin/canary-reports/failed-articles/run-1-1",
 ];
 
 describe("every same-origin CTA on the admin surfaces carries its own utm_source", () => {
@@ -54,6 +56,28 @@ describe("every same-origin CTA on the admin surfaces carries its own utm_source
 		const catalog = initInMemoryNewsletterCatalog({
 			version: 1,
 			records: Array.from({ length: 66 }, (_, index) => catalogRecord(index)),
+		});
+		await fixture.canaryReports.saveCanaryReport({
+			canary: "failed-articles",
+			source: CanaryReportSourceSchema.parse("run-1-1"),
+			runUrl: "https://github.test/readplace/actions/runs/1",
+			createdAt: "2026-10-10T20:00:05.000Z",
+			rows: [
+				{
+					url: "https://site.test/post",
+					labels: ["crawl-failed"],
+					detail: "(no stored reason)",
+					savedAt: undefined,
+					contentFetchedAt: undefined,
+				},
+				{
+					url: "https://site.test/other",
+					labels: ["summary-failed"],
+					detail: "(no stored reason)",
+					savedAt: undefined,
+					contentFetchedAt: undefined,
+				},
+			],
 		});
 		const harness = useApp({
 			...fixture,

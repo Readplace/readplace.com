@@ -10,7 +10,7 @@ name: Failed articles canary
 #
 # This canary is a debug worklist, not a pass/fail health check. The script
 # always exits 0 even when failed rows are present — the workflow opens a
-# tracking issue with the URL list so the operator can re-save and
+# tracking issue so the operator can re-save and
 # investigate each one. If a tracking issue is already open, the workflow
 # skips the scan entirely so a single backlog isn't re-posted day after day;
 # the next scan runs after the operator closes that issue.
@@ -47,7 +47,8 @@ jobs:
       # `savedAt >= now - N days` once the operator has worked through the
       # initial backlog and wants to narrow to recent regressions.
       FAILED_ARTICLES_LOOKBACK_DAYS: '0'
-      FAILED_ARTICLES_REPORT_PATH: ${{ github.workspace }}/.failed-articles-report.json
+      DYNAMODB_CANARY_REPORTS_TABLE: hutch-canary-reports-prod
+      FAILED_ARTICLES_ISSUE_PATH: ${{ github.workspace }}/.failed-articles-issue.json
     steps:
       - uses: actions/checkout@v6
 
@@ -98,32 +99,6 @@ jobs:
         if: steps.existing-issue.outputs.skip != 'true'
         run: pnpm nx run @packages/check-failed-articles:check-failed-articles
 
-      # The artifact holds the full row list (the issue body is capped at
-      # GitHub's 65 KiB limit; production backlogs of thousands of rows
-      # would otherwise be truncated invisibly). Issue body links to it.
-      # Relative path (not the absolute env path) because upload-artifact@v4
-      # treats `path:` as a glob anchored at $GITHUB_WORKSPACE — an absolute
-      # path passes type-checking but matches nothing.
-      - name: Upload full report as workflow artifact
-        if: steps.existing-issue.outputs.skip != 'true' && success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: failed-articles-report
-          path: .failed-articles-report.json
-          # The report path starts with a dot; upload-artifact@v4 treats
-          # dotfiles as hidden and skips them unless explicitly included.
-          include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 30
-
-      # ┌──────────────────────────────────────────────────────────────────┐
-      # │ Open a tracking issue when the report has any rows.              │
-      # │ The script always exits 0 — a non-empty report is a worklist,    │
-      # │ not a CI failure — so this step gates on the report file count   │
-      # │ instead of `failure()`. The body caps row entries to fit         │
-      # │ GitHub's 65 KiB issue-body limit; the full list is in the        │
-      # │ workflow artifact uploaded above.                                │
-      # └──────────────────────────────────────────────────────────────────┘
       - name: Open tracking issue if report has failed rows
         if: steps.existing-issue.outputs.skip != 'true' && success()
         uses: actions/github-script@v8
@@ -132,85 +107,20 @@ jobs:
           script: |
             const fs = require('fs');
             const { owner, repo } = context.repo;
-            const reportPath = process.env.FAILED_ARTICLES_REPORT_PATH;
-            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
-            const artifactsUrl = `${runUrl}#artifacts`;
+            const issuePath = process.env.FAILED_ARTICLES_ISSUE_PATH;
             const today = new Date().toISOString().slice(0, 10);
-            const marker = '<!-- CLAUDE_FAILED_ARTICLES_FIX -->';
 
-            if (!fs.existsSync(reportPath)) {
-              console.log('No report file produced — nothing to open');
-              return;
-            }
-            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-            const failed = report.failed ?? [];
-            if (failed.length === 0) {
+            if (!fs.existsSync(issuePath)) {
               console.log('Zero failed rows — nothing to open');
               return;
             }
+            const issue = JSON.parse(fs.readFileSync(issuePath, 'utf8'));
 
-            const axisCounts = {};
-            for (const row of failed) {
-              for (const axis of row.axes) axisCounts[axis] = (axisCounts[axis] ?? 0) + 1;
-            }
-            const breakdown = Object.entries(axisCounts)
-              .sort(([, a], [, b]) => b - a)
-              .map(([axis, count]) => `- **${axis}**: ${count}`)
-              .join('\n');
-
-            const formatRow = (row) => {
-              const axes = row.axes.join(',');
-              const reasonEntries = Object.entries(row.reasons ?? {});
-              const reasonText = reasonEntries.length === 0
-                ? '(no stored reason)'
-                : reasonEntries.map(([axis, reason]) => `${axis}: ${reason}`).join(' | ');
-              return `- [${axes}] ${row.originalUrl} — ${reasonText}; saved: ${row.savedAt}; fetched: ${row.contentFetchedAt ?? '-'}; recrawl: ${row.recrawlUrl}`;
-            };
-
-            // Cap the body at ~60 KiB to stay safely under GitHub's 65,536-char
-            // issue-body limit; the rest is in the workflow artifact.
-            const BODY_CAP = 60_000;
-            const headerSize = 2_000; // marker + intro + context + breakdown + footer
-            const rowBudget = BODY_CAP - headerSize;
-            let includedCount = 0;
-            let runningSize = 0;
-            const includedRows = [];
-            for (const row of failed) {
-              const line = formatRow(row);
-              if (runningSize + line.length + 1 > rowBudget) break;
-              includedRows.push(line);
-              runningSize += line.length + 1;
-              includedCount += 1;
-            }
-            const remaining = failed.length - includedCount;
-            const truncationNote = remaining > 0
-              ? `\n\n_Showing first ${includedCount} of ${failed.length} rows. Full list is in the workflow artifact \`failed-articles-report\` (download from [the run page](${artifactsUrl}))._`
-              : '';
-
-            const body = [
-              marker,
-              '',
-              'The failed-articles canary surfaced rows whose state machines reached a terminal unsuccessful outcome. This is a debug worklist: investigate each cluster below, then close this issue once the backlog is processed (the canary skips its scan while this issue stays open).',
-              '',
-              '## Context',
-              `- **Run**: ${runUrl}`,
-              `- **Date (UTC)**: ${today}`,
-              `- **Failed rows**: ${failed.length}`,
-              `- **Full report**: workflow artifact \`failed-articles-report\` ([download](${artifactsUrl}))`,
-              '',
-              '## Breakdown by axis',
-              breakdown,
-              '',
-              `## Failed rows${remaining > 0 ? ` (first ${includedCount} of ${failed.length})` : ''}`,
-              includedRows.join('\n'),
-              truncationNote,
-            ].join('\n');
-
-            const title = `[Failed articles canary ${today}] ${failed.length} failed row(s)`;
+            const title = `[Failed articles canary ${today}] ${issue.rowCount} failed row(s)`;
             const created = await github.rest.issues.create({
               owner,
               repo,
               title,
-              body,
+              body: issue.body,
             });
             console.log(`Created issue #${created.data.number}: ${title}`);

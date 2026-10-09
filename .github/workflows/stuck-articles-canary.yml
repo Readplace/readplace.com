@@ -37,10 +37,8 @@ jobs:
       AWS_REGION: ap-southeast-2
       DYNAMODB_ARTICLES_TABLE: hutch-articles-cda0a08
       READPLACE_ORIGIN: https://readplace.com
-      # Read by check-stuck-articles.ts: when set, the canary writes a JSON
-      # report of the stuck rows to this path before the failing sub-tests
-      # run. The on-failure step below reads it to format the issue body.
-      STUCK_ARTICLES_REPORT_PATH: ${{ github.workspace }}/.stuck-articles-report.json
+      DYNAMODB_CANARY_REPORTS_TABLE: hutch-canary-reports-prod
+      STUCK_ARTICLES_ISSUE_PATH: ${{ github.workspace }}/.stuck-articles-issue.json
     steps:
       - uses: actions/checkout@v6
 
@@ -74,7 +72,7 @@ jobs:
           script: |
             const fs = require('fs');
             const { owner, repo } = context.repo;
-            const reportPath = process.env.STUCK_ARTICLES_REPORT_PATH;
+            const issuePath = process.env.STUCK_ARTICLES_ISSUE_PATH;
             const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
             const today = new Date().toISOString().slice(0, 10);
             const titlePrefix = `[Stuck articles canary ${today}]`;
@@ -84,31 +82,21 @@ jobs:
             // exists for "real" failures (≥1 stuck row). If it's missing,
             // the canary blew up earlier (e.g., MAX_PAGES assert, AWS auth)
             // — surface a generic body that points the listener at the run.
-            let stuckList = '_(no report file produced — see workflow logs)_';
             let stuckCount = 0;
-            if (fs.existsSync(reportPath)) {
-              const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-              stuckCount = report.stuck.length;
-              if (stuckCount > 0) {
-                stuckList = report.stuck
-                  .map((row) => `- [${row.reasons.join(',')}] ${row.originalUrl} — ${row.terminalCheckMessage}; fetched: ${row.contentFetchedAt ?? '-'}; recrawl: ${row.recrawlUrl}`)
-                  .join('\n');
-              }
-            }
-
-            const body = [
+            let body = [
               marker,
               '',
-              'The stuck-articles canary failed on its scheduled run. The rows below never reached a terminal-good state and their URLs still resolve. Investigate the root cause, then close this issue once resolved.',
+              'The stuck-articles canary failed on its scheduled run before it wrote a report. Investigate the run log, then close this issue once resolved.',
               '',
               '## Context',
               `- **Run**: ${runUrl}`,
               `- **Date (UTC)**: ${today}`,
-              `- **Stuck rows**: ${stuckCount}`,
-              '',
-              '## Stuck rows',
-              stuckList,
             ].join('\n');
+            if (fs.existsSync(issuePath)) {
+              const issue = JSON.parse(fs.readFileSync(issuePath, 'utf8'));
+              stuckCount = issue.rowCount;
+              body = issue.body;
+            }
 
             // Date-prefixed dedup: if today's issue already exists, append
             // a comment instead of opening a duplicate. With one cron a day

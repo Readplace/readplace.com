@@ -41,7 +41,6 @@ function createFakeClient(
 
 const NOW = new Date("2026-05-11T12:00:00.000Z");
 const TABLE = "test-articles";
-const ORIGIN = "https://example.test";
 
 describe("buildScanInput", () => {
 	it("anchors the age-gate thresholds to (now - constant) per axis", () => {
@@ -131,7 +130,6 @@ describe("collectStuckRows", () => {
 		await collectStuckRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 		});
 		assert.equal(calls.length, 1);
@@ -150,7 +148,6 @@ describe("collectStuckRows", () => {
 		await collectStuckRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 		});
 		const projection = calls[0]?.input.ProjectionExpression ?? "";
@@ -199,16 +196,11 @@ describe("collectStuckRows", () => {
 		const stuck = await collectStuckRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 		});
 		assert.equal(stuck.length, 1);
 		assert.equal(stuck[0]?.originalUrl, "https://example.test/article");
 		assert.deepEqual(stuck[0]?.reasons, ["summary-pending", "crawl-pending"]);
-		assert.equal(
-			stuck[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("https://example.test/article")}`,
-		);
 		assert.match(stuck[0]?.terminalCheckMessage ?? "", /crawlStatus is 'pending'/);
 	});
 
@@ -228,7 +220,6 @@ describe("collectStuckRows", () => {
 		const stuck = await collectStuckRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 		});
 		assert.deepEqual(stuck, []);
@@ -267,7 +258,6 @@ describe("collectStuckRows", () => {
 		const stuck = await collectStuckRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 		});
 		assert.equal(calls.length, 2);
@@ -291,15 +281,10 @@ describe("collectStuckRows", () => {
 		const stuck = await collectStuckRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 		});
 		assert.equal(stuck.length, 1);
 		assert.equal(stuck[0]?.originalUrl, "example.test/legacy");
-		assert.equal(
-			stuck[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("example.test/legacy")}`,
-		);
 	});
 
 	it("surfaces a summary.skipped('ai-unavailable') row as summary-skipped-ai-unavailable (the model returned the refusal sentinel, manual recrawl needed)", async () => {
@@ -320,7 +305,6 @@ describe("collectStuckRows", () => {
 		const stuck = await collectStuckRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 		});
 		assert.equal(stuck.length, 1);
@@ -346,7 +330,6 @@ describe("collectStuckRows", () => {
 		const stuck = await collectStuckRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 		});
 		assert.deepEqual(stuck, []);

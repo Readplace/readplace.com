@@ -5,6 +5,7 @@ export default {
 		"scripts/check-stuck-articles.ts",
 		"scripts/classify-row.ts",
 		"scripts/collect-stuck-rows.ts",
+		"scripts/stuck-articles-issue.ts",
 	],
 	ignoreBinaries: ["knip", "biome", "nx"],
 } satisfies KnipConfig;

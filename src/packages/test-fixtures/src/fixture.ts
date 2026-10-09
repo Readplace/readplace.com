@@ -32,6 +32,7 @@ import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memor
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemoryInboxAddress } from "./providers/inbox-address/in-memory-inbox-address";
 import { initInMemoryNewsletterCatalog } from "./providers/newsletter-catalog/in-memory-newsletter-catalog";
+import { initInMemoryCanaryReports } from "./providers/canary-report/in-memory-canary-report";
 import { initInMemoryInboxEmail } from "./providers/inbox-email/in-memory-inbox-email";
 import { initInMemoryInboxEmailLink } from "./providers/inbox-email/in-memory-inbox-email-link";
 import { initInMemoryInboxSavedLink } from "./providers/inbox-email/in-memory-inbox-saved-link";
@@ -497,6 +498,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			adminEmails: [],
 			recrawlServiceToken: "test-service-token-abcdefghij",
 		},
+		canaryReports: initInMemoryCanaryReports(),
 		importSession: {
 			importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
 			extractLinksFromPageUrl: stubExtractLinksFromPageUrl,

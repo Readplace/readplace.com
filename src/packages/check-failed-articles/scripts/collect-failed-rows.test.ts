@@ -39,7 +39,6 @@ function createFakeClient(
 
 const NOW = new Date("2026-05-18T12:00:00.000Z");
 const TABLE = "test-articles";
-const ORIGIN = "https://example.test";
 const NO_EXCLUDES: readonly RegExp[] = [];
 
 describe("buildScanInput", () => {
@@ -133,7 +132,6 @@ describe("collectFailedRows", () => {
 		await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -166,7 +164,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -175,10 +172,6 @@ describe("collectFailedRows", () => {
 		assert.equal(failed[0]?.originalUrl, "https://site.test/broken");
 		assert.deepEqual(failed[0]?.axes, ["crawl-failed"]);
 		assert.equal(failed[0]?.reasons["crawl-failed"], '{"kind":"http-error","status":403}');
-		assert.equal(
-			failed[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("https://site.test/broken")}`,
-		);
 	});
 
 	it("drops a paid-crawl-budget spend-capped block — our own transient cap, not a debuggable failure", async () => {
@@ -198,7 +191,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -223,7 +215,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -249,7 +240,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -275,7 +265,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -301,7 +290,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -328,7 +316,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -353,7 +340,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -379,7 +365,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -404,7 +389,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -429,7 +413,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -453,7 +436,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -498,7 +480,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
@@ -525,17 +506,12 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
 		});
 		assert.equal(failed.length, 1);
 		assert.equal(failed[0]?.originalUrl, "legacy.test/x");
-		assert.equal(
-			failed[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("legacy.test/x")}`,
-		);
 	});
 
 	it("filters out rows matched by the configured exclude patterns", async () => {
@@ -563,7 +539,6 @@ describe("collectFailedRows", () => {
 		const failed = await collectFailedRows({
 			client,
 			tableName: TABLE,
-			origin: ORIGIN,
 			now: () => NOW,
 			lookbackDays: 0,
 			excludePatterns: [/:\/\/excluded\.test/],

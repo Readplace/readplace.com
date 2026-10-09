@@ -26,6 +26,7 @@ const TABLES: DynamoTables = {
 	gmailSenders: "hutch-gmail-senders",
 	gmailMappings: "hutch-gmail-mappings",
 	gmailHistoryImports: "hutch-gmail-history-imports",
+	canaryReports: "hutch-canary-reports",
 };
 
 describe("parseDynamoTables", () => {

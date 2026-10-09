@@ -34,7 +34,6 @@ export interface StuckRow {
 	originalUrl: string;
 	reasons: StuckReason[];
 	contentFetchedAt: string | undefined;
-	recrawlUrl: string;
 	/**
 	 * Surfaced in the failing test message so an operator reading the GitHub
 	 * Actions output knows which writer to suspect without cross-referencing
@@ -117,7 +116,6 @@ export function buildScanInput(now: Date) {
 export async function collectStuckRows(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-	origin: string;
 	now: () => Date;
 }): Promise<StuckRow[]> {
 	const table = defineDynamoTable({
@@ -147,7 +145,6 @@ export async function collectStuckRows(deps: {
 				originalUrl: effectiveUrl,
 				reasons: verdict.reasons,
 				contentFetchedAt: row.contentFetchedAt,
-				recrawlUrl: `${deps.origin}/admin/recrawl?url=${encodeURIComponent(effectiveUrl)}`,
 				terminalCheckMessage: verdict.message,
 			});
 		}

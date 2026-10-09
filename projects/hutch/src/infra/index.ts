@@ -124,6 +124,7 @@ const tableNames = {
 	gmailHistoryImports: config.require("dynamodbGmailHistoryImportsTable"),
 	gmailMappings: config.require("dynamodbGmailMappingsTable"),
 	emailIdentities: config.require("dynamodbInboxEmailIdentitiesTable"),
+	canaryReports: config.require("dynamodbCanaryReportsTable"),
 };
 
 /* Per-stack "<limit>/<windowSeconds>" rules so staging e2e (one CI egress IP
@@ -295,6 +296,11 @@ const webIssueLinksRead = new HutchDynamoDBAccess("hutch-web-issue-links-read", 
 	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query"],
 });
 
+const webCanaryReportsRead = new HutchDynamoDBAccess("hutch-web-canary-reports-read", {
+	tables: [{ arn: storage.canaryReportsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Query"],
+});
+
 const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
 	name: "hutch-api-gateway",
 	protocolType: "HTTP",
@@ -427,6 +433,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 			gmailSenders: tableNames.gmailSenders,
 			gmailMappings: storage.gmailMappingsTable.name,
 			gmailHistoryImports: storage.gmailHistoryImportsTable.name,
+			canaryReports: storage.canaryReportsTable.name,
 		} satisfies Record<keyof DynamoTables, pulumi.Input<string>>),
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
@@ -470,6 +477,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		...oauthOutcomesWrite.policies,
 		...webUsersScan.policies,
 		...webIssueLinksRead.policies,
+		...webCanaryReportsRead.policies,
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),

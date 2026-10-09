@@ -12,27 +12,20 @@
  * (zero-row) scan is the normal steady state; a non-empty scan is a debug
  * worklist, not a CI failure. The script therefore always exits 0; the
  * workflow opens a tracking issue when the report is non-empty.
- *
- * Required env:
- *   - AWS_REGION
- *   - AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (the SDK reads these directly)
- *   - DYNAMODB_ARTICLES_TABLE
- *   - READPLACE_ORIGIN
- *
- * Optional env:
- *   - FAILED_ARTICLES_LOOKBACK_DAYS — non-negative integer. 0 (default)
- *     disables the time gate and surfaces every historical row; a positive
- *     value gates rows on `savedAt >= (now - N days)`.
- *   - FAILED_ARTICLES_REPORT_PATH — when set, the canary writes a JSON
- *     report to this path. The workflow reads it to format the issue body
- *     without re-scanning DDB.
  */
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import { test } from "node:test";
+import { initDynamoDbCanaryReports } from "@packages/article-store";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { type FailedRow, collectFailedRows } from "./collect-failed-rows";
+import {
+	type CanaryReportKey,
+	CanaryReportSourceSchema,
+	canaryReportPath,
+} from "@packages/provider-contracts/canary-report";
+import { collectFailedRows } from "./collect-failed-rows";
 import { EXCLUDE_PATTERNS } from "./exclude-patterns";
+import { formatFailedArticlesIssue, toCanaryReportRow } from "./failed-articles-issue";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 function parseLookbackDays(): number {
@@ -46,16 +39,19 @@ function parseLookbackDays(): number {
 	return parsed;
 }
 
-async function writeReportIfRequested(failed: FailedRow[]): Promise<void> {
-	const reportPath = getEnv("FAILED_ARTICLES_REPORT_PATH");
-	if (reportPath === undefined) return;
-	await writeFile(reportPath, `${JSON.stringify({ failed }, null, 2)}\n`, "utf8");
-}
-
 test("Failed articles canary", async () => {
 	const region = requireEnv("AWS_REGION");
 	const tableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
 	const origin = requireEnv("READPLACE_ORIGIN");
+	const reportsTableName = requireEnv("DYNAMODB_CANARY_REPORTS_TABLE");
+	const issuePath = requireEnv("FAILED_ARTICLES_ISSUE_PATH");
+	const runId = requireEnv("GITHUB_RUN_ID");
+	const runUrl = `${requireEnv("GITHUB_SERVER_URL")}/${requireEnv("GITHUB_REPOSITORY")}/actions/runs/${runId}`;
+	const key: CanaryReportKey = {
+		canary: "failed-articles",
+		source: CanaryReportSourceSchema.parse(`run-${runId}-${requireEnv("GITHUB_RUN_ATTEMPT")}`),
+	};
+	const reportUrl = `${origin}${canaryReportPath(key)}`;
 	const lookbackDays = parseLookbackDays();
 	const client = createDynamoDocumentClient({ region });
 	process.stderr.write(
@@ -64,15 +60,26 @@ test("Failed articles canary", async () => {
 	const failed = await collectFailedRows({
 		client,
 		tableName,
-		origin,
 		now: () => new Date(),
 		lookbackDays,
 		excludePatterns: EXCLUDE_PATTERNS,
 	});
-	await writeReportIfRequested(failed);
 	process.stderr.write(`[info] failed rows: ${failed.length}\n`);
-	for (const row of failed) {
-		const axes = row.axes.join(",");
-		process.stderr.write(`  [${axes}] ${row.originalUrl}\n`);
-	}
+	const [first, ...rest] = failed;
+	if (first === undefined) return;
+	const createdAt = new Date().toISOString();
+	await initDynamoDbCanaryReports({ client, tableName: reportsTableName }).saveCanaryReport({
+		...key,
+		runUrl,
+		createdAt,
+		rows: [toCanaryReportRow(first), ...rest.map(toCanaryReportRow)],
+	});
+	process.stderr.write(`[info] report: ${reportUrl}\n`);
+	const issue = formatFailedArticlesIssue({
+		rows: [first, ...rest],
+		runUrl,
+		reportUrl,
+		today: createdAt.slice(0, 10),
+	});
+	await writeFile(issuePath, `${JSON.stringify(issue)}\n`, "utf8");
 });

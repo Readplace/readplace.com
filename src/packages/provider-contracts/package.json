@@ -144,6 +144,10 @@
     "./engagement-starter": {
       "types": "./dist/engagement-starter.d.ts",
       "default": "./dist/engagement-starter.js"
+    },
+    "./canary-report": {
+      "types": "./dist/canary-report.d.ts",
+      "default": "./dist/canary-report.js"
     }
   },
   "typesVersions": {
@@ -181,7 +185,8 @@
       "subscription-billing": ["./dist/subscription-billing.d.ts"],
       "subscription-providers": ["./dist/subscription-providers.d.ts"],
       "trial-scheduler": ["./dist/trial-scheduler.d.ts"],
-      "engagement-starter": ["./dist/engagement-starter.d.ts"]
+      "engagement-starter": ["./dist/engagement-starter.d.ts"],
+      "canary-report": ["./dist/canary-report.d.ts"]
     }
   },
   "private": true,

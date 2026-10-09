@@ -281,6 +281,7 @@ function flattenFixtureToAppDependencies(
 		readNewsletterCatalog: fixture.newsletterCatalog.readNewsletterCatalog,
 		writeNewsletterCatalog: fixture.newsletterCatalog.writeNewsletterCatalog,
 		newsletterCatalogSeed: fixture.newsletterCatalog.newsletterCatalogSeed,
+		findCanaryReport: fixture.canaryReports.findCanaryReport,
 		appleAuth: fixture.apple,
 		adminEmails: fixture.admin.adminEmails,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,

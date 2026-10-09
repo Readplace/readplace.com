@@ -5,6 +5,7 @@ export default {
 		"scripts/check-failed-articles.ts",
 		"scripts/collect-failed-rows.ts",
 		"scripts/exclude-patterns.ts",
+		"scripts/failed-articles-issue.ts",
 	],
 	ignoreBinaries: ["knip", "biome", "nx"],
 } satisfies KnipConfig;
