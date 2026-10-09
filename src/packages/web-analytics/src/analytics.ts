@@ -272,6 +272,7 @@ export interface ArticleReadEvent {
 	user_id: UserId;
 	visitor_hash: string | null;
 	device_class: DeviceClass;
+	opened_in_reader: boolean;
 }
 
 /**

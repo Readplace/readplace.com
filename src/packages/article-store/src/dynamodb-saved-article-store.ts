@@ -191,6 +191,7 @@ function toSavedArticle(
 		status: userArticle.status,
 		savedAt: new Date(userArticle.savedAt),
 		readAt: toOptionalDate(userArticle.readAt),
+		viewedAt: toOptionalDate(userArticle.viewedAt),
 		contentFetchedAt: toOptionalDate(article.contentFetchedAt),
 		provenance: userArticle.provenance,
 		suggestionAttribution: userArticle.suggestionAttribution,

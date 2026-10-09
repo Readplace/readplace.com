@@ -479,6 +479,29 @@ describe("Readlist routes", () => {
 				assert.ok(userId);
 				assert.equal(reads[0].user_id, userId);
 				assert.ok(reads[0].visitor_hash, "visitor_hash must be present");
+				assert.equal(reads[0].opened_in_reader, false, "never opened in the reader before marking read");
+			});
+
+			it("records opened_in_reader when the owner opened the reader before marking the article read", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const agent = await loginAgent(harness.server, harness.auth);
+
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+				const readlistResponse = await agent.get("/queue");
+				const doc = new JSDOM(readlistResponse.text).window.document;
+				const articleId = doc
+					.querySelector("[data-test-article-list] .readlist-article")
+					?.getAttribute("data-test-article");
+
+				const readerResponse = await agent.get(`/queue/${articleId}/view`);
+				assert.equal(readerResponse.status, 200);
+				await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
+
+				const reads = harness.analytics.events.filter(
+					(e): e is ArticleReadEvent => e.event === "article_read",
+				);
+				assert.equal(reads.length, 1, "exactly one article_read event");
+				assert.equal(reads[0].opened_in_reader, true);
 			});
 
 			it("does not emit article_read when the transition is to unread", async () => {

@@ -243,13 +243,13 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 		logWidget({
 			region,
-			title: "Distinct Authenticated Readers per Day",
+			title: "Distinct Authenticated Readers per Day — articles marked read, and opened in the reader first",
 			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, user_id, visitor_hash",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.articleRead}"`,
 				...exclude,
-				"| stats count_distinct(user_id) as authenticated_unique_readers by bin(1d)",
+				"| stats count_distinct(user_id) as authenticated_unique_readers, count(*) as articles_marked_read, sum(opened_in_reader) as opened_in_reader_first by bin(1d)",
 			].join(" "),
 			x: 0, y: 16, width: 12, height: 8,
 			view: "timeSeries",

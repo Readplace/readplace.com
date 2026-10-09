@@ -338,6 +338,13 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(readers).toContain("count_distinct(user_id)");
 	});
 
+	it("the readers widget sums opened_in_reader next to the articles marked read — the per-user viewedAt stamp says whether the reader was opened before the article was marked read", () => {
+		const queries = widgetQueries();
+		const readers = queries.find((q) => q.includes("authenticated_unique_readers"));
+		expect(readers).toContain("count(*) as articles_marked_read");
+		expect(readers).toContain("sum(opened_in_reader) as opened_in_reader_first");
+	});
+
 	it("the opens widget counts distinct authenticated visitors on the reader view path — funnel companion to the readers widget", () => {
 		const queries = widgetQueries();
 		const opens = queries.find((q) => q.includes("reader_opens"));

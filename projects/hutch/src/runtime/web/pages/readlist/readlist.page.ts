@@ -2997,6 +2997,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					user_id: userId,
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					device_class: classifyDeviceClass(req.get("user-agent")),
+					opened_in_reader: updated.viewedAt !== undefined,
 				});
 			}
 		}
