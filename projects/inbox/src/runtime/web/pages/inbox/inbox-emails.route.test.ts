@@ -277,6 +277,19 @@ describe("Inbox emails list route", () => {
 		);
 	});
 
+	it("describes what appears in Inbox and where each source is saved", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/inbox")).text).window.document;
+
+		const lede = doc.querySelector("[data-test-inbox-emails-lede]");
+		assert(lede, "the Inbox lede must render");
+		expect(lede.textContent).toBe(
+			"Newsletters sent to your custom emails or forwarded from Gmail appear here. From a custom email, Readplace saves the articles each issue links to into All. From a Gmail newsletter, Readplace saves the issue itself, the articles it links to, or both, into All and any readlists you chose for it.",
+		);
+	});
+
 	it("shows the Inbox nav entry on the list page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

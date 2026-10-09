@@ -36,6 +36,14 @@
   text-wrap: balance;
 }
 
+.inbox-emails__lede {
+  flex-basis: 100%;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
 .inbox-emails__listing {
   background: var(--card);
   border: 1px solid var(--border);
