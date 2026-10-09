@@ -1,0 +1,25 @@
+.confirm-popover__actions.readlist-name-form {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 100%;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.readlist-name-form .confirm-popover__buttons {
+  margin-top: 16px;
+}
+
+.readlist-name-form[aria-busy="true"],
+.readlist-name-form[aria-busy="true"] .readlist-name-form__commit {
+  cursor: progress;
+}
+
+.readlist-name-form[aria-busy="true"] .readlist-name-form__commit-label {
+  visibility: hidden;
+}
+
+.readlist-name-form[aria-busy="true"] .readlist-name-form__loader {
+  display: flex;
+}

@@ -7,10 +7,11 @@ import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.compon
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
 import {
-	READLIST_RENAME_FIELD,
 	readlistRenameFallbackInputId,
 	readlistRenamePopoverId,
 } from "./readlist-rename.component";
+import { READLIST_NAME_FIELD } from "./readlist-name-form.component";
+import { READLIST_CREATE_POPOVER_ID } from "./readlist-create.component";
 
 const WORK: Readlist = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
 const READLISTS: readonly Readlist[] = [DEFAULT_READLIST, WORK];
@@ -138,7 +139,7 @@ describe("buildReadlistNav", () => {
 		const inputId = readlistRenameFallbackInputId(WORK.slug);
 		const input = form.querySelector<HTMLInputElement>(`#${inputId}`);
 		assert(input, "the fallback must carry a labelled name input");
-		expect(input.getAttribute("name")).toBe(READLIST_RENAME_FIELD);
+		expect(input.getAttribute("name")).toBe(READLIST_NAME_FIELD);
 		expect(input.getAttribute("value")).toBe(WORK.label);
 		expect(input.getAttribute("maxlength")).toBe(String(READLIST_LABEL_MAX_LENGTH));
 		expect(input.hasAttribute("required")).toBe(true);
@@ -146,6 +147,7 @@ describe("buildReadlistNav", () => {
 
 		const label = form.querySelector(`label[for="${inputId}"]`);
 		assert(label, "the fallback input must be labelled");
+		expect(label.textContent).toBe("Readlist name");
 		expect(doc.querySelectorAll(`#${inputId}`)).toHaveLength(1);
 	});
 
@@ -234,17 +236,38 @@ describe("buildReadlistNav", () => {
 		expect(switcher.querySelectorAll('[data-test-action="new-readlist"]')).toHaveLength(1);
 	});
 
-	it("starts a new readlist by posting, tagged for funnel attribution", () => {
+	it("opens the create dialog from the create row", () => {
 		const doc = renderNav();
 
-		const form = doc.querySelector("form.readlist-nav__new-form");
-		assert(form, "the create control must sit beside the readlist list");
-		const control = form.querySelector('[data-test-action="new-readlist"]');
-		assert(control, "the create control must submit the create form");
+		const trigger = doc.querySelector('[data-test-action="new-readlist"]');
+		assert(trigger, "the rail must offer a create row");
+		expect(trigger.getAttribute("popovertarget")).toBe(READLIST_CREATE_POPOVER_ID);
+		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
+		expect(trigger.getAttribute("type")).toBe("button");
+		expect(trigger.classList.contains("readlist-nav__confirm-trigger")).toBe(true);
+	});
+
+	it("backs the create dialog with a plain-post fallback that names the readlist, tagged for funnel attribution", () => {
+		const doc = renderNav();
+
+		const save = doc.querySelector('[data-test-action="readlist-create-fallback"]');
+		assert(save, "the rail must keep a no-popover fallback for creating");
+		const form = save.closest("form");
+		assert(form, "the fallback must submit through a form");
 		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("hx-boost")).toBe("false");
 		expect(form.getAttribute("action")).toBe(
 			"/queue/queues?utm_source=queue-nav&utm_medium=internal&utm_content=new-readlist",
 		);
+		const input = form.querySelector<HTMLInputElement>("input#readlist-create-fallback-name");
+		assert(input, "the fallback must carry its name input");
+		expect(input.getAttribute("name")).toBe(READLIST_NAME_FIELD);
+		expect(input.getAttribute("maxlength")).toBe(String(READLIST_LABEL_MAX_LENGTH));
+		expect(input.getAttribute("placeholder")).toBe("Enter readlist name");
+		expect(input.hasAttribute("required")).toBe(true);
+		const label = form.querySelector('label[for="readlist-create-fallback-name"]');
+		assert(label, "the fallback input must be labelled");
+		expect(label.textContent).toBe("Readlist name");
 	});
 
 	it("withholds the create form and every readlist menu from a reader who cannot write", () => {

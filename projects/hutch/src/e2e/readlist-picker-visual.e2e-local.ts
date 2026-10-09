@@ -10,7 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { openReadlistSwitcher, railIsOpen } from "./page-interactions";
+import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -39,7 +39,6 @@ const ROW_CREATE = `${MENU} [data-test-readlists-row="create"]`;
 const CREATE_INPUT = `${MENU} [data-test-readlist-create-name]`;
 const CREATE_SUBMIT = `${MENU} [data-test-action="readlist-create-assign"]`;
 const READLIST_TAB = "[data-test-readlist]";
-const NEW_READLIST = '[data-test-action="new-readlist"]';
 
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -54,7 +53,6 @@ const VOLATILE_CHROME = [
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
-const RenamedReadlist = z.object({ slug: z.string(), label: z.string() });
 
 async function loginAs(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
@@ -62,20 +60,6 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-}
-
-async function nameReadlist(page: Page, index: number, label: string): Promise<void> {
-	const slug = await page.locator(READLIST_TAB).nth(index).getAttribute("data-test-readlist");
-	assert.ok(slug, `readlist tab ${index} must carry the slug the rename posts to`);
-	const renamed = await page.request.post(`${BASE_URL}/queue/queues/${slug}/rename`, {
-		form: { label },
-	});
-	assert.equal(renamed.status(), 200, `renaming readlist ${index} must answer the rename`);
-	assert.equal(
-		RenamedReadlist.parse(await renamed.json()).label,
-		label,
-		"the label must land verbatim — a case-insensitive collision would silently number it",
-	);
 }
 
 async function openReaderWithReadlists(
@@ -111,13 +95,11 @@ async function openReaderWithReadlists(
 	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	await expect(page.locator(READLIST_TAB)).toHaveCount(1);
 	await openRail(page);
-	await page.click(NEW_READLIST);
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, DEEP_WORK));
 	await expect(page.locator(READLIST_TAB)).toHaveCount(2);
 	await openRail(page);
-	await page.click(NEW_READLIST);
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, secondReadlist));
 	await expect(page.locator(READLIST_TAB)).toHaveCount(3);
-	await nameReadlist(page, 1, DEEP_WORK);
-	await nameReadlist(page, 2, secondReadlist);
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-reader");

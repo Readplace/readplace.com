@@ -10,7 +10,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { z } from "zod";
-import { clickAndWaitForPageReload } from "./page-interactions";
+import { clickAndWaitForPageReload, nameNewReadlist } from "./page-interactions";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -55,8 +55,8 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
-async function createReadlistFromRail(page: Page): Promise<string> {
-	await clickAndWaitForPageReload(page, page.locator('[data-test-action="new-readlist"]'));
+async function createReadlistFromRail(page: Page, name: string): Promise<string> {
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, name));
 	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
 	const slug = new URL(page.url()).searchParams.get("queue");
 	assert.ok(slug, "creating a readlist must land the reader on it");
@@ -69,7 +69,7 @@ async function openPreferences(page: Page, stamp: string): Promise<{ userId: str
 	await loginAs(page, email);
 
 	await page.goto(`${BASE_URL}/queue?feature=pref`, { waitUntil: "domcontentloaded" });
-	const slug = await createReadlistFromRail(page);
+	const slug = await createReadlistFromRail(page, "New Readlist");
 	await page.goto(`${page.url()}&feature=pref`, { waitUntil: "domcontentloaded" });
 	await clickAndWaitForPageReload(page, page.locator(PREFERENCES_TAB));
 	await page.waitForSelector(PREFERENCES);
@@ -318,7 +318,7 @@ const INBOX_UNAVAILABLE_LIGHT: VisualCheckpoint = {
 
 async function openListedInboxes(page: Page, stamp: string): Promise<readonly string[]> {
 	const { userId, slug } = await openPreferences(page, stamp);
-	const elsewhere = await createReadlistFromRail(page);
+	const elsewhere = await createReadlistFromRail(page, "New Readlist 2");
 	const addresses = await seedInboxes(page, {
 		userId,
 		inboxes: [{ name: "news", readlist: slug }, { name: "tech", readlist: elsewhere }, { name: "deals" }],

@@ -97,3 +97,11 @@ export async function openReadlistSwitcher(page: Page): Promise<void> {
 }
 
 export async function railIsOpen(_page: Page): Promise<void> {}
+
+export async function nameNewReadlist(page: Page, name: string): Promise<Locator> {
+	const dialog = page.locator('[data-test-confirm-popover="readlist-create"]')
+	await page.click('[data-test-action="new-readlist"]')
+	await page.waitForSelector('[data-test-confirm-popover="readlist-create"]:popover-open')
+	await dialog.locator('input[name="label"]').fill(name)
+	return dialog.locator('[data-test-action="readlist-create-save"]')
+}

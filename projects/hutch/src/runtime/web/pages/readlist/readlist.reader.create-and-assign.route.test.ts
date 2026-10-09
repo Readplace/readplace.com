@@ -27,8 +27,8 @@ async function saveArticle(agent: TestAgent, url: string): Promise<string> {
 	return articleIdFor(agent, url);
 }
 
-async function createReadlist(agent: TestAgent): Promise<void> {
-	await agent.post("/queue/queues");
+async function createReadlist(agent: TestAgent, label: string): Promise<void> {
+	await agent.post("/queue/queues").type("form").send({ label });
 }
 
 async function openReader(agent: TestAgent, articleId: string): Promise<Document> {
@@ -146,7 +146,7 @@ describe("the reader's inline create-a-readlist control", () => {
 	it("refuses to mint an eighth readlist, returning to the reader with nothing filed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		for (let created = 0; created < 7; created += 1) await createReadlist(agent);
+		for (let created = 1; created <= 7; created += 1) await createReadlist(agent, `Readlist ${created}`);
 		const articleId = await saveArticle(agent, "https://example.com/a");
 		expect(pickerOptions(await openReader(agent, articleId))).toHaveLength(7);
 

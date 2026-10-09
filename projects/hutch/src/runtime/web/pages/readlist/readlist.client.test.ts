@@ -23,11 +23,17 @@ function dialogsMarkup(): string {
 		<div id="rename-work" popover data-test-dialog="nav"><button type="button" data-test-dialog-close>Close</button></div>
 		<div id="delete-article" popover data-test-dialog="card"><button type="button">Close</button></div>
 		<div id="orphan-dialog" popover data-test-dialog="orphan"><button type="button">Close</button></div>
+		<button type="button" popovertarget="create-readlist" data-test-row-trigger>Create a readlist</button>
+		<div id="create-readlist" popover data-test-dialog="row"><button type="button">Cancel</button></div>
 	`;
 }
 
 function renameFormMarkup(action = "/queue/queues/work/rename"): string {
-	return `<form data-readlist-rename data-test-form="readlist-rename" action="${action}"><input name="label" value="Work Reading"><p data-readlist-rename-error></p><button type="submit">Save</button></form>`;
+	return `<form data-readlist-name-form data-readlist-name-failure="Couldn't rename the readlist." data-test-form="readlist-rename" action="${action}"><input name="label" value="Work Reading"><p data-readlist-name-error></p><button type="submit">Save</button></form>`;
+}
+
+function createFormMarkup(): string {
+	return `<form data-readlist-name-form data-readlist-name-failure="Couldn't create the readlist." data-test-form="readlist-create" action="/queue/queues?queue=all"><input name="label" value="Ideas &amp; Inspiration"><p data-readlist-name-error></p><button type="submit">Create readlist</button></form>`;
 }
 
 const UNRELATED_FORM = `<form data-test-form="unrelated" action="/somewhere"><input name="x" value="y"><button type="submit">Go</button></form>`;
@@ -42,8 +48,14 @@ function init(
 	const calls: DesignCall[] = [];
 	const timers: { callback: () => void; ms: number }[] = [];
 	let reloaded = 0;
+	const navigations: string[] = [];
+	const hiddenPopovers: Element[] = [];
 	initReadlist({
 		document,
+		window: dom.window,
+		hidePopover: (popover) => {
+			hiddenPopovers.push(popover);
+		},
 		fetchFn: (url, requestInit) => {
 			const call = { url, init: requestInit };
 			calls.push(call);
@@ -51,6 +63,9 @@ function init(
 		},
 		reload: () => {
 			reloaded += 1;
+		},
+		navigate: (href) => {
+			navigations.push(href);
 		},
 		setTimeoutFn: (callback, ms) => {
 			timers.push({ callback, ms });
@@ -94,6 +109,10 @@ function init(
 		window: dom.window,
 		calls,
 		reloadCount: () => reloaded,
+		navigations,
+		hiddenPopovers,
+		restoreFromBackForwardCache: (persisted: boolean) =>
+			dom.window.dispatchEvent(new dom.window.PageTransitionEvent("pageshow", { persisted })),
 		pendingTimers: () => timers.map((timer) => timer.ms),
 		runTimers: () => {
 			const queued = timers.splice(0, timers.length);
@@ -123,15 +142,17 @@ function init(
 			document.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })),
 		submitOutsideForm: () =>
 			document.body.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })),
-		renameForm: () => element("form[data-readlist-rename]", "the rename form must be in the document"),
+		nameForm: () => element("form[data-readlist-name-form]", "the name form must be in the document"),
 		submitForm,
 		errorText: () =>
-			element("[data-readlist-rename-error]", "the rename form must carry its error line").textContent,
+			element("[data-readlist-name-error]", "the name form must carry its error line").textContent,
 		inputInvalid: () =>
 			element(
-				"form[data-readlist-rename] input[name='label']",
-				"the rename form must carry its name input",
+				"form[data-readlist-name-form] input[name='label']",
+				"the name form must carry its name input",
 			).getAttribute("aria-invalid"),
+		busy: () =>
+			element("form[data-readlist-name-form]", "the name form must be in the document").getAttribute("aria-busy"),
 	};
 }
 
@@ -186,7 +207,7 @@ describe("initReadlist", () => {
 			Promise.resolve({ status: 200, json: () => Promise.resolve({ label: "Work Reading 2" }) }),
 		);
 
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 
 		expect(app.calls).toHaveLength(1);
@@ -210,7 +231,7 @@ describe("initReadlist", () => {
 			}),
 		);
 
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 
 		expect(app.errorText()).toBe("You already have a readlist with that name.");
@@ -221,7 +242,7 @@ describe("initReadlist", () => {
 	it("falls back to the generic apology when the server refuses without saying why", async () => {
 		const app = init(renameFormMarkup(), () => Promise.resolve({ status: 422, json: () => Promise.resolve({}) }));
 
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 
 		expect(app.errorText()).toBe("Couldn't rename the readlist.");
@@ -232,7 +253,7 @@ describe("initReadlist", () => {
 			Promise.resolve({ status: 500, json: () => Promise.reject(new Error("not json")) }),
 		);
 
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 
 		expect(app.errorText()).toBe("Couldn't rename the readlist.");
@@ -241,7 +262,7 @@ describe("initReadlist", () => {
 	it("shows the generic apology when the request never reaches the server", async () => {
 		const app = init(renameFormMarkup(), () => Promise.reject(new Error("offline")));
 
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 
 		expect(app.errorText()).toBe("Couldn't rename the readlist.");
@@ -282,7 +303,7 @@ describe("initReadlist", () => {
 			() => Promise.resolve({ status: 200, json: () => Promise.resolve({ label: "Deep Work" }) }),
 		);
 
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 
 		const region = app.document.querySelector("#toast-live-region");
@@ -306,8 +327,8 @@ describe("initReadlist", () => {
 				}),
 		);
 
-		app.submitForm(app.renameForm());
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 
 		expect(app.calls).toHaveLength(1);
@@ -327,11 +348,11 @@ describe("initReadlist", () => {
 				: Promise.resolve({ status: 200, json: () => Promise.resolve({ label: "Work Reading" }) });
 		});
 
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 		expect(app.errorText()).toBe("Too long.");
 
-		app.submitForm(app.renameForm());
+		app.submitForm(app.nameForm());
 		await settled();
 		app.runTimers();
 		expect(app.calls).toHaveLength(2);
@@ -342,23 +363,170 @@ describe("initReadlist", () => {
 		const virtualConsole = new VirtualConsole();
 		const jsdomErrors: Error[] = [];
 		virtualConsole.on("jsdomError", (error) => jsdomErrors.push(error));
-		const actionlessForm = `<form data-readlist-rename><input name="label" value="Work Reading"><p data-readlist-rename-error></p></form>`;
+		const actionlessForm = `<form data-readlist-name-form data-readlist-name-failure="Couldn't rename the readlist."><input name="label" value="Work Reading"><p data-readlist-name-error></p></form>`;
 		const dom = new JSDOM(`<!DOCTYPE html><html><body>${actionlessForm}</body></html>`, { virtualConsole });
 		initReadlist({
 			document: dom.window.document,
+			window: dom.window,
+			hidePopover: () => {},
 			fetchFn: () => Promise.reject(new Error("must not be called")),
 			reload: () => {},
+			navigate: () => {},
 			setTimeoutFn: (callback) => {
 				callback();
 			},
 		});
-		const form = dom.window.document.querySelector("form[data-readlist-rename]");
+		const form = dom.window.document.querySelector("form[data-readlist-name-form]");
 		assert(form, "the actionless rename form must be in the document");
 
 		form.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
 
 		expect(jsdomErrors).toHaveLength(1);
-		assert.match(jsdomErrors[0]?.message ?? "", /the rename form always posts somewhere/);
+		assert.match(jsdomErrors[0]?.message ?? "", /the name form always posts somewhere/);
+	});
+
+	it("marks a rename busy while it is in flight, and clears the mark when the server refuses it", async () => {
+		let resolveFetch: ((response: ReadlistResponse) => void) | undefined;
+		const app = init(
+			renameFormMarkup(),
+			() =>
+				new Promise<ReadlistResponse>((resolve) => {
+					resolveFetch = resolve;
+				}),
+		);
+
+		app.submitForm(app.nameForm());
+		expect(app.busy()).toBe("true");
+		app.submitForm(app.nameForm());
+		await settled();
+		expect(app.calls).toHaveLength(1);
+
+		assert(resolveFetch, "the rename must have reached the fetch fake");
+		resolveFetch({ status: 422, json: () => Promise.resolve({ message: "Too long." }) });
+		await settled();
+
+		expect(app.busy()).toBe(null);
+		expect(app.errorText()).toBe("Too long.");
+	});
+
+	it("follows the server to the readlist it just created", async () => {
+		const app = init(createFormMarkup(), () =>
+			Promise.resolve({ status: 201, json: () => Promise.resolve({ location: "/queue?queue=ideas" }) }),
+		);
+
+		app.submitForm(app.nameForm());
+		await settled();
+
+		expect(app.calls.map((call) => [call.url, call.init.body])).toEqual([
+			["/queue/queues?queue=all", "label=Ideas+%26+Inspiration"],
+		]);
+		expect(app.navigations).toEqual(["/queue?queue=ideas"]);
+		expect(app.busy()).toBe("true");
+	});
+
+	it("releases the create dialog when the reader comes Back to the page it left after a create", async () => {
+		const app = init(`<div id="create-readlist" popover data-test-dialog="create">${createFormMarkup()}</div>`, () =>
+			Promise.resolve({ status: 201, json: () => Promise.resolve({ location: "/queue?queue=ideas" }) }),
+		);
+		app.submitForm(app.nameForm());
+		await settled();
+
+		app.restoreFromBackForwardCache(true);
+
+		expect(app.busy()).toBe(null);
+		expect(app.hiddenPopovers.map((popover) => popover.id)).toEqual(["create-readlist"]);
+		app.submitForm(app.nameForm());
+		await settled();
+		expect(app.calls).toHaveLength(2);
+	});
+
+	it("keeps an in-flight create busy when the page is shown fresh rather than restored", async () => {
+		const app = init(
+			`<div id="create-readlist" popover data-test-dialog="create">${createFormMarkup()}</div>`,
+			() => new Promise<ReadlistResponse>(() => {}),
+		);
+		app.submitForm(app.nameForm());
+
+		app.restoreFromBackForwardCache(false);
+
+		expect(app.busy()).toBe("true");
+		expect(app.hiddenPopovers).toEqual([]);
+	});
+
+	it("follows the server to the limit alert when the reader is at the readlist cap", async () => {
+		const app = init(createFormMarkup(), () =>
+			Promise.resolve({
+				status: 409,
+				json: () =>
+					Promise.resolve({
+						error: "limit-reached",
+						message: "You can create up to 7 readlists.",
+						location: "/queue?queue_error=limit",
+					}),
+			}),
+		);
+
+		app.submitForm(app.nameForm());
+		await settled();
+
+		expect(app.navigations).toEqual(["/queue?queue_error=limit"]);
+		expect(app.errorText()).toBe("");
+	});
+
+	it("shows a refused name under the field and marks the field invalid", async () => {
+		const app = init(createFormMarkup(), () =>
+			Promise.resolve({
+				status: 422,
+				json: () =>
+					Promise.resolve({
+						error: "reserved-name",
+						message: "Pick a name other than All, the readlist that holds every save.",
+					}),
+			}),
+		);
+
+		app.submitForm(app.nameForm());
+		await settled();
+
+		expect(app.errorText()).toBe("Pick a name other than All, the readlist that holds every save.");
+		expect(app.inputInvalid()).toBe("true");
+		expect(app.navigations).toEqual([]);
+	});
+
+	it("shows the create form's own failure text when the request never reaches the server", async () => {
+		const app = init(createFormMarkup(), () => Promise.reject(new Error("offline")));
+
+		app.submitForm(app.nameForm());
+		await settled();
+
+		expect(app.errorText()).toBe("Couldn't create the readlist.");
+	});
+
+	it("sends one create while one is in flight, and lets the reader retry once it fails", async () => {
+		let resolveFetch: ((response: ReadlistResponse) => void) | undefined;
+		const app = init(
+			createFormMarkup(),
+			() =>
+				new Promise<ReadlistResponse>((resolve) => {
+					resolveFetch = resolve;
+				}),
+		);
+
+		app.submitForm(app.nameForm());
+		expect(app.busy()).toBe("true");
+		app.submitForm(app.nameForm());
+		await settled();
+		expect(app.calls).toHaveLength(1);
+
+		assert(resolveFetch, "the create must have reached the fetch fake");
+		resolveFetch({ status: 500, json: () => Promise.reject(new Error("not json")) });
+		await settled();
+		expect(app.busy()).toBe(null);
+		expect(app.errorText()).toBe("Couldn't create the readlist.");
+
+		app.submitForm(app.nameForm());
+		await settled();
+		expect(app.calls).toHaveLength(2);
 	});
 
 	it("returns focus to the launching menu's summary when its dialog closes with focus on the body", () => {
@@ -403,7 +571,15 @@ describe("initReadlist", () => {
 		expect(app.activeElement()).toBe(app.document.body);
 	});
 
-	it("does nothing when a closing dialog belongs to no menu", () => {
+	it("returns focus to a trigger outside every menu when its dialog closes with focus on the body", () => {
+		const app = init(dialogsMarkup());
+
+		app.closeDialog("row");
+
+		expect(app.activeElement()).toBe(app.document.querySelector("[data-test-row-trigger]"));
+	});
+
+	it("does nothing when a closing dialog belongs to no menu and no trigger", () => {
 		const app = init(dialogsMarkup());
 
 		app.closeDialog("orphan");

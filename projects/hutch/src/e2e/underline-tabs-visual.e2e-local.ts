@@ -10,7 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { clickAndWaitForPageReload, openReadlistSwitcher, railIsOpen } from "./page-interactions";
+import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -35,7 +35,6 @@ const PREFERENCES_TAB = '[data-test-filter="preferences"]';
 const OPEN_READLIST_TAB = `${READLIST_TABS} [aria-current="page"]`;
 const READLIST_BROWSE = ".readlist__browse";
 const PREFERENCES_PANEL = "[data-test-readlist-preferences]";
-const NEW_READLIST_BUTTON = '[data-test-action="new-readlist"]';
 const PAGE_READLIST = "body.page-readlist";
 const LISTING_COUNT = "#readlist-count";
 
@@ -91,7 +90,7 @@ async function gotoReadlistQueue(page: Page, query: string): Promise<void> {
 async function createCustomReadlist(page: Page, openRail: (page: Page) => Promise<void>): Promise<string> {
 	await page.goto(`${BASE_URL}/queue?feature=pref`, { waitUntil: "domcontentloaded" });
 	await openRail(page);
-	await clickAndWaitForPageReload(page, page.locator(NEW_READLIST_BUTTON));
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, "New Readlist"));
 	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
 	const slug = new URL(page.url()).searchParams.get("queue");
 	assert.ok(slug, "creating a readlist must land the reader on it");

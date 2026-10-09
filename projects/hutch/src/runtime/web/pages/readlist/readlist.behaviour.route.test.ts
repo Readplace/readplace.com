@@ -50,8 +50,8 @@ async function saveMany(agent: TestAgent, count: number, prefix: string) {
 	for (let i = 0; i < count; i++) await save(agent, `${prefix}${i}`);
 }
 
-async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues");
+async function createReadlist(agent: TestAgent, label: string): Promise<string> {
+	const response = await agent.post("/queue/queues").type("form").send({ label });
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -123,7 +123,7 @@ describe("`/queue` behaviour", () => {
 	it("asks before marking read once the article sits in more than one readlist", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 		await save(agent, "https://example.com/filed");
 		await fileIntoReadlist(harness, readlist, "https://example.com/filed");
 

@@ -14,11 +14,16 @@ import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.compon
 import type { Readlist } from "./readlist.nav";
 import { buildReadlistUrl, readlistDeletePath, readlistReturnQuery } from "./readlist.url";
 import {
-	READLIST_RENAME_FIELD,
 	readlistRenameAction,
 	readlistRenameFallbackInputId,
 	readlistRenamePopoverId,
 } from "./readlist-rename.component";
+import {
+	READLIST_NAME_FIELD,
+	READLIST_NAME_LABEL,
+	READLIST_NAME_PLACEHOLDER,
+} from "./readlist-name-form.component";
+import { READLIST_CREATE_POPOVER_ID, readlistCreateAction } from "./readlist-create.component";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-nav.template.html"), "utf-8");
 
@@ -32,6 +37,7 @@ interface ReadlistNavMenu {
 	renameAction?: string;
 	renameInputId?: string;
 	renameField?: string;
+	renameLabel?: string;
 	renameMaxLength?: number;
 }
 
@@ -48,7 +54,12 @@ export interface ReadlistNavItem extends ReadlistNavMenu {
 export interface ReadlistNavDisplayModel {
 	items: readonly ReadlistNavItem[];
 	current: { title: string; iconName: IconName };
-	newReadlistAction: string;
+	createAction: string;
+	createPopoverId: string;
+	nameLabel: string;
+	nameField: string;
+	namePlaceholder: string;
+	nameMaxLength: number;
 	canCreate: boolean;
 }
 
@@ -69,7 +80,8 @@ function navMenu(input: {
 		renamePopoverId: readlistRenamePopoverId(input.slug),
 		renameAction: readlistRenameAction(input.slug),
 		renameInputId: readlistRenameFallbackInputId(input.slug),
-		renameField: READLIST_RENAME_FIELD,
+		renameField: READLIST_NAME_FIELD,
+		renameLabel: READLIST_NAME_LABEL,
 		renameMaxLength: READLIST_LABEL_MAX_LENGTH,
 	};
 }
@@ -102,10 +114,12 @@ export function buildReadlistNav(input: {
 	return {
 		items,
 		current: { title: current.title, iconName: current.iconName },
-		newReadlistAction: withInternalTracking(input.newReadlistAction, {
-			source: NAV_SOURCE,
-			content: "new-readlist",
-		}),
+		createAction: readlistCreateAction(input.newReadlistAction),
+		createPopoverId: READLIST_CREATE_POPOVER_ID,
+		nameLabel: READLIST_NAME_LABEL,
+		nameField: READLIST_NAME_FIELD,
+		namePlaceholder: READLIST_NAME_PLACEHOLDER,
+		nameMaxLength: READLIST_LABEL_MAX_LENGTH,
 		canCreate: input.canCreate,
 	};
 }

@@ -67,7 +67,7 @@ describe("Readlist page banner state", () => {
 		const saveInput = saveForm.querySelector<HTMLInputElement>("input[name='url']");
 		assert(saveInput, "save input must be rendered inside the save form");
 		expect(saveInput.disabled).toBe(false);
-		expect(confirmPopoverKeys(doc)).toEqual(["save-tip"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["readlist-create", "save-tip"]);
 	});
 
 	it("renders the readlist aside trial-countdown banner for a trialing user", async () => {
@@ -168,7 +168,7 @@ describe("Readlist page banner state", () => {
 		const reactivate = banner.querySelector('[data-test-action="reactivate"]');
 		assert(reactivate, "cancellation-scheduled banner must offer Reactivate");
 		expect(reactivate.textContent).toBe("Reactivate subscription");
-		expect(confirmPopoverKeys(doc)).toEqual(["save-tip"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["readlist-create", "save-tip"]);
 	});
 
 	it("flips banner to inactive and disables save after the cancellation window elapses", async () => {

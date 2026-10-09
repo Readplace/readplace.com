@@ -20,7 +20,7 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
-import { clickAndWaitForPageReload, openReadlistSwitcher, railIsOpen } from "./page-interactions";
+import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { growRailToFitOpenFlyout } from "./readlist.browser";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 
@@ -57,6 +57,10 @@ const READLIST_RENAME_POPOVER = '[data-test-confirm-popover="readlist-rename"]';
 const READLIST_DELETE_POPOVER = '[data-test-confirm-popover="readlist-delete"]';
 const READLIST_RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
 const READLIST_DELETE_CONFIRM = '[data-test-action="readlist-delete-confirm"]';
+const READLIST_CREATE_POPOVER = '[data-test-confirm-popover="readlist-create"]';
+const READLIST_CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
+const READLIST_CREATE_SAVE = '[data-test-action="readlist-create-save"]';
+const READLIST_CREATE_ERROR = "[data-test-readlist-create-error]";
 const SAVE_CARD = "[data-test-save-card]";
 const SAVE_ERROR = "[data-test-save-error]";
 const SAVE_INPUT = `${SAVE_CARD} input[name="url"]`;
@@ -240,7 +244,7 @@ async function openCustomReadlist(
 	await loginAs(page, input.email);
 	await gotoReadlistQueue(page, "");
 	await input.openRail(page);
-	await clickAndWaitForCounts(page, page.locator(NEW_READLIST_BUTTON));
+	await clickAndWaitForCounts(page, await nameNewReadlist(page, "New Readlist"));
 }
 
 async function markFirstArticleRead(page: Page): Promise<void> {
@@ -509,6 +513,17 @@ async function renameDialogGeometry(page: Page): Promise<void> {
 	assert.ok(near(save.x + save.width, panel.x + panel.width - 33));
 }
 
+async function createDialogGeometry(page: Page): Promise<void> {
+	await railBesideMainBesideSide(page);
+	const panel = await measuredBox(page, READLIST_CREATE_POPOVER);
+	const cancel = await measuredBox(page, READLIST_CREATE_CANCEL);
+	const save = await measuredBox(page, READLIST_CREATE_SAVE);
+	assert.ok(near(panel.width, 600));
+	assert.ok(near(cancel.y, save.y));
+	assert.ok(near(save.x, cancel.x + cancel.width + 8));
+	assert.ok(near(save.x + save.width, panel.x + panel.width - 33));
+}
+
 async function deleteReadlistDialogGeometry(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	const panel = await measuredBox(page, READLIST_DELETE_POPOVER);
@@ -551,6 +566,10 @@ async function stackedDialogButtons(
 
 async function renameDialogPhoneGeometry(page: Page): Promise<void> {
 	await stackedDialogButtons(page, READLIST_RENAME_POPOVER, READLIST_RENAME_CANCEL, RENAME_SAVE);
+}
+
+async function createDialogPhoneGeometry(page: Page): Promise<void> {
+	await stackedDialogButtons(page, READLIST_CREATE_POPOVER, READLIST_CREATE_CANCEL, READLIST_CREATE_SAVE);
 }
 
 async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
@@ -815,6 +834,27 @@ async function renameDialogPhoneSettled(page: Page): Promise<void> {
 	await renameDialogSettled(page);
 }
 
+async function createDialogSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await page.click(NEW_READLIST_BUTTON);
+	await page.waitForSelector(`${READLIST_CREATE_POPOVER}:popover-open`);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function createDialogErrorSettled(page: Page): Promise<void> {
+	await createDialogSettled(page);
+	await page.locator(`${READLIST_CREATE_POPOVER} input[name="label"]`).fill("All");
+	await page.click(READLIST_CREATE_SAVE);
+	await expect(page.locator(READLIST_CREATE_ERROR)).not.toBeEmpty();
+	await page.mouse.move(0, 0);
+}
+
+async function createDialogPhoneSettled(page: Page): Promise<void> {
+	await openReadlistSwitcher(page);
+	await createDialogSettled(page);
+}
+
 async function railPhoneOpenSettled(page: Page): Promise<void> {
 	await customReadlistPageSettled(page);
 	await openReadlistSwitcher(page);
@@ -1049,6 +1089,28 @@ const RENAME_DIALOG_PHONE: VisualCheckpoint = {
 	name: "readlist-rename-dialog-phone",
 	settled: renameDialogPhoneSettled,
 	geometry: renameDialogPhoneGeometry,
+};
+
+const CREATE_DIALOG: VisualCheckpoint = {
+	name: "readlist-create-dialog",
+	settled: createDialogSettled,
+	geometry: createDialogGeometry,
+	target: READLIST_CREATE_POPOVER,
+	capture: "element",
+	pinnedText: [],
+};
+
+const CREATE_DIALOG_ERROR: VisualCheckpoint = {
+	...CREATE_DIALOG,
+	name: "readlist-create-dialog-error",
+	settled: createDialogErrorSettled,
+};
+
+const CREATE_DIALOG_PHONE: VisualCheckpoint = {
+	...CREATE_DIALOG,
+	name: "readlist-create-dialog-phone",
+	settled: createDialogPhoneSettled,
+	geometry: createDialogPhoneGeometry,
 };
 
 const DELETE_READLIST_DIALOG: VisualCheckpoint = {
@@ -1591,6 +1653,34 @@ test.describe("Readlist rail menu", () => {
 	}
 });
 
+test.describe("Readlist create dialog", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`opens the create dialog empty from the rail (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-create-dialog-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+
+			await captureCheckpoint(page, withTheme(CREATE_DIALOG, theme));
+		});
+	}
+
+	for (const theme of THEMES) {
+		test(`explains a refused name under the field (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-create-dialog-error-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+
+			await captureCheckpoint(page, withTheme(CREATE_DIALOG_ERROR, theme));
+		});
+	}
+});
+
 test.describe("Readlist card menu", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -1668,6 +1758,15 @@ test.describe("Readlist dialogs on a phone", () => {
 		const email = `readlist-rename-dialog-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
 		await captureCheckpoint(page, RENAME_DIALOG_PHONE);
+	});
+
+	test("stacks Create readlist above Cancel in the create dialog", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const email = `readlist-create-dialog-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUser(page, email);
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+		await captureCheckpoint(page, CREATE_DIALOG_PHONE);
 	});
 
 	test("stacks Delete article above its quiet choice", async ({ page }, testInfo) => {
@@ -2096,8 +2195,8 @@ test.describe("Readlist rail for a read-only account", () => {
 			const userId = await createVerifiedUser(page, email);
 			await loginAs(page, email);
 			await gotoReadlistQueue(page, "");
-			await clickAndWaitForCounts(page, page.locator(NEW_READLIST_BUTTON));
-			await clickAndWaitForCounts(page, page.locator(NEW_READLIST_BUTTON));
+			await clickAndWaitForCounts(page, await nameNewReadlist(page, "New Readlist"));
+			await clickAndWaitForCounts(page, await nameNewReadlist(page, "New Readlist 2"));
 			await seedSubscriptionState(page, { userId, state: "inactive" });
 			await gotoReadlistQueue(page, "");
 

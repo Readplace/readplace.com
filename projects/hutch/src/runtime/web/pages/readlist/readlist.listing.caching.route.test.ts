@@ -91,7 +91,7 @@ describe("Browser listing caching (GET /queue)", () => {
 	it("keys a second queue's listing under its own ETag while carrying the same cache headers", async () => {
 		const harness = useApp(pinnedFixture());
 		const agent = await loginAgent(harness.server, harness.auth);
-		const created = await agent.post("/queue/queues");
+		const created = await agent.post("/queue/queues").type("form").send({ label: "New Readlist" });
 		const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 		assert(slug, "creating a queue must land the reader on it");
 

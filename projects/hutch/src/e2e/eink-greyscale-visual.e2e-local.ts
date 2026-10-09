@@ -12,7 +12,7 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
-import { clickAndWaitForPageReload, openReadlistSwitcher } from "./page-interactions";
+import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -337,7 +337,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 			await loginAs(page, email);
 			await openReadlistSwitcher(page);
-			await clickAndWaitForPageReload(page, page.locator('main [data-test-action="new-readlist"]'));
+			await clickAndWaitForPageReload(page, await nameNewReadlist(page, "New Readlist"));
 			await openReadlistSwitcher(page);
 			await clickAndWaitForPageReload(page, page.locator('main [data-test-readlist="default"]'));
 			await expect(page.locator('main [data-test-readlist="default"]')).toHaveAttribute("aria-current", "page");

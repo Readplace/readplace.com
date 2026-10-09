@@ -358,8 +358,11 @@ const BUNDLES = [
     footer: [
       "Readlist.initReadlist({",
       "  document: window.document,",
+      "  window: window,",
+      "  hidePopover: function (el) { if (el.matches(':popover-open')) el.hidePopover(); },",
       "  fetchFn: function (url, init) { return window.fetch(url, init); },",
       "  reload: function () { window.location.reload(); },",
+      "  navigate: function (href) { window.location.assign(href); },",
       "  setTimeoutFn: function (cb, ms) { window.setTimeout(cb, ms); }",
       "});",
     ].join("\n"),

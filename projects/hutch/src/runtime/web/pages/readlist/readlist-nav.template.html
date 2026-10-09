@@ -15,8 +15,8 @@
           <div class="menu__panel">
             <button class="menu__item readlist-nav__confirm-trigger" type="button" popovertarget="{{renamePopoverId}}" aria-haspopup="dialog" data-test-action="readlist-rename">{{icon "pencil"}}<span>Edit</span></button>
             <form class="readlist-nav__rename-fallback" method="POST" action="{{renameAction}}" hx-boost="false" data-test-form="readlist-rename-fallback">
-              <label class="form-field__label" for="{{renameInputId}}">Readlist Name</label>
-              <input class="form-input readlist-rename__input" id="{{renameInputId}}" type="text" name="{{renameField}}" value="{{title}}" maxlength="{{renameMaxLength}}" required autocomplete="off" data-test-readlist-rename-fallback-input>
+              <label class="form-field__label" for="{{renameInputId}}">{{renameLabel}}</label>
+              <input class="form-input" id="{{renameInputId}}" type="text" name="{{renameField}}" value="{{title}}" maxlength="{{renameMaxLength}}" required autocomplete="off" data-test-readlist-rename-fallback-input>
               <button class="btn btn--primary" type="submit" data-test-action="readlist-rename-fallback">Save</button>
             </form>
             <button class="menu__item readlist-nav__confirm-trigger" type="button" popovertarget="{{deletePopoverId}}" aria-haspopup="dialog" data-test-action="readlist-delete">{{icon "trash"}}<span>Delete</span></button>
@@ -30,9 +30,17 @@
       {{/each}}
     </ul>
     {{#if canCreate}}
-    <form class="readlist-row readlist-nav__new-form" method="POST" action="{{newReadlistAction}}">
-      <button class="readlist-row__main readlist-nav__new" type="submit" data-test-action="new-readlist">{{icon "plus"}}<span class="readlist-row__label">Create a readlist</span></button>
-    </form>
+    <div class="readlist-row readlist-nav__new-row">
+      <button class="readlist-row__main readlist-nav__new readlist-nav__confirm-trigger" type="button" popovertarget="{{createPopoverId}}" aria-haspopup="dialog" data-test-action="new-readlist">{{icon "plus"}}<span class="readlist-row__label">Create a readlist</span></button>
+      <details class="readlist-nav__create-fallback">
+        <summary class="readlist-row__main readlist-nav__new">{{icon "plus"}}<span class="readlist-row__label">Create a readlist</span></summary>
+        <form class="readlist-nav__create-form" method="POST" action="{{createAction}}" hx-boost="false" data-test-form="readlist-create-fallback">
+          <label class="form-field__label" for="readlist-create-fallback-name">{{nameLabel}}</label>
+          <input class="form-input" id="readlist-create-fallback-name" type="text" name="{{nameField}}" placeholder="{{namePlaceholder}}" maxlength="{{nameMaxLength}}" required autocomplete="off">
+          <button class="btn btn--primary" type="submit" data-test-action="readlist-create-fallback">Create readlist</button>
+        </form>
+      </details>
+    </div>
     {{/if}}
   </details>
 </nav>

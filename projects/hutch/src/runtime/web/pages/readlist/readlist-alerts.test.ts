@@ -29,6 +29,24 @@ describe("readlistAlertFor", () => {
 		});
 	});
 
+	it("explains a refused create with the same wording the dialog shows inline", () => {
+		expect(readlistAlertFor({ queue_error: "create_invalid-name" })).toEqual({
+			variant: "error",
+			title: { text: "Couldn't create the readlist", element: "p" },
+			message: { text: "Give the readlist a name of 24 characters or fewer." },
+		});
+		expect(readlistAlertFor({ queue_error: "create_reserved-name" })).toEqual({
+			variant: "error",
+			title: { text: "Couldn't create the readlist", element: "p" },
+			message: { text: "Pick a name other than All, the readlist that holds every save." },
+		});
+		expect(readlistAlertFor({ queue_error: "create_name-taken" })).toEqual({
+			variant: "error",
+			title: { text: "Couldn't create the readlist", element: "p" },
+			message: { text: "You already have a readlist with that name, so pick another one." },
+		});
+	});
+
 	it("tells the reader a saved wrapper link is queued, as a notice rather than an error", () => {
 		expect(readlistAlertFor({ queue_error: "save_queued" })).toEqual({
 			variant: "info",

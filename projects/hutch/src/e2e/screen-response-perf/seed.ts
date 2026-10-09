@@ -10,6 +10,7 @@ import {
 	readlistNavLink,
 	terminalCard,
 } from "./screen-response-ops";
+import { clickAndWaitForPageReload, nameNewReadlist } from "../page-interactions";
 
 const CRAWL_SETTLE_TIMEOUT_MS = 300_000;
 const READER_SETTLE_TIMEOUT_MS = 180_000;
@@ -68,11 +69,11 @@ async function queueSlugsOn(page: Page): Promise<string[]> {
 		);
 }
 
-async function createReadlist(input: { page: Page; baseURL: string }): Promise<string> {
+async function createReadlist(input: { page: Page; baseURL: string; name: string }): Promise<string> {
 	const { page } = input;
 	await page.goto(readlistUrl({ baseURL: input.baseURL }), { waitUntil: "domcontentloaded" });
 	const before = await queueSlugsOn(page);
-	await page.locator('[data-test-action="new-readlist"]').click();
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, input.name));
 	await page.waitForSelector(READLIST_NAV, { timeout: NAVIGATION_TIMEOUT_MS });
 	await expect
 		.poll(async () => (await queueSlugsOn(page)).length, { timeout: NAVIGATION_TIMEOUT_MS })
@@ -171,9 +172,10 @@ export async function seedPerfDataset(input: {
 }): Promise<SeededDataset> {
 	const { page, baseURL, runId, diagnostic } = input;
 
-	const alphaSlug = await createReadlist({ page, baseURL });
-	const bravoSlug = await createReadlist({ page, baseURL });
-	const assignSlug = await createReadlist({ page, baseURL });
+	const run = Date.now().toString(36);
+	const alphaSlug = await createReadlist({ page, baseURL, name: `Perf alpha ${run}` });
+	const bravoSlug = await createReadlist({ page, baseURL, name: `Perf bravo ${run}` });
+	const assignSlug = await createReadlist({ page, baseURL, name: `Perf assign ${run}` });
 	diagnostic(`readlists: alpha=${alphaSlug} bravo=${bravoSlug} assign=${assignSlug}`);
 
 	for (let index = 0; index < TOTAL_ARTICLES; index += 1) {

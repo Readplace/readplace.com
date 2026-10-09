@@ -16,8 +16,8 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues");
+async function createReadlist(agent: TestAgent, label: string): Promise<string> {
+	const response = await agent.post("/queue/queues").type("form").send({ label });
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -66,7 +66,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 	it("drops the readlist and lands the reader back on the default one they were viewing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await deleteReadlist(agent, slug);
 
@@ -78,8 +78,8 @@ describe("POST /queue/queues/:slug/delete", () => {
 	it("keeps the reader on the readlist they were viewing when another one goes", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const viewed = await createReadlist(agent);
-		const deleted = await createReadlist(agent);
+		const viewed = await createReadlist(agent, "New Readlist");
+		const deleted = await createReadlist(agent, "New Readlist 2");
 
 		const response = await deleteReadlistViewing(agent, { slug: deleted, viewed });
 
@@ -91,7 +91,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 	it("sends the reader to the default readlist when the one they were viewing is the one deleted", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await deleteReadlistViewing(agent, { slug, viewed: slug });
 
@@ -101,7 +101,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 	it("takes the readlist's own rows with it, so nothing is left where no query can reach", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await seedInto(harness, slug, "https://example.com/only-here");
 		const userId = await userIdOf(harness);
 
@@ -117,7 +117,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 	it("clears a readlist holding more rows than one purge page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		for (let index = 0; index < 26; index += 1) {
 			await seedInto(harness, slug, `https://example.com/bulk-${index}`);
 		}
@@ -136,7 +136,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/kept" });
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		await deleteReadlist(agent, slug);
 
@@ -161,7 +161,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 			},
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await seedInto(harness, slug, "https://example.com/only-here");
 
 		await deleteReadlist(agent, slug);
@@ -183,7 +183,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/both" });
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await seedInto(harness, slug, "https://example.com/both");
 
 		await deleteReadlist(agent, slug);
@@ -195,8 +195,8 @@ describe("POST /queue/queues/:slug/delete", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const deleted = ReadlistSlugSchema.parse(await createReadlist(agent));
-		const kept = ReadlistSlugSchema.parse(await createReadlist(agent));
+		const deleted = ReadlistSlugSchema.parse(await createReadlist(agent, "New Readlist"));
+		const kept = ReadlistSlugSchema.parse(await createReadlist(agent, "New Readlist 2"));
 		const userId = await userIdOf(harness);
 		const { inboxAddressStore, inboxAddressDomain } = fixture.inboxAddress;
 		for (const [name, readlist] of [
@@ -265,8 +265,8 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 	it("hands the readlist's articles to the destination before taking the readlist away", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
-		const destination = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
+		const destination = await createReadlist(agent, "New Readlist 2");
 		await seedInto(harness, source, "https://example.com/moved");
 		const userId = await userIdOf(harness);
 
@@ -287,8 +287,8 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 	it("keeps the reader on the destination it moved the articles to when that is the readlist being viewed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
-		const destination = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
+		const destination = await createReadlist(agent, "New Readlist 2");
 		await seedInto(harness, source, "https://example.com/moved");
 
 		const response = await deleteReadlistViewing(agent, { slug: source, viewed: destination })
@@ -301,8 +301,8 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 	it("carries the read state the article had in the readlist it left", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
-		const destination = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
+		const destination = await createReadlist(agent, "New Readlist 2");
 		const { saved } = await seedInto(harness, source, "https://example.com/already-read");
 		const userId = await userIdOf(harness);
 		await harness.articleStore.setReadlistArticleStatus({
@@ -325,8 +325,8 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 	it("moves a readlist holding more rows than one purge page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
-		const destination = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
+		const destination = await createReadlist(agent, "New Readlist 2");
 		for (let index = 0; index < 26; index += 1) {
 			await seedInto(harness, source, `https://example.com/bulk-${index}`);
 		}
@@ -361,8 +361,8 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 			},
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
-		const destination = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
+		const destination = await createReadlist(agent, "New Readlist 2");
 		await seedInto(harness, source, "https://example.com/only-here");
 
 		await deleteReadlistMovingTo(agent, source, destination);
@@ -373,7 +373,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 	it("refuses the readlist every reader is given as a destination, which already holds every article", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
 		await seedInto(harness, source, "https://example.com/kept");
 		const userId = await userIdOf(harness);
 
@@ -391,7 +391,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 	it("refuses a readlist handing its articles to itself", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
 
 		const response = await deleteReadlistMovingTo(agent, source, source);
 
@@ -402,7 +402,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 	it("refuses a destination the reader does not own", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
 
 		const response = await deleteReadlistMovingTo(agent, source, "ffffffffffffffff");
 
@@ -412,8 +412,8 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 	it("deletes as it always did when the reader leaves the articles behind", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const source = await createReadlist(agent);
-		const destination = await createReadlist(agent);
+		const source = await createReadlist(agent, "New Readlist");
+		const destination = await createReadlist(agent, "New Readlist 2");
 		await seedInto(harness, source, "https://example.com/left-behind");
 		const userId = await userIdOf(harness);
 

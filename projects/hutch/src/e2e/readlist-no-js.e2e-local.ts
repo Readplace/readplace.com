@@ -209,7 +209,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		expect(subscribe.postData()).toBe("plan=monthly");
 	});
 
-	test("the readlist switcher opens and switches readlist with no script", async ({ page }, testInfo) => {
+	test("the readlist switcher opens, creates a readlist from the dialog as a plain form submit, and switches readlist with no script", async ({ page }, testInfo) => {
 		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-switcher`);
 		await loginAs(page, email);
 		const switcher = page.locator("main [data-test-readlist-switcher]");
@@ -218,8 +218,13 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await toggle.click();
 		await expect(switcher).toHaveJSProperty("open", true);
 		await page.locator('main [data-test-action="new-readlist"]').click();
+		const dialog = page.locator('[data-test-confirm-popover="readlist-create"]');
+		await expect(dialog).toBeVisible();
+		await dialog.locator('input[name="label"]').fill("New Readlist");
+		await dialog.locator('[data-test-action="readlist-create-save"]').click();
 		await page.waitForSelector("body.page-readlist");
 		await expect(toggle).toContainText("New Readlist", { timeout: SETTLE_MS });
+		await expect(page.locator('main [data-test-readlist][aria-current="page"]')).toHaveText("New Readlist");
 		await expect(switcher).toHaveJSProperty("open", false);
 
 		await toggle.click();

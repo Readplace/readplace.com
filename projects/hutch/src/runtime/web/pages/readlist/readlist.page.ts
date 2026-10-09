@@ -41,7 +41,6 @@ import type {
 	AllocateSavedAtSequence,
 	CountArticlesByUser,
 	CountReadlistArticles,
-	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	DeleteArticle,
 	DeleteReadlistArticle,
@@ -173,7 +172,6 @@ import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
 import { DELETE_ACK_NEVER } from "./readlist-card/delete-confirm.component";
 import {
 	DEFAULT_READLIST_SLUG,
-	ReadlistLimitReachedError,
 	ReadlistSlugSchema,
 	type ReadlistRenameRejection,
 	type ReadlistSlug,
@@ -181,8 +179,6 @@ import {
 	decideReadlistDelete,
 	decideReadlistMigration,
 	decideReadlistRename,
-	defaultReadlistLabel,
-	generateReadlistSlug,
 	readlistAfterDelete,
 	readlistsHoldingArticle,
 } from "@packages/domain/readlist";
@@ -206,7 +202,7 @@ import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./readlist.error";
-import { READLIST_ERROR_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -393,7 +389,6 @@ interface ReadlistDependencies {
 	upsertReadlist: UpsertReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
-	createReadlistDefinition: CreateReadlistDefinition;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
@@ -2426,26 +2421,45 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const context = await resolveReadlistContext(req, userId);
-		const slug = generateReadlistSlug();
-		const label = defaultReadlistLabel(context.readlists.map((readlist) => readlist.label));
+		const wantsJson = req.accepts(["html", "json"]) === "json";
+		const outcome = await deps.upsertReadlist({
+			userId,
+			name: typeof req.body?.label === "string" ? req.body.label : "",
+		});
+		const refused = (reason: ReadlistCreateDialogRejection) => {
+			const { status, error, message } = READLIST_CREATE_REJECTIONS[reason];
+			return {
+				status,
+				body: { error, message },
+				location: buildReadlistUrl(context.state, [["queue_error", `create_${reason}`]]),
+			};
+		};
+		const answer = ((): { status: number; body: Record<string, string>; location: string } => {
+			switch (outcome.status) {
+				case "ok": {
+					if (!outcome.created) return refused("name-taken");
+					const location = buildReadlistUrl({ readlist: outcome.readlist.slug });
+					return { status: 201, body: { location }, location };
+				}
+				case "invalid-name":
+				case "reserved-name":
+					return refused(outcome.status);
+				case "limit-reached": {
+					const location = buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]);
+					return {
+						status: 409,
+						body: { error: "limit-reached", message: READLIST_LIMIT_MESSAGE, location },
+						location,
+					};
+				}
+			}
+		})();
 
-		try {
-			await deps.createReadlistDefinition({
-				userId,
-				slug,
-				label,
-				createdAt: deps.now(),
-			});
-		} catch (error) {
-			if (!(error instanceof ReadlistLimitReachedError)) throw error;
-			res.redirect(
-				303,
-				buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]),
-			);
+		if (wantsJson) {
+			res.status(answer.status).json(answer.body);
 			return;
 		}
-
-		res.redirect(303, buildReadlistUrl({ readlist: slug }));
+		res.redirect(303, answer.location);
 	});
 
 	router.post(

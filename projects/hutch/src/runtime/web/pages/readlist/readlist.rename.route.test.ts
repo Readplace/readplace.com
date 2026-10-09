@@ -13,8 +13,8 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues");
+async function createReadlist(agent: TestAgent, label: string): Promise<string> {
+	const response = await agent.post("/queue/queues").type("form").send({ label });
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it, ready to name");
 	return slug;
@@ -44,7 +44,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("takes the name the reader typed and keeps the readlist where it was", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 
 		const response = await renameReadlist(agent, readlist, "Work Reading");
 
@@ -59,7 +59,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("trims the name before storing it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 
 		const response = await renameReadlist(agent, readlist, "   Deep Work   ");
 
@@ -72,7 +72,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("lets a readlist keep the name it already has, rather than numbering it against itself", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 		await renameReadlist(agent, readlist, "Work Reading");
 
 		const response = await renameReadlist(agent, readlist, "Work Reading");
@@ -84,9 +84,9 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("numbers a name the reader's other readlist already carries", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const first = await createReadlist(agent);
+		const first = await createReadlist(agent, "New Readlist");
 		await renameReadlist(agent, first, "Work Reading");
-		const second = await createReadlist(agent);
+		const second = await createReadlist(agent, "New Readlist 2");
 
 		const response = await renameReadlist(agent, second, "Work Reading");
 
@@ -103,9 +103,9 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("hands back the name it stored, so the tab can show what actually landed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const first = await createReadlist(agent);
+		const first = await createReadlist(agent, "New Readlist");
 		await renameReadlist(agent, first, "Work Reading");
-		const second = await createReadlist(agent);
+		const second = await createReadlist(agent, "New Readlist 2");
 
 		const response = await renameReadlist(agent, second, "Work Reading");
 
@@ -117,9 +117,9 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("matches a taken name whatever its capitalisation, storing the casing the reader typed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const first = await createReadlist(agent);
+		const first = await createReadlist(agent, "New Readlist");
 		await renameReadlist(agent, first, "Work");
-		const second = await createReadlist(agent);
+		const second = await createReadlist(agent, "New Readlist 2");
 
 		const response = await renameReadlist(agent, second, "work");
 
@@ -131,9 +131,9 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const longest = "a".repeat(READLIST_LABEL_MAX_LENGTH);
-		const first = await createReadlist(agent);
+		const first = await createReadlist(agent, "New Readlist");
 		await renameReadlist(agent, first, longest);
-		const second = await createReadlist(agent);
+		const second = await createReadlist(agent, "New Readlist 2");
 
 		const response = await renameReadlist(agent, second, longest);
 
@@ -144,7 +144,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("numbers a name the built-in readlist carries", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 
 		const response = await renameReadlist(agent, readlist, "All");
 
@@ -162,7 +162,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("refuses a name too long to render in full", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 
 		const response = await renameReadlist(agent, readlist, "a".repeat(READLIST_LABEL_MAX_LENGTH + 1));
 
@@ -176,7 +176,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("refuses a name emptied of everything but spaces", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 
 		const response = await renameReadlist(agent, readlist, "   ");
 
@@ -187,7 +187,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 	it("takes a name made only of emoji, which the readlist's own id addresses", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 
 		const response = await renameReadlist(agent, readlist, "🎉🎉");
 
@@ -240,7 +240,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 			},
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlist(agent);
+		const readlist = await createReadlist(agent, "New Readlist");
 
 		const response = await renameReadlist(agent, readlist, "Work Reading");
 
@@ -264,7 +264,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		it("redirects back to the renamed readlist so the form submit lands on a page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			const readlist = await createReadlist(agent);
+			const readlist = await createReadlist(agent, "New Readlist");
 
 			const response = await renameFromBrowser(agent, readlist, "Work Reading");
 
@@ -278,7 +278,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		it("renames through the plain form the menu offers a no-popover browser", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			const readlist = await createReadlist(agent);
+			const readlist = await createReadlist(agent, "New Readlist");
 
 			const menu = parse((await agent.get("/queue")).text).querySelector(
 				`[data-test-readlist-menu="${readlist}"]`,
@@ -310,7 +310,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		it("redirects a refused name back to the readlist instead of answering JSON", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			const readlist = await createReadlist(agent);
+			const readlist = await createReadlist(agent, "New Readlist");
 
 			const response = await renameFromBrowser(
 				agent,
@@ -353,7 +353,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		it("keeps the JSON success body for a client that asks for JSON", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			const readlist = await createReadlist(agent);
+			const readlist = await createReadlist(agent, "New Readlist");
 
 			const response = await agent
 				.post(`/queue/queues/${readlist}/rename`)

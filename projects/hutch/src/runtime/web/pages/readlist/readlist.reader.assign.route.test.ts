@@ -12,8 +12,8 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues");
+async function createReadlist(agent: TestAgent, label: string): Promise<string> {
+	const response = await agent.post("/queue/queues").type("form").send({ label });
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -98,8 +98,8 @@ describe("the reader's add-to-readlist control", () => {
 	it("offers only the readlists the article is not yet in", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
-		const later = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
+		const later = await createReadlist(agent, "New Readlist 2");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 
 		const before = await openReader(agent, articleId);
@@ -119,7 +119,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("returns to the reader after assigning", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 
 		const response = await assignTo({ agent, articleId, readlist: work });
@@ -131,7 +131,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("files the article at the top of the chosen readlist, keeping its read state", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		await saveArticle(agent, "https://example.com/a");
 		await saveArticle(agent, "https://example.com/b");
 		const first = await articleIdFor(agent, "https://example.com/a");
@@ -152,7 +152,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("lands a newly assigned article at the top of the readlist", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		await saveArticle(agent, "https://example.com/a");
 		await saveArticle(agent, "https://example.com/b");
 		const first = await articleIdFor(agent, "https://example.com/a");
@@ -170,7 +170,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("keeps one copy per readlist however often the reader assigns", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 
 		await assignTo({ agent, articleId, readlist: work });
@@ -183,7 +183,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("rejects a readlist the reader does not own", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		await createReadlist(agent);
+		await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 
 		expect((await assignTo({ agent, articleId, readlist: "someone-elses" })).status).toBe(404);
@@ -194,7 +194,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("takes the tag off and empties the readlist copy on unassign", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 		await assignTo({ agent, articleId, readlist: work });
 
@@ -217,7 +217,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("keeps the reader reachable after unassigning the readlist it was opened from", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 		await assignTo({ agent, articleId, readlist: work });
 
@@ -242,7 +242,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("carries the tags on the polled header so a settling crawl cannot drop them", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 		await assignTo({ agent, articleId, readlist: work });
 
@@ -282,7 +282,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("never unassigns the default readlist's copy", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		await createReadlist(agent);
+		await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 
 		const response = await agent
@@ -298,8 +298,8 @@ describe("the reader's add-to-readlist control", () => {
 	it("answers a no-op redirect when the default copy is already gone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
-		const later = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
+		const later = await createReadlist(agent, "New Readlist 2");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 		await assignTo({ agent, articleId, readlist: work });
 		await agent.post(`/queue/${articleId}/delete`);
@@ -314,8 +314,8 @@ describe("the reader's add-to-readlist control", () => {
 	it("stops offering the picker once the default copy is gone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
-		await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
+		await createReadlist(agent, "New Readlist 2");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 		await assignTo({ agent, articleId, readlist: work });
 		await agent.post(`/queue/${articleId}/delete`);
@@ -329,7 +329,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("marks every copy read from a readlist-scoped status post", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 		await assignTo({ agent, articleId, readlist: work });
 
@@ -348,7 +348,7 @@ describe("the reader's add-to-readlist control", () => {
 	it("keeps the chromeless marker on the poll URLs and filing forms of the iOS reader", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const work = await createReadlist(agent);
+		const work = await createReadlist(agent, "New Readlist");
 		const articleId = await saveArticle(agent, "https://example.com/a");
 		await assignTo({ agent, articleId, readlist: work });
 

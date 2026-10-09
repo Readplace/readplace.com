@@ -3,6 +3,7 @@ import {
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
 	READLIST_PURPOSE_MAX_LENGTH,
+	type ReadlistCreateRejection,
 	type ReadlistRenameRejection,
 } from "@packages/domain/readlist";
 import type { Request } from "express";
@@ -48,6 +49,33 @@ const READLIST_ERROR_MESSAGES: Record<string, string> = {
 	[READLIST_ERROR_UNKNOWN_READLIST]: "That readlist no longer exists.",
 };
 
+const READLIST_NAME_LENGTH_MESSAGE = `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`;
+
+export const READLIST_LIMIT_MESSAGE = `You can create up to ${READLIST_MAX_PER_USER} readlists. Delete an existing readlist before creating a new one.`;
+
+export type ReadlistCreateDialogRejection = ReadlistCreateRejection | "name-taken";
+
+export const READLIST_CREATE_REJECTIONS: Record<
+	ReadlistCreateDialogRejection,
+	{ status: 422; error: ReadlistCreateDialogRejection; message: string }
+> = {
+	"invalid-name": {
+		status: 422,
+		error: "invalid-name",
+		message: READLIST_NAME_LENGTH_MESSAGE,
+	},
+	"reserved-name": {
+		status: 422,
+		error: "reserved-name",
+		message: "Pick a name other than All, the readlist that holds every save.",
+	},
+	"name-taken": {
+		status: 422,
+		error: "name-taken",
+		message: "You already have a readlist with that name, so pick another one.",
+	},
+};
+
 export const READLIST_RENAME_REJECTIONS: Record<
 	ReadlistRenameRejection,
 	{ status: number; error: ReadlistRenameRejection; message: string }
@@ -60,7 +88,7 @@ export const READLIST_RENAME_REJECTIONS: Record<
 	"invalid-name": {
 		status: 422,
 		error: "invalid-name",
-		message: `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`,
+		message: READLIST_NAME_LENGTH_MESSAGE,
 	},
 	"name-taken": {
 		status: 422,

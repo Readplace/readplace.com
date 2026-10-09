@@ -131,7 +131,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			.querySelector("[data-test-article-title]")
 			?.getAttribute("href");
 		const madeReadlist = new URL(
-			(await agent.post("/queue/queues")).headers.location,
+			(await agent.post("/queue/queues").type("form").send({ label: "New Readlist" })).headers.location,
 			TEST_APP_ORIGIN,
 		).searchParams.get("queue");
 		const readlistPaths = madeReadlist

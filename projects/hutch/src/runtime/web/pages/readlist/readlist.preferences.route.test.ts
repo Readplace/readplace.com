@@ -23,8 +23,8 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues");
+async function createReadlist(agent: TestAgent, label: string): Promise<string> {
+	const response = await agent.post("/queue/queues").type("form").send({ label });
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -142,7 +142,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("keeps the preferences column together when the readlist blocks interleave on phones", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 		const main = doc.querySelector(".readlist__main");
 		assert(main, "preferences must render its own main column");
@@ -155,7 +155,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("offers to set the readlist up while it has no purpose", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
@@ -169,7 +169,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("shows the stored purpose read-only once it is set, pre-filled for editing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
@@ -183,7 +183,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("keeps the wizard closed until something asks for it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
@@ -194,7 +194,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("reopens the wizard on a draft carried in the URL, without touching what is stored", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
 
 		const doc = parse((await agent.get(`${preferencesPath(slug)}?purpose=Drafting`)).text);
@@ -207,7 +207,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("names the third tab and marks it the one being read", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(withPreferencesFeature(preferencesPath(slug)))).text);
 
@@ -230,7 +230,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("offers the tab from a reader-made readlist's listing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(withPreferencesFeature(`/queue?queue=${slug}`))).text);
 		const preferences = doc.querySelector('[data-test-filter="preferences"]');
@@ -242,7 +242,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("keeps the tab out of a reader-made readlist's listing until the feature is asked for", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(`/queue?queue=${slug}`)).text);
 
@@ -252,7 +252,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("keeps the tab out of its own page until the feature is asked for", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
@@ -263,7 +263,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("carries the feature forward on every tab, so the strip survives a hop back to the listing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(withPreferencesFeature(preferencesPath(slug)))).text);
 		const hrefs = Array.from(doc.querySelectorAll("[data-test-filter]"), (tab) =>
@@ -305,7 +305,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 	it("still renders for a read-only reader, who can read what they wrote", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
 		await makeReadOnly(harness);
 
@@ -319,7 +319,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("stores the purpose and lands the reader back on the tab with it shown", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await savePurpose(agent, slug, `  ${PURPOSE}  `);
 
@@ -332,7 +332,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("replaces the purpose when the reader edits it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
 
 		await savePurpose(agent, slug, "Weekend reading only.");
@@ -346,8 +346,8 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("keeps one readlist's purpose off another's tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const described = await createReadlist(agent);
-		const untouched = await createReadlist(agent);
+		const described = await createReadlist(agent, "New Readlist");
+		const untouched = await createReadlist(agent, "New Readlist 2");
 		await savePurpose(agent, described, PURPOSE);
 
 		const doc = parse((await agent.get(preferencesPath(untouched))).text);
@@ -358,7 +358,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("sends an empty purpose back to the tab with the wizard open and the reason shown", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await savePurpose(agent, slug, "   ");
 
@@ -382,7 +382,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("refuses a purpose longer than the field allows", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await savePurpose(agent, slug, "a".repeat(READLIST_PURPOSE_MAX_LENGTH + 1));
 
@@ -396,7 +396,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("refuses a submit with no purpose field at all", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent.post(preferencesPath(slug)).type("form").send({});
 
@@ -408,7 +408,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("keeps the feature on the redirect, so the saved purpose lands on a page that still has the tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
 			.post(withPreferencesFeature(preferencesPath(slug)))
@@ -423,7 +423,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("keeps the feature on a refusal, so the reopened wizard keeps its tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
 			.post(withPreferencesFeature(preferencesPath(slug)))
@@ -468,7 +468,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	it("turns a read-only reader away from writing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await makeReadOnly(harness);
 
 		const response = await savePurpose(agent, slug, PURPOSE);
@@ -495,8 +495,8 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
-		const other = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
+		const other = await createReadlist(agent, "New Readlist 2");
 		const userId = await readerId(harness);
 		await mintInbox(fixture, { userId, name: "news", readlist: slug });
 		await mintInbox(fixture, { userId, name: "tech", readlist: other });
@@ -517,7 +517,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		const userId = await readerId(harness);
 		await mintInbox(fixture, { userId, name: "gmail", purpose: "gmail-forwarding" });
 		const paused = await mintInbox(fixture, { userId, name: "paused" });
@@ -533,7 +533,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 	it("offers to create an inbox when the reader has none to route", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
@@ -546,7 +546,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 	it("tells the reader only the links that fit are kept once the readlist has a purpose", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
@@ -559,7 +559,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 	it("keeps the purpose wizard closed while an inbox refusal shows", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse(
 			(await agent.get(`${preferencesPath(slug)}?preferences_error=unknown-inbox`)).text,
@@ -577,7 +577,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 
 		const response = await routeInbox(agent, slug, { address, destination: slug });
@@ -594,8 +594,8 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
-		const other = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
+		const other = await createReadlist(agent, "New Readlist 2");
 		const address = await mintInbox(fixture, {
 			userId: await readerId(harness),
 			name: "news",
@@ -611,7 +611,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		const address = await mintInbox(fixture, {
 			userId: await readerId(harness),
 			name: "news",
@@ -631,7 +631,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 		const doc = parse((await agent.get(withPreferencesFeature(preferencesPath(slug)))).text);
 		const form = doc.querySelector(`[data-test-preferences-inbox="${address}"] form`);
@@ -683,7 +683,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist 2");
 		const address = await unavailable(fixture, await readerId(harness));
 
 		const response = await routeInbox(agent, slug, { address, destination: slug });
@@ -703,7 +703,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		const theirs = await mintInbox(fixture, {
 			userId: UserIdSchema.parse("someone-else"),
 			name: "theirs",
@@ -718,8 +718,8 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
-		const other = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
+		const other = await createReadlist(agent, "New Readlist 2");
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 
 		const response = await routeInbox(agent, slug, { address, destination: other });
@@ -733,7 +733,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 	it("refuses a submit that names no inbox at all", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent.post(inboxesPath(slug));
 
@@ -747,7 +747,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 
 		const response = await agent
@@ -766,7 +766,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 	it("keeps the feature on a refusal", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
 			.post(withPreferencesFeature(inboxesPath(slug)))
@@ -820,7 +820,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 		await makeReadOnly(harness);
 

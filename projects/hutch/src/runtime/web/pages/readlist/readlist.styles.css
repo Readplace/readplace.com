@@ -120,7 +120,7 @@
 }
 
 .readlist-nav__item:not(.readlist-row--selected):hover,
-.readlist-nav__new-form:hover {
+.readlist-nav__new-row:hover {
   background: var(--card);
 }
 
@@ -135,7 +135,8 @@
 
 .readlist-nav__switcher-toggle:focus-visible,
 .readlist-nav__link:focus-visible,
-.readlist-nav__new:focus-visible {
+.readlist-nav__new:focus-visible,
+.readlist-nav__create-fallback > summary:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
@@ -179,11 +180,25 @@
   display: none;
 }
 
-.readlist-nav__rename-fallback {
+.readlist-nav__rename-fallback,
+.readlist-nav__create-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px;
+}
+
+.readlist-nav__create-fallback {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.readlist-nav__create-fallback > summary {
+  list-style: none;
+}
+
+.readlist-nav__create-fallback > summary::-webkit-details-marker {
+  display: none;
 }
 
 @supports selector(:popover-open) {
@@ -198,13 +213,14 @@
 
   .readlist-nav__rename-fallback,
   .readlist-nav__delete-fallback,
+  .readlist-nav__create-fallback,
   .readlist-article__menu-form.readlist-article__fallback,
   .readlist-article__status-form.readlist-article__fallback {
     display: none;
   }
 }
 
-.readlist-nav__new-form {
+.readlist-nav__new-row {
   margin-top: 4px;
 }
 
@@ -1000,23 +1016,6 @@
 .readlist .confirm-popover__actions.wizard__form .btn {
   width: 100%;
   flex: 0 0 auto;
-}
-
-.readlist .confirm-popover__actions.readlist-rename {
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  width: 100%;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.readlist-rename__input {
-  width: 100%;
-}
-
-.readlist-rename .confirm-popover__buttons {
-  margin-top: 16px;
 }
 
 .readlist-article__suggestion {

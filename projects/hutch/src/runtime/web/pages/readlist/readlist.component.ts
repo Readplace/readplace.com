@@ -60,10 +60,13 @@ import {
 	buildReadlistTabs,
 	renderReadlistTabs,
 } from "./readlist-tabs.component";
+import { renderReadlistRename } from "./readlist-rename.component";
+import { READLIST_CLIENT_SCRIPT } from "./readlist-name-form.component";
 import {
-	READLIST_RENAME_SCRIPT,
-	renderReadlistRename,
-} from "./readlist-rename.component";
+	READLIST_CREATE_POPOVER_ID,
+	readlistCreateAction,
+	renderReadlistCreate,
+} from "./readlist-create.component";
 import {
 	renderReadlistSubscription,
 	toReadlistSubscriptionDisplayModel,
@@ -78,7 +81,7 @@ export function readlistPageScripts(cspNonce: CspNonce): string {
 	return [
 		NAV_HIDE_SCRIPT,
 		SAVE_TIP_SCRIPT,
-		READLIST_RENAME_SCRIPT,
+		READLIST_CLIENT_SCRIPT,
 		READER_PAGE_SCRIPTS,
 		OFFLINE_DOWNLOAD_SCRIPT,
 		offlineCopyRowScript(cspNonce),
@@ -194,8 +197,9 @@ function emptyState(input: {
 export function readlistPanels(rail: ReadlistRailViewModel): {
 	deleteConfirms: string;
 	renames: string;
+	create: string;
 } {
-	if (!rail.canCreate) return { deleteConfirms: "", renames: "" };
+	if (!rail.canCreate) return { deleteConfirms: "", renames: "", create: "" };
 	const owned = rail.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST.slug);
 	const returnQuery = readlistReturnQuery({ readlist: rail.activeReadlist.slug });
 	return {
@@ -213,6 +217,11 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 		renames: owned
 			.map((readlist) => renderReadlistRename({ slug: readlist.slug, label: readlist.label }))
 			.join("\n"),
+		create: renderReadlistCreate({
+			popoverId: READLIST_CREATE_POPOVER_ID,
+			key: "readlist-create",
+			action: readlistCreateAction(rail.newReadlistAction),
+		}),
 	};
 }
 
@@ -363,6 +372,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			returnQuery: readlistReturnQuery(filters),
 		}),
 		readlistRenamesHtml: panels.renames,
+		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
 		deleteConfirmsHtml: articles
 			.flatMap((article) =>

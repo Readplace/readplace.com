@@ -98,6 +98,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			}),
 		),
 		readlistRenamesHtml: panels.renames,
+		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
 		panelClass: `${PANEL_CLASS[state]}${vm.wizardOpen ? ` ${WIZARD_OPEN_CLASS}` : ""}`,
 		state,

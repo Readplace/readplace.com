@@ -20,8 +20,8 @@ function articleIds(doc: Document): string[] {
 	).filter((id): id is string => Boolean(id));
 }
 
-async function createReadlistAndOpen(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues");
+async function createReadlistAndOpen(agent: TestAgent, label: string): Promise<string> {
+	const response = await agent.post("/queue/queues").type("form").send({ label });
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -47,7 +47,7 @@ async function readerWithTwoReadlists(harness: TestHarness): Promise<{
 	articleId: string;
 }> {
 	const agent = await loginAgent(harness.server, harness.auth);
-	const readlist = await createReadlistAndOpen(agent);
+	const readlist = await createReadlistAndOpen(agent, "New Readlist");
 	await agent.post("/queue/save").type("form").send({ url: "https://example.com/a" });
 	await seedInto(harness, readlist, "https://example.com/a");
 	const [articleId] = articleIds(parse((await agent.get("/queue")).text));

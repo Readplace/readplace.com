@@ -10,7 +10,8 @@ import { markStatusConfirmPopoverId } from "./mark-status-confirm.component";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { READLIST_CREATE_PATH, type ReadlistUrlState } from "./readlist.url";
 import type { ReadlistArticleViewModel, ReadlistViewModel } from "./readlist.viewmodel";
-import { READLIST_RENAME_SCRIPT, readlistRenamePopoverId } from "./readlist-rename.component";
+import { readlistRenamePopoverId } from "./readlist-rename.component";
+import { READLIST_CLIENT_SCRIPT } from "./readlist-name-form.component";
 import { OFFLINE_DOWNLOAD_SCRIPT } from "../../shared/offline-reader/offline-download-script";
 import { ReadlistPage, type ReadlistPageOptions } from "./readlist.component";
 
@@ -670,10 +671,20 @@ describe("ReadlistPage", () => {
 		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-rename"]')).toHaveLength(1);
 	});
 
-	it("withholds every rename and readlist-delete popover from a reader who cannot write", () => {
+	it("offers the create dialog the rail's create row opens", () => {
+		const doc = pageDoc();
+
+		const popover = doc.querySelector('[data-test-confirm-popover="readlist-create"]');
+		assert(popover, "the create dialog must render for a reader who can create");
+		expect(popover.getAttribute("id")).toBe("readlist-create");
+		expect(popover.closest("main")?.tagName).toBe("MAIN");
+	});
+
+	it("withholds every rename, create and readlist-delete popover from a reader who cannot write", () => {
 		const doc = pageDoc({}, { rail: { ...RAIL, canCreate: false } });
 
 		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-rename"]')).toHaveLength(0);
+		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-create"]')).toHaveLength(0);
 		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]')).toHaveLength(0);
 	});
 
@@ -697,11 +708,11 @@ describe("ReadlistPage", () => {
 		expect(withoutUrl.scripts.includes("requestSubmit")).toBe(false);
 	});
 
-	it("ships the design client script that drives the nav menus and the rename panel", () => {
+	it("ships the design client script that drives the nav menus and the naming dialogs", () => {
 		const body = buildPage();
 		assert(body.scripts, "the page must ship its scripts");
 
-		expect(body.scripts.includes(READLIST_RENAME_SCRIPT)).toBe(true);
+		expect(body.scripts.includes(READLIST_CLIENT_SCRIPT)).toBe(true);
 	});
 
 	it("ships the client that drives the unread download", () => {

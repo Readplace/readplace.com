@@ -213,7 +213,7 @@ describe("GET /queue/counts", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const created = await agent.post("/queue/queues");
+			const created = await agent.post("/queue/queues").type("form").send({ label: "New Readlist" });
 			expect(created.status).toBe(303);
 			const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 			assert(slug, "creating a queue must land the reader on it");

@@ -104,6 +104,14 @@ describe("ReadlistPreferencesPage", () => {
 		]);
 	});
 
+	it("carries the create dialog the rail's create row opens", () => {
+		const doc = documentOf(page({}).content.html);
+
+		const popover = doc.querySelector('[data-test-confirm-popover="readlist-create"]');
+		assert(popover, "the create dialog must render on the preferences page");
+		expect(popover.getAttribute("id")).toBe("readlist-create");
+	});
+
 	it("marks the readlist being read as the current one in the rail", () => {
 		const doc = documentOf(page({}).content.html);
 		const current = Array.from(

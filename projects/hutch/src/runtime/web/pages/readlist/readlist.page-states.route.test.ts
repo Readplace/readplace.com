@@ -51,8 +51,8 @@ async function loggedInUserId(harness: TestHarness): Promise<UserId> {
 	return user.userId;
 }
 
-async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues");
+async function createReadlist(agent: TestAgent, label: string): Promise<string> {
+	const response = await agent.post("/queue/queues").type("form").send({ label });
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert(slug, "creating a readlist must land the reader on it");
 	return slug;
@@ -338,7 +338,7 @@ describe("empty states", () => {
 	it("tells a reader with a new custom readlist to add an article from All, with no action", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(`/queue?queue=${slug}`)).text);
 
@@ -439,7 +439,7 @@ describe("custom readlist chrome", () => {
 	it("offers rename and delete from the rail menu, each with its own confirm popover", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		await createReadlist(agent);
+		await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get("/queue")).text);
 
@@ -461,7 +461,7 @@ describe("custom readlist chrome", () => {
 	it("renames from the modal without JavaScript: an HTML form post lands back on the renamed readlist", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
 			.post(`/queue/queues/${slug}/rename`)
@@ -475,10 +475,29 @@ describe("custom readlist chrome", () => {
 		expect(doc.querySelector(`[data-test-readlist="${slug}"]`)?.textContent?.trim()).toBe("Ideas & Inspiration");
 	});
 
+	it("creates from the dialog without JavaScript: an HTML form post lands on the new readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post("/queue/queues")
+			.set("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
+			.type("form")
+			.send({ label: "Ideas & Inspiration" });
+
+		expect(response.status).toBe(303);
+		const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
+		assert(slug, "creating a readlist must land the reader on it");
+		const doc = parse((await agent.get(response.headers.location)).text);
+		expect(doc.querySelector('[data-test-readlist][aria-current="page"]')?.textContent?.trim()).toBe(
+			"Ideas & Inspiration",
+		);
+	});
+
 	it("explains a refused no-JavaScript rename in the alert box instead of answering JSON", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
 			.post(`/queue/queues/${slug}/rename`)
@@ -500,7 +519,7 @@ describe("custom readlist chrome", () => {
 	it("keeps answering JSON to the in-page rename client, which asks for it explicitly", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent);
+		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
 			.post(`/queue/queues/${slug}/rename`)

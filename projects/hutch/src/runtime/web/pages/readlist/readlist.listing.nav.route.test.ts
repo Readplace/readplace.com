@@ -70,8 +70,8 @@ function countsUrl(doc: Document): string {
 	return trigger.getAttribute("hx-get") ?? "";
 }
 
-async function createReadlist(agent: TestAgent): Promise<string> {
-	const response = await agent.post("/queue/queues");
+async function createReadlist(agent: TestAgent, label: string): Promise<string> {
+	const response = await agent.post("/queue/queues").type("form").send({ label });
 	assert.equal(response.status, 303, "creating a readlist must redirect to it");
 	const slug = new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 	assert.ok(slug, "creating a readlist must land the reader on it");
@@ -179,7 +179,7 @@ describe("Readlist nav", () => {
 		it("should leave the default readlist unnamed and name every other readlist the reader opens", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			const readlist = await createReadlist(agent);
+			const readlist = await createReadlist(agent, "New Readlist");
 			await seedInto(harness, readlist, "https://example.com/a");
 
 			const onDefault = parse((await agent.get("/queue")).text);
@@ -195,7 +195,7 @@ describe("Readlist nav", () => {
 		it("should point the save bar at the default readlist from every readlist the reader opens", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			const readlist = await createReadlist(agent);
+			const readlist = await createReadlist(agent, "New Readlist");
 
 			const onDefault = parse((await agent.get("/queue")).text);
 			const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);

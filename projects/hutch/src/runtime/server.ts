@@ -1384,7 +1384,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		listReadlistDefinitions: deps.listReadlistDefinitions,
 		renameReadlistDefinition: deps.renameReadlistDefinition,
 		setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
-		createReadlistDefinition: deps.createReadlistDefinition,
 		deleteReadlistDefinition,
 		listInboxAddresses: deps.listInboxAddresses,
 		setInboxAddressReadlist: deps.setInboxAddressReadlist,

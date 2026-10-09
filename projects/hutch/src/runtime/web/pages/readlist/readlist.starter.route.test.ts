@@ -120,7 +120,7 @@ describe("starter readlist", () => {
 		await agent.post("/queue/save").type("form").send({ url });
 		expect(recorded()).toEqual([{ kind: "personal-save", id: userId }]);
 
-		const readlist = await agent.post("/queue/queues");
+		const readlist = await agent.post("/queue/queues").type("form").send({ label: "New Readlist" });
 		const slug = new URL(readlist.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 		assert(slug);
 		await agent

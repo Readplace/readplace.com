@@ -10,7 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { openReadlistSwitcher, railIsOpen } from "./page-interactions";
+import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher, railIsOpen } from "./page-interactions";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -67,7 +67,7 @@ async function openMarkReadConfirm(
 
 	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	await input.openRail(page);
-	await page.click('[data-test-action="new-readlist"]');
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, "New Readlist"));
 	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });

@@ -39,7 +39,8 @@ describe("renderReadlistRename", () => {
 
 		const form = doc.querySelector("form");
 		assert(form, "the panel must post through a form");
-		expect(form.hasAttribute("data-readlist-rename")).toBe(true);
+		expect(form.hasAttribute("data-readlist-name-form")).toBe(true);
+		expect(form.getAttribute("data-readlist-name-failure")).toBe("Couldn't rename the readlist.");
 	});
 
 	it("seeds the input with the readlist's current name and the server's length cap", () => {
@@ -61,6 +62,15 @@ describe("renderReadlistRename", () => {
 		assert(label, "the rename input must be labelled");
 		expect(input.classList.contains("form-input")).toBe(true);
 		expect(label.classList.contains("form-field__label")).toBe(true);
+		expect(label.textContent).toBe("Readlist name");
+	});
+
+	it("commits with Save", () => {
+		const doc = panel();
+
+		const save = doc.querySelector('[data-test-action="readlist-rename-save"]');
+		assert(save, "the panel must offer a Save control");
+		expect(save.querySelector(".readlist-name-form__commit-label")?.textContent).toBe("Save");
 	});
 
 	it("describes the input by an error line that stays empty, and so hidden, until a refused rename fills it", () => {

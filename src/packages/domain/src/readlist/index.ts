@@ -9,7 +9,6 @@ export {
 	parseReadlistLabel,
 } from "./readlist-name.schema";
 export { generateReadlistSlug } from "./generate-readlist-slug";
-export { defaultReadlistLabel } from "./default-readlist-label";
 export {
 	DEFAULT_READLIST_LABEL,
 	DEFAULT_READLIST,

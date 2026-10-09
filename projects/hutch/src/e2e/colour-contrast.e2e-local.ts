@@ -184,6 +184,33 @@ async function auditDeleteConfirmation(
 	});
 }
 
+async function auditCreateReadlistDialog(
+	page: Page,
+	where: { theme: string; view: string },
+): Promise<void> {
+	const dialog = page.locator('[data-test-confirm-popover="readlist-create"]');
+	await page.locator('[data-test-action="new-readlist"]').click({ timeout: SETTLE_MS });
+	await expect(page.locator('[data-test-confirm-popover="readlist-create"]:popover-open')).toBeVisible({
+		timeout: SETTLE_MS,
+	});
+	await page.mouse.move(0, 0);
+	assertContrast(await stableMeasurements(page, READLIST_ROOT), { ...where, view: `${where.view}/create-dialog` });
+
+	await dialog.locator('input[name="label"]').fill("All");
+	await dialog.locator('[data-test-action="readlist-create-save"]').click();
+	await expect(dialog.locator("[data-test-readlist-create-error]")).not.toBeEmpty({ timeout: SETTLE_MS });
+	await page.mouse.move(0, 0);
+	assertContrast(await stableMeasurements(page, READLIST_ROOT), {
+		...where,
+		view: `${where.view}/create-dialog-error`,
+	});
+
+	await page.keyboard.press("Escape");
+	await expect(page.locator('[data-test-confirm-popover="readlist-create"]:popover-open')).toBeHidden({
+		timeout: SETTLE_MS,
+	});
+}
+
 async function auditReadlistQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
@@ -315,6 +342,7 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 				}
 				await auditReadlistQueue(page, { theme, view });
 			}
+			await auditCreateReadlistDialog(page, { theme, view: "create-readlist" });
 			await page.route("**/client-dist/toast.client.js", (route) => route.abort());
 			await page.goto(
 				`${BASE_URL}/queue?status_changed=read&status_article=${encodeURIComponent(articleId)}`,

@@ -199,7 +199,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/exit-two-panels");
-		await agent.post("/queue/queues");
+		await agent.post("/queue/queues").type("form").send({ label: "New Readlist" });
 
 		const doc = new JSDOM(
 			(await agent.get(`/queue/${articleId}/view?platform=ios`)).text,

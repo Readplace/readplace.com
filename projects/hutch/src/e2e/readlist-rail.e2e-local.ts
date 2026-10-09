@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { clickAndWaitForPageReload, openReadlistSwitcher } from "./page-interactions";
+import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -28,6 +28,8 @@ const RENAME_INPUT = "[data-test-readlist-rename-input]";
 const RENAME_SAVE = '[data-test-action="readlist-rename-save"]';
 const RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
 const DELETE_DISMISS = '[data-test-action="readlist-delete-dismiss"]';
+const CREATE_POPOVER = '[data-test-confirm-popover="readlist-create"]';
+const CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
 const CARD = "[data-test-article]";
 const CARD_MENU = "[data-test-article-menu]";
 const CARD_MENU_TOGGLE = '[data-test-action="article-menu"]';
@@ -107,8 +109,8 @@ async function openReadlist(page: Page): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
-async function makeReadlist(page: Page): Promise<void> {
-	await page.click('[data-test-action="new-readlist"]');
+async function makeReadlist(page: Page, name: string): Promise<void> {
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, name));
 	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
 }
 
@@ -178,8 +180,8 @@ test.describe("The readlists rail", () => {
 		await createUser(page, email);
 		await loginAs(page, email);
 		await openReadlist(page);
-		await makeReadlist(page);
-		await makeReadlist(page);
+		await makeReadlist(page, "New Readlist");
+		await makeReadlist(page, "New Readlist 2");
 		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
 
 		const menus = page.locator(READLIST_MENU);
@@ -204,7 +206,7 @@ test.describe("The readlists rail", () => {
 		await createUser(page, email);
 		await loginAs(page, email);
 		await openReadlist(page);
-		await makeReadlist(page);
+		await makeReadlist(page, "New Readlist");
 
 		await openRenameDialog(page);
 		await page.locator(RENAME_INPUT).first().fill("Work Reading");
@@ -220,7 +222,7 @@ test.describe("The readlists rail", () => {
 		await createUser(page, email);
 		await loginAs(page, email);
 		await openReadlist(page);
-		await makeReadlist(page);
+		await makeReadlist(page, "New Readlist");
 
 		await renameTo(page, "Work Reading");
 		await renameTo(page, "Deep Work");
@@ -236,7 +238,7 @@ test.describe("The readlists rail", () => {
 		await createUser(page, email);
 		await loginAs(page, email);
 		await openReadlist(page);
-		await makeReadlist(page);
+		await makeReadlist(page, "New Readlist");
 
 		await page.click(READ_TAB);
 		await expect(page.locator(READ_TAB)).toHaveAttribute("aria-current", "page");
@@ -254,7 +256,7 @@ test.describe("The readlists rail", () => {
 
 		assert.deepEqual(await renameableSlugs(page), []);
 
-		await makeReadlist(page);
+		await makeReadlist(page, "New Readlist");
 		const slug = new URL(page.url()).searchParams.get("queue");
 		assert.ok(slug, "creating a readlist must land the reader on it");
 
@@ -273,7 +275,7 @@ test.describe("The readlists rail on a desktop", () => {
 		await createUser(page, email);
 		await loginAs(page, email);
 		await openReadlist(page);
-		await makeReadlist(page);
+		await makeReadlist(page, "New Readlist");
 
 		const nav = page.getByRole("navigation", { name: "Readlists" });
 		await expect(nav.getByRole("link", { name: "All" })).toBeVisible();
@@ -327,7 +329,7 @@ test.describe("The readlist switcher on a phone", () => {
 		await openReadlistSwitcher(page);
 		await expect(page.locator(RAIL_LINK)).toHaveCount(1);
 		await expect(page.locator(`${MAIN} ${NEW_READLIST}`)).toBeVisible();
-		await makeReadlist(page);
+		await makeReadlist(page, "New Readlist");
 		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
 
 		await openReadlistSwitcher(page);
@@ -343,6 +345,42 @@ test.describe("The readlist switcher on a phone", () => {
 	});
 });
 
+test.describe("Creating a readlist from the rail", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("names the readlist in the dialog and lands on it", async ({ page }, testInfo) => {
+		const email = `readlist-rail-create-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+
+		await makeReadlist(page, "Ideas & Inspiration");
+
+		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("Ideas & Inspiration");
+		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
+	});
+
+	test("returns focus to the create row after the dialog is dismissed", async ({ page }, testInfo) => {
+		const email = `readlist-rail-create-dismiss-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		const dismissals: ((page: Page) => Promise<void>)[] = [
+			(each) => each.keyboard.press("Escape"),
+			(each) => each.click(CREATE_CANCEL),
+			(each) => each.mouse.click(4, 4),
+		];
+
+		for (const dismiss of dismissals) {
+			await nameNewReadlist(page, "Never Created");
+			await dismiss(page);
+			await expect(page.locator(`${CREATE_POPOVER}:popover-open`)).toHaveCount(0);
+			await expect(page.locator(NEW_READLIST)).toBeFocused();
+			await expect(page.locator(RAIL_LINK)).toHaveCount(1);
+		}
+	});
+});
+
 test.describe("Dismissing a menu dialog returns focus to the kebab that opened it", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -353,7 +391,7 @@ test.describe("Dismissing a menu dialog returns focus to the kebab that opened i
 		await createUser(page, email);
 		await loginAs(page, email);
 		await openReadlist(page);
-		await makeReadlist(page);
+		await makeReadlist(page, "New Readlist");
 
 		const menu = page.locator(READLIST_MENU).first();
 		const toggle = menu.locator(READLIST_MENU_TOGGLE);

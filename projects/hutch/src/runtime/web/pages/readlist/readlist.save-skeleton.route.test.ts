@@ -100,7 +100,7 @@ describe("GET /queue save skeleton", () => {
 	it("stays inert on a readlist the save bar does not post to", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const created = await agent.post("/queue/queues");
+		const created = await agent.post("/queue/queues").type("form").send({ label: "New Readlist" });
 		const location = created.headers.location;
 		assert(location, "creating a readlist must redirect onto it");
 
