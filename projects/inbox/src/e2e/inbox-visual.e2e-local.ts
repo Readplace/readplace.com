@@ -200,7 +200,7 @@ const createdToast: VisualCheckpoint = {
 		const toast = page.locator("[data-test-toast]");
 		await expect(toast).toBeVisible();
 		await expect(toast.locator("[data-test-toast-message]")).toHaveText(
-			'Created the inbox email "e2e" — it\'s live in the list below',
+			'Created the custom email "e2e" — it\'s live in the list below',
 		);
 		await expect(toast.locator("[data-test-toast-action]")).toHaveCount(0);
 	},

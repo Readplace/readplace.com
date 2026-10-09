@@ -76,7 +76,7 @@ describe("InboxPage", () => {
 		assert.ok(empty.querySelector('.inbox__empty-illustration [data-test-illustration="book-lightbulb"]'), "the empty state leads with its illustration");
 		assert.equal(
 			empty.querySelector(".inbox__empty-title")?.textContent,
-			"You don't have an inbox email yet",
+			"You don't have a custom email yet",
 		);
 		assert.equal(empty.querySelector(".inbox__empty-text")?.textContent, "Create one to get started.");
 	});
@@ -200,19 +200,19 @@ describe("InboxPage", () => {
 
 		assert.equal(
 			doc.querySelector("[data-inbox-copy]")?.getAttribute("aria-label"),
-			"Copy inbox email: my-newsletter",
+			"Copy custom email: my-newsletter",
 		);
 		assert.equal(
 			doc.querySelector("[data-test-inbox-disable]")?.getAttribute("aria-label"),
-			"Disable inbox email: my-newsletter",
+			"Disable custom email: my-newsletter",
 		);
 
 		const active = doc.querySelector("input[data-inbox-address]");
 		const disabled = doc.querySelector(".inbox__address-field");
 		assert.ok(active, "the active address field must render");
 		assert.ok(disabled, "the disabled address field must render");
-		assert.equal(active.getAttribute("aria-label"), "Inbox email: my-newsletter");
-		assert.equal(disabled.getAttribute("aria-label"), "Inbox email: stratechery");
+		assert.equal(active.getAttribute("aria-label"), "Custom email: my-newsletter");
+		assert.equal(disabled.getAttribute("aria-label"), "Custom email: stratechery");
 		assert.notEqual(
 			active.getAttribute("aria-label"),
 			disabled.getAttribute("aria-label"),
@@ -333,7 +333,7 @@ describe("InboxPage", () => {
 		assert.equal(error.id, "inbox-name-error");
 		assert.equal(
 			error.textContent,
-			"Give the inbox email a name using letters, numbers, and hyphens — for example, my-newsletter.",
+			"Give the custom email a name using letters, numbers, and hyphens — for example, my-newsletter.",
 		);
 		const input = doc.querySelector("[data-test-inbox-name-input]");
 		assert.ok(input, "name input must render");
@@ -407,7 +407,7 @@ describe("InboxPage", () => {
 				variant: "error",
 				visible: true,
 				role: "alert",
-				title: "Couldn't create an inbox email",
+				title: "Couldn't create a custom email",
 				body: "Try again in a moment.",
 			},
 			{
@@ -415,8 +415,8 @@ describe("InboxPage", () => {
 				variant: "error",
 				visible: true,
 				role: "alert",
-				title: "Inbox email limit reached",
-				body: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before enabling or creating more.`,
+				title: "Custom email limit reached",
+				body: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} custom emails. Disable any you no longer need before enabling or creating more.`,
 			},
 		]);
 	});
@@ -496,7 +496,7 @@ describe("InboxPage", () => {
 		assert.equal(group.hasAttribute("open"), false);
 		assert.equal(
 			group.querySelector(".inbox__disabled-summary")?.textContent,
-			"Disabled inbox emails (2)",
+			"Disabled custom emails (2)",
 		);
 		const namesInside = Array.from(group.querySelectorAll("[data-test-inbox-name]")).map(
 			(el) => el.textContent,
@@ -512,7 +512,7 @@ describe("InboxPage", () => {
 		assert.equal(group.classList.contains("inbox__disabled-group--hidden"), true);
 		assert.equal(
 			group.querySelector(".inbox__disabled-summary")?.textContent,
-			"Disabled inbox emails (0)",
+			"Disabled custom emails (0)",
 		);
 	});
 

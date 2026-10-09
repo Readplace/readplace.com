@@ -42,19 +42,19 @@ export interface InboxAddressesViewModel {
 
 const ALERTS: Record<InboxAlertKey, Omit<InboxAlertViewModel, "key">> = {
 	"create-failed": {
-		title: "Couldn't create an inbox email",
+		title: "Couldn't create a custom email",
 		body: "Try again in a moment.",
 	},
 	limit: {
-		title: "Inbox email limit reached",
-		body: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before enabling or creating more.`,
+		title: "Custom email limit reached",
+		body: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} custom emails. Disable any you no longer need before enabling or creating more.`,
 	},
 };
 
 const NAME_ERROR_MESSAGES: Record<InboxNameErrorKey, string> = {
 	"name-invalid":
-		"Give the inbox email a name using letters, numbers, and hyphens — for example, my-newsletter.",
-	"name-taken": "You already have an active inbox email with that name. Pick a different one.",
+		"Give the custom email a name using letters, numbers, and hyphens — for example, my-newsletter.",
+	"name-taken": "You already have an active custom email with that name. Pick a different one.",
 };
 
 /** The alerts the page is showing, in the order they render. Built here rather
@@ -85,8 +85,8 @@ export function toInboxAddressAriaLabels(name: string): {
 	copyAriaLabel: string;
 } {
 	return {
-		addressAriaLabel: `Inbox email: ${name}`,
-		copyAriaLabel: `Copy inbox email: ${name}`,
+		addressAriaLabel: `Custom email: ${name}`,
+		copyAriaLabel: `Copy custom email: ${name}`,
 	};
 }
 
@@ -95,7 +95,7 @@ function toRow(entry: InboxAddressEntry): InboxAddressRowViewModel {
 		address: entry.address,
 		name: entry.name,
 		...toInboxAddressAriaLabels(entry.name),
-		disableAriaLabel: `Disable inbox email: ${entry.name}`,
+		disableAriaLabel: `Disable custom email: ${entry.name}`,
 	};
 }
 

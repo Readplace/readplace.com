@@ -61,7 +61,7 @@ describe("toInboxEmailsViewModel", () => {
 		expect(empty?.key).toBe("no-mail");
 		expect(empty?.title).toBe("No forwarded emails yet");
 		expect(empty?.body).toBe(
-			"Forward a newsletter to one of your addresses and it'll appear here.",
+			"Forward a newsletter to one of your custom emails and it'll appear here.",
 		);
 		expect(empty?.actions).toEqual([]);
 		expect(empty?.addresses).toEqual([ADDRESS]);
@@ -80,12 +80,12 @@ describe("toInboxEmailsViewModel", () => {
 
 		expect(empty?.key).toBe("no-address");
 		expect(empty?.title).toBe("No forwarded emails yet");
-		expect(empty?.body).toBe("You don't have an inbox email address to send them to.");
+		expect(empty?.body).toBe("You don't have a custom email to send them to.");
 		expect(empty?.actions).toEqual([
 			{
 				key: "create-first-address",
 				href: "/newsletters/custom-emails?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
-				label: "Create my first inbox address",
+				label: "Create my first custom email",
 			},
 		]);
 		expect(empty?.addresses).toEqual([]);

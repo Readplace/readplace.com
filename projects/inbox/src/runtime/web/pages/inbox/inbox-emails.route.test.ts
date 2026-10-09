@@ -134,7 +134,7 @@ describe("Inbox emails list route", () => {
 			"No forwarded emails yet",
 		);
 		expect(empty.querySelector("[data-test-inbox-emails-empty-body]")?.textContent).toBe(
-			"You don't have an inbox email address to send them to.",
+			"You don't have a custom email to send them to.",
 		);
 		const ctas = Array.from(empty.querySelectorAll("[data-test-inbox-emails-empty-cta]"));
 		expect(ctas.map((cta) => cta.getAttribute("data-test-inbox-emails-empty-cta"))).toEqual([
@@ -143,7 +143,7 @@ describe("Inbox emails list route", () => {
 		expect(ctas[0].getAttribute("href")).toBe(
 			"/newsletters/custom-emails?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
 		);
-		expect(ctas[0].textContent).toBe("Create my first inbox address");
+		expect(ctas[0].textContent).toBe("Create my first custom email");
 	});
 
 	it("tells a reader who already has an address to forward mail instead, offering it to copy in place", async () => {
@@ -169,7 +169,7 @@ describe("Inbox emails list route", () => {
 			"No forwarded emails yet",
 		);
 		expect(empty.querySelector("[data-test-inbox-emails-empty-body]")?.textContent).toBe(
-			"Forward a newsletter to one of your addresses and it'll appear here.",
+			"Forward a newsletter to one of your custom emails and it'll appear here.",
 		);
 		expect(
 			Array.from(empty.querySelectorAll("[data-test-inbox-emails-empty-cta]")).map((cta) =>

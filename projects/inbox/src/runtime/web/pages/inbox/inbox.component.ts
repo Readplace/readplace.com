@@ -51,7 +51,7 @@ export function InboxPage(params: {
 		params.createdName === undefined
 			? ""
 			: renderToast({
-					message: `Created the inbox email "${params.createdName}" — it's live in the list below`,
+					message: `Created the custom email "${params.createdName}" — it's live in the list below`,
 					dismissMs: STATUS_TOAST_DISMISS_MS,
 					actions: [],
 				});
@@ -88,7 +88,7 @@ export function InboxPage(params: {
 	return {
 		seo: {
 			title: "From My Custom Emails — Readplace",
-			description: "Your personal inbox emails for forwarding newsletters to Readplace.",
+			description: "Your custom emails for forwarding newsletters to Readplace.",
 			canonicalUrl: CUSTOM_EMAILS_PATH,
 			robots: "noindex, nofollow",
 		},

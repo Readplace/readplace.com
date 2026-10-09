@@ -74,7 +74,7 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-address": {
 		key: "no-address",
 		title: "No forwarded emails yet",
-		body: "You don't have an inbox email address to send them to.",
+		body: "You don't have a custom email to send them to.",
 		actions: [
 			{
 				key: "create-first-address",
@@ -82,7 +82,7 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 					source: INBOX_EMPTY_SOURCE,
 					content: "create-first-address",
 				}),
-				label: "Create my first inbox address",
+				label: "Create my first custom email",
 			},
 		],
 		addresses: [],
@@ -90,7 +90,7 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-mail": {
 		key: "no-mail",
 		title: "No forwarded emails yet",
-		body: "Forward a newsletter to one of your addresses and it'll appear here.",
+		body: "Forward a newsletter to one of your custom emails and it'll appear here.",
 		actions: [],
 		addresses: [],
 	},

@@ -35,7 +35,7 @@ function toastMessages(doc: Document): (string | undefined)[] {
 	);
 }
 
-const CREATED_MY_NEWSLETTER = `Created the inbox email "my-newsletter" — it's live in the list below`;
+const CREATED_MY_NEWSLETTER = `Created the custom email "my-newsletter" — it's live in the list below`;
 
 /** A fixture whose server clock runs `days` ahead of real time, so a freshly
  * created user lands past the 7-day verification window — i.e. locked — with no
@@ -267,7 +267,7 @@ describe("Custom emails routes", () => {
 			expect(input?.getAttribute("aria-describedby")).toBe("inbox-name-error");
 			expect(input?.hasAttribute("autofocus")).toBe(true);
 			expect(doc.getElementById("inbox-name-error")?.textContent).toContain(
-				"already have an active inbox email",
+				"already have an active custom email",
 			);
 			// Only the first address was minted — the duplicate did not create a second.
 			expect(doc.querySelectorAll("[data-test-inbox-item]")).toHaveLength(1);
@@ -665,7 +665,7 @@ describe("Custom emails routes", () => {
 			);
 			expect(statuses).toEqual(["disabled"]);
 			expect(after.querySelector(".inbox__disabled-summary")?.textContent).toBe(
-				"Disabled inbox emails (1)",
+				"Disabled custom emails (1)",
 			);
 		});
 
@@ -754,7 +754,7 @@ describe("Custom emails routes", () => {
 			);
 			expect(statuses).toEqual(["enabled"]);
 			expect(after.querySelector(".inbox__disabled-summary")?.textContent).toBe(
-				"Disabled inbox emails (0)",
+				"Disabled custom emails (0)",
 			);
 			expect(
 				after

@@ -45,25 +45,25 @@ describe("toInboxAddressesViewModel", () => {
 			{
 				name: "my-newsletter",
 				address: "my-newsletter-bbb222@read.place",
-				addressAriaLabel: "Inbox email: my-newsletter",
-				copyAriaLabel: "Copy inbox email: my-newsletter",
-				disableAriaLabel: "Disable inbox email: my-newsletter",
+				addressAriaLabel: "Custom email: my-newsletter",
+				copyAriaLabel: "Copy custom email: my-newsletter",
+				disableAriaLabel: "Disable custom email: my-newsletter",
 			},
 		]);
 		expect(vm.disabledAddresses).toEqual([
 			{
 				name: "gmail",
 				address: "gmail-aaa111@read.place",
-				addressAriaLabel: "Inbox email: gmail",
-				copyAriaLabel: "Copy inbox email: gmail",
-				disableAriaLabel: "Disable inbox email: gmail",
+				addressAriaLabel: "Custom email: gmail",
+				copyAriaLabel: "Copy custom email: gmail",
+				disableAriaLabel: "Disable custom email: gmail",
 			},
 			{
 				name: "substack",
 				address: "substack-ccc333@read.place",
-				addressAriaLabel: "Inbox email: substack",
-				copyAriaLabel: "Copy inbox email: substack",
-				disableAriaLabel: "Disable inbox email: substack",
+				addressAriaLabel: "Custom email: substack",
+				copyAriaLabel: "Copy custom email: substack",
+				disableAriaLabel: "Disable custom email: substack",
 			},
 		]);
 		expect(vm.hasDisabled).toBe(true);
@@ -82,16 +82,16 @@ describe("toInboxAddressesViewModel", () => {
 			{
 				name: "my-newsletter",
 				address: "my-newsletter-bbb222@read.place",
-				addressAriaLabel: "Inbox email: my-newsletter",
-				copyAriaLabel: "Copy inbox email: my-newsletter",
-				disableAriaLabel: "Disable inbox email: my-newsletter",
+				addressAriaLabel: "Custom email: my-newsletter",
+				copyAriaLabel: "Copy custom email: my-newsletter",
+				disableAriaLabel: "Disable custom email: my-newsletter",
 			},
 			{
 				name: "gmail",
 				address: "gmail-aaa111@read.place",
-				addressAriaLabel: "Inbox email: gmail",
-				copyAriaLabel: "Copy inbox email: gmail",
-				disableAriaLabel: "Disable inbox email: gmail",
+				addressAriaLabel: "Custom email: gmail",
+				copyAriaLabel: "Copy custom email: gmail",
+				disableAriaLabel: "Disable custom email: gmail",
 			},
 		]);
 		expect(vm.disabledAddresses).toEqual([]);
