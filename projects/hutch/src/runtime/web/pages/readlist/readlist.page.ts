@@ -173,7 +173,6 @@ import { DELETE_ACK_NEVER } from "./readlist-card/delete-confirm.component";
 import {
 	DEFAULT_READLIST_SLUG,
 	ReadlistSlugSchema,
-	type ReadlistRenameRejection,
 	type ReadlistSlug,
 	type ReadlistRef,
 	decideReadlistDelete,
@@ -203,7 +202,10 @@ import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, StatusFlash } from "./readlist.error";
-import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import { READLIST_CREATE_POPOVER_ID, renderReadlistCreateForm } from "./readlist-create.component";
+import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-rename.component";
+import { hxLocationToMain } from "../../hx-location";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -289,6 +291,32 @@ function readImportSkippedFlash(
 		})),
 		andMore: decoded.andMore,
 	};
+}
+
+type ReadlistNaming =
+	| { landing: string; announcement?: string }
+	| { refusal: string; form: () => string };
+
+function answerReadlistNaming(
+	req: Request,
+	res: Response,
+	answer: { dialogId: string; naming: ReadlistNaming },
+): void {
+	const { naming } = answer;
+	if (req.get("HX-Request") !== "true") {
+		res.redirect(303, "landing" in naming ? naming.landing : naming.refusal);
+		return;
+	}
+	if (!("landing" in naming)) {
+		res.status(422).type("html").send(naming.form());
+		return;
+	}
+	res.set("HX-Location", hxLocationToMain({ path: naming.landing, source: `#${answer.dialogId}` }));
+	if (naming.announcement === undefined) {
+		res.status(204).end();
+		return;
+	}
+	res.type("text/plain").send(naming.announcement);
 }
 
 function markExtensionSavedArticle(res: Response): void {
@@ -2426,45 +2454,33 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const context = await resolveReadlistContext(req, userId);
-		const wantsJson = req.accepts(["html", "json"]) === "json";
-		const outcome = await deps.upsertReadlist({
-			userId,
-			name: typeof req.body?.label === "string" ? req.body.label : "",
+		const label = typeof req.body?.label === "string" ? req.body.label : "";
+		const outcome = await deps.upsertReadlist({ userId, name: label });
+		const refused = (reason: ReadlistCreateDialogRejection): ReadlistNaming => ({
+			refusal: buildReadlistUrl(context.state, [["queue_error", `create_${reason}`]]),
+			form: () =>
+				renderReadlistCreateForm({
+					popoverId: READLIST_CREATE_POPOVER_ID,
+					key: "readlist-create",
+					action: req.originalUrl,
+					value: label,
+					error: READLIST_CREATE_REJECTIONS[reason].message,
+				}),
 		});
-		const refused = (reason: ReadlistCreateDialogRejection) => {
-			const { status, error, message } = READLIST_CREATE_REJECTIONS[reason];
-			return {
-				status,
-				body: { error, message },
-				location: buildReadlistUrl(context.state, [["queue_error", `create_${reason}`]]),
-			};
-		};
-		const answer = ((): { status: number; body: Record<string, string>; location: string } => {
+		const naming = ((): ReadlistNaming => {
 			switch (outcome.status) {
-				case "ok": {
+				case "ok":
 					if (!outcome.created) return refused("name-taken");
-					const location = buildReadlistUrl({ readlist: outcome.readlist.slug });
-					return { status: 201, body: { location }, location };
-				}
+					return { landing: buildReadlistUrl({ readlist: outcome.readlist.slug }) };
 				case "invalid-name":
 				case "reserved-name":
 					return refused(outcome.status);
-				case "limit-reached": {
-					const location = buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]);
-					return {
-						status: 409,
-						body: { error: "limit-reached", message: READLIST_LIMIT_MESSAGE, location },
-						location,
-					};
-				}
+				case "limit-reached":
+					return { landing: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]) };
 			}
 		})();
 
-		if (wantsJson) {
-			res.status(answer.status).json(answer.body);
-			return;
-		}
-		res.redirect(303, answer.location);
+		answerReadlistNaming(req, res, { dialogId: READLIST_CREATE_POPOVER_ID, naming });
 	});
 
 	router.post(
@@ -2474,33 +2490,34 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
-			const wantsHtml = req.accepts(["json", "html"]) === "html";
+			const gone = buildReadlistUrl({}, [["queue_error", "rename_unknown-readlist"]]);
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
-			const reject = (reason: ReadlistRenameRejection): void => {
-				if (!wantsHtml) {
-					const { status, error, message } = READLIST_RENAME_REJECTIONS[reason];
-					res.status(status).json({ error, message });
-					return;
-				}
-				const landing =
-					requested.success && reason !== "unknown-readlist" ? { readlist: requested.data } : {};
-				res.redirect(
-					303,
-					buildReadlistUrl(landing, [["queue_error", `rename_${reason}`]]),
-				);
-			};
 			if (!requested.success) {
-				reject("unknown-readlist");
+				res.redirect(303, gone);
 				return;
 			}
+			const slug = requested.data;
+			const label = typeof req.body?.label === "string" ? req.body.label : "";
+			const answer = (naming: ReadlistNaming): void =>
+				answerReadlistNaming(req, res, { dialogId: readlistRenamePopoverId(slug), naming });
 			const definitions = await deps.listReadlistDefinitions(userId);
-			const decision = decideReadlistRename({
-				slug: requested.data,
-				label: typeof req.body?.label === "string" ? req.body.label : "",
-				readlists: readerReadlists(definitions),
-			});
+			const decision = decideReadlistRename({ slug, label, readlists: readerReadlists(definitions) });
 			if (!decision.ok) {
-				reject(decision.reason);
+				const { reason } = decision;
+				if (reason === "unknown-readlist") {
+					answer({ landing: gone });
+					return;
+				}
+				answer({
+					refusal: buildReadlistUrl({ readlist: slug }, [["queue_error", `rename_${reason}`]]),
+					form: () =>
+						renderReadlistRenameForm({
+							slug,
+							action: req.originalUrl,
+							value: label,
+							error: READLIST_RENAME_REJECTIONS[reason].message,
+						}),
+				});
 				return;
 			}
 			const { renamed } = await deps.renameReadlistDefinition({
@@ -2509,14 +2526,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				label: decision.label,
 			});
 			if (!renamed) {
-				reject("unknown-readlist");
+				answer({ landing: gone });
 				return;
 			}
-			if (!wantsHtml) {
-				res.json({ slug: decision.slug, label: decision.label });
-				return;
-			}
-			res.redirect(303, buildReadlistUrl({ readlist: decision.slug }));
+			answer({
+				landing: buildReadlistUrl({ readlist: decision.slug }),
+				announcement: `Readlist renamed to ${decision.label}.`,
+			});
 		},
 	);
 

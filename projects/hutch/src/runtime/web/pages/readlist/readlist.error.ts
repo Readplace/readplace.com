@@ -55,44 +55,26 @@ export const READLIST_LIMIT_MESSAGE = `You can create up to ${READLIST_MAX_PER_U
 
 export type ReadlistCreateDialogRejection = ReadlistCreateRejection | "name-taken";
 
-export const READLIST_CREATE_REJECTIONS: Record<
-	ReadlistCreateDialogRejection,
-	{ status: 422; error: ReadlistCreateDialogRejection; message: string }
-> = {
+export const READLIST_CREATE_REJECTIONS: Record<ReadlistCreateDialogRejection, { message: string }> = {
 	"invalid-name": {
-		status: 422,
-		error: "invalid-name",
 		message: READLIST_NAME_LENGTH_MESSAGE,
 	},
 	"reserved-name": {
-		status: 422,
-		error: "reserved-name",
 		message: "Pick a name other than All, the readlist that holds every save.",
 	},
 	"name-taken": {
-		status: 422,
-		error: "name-taken",
 		message: "You already have a readlist with that name, so pick another one.",
 	},
 };
 
-export const READLIST_RENAME_REJECTIONS: Record<
-	ReadlistRenameRejection,
-	{ status: number; error: ReadlistRenameRejection; message: string }
-> = {
+export const READLIST_RENAME_REJECTIONS: Record<ReadlistRenameRejection, { message: string }> = {
 	"unknown-readlist": {
-		status: 404,
-		error: "unknown-readlist",
 		message: "That readlist no longer exists.",
 	},
 	"invalid-name": {
-		status: 422,
-		error: "invalid-name",
 		message: READLIST_NAME_LENGTH_MESSAGE,
 	},
 	"name-taken": {
-		status: 422,
-		error: "name-taken",
 		message:
 			"You already have a readlist with that name, and it's too long to number. Try a shorter one.",
 	},

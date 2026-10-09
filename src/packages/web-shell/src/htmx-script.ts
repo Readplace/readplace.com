@@ -7,7 +7,7 @@ export interface HtmxDelivery {
 }
 
 export const HtmxLoaded: HtmxDelivery = {
-	configMeta: `<meta name="htmx-config" content='{"scrollBehavior":"smooth"}'>`,
+	configMeta: `<meta name="htmx-config" content='{"scrollBehavior":"smooth","responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"422","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>`,
 	script: `<script src="/client-dist/htmx.client.js" defer></script>`,
 };
 

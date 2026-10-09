@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { READLIST_LABEL_MAX_LENGTH, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
 import { readlistRenamePath } from "./readlist.url";
-import { readlistRenamePopoverId, renderReadlistRename } from "./readlist-rename.component";
+import {
+	readlistRenameAction,
+	readlistRenamePopoverId,
+	renderReadlistRename,
+	renderReadlistRenameForm,
+} from "./readlist-rename.component";
 
 const WORK = ReadlistSlugSchema.parse("work");
 
@@ -106,6 +111,14 @@ describe("renderReadlistRename", () => {
 		expect(cancel.classList.contains("btn--neutral")).toBe(true);
 		expect(cancel.parentElement?.classList.contains("confirm-popover__buttons")).toBe(true);
 		expect([...doc.querySelectorAll(".confirm-popover__header [data-test-action]")].map((action) => action.getAttribute("data-test-action"))).toEqual([]);
+	});
+
+	it("holds the same form the rename route re-renders when it refuses a name", () => {
+		const html = renderReadlistRename({ slug: WORK, label: "Work Reading" });
+
+		expect(html).toContain(
+			renderReadlistRenameForm({ slug: WORK, action: readlistRenameAction(WORK), value: "Work Reading" }),
+		);
 	});
 
 	it("posts to the readlist's rename route, tagged for funnel attribution", () => {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
+import { READLIST_LABEL_MAX_LENGTH } from "@packages/domain/readlist";
 import { expect, measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import {
@@ -33,10 +34,18 @@ const RENAME_POPOVER = '[data-test-confirm-popover="readlist-rename"]';
 const RENAME_INPUT = "[data-test-readlist-rename-input]";
 const RENAME_SAVE = '[data-test-action="readlist-rename-save"]';
 const RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
+const RENAME_ERROR = "[data-test-readlist-rename-error]";
 const DELETE_POPOVER = '[data-test-confirm-popover="readlist-delete"]';
 const DELETE_CANCEL = '[data-test-action="readlist-delete-cancel"]';
 const CREATE_POPOVER = '[data-test-confirm-popover="readlist-create"]';
 const CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
+const CREATE_INPUT = "[data-test-readlist-create-input]";
+const CREATE_SAVE = '[data-test-action="readlist-create-save"]';
+const CREATE_ERROR = "[data-test-readlist-create-error]";
+const COMMIT_LABEL = ".readlist-name-form__commit-label";
+const COMMIT_LOADER = ".readlist-name-form__loader";
+const LIVE_REGION = "#toast-live-region";
+const SAME_DOCUMENT_MARK = "data-test-same-document";
 const CARD = "[data-test-article]";
 const CARD_MENU = "[data-test-article-menu]";
 const CARD_MENU_TOGGLE = '[data-test-action="article-menu"]';
@@ -145,7 +154,10 @@ async function seededReadlistSettled(page: Page): Promise<void> {
 	await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
 }
 
-async function holdListing(page: Page): Promise<() => Promise<void>> {
+async function holdRequests(
+	page: Page,
+	pathname: string,
+): Promise<{ held: () => number; release: () => Promise<void> }> {
 	const resolvers: Array<() => void> = [];
 	const released = new Promise<void>((resolve) => {
 		resolvers.push(resolve);
@@ -154,21 +166,41 @@ async function holdListing(page: Page): Promise<() => Promise<void>> {
 	assert.ok(release, "a promise executor runs synchronously, so its resolver must be captured");
 	let held = 0;
 	await page.route(
-		(url) => url.pathname === "/queue",
+		(url) => url.pathname === pathname,
 		async (route) => {
 			held += 1;
 			await released;
 			await route.continue();
 		},
 	);
-	return async () => {
-		await expect
-			.poll(() => held, {
-				message: "the listing request must be waiting on the veil before it is released",
-			})
-			.toBe(1);
-		release();
+	return {
+		held: () => held,
+		release: async () => {
+			await expect
+				.poll(() => held, { message: `the ${pathname} request must be held before it is released` })
+				.toBe(1);
+			release();
+		},
 	};
+}
+
+async function holdListing(page: Page): Promise<() => Promise<void>> {
+	return (await holdRequests(page, "/queue")).release;
+}
+
+async function markDocument(page: Page): Promise<void> {
+	await page.locator("html").evaluate((html, mark) => html.setAttribute(mark, ""), SAME_DOCUMENT_MARK);
+}
+
+async function expectCreateCommitBusy(page: Page): Promise<void> {
+	const dialog = page.locator(`${CREATE_POPOVER}:popover-open`);
+	const commit = dialog.locator(CREATE_SAVE);
+	await expect(dialog.locator(COMMIT_LABEL)).toBeHidden();
+	await expect(dialog.locator(COMMIT_LOADER)).toBeVisible();
+	await expect(commit).toBeEnabled();
+	await expect(commit).toHaveCSS("cursor", "progress");
+	await commit.click();
+	await dialog.locator(CREATE_INPUT).press("Enter");
 }
 
 test.describe("The readlists rail", () => {
@@ -257,9 +289,41 @@ test.describe("The readlists rail", () => {
 
 		await renameTo(page, "Work Reading");
 		await renameTo(page, "Deep Work");
+		await expect(page.locator(LIVE_REGION)).toHaveText("Readlist renamed to Deep Work.");
 
 		await page.reload({ waitUntil: "domcontentloaded" });
 		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("Deep Work");
+	});
+
+	test("refuses a blank rename in place and keeps what the reader typed", async ({ page }, testInfo) => {
+		const email = `readlist-rail-rename-refused-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		await makeReadlist(page, "New Readlist");
+		const landedOn = page.url();
+
+		await openRenameDialog(page);
+		const dialog = page.locator(`${RENAME_POPOVER}:popover-open`);
+		const field = dialog.locator(RENAME_INPUT);
+		await field.fill("   ");
+		await dialog.locator(RENAME_SAVE).click();
+
+		await expect(dialog.locator(RENAME_ERROR)).toHaveText(
+			`Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`,
+		);
+		await expect(field).toHaveValue("   ");
+		await expect(field).toHaveAttribute("aria-invalid", "true");
+		await expect(field).toBeFocused();
+		await expect(page).toHaveURL(landedOn);
+		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("New Readlist");
+
+		await markDocument(page);
+		await field.fill("Work Reading");
+		await clickAndWaitForPageReload(page, dialog.locator(RENAME_SAVE));
+
+		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("Work Reading");
+		await expect(page.locator("html")).toHaveAttribute(SAME_DOCUMENT_MARK, "");
 	});
 
 	test("keeps the rename working after the listing has been swapped", async ({
@@ -389,6 +453,64 @@ test.describe("Creating a readlist from the rail", () => {
 
 		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("Ideas & Inspiration");
 		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
+	});
+
+	test("refuses a reserved name in place and keeps what the reader typed", async ({ page }, testInfo) => {
+		const email = `readlist-rail-create-refused-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		const landedOn = page.url();
+
+		await (await nameNewReadlist(page, "All")).click();
+
+		const dialog = page.locator(`${CREATE_POPOVER}:popover-open`);
+		const field = dialog.locator(CREATE_INPUT);
+		await expect(dialog.locator(CREATE_ERROR)).toHaveText(
+			"Pick a name other than All, the readlist that holds every save.",
+		);
+		await expect(field).toHaveValue("All");
+		await expect(field).toHaveAttribute("aria-invalid", "true");
+		await expect(field).toBeFocused();
+		await expect(page).toHaveURL(landedOn);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(1);
+
+		await markDocument(page);
+		await field.fill("Ideas & Inspiration");
+		await clickAndWaitForPageReload(page, dialog.locator(CREATE_SAVE));
+
+		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("Ideas & Inspiration");
+		await expect(page.locator("html")).toHaveAttribute(SAME_DOCUMENT_MARK, "");
+	});
+
+	test("keeps the create commit busy until the new readlist replaces the page", async ({ page }, testInfo) => {
+		const email = `readlist-rail-create-busy-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createUser(page, email);
+		await loginAs(page, email);
+		await openReadlist(page);
+		const creation = await holdRequests(page, "/queue/queues");
+
+		await (await nameNewReadlist(page, "Ideas & Inspiration")).click();
+		await expect.poll(creation.held).toBe(1);
+		await expectCreateCommitBusy(page);
+
+		const listing = await holdRequests(page, "/queue");
+		await creation.release();
+		await expect.poll(listing.held).toBe(1);
+		await expectCreateCommitBusy(page);
+		expect(creation.held()).toBe(1);
+
+		await listing.release();
+		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("Ideas & Inspiration");
+		expect(creation.held()).toBe(1);
+
+		await page.goBack();
+		await expect(page.locator(ACTIVE_RAIL_LINK)).toHaveAttribute("data-test-readlist", "default");
+		await page.click(NEW_READLIST);
+		const reopened = page.locator(`${CREATE_POPOVER}:popover-open`);
+		await expect(reopened.locator(COMMIT_LABEL)).toBeVisible();
+		await expect(reopened.locator(COMMIT_LOADER)).toBeHidden();
+		await expect(page.locator(`${CREATE_POPOVER}.htmx-request, ${CREATE_POPOVER} .htmx-request`)).toHaveCount(0);
 	});
 
 	test("returns focus to the create row after the dialog is dismissed", async ({ page }, testInfo) => {

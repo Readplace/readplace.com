@@ -111,6 +111,12 @@ describe("ChromelessPage", () => {
 		assert(configMeta, "htmx config must ride a <head> meta so htmx reads it at init");
 		expect(JSON.parse(configMeta.getAttribute("content") ?? "")).toEqual({
 			scrollBehavior: "smooth",
+			responseHandling: [
+				{ code: "204", swap: false },
+				{ code: "[23]..", swap: true },
+				{ code: "422", swap: true },
+				{ code: "[45]..", swap: false, error: true },
+			],
 		});
 	});
 

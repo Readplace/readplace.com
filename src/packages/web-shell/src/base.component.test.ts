@@ -1137,6 +1137,12 @@ describe("Base component", () => {
 		assert(configMeta, "htmx config must ride a <head> meta so htmx reads it at init");
 		expect(JSON.parse(configMeta.getAttribute("content") ?? "")).toEqual({
 			scrollBehavior: "smooth",
+			responseHandling: [
+				{ code: "204", swap: false },
+				{ code: "[23]..", swap: true },
+				{ code: "422", swap: true },
+				{ code: "[45]..", swap: false, error: true },
+			],
 		});
 	});
 
@@ -1155,7 +1161,9 @@ describe("Base component", () => {
 		const loaded = rendered(HtmxLoaded);
 		const omitted = rendered(HtmxOmitted);
 
-		expect(htmxConfig(loaded)).toBe('{"scrollBehavior":"smooth"}');
+		expect(htmxConfig(loaded)).toBe(
+			'{"scrollBehavior":"smooth","responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"422","swap":true},{"code":"[45]..","swap":false,"error":true}]}',
+		);
 		expect(htmxConfig(omitted)).toBe("");
 		expect(loadedClientScripts(loaded)).toEqual([
 			"/client-dist/htmx.client.js",

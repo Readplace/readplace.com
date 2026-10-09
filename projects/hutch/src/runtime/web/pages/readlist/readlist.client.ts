@@ -1,24 +1,13 @@
-export interface ReadlistResponse {
-	status: number;
-	json: () => Promise<unknown>;
-}
-
 export interface ReadlistDeps {
 	document: Document;
-	window: Pick<Window, "addEventListener">;
-	hidePopover: (popover: Element) => void;
-	fetchFn: (url: string, init: RequestInit) => Promise<ReadlistResponse>;
-	reload: () => void;
-	navigate: (href: string) => void;
-	setTimeoutFn: (callback: () => void, ms: number) => void;
 }
 
 const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu";
-const NAME_FORM_ATTR = "data-readlist-name-form";
+const NAME_FORM_SELECTOR = "form[data-readlist-name-form]";
 const NAME_ERROR_ATTR = "data-readlist-name-error";
 const NAME_FAILURE_ATTR = "data-readlist-name-failure";
 const LIVE_REGION_SELECTOR = "#toast-live-region";
-const LIVE_REGION_SETTLE_MS = 150;
+const REFUSED_NAME_STATUS = 422;
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -28,11 +17,6 @@ function isElement(node: EventTarget | null): node is Element {
 	return typeof Reflect.get(Object(node), "closest") === "function";
 }
 
-function stringField(body: unknown, field: string): string | undefined {
-	const value = Reflect.get(Object(body), field);
-	return typeof value === "string" ? value : undefined;
-}
-
 function closeOpenMenus(document: Document, except: Element | null): void {
 	const menus = document.querySelectorAll<HTMLDetailsElement>(MENU_SELECTOR);
 	for (let i = 0; i < menus.length; i++) {
@@ -40,15 +24,30 @@ function closeOpenMenus(document: Document, except: Element | null): void {
 	}
 }
 
-function showError(form: HTMLFormElement, message: string | undefined): void {
+function nameFormOf(event: Event): Element | null {
+	const target = event.target;
+	return isElement(target) && target.matches(NAME_FORM_SELECTOR) ? target : null;
+}
+
+function answerOf(event: Event): { status: unknown; body: unknown; location: unknown } {
+	const request: unknown = Reflect.get(Object(Reflect.get(event, "detail")), "xhr");
+	const readHeader: unknown = Reflect.get(Object(request), "getResponseHeader");
+	assert(typeof readHeader === "function", "htmx hands every request event its XMLHttpRequest");
+	return {
+		status: Reflect.get(Object(request), "status"),
+		body: Reflect.get(Object(request), "responseText"),
+		location: Reflect.apply(readHeader, request, ["HX-Location"]),
+	};
+}
+
+function showFailure(form: Element): void {
 	const error = form.querySelector(`[${NAME_ERROR_ATTR}]`);
 	assert(error, "a name form always carries its error line");
 	const input = form.querySelector("input[name]");
 	assert(input, "a name form always carries its named input");
 	const failure = form.getAttribute(NAME_FAILURE_ATTR);
 	assert(failure, "a name form always carries its failure message");
-	form.removeAttribute("aria-busy");
-	error.textContent = message ?? failure;
+	error.textContent = failure;
 	input.setAttribute("aria-invalid", "true");
 }
 
@@ -57,36 +56,7 @@ function announce(document: Document, message: string): void {
 	for (let i = 0; i < regions.length; i++) regions[i].textContent = message;
 }
 
-function nameRequest(form: HTMLFormElement): RequestInit {
-	const body = new URLSearchParams();
-	const fields = form.querySelectorAll<HTMLInputElement>("input[name]");
-	for (let i = 0; i < fields.length; i++) body.append(fields[i].name, fields[i].value);
-	return {
-		method: "POST",
-		credentials: "same-origin",
-		headers: {
-			"Content-Type": "application/x-www-form-urlencoded",
-			Accept: "application/json",
-		},
-		body: body.toString(),
-	};
-}
-
-function releaseBusyForms(deps: ReadlistDeps): void {
-	const forms = deps.document.querySelectorAll(`form[${NAME_FORM_ATTR}][aria-busy="true"]`);
-	for (let i = 0; i < forms.length; i++) {
-		forms[i].removeAttribute("aria-busy");
-		const popover = forms[i].closest("[popover]");
-		assert(popover, "a name form always sits in its dialog");
-		deps.hidePopover(popover);
-	}
-}
-
 export function initReadlist(deps: ReadlistDeps): void {
-	deps.window.addEventListener("pageshow", (event) => {
-		if (event.persisted) releaseBusyForms(deps);
-	});
-
 	deps.document.addEventListener("click", (event) => {
 		const target = event.target;
 		const within = isElement(target) ? target.closest(MENU_SELECTOR) : null;
@@ -118,36 +88,22 @@ export function initReadlist(deps: ReadlistDeps): void {
 		true,
 	);
 
-	deps.document.addEventListener("submit", (event) => {
-		const target = event.target;
-		if (!isElement(target)) return;
-		const form = target.closest("form");
-		if (form === null || !form.hasAttribute(NAME_FORM_ATTR)) return;
-		event.preventDefault();
-		if (form.getAttribute("aria-busy") === "true") return;
-		const action = form.getAttribute("action");
-		assert(action, "the name form always posts somewhere");
-		form.setAttribute("aria-busy", "true");
-		deps.fetchFn(action, nameRequest(form)).then(
-			(response) =>
-				response.json().then(
-					(body) => {
-						const location = stringField(body, "location");
-						if (location) {
-							deps.navigate(location);
-							return;
-						}
-						const label = stringField(body, "label");
-						if (response.status === 200 && label) {
-							announce(deps.document, `Readlist renamed to ${label}.`);
-							deps.setTimeoutFn(deps.reload, LIVE_REGION_SETTLE_MS);
-							return;
-						}
-						showError(form, stringField(body, "message"));
-					},
-					() => showError(form, undefined),
-				),
-			() => showError(form, undefined),
-		);
+	deps.document.addEventListener("htmx:beforeSwap", (event) => {
+		const form = nameFormOf(event);
+		if (form === null || answerOf(event).status === REFUSED_NAME_STATUS) return;
+		Reflect.set(Object(Reflect.get(event, "detail")), "shouldSwap", false);
+		showFailure(form);
+	});
+
+	deps.document.addEventListener("htmx:sendError", (event) => {
+		const form = nameFormOf(event);
+		if (form !== null) showFailure(form);
+	});
+
+	deps.document.addEventListener("htmx:afterRequest", (event) => {
+		if (nameFormOf(event) === null) return;
+		const { body, location } = answerOf(event);
+		if (typeof location !== "string" || typeof body !== "string" || body === "") return;
+		announce(deps.document, body);
 	});
 }

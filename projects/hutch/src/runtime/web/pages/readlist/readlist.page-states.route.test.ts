@@ -494,7 +494,7 @@ describe("custom readlist chrome", () => {
 		);
 	});
 
-	it("explains a refused no-JavaScript rename in the alert box instead of answering JSON", async () => {
+	it("explains a refused no-JavaScript rename in the alert box", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
@@ -514,21 +514,6 @@ describe("custom readlist chrome", () => {
 		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
 		expect(alert.getAttribute("role")).toBe("alert");
 		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe("Couldn't rename the readlist");
-	});
-
-	it("keeps answering JSON to the in-page rename client, which asks for it explicitly", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-
-		const response = await agent
-			.post(`/queue/queues/${slug}/rename`)
-			.set("Accept", "application/json")
-			.type("form")
-			.send({ label: "Finance" });
-
-		expect(response.status).toBe(200);
-		expect(response.body).toEqual({ slug, label: "Finance" });
 	});
 });
 

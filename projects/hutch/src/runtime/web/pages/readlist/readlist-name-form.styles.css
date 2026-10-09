@@ -11,15 +11,16 @@
   margin-top: 16px;
 }
 
-.readlist-name-form[aria-busy="true"],
-.readlist-name-form[aria-busy="true"] .readlist-name-form__commit {
+.htmx-request.readlist-name-form,
+.htmx-request .readlist-name-form,
+.htmx-request .readlist-name-form__commit {
   cursor: progress;
 }
 
-.readlist-name-form[aria-busy="true"] .readlist-name-form__commit-label {
+.htmx-request .readlist-name-form__commit-label {
   visibility: hidden;
 }
 
-.readlist-name-form[aria-busy="true"] .readlist-name-form__loader {
+.htmx-request .readlist-name-form__loader {
   display: flex;
 }

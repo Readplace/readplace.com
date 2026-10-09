@@ -966,6 +966,7 @@ async function createDialogErrorSettled(page: Page): Promise<void> {
 	await page.locator(`${READLIST_CREATE_POPOVER} input[name="label"]`).fill("All");
 	await page.click(READLIST_CREATE_SAVE);
 	await expect(page.locator(READLIST_CREATE_ERROR)).not.toBeEmpty();
+	await expect(page.locator(`${READLIST_CREATE_POPOVER} input[name="label"]`)).toBeFocused();
 	await page.mouse.move(0, 0);
 }
 

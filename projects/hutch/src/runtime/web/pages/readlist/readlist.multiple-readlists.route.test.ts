@@ -3,6 +3,7 @@ import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER } from "@packages/doma
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { z } from "zod";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { seedInto } from "../../test-helpers/readlist-seed";
 
@@ -41,6 +42,30 @@ function renameable(doc: Document): (string | null)[] {
 		doc.querySelectorAll('[data-test-readlist-menu] [data-test-action="readlist-rename"]'),
 		(trigger) => trigger.closest("[data-test-readlist-menu]")?.getAttribute("data-test-readlist-menu") ?? null,
 	);
+}
+
+async function createFromDialog(agent: TestAgent, input: { action: string; label: string }) {
+	return agent.post(input.action).set("HX-Request", "true").type("form").send({ label: input.label });
+}
+
+async function createDialogAction(agent: TestAgent, path: string): Promise<string> {
+	const form = parse((await agent.get(path)).text).querySelector(
+		'[data-test-confirm-popover="readlist-create"] form[data-test-form="readlist-create"]',
+	);
+	assert(form, "the rail's create dialog must post through its form");
+	const action = form.getAttribute("hx-post");
+	assert(action, "the create dialog's form must post through htmx");
+	return action;
+}
+
+const HxLocationSchema = z
+	.object({ path: z.string(), source: z.string(), target: z.string(), select: z.string(), swap: z.string() })
+	.strict();
+
+function hxLocation(response: { headers: Record<string, string> }): z.infer<typeof HxLocationSchema> {
+	const header = response.headers["hx-location"];
+	assert(header, "the dialog's answer must tell htmx where to land");
+	return HxLocationSchema.parse(JSON.parse(header));
 }
 
 async function createReadlistAndOpen(agent: TestAgent, label: string): Promise<string> {
@@ -169,47 +194,64 @@ describe("POST /queue/queues", () => {
 		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "Finance"]);
 	});
 
-	it("answers the dialog's script with the refusal it shows under the field", async () => {
+	it("re-renders the dialog's form for a refused name, keeping what the reader typed and the address they posted to", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		await createReadlist(agent, "Finance");
+		const viewed = await createReadlistAndOpen(agent, "Finance");
+		const action = await createDialogAction(agent, `/queue?queue=${viewed}`);
 
 		const answers = [];
 		for (const label of ["   ", "a".repeat(READLIST_LABEL_MAX_LENGTH + 1), "All", "finance"]) {
-			const response = await agent
-				.post("/queue/queues")
-				.set("Accept", "application/json")
-				.type("form")
-				.send({ label });
-			answers.push({ status: response.status, body: response.body });
+			const response = await createFromDialog(agent, { action, label });
+			const form = parse(response.text).querySelector('form[data-test-form="readlist-create"]');
+			assert(form, "a refused name must answer with the dialog's form");
+			const input = form.querySelector("[data-test-readlist-create-input]");
+			assert(input, "the re-rendered form must carry the name field");
+			answers.push({
+				status: response.status,
+				contentType: response.headers["content-type"],
+				action: form.getAttribute("action"),
+				post: form.getAttribute("hx-post"),
+				value: input.getAttribute("value"),
+				invalid: input.getAttribute("aria-invalid"),
+				autofocus: input.hasAttribute("autofocus"),
+				error: form.querySelector("[data-test-readlist-create-error]")?.textContent,
+			});
 		}
 
-		const invalid = {
-			error: "invalid-name",
-			message: `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`,
-		};
+		const refused = { status: 422, contentType: "text/html; charset=utf-8", action, post: action, invalid: "true", autofocus: true };
+		const tooLong = `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`;
 		expect(answers).toEqual([
-			{ status: 422, body: invalid },
-			{ status: 422, body: invalid },
-			{
-				status: 422,
-				body: {
-					error: "reserved-name",
-					message: "Pick a name other than All, the readlist that holds every save.",
-				},
-			},
-			{
-				status: 422,
-				body: {
-					error: "name-taken",
-					message: "You already have a readlist with that name, so pick another one.",
-				},
-			},
+			{ ...refused, value: "   ", error: tooLong },
+			{ ...refused, value: "a".repeat(READLIST_LABEL_MAX_LENGTH + 1), error: tooLong },
+			{ ...refused, value: "All", error: "Pick a name other than All, the readlist that holds every save." },
+			{ ...refused, value: "finance", error: "You already have a readlist with that name, so pick another one." },
 		]);
 		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "Finance"]);
 	});
 
-	it("answers the dialog's script with only where the new readlist lives", async () => {
+	it("sends the dialog to the new readlist's listing, landing at the top like a page load", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const action = await createDialogAction(agent, "/queue");
+
+		const response = await createFromDialog(agent, { action, label: "Deep Work" });
+
+		expect(response.status).toBe(204);
+		expect(response.text).toBe("");
+		const location = hxLocation(response);
+		const slug = openedSlug(location.path);
+		expect(location).toEqual({
+			path: `/queue?queue=${slug}`,
+			source: "#readlist-create",
+			target: "main",
+			select: "main",
+			swap: "outerHTML show:none scroll:html:top",
+		});
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "Deep Work"]);
+	});
+
+	it("answers a client that asks for JSON with the 303 a browser gets", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -219,9 +261,8 @@ describe("POST /queue/queues", () => {
 			.type("form")
 			.send({ label: "Deep Work" });
 
-		expect(response.status).toBe(201);
-		const slug = openedSlug(response.body.location);
-		expect(response.body).toEqual({ location: `/queue?queue=${slug}` });
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`/queue?queue=${openedSlug(response.headers.location)}`);
 		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "Deep Work"]);
 	});
 
@@ -241,6 +282,10 @@ describe("POST /queue/queues", () => {
 		const form = dialog.querySelector('[data-test-form="readlist-create"]');
 		assert(form, "the dialog must post through its form");
 		expect(form.getAttribute("action")).toBe(tagged);
+		expect(form.getAttribute("hx-post")).toBe(tagged);
+		expect(form.getAttribute("hx-target")).toBe("this");
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
+		expect(form.getAttribute("hx-sync")).toBe("closest [popover]:drop");
 		const input = dialog.querySelector("[data-test-readlist-create-input]");
 		assert(input, "the dialog must offer the name field");
 		expect(input.getAttribute("maxlength")).toBe(String(READLIST_LABEL_MAX_LENGTH));
@@ -248,6 +293,7 @@ describe("POST /queue/queues", () => {
 		const fallback = doc.querySelector('[data-test-form="readlist-create-fallback"]');
 		assert(fallback, "the rail must keep a no-popover create form");
 		expect(fallback.getAttribute("action")).toBe(tagged);
+		expect(fallback.hasAttribute("hx-post")).toBe(false);
 		expect(doc.querySelectorAll('script[src="/client-dist/readlist.client.js"]')).toHaveLength(1);
 	});
 
@@ -342,24 +388,23 @@ describe("POST /queue/queues", () => {
 		);
 	});
 
-	it("points the dialog's script at the limit alert when the reader is at the cap", async () => {
+	it("sends the dialog to the limit alert at the top of the page when the reader is at the cap", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		for (let index = 1; index <= READLIST_MAX_PER_USER; index += 1) {
 			await createReadlist(agent, `Readlist ${index}`);
 		}
 
-		const response = await agent
-			.post("/queue/queues?queue=default")
-			.set("Accept", "application/json")
-			.type("form")
-			.send({ label: "One Too Many" });
+		const response = await createFromDialog(agent, { action: "/queue/queues?queue=default", label: "One Too Many" });
 
-		expect(response.status).toBe(409);
-		expect(response.body).toEqual({
-			error: "limit-reached",
-			message: `You can create up to ${READLIST_MAX_PER_USER} readlists. Delete an existing readlist before creating a new one.`,
-			location: "/queue?queue_error=limit",
+		expect(response.status).toBe(204);
+		expect(response.text).toBe("");
+		expect(hxLocation(response)).toEqual({
+			path: "/queue?queue_error=limit",
+			source: "#readlist-create",
+			target: "main",
+			select: "main",
+			swap: "outerHTML show:none scroll:html:top",
 		});
 	});
 

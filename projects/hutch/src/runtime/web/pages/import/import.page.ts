@@ -259,7 +259,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		const parsedBody = ImportToggleSchema.safeParse(req.body);
 		if (!parsedId.success || !parsedBody.success) {
-			res.status(422).send("");
+			res.status(400).send("");
 			return;
 		}
 
@@ -278,7 +278,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		const parsedBody = ImportToggleAllSchema.safeParse(req.body);
 		if (!parsedId.success || !parsedBody.success) {
-			res.status(422).send("");
+			res.status(400).send("");
 			return;
 		}
 

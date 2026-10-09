@@ -1,7 +1,7 @@
-<form class="confirm-popover__actions readlist-name-form" method="POST" action="{{action}}" data-readlist-name-form data-readlist-name-failure="{{failureMessage}}" data-test-form="{{key}}">
+<form class="confirm-popover__actions readlist-name-form" method="POST" action="{{action}}" hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-readlist-name-form data-readlist-name-failure="{{failureMessage}}" data-test-form="{{key}}">
   <label class="form-field__label" for="{{inputId}}">{{fieldLabel}}</label>
-  <input class="form-input" id="{{inputId}}" type="text" name="{{field}}" value="{{value}}" placeholder="{{placeholder}}" maxlength="{{maxLength}}" required autocomplete="off" aria-describedby="{{inputId}}-error" data-test-{{key}}-input>
-  <p class="form-field__error" id="{{inputId}}-error" role="alert" data-readlist-name-error data-test-{{key}}-error></p>
+  <input class="form-input" id="{{inputId}}" type="text" name="{{field}}" value="{{value}}" placeholder="{{placeholder}}" maxlength="{{maxLength}}" required autocomplete="off" aria-describedby="{{inputId}}-error"{{#if error}} aria-invalid="true" autofocus{{/if}} data-test-{{key}}-input>
+  <p class="form-field__error" id="{{inputId}}-error" role="alert" data-readlist-name-error data-test-{{key}}-error>{{error}}</p>
   <div class="confirm-popover__buttons">
     <button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="{{key}}-cancel">Cancel</button>
     <button class="btn btn--primary readlist-name-form__commit" type="submit" data-test-action="{{key}}-save"><span class="readlist-name-form__commit-label">{{commitLabel}}</span>{{{loaderHtml}}}</button>

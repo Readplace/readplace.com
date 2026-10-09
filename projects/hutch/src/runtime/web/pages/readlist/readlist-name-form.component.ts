@@ -24,6 +24,7 @@ export function renderReadlistNameForm(input: {
 	value: string;
 	commitLabel: string;
 	failureMessage: string;
+	error?: string;
 }): string {
 	return render(TEMPLATE, {
 		...input,

@@ -33,11 +33,6 @@ describe("readlistErrorFlashMapping", () => {
 });
 
 describe("READLIST_RENAME_REJECTIONS", () => {
-	it("answers a missing readlist as not-found and a bad name as unprocessable", () => {
-		expect(READLIST_RENAME_REJECTIONS["unknown-readlist"].status).toBe(404);
-		expect(READLIST_RENAME_REJECTIONS["invalid-name"].status).toBe(422);
-	});
-
 	it("carries copy the client can show the reader verbatim", () => {
 		expect(READLIST_RENAME_REJECTIONS["invalid-name"].message).toBe(
 			`Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`,
@@ -45,7 +40,6 @@ describe("READLIST_RENAME_REJECTIONS", () => {
 	});
 
 	it("tells a reader whose name is taken why the number would not fit", () => {
-		expect(READLIST_RENAME_REJECTIONS["name-taken"].status).toBe(422);
 		expect(READLIST_RENAME_REJECTIONS["name-taken"].message).toBe(
 			"You already have a readlist with that name, and it's too long to number. Try a shorter one.",
 		);
@@ -53,21 +47,15 @@ describe("READLIST_RENAME_REJECTIONS", () => {
 });
 
 describe("READLIST_CREATE_REJECTIONS", () => {
-	it("answers every refused name as unprocessable, with copy the dialog shows verbatim", () => {
+	it("refuses every name with copy the dialog shows verbatim", () => {
 		expect(READLIST_CREATE_REJECTIONS).toEqual({
 			"invalid-name": {
-				status: 422,
-				error: "invalid-name",
 				message: `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`,
 			},
 			"reserved-name": {
-				status: 422,
-				error: "reserved-name",
 				message: "Pick a name other than All, the readlist that holds every save.",
 			},
 			"name-taken": {
-				status: 422,
-				error: "name-taken",
 				message: "You already have a readlist with that name, so pick another one.",
 			},
 		});

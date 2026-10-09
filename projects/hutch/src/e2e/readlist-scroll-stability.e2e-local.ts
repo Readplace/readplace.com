@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
+import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { nameNewReadlist, openReadlistSwitcher } from "./page-interactions";
 import { readScrollY } from "./readlist-reader-skeleton.browser";
 import { maxScrollY, recordScrollAfterSwap, scrollUnderHeader } from "./readlist-scroll-stability.browser";
 
@@ -15,6 +17,10 @@ const VIEWPORTS = [
 	{ width: 390, height: 844 },
 	{ width: 1280, height: 720 },
 ];
+const RAIL_MIN_WIDTH = 1024;
+const CREATE_SAVE = '[data-test-action="readlist-create-save"]';
+const CREATE_ERROR = "[data-test-readlist-create-error]";
+const ALERT_TITLE = '[data-test-alert="readlist"] [data-test-alert-title]';
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
@@ -72,10 +78,12 @@ async function openToReadListing(page: Page, stamp: string): Promise<string[]> {
 	return cardIds(page);
 }
 
-async function expectSwapKeepsScroll(
-	page: Page,
-	swap: { scrollTarget: string; control: string; arrived: () => Promise<void> },
-): Promise<void> {
+async function openCreateDialog(page: Page, viewport: { width: number }, name: string): Promise<void> {
+	if (viewport.width < RAIL_MIN_WIDTH) await openReadlistSwitcher(page);
+	await nameNewReadlist(page, name);
+}
+
+async function pressFromMidPage(page: Page, swap: { scrollTarget: string; control: string }): Promise<number> {
 	await page.evaluate(scrollUnderHeader, swap.scrollTarget);
 	const before = await page.evaluate(readScrollY);
 	expect(before).toBeGreaterThan(0);
@@ -83,6 +91,14 @@ async function expectSwapKeepsScroll(
 	const box = await page.locator(swap.control).boundingBox();
 	assert(box, `${swap.control} must be laid out to be clicked`);
 	await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+	return before;
+}
+
+async function expectSwapKeepsScroll(
+	page: Page,
+	swap: { scrollTarget: string; control: string; arrived: () => Promise<void> },
+): Promise<void> {
+	const before = await pressFromMidPage(page, swap);
 	await swap.arrived();
 	await expect(page.locator("html")).toHaveAttribute("data-test-scroll-after-swap", String(before));
 	expect(before).toBeLessThan(await page.evaluate(maxScrollY));
@@ -131,6 +147,38 @@ for (const viewport of VIEWPORTS) {
 				control: `${card} [data-test-action="mark-read"]`,
 				arrived: () => expect(page.locator(card)).toHaveCount(0),
 			});
+		});
+
+		test("refusing a readlist name keeps the page where it was", async ({ page }, testInfo) => {
+			const ids = await openToReadListing(page, `${testInfo.workerIndex}-${Date.now()}`);
+			await openCreateDialog(page, viewport, "All");
+			await expectSwapKeepsScroll(page, {
+				scrollTarget: `[data-test-article="${ids[Math.floor(ids.length / 2)]}"]`,
+				control: CREATE_SAVE,
+				arrived: () =>
+					expect(page.locator(CREATE_ERROR)).toHaveText(
+						"Pick a name other than All, the readlist that holds every save.",
+					),
+			});
+		});
+
+		test("the readlist cap lands at the top like a page load", async ({ page }, testInfo) => {
+			const ids = await openToReadListing(page, `${testInfo.workerIndex}-${Date.now()}`);
+			for (let made = 1; made <= READLIST_MAX_PER_USER; made++) {
+				const created = await page.request.post(`${BASE_URL}/queue/queues`, {
+					form: { label: `Readlist ${made}` },
+				});
+				assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+			}
+			await openCreateDialog(page, viewport, "One Too Many");
+
+			await pressFromMidPage(page, {
+				scrollTarget: `[data-test-article="${ids[Math.floor(ids.length / 2)]}"]`,
+				control: CREATE_SAVE,
+			});
+
+			await expect(page.locator(ALERT_TITLE)).toHaveText("Readlist limit reached");
+			await expect(page.locator("html")).toHaveAttribute("data-test-scroll-after-swap", "0");
 		});
 	});
 }

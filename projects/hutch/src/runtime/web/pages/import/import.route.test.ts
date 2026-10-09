@@ -472,7 +472,7 @@ describe("Import routes", () => {
 			expect(summaryText(doc)).toContain("1 of 2 selected");
 		});
 
-		it("returns 422 for malformed body", async () => {
+		it("returns 400 for malformed body", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/a"));
@@ -483,10 +483,10 @@ describe("Import routes", () => {
 				.type("form")
 				.send({ index: "not-a-number" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(400);
 		});
 
-		it("returns 422 for an invalid session id format", async () => {
+		it("returns 400 for an invalid session id format", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
@@ -495,7 +495,7 @@ describe("Import routes", () => {
 				.type("form")
 				.send({ index: 0, checked: "false" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(400);
 		});
 
 		it("preserves the current page in the redirect when posting to the rendered row form action", async () => {
@@ -676,7 +676,7 @@ describe("Import routes", () => {
 			expect(toggleResp.headers.location).toBe(`${sessionPath}?page=2`);
 		});
 
-		it("returns 422 for malformed body", async () => {
+		it("returns 400 for malformed body", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/a"));
@@ -687,10 +687,10 @@ describe("Import routes", () => {
 				.type("form")
 				.send({ checked: "maybe" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(400);
 		});
 
-		it("returns 422 for an invalid session id format", async () => {
+		it("returns 400 for an invalid session id format", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
@@ -699,7 +699,7 @@ describe("Import routes", () => {
 				.type("form")
 				.send({ checked: "false" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(400);
 		});
 	});
 

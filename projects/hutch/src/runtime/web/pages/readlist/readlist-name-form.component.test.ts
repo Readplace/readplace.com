@@ -8,7 +8,7 @@ import {
 	renderReadlistNameForm,
 } from "./readlist-name-form.component";
 
-function nameForm(): Document {
+function nameForm(overrides: Partial<Parameters<typeof renderReadlistNameForm>[0]> = {}): Document {
 	return new JSDOM(
 		`<div>${renderReadlistNameForm({
 			key: "readlist-weekend",
@@ -18,6 +18,7 @@ function nameForm(): Document {
 			value: "Weekend Reads",
 			commitLabel: "Save",
 			failureMessage: "Couldn't rename the readlist.",
+			...overrides,
 		})}</div>`,
 	).window.document;
 }
@@ -43,6 +44,43 @@ describe("renderReadlistNameForm", () => {
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.getAttribute("action")).toBe("/queue/queues/weekend/rename");
 		expect(form.getAttribute("data-test-form")).toBe("readlist-weekend");
+	});
+
+	it("posts through htmx to the same action, swapping only itself and holding one request per dialog", () => {
+		const form = formOf(nameForm({ action: "/queue/queues?queue=weekend&utm_source=queue-nav" }));
+
+		expect(form.getAttribute("action")).toBe("/queue/queues?queue=weekend&utm_source=queue-nav");
+		expect(form.getAttribute("hx-post")).toBe("/queue/queues?queue=weekend&utm_source=queue-nav");
+		expect(form.getAttribute("hx-target")).toBe("this");
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
+		expect(form.getAttribute("hx-sync")).toBe("closest [popover]:drop");
+	});
+
+	it("opens with a field that is neither invalid nor focused, over an empty error line", () => {
+		const doc = nameForm();
+		const input = inputOf(doc);
+
+		const error = doc.querySelector("[data-readlist-name-error]");
+		assert(error, "the partial must carry its error line");
+		expect(input.hasAttribute("aria-invalid")).toBe(false);
+		expect(input.hasAttribute("autofocus")).toBe(false);
+		expect(error.innerHTML).toBe("");
+	});
+
+	it("re-renders a refused name as typed, with the reason under the field and focus back on it", () => {
+		const doc = nameForm({
+			value: '"Weekend" <b>Reads</b> & more',
+			error: "You already have a readlist with that name, so pick another one.",
+		});
+		const input = inputOf(doc);
+
+		const error = doc.getElementById(input.getAttribute("aria-describedby") ?? "");
+		assert(error, "the field must be described by its error line");
+		expect(input.value).toBe('"Weekend" <b>Reads</b> & more');
+		expect(input.getAttribute("aria-invalid")).toBe("true");
+		expect(input.hasAttribute("autofocus")).toBe(true);
+		expect(error.hasAttribute("data-readlist-name-error")).toBe(true);
+		expect(error.textContent).toBe("You already have a readlist with that name, so pick another one.");
 	});
 
 	it("labels one shared name field, capped at the server's length limit", () => {

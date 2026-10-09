@@ -5,6 +5,7 @@ import {
 	READLIST_CREATE_POPOVER_ID,
 	readlistCreateAction,
 	renderReadlistCreate,
+	renderReadlistCreateForm,
 } from "./readlist-create.component";
 
 function dialog(): Document {
@@ -54,6 +55,16 @@ describe("renderReadlistCreate", () => {
 		expect(input.getAttribute("name")).toBe("label");
 		expect(input.getAttribute("maxlength")).toBe(String(READLIST_LABEL_MAX_LENGTH));
 		expect(input.hasAttribute("required")).toBe(true);
+	});
+
+	it("holds the same form the create route re-renders when it refuses a name", () => {
+		const action = readlistCreateAction("/queue/queues?queue=work");
+
+		const html = renderReadlistCreate({ popoverId: READLIST_CREATE_POPOVER_ID, key: "readlist-create", action });
+
+		expect(html).toContain(
+			renderReadlistCreateForm({ popoverId: READLIST_CREATE_POPOVER_ID, key: "readlist-create", action, value: "" }),
+		);
 	});
 
 	it("posts to the create route, tagged for funnel attribution, and carries its own failure text", () => {
