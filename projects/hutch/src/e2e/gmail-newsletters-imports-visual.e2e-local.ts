@@ -297,7 +297,7 @@ test.describe("GMail Newsletters import states", () => {
 		});
 		await expect(page.locator(IMPORT_STATE)).toHaveAttribute("data-test-gmail-import-state", "complete");
 		await expect(page.locator(`${TLDR_ROW} .gmail-mappings__import-message`)).toContainText(
-			"Article links may still be processing.",
+			"their article links may still be processing.",
 		);
 		await expect(page.locator(MAPPINGS)).toHaveAttribute("data-imports-polling", "false");
 

@@ -125,8 +125,8 @@ function importMessage(summary: GmailHistoryImportSummary | undefined): string {
 		case "queued": return "Import queued.";
 		case "running": return "Importing unread messages from the last 30 days…";
 		case "no-unread": return "No unread messages from the last 30 days.";
-		case "complete": return "Import complete. Article links may still be processing.";
-		case "partial-failure": return "Import finished, but some messages failed. Article links may still be processing.";
+		case "complete": return "Import complete. The imported emails are in your Inbox; their article links may still be processing.";
+		case "partial-failure": return "Import finished, but some messages failed. The imported emails are in your Inbox; their article links may still be processing.";
 		case "failed": return FAILURE_MESSAGES[summary.reason];
 		case "cancelled":
 			assert(summary.reason === "user-cancelled", "only the reader's own cancel leaves a stopped import on its current mapping");
