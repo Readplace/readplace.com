@@ -11,7 +11,7 @@ const GUIDE: LandingPageAction = {
 };
 
 export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-01",
+	lastModified: "2026-10-10",
 	title: "Save Newsletter Links to Read Later, One Address Each | Readplace",
 	description:
 		"Give each newsletter its own Readplace address. The article links in every issue land in your readlist with an AI summary, and the ads and unsubscribe links are left behind.",
@@ -51,7 +51,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 		title: "Where the articles land",
 		screenshot: {
 			...READLIST_SHOT,
-			caption: "Articles from a newsletter land in your main readlist, or in the readlist you point that address at.",
+			caption: "Articles from a newsletter land in your readlist.",
 		},
 		founderLine: founderLine("save-newsletter-links"),
 	},
