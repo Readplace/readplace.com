@@ -3,7 +3,7 @@
     <div class="inbox__header">
       <a class="inbox__back" href="{{backHref}}" data-test-inbox-back>{{icon "arrow-left"}} {{backLabel}}</a>
       <h1 class="inbox__title">From My Custom Emails</h1>
-      <p class="inbox__subtitle">Sign up for any newsletter with one of these custom emails (or use them to email links to yourself) and it lands in your Readplace inbox. I'll pull out the links and list them under the email for you to read later.</p>
+      <p class="inbox__subtitle">Subscribe to a newsletter with one of these custom emails, or forward an issue to it. The issue stays in Inbox, and Readplace saves its article links to All.</p>
     </div>
 
     {{{statusToastHtml}}}
@@ -16,6 +16,7 @@
         <ol class="inbox__steps">
           <li>Create a custom email and copy it.</li>
           <li>In your email app, forward a newsletter (or set up forwarding) to it.</li>
+          <li>If a newsletter sends a confirmation email, open it in Inbox and click its confirm link on the View tab.</li>
           <li>New issues show up in your <a class="inbox__steps-link" href="{{track '/inbox' source='inbox-addresses' content='steps-inbox'}}">Inbox</a> automatically.</li>
         </ol>
       </section>
