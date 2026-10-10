@@ -118,6 +118,12 @@ const FAILURE_MESSAGES: Record<GmailHistoryImportFailureReason, string> = {
 	"dead-lettered": "The import stopped after repeated errors.",
 };
 
+function inboxNote(counts: GmailHistoryImportCounts): string {
+	return counts.imported + counts.alreadyImported > 0
+		? " The imported emails are in your Inbox; their article links may still be processing."
+		: "";
+}
+
 function importMessage(summary: GmailHistoryImportSummary | undefined): string {
 	if (summary === undefined) return "";
 	switch (summary.status) {
@@ -125,8 +131,8 @@ function importMessage(summary: GmailHistoryImportSummary | undefined): string {
 		case "queued": return "Import queued.";
 		case "running": return "Importing unread messages from the last 30 days…";
 		case "no-unread": return "No unread messages from the last 30 days.";
-		case "complete": return "Import complete. The imported emails are in your Inbox; their article links may still be processing.";
-		case "partial-failure": return "Import finished, but some messages failed. The imported emails are in your Inbox; their article links may still be processing.";
+		case "complete": return `Import complete.${inboxNote(summary.counts)}`;
+		case "partial-failure": return `Import finished, but some messages failed.${inboxNote(summary.counts)}`;
 		case "failed": return FAILURE_MESSAGES[summary.reason];
 		case "cancelled":
 			assert(summary.reason === "user-cancelled", "only the reader's own cancel leaves a stopped import on its current mapping");
