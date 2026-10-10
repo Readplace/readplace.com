@@ -110,13 +110,13 @@
 .integrations__status--disconnected,
 .integrations__status--not-set-up,
 .integrations__status--disconnecting,
-.integrations__status--awaiting-confirmation {
+.integrations__status--awaiting-confirmation,
+.integrations__status--ready-to-filter {
   background: var(--muted);
   color: var(--muted-foreground);
   border: 1px solid var(--border);
 }
 
-.integrations__status--ready-to-filter,
 .integrations__status--filtering,
 .integrations__status--active {
   color: var(--success-text);

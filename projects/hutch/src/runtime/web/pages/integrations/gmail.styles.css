@@ -83,13 +83,13 @@
 }
 
 /* purgecss-ignore-start: the state modifier is composed at runtime from the view model's state union, so purgecss cannot see the complete class name */
-.gmail__status--awaiting-confirmation {
+.gmail__status--awaiting-confirmation,
+.gmail__status--ready-to-filter {
   background: var(--card);
   color: var(--muted-foreground);
   border: 1px solid var(--border);
 }
 
-.gmail__status--ready-to-filter,
 .gmail__status--filtering {
   background: var(--card);
   color: var(--success-text);
