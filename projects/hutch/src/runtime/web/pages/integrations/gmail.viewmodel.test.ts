@@ -105,6 +105,17 @@ describe("GMail Newsletters calls to action", () => {
 	});
 });
 
+describe("GMail Newsletters connection status", () => {
+	it("reads Not forwarding yet until Gmail holds a filter, then Forwarding", () => {
+		const unfiltered = toGmailPageViewModel(input({ connection: connection({ filterCount: undefined, filterSenderCount: undefined, filterUpdatedAt: undefined }) }));
+		assert.equal(unfiltered.state, "ready-to-filter");
+		assert.equal(unfiltered.statusLabel, "Not forwarding yet");
+		const filtering = toGmailPageViewModel(input());
+		assert.equal(filtering.state, "filtering");
+		assert.equal(filtering.statusLabel, "Forwarding");
+	});
+});
+
 describe("GMail Newsletters discovery status", () => {
 	it("asks the reader to load senders before any discovery", () => {
 		const vm = toGmailPageViewModel(input({ discoveredSenders: [], discovery: { state: "idle", mode: "profile", checkedMessageCount: 0 } }));
