@@ -49,6 +49,18 @@
     padding-bottom: 80px;
   }
 
+  .readlist__main {
+    max-width: var(--reader-max-width);
+  }
+
+  .readlist__layout:not(:has(> .readlist__side > :not(.readlist-subscription--none, .setup-guide--hidden))) > .readlist__main {
+    grid-column: 2 / -1;
+  }
+
+  .readlist__layout:not(:has(> .readlist__side > :not(.readlist-subscription--none, .setup-guide--hidden))) > .readlist__side {
+    display: none;
+  }
+
   .readlist__rail {
     position: sticky;
     top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px) + var(--page-top));
@@ -68,7 +80,10 @@
 
 @media (min-width: 1200px) {
   .readlist__layout {
-    grid-template-columns: 230px minmax(0, 1fr) 340px;
+    --readlist-rail-width: 230px;
+    --readlist-side-width: 340px;
+    max-width: calc(var(--readlist-rail-width) + var(--reader-max-width) + var(--readlist-side-width) + 2 * var(--column-gap) + 2 * var(--page-gutter));
+    grid-template-columns: var(--readlist-rail-width) minmax(0, 1fr) var(--readlist-side-width);
   }
 }
 
