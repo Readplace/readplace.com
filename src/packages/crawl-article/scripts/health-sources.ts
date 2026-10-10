@@ -275,18 +275,28 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
 		expectsThumbnail: false,
 	},
-	{
-		label: "archive.today long-form capture",
-		url: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
-		save: {
-			kind: "archive",
-			captureUrl: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
-			requireFreshArchive: false,
-		},
-		expectedContent: "he had had to carry the ice and glassware",
-		expectedDestinationUrl: "https://hex.ooo/library/last_question.html",
-		expectsThumbnail: false,
-	},
+	// archive.today refuses every egress we have. In the 7 days to 2026-10-10
+	// prod's direct legs got no 2xx in 60 attempts (429, a reCAPTCHA page with
+	// no Memento Link header) and the residential unlocker was refused with
+	// "429 status code" in every attempt since 2026-10-09 (it served the page
+	// on 2026-10-04); country targeting and HEAD changed nothing. Run locally
+	// on 2026-10-10 with requireFreshArchive true, the entry failed on save
+	// attempt 01b9a149 with the capture answered 429, so it asserts a fetch the
+	// crawler cannot make. Disabled rather than fixed — reaching archive.today
+	// is owned by separate work; restore it once a probe through some egress
+	// returns the capture.
+	// {
+	// 	label: "archive.today long-form capture",
+	// 	url: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
+	// 	save: {
+	// 		kind: "archive",
+	// 		captureUrl: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
+	// 		requireFreshArchive: true,
+	// 	},
+	// 	expectedContent: "he had had to carry the ice and glassware",
+	// 	expectedDestinationUrl: "https://hex.ooo/library/last_question.html",
+	// 	expectsThumbnail: false,
+	// },
 	{
 		label: "Reader upload (Siren save-content)",
 		url: UPLOAD_URL,
