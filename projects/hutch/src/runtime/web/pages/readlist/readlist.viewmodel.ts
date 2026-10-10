@@ -26,6 +26,7 @@ import type { BillingPlan } from "@packages/provider-contracts/subscription-prov
 import {
 	type PickedExcerpt,
 	pickExcerpt,
+	summaryTopics,
 } from "../../../providers/article-summary/article-summary.helpers";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -339,7 +340,7 @@ export function toReadlistArticleViewModel(params: {
 		siteName: article.metadata.siteName,
 		excerpt: excerpt.text,
 		excerptSource: excerpt.source,
-		topics: summary?.status === "ready" ? summary.topics : [],
+		topics: summaryTopics(summary),
 		url: article.destinationUrl,
 		status: article.status,
 		suggestionLabel:

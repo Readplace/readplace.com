@@ -22,6 +22,14 @@ const OWNER_PASSWORD = "password123";
  * tag behaves when the sender does not fit rather than only the short-address case. */
 const NEWSLETTER_SENDER = "the-friday-long-read@newsletters.example.com";
 
+const TOPICS = ["Blogging", "Design", "Inspiration"];
+const GENERATED_SUMMARY = {
+	summary: "A seeded summary for the reader header baseline.",
+	excerpt: "A seeded summary for the reader header baseline.",
+	topics: TOPICS,
+};
+const SAVED_PIN = { selector: "[data-test-reader-saved]", text: "6h ago" };
+
 const CreatedUser = z.union([
 	z.object({ ok: z.literal(true), userId: z.string() }),
 	z.object({ ok: z.literal(false), reason: z.string() }),
@@ -60,6 +68,7 @@ async function openOwnerReader(
 			contentFetchedAt: CONTENT_FETCHED_AT,
 			savedByUserId: ownerUserId,
 			provenance: params.provenance,
+			generatedSummary: GENERATED_SUMMARY,
 		},
 	});
 	assert.equal(response.status(), 201, "seed endpoint must create the crawled article");
@@ -68,59 +77,160 @@ async function openOwnerReader(
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 }
 
+async function openPublicView(page: Page, stamp: string): Promise<void> {
+	const slug = `reader-header-public-${stamp}`;
+	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+		data: {
+			url: `https://example.com/${slug}`,
+			title: "Reader Provenance Visual",
+			content: SEEDED_BODY,
+			contentFetchedAt: CONTENT_FETCHED_AT,
+			generatedSummary: GENERATED_SUMMARY,
+		},
+	});
+	assert.equal(response.status(), 201, "seed endpoint must create the crawled article");
+	await page.goto(`${BASE_URL}/view/example.com/${slug}`, { waitUntil: "domcontentloaded" });
+}
+
 async function headerSettled(page: Page): Promise<void> {
 	await page.waitForSelector("[data-test-reader-provenance]");
+	await page.waitForSelector("[data-test-reader-topic]");
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function noGeometryConstraint(): Promise<void> {}
-
-/** The meta row wraps rather than scrolls: a long sender must never widen the
- * header past the column it sits in. */
-async function tagStaysInsideTheHeader(page: Page): Promise<void> {
-	const header = await measuredBox(page, "#article-header");
-	const tag = await measuredBox(page, "[data-test-reader-provenance]");
-	assert.ok(
-		tag.x + tag.width <= header.x + header.width + 0.5,
-		"the provenance tag must ellipsize inside the header, not overflow it",
-	);
+async function publicHeaderSettled(page: Page): Promise<void> {
+	await page.waitForSelector("[data-test-reader-topic]");
+	await waitForBrandFonts(page, ["Inter"]);
 }
 
-const EMAIL_LIGHT: VisualCheckpoint = {
-	name: "reader-provenance-email-light",
-	settled: headerSettled,
-	geometry: tagStaysInsideTheHeader,
-	target: "#article-header",
-	capture: "element",
-	pinnedText: [],
-};
+const FactBox = z.object({
+	key: z.string(),
+	x: z.number(),
+	y: z.number(),
+	width: z.number(),
+	height: z.number(),
+	labelScrollWidth: z.number(),
+	labelClientWidth: z.number(),
+});
 
-const EMAIL_DARK: VisualCheckpoint = {
-	name: "reader-provenance-email-dark",
-	settled: headerSettled,
-	geometry: tagStaysInsideTheHeader,
-	target: "#article-header",
-	capture: "element",
-	pinnedText: [],
-};
+async function factBoxes(page: Page): Promise<z.infer<typeof FactBox>[]> {
+	const boxes = await page.evaluate(() =>
+		Array.from(document.querySelectorAll("#article-header [data-test-reader-fact]"), (fact) => {
+			const box = fact.getBoundingClientRect();
+			const label = fact.querySelector(":scope > :not(svg):not(.sr-only)") ?? fact;
+			return {
+				key: fact.getAttribute("data-test-reader-fact"),
+				x: box.x,
+				y: box.y,
+				width: box.width,
+				height: box.height,
+				labelScrollWidth: label.scrollWidth,
+				labelClientWidth: label.clientWidth,
+			};
+		}),
+	);
+	return z.array(FactBox).parse(boxes);
+}
 
-const EMAIL_MOBILE: VisualCheckpoint = {
-	name: "reader-provenance-email-mobile",
-	settled: headerSettled,
-	geometry: tagStaysInsideTheHeader,
-	target: "#article-header",
-	capture: "element",
-	pinnedText: [],
-};
+function factNamed(facts: z.infer<typeof FactBox>[], key: string): z.infer<typeof FactBox> {
+	const fact = facts.find((candidate) => candidate.key === key);
+	assert.ok(fact, `the meta row must hold the ${key} fact`);
+	return fact;
+}
 
-const CLIENT_LIGHT: VisualCheckpoint = {
-	name: "reader-provenance-client-light",
-	settled: headerSettled,
-	geometry: noGeometryConstraint,
-	target: "#article-header",
-	capture: "element",
-	pinnedText: [],
-};
+async function noFactPastTheHeader(page: Page): Promise<void> {
+	const header = await measuredBox(page, "#article-header");
+	for (const fact of await factBoxes(page)) {
+		assert.ok(
+			fact.x + fact.width <= header.x + header.width + 0.5,
+			`the ${fact.key} fact must stay inside the header, ending at ${fact.x + fact.width} past ${header.x + header.width}`,
+		);
+	}
+}
+
+async function everyFactOnOneLine(page: Page): Promise<void> {
+	const facts = await factBoxes(page);
+	assert.deepEqual(
+		facts.map((fact) => fact.key),
+		["site", "saved", "read-time", "provenance", "original"],
+	);
+	for (const fact of facts) {
+		assert.ok(Math.abs(fact.y - facts[0].y) <= 0.5, `the ${fact.key} fact must share the first fact's line`);
+		assert.ok(Math.abs(fact.height - 24) <= 1, `the ${fact.key} fact must sit on a 24px line, measured ${fact.height}`);
+	}
+	for (const [index, fact] of facts.slice(1).entries()) {
+		const previous = facts[index];
+		const gap = fact.x - (previous.x + previous.width);
+		assert.ok(Math.abs(gap - 16) <= 1, `the ${fact.key} fact must sit 16px after ${previous.key}, measured ${gap}`);
+	}
+}
+
+async function originWrapsBelowAWholeSender(page: Page): Promise<void> {
+	const facts = await factBoxes(page);
+	const site = factNamed(facts, "site");
+	const original = factNamed(facts, "original");
+	const provenance = factNamed(facts, "provenance");
+	assert.ok(
+		Math.abs(original.y - site.y - 40) <= 1,
+		`Original must wrap to the next 40px row below the site fact, measured ${original.y - site.y}`,
+	);
+	assert.ok(
+		provenance.labelScrollWidth <= provenance.labelClientWidth,
+		"the sender must not be truncated while it fits the column",
+	);
+	await noFactPastTheHeader(page);
+}
+
+async function phoneHeaderInsideTheViewport(page: Page): Promise<void> {
+	const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+	assert.ok(scrollWidth <= 375, `the page must not scroll sideways at 375px, measured ${scrollWidth}`);
+	await noFactPastTheHeader(page);
+}
+
+function publicFacts(viewportWidth: number) {
+	return async (page: Page): Promise<void> => {
+		const facts = await factBoxes(page);
+		assert.deepEqual(
+			facts.map((fact) => fact.key),
+			["site", "read-time", "original"],
+		);
+		const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+		assert.ok(
+			scrollWidth <= viewportWidth,
+			`the page must not scroll sideways at ${viewportWidth}px, measured ${scrollWidth}`,
+		);
+	};
+}
+
+function ownerCheckpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
+	return {
+		name,
+		settled: headerSettled,
+		geometry,
+		target: "#article-header",
+		capture: "element",
+		pinnedText: [SAVED_PIN],
+	};
+}
+
+function publicCheckpoint(name: string, viewportWidth: number): VisualCheckpoint {
+	return {
+		name,
+		settled: publicHeaderSettled,
+		geometry: publicFacts(viewportWidth),
+		target: "#article-header",
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
+const EMAIL_LIGHT = ownerCheckpoint("reader-provenance-email-light", originWrapsBelowAWholeSender);
+const EMAIL_DARK = ownerCheckpoint("reader-provenance-email-dark", originWrapsBelowAWholeSender);
+const EMAIL_MOBILE = ownerCheckpoint("reader-provenance-email-mobile", phoneHeaderInsideTheViewport);
+const CLIENT_LIGHT = ownerCheckpoint("reader-provenance-client-light", everyFactOnOneLine);
+const CLIENT_DARK = ownerCheckpoint("reader-provenance-client-dark", everyFactOnOneLine);
+const PUBLIC_LIGHT = publicCheckpoint("reader-header-public-light", 1280);
+const PUBLIC_PHONE = publicCheckpoint("reader-header-public-phone", 375);
 
 test.describe("Reader save-provenance tag", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
@@ -152,6 +262,22 @@ test.describe("Reader save-provenance tag", () => {
 		await expect(page.locator("[data-test-reader-provenance] svg")).toBeVisible();
 		await captureCheckpoint(page, CLIENT_LIGHT);
 	});
+
+	test("a save made from a browser extension carries that client's logo (dark)", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openOwnerReader(page, {
+			stamp: `client-dark-${Date.now()}`,
+			provenance: { kind: "client", clientName: "chrome" },
+		});
+		await expect(page.locator("[data-test-reader-provenance] svg")).toBeVisible();
+		await captureCheckpoint(page, CLIENT_DARK);
+	});
+
+	test("the public view names only the article's own facts, under its topics", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openPublicView(page, `light-${Date.now()}`);
+		await captureCheckpoint(page, PUBLIC_LIGHT);
+	});
 });
 
 test.describe("Reader save-provenance tag on a narrow viewport", () => {
@@ -163,11 +289,37 @@ test.describe("Reader save-provenance tag on a narrow viewport", () => {
 			stamp: `email-mobile-${Date.now()}`,
 			provenance: { kind: "email", senderEmail: NEWSLETTER_SENDER },
 		});
-		const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-		assert.ok(
-			scrollWidth <= 375,
-			`the page must not scroll sideways at 375px, measured ${scrollWidth}`,
-		);
 		await captureCheckpoint(page, EMAIL_MOBILE);
+	});
+
+	test("the public view's header fits a phone", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openPublicView(page, `phone-${Date.now()}`);
+		await captureCheckpoint(page, PUBLIC_PHONE);
+	});
+});
+
+test.describe("Reader header on the narrowest phone", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 320, height: 640 } });
+
+	test("a sender too long for the column ellipsizes alone while the bounded facts stay whole", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openOwnerReader(page, {
+			stamp: `email-320-${Date.now()}`,
+			provenance: { kind: "email", senderEmail: NEWSLETTER_SENDER },
+		});
+		await headerSettled(page);
+		const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+		assert.ok(scrollWidth <= 320, `the page must not scroll sideways at 320px, measured ${scrollWidth}`);
+		const facts = await factBoxes(page);
+		for (const key of ["saved", "read-time", "original"]) {
+			const fact = factNamed(facts, key);
+			assert.equal(
+				fact.labelClientWidth,
+				fact.labelScrollWidth,
+				`the ${key} fact must never be cut, measured ${fact.labelClientWidth} of ${fact.labelScrollWidth}`,
+			);
+		}
+		await noFactPastTheHeader(page);
 	});
 });

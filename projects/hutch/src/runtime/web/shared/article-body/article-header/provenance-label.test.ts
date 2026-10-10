@@ -26,7 +26,7 @@ describe("provenanceLabel", () => {
 			{ label: "via Web" },
 			{ label: "via Import" },
 			{ label: "via Chrome", iconSvg: CLIENT_ICON_SVG.chrome },
-			{ label: "via news@example.com", iconSvg: iconSvg("mail") },
+			{ label: "via news@example.com", iconSvg: iconSvg("envelope") },
 			{ label: "via Claude", iconSvg: CLIENT_ICON_SVG.claude },
 		]);
 	});
@@ -38,14 +38,14 @@ describe("provenanceLabel", () => {
 	it("names the medium alone when the email carried no parseable sender, so the tag never reads 'via '", () => {
 		expect(provenanceLabel({ kind: "email", senderEmail: "   " })).toEqual({
 			label: "via Email",
-			iconSvg: iconSvg("mail"),
+			iconSvg: iconSvg("envelope"),
 		});
 	});
 
 	it("names the newsletter a recognised sender publishes, in place of its address", () => {
 		expect(provenanceLabel({ kind: "newsletter", name: "TLDR" })).toEqual({
 			label: "via TLDR",
-			iconSvg: iconSvg("mail"),
+			iconSvg: iconSvg("envelope"),
 		});
 	});
 

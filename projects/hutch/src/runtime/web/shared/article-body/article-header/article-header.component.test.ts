@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { toArticleTopics } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { iconSvg } from "@packages/ui-icons";
 import { destinationUrl, siteLabel } from "../../../test-helpers/article-fixtures";
 import {
 	renderArticleHeader,
@@ -15,16 +17,43 @@ const baseInput = {
 	url: destinationUrl("https://example.com/post"),
 	provenance: undefined,
 	readlistTags: undefined,
+	saved: undefined,
+	topics: [],
+};
+
+const SIX_HOURS_AGO = { iso: "2026-04-25T06:00:00.000Z", label: "6h ago", mode: "relative" } as const;
+
+const WORK_READLIST = {
+	unassignUrl: "/queue/abc123/unassign",
+	returnTo: "/queue/abc123/view",
+	tags: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
 };
 
 function parse(html: string): Document {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
 }
 
-function metaRow(doc: Document): string[] {
-	const meta = doc.querySelector(".article-body__meta");
-	assert(meta, "meta row must render");
-	return Array.from(meta.querySelectorAll("span")).map((span) => span.textContent?.trim() ?? "");
+function facts(doc: Document): [string | null, string][] {
+	return Array.from(doc.querySelectorAll("[data-test-reader-fact]"), (fact): [string | null, string] => [
+		fact.getAttribute("data-test-reader-fact"),
+		fact.textContent?.trim() ?? "",
+	]);
+}
+
+function tagRow(doc: Document): [string, string | null][] {
+	const row = doc.querySelector("[data-test-reader-tags]");
+	assert(row, "the tag row must render");
+	return Array.from(row.querySelectorAll(":scope > li > .chip"), (chip): [string, string | null] =>
+		chip.hasAttribute("data-test-reader-topic")
+			? ["topic", chip.getAttribute("data-test-reader-topic")]
+			: ["readlist", chip.getAttribute("data-test-readlist-tag")],
+	);
+}
+
+function headerRows(doc: Document): string[] {
+	const header = doc.querySelector("#article-header");
+	assert(header, "header must render");
+	return Array.from(header.children, (child) => child.className);
 }
 
 describe("renderArticleHeader (inline)", () => {
@@ -37,15 +66,52 @@ describe("renderArticleHeader (inline)", () => {
 		expect(header.hasAttribute("hx-swap-oob")).toBe(false);
 	});
 
-	it("renders the title, site name, read time and original-link href so the inline form looks identical to the legacy markup", () => {
+	it("renders the title over a meta row of site, read time and the Original link for an article no reader owns", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Hello World");
 		expect(doc.querySelector("[data-test-reader-site]")?.textContent).toBe("example.com");
-		expect(doc.querySelector(".article-body__meta")?.textContent).toContain("3 min read");
+		expect(facts(doc)).toEqual([
+			["site", "example.com"],
+			["read-time", "3 min read"],
+			["original", "Original article"],
+		]);
+	});
+
+	it("opens Original on the article's own page in a new tab", () => {
+		const doc = parse(renderArticleHeader(baseInput));
+
 		const originalLink = doc.querySelector("[data-test-original-link]");
-		assert(originalLink, "view-original link must be rendered");
+		assert(originalLink, "the Original link must be rendered");
 		expect(originalLink.getAttribute("href")).toBe("https://example.com/post");
+		expect(originalLink.getAttribute("target")).toBe("_blank");
+		expect(originalLink.getAttribute("rel")).toBe("noopener");
+		expect(originalLink.getAttribute("data-test-reader-fact")).toBe("original");
+	});
+
+	it("orders an owner's facts site, saved, read time, provenance, then Original", () => {
+		const doc = parse(
+			renderArticleHeader({ ...baseInput, saved: SIX_HOURS_AGO, provenance: { kind: "web" } }),
+		);
+
+		expect(facts(doc)).toEqual([
+			["site", "example.com"],
+			["saved", "6h ago"],
+			["read-time", "3 min read"],
+			["provenance", "via Web"],
+			["original", "Original article"],
+		]);
+	});
+
+	it("names when the reader saved the article as a time the local-time script can refine", () => {
+		const doc = parse(renderArticleHeader({ ...baseInput, saved: SIX_HOURS_AGO }));
+
+		const saved = doc.querySelector("[data-test-reader-saved]");
+		assert(saved, "the saved time must render");
+		expect(saved.tagName.toLowerCase()).toBe("time");
+		expect(saved.getAttribute("datetime")).toBe("2026-04-25T06:00:00.000Z");
+		expect(saved.getAttribute("data-local-time")).toBe("relative");
+		expect(saved.textContent).toBe("6h ago");
 	});
 
 	it("no longer renders the top action bar inside the header (it moved to reader-actions)", () => {
@@ -77,21 +143,39 @@ describe("read time", () => {
 	});
 });
 
-describe("readlist tags", () => {
-	it("renders a removable chip per readlist holding the article", () => {
+describe("tag row", () => {
+	it("leads with the summary's topics, in order, then the readlists holding the article", () => {
 		const doc = parse(
 			renderArticleHeader({
 				...baseInput,
-				readlistTags: {
-					unassignUrl: "/queue/abc123/unassign",
-					returnTo: "/queue/abc123/view",
-					tags: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
-				},
+				topics: toArticleTopics(["Blogging", "Design"]),
+				readlistTags: WORK_READLIST,
 			}),
 		);
 
+		expect(tagRow(doc)).toEqual([
+			["topic", "Blogging"],
+			["topic", "Design"],
+			["readlist", "work"],
+		]);
+		expect(headerRows(doc)).toEqual(["article-body__title", "article-body__tags", "article-body__meta"]);
+	});
+
+	it("renders a topic as a neutral pill with nothing to press", () => {
+		const doc = parse(renderArticleHeader({ ...baseInput, topics: toArticleTopics(["Blogging"]) }));
+
+		const topic = doc.querySelector('[data-test-reader-topic="Blogging"]');
+		assert(topic, "the topic pill must render");
+		expect(topic.className).toBe("chip chip--large");
+		expect(topic.textContent).toBe("Blogging");
+		expect(tagRow(doc)).toEqual([["topic", "Blogging"]]);
+	});
+
+	it("renders a removable chip per readlist holding the article", () => {
+		const doc = parse(renderArticleHeader({ ...baseInput, readlistTags: WORK_READLIST }));
+
 		const tag = doc.querySelector('[data-test-readlist-tag="work"]');
-		assert(tag, "the readlist tag must render in the meta row");
+		assert(tag, "the readlist tag must render in the tag row");
 		expect(tag.textContent).toContain("Work");
 		const form = tag.querySelector("form");
 		assert(form, "the tag must carry its un-assign form");
@@ -104,21 +188,22 @@ describe("readlist tags", () => {
 		assert(remove, "the tag must carry its remove button");
 	});
 
-	it("renders no chip for an article that lives only in the default readlist", () => {
+	it("renders no tag row for an article with no topics that lives only in the default readlist", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 
-		const tags = Array.from(doc.querySelectorAll("[data-test-readlist-tag]"), (el) =>
-			el.getAttribute("data-test-readlist-tag"),
+		const tags = Array.from(doc.querySelectorAll("[data-test-reader-topic], [data-test-readlist-tag]"), (el) =>
+			el.getAttribute("data-test-reader-topic") ?? el.getAttribute("data-test-readlist-tag"),
 		);
 		expect(tags).toEqual([]);
+		expect(headerRows(doc)).toEqual(["article-body__title", "article-body__meta"]);
 	});
 });
 
 describe("save provenance tag", () => {
-	it("leaves the meta row exactly as it was for an article saved before provenance was captured", () => {
-		const doc = parse(renderArticleHeader(baseInput));
+	it("shows no provenance fact for an article saved before provenance was captured", () => {
+		const doc = parse(renderArticleHeader({ ...baseInput, saved: SIX_HOURS_AGO }));
 
-		expect(metaRow(doc)).toEqual(["example.com", "3 min read"]);
+		expect(facts(doc).map(([key]) => key)).toEqual(["site", "saved", "read-time", "original"]);
 	});
 
 	it("names the client a save came from and carries its logo", () => {
@@ -134,7 +219,7 @@ describe("save provenance tag", () => {
 		expect(tag.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 24 24");
 	});
 
-	it("names the sender an emailed save arrived from, next to the mail icon", () => {
+	it("names the sender an emailed save arrived from, next to the envelope", () => {
 		const doc = parse(
 			renderArticleHeader({
 				...baseInput,
@@ -142,10 +227,15 @@ describe("save provenance tag", () => {
 			}),
 		);
 
-		expect(metaRow(doc)).toEqual(["example.com", "3 min read", "via news@example.com"]);
-		expect(
-			doc.querySelector("[data-test-reader-provenance] svg")?.getAttribute("viewBox"),
-		).toBe("0 0 24 24");
+		expect(facts(doc)).toEqual([
+			["site", "example.com"],
+			["read-time", "3 min read"],
+			["provenance", "via news@example.com"],
+			["original", "Original article"],
+		]);
+		const envelope = parse(iconSvg("envelope")).querySelector("svg");
+		assert(envelope, "the envelope must parse as an svg");
+		expect(doc.querySelector("[data-test-reader-provenance] svg")?.outerHTML).toBe(envelope.outerHTML);
 	});
 
 	it("carries no icon for a save the web app made itself", () => {
@@ -154,7 +244,7 @@ describe("save provenance tag", () => {
 		const tag = doc.querySelector("[data-test-reader-provenance]");
 		assert(tag, "provenance tag must render");
 		expect(tag.textContent).toBe("via Web");
-		expect(tag.children).toHaveLength(0);
+		expect(Array.from(tag.children).map((child) => child.tagName.toLowerCase())).toEqual(["span"]);
 	});
 
 	it("escapes a sender address so an email cannot inject markup into the reader it is tagged in", () => {
@@ -168,7 +258,7 @@ describe("save provenance tag", () => {
 		const tag = doc.querySelector("[data-test-reader-provenance]");
 		assert(tag, "provenance tag must render");
 		expect(tag.textContent).toBe("via <img src=x onerror=alert(1)>@evil.test");
-		expect(Array.from(tag.children).map((child) => child.tagName.toLowerCase())).toEqual(["svg"]);
+		expect(Array.from(tag.children).map((child) => child.tagName.toLowerCase())).toEqual(["svg", "span"]);
 	});
 });
 
@@ -182,12 +272,28 @@ describe("renderArticleHeaderOob", () => {
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Hello World");
 	});
 
-	it("keeps the provenance tag through the swap that replaces the whole header", () => {
+	it("keeps every fact and tag through the swap that replaces the whole header", () => {
 		const doc = parse(
-			renderArticleHeaderOob({ ...baseInput, provenance: { kind: "web" } }),
+			renderArticleHeaderOob({
+				...baseInput,
+				provenance: { kind: "web" },
+				saved: SIX_HOURS_AGO,
+				topics: toArticleTopics(["Blogging"]),
+				readlistTags: WORK_READLIST,
+			}),
 		);
 
-		expect(metaRow(doc)).toEqual(["example.com", "3 min read", "via Web"]);
+		expect(facts(doc)).toEqual([
+			["site", "example.com"],
+			["saved", "6h ago"],
+			["read-time", "3 min read"],
+			["provenance", "via Web"],
+			["original", "Original article"],
+		]);
+		expect(tagRow(doc)).toEqual([
+			["topic", "Blogging"],
+			["readlist", "work"],
+		]);
 	});
 });
 

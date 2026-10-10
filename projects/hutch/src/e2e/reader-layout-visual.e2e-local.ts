@@ -27,6 +27,7 @@ const NOT_FOUND_REASON = JSON.stringify({ kind: "not-found", httpStatus: 404 });
 
 const LAYOUT = ".reading-layout";
 const MAIN = ".reading-layout__main";
+const SAVED_PIN = { selector: "[data-test-reader-saved]", text: "6h ago" };
 const RAIL = "[data-test-reader-rail]";
 const TOOLBAR = ".article-body__toolbar";
 const CARD = "[data-test-article-card]";
@@ -234,7 +235,7 @@ function layoutCheckpoint(name: string, geometry: (page: Page) => Promise<void>)
 		geometry,
 		target: LAYOUT,
 		capture: "page-from-top",
-		pinnedText: [],
+		pinnedText: [SAVED_PIN],
 	};
 }
 
@@ -419,7 +420,7 @@ const PENDING_TO_FAILED: VisualCheckpoint = {
 	geometry: noticeGeometry,
 	target: MAIN,
 	capture: "element",
-	pinnedText: [],
+	pinnedText: [SAVED_PIN],
 };
 
 test.describe("A reader whose crawl fails while it is open", () => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ReaderArticleHashId, toArticleTopics } from "@packages/domain/article";
 import type { ArticleCrawlVersion } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -112,6 +112,20 @@ function parse(html: string): Document {
 
 function toHtml(component: { to: (mediaType: "text/html") => { body: string } }): string {
 	return component.to("text/html").body;
+}
+
+const SIX_HOURS_AGO = { iso: "2026-04-25T06:00:00.000Z", label: "6h ago", mode: "relative" } as const;
+
+function headerOf(doc: Document): { facts: (string | null)[]; saved: string | null | undefined; topics: (string | null)[] } {
+	const header = doc.querySelector("#article-header");
+	assert(header, "the header OOB fragment must accompany the slot");
+	return {
+		facts: Array.from(header.querySelectorAll("[data-test-reader-fact]"), (fact) =>
+			fact.getAttribute("data-test-reader-fact"),
+		),
+		saved: header.querySelector("[data-test-reader-saved]")?.textContent,
+		topics: Array.from(header.querySelectorAll("[data-test-reader-topic]"), (topic) => topic.textContent),
+	};
 }
 
 describe("initArticleReader", () => {
@@ -657,6 +671,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -683,6 +698,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -709,6 +725,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -737,6 +754,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -767,6 +785,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: "/queue/abc/summary-toggle",
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -794,6 +813,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -822,6 +842,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -847,6 +868,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -877,6 +899,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -905,6 +928,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -931,6 +955,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -957,6 +982,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -983,6 +1009,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1007,6 +1034,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1041,6 +1069,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1079,6 +1108,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1091,7 +1121,7 @@ describe("initArticleReader", () => {
 			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
 		});
 
-		it("points the header 'View original' at the redirect destination for a merged article", async () => {
+		it("points the header's Original link at the redirect destination for a merged article", async () => {
 			const { state, deps } = initFakeDeps({
 				crawl: { status: "pending" },
 				content: undefined,
@@ -1110,6 +1140,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1123,7 +1154,36 @@ describe("initArticleReader", () => {
 			);
 		});
 
-		it("keeps the header 'View original' on the saved URL when no redirect was ever resolved", async () => {
+		it("carries the reader's saved time and the ready summary's topics into the header it swaps in", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				content: "<p>body</p>",
+				summary: { status: "ready", summary: "TL;DR", topics: toArticleTopics(["Blogging", "Design"]) },
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: { kind: "web" },
+				saved: SIX_HOURS_AGO,
+				readlistTags: undefined,
+				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
+			});
+
+			expect(headerOf(parse(toHtml(component)))).toEqual({
+				facts: ["site", "saved", "read-time", "provenance", "original"],
+				saved: "6h ago",
+				topics: ["Blogging", "Design"],
+			});
+		});
+
+		it("keeps the header's Original link on the saved URL when no redirect was ever resolved", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 				content: undefined,
@@ -1138,6 +1198,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1170,6 +1231,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1198,6 +1260,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1239,6 +1302,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1256,7 +1320,36 @@ describe("initArticleReader", () => {
 			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
 		});
 
-		it("points the header 'View original' at the redirect destination for a merged article", async () => {
+		it("carries the reader's saved time and the ready summary's topics into the header it swaps in", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				content: "<p>body</p>",
+				summary: { status: "ready", summary: "TL;DR", topics: toArticleTopics(["Blogging", "Design"]) },
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: { kind: "web" },
+				saved: SIX_HOURS_AGO,
+				readlistTags: undefined,
+				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
+			});
+
+			expect(headerOf(parse(toHtml(component)))).toEqual({
+				facts: ["site", "saved", "read-time", "provenance", "original"],
+				saved: "6h ago",
+				topics: ["Blogging", "Design"],
+			});
+		});
+
+		it("points the header's Original link at the redirect destination for a merged article", async () => {
 			const { state, deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "pending", stage: "summary-generating" },
@@ -1275,6 +1368,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1312,6 +1406,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1341,6 +1436,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1374,6 +1470,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1403,6 +1500,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1432,6 +1530,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1467,6 +1566,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1502,6 +1602,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1536,6 +1637,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1563,6 +1665,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1589,6 +1692,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1634,6 +1738,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1676,6 +1781,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
@@ -1732,6 +1838,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
@@ -1760,6 +1867,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
@@ -1788,6 +1896,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
@@ -1811,6 +1920,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
@@ -1834,6 +1944,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
@@ -1858,6 +1969,7 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
+				saved: undefined,
 				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
@@ -1931,6 +2043,7 @@ describe("initArticleReader", () => {
 						extensionInstallUrl: "/install?client=chrome",
 						summaryToggleUrl: undefined,
 						provenance: undefined,
+						saved: undefined,
 						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
@@ -1972,6 +2085,7 @@ describe("initArticleReader", () => {
 						extensionInstallUrl: undefined,
 						summaryToggleUrl: undefined,
 						provenance: undefined,
+						saved: undefined,
 						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
@@ -2002,6 +2116,7 @@ describe("initArticleReader", () => {
 						extensionInstallUrl: undefined,
 						summaryToggleUrl: undefined,
 						provenance: undefined,
+						saved: undefined,
 						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
@@ -2016,6 +2131,45 @@ describe("initArticleReader", () => {
 			assert.equal(
 				doc.querySelector("#article-header .article-body__title")?.textContent?.trim(),
 				"mail.google.com",
+			);
+		});
+
+		it("swaps in a stub header with only the site, read time and Original, whatever the reader's save carries", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				content: "<p>body</p>",
+				summary: { status: "ready", summary: "TL;DR", topics: toArticleTopics(["Email"]) },
+			});
+			const reader = initArticleReader(deps);
+
+			const doc = parse(
+				toHtml(
+					await reader.handleReaderPoll({
+						articleUrl: GATED_URL,
+						pollCount: 1,
+						pollUrlBuilder: makePollUrlBuilder(),
+						capturing: false,
+						extensionInstallUrl: undefined,
+						summaryToggleUrl: undefined,
+						provenance: { kind: "web" },
+						saved: SIX_HOURS_AGO,
+						readlistTags: undefined,
+						readerViewFailedOob: FAILURE_PROBE,
+						renderDownloadsOob: undefined,
+					}),
+				),
+			);
+
+			assert.deepEqual(headerOf(doc), {
+				facts: ["site", "read-time", "original"],
+				saved: undefined,
+				topics: [],
+			});
+			const header = doc.querySelector("#article-header");
+			assert(header, "the stub header must swap in");
+			assert.deepEqual(
+				Array.from(header.children, (child) => child.className),
+				["article-body__title", "article-body__meta"],
 			);
 		});
 	});

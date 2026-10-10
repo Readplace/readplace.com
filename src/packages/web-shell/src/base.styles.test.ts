@@ -97,6 +97,10 @@ describe("BASE_CSS_VARIABLES", () => {
 		expect(darkRootDeclarations()).toContain("--warning-text: var(--color-warning);");
 	});
 
+	it("tints the reader header's provenance glyph in the secondary ink the site glyph shares", () => {
+		expect(lightRootDeclarations()).toContain("--fact-provenance: var(--color-secondary-text);");
+	});
+
 	it("opens with the system theme tokens every surface shares", () => {
 		expect(BASE_CSS_VARIABLES.startsWith(SYSTEM_THEME_VARIABLES)).toBe(true);
 	});

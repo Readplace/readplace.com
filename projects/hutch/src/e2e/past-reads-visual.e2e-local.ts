@@ -385,7 +385,7 @@ function collapsedInReaderCheckpoint(name: string): VisualCheckpoint {
 		geometry: cardCollapsed,
 		target: SECTION,
 		capture: "page-from-top",
-		pinnedText: [],
+		pinnedText: [{ selector: "[data-test-reader-saved]", text: "6h ago" }],
 	};
 }
 

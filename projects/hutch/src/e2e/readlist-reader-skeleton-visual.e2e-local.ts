@@ -200,7 +200,7 @@ function checkpoint(name: string, frame: SkeletonFrame): VisualCheckpoint {
 		geometry: (page) => skeletonGeometry(page, frame),
 		target: COLUMN,
 		capture: "page-from-top",
-		pinnedText: [],
+		pinnedText: [{ selector: 'main.reader [data-reader-field-text="saved"]', text: "6h ago" }],
 	};
 }
 

@@ -168,6 +168,14 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
+async function pinReaderSavedTime(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		const saved = document.querySelector("[data-test-reader-saved]");
+		if (!saved) throw new Error("the reader header must name when the article was saved");
+		saved.textContent = "6h ago";
+	});
+}
+
 async function settle(page: Page, target: string): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await page.evaluate(neutraliseVolatileChrome, {
@@ -258,6 +266,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 			await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+			await pinReaderSavedTime(page);
 			await settle(page, READER_ROOT);
 
 			await expect(page.locator(READER_ROOT)).toHaveScreenshot(
@@ -630,6 +639,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await page.locator("[data-test-readlists-menu] [data-test-readlist-create-name]").fill("Weekend");
 			await page.click('[data-test-readlists-menu] [data-test-action="readlist-create-assign"]');
 			await expect(page.locator("[data-test-readlist-tag]")).toContainText("Weekend");
+			await pinReaderSavedTime(page);
 			await settle(page, "#article-header");
 
 			await expect(page.locator("#article-header")).toHaveScreenshot(

@@ -1,4 +1,5 @@
-import { pickExcerpt, truncateForSeo } from "./article-summary.helpers";
+import { toArticleTopics } from "@packages/domain/article";
+import { pickExcerpt, summaryTopics, truncateForSeo } from "./article-summary.helpers";
 
 describe("pickExcerpt", () => {
 	const PARSED = { text: "Parsed excerpt.", source: "parsed" };
@@ -61,6 +62,23 @@ describe("pickExcerpt", () => {
 				"Parsed excerpt.",
 			).source,
 		).toBe("generated");
+	});
+});
+
+describe("summaryTopics", () => {
+	it("returns the topics a ready summary tagged the article with", () => {
+		const topics = toArticleTopics(["Blogging", "Design"]);
+
+		expect(summaryTopics({ status: "ready", summary: "AI summary.", topics })).toEqual(topics);
+	});
+
+	it("returns no topics while the summary is absent, pending, failed or skipped", () => {
+		expect([
+			summaryTopics(undefined),
+			summaryTopics({ status: "pending" }),
+			summaryTopics({ status: "failed", reason: "boom" }),
+			summaryTopics({ status: "skipped" }),
+		]).toEqual([[], [], [], []]);
 	});
 });
 

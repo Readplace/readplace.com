@@ -391,7 +391,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(doc.querySelector('script[src*="/client-dist/webmcp.client.js"]')).toBe(null);
 	});
 
-	it("keeps the reader extras: AI summary, progress bar, share balloon, and View original", async () => {
+	it("keeps the reader extras: AI summary, progress bar, share balloon, and the Original link", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-extras");
@@ -406,6 +406,26 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
 			"https://example.com/app-extras",
 		);
+	});
+
+	it("reads the same header facts as the web reader", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-facts");
+
+		const factsOf = async (path: string) =>
+			Array.from(
+				new JSDOM((await agent.get(path)).text).window.document.querySelectorAll("[data-test-reader-fact]"),
+				(fact) => fact.getAttribute("data-test-reader-fact"),
+			);
+
+		expect([
+			await factsOf(`/queue/${articleId}/view?platform=ios`),
+			await factsOf(`/queue/${articleId}/view`),
+		]).toEqual([
+			["site", "saved", "read-time", "provenance", "original"],
+			["site", "saved", "read-time", "provenance", "original"],
+		]);
 	});
 
 	it("strips the reader-ready email marker but keeps platform=ios so the owner's in-app open still renders chromeless", async () => {

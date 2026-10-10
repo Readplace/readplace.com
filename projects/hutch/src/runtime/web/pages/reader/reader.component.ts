@@ -12,7 +12,7 @@ import type {
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
 import type { ReadlistRef, ReadlistSlug } from "@packages/domain/readlist";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, toRelativeOrDate, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
@@ -180,6 +180,7 @@ export function ReaderPage(
 		readTime: displayableReadTime(article),
 		url: article.destinationUrl,
 		provenance: options.provenance,
+		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: options.now }),
 		readlistTags: options.readlistFiling.tags,
 		content: article.content,
 		crawl: options.crawl,

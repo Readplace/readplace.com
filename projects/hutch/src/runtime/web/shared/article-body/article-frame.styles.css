@@ -368,59 +368,98 @@
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1.5;
-  margin: 0 0 0.75rem;
+  margin: 0;
   color: var(--foreground);
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+
+.article-body__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.article-body__tag {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.article-body__header > * + * {
+  margin-top: 24px;
+}
+
+.article-body__header > .article-body__tags {
+  margin-top: 16px;
 }
 
 .article-body__meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
+  gap: 16px;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--ink-meta);
 }
 
-.article-body__site {
-  flex: 1 1 12ch;
-  min-width: 0;
-  max-width: max-content;
-  overflow: hidden;
+.article-body__fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
   white-space: nowrap;
+  color: inherit;
+}
+
+.article-body__fact svg {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+}
+
+.article-body__site,
+.article-body__provenance {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.article-body__fact-label {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.article-body__read-time {
-  flex: 0 0 auto;
-  white-space: nowrap;
+.article-body__site svg {
+  color: var(--fact-site);
+}
+
+.article-body__saved svg {
+  color: var(--fact-saved);
+}
+
+.article-body__read-time svg {
+  color: var(--fact-read-time);
+}
+
+.article-body__provenance svg {
+  color: var(--fact-provenance);
 }
 
 .article-body__read-time--empty {
   display: none;
 }
 
-.article-body__provenance {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.article-body__original {
+  text-decoration: none;
+  transition: color 0.15s ease;
 }
 
-/** 1. One size for both icon sets: the client logos carry an 18px attribute and
- *     the UI icons 1em, and neither matches the meta row's smaller type. */
-.article-body__provenance svg {
-  width: 0.9375rem; /* 1 */
-  height: 0.9375rem; /* 1 */
-  vertical-align: -0.125em;
-  margin-right: 5px;
-}
-
-.article-body__original-link {
-  display: inline-block;
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
+.article-body__original:hover {
   color: var(--primary-text);
-  text-decoration: underline;
 }

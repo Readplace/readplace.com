@@ -9,10 +9,13 @@ import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 
-function metaRow(html: string): string[] {
-	const meta = new JSDOM(html).window.document.querySelector(".article-body__meta");
-	assert(meta, "meta row must render");
-	return Array.from(meta.querySelectorAll("span")).map((span) => span.textContent?.trim() ?? "");
+function facts(html: string): [string | null, string][] {
+	const header = new JSDOM(html).window.document.querySelector("#article-header");
+	assert(header, "the header must render");
+	return Array.from(header.querySelectorAll("[data-test-reader-fact]"), (fact): [string | null, string] => [
+		fact.getAttribute("data-test-reader-fact"),
+		fact.textContent?.trim() ?? "",
+	]);
 }
 
 describe("Reader save-provenance tag", () => {
@@ -42,7 +45,13 @@ describe("Reader save-provenance tag", () => {
 		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(response.status).toBe(200);
-		expect(metaRow(response.text)).toEqual(["example.com", "1 min read", "via Web"]);
+		expect(facts(response.text)).toEqual([
+			["site", "example.com"],
+			["saved", "just now"],
+			["read-time", "1 min read"],
+			["provenance", "via Web"],
+			["original", "Original article"],
+		]);
 	});
 
 	it("keeps the tag on the header a reader poll swaps in, so the crawl settling does not drop it", async () => {
@@ -57,6 +66,9 @@ describe("Reader save-provenance tag", () => {
 		expect(
 			header.querySelector("[data-test-reader-provenance]")?.textContent?.trim(),
 		).toBe("via Web");
+		const saved = header.querySelector("[data-test-reader-saved]");
+		assert(saved, "the swapped-in header must keep the saved time");
+		expect([saved.getAttribute("data-local-time"), saved.textContent]).toEqual(["relative", "just now"]);
 	});
 
 	describe("for a link saved from an email", () => {

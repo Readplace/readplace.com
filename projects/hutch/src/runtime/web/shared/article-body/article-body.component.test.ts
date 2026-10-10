@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { toArticleTopics } from "@packages/domain/article";
 import { toAbsoluteShortDateTime } from "@packages/web-shell/local-time.format";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { renderArticleBody } from "./article-body.component";
@@ -12,6 +13,7 @@ const baseInput = {
 	appOrigin: "https://readplace.com",
 	topActionsHtml: "",
 	bottomActionsHtml: "",
+	saved: undefined,
 };
 
 function parse(html: string) {
@@ -30,6 +32,33 @@ describe("renderArticleBody", () => {
 		]).toEqual(["via Import", undefined]);
 	});
 
+	it("passes the owner's saved time through to the header", () => {
+		const doc = parse(
+			renderArticleBody({
+				...baseInput,
+				saved: { iso: "2026-04-25T06:00:00.000Z", label: "6h ago", mode: "relative" },
+			}),
+		);
+
+		expect(doc.querySelector("[data-test-reader-saved]")?.textContent).toBe("6h ago");
+	});
+
+	it("tags the header with a ready summary's topics, and with none while the summary is pending or absent", () => {
+		const topicsOf = (html: string) =>
+			Array.from(parse(html).querySelectorAll("[data-test-reader-topic]"), (topic) => topic.textContent);
+
+		expect([
+			topicsOf(
+				renderArticleBody({
+					...baseInput,
+					summary: { status: "ready", summary: "Key points.", topics: toArticleTopics(["Blogging", "Design"]) },
+				}),
+			),
+			topicsOf(renderArticleBody({ ...baseInput, summary: { status: "pending" } })),
+			topicsOf(renderArticleBody(baseInput)),
+		]).toEqual([["Blogging", "Design"], [], []]);
+	});
+
 	it("renders the article title, site name, reading time and content", () => {
 		const html = renderArticleBody({
 			...baseInput,
@@ -43,7 +72,7 @@ describe("renderArticleBody", () => {
 		expect(doc.querySelector("[data-test-reader-site]")?.textContent).toBe(
 			"example.com",
 		);
-		expect(doc.querySelector(".article-body__meta")?.textContent).toContain(
+		expect(doc.querySelector('[data-test-reader-fact="read-time"]')?.textContent).toBe(
 			"3 min read",
 		);
 		const content = doc.querySelector("[data-test-reader-content]");

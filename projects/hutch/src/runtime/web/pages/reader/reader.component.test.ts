@@ -140,7 +140,7 @@ describe("ReaderPage", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
-	it("points the header 'View original' at the redirect destination for a merged article", () => {
+	it("points the header's Original link at the redirect destination for a merged article", () => {
 		const article = makeArticle({
 			url: SaveableUrlSchema.parse("https://example.com/post.html"),
 			destinationUrl: destinationUrl("https://example.com/post"),
@@ -152,8 +152,30 @@ describe("ReaderPage", () => {
 		const doc = new JSDOM(html).window.document;
 
 		const link = doc.querySelector("[data-test-original-link]");
-		assert(link, "header must render a 'View original' link");
+		assert(link, "header must render an Original link");
 		assert.equal(link.getAttribute("href"), "https://example.com/post");
+	});
+
+	it("names when the owner saved the article, relative to the render time", () => {
+		const html = Base(
+			ReaderPage(makeArticle({ savedAt: new Date("2026-08-05T06:00:00.000Z") }), {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions: WebReader,
+				readlistFiling: NO_QUEUE_FILING,
+				provenance: undefined,
+				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
+				readerPathFor: TEST_READER_PATH,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const saved = doc.querySelector("[data-test-reader-saved]");
+		assert(saved, "the owner's header must name the saved time");
+		assert.equal(saved.textContent, "6h ago");
+		assert.equal(saved.getAttribute("datetime"), "2026-08-05T06:00:00.000Z");
 	});
 
 	it("points the toolbar back link at the supplied backLink href and renders no bottom bar", () => {

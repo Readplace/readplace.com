@@ -27,6 +27,9 @@ const READER_PHONE = { width: 375, height: 800 };
 const ARTICLE_HEADER = "#article-header";
 const READLIST_TAG = "[data-test-readlist-tag]";
 const UNASSIGN = "[data-test-unassign-readlist]";
+const TITLE = "[data-test-reader-title]";
+const TAG_ROW = "[data-test-reader-tags]";
+const SITE_FACT = '[data-test-reader-fact="site"]';
 
 const SLOT = "[data-test-readlists-slot]";
 const TOOLBAR = ".article-body__toolbar";
@@ -84,6 +87,7 @@ async function openReaderWithReadlists(
 			generatedSummary: {
 				summary: "Seeded summary so the reader's summary poller settles before the capture.",
 				excerpt: "Seeded summary.",
+				topics: ["Blogging", "Design", "Inspiration"],
 			},
 		},
 	});
@@ -316,6 +320,21 @@ async function tagIsLargeWithASeparateRemoveTarget(page: Page): Promise<void> {
 	);
 }
 
+async function tagRowSitsBetweenTitleAndFacts(page: Page): Promise<void> {
+	const title = await measuredBox(page, TITLE);
+	const tagRow = await measuredBox(page, TAG_ROW);
+	const site = await measuredBox(page, SITE_FACT);
+	const underTitle = tagRow.y - (title.y + title.height);
+	assert.ok(Math.abs(underTitle - 16) <= 1, `the tag row must start 16px under the title, measured ${underTitle}px`);
+	const underTags = site.y - (tagRow.y + tagRow.height);
+	assert.ok(Math.abs(underTags - 24) <= 1, `the site fact must sit 24px under the tag row, measured ${underTags}px`);
+}
+
+async function assignedTag(page: Page): Promise<void> {
+	await tagIsLargeWithASeparateRemoveTarget(page);
+	await tagRowSitsBetweenTitleAndFacts(page);
+}
+
 async function tagWrapsInsideThePhone(page: Page): Promise<void> {
 	const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 	assert.ok(fits, "a long readlist tag must never widen the page");
@@ -331,7 +350,7 @@ function readlistTagCheckpoint(name: string, geometry: (page: Page) => Promise<v
 		geometry,
 		target: ARTICLE_HEADER,
 		capture: "element",
-		pinnedText: [],
+		pinnedText: [{ selector: "[data-test-reader-saved]", text: "6h ago" }],
 	};
 }
 
@@ -350,7 +369,7 @@ test.describe("Reader readlist tag", () => {
 		await assignReadlist(page, WEEKEND);
 		await captureCheckpoint(
 			page,
-			readlistTagCheckpoint("reader-readlist-tag-assigned-light", tagIsLargeWithASeparateRemoveTarget),
+			readlistTagCheckpoint("reader-readlist-tag-assigned-light", assignedTag),
 		);
 
 		await page.click(UNASSIGN);
@@ -367,7 +386,7 @@ test.describe("Reader readlist tag", () => {
 		await assignReadlist(page, WEEKEND);
 		await captureCheckpoint(
 			page,
-			readlistTagCheckpoint("reader-readlist-tag-assigned-dark", tagIsLargeWithASeparateRemoveTarget),
+			readlistTagCheckpoint("reader-readlist-tag-assigned-dark", assignedTag),
 		);
 	});
 });
@@ -386,7 +405,7 @@ test.describe("Reader readlist tag on a phone", () => {
 		await captureCheckpoint(
 			page,
 			readlistTagCheckpoint("reader-readlist-tag-assigned-phone", async (current) => {
-				await tagIsLargeWithASeparateRemoveTarget(current);
+				await assignedTag(current);
 				await tagWrapsInsideThePhone(current);
 			}),
 		);

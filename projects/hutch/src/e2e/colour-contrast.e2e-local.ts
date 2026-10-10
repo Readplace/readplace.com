@@ -553,7 +553,7 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 		}
 	});
 
-	test("the reader's accent tag and accent badges clear their contrast minimum", async ({ page }, testInfo) => {
+	test("the reader's header, its tags and the accent badges clear their contrast minimum", async ({ page }, testInfo) => {
 		const run = `${testInfo.workerIndex}-${Date.now()}`;
 		const email = `colour-contrast-chip-reader-${run}@example.com`;
 		const userId = await createChipReader(page, email);
@@ -568,7 +568,12 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 					{ crawledAtMinute: "2026-07-10T09:14Z", authorUserId: userId },
 					{ crawledAtMinute: "2026-06-28T22:01Z" },
 				],
-				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+				generatedSummary: {
+					summary: "Seeded summary.",
+					excerpt: "Seeded summary.",
+					topics: ["Blogging", "Design", "Inspiration"],
+				},
+				provenance: { kind: "email", senderEmail: "the-friday-long-read@newsletters.example.com" },
 			},
 		});
 		assert.equal(seeded.status(), 201);
@@ -585,7 +590,7 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("[data-test-readlist-tag]")).toBeVisible({ timeout: SETTLE_MS });
 			await expect(page.locator("[data-test-crawl-bookmark-badge]")).toHaveText(["Best", "Me"]);
-			await auditRoot(page, { root: "#article-header", theme, view: "chip/readlist-tag" });
+			await auditRoot(page, { root: "#article-header", theme, view: "reader-header" });
 			await auditRoot(page, { root: ".crawl-bookmark", theme, view: "chip/crawl-badges" });
 		}
 	});

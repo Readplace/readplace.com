@@ -38,7 +38,7 @@ async function openReader(agent: TestAgent, articleId: string): Promise<Document
 }
 
 function readlistTagLabels(doc: Document): string[] {
-	return Array.from(doc.querySelectorAll("[data-test-readlist-tag]"), (el) =>
+	return Array.from(doc.querySelectorAll("[data-test-reader-tags] [data-test-readlist-tag]"), (el) =>
 		(el.firstChild?.textContent ?? "").trim(),
 	);
 }

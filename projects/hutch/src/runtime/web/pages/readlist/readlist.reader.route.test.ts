@@ -86,7 +86,7 @@ describe("Readlist routes", () => {
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
 		});
 
-		it("points 'View original' at the adopted redirect destination on the first paint", async () => {
+		it("points the Original link at the adopted redirect destination on the first paint", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const { auth } = harness;

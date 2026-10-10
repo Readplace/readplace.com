@@ -14,12 +14,11 @@ const UNSTYLED_HOOK_CLASSES = new Set([
 	"article-body__readlists-slot",
 	"article-body__mark-read-slot",
 	"article-body__downloads-slot",
-	"article-body__header",
-	"article-body__read-time",
 	"article-body__reader-slot",
 	"reader-skeleton",
 ]);
 const SHELL_BUTTON_CLASSES = new Set(["btn", "btn--secondary", "btn--neutral", "btn--s"]);
+const SHELL_UTILITY_CLASSES = new Set(["sr-only"]);
 
 function templateContent(): DocumentFragment {
 	const html = renderReaderSkeleton({ cspNonce: generateCspNonce() });
@@ -107,16 +106,19 @@ describe("renderReaderSkeleton", () => {
 		const textTargets = Array.from(content.querySelectorAll("[data-reader-field-text]")).map((el) =>
 			el.getAttribute("data-reader-field-text"),
 		);
-		expect(textTargets).toEqual(["title", "site", "read-time"]);
+		expect(textTargets).toEqual(["title", "site", "saved", "read-time"]);
 		const hrefTargets = Array.from(content.querySelectorAll("[data-reader-field-href]")).map((el) =>
 			el.getAttribute("data-reader-field-href"),
 		);
 		expect(hrefTargets).toEqual(["site"]);
-		expect(
-			content
-				.querySelector('[data-reader-field-text="read-time"]')
-				?.getAttribute("data-reader-field-empty-class"),
-		).toBe("article-body__read-time--empty");
+		const emptyClasses = Array.from(content.querySelectorAll("[data-reader-field-empty-class]")).map((el) => [
+			el.getAttribute("data-reader-field-text"),
+			el.getAttribute("data-reader-field-empty-class"),
+		]);
+		expect(emptyClasses).toEqual([
+			["saved", "article-body__fact-label--empty"],
+			["read-time", "article-body__fact-label--empty"],
+		]);
 	});
 
 	it("renders the loading reader slot with static placeholder lines and no live progress bar", () => {
@@ -155,7 +157,8 @@ describe("renderReaderSkeleton", () => {
 			for (const name of element.classList) painted.add(name);
 		}
 		const styled = Array.from(painted).filter(
-			(name) => !UNSTYLED_HOOK_CLASSES.has(name) && !SHELL_BUTTON_CLASSES.has(name),
+			(name) =>
+				!UNSTYLED_HOOK_CLASSES.has(name) && !SHELL_BUTTON_CLASSES.has(name) && !SHELL_UTILITY_CLASSES.has(name),
 		);
 		expect(styled.length).toBeGreaterThan(10);
 		const unstyled = styled.filter((name) => !new RegExp(`\\.${name}(?![\\w-])`).test(css));

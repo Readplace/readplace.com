@@ -94,7 +94,7 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   own **Mark as read** closes the sheet and re-reads the list to adopt the server's
   truth — it does not infer the new state and drop the row locally, so a toggle back
   to unread reconciles correctly (a deep-scrolled list keeps its scroll position and
-  reconciles on the next pull-to-refresh); **View original** stays reachable from
+  reconciles on the next pull-to-refresh); the **Original** link stays reachable from
   inside the reader. The mark-read signal is owned by the server: its chromeless
   reader posts a `markedRead` message to the app's `readplaceReader` WebKit handler,
   and the app injects no script and reads none of the reader's htmx internals — so

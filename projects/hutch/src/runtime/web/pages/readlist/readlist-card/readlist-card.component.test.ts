@@ -421,6 +421,16 @@ describe("renderReadlistCard", () => {
 		expect(readTime.classList.contains("readlist-article__read-time--empty")).toBe(false);
 	});
 
+	it("hands the reader skeleton the saved time the card shows", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel(), { isFirst: false })));
+
+		const saved = doc.querySelector('[data-reader-field="saved"]');
+		assert(saved, "the saved time must carry the reader field hook");
+		expect(saved.tagName.toLowerCase()).toBe("time");
+		expect(saved.getAttribute("datetime")).toBe("2025-06-01T12:50:00.000Z");
+		expect(saved.textContent).toBe("10m ago");
+	});
+
 	it("lists each topic as a chip in a list named Topics", () => {
 		const doc = parse(
 			renderReadlistCard(

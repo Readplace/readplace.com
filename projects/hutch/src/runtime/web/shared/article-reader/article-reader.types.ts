@@ -141,6 +141,7 @@ export interface HandlePollParams {
 	 * `extensionInstallUrl`.
 	 */
 	provenance: ReaderProvenance | undefined;
+	saved: LocalTime | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
 	readerViewFailedOob: ReaderViewFailedOob;
 	renderDownloadsOob: ((articleUrl: string) => string) | undefined;

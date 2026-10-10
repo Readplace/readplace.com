@@ -44,6 +44,10 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("filter-horizontal")).toBe(iconSvg("filter-horizontal"));
 	});
 
+	it("resolves the external-link icon the reader header's Original link leads with", () => {
+		expect(findIconSvg("external-link")).toBe(iconSvg("external-link"));
+	});
+
 	it("resolves the warning and info glyphs named by alert variants", () => {
 		expect(findIconSvg("alert-triangle")).toBe(iconSvg("alert-triangle"));
 		expect(findIconSvg("info")).toBe(iconSvg("info"));
@@ -71,6 +75,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"download",
 	"ellipsis",
 	"ellipsis-vertical",
+	"external-link",
 	"file",
 	"file-down",
 	"filter-horizontal",
@@ -98,7 +103,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"x-circle",
 ];
 
-const FACT_NAMES: readonly IconName[] = ["clock", "eye", "globe"];
+const FACT_NAMES: readonly IconName[] = ["clock", "envelope", "eye", "globe"];
 
 const SOLID_NAMES: readonly SolidIconName[] = ["book", "file", "file-down", "folder", "inbox", "sparkles"];
 

@@ -561,6 +561,47 @@ test.describe("Removable tag interaction states hold their WCAG contrast in both
 	});
 });
 
+test.describe("The reader header's Original link holds its WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("the header's Original link keeps 4.5:1 at rest and on hover", async ({ page }, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `original-link-contrast-${stampId}@example.com`);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/original-link-contrast-${stampId}`,
+				title: "An article whose header links to the original",
+				content: "<p>Seeded body for the Original link contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A fixed summary.", excerpt: "A fixed excerpt." },
+			},
+		});
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-original-link]")).toBeVisible({ timeout: SETTLE_MS });
+			const client = await auditContext(page);
+			await stamp(page, { selector: "[data-test-original-link]", auditId: "original-link" });
+
+			const rest = await measure(page, client, "original-link", []);
+			const hover = await measure(page, client, "original-link", ["hover"]);
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				for (const [state, ink] of [["rest", rest], ["hover", hover]] as const) {
+					const label = labelContrast(ink, lens);
+					assert.ok(
+						label >= 4.5,
+						`${theme}/reader/original-link/${lensName}: the ${state} label reads ${label.toFixed(2)}:1 < 4.5:1`,
+					);
+				}
+			}
+		}
+	});
+});
+
 test.describe("Destructive account actions hold their WCAG contrast in both themes", () => {
 	test.use({ viewport: VIEWPORT });
 

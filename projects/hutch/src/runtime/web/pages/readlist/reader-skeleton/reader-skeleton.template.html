@@ -23,10 +23,11 @@
           <div class="article-body__header">
             <h1 class="article-body__title" data-reader-field-text="title"></h1>
             <div class="article-body__meta">
-              <span data-reader-field-text="site"></span>
-              <span class="article-body__read-time" data-reader-field-text="read-time" data-reader-field-empty-class="article-body__read-time--empty"></span>
+              <span class="article-body__fact article-body__site">{{icon "globe"}}<span class="article-body__fact-label" data-reader-field-text="site"></span></span>
+              <span class="article-body__fact article-body__saved">{{icon "clock"}}<span class="article-body__fact-label" data-reader-field-text="saved" data-reader-field-empty-class="article-body__fact-label--empty"></span></span>
+              <span class="article-body__fact article-body__read-time">{{icon "eye"}}<span class="article-body__fact-label" data-reader-field-text="read-time" data-reader-field-empty-class="article-body__fact-label--empty"></span></span>
+              <a class="article-body__fact article-body__original" href="" target="_blank" rel="noopener" data-reader-field-href="site">{{icon "external-link"}}<span>Original</span><span class="sr-only"> article</span></a>
             </div>
-            <a class="article-body__original-link" href="" target="_blank" rel="noopener" data-reader-field-href="site">View original</a>
           </div>
           <div class="article-body__reader-slot article-body__reader-slot--loading reader-skeleton" data-reader-status="loading" data-test-reader-skeleton>
             <div class="reader-skeleton__paragraph"><span class="reader-skeleton__line"></span><span class="reader-skeleton__line"></span><span class="reader-skeleton__line reader-skeleton__line--short"></span></div>

@@ -248,7 +248,7 @@ describe("initReaderOpen", () => {
 		expect(app.reloadCount()).toBe(0);
 	});
 
-	it("paints the skeleton into the swap target with the card's own title, site and read time when the response is slow", () => {
+	it("paints the skeleton into the swap target with the card's own title, site, saved time and read time when the response is slow", () => {
 		const app = setup(queuePage(realCard()));
 		app.arm();
 		app.timers[0]?.callback();
@@ -261,9 +261,12 @@ describe("initReaderOpen", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("loading");
 		expect(main.querySelector('[data-reader-field-text="title"]')?.textContent).toBe("Article Title");
 		expect(main.querySelector('[data-reader-field-text="site"]')?.textContent).toBe("example.com");
+		const saved = main.querySelector('[data-reader-field-text="saved"]');
+		expect(saved?.textContent).toBe("10m ago");
+		expect(saved?.classList.contains("article-body__fact-label--empty")).toBe(false);
 		const readTime = main.querySelector('[data-reader-field-text="read-time"]');
 		expect(readTime?.textContent).toBe("3 min read");
-		expect(readTime?.classList.contains("article-body__read-time--empty")).toBe(false);
+		expect(readTime?.classList.contains("article-body__fact-label--empty")).toBe(false);
 		expect(main.querySelector("[data-reader-field-href]")?.getAttribute("href")).toBe(
 			"https://example.com/post",
 		);
@@ -281,7 +284,7 @@ describe("initReaderOpen", () => {
 		app.timers[0]?.callback();
 		const readTime = app.main()?.querySelector('[data-reader-field-text="read-time"]');
 		expect(readTime?.textContent).toBe("");
-		expect(readTime?.classList.contains("article-body__read-time--empty")).toBe(true);
+		expect(readTime?.classList.contains("article-body__fact-label--empty")).toBe(true);
 	});
 
 	it("leaves a copied field blank when the card lacks that field entirely", () => {
@@ -290,6 +293,9 @@ describe("initReaderOpen", () => {
 		app.timers[0]?.callback();
 		const main = app.main();
 		expect(main?.querySelector('[data-reader-field-text="site"]')?.textContent).toBe("");
+		const saved = main?.querySelector('[data-reader-field-text="saved"]');
+		expect(saved?.textContent).toBe("");
+		expect(saved?.classList.contains("article-body__fact-label--empty")).toBe(true);
 		expect(main?.querySelector("[data-reader-field-href]")?.getAttribute("href")).toBe("");
 	});
 

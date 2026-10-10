@@ -91,6 +91,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--fact-site": "var(--color-secondary-text)",
 	"--fact-saved": "var(--color-error)",
 	"--fact-read-time": "var(--color-success)",
+	"--fact-provenance": "var(--color-secondary-text)",
 	"--ink-nav-current": "var(--foreground)",
 	"--ink-nav-inactive": "var(--muted-foreground)",
 	"--ink-meta": "var(--foreground)",

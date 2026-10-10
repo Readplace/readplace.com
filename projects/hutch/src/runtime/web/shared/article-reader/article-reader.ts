@@ -1,5 +1,6 @@
 import {
 	type ArticleDestinationUrl,
+	type ArticleTopic,
 	articleDestinationUrl,
 	displayableReadTime,
 	hostStubMetadata,
@@ -33,6 +34,7 @@ import {
 } from "@packages/domain/article";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
+import { summaryTopics } from "../../../providers/article-summary/article-summary.helpers";
 import { toAbsoluteShortDateTime, type LocalTime } from "@packages/web-shell/local-time.format";
 import type {
 	ArticleReaderDeps,
@@ -381,6 +383,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 						url: destinationUrl,
 						provenance: undefined,
 						readlistTags: undefined,
+						saved: undefined,
+						topics: [],
 					}) + renderDocumentTitleOob(deps.formatDocumentTitle(stub.title)),
 				readerViewFailedOob: "",
 				downloadsOob: "",
@@ -398,20 +402,25 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	 * has gone missing (deleted between renders); the slot fragment still
 	 * swaps and the existing header/title stay put.
 	 */
-	function buildMetadataOob(
-		article: GlobalArticleData | null,
-		destinationUrl: ArticleDestinationUrl,
-		provenance: ReaderProvenance | undefined,
-		readlistTags: ReaderReadlistTags | undefined,
-	): string {
+	function buildMetadataOob(input: {
+		article: GlobalArticleData | null;
+		destinationUrl: ArticleDestinationUrl;
+		provenance: ReaderProvenance | undefined;
+		readlistTags: ReaderReadlistTags | undefined;
+		saved: LocalTime | undefined;
+		topics: readonly ArticleTopic[];
+	}): string {
+		const { article } = input;
 		if (!article) return "";
 		const headerOob = renderArticleHeaderOob({
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
 			readTime: displayableReadTime(article),
-			url: destinationUrl,
-			provenance,
-			readlistTags,
+			url: input.destinationUrl,
+			provenance: input.provenance,
+			readlistTags: input.readlistTags,
+			saved: input.saved,
+			topics: input.topics,
 		});
 		const titleOob = renderDocumentTitleOob(
 			deps.formatDocumentTitle(article.metadata.title),
@@ -446,7 +455,14 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, destinationUrl, params.provenance, params.readlistTags),
+			metadataOob: buildMetadataOob({
+				article,
+				destinationUrl,
+				provenance: params.provenance,
+				readlistTags: params.readlistTags,
+				saved: params.saved,
+				topics: summaryTopics(summary),
+			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({
 				crawl,
@@ -487,7 +503,14 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, destinationUrl, params.provenance, params.readlistTags),
+			metadataOob: buildMetadataOob({
+				article,
+				destinationUrl,
+				provenance: params.provenance,
+				readlistTags: params.readlistTags,
+				saved: params.saved,
+				topics: summaryTopics(summary),
+			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({
 				crawl,

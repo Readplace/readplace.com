@@ -45,13 +45,16 @@ function render(input = baseInput) {
 }
 
 describe("ViewPage", () => {
-	it("leaves the meta row free of a provenance tag: a shared article belongs to no one reading it", () => {
-		const meta = render().querySelector(".article-body__meta");
-		assert(meta, "meta row must render");
+	it("leaves the meta row free of a saved time and provenance: a shared article belongs to no one reading it", () => {
+		const facts = Array.from(render().querySelectorAll("[data-test-reader-fact]"), (fact) => [
+			fact.getAttribute("data-test-reader-fact"),
+			fact.textContent?.trim(),
+		]);
 
-		expect(Array.from(meta.querySelectorAll("span")).map((span) => span.textContent?.trim())).toEqual([
-			"example.com",
-			"3 min read",
+		expect(facts).toEqual([
+			["site", "example.com"],
+			["read-time", "3 min read"],
+			["original", "Original article"],
 		]);
 	});
 
@@ -69,7 +72,7 @@ describe("ViewPage", () => {
 		expect(content.innerHTML.trim()).toBe("<p>Body copy.</p>");
 	});
 
-	it("points 'View original' at the redirect destination for a merged article", () => {
+	it("points the Original link at the redirect destination for a merged article", () => {
 		const doc = render({
 			...baseInput,
 			articleUrl: "https://example.com/post.html",
@@ -77,7 +80,7 @@ describe("ViewPage", () => {
 		});
 
 		const link = doc.querySelector("[data-test-original-link]");
-		assert(link, "header must render a 'View original' link");
+		assert(link, "header must render an Original link");
 		assert.equal(link.getAttribute("href"), "https://example.com/post");
 	});
 

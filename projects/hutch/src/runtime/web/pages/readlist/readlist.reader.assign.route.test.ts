@@ -59,7 +59,7 @@ function pickerRows(doc: Document): (string | null)[] {
 }
 
 function readlistTags(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-test-readlist-tag]"), (el) =>
+	return Array.from(doc.querySelectorAll("[data-test-reader-tags] [data-test-readlist-tag]"), (el) =>
 		el.getAttribute("data-test-readlist-tag"),
 	);
 }

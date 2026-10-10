@@ -1,9 +1,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Handlebars from "handlebars";
-import type { ArticleDestinationUrl, DisplayableReadTime, SiteLabel } from "@packages/domain/article";
+import type {
+	ArticleDestinationUrl,
+	ArticleTopic,
+	DisplayableReadTime,
+	SiteLabel,
+} from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { render } from "@packages/web-shell";
+import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { type ReaderProvenance, provenanceLabel } from "./provenance-label";
 
 const TEMPLATE = readFileSync(join(__dirname, "article-header.template.html"), "utf-8");
@@ -24,6 +30,8 @@ export interface ArticleHeaderInput {
 	 * of dropping it by omission. */
 	provenance: ReaderProvenance | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
+	saved: LocalTime | undefined;
+	topics: readonly ArticleTopic[];
 }
 
 function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
@@ -37,6 +45,9 @@ function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
 		provenanceLabel: provenance?.label,
 		provenanceIconSvg: provenance?.iconSvg,
 		readlistTags: input.readlistTags,
+		saved: input.saved,
+		topics: input.topics.map((label) => ({ label })),
+		hasTags: input.topics.length > 0 || input.readlistTags !== undefined,
 		oob,
 	});
 }

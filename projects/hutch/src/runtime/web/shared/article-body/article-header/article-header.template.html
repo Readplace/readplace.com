@@ -1,18 +1,28 @@
 <div id="article-header" class="article-body__header"{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
   <h1 class="article-body__title" data-test-reader-title>{{title}}</h1>
-  <div class="article-body__meta">
-    <span class="article-body__site" title="{{siteName}}" data-test-reader-site>{{siteName}}</span>
-    <span class="article-body__read-time{{readTimeEmptyClass}}" data-test-reader-read-time>{{readTimeLabel}}</span>
-    {{#if provenanceLabel}}
-    <span class="article-body__provenance" data-test-reader-provenance title="{{provenanceLabel}}">{{{provenanceIconSvg}}}{{provenanceLabel}}</span>
-    {{/if}}
+  {{#if hasTags}}
+  <ul class="article-body__tags" data-test-reader-tags>
+    {{#each topics}}
+    <li class="article-body__tag"><span class="chip chip--large" data-test-reader-topic="{{label}}">{{label}}</span></li>
+    {{/each}}
     {{#each readlistTags.tags}}
-    <span class="chip chip--large chip--accent" data-test-readlist-tag="{{slug}}">{{label}}<form class="chip__remove-form" method="POST" action="{{../readlistTags.unassignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+    <li class="article-body__tag"><span class="chip chip--large chip--accent" data-test-readlist-tag="{{slug}}">{{label}}<form class="chip__remove-form" method="POST" action="{{../readlistTags.unassignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
       <input type="hidden" name="queue" value="{{slug}}">
       <input type="hidden" name="returnTo" value="{{../readlistTags.returnTo}}">
       <button class="chip__remove" type="submit" data-test-unassign-readlist="{{slug}}">{{icon "x"}}<span class="sr-only">Remove from {{label}}</span></button>
-    </form></span>
+    </form></span></li>
     {{/each}}
+  </ul>
+  {{/if}}
+  <div class="article-body__meta">
+    <span class="article-body__fact article-body__site" title="{{siteName}}" data-test-reader-site data-test-reader-fact="site">{{icon "globe"}}<span class="article-body__fact-label">{{siteName}}</span></span>
+    {{#if saved}}
+    <span class="article-body__fact article-body__saved" data-test-reader-fact="saved">{{icon "clock"}}<time datetime="{{saved.iso}}" data-local-time="{{saved.mode}}" data-test-reader-saved>{{saved.label}}</time></span>
+    {{/if}}
+    <span class="article-body__fact article-body__read-time{{readTimeEmptyClass}}" data-test-reader-read-time data-test-reader-fact="read-time">{{icon "eye"}}<span>{{readTimeLabel}}</span></span>
+    {{#if provenanceLabel}}
+    <span class="article-body__fact article-body__provenance" title="{{provenanceLabel}}" data-test-reader-provenance data-test-reader-fact="provenance">{{{provenanceIconSvg}}}<span class="article-body__fact-label">{{provenanceLabel}}</span></span>
+    {{/if}}
+    <a class="article-body__fact article-body__original" href="{{url}}" target="_blank" rel="noopener" data-test-original-link data-test-reader-fact="original">{{icon "external-link"}}<span>Original</span><span class="sr-only"> article</span></a>
   </div>
-  <a class="article-body__original-link" href="{{url}}" target="_blank" rel="noopener" data-test-original-link>View original</a>
 </div>

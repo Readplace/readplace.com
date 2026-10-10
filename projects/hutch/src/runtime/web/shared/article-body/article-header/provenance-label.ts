@@ -46,10 +46,10 @@ export function provenanceLabel(provenance: ReaderProvenance): ProvenanceLabel |
 			return labelForClient(provenance.clientName);
 		case "email": {
 			const sender = provenance.senderEmail.trim();
-			return { label: `via ${sender === "" ? "Email" : sender}`, iconSvg: iconSvg("mail") };
+			return { label: `via ${sender === "" ? "Email" : sender}`, iconSvg: iconSvg("envelope") };
 		}
 		case "newsletter":
-			return { label: `via ${provenance.name}`, iconSvg: iconSvg("mail") };
+			return { label: `via ${provenance.name}`, iconSvg: iconSvg("envelope") };
 		default:
 			return labelForAssistant(provenance.registeredName);
 	}

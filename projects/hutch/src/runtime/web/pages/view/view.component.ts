@@ -135,9 +135,10 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
 		readTime: displayableReadTime(input),
-		// Header "View original" only; the share path, save action and SEO below
+		// Header only; the share path, save action and SEO below
 		// keep `articleUrl` (the identity).
 		url: input.destinationUrl,
+		saved: undefined,
 		content: input.content,
 		crawl: input.crawl,
 		readerPollUrl: input.readerPollUrl,

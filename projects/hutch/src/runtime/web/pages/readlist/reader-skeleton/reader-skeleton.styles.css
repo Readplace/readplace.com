@@ -13,3 +13,7 @@
 .reader-skeleton__line--short {
   width: 60%;
 }
+
+.article-body__fact:has(> .article-body__fact-label--empty) {
+  display: none;
+}

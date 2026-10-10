@@ -129,7 +129,13 @@ import type {
 import { Base, ChromelessPage } from "../../base.component";
 import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
-import { FETCH_CHANGELOG_BANNER_IN_BROWSER, requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
+import {
+	FETCH_CHANGELOG_BANNER_IN_BROWSER,
+	requireCspNonce,
+	sendComponent,
+	toRelativeOrDate,
+	withInternalTracking,
+} from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
@@ -2660,6 +2666,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
+			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
@@ -2696,6 +2703,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
+			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),

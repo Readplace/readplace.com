@@ -29,7 +29,7 @@
     <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>Processing</span></p>
     <div class="readlist-article__meta{{metaHiddenClass}}">
       <a class="readlist-article__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" title="{{siteName}}" data-test-article-url data-reader-field="site">{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></a>
-      <span class="readlist-article__saved">{{icon "clock"}}<time class="readlist-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time></span>
+      <span class="readlist-article__saved">{{icon "clock"}}<time class="readlist-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}" data-reader-field="saved">{{saved.label}}</time></span>
       <span class="readlist-article__read-time{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{icon "eye"}}<span>{{readTimeLabel}}</span></span>
     </div>
     {{#each statusActions}}
