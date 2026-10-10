@@ -406,6 +406,23 @@ async function articlesPageGeometry(page: Page): Promise<void> {
 	assert.ok(near(pagination.y - (listing.y + listing.height), 16), "pagination must sit 16px below the listing");
 }
 
+async function listTakesTheEmptySideTrack(page: Page): Promise<void> {
+	await pageFitsTheClip(page);
+	const overflows = await page.evaluate(pageOverflowsSideways);
+	assert.equal(overflows, false, "the design queue page must never scroll sideways");
+	const rail = await measuredBox(page, RAIL);
+	const main = await measuredBox(page, MAIN_COLUMN);
+	const readerMaxWidth = await page.evaluate(() =>
+		Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--reader-max-width")),
+	);
+	assert.ok(rail.x + rail.width <= main.x, "the rail must sit left of the main column");
+	assert.ok(
+		near(main.width, readerMaxWidth),
+		`with every side panel hidden the main column must run the ${readerMaxWidth}px reading measure, measured ${main.width}px`,
+	);
+	await expect(page.locator(SIDE)).toHaveCSS("display", "none");
+}
+
 async function alertLimitGeometry(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	const alert = await measuredBox(page, ALERT);
@@ -984,6 +1001,14 @@ async function articlesPageSettled(page: Page): Promise<void> {
 	await settledSetupGuide(page);
 }
 
+async function articlesWithoutSidePanelsSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(ARTICLE)).toHaveCount(2);
+	await expect(page.locator(LISTING_COUNT)).toHaveText("2 Saved Articles");
+	await expect(page.locator(SETUP_GUIDE)).toHaveClass(/setup-guide--hidden/);
+}
+
 async function readTabSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
@@ -1319,6 +1344,21 @@ const PAGE_ARTICLES: VisualCheckpoint = {
 	name: "readlist-page-articles",
 	settled: articlesPageSettled,
 	geometry: articlesPageGeometry,
+	target: MAIN,
+	capture: "page-from-top",
+	pinnedText: [
+		{ selector: `${FIRST_CARD} ${CARD_TIME}`, text: "3 days ago" },
+		{
+			selector: `.readlist-list > .readlist-article:nth-of-type(2) ${CARD_TIME}`,
+			text: "2 days ago",
+		},
+	],
+};
+
+const PAGE_ARTICLES_WIDE: VisualCheckpoint = {
+	name: "readlist-page-articles-wide",
+	settled: articlesWithoutSidePanelsSettled,
+	geometry: listTakesTheEmptySideTrack,
 	target: MAIN,
 	capture: "page-from-top",
 	pinnedText: [
@@ -1785,6 +1825,35 @@ test.describe("Readlist page (seeded articles)", () => {
 			await captureCheckpoint(page, withTheme(PAGE_ARTICLES, theme));
 			await page.setViewportSize({ width: 1440, height: DESKTOP_TALL.height });
 			await articlesPageGeometry(page);
+		});
+	}
+});
+
+test.describe("Readlist page (seeded articles, no side panels, widest desktop)", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: DESKTOP_TALL.height } });
+
+	for (const theme of THEMES) {
+		test(`runs the list across the empty side column (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-articles-wide-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedTwoArticles(page, userId, email);
+			await loginAs(page, email);
+			await page.context().addCookies([{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE, url: BASE_URL }]);
+			await gotoReadlistQueue(page, "");
+			const statuses = await page.evaluate(async (paths) => {
+				const answered: number[] = [];
+				for (const path of paths) {
+					const response = await fetch(path, { method: "POST", body: new URLSearchParams() });
+					answered.push(response.status);
+				}
+				return answered;
+			}, ["/queue/onboarding/gmail/dismiss", "/queue/dismiss-onboarding"]);
+			assert.deepEqual(statuses, [200, 200]);
+			await gotoReadlistQueue(page, "");
+			await page.waitForSelector(`${PAGINATION_PAGES} ${PAGINATION_PAGE}`);
+
+			await captureCheckpoint(page, withTheme(PAGE_ARTICLES_WIDE, theme));
 		});
 	}
 });
