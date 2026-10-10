@@ -18,13 +18,21 @@ const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const ARTICLE_TITLE = "How Google Sold Its Engineers on Management";
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 900 };
+const TABLET_SHEET = { width: 1024, height: 1366 };
+const SHORT_BODY = "<p>Seeded body for the reader toolbar baseline.</p>";
+const LONG_BODY = Array.from(
+	{ length: 40 },
+	() =>
+		"<p>Seeded body for the reader toolbar baseline, repeated so the native sheet scrolls the column and the rail under the pinned toolbar.</p>",
+).join("");
 
-const TOOLBAR = ".article-body__actions--sticky";
+const TOOLBAR = ".article-body__toolbar";
 const BAR = `${TOOLBAR} .article-body__actions--top`;
 const BACK = "[data-test-back-link]";
 const PICKER = "[data-test-readlists-trigger]";
 const MARK_READ = "[data-test-mark-read-btn]";
 const DOWNLOAD = "[data-test-download]";
+const TOP = "[data-test-reader-top]";
 
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -40,7 +48,10 @@ const VOLATILE_CHROME = [
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
 
-async function openOwnerReader(page: Page, params: { stamp: string; query: string }): Promise<void> {
+async function openOwnerReader(
+	page: Page,
+	params: { stamp: string; query: string; content: string },
+): Promise<void> {
 	const email = `reader-toolbar-${params.stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -52,7 +63,7 @@ async function openOwnerReader(page: Page, params: { stamp: string; query: strin
 		data: {
 			url: `https://example.com/reader-toolbar-${params.stamp}`,
 			title: ARTICLE_TITLE,
-			content: "<p>Seeded body for the reader toolbar baseline.</p>",
+			content: params.content,
 			contentFetchedAt: CONTENT_FETCHED_AT,
 			savedByUserId: userId,
 			generatedSummary: {
@@ -185,6 +196,34 @@ async function desktopGeometry(page: Page): Promise<void> {
 	assert.ok(backLabel.width > 1, "the back link reads as text again above the breakpoint");
 }
 
+async function chromelessSheetGeometry(page: Page): Promise<void> {
+	await everyControlOnOneRow(page);
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "the tablet sheet checkpoint must run with an explicit viewport");
+	const toolbar = await measuredBox(page, TOOLBAR);
+	assert.ok(Math.abs(toolbar.y) <= 0.5, `the chromeless toolbar must pin to the top of the sheet, measured ${toolbar.y}`);
+	const edgesHitTheStrip = await page.locator(TOOLBAR).evaluate((bar, xs) => {
+		const box = bar.getBoundingClientRect();
+		return xs.map((x) => bar.contains(document.elementFromPoint(x, box.top + box.height / 2)));
+	}, [1, viewport.width - 2]);
+	assert.deepEqual(
+		edgesHitTheStrip,
+		[true, true],
+		"the toolbar's strip must span the sheet from edge to edge, over the rail as well as the column",
+	);
+	assert.equal(
+		await page.locator(TOP).evaluate((top) => getComputedStyle(top).display),
+		"none",
+		"the chromeless reader leaves the Top link to the native sheet",
+	);
+}
+
+async function scrolledUnderToolbar(page: Page): Promise<void> {
+	await toolbarSettled(page);
+	await page.evaluate(() => window.scrollTo({ top: 400, behavior: "instant" }));
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(400);
+}
+
 function checkpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
 	return {
 		name,
@@ -204,6 +243,7 @@ test.describe("Reader toolbar on a phone", () => {
 		await openOwnerReader(page, {
 			stamp: `phone-${testInfo.workerIndex}-${Date.now()}`,
 			query: "",
+			content: SHORT_BODY,
 		});
 		await expect(page.locator("#reader-downloads-slot")).toHaveClass(
 			"article-body__downloads-slot article-body__downloads-slot--visible",
@@ -219,6 +259,7 @@ test.describe("Reader toolbar on a phone", () => {
 		await openOwnerReader(page, {
 			stamp: `chromeless-${testInfo.workerIndex}-${Date.now()}`,
 			query: "?shell=app",
+			content: SHORT_BODY,
 		});
 		await page.waitForSelector("body.page-reader--chromeless");
 		await expect(page.locator("#reader-downloads-slot")).toHaveClass(
@@ -236,8 +277,36 @@ test.describe("Reader toolbar above the breakpoint", () => {
 		await openOwnerReader(page, {
 			stamp: `desktop-${testInfo.workerIndex}-${Date.now()}`,
 			query: "",
+			content: SHORT_BODY,
 		});
 		await page.waitForSelector(DOWNLOAD);
 		await captureCheckpoint(page, checkpoint("reader-toolbar-desktop", desktopGeometry));
+	});
+});
+
+test.describe("Chromeless reader toolbar on a tablet sheet", () => {
+	test.use({ timezoneId: "UTC", viewport: TABLET_SHEET });
+
+	test("the pinned strip spans the sheet while the column and the rail scroll under it", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openOwnerReader(page, {
+			stamp: `chromeless-tablet-${testInfo.workerIndex}-${Date.now()}`,
+			query: "?shell=app",
+			content: LONG_BODY,
+		});
+		await page.waitForSelector("body.page-reader--chromeless");
+		await expect(page.locator("#reader-downloads-slot")).toHaveClass(
+			"article-body__downloads-slot article-body__downloads-slot--visible",
+		);
+		await captureCheckpoint(page, {
+			name: "reader-toolbar-chromeless-tablet",
+			settled: scrolledUnderToolbar,
+			geometry: chromelessSheetGeometry,
+			target: TOOLBAR,
+			capture: "page-from-top",
+			pinnedText: [],
+		});
 	});
 });

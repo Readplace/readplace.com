@@ -79,7 +79,7 @@ interface PollResponseBodyInput {
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
-	const readerSlot = renderReaderSlot({
+	const reader = renderReaderSlot({
 		crawl: input.crawl,
 		content: input.content,
 		url: input.url,
@@ -89,6 +89,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		extensionInstallUrl: input.extensionInstallUrl,
 		notice: input.readerNotice,
 		oob: input.primary !== "reader",
+		noticeOob: true,
 		appOrigin: input.appOrigin,
 	});
 	const summarySlot = renderSummarySlot({
@@ -103,21 +104,23 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 	const progressBarOob = renderProgressBarOob({ progress: input.progress });
 	if (input.primary === "reader") {
 		return (
-			readerSlot +
+			reader.slot +
 			summarySlot +
 			progressBarOob +
 			input.metadataOob +
 			input.readerViewFailedOob +
-			input.downloadsOob
+			input.downloadsOob +
+			reader.notice
 		);
 	}
 	return (
 		summarySlot +
-		readerSlot +
+		reader.slot +
 		progressBarOob +
 		input.metadataOob +
 		input.readerViewFailedOob +
-		input.downloadsOob
+		input.downloadsOob +
+		reader.notice
 	);
 }
 

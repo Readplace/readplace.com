@@ -1507,10 +1507,18 @@ describe("initArticleReader", () => {
 				renderDownloadsOob: undefined,
 			});
 
-			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
+			const doc = parse(toHtml(component));
+			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("pending");
 			expect(slot.getAttribute("hx-get")).toBe("/test/reader?poll=2&capturing=1");
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, "the capture poll must carry the notice region");
+			expect([
+				notice.getAttribute("data-reader-status"),
+				notice.classList.contains("article-body__reader-notice--hidden"),
+				notice.getAttribute("hx-swap-oob"),
+			]).toEqual(["none", true, "outerHTML"]);
 		});
 
 		it("leaves the same failed crawl unpolled when no capture is in flight", async () => {
@@ -1610,6 +1618,80 @@ describe("initArticleReader", () => {
 		});
 	});
 
+	describe("the notice region rides every poll out of band", () => {
+		it("answers a pending→failed reader poll with the empty in-card marker as the primary piece and the visible notice last", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },
+				summary: { status: "skipped" },
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 2,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const primary = doc.body.firstElementChild;
+			assert(primary, "the poll must answer with a primary piece");
+			expect([
+				primary.id,
+				primary.getAttribute("hx-swap-oob"),
+				primary.getAttribute("data-reader-status"),
+				primary.classList.contains("article-body__reader-slot--notice"),
+				primary.children.length,
+			]).toEqual(["article-body-reader-slot", null, "not-found", true, 0]);
+			const notice = doc.body.lastElementChild;
+			assert(notice, "the poll must answer with the notice region");
+			expect([
+				notice.id,
+				notice.getAttribute("hx-swap-oob"),
+				notice.getAttribute("data-reader-status"),
+				notice.classList.contains("article-body__reader-notice--visible"),
+			]).toEqual(["article-body-reader-notice", "outerHTML", "not-found", true]);
+			expect(notice.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href")).toBe(ARTICLE_URL);
+		});
+
+		it("hides the notice out of band on a summary poll once the reader view is ready", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
+			});
+
+			const notice = parse(toHtml(component)).body.lastElementChild;
+			assert(notice, "the poll must answer with the notice region");
+			expect([
+				notice.id,
+				notice.getAttribute("hx-swap-oob"),
+				notice.getAttribute("data-reader-status"),
+				notice.classList.contains("article-body__reader-notice--hidden"),
+			]).toEqual(["article-body-reader-notice", "outerHTML", "none", true]);
+		});
+	});
+
 	describe("readerViewFailedOob emission (settled + failed only)", () => {
 		const PROBE = () =>
 			'<div id="reader-view-failed-probe" hx-swap-oob="outerHTML"></div>';
@@ -1658,6 +1740,7 @@ describe("initArticleReader", () => {
 			expect(oobIds(component)).toEqual([
 				...READER_POLL_BASELINE,
 				"reader-view-failed-probe",
+				"article-body-reader-notice",
 			]);
 		});
 
@@ -1685,6 +1768,7 @@ describe("initArticleReader", () => {
 			expect(oobIds(component)).toEqual([
 				...SUMMARY_POLL_BASELINE,
 				"reader-view-failed-probe",
+				"article-body-reader-notice",
 			]);
 		});
 
@@ -1709,7 +1793,7 @@ describe("initArticleReader", () => {
 				renderDownloadsOob: undefined,
 			});
 
-			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
+			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
 		});
 
 		it("omits the fragment on a summary poll while the reader chain is still polling on a pending crawl", async () => {
@@ -1732,7 +1816,7 @@ describe("initArticleReader", () => {
 				renderDownloadsOob: undefined,
 			});
 
-			expect(oobIds(component)).toEqual(SUMMARY_POLL_BASELINE);
+			expect(oobIds(component)).toEqual([...SUMMARY_POLL_BASELINE, "article-body-reader-notice"]);
 		});
 
 		it("omits the fragment while the reader view is still loading (crawl and summary pending)", async () => {
@@ -1755,7 +1839,7 @@ describe("initArticleReader", () => {
 				renderDownloadsOob: undefined,
 			});
 
-			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
+			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
 		});
 
 		it("omits the fragment once the reader view has succeeded (crawl and summary ready)", async () => {
@@ -1779,7 +1863,7 @@ describe("initArticleReader", () => {
 				renderDownloadsOob: undefined,
 			});
 
-			expect(oobIds(component)).toEqual(READER_POLL_BASELINE);
+			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
 		});
 	});
 	describe("a link whose host can never hold an article", () => {
@@ -1858,6 +1942,13 @@ describe("initArticleReader", () => {
 			assert(slot, "reader slot must be rendered");
 			assert.equal(slot.getAttribute("data-reader-status"), "not-an-article");
 			assert.equal(slot.getAttribute("hx-get"), null);
+			assert.equal(slot.children.length, 0);
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, "the gate must answer with the visible notice");
+			assert.deepEqual(
+				[notice.getAttribute("data-reader-status"), notice.classList.contains("article-body__reader-notice--visible")],
+				["not-an-article", true],
+			);
 
 			const summarySlot = doc.querySelector("[data-test-reader-summary]");
 			assert(summarySlot, "summary slot must be rendered");

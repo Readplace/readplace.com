@@ -164,7 +164,13 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 		const response = await agent.get(`/queue/${issueId}/reader?poll=1`);
 
 		const ids = Array.from(parse(response.text).querySelectorAll("[hx-swap-oob]")).map((el) => el.id);
-		assert.deepEqual(ids, ["article-body-summary-slot", "article-body-progress", "article-header", "document-title"]);
+		assert.deepEqual(ids, [
+			"article-body-summary-slot",
+			"article-body-progress",
+			"article-header",
+			"document-title",
+			"article-body-reader-notice",
+		]);
 	});
 
 	it("answers someone else's request for an issue's reader as not found", async () => {

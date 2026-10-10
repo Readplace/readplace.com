@@ -23,7 +23,7 @@ const ALL_VARIANTS = [
 
 function ctaLabelFor(variant: ReaderFailedVariant): string {
 	const doc = parse(
-		renderReaderFailed({ url: destinationUrl("https://example.com/some-article"), variant }),
+		renderReaderFailed({ url: destinationUrl("https://example.com/some-article"), variant, noticeOob: false }).notice,
 	);
 	return doc.querySelector("[data-test-reader-failed-primary]")?.textContent?.trim() ?? "";
 }
@@ -32,7 +32,7 @@ describe("renderReaderFailed", () => {
 	it("renders the reassuring 'Your link is saved' title regardless of variant", () => {
 		for (const variant of ALL_VARIANTS) {
 			const doc = parse(
-				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant }),
+				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant, noticeOob: false }).notice,
 			);
 			assert.equal(
 				doc.querySelector(".article-body__reader-notice-title")?.textContent?.trim(),
@@ -47,7 +47,8 @@ describe("renderReaderFailed", () => {
 			renderReaderFailed({
 				url: destinationUrl("https://example.com/some-article"),
 				variant: "failed",
-			}),
+				noticeOob: false,
+			}).notice,
 		);
 
 		const primary = doc.querySelector("[data-test-reader-failed-primary]");
@@ -73,21 +74,75 @@ describe("renderReaderFailed", () => {
 				renderReaderFailed({
 					url: destinationUrl("https://example.com/post"),
 					variant,
-				}),
+					noticeOob: false,
+				}).notice,
 			);
 			const text = doc.querySelector(".article-body__reader-notice-text")?.textContent ?? "";
 			assert.match(text, expected, `explanation for variant=${variant}`);
 		}
 	});
 
-	it("exposes the variant on the slot via data-reader-status (so tests can pin behaviour per variant)", () => {
+	it("exposes the variant on both the in-card marker and the notice via data-reader-status (so tests can pin behaviour per variant)", () => {
 		for (const variant of ALL_VARIANTS) {
-			const doc = parse(
-				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant }),
+			const { slot, notice } = renderReaderFailed({
+				url: destinationUrl("https://example.com/post"),
+				variant,
+				noticeOob: false,
+			});
+			const marker = parse(slot).querySelector("[data-test-reader-slot]");
+			assert(marker, `marker must be rendered for variant=${variant}`);
+			assert.equal(marker.getAttribute("data-reader-status"), variant);
+			assert.equal(marker.children.length, 0, `marker for variant=${variant} carries no notice content`);
+			const card = parse(notice).querySelector("[data-test-reader-notice]");
+			assert(card, `notice must be rendered for variant=${variant}`);
+			assert.equal(card.getAttribute("data-reader-status"), variant);
+		}
+	});
+
+	it("keeps the in-card marker on the slot id and renders the notice as its own visible card", () => {
+		const { slot, notice } = renderReaderFailed({
+			url: destinationUrl("https://example.com/post"),
+			variant: "failed",
+			noticeOob: false,
+		});
+
+		const marker = parse(slot).querySelector("[data-test-reader-slot]");
+		assert(marker, "marker must be rendered");
+		assert.equal(marker.id, "article-body-reader-slot");
+		assert.equal(marker.className, "article-body__reader-slot article-body__reader-slot--notice");
+		const card = parse(notice).querySelector("[data-test-reader-notice]");
+		assert(card, "notice must be rendered");
+		assert.equal(card.id, "article-body-reader-notice");
+		assert.equal(card.tagName, "SECTION");
+		assert.equal(
+			card.className,
+			"article-body__card article-body__reader-notice article-body__reader-notice--visible",
+		);
+	});
+
+	it("marks the marker and the notice out of band independently, so a poll can splice either region in by id", () => {
+		const cases = [
+			{ oob: false, noticeOob: false, expected: [null, null] },
+			{ oob: true, noticeOob: false, expected: ["outerHTML", null] },
+			{ oob: false, noticeOob: true, expected: [null, "outerHTML"] },
+			{ oob: true, noticeOob: true, expected: ["outerHTML", "outerHTML"] },
+		];
+		for (const { oob, noticeOob, expected } of cases) {
+			const { slot, notice } = renderReaderFailed({
+				url: destinationUrl("https://example.com/post"),
+				variant: "failed",
+				oob,
+				noticeOob,
+			});
+			const marker = parse(slot).querySelector("[data-test-reader-slot]");
+			const card = parse(notice).querySelector("[data-test-reader-notice]");
+			assert(marker, "marker must be rendered");
+			assert(card, "notice must be rendered");
+			assert.deepEqual(
+				[marker.getAttribute("hx-swap-oob"), card.getAttribute("hx-swap-oob")],
+				expected,
+				`oob=${oob} noticeOob=${noticeOob}`,
 			);
-			const slot = doc.querySelector("[data-test-reader-slot]");
-			assert(slot, `slot must be rendered for variant=${variant}`);
-			assert.equal(slot.getAttribute("data-reader-status"), variant);
 		}
 	});
 
@@ -98,7 +153,8 @@ describe("renderReaderFailed", () => {
 					url: destinationUrl("https://example.com/post"),
 					variant,
 					extensionInstallUrl: "/install?client=chrome",
-				}),
+					noticeOob: false,
+				}).notice,
 			);
 
 			const installCta = doc.querySelector("[data-test-reader-failed-install]");
@@ -117,7 +173,7 @@ describe("renderReaderFailed", () => {
 	it("offers the capture control only on the blocked variant — the one failure the reader's own host can still fix", () => {
 		function actionsFor(variant: ReaderFailedVariant): (string | null)[] {
 			const doc = parse(
-				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant }),
+				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant, noticeOob: false }).notice,
 			);
 			return Array.from(doc.querySelectorAll("[data-test-reader-action]")).map(
 				(el) => el.getAttribute("data-test-reader-action"),
@@ -136,11 +192,12 @@ describe("renderReaderFailed", () => {
 				url: destinationUrl("https://example.com/post"),
 				variant: "not-found",
 				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
-			}),
+				noticeOob: false,
+			}).notice,
 		);
 
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "slot must render so the absence check is meaningful");
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "notice must render so the absence check is meaningful");
 		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
 		assert.doesNotMatch(doc.body.textContent ?? "", /capture the full page in one tap/);
 	});
@@ -151,11 +208,12 @@ describe("renderReaderFailed", () => {
 				url: destinationUrl("https://example.com/post"),
 				variant: "origin-down",
 				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
-			}),
+				noticeOob: false,
+			}).notice,
 		);
 
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "slot must render so the absence check is meaningful");
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "notice must render so the absence check is meaningful");
 		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
 		assert.doesNotMatch(doc.body.textContent ?? "", /blocking automated fetches/);
 	});
@@ -170,7 +228,8 @@ describe("renderReaderFailed", () => {
 				url: destinationUrl("https://example.com/post"),
 				variant: "not-found",
 				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
-			}),
+				noticeOob: false,
+			}).notice,
 		);
 
 		assert.doesNotMatch(doc.body.textContent ?? "", /blocking automated fetches/);
@@ -181,7 +240,8 @@ describe("renderReaderFailed", () => {
 			renderReaderFailed({
 				url: destinationUrl("https://example.com/some-article"),
 				variant: "blocked",
-			}),
+				noticeOob: false,
+			}).notice,
 		);
 
 		const capture = doc.querySelector("[data-reader-capture]");
@@ -213,22 +273,23 @@ describe("renderReaderFailed", () => {
 				url: destinationUrl("https://mail.google.com/mail/u/0/"),
 				variant: "not-an-article",
 				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
-			}),
+				noticeOob: false,
+			}).notice,
 		);
 
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "slot must render so the absence check is meaningful");
-		assert.equal(slot.getAttribute("data-reader-status"), "not-an-article");
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "notice must render so the absence check is meaningful");
+		assert.equal(notice.getAttribute("data-reader-status"), "not-an-article");
 		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
 	});
 
 	it("omits the extension install pitch when extensionInstallUrl is not provided (extension already installed)", () => {
 		const doc = parse(
-			renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant: "failed" }),
+			renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant: "failed", noticeOob: false }).notice,
 		);
 
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "slot must render so the absence check is meaningful");
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "notice must render so the absence check is meaningful");
 		const installCta = doc.querySelector("[data-test-reader-failed-install]");
 		assert.equal(installCta, null);
 	});

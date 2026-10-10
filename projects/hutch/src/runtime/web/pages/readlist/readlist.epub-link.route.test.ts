@@ -175,6 +175,7 @@ describe("GET /queue/:id/view Download", () => {
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"article-body-reader-notice",
 		]);
 	});
 });

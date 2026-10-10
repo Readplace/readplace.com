@@ -49,6 +49,7 @@ import {
 	READER_EXIT_CONFIRM_SCRIPT,
 	renderExitConfirm,
 } from "./reader-exit-confirm.component";
+import { READER_TOP_SCRIPT } from "./reader-top-script";
 import { READER_STYLES } from "./reader.styles";
 import { displayableReadTime } from "@packages/domain/article";
 import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
@@ -111,10 +112,6 @@ export function ReaderPage(
 		now: Date;
 		extensionInstallUrl?: string;
 		backLink: { topHref: string; label: string };
-		/** Injected per variant: the sticky action toolbar (Back + Mark-as-read, no
-		 * bottom bar) for the web reader or the iOS chromeless reader. Both render the
-		 * same toolbar; the variant carries the page body class that decides where it
-		 * pins, so the markup and the CSS that pins it can never drift apart. */
 		renderActions: RenderReaderActions;
 		readlistFiling: ReaderReadlistFiling;
 		crawlVersions?: LocalTime[];
@@ -264,7 +261,8 @@ export function ReaderPage(
 				CRAWL_BOOKMARK_SCRIPT +
 				(options.readlistFiling.picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
 				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
-				READER_OPEN_SCRIPT,
+				READER_OPEN_SCRIPT +
+				READER_TOP_SCRIPT,
 		}),
 	};
 }

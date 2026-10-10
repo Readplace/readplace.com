@@ -47,8 +47,7 @@ export interface ActionButtons {
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
 	top: Component;
 	bottom: Component;
-	/** The page body class for this variant. Colocated with the action markup so
-	 * the sticky toolbar and the CSS that pins it can never drift apart. */
+	/** The page body class for this variant. */
 	bodyClass: string;
 };
 
@@ -101,6 +100,10 @@ function topBar(actionBtns: ActionButtons): string {
 	});
 }
 
+function toolbar(actionBtns: ActionButtons): string {
+	return `<div class="article-body__toolbar">${topBar(actionBtns)}</div>`;
+}
+
 function bottomBar(actionBtns: ActionButtons, markRead: MarkReadAction | undefined): string {
 	return render(BOTTOM_TEMPLATE, {
 		backLink: actionBtns.backLink
@@ -111,30 +114,26 @@ function bottomBar(actionBtns: ActionButtons, markRead: MarkReadAction | undefin
 }
 
 export const RegularReader: RenderReaderActions = ({ actionBtns }) => ({
-	top: HtmlPage(topBar(actionBtns)),
+	top: HtmlPage(toolbar(actionBtns)),
 	bottom: HtmlPage(
 		bottomBar(actionBtns, actionBtns.markReadActions?.find((action) => action.position === "bottom")),
 	),
 	bodyClass: `page-reader ${DISTRACTION_FREE_BODY_CLASS}`,
 });
 
-/** The reader action bar for the reading experience — one sticky toolbar that
- * keeps Back + Mark-as-read reachable while the article scrolls, with no bottom
- * bar. Both readers render it identically; `StickyReader` and `ChromelessReader`
- * differ only in the body class, which decides where the toolbar pins. */
-function stickyReaderActions(actionBtns: ActionButtons): { top: Component; bottom: Component } {
+function toolbarOnlyActions(actionBtns: ActionButtons): { top: Component; bottom: Component } {
 	return {
-		top: HtmlPage(`<div class="article-body__actions--sticky">${topBar(actionBtns)}</div>`),
+		top: HtmlPage(toolbar(actionBtns)),
 		bottom: HtmlPage(""),
 	};
 }
 
-export const StickyReader: RenderReaderActions = ({ actionBtns }) => ({
-	...stickyReaderActions(actionBtns),
+export const WebReader: RenderReaderActions = ({ actionBtns }) => ({
+	...toolbarOnlyActions(actionBtns),
 	bodyClass: `page-reader ${DISTRACTION_FREE_BODY_CLASS}`,
 });
 
 export const ChromelessReader: RenderReaderActions = ({ actionBtns }) => ({
-	...stickyReaderActions(actionBtns),
+	...toolbarOnlyActions(actionBtns),
 	bodyClass: "page-reader page-reader--chromeless",
 });

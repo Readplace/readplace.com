@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { generateCspNonce } from "@packages/web-shell";
-import { StickyReader } from "../../../shared/article-body/reader-actions/reader-actions.component";
+import { WebReader } from "../../../shared/article-body/reader-actions/reader-actions.component";
 import {
 	READER_PAGE_SCRIPTS,
 	renderReaderSkeleton,
@@ -14,6 +14,7 @@ const UNSTYLED_HOOK_CLASSES = new Set([
 	"article-body__readlists-slot",
 	"article-body__mark-read-slot",
 	"article-body__downloads-slot",
+	"article-body__header",
 	"article-body__read-time",
 	"article-body__reader-slot",
 	"reader-skeleton",
@@ -35,7 +36,7 @@ describe("renderReaderSkeleton", () => {
 		expect(template.hasAttribute("data-reader-skeleton")).toBe(true);
 		expect(template.getAttribute("data-main-class")).toBe("reader");
 		expect(template.getAttribute("data-body-class")).toBe(
-			StickyReader({ actionBtns: { readlistPicker: undefined } }).bodyClass,
+			WebReader({ actionBtns: { readlistPicker: undefined } }).bodyClass,
 		);
 		expect(template.getAttribute("data-body-class-from")).toBe("page-readlist");
 	});
@@ -62,6 +63,29 @@ describe("renderReaderSkeleton", () => {
 			"article-body__downloads-slot",
 			"article-body__mark-read-slot",
 		]);
+		expect(content.querySelector(".article-body__actions--top")?.parentElement?.className).toBe(
+			"article-body__toolbar",
+		);
+	});
+
+	it("paints the real reader's layout: the toolbar row and the article card in the main track, beside an empty rail", () => {
+		const content = templateContent();
+
+		const layout = content.querySelector(".reading-layout");
+		assert(layout, "the skeleton must paint the reading layout");
+		expect(Array.from(layout.children, (child) => child.className)).toEqual([
+			"reading-layout__main",
+			"reading-layout__rail",
+		]);
+		expect(layout.lastElementChild?.children.length).toBe(0);
+		const card = content.querySelector(".reading-layout__main [data-article-body] > article");
+		assert(card, "the skeleton must paint the article card inside the article column");
+		expect(card.className).toBe("article-body__card article-body__card--article");
+		expect(Array.from(card.children, (child) => child.className)).toEqual([
+			"article-body__header",
+			"article-body__reader-slot article-body__reader-slot--loading reader-skeleton",
+		]);
+		expect(card.previousElementSibling?.className).toBe("article-body__toolbar");
 	});
 
 	it("makes the dummy controls inert so the skeleton cannot be interacted with", () => {
@@ -150,6 +174,7 @@ describe("renderReaderSkeleton", () => {
 			"/client-dist/reader-exit-confirm.client.js",
 			"/client-dist/reader-open.client.js",
 			"/client-dist/offline-reader.client.js",
+			"/client-dist/reader-top.client.js",
 		]);
 	});
 });

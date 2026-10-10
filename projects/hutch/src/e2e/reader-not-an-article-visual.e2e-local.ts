@@ -17,7 +17,7 @@ const GATED_PATH = "mail.google.com/mail/u/0/";
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const CAPTURED_TITLE = "Inbox (42) - someone@example.com";
 const CAPTURED_BODY = "<p>Re: your invoice is attached, please find the PDF below.</p>";
-const NOTICE = '[data-test-reader-slot][data-reader-status="not-an-article"]';
+const NOTICE = '[data-test-reader-notice][data-reader-status="not-an-article"]';
 const NOTICE_TEXT = ".article-body__reader-notice-text";
 const NOTICE_CTA = "[data-test-reader-failed-primary]";
 const READER_VIEWPORT = { width: 1280, height: 900 };

@@ -8,16 +8,18 @@ import { PROGRESS_BAR_SCRIPT } from "../../../shared/article-body/progress-bar.c
 import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-actions/reader-actions.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
 import { NEXT_READ_SCRIPT } from "../../../shared/next-read/next-read.component";
+import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
 import { SHARE_BALLOON_SCRIPT } from "../../../shared/share-balloon/share-balloon.component";
 import { OFFLINE_READER_SCRIPT } from "../../../shared/offline-reader/offline-reader-script";
 import { READER_OPEN_SCRIPT } from "../../../shared/reader-open/reader-open-script";
 import { READER_EXIT_CONFIRM_SCRIPT } from "../../reader/reader-exit-confirm.component";
+import { READER_TOP_SCRIPT } from "../../reader/reader-top-script";
 import { READER_ONLY_STYLES } from "../../reader/reader.styles";
 
 const TEMPLATE = readFileSync(join(__dirname, "reader-skeleton.template.html"), "utf-8");
 const SKELETON_ONLY_STYLES = readFileSync(join(__dirname, "reader-skeleton.styles.css"), "utf-8");
 
-const SKELETON_STYLES = ARTICLE_FRAME_STYLES + READER_ONLY_STYLES + SKELETON_ONLY_STYLES;
+const SKELETON_STYLES = ARTICLE_FRAME_STYLES + READING_LAYOUT_STYLES + READER_ONLY_STYLES + SKELETON_ONLY_STYLES;
 
 export const VIEW_BACK_LINK = {
 	topHref: withInternalTracking("/queue", { source: "reader", content: "back-top" }),
@@ -33,7 +35,8 @@ export const READER_PAGE_SCRIPTS =
 	READLIST_PICKER_SCRIPT +
 	READER_EXIT_CONFIRM_SCRIPT +
 	READER_OPEN_SCRIPT +
-	OFFLINE_READER_SCRIPT;
+	OFFLINE_READER_SCRIPT +
+	READER_TOP_SCRIPT;
 
 export function renderReaderSkeleton(options: { cspNonce: CspNonce }): string {
 	return render(TEMPLATE, {

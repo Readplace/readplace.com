@@ -1,7 +1,6 @@
 .reader {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
-  padding: 2rem 1rem 4rem;
+  background: var(--muted);
+  flex: 1 1 auto;
 }
 
 .reader__float-stack {
@@ -21,36 +20,33 @@
 }
 
 /**
- * The reader action toolbar (Back + Mark as read) sticks above the article so the
- * controls stay reachable while the body scrolls — the same behaviour in every
- * context. The chromeless iOS
+ * The chromeless iOS
  * reader (body class page-reader--chromeless) has no header, so it pins to the very
  * top; a small gap clears the native sheet's rounded corners, since there is no top
  * safe-area inset inside the sheet.
  */
-.article-body__actions--sticky {
+.page-reader--chromeless .article-body__toolbar {
   position: sticky;
-  top: calc(var(--banner-area-height, 52px) + var(--header-height, 72px));
+  top: 0;
   z-index: 12;
-  display: flex;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  padding-block: 0.5rem;
-  background: var(--background);
+  padding: 16px 0 8px;
+  background: var(--muted);
+  isolation: isolate;
+}
+
+.page-reader--chromeless .article-body__toolbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 -100vmax;
+  z-index: -1;
+  background: var(--muted);
   border-bottom: 1px solid var(--border);
 }
 
-.article-body__actions--sticky .article-body__actions--top {
-  flex: 1;
-  margin: 0;
-  justify-content: space-between;
+.page-reader--chromeless .reader {
+  overflow-x: clip;
 }
 
-.page-reader--chromeless .article-body__actions--sticky {
-  top: 0;
-  padding-top: 1rem;
-}
-
-.page-distraction-free .article-body__actions--sticky {
-  top: var(--banner-area-height, 0px);
+.page-reader--chromeless .reading-layout__top {
+  display: none;
 }

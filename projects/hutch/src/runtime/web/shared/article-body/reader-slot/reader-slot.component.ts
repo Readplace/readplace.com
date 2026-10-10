@@ -1,8 +1,15 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
 import type { ArticleDestinationUrl } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
-import { type ReaderFailedVariant, renderReaderFailed } from "./reader-failed.component";
+import { render } from "@packages/web-shell";
+import {
+	type ReaderFailedVariant,
+	type ReaderRegions,
+	renderReaderFailed,
+} from "./reader-failed.component";
 import { renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady } from "./reader-ready.component";
 
@@ -21,6 +28,16 @@ export interface ReaderSlotInput {
 	 * stable `id="article-body-reader-slot"` on every variant gives HTMX a
 	 * target across crawl state transitions. */
 	oob?: boolean;
+	noticeOob: boolean;
+}
+
+const EMPTY_NOTICE_TEMPLATE = readFileSync(
+	join(__dirname, "reader-notice-empty.template.html"),
+	"utf-8",
+);
+
+function withEmptyNotice(slot: string, noticeOob: boolean): ReaderRegions {
+	return { slot, notice: render(EMPTY_NOTICE_TEMPLATE, { noticeOob }) };
 }
 
 /**
@@ -74,13 +91,16 @@ function noticeOrCapture(
 	input: ReaderSlotInput,
 	variant: ReaderFailedVariant,
 	oob: boolean,
-): string {
+): ReaderRegions {
 	if (input.capturing === true && input.readerPollUrl !== undefined) {
-		return renderReaderPending({
-			pollUrl: input.readerPollUrl,
-			label: CAPTURING_LABEL,
-			oob,
-		});
+		return withEmptyNotice(
+			renderReaderPending({
+				pollUrl: input.readerPollUrl,
+				label: CAPTURING_LABEL,
+				oob,
+			}),
+			input.noticeOob,
+		);
 	}
 	return renderReaderFailed({
 		url: input.url,
@@ -88,31 +108,48 @@ function noticeOrCapture(
 		extensionInstallUrl: input.extensionInstallUrl,
 		capturePollUrl: input.capturePollUrl,
 		oob,
+		noticeOob: input.noticeOob,
 	});
 }
 
-function pollOrSlow(input: ReaderSlotInput, oob: boolean): string {
+function pollOrSlow(input: ReaderSlotInput, oob: boolean): ReaderRegions {
 	return input.readerPollUrl
-		? renderReaderPending({
-				pollUrl: input.readerPollUrl,
-				oob,
-				loadingHint: resolveLoadingHint(input.url),
-			})
+		? withEmptyNotice(
+				renderReaderPending({
+					pollUrl: input.readerPollUrl,
+					oob,
+					loadingHint: resolveLoadingHint(input.url),
+				}),
+				input.noticeOob,
+			)
 		: renderReaderFailed({
 				url: input.url,
 				variant: "slow",
 				extensionInstallUrl: input.extensionInstallUrl,
 				oob,
+				noticeOob: input.noticeOob,
 			});
 }
 
-export function renderReaderSlot(input: ReaderSlotInput): string {
+function ready(input: ReaderSlotInput, content: string, oob: boolean): ReaderRegions {
+	return withEmptyNotice(
+		renderReaderReady({ content, oob, appOrigin: input.appOrigin }),
+		input.noticeOob,
+	);
+}
+
+export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 	const oob = input.oob === true;
 	if (input.notice !== undefined) {
-		return renderReaderFailed({ url: input.url, variant: input.notice, oob });
+		return renderReaderFailed({
+			url: input.url,
+			variant: input.notice,
+			oob,
+			noticeOob: input.noticeOob,
+		});
 	}
 	if (input.crawl === undefined) {
-		if (input.content) return renderReaderReady({ content: input.content, oob, appOrigin: input.appOrigin });
+		if (input.content) return ready(input, input.content, oob);
 		return pollOrSlow(input, oob);
 	}
 
@@ -121,7 +158,7 @@ export function renderReaderSlot(input: ReaderSlotInput): string {
 			/* Worker-bug catch-all: a ready row with no content is a writer
 			 * inconsistency picked up by stuck-articles-canary; render pending
 			 * so the slot retries instead of erroring. */
-			if (input.content) return renderReaderReady({ content: input.content, oob, appOrigin: input.appOrigin });
+			if (input.content) return ready(input, input.content, oob);
 			return pollOrSlow(input, oob);
 		case "pending":
 			return pollOrSlow(input, oob);

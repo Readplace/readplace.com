@@ -490,6 +490,34 @@ describe("ViewPage", () => {
 		assert(link, "cta action must still be rendered without content");
 	});
 
+	it("lays the article column and the share row in the main track, beside an empty rail", () => {
+		const doc = render();
+
+		const main = doc.querySelector("main.view > .reading-layout > .reading-layout__main");
+		assert(main, "the main track must sit inside the reading layout");
+		const mainChildren = Array.from(main.children, (child) => [
+			child.hasAttribute("data-article-body"),
+			child.classList.contains("view__share-row"),
+		]);
+		expect(mainChildren).toEqual([
+			[true, false],
+			[false, true],
+		]);
+		const rail = doc.querySelector(".reading-layout > [data-test-reader-rail]");
+		assert(rail, "the rail must sit beside the main track");
+		expect([rail.previousElementSibling === main, rail.children.length]).toEqual([true, 0]);
+	});
+
+	it("carries one article, the card, with the notice after it rather than inside it", () => {
+		const doc = render({ ...baseInput, content: undefined });
+
+		const articles = doc.querySelectorAll("article");
+		expect(Array.from(articles, (article) => article.hasAttribute("data-test-article-card"))).toEqual([true]);
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "the notice must be rendered");
+		expect([notice.closest("article"), notice.previousElementSibling]).toEqual([null, articles[0]]);
+	});
+
 	describe("share URLs and SEO", () => {
 		it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 			const doc = render({

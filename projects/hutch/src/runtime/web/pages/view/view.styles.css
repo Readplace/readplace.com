@@ -1,7 +1,6 @@
 .view {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
-  padding: 1rem 1rem 6rem;
+  background: var(--muted);
+  flex: 1 1 auto;
 }
 
 .view__cta {

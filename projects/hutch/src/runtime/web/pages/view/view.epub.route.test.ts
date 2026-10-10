@@ -341,6 +341,7 @@ describe("GET /view/<url>?format=<download>", () => {
 			"article-header",
 			"document-title",
 			"view-cta-downloads-slot",
+			"article-body-reader-notice",
 		]);
 	});
 });

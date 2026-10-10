@@ -1,10 +1,17 @@
     <main class="reader" hx-history="false">
-      <div class="reader__article-body" data-article-body>
-        {{{innerContent}}}
-      </div>
-      <div class="reader__float-stack" data-test-reader-float-stack data-test-reader-share="{{shareState}}">
-        {{{nextRead}}}
-        {{{shareBalloon}}}
+      <div class="reading-layout">
+        <div class="reading-layout__main">
+          <div class="reader__article-body" data-article-body>
+            {{{innerContent}}}
+          </div>
+          <div class="reader__float-stack" data-test-reader-float-stack data-test-reader-share="{{shareState}}">
+            {{{nextRead}}}
+            {{{shareBalloon}}}
+          </div>
+        </div>
+        <div class="reading-layout__rail" data-test-reader-rail>
+          <a class="reading-layout__top" href="#top" data-test-reader-top>{{icon "arrow-up"}}<span class="reading-layout__top-label">Top</span></a>
+        </div>
       </div>
       {{{exitConfirmHtml}}}
       {{{markStatusConfirmHtml}}}

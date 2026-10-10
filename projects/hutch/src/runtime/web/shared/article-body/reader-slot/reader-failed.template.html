@@ -1,4 +1,4 @@
-<div id="article-body-reader-slot" class="article-body__reader-slot article-body__reader-slot--notice" data-test-reader-slot data-reader-status="{{variant}}"{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
+<section id="article-body-reader-notice" class="article-body__card article-body__reader-notice article-body__reader-notice--visible" data-test-reader-notice data-reader-status="{{variant}}"{{#if noticeOob}} hx-swap-oob="outerHTML"{{/if}}>
   <h2 class="article-body__reader-notice-title">Your link is saved {{icon "check"}}</h2>
   <p class="article-body__reader-notice-text">{{explanation}}</p>
   <div class="article-body__reader-notice-actions">
@@ -17,4 +17,4 @@
     <a href="{{extensionInstallUrl}}" data-test-reader-failed-install>See the ways to save</a>
   </p>
   {{/if}}
-</div>
+</section>

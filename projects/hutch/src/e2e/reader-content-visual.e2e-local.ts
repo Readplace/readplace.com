@@ -15,6 +15,7 @@ const CANONICAL_PATH = "example.com/reader-content-visual";
 const CONTENT_FETCHED_AT = "2026-04-27T08:00:00.000Z";
 const READER_CONTENT = "[data-test-reader-content]";
 const READER_VIEWPORT = { width: 1280, height: 900 };
+const WCAG_REFLOW_MINIMUM = { width: 320, height: 800 };
 
 interface FixtureImage {
 	width: number;
@@ -77,12 +78,27 @@ const WIDE_TABLE = [
 	"</tbody></table>",
 ].join("");
 
+const SPLIT_BODIES_TABLE = [
+	"<table><thead><tr><th>stage</th><th>owner</th></tr></thead>",
+	"<tbody><tr><td>extract</td><td>parser</td></tr><tr><td>sanitise</td><td>reader</td></tr></tbody>",
+	"<tbody><tr><td>render</td><td>web</td></tr></tbody></table>",
+].join("");
+
+const ROW_HEADERS_TABLE = [
+	"<table><tbody>",
+	"<tr><th>words</th><td>2,140</td></tr>",
+	"<tr><th>read time</th><td>9 min</td></tr>",
+	"</tbody></table>",
+].join("");
+
 const WIDE_CODE_LINE =
 	"await renderArticle({ url, persona: 'reader', columnWidth: 648, embeds: true, tables: 'uncontained', images: 'intrinsic' });";
 
 const HOSTILE_ARTICLE_BODY = [
 	"<p>Extraction keeps whatever the publisher shipped, so the reader renders markup it never authored.</p>",
 	WIDE_TABLE,
+	SPLIT_BODIES_TABLE,
+	ROW_HEADERS_TABLE,
 	`<pre><code>${WIDE_CODE_LINE}</code></pre>`,
 	`<img width="0" height="0" src="${WIDE_IMAGE_URL}" alt="Release pipeline diagram">`,
 	`<img src="${NARROW_IMAGE_URL}" alt="Reproducible build badge">`,
@@ -137,6 +153,14 @@ async function readerContentGeometry(page: Page): Promise<void> {
 				"the reader fixture must render the wide code block, both images and the embed facade",
 			);
 		}
+		const tables = Array.from(content.querySelectorAll("table"));
+		const [, splitBodies, rowHeaders] = tables;
+		const firstBody = splitBodies?.tBodies[0];
+		const lastRowHeaderRow = rowHeaders?.rows[rowHeaders.rows.length - 1];
+		const firstBodyLastRow = firstBody?.rows[firstBody.rows.length - 1];
+		if (!firstBodyLastRow || !lastRowHeaderRow || splitBodies?.tBodies.length !== 2) {
+			throw new Error("the reader fixture must render the split-body table and the row-header table");
+		}
 		const columnWidth = content.clientWidth;
 		const narrowBox = narrowImage.getBoundingClientRect();
 		const facadeBox = facadeLink.getBoundingClientRect();
@@ -163,6 +187,16 @@ async function readerContentGeometry(page: Page): Promise<void> {
 			facadeWidth: facadeBox.width,
 			facadeHeight: facadeBox.height,
 			liveFormControls: content.querySelectorAll("form, input, select").length,
+			tableBorderModels: tables.map((table) => getComputedStyle(table).borderCollapse),
+			tablesWiderThanColumn: tables.filter((table) => table.getBoundingClientRect().width > columnWidth + 1)
+				.length,
+			cellSideBorders: Array.from(content.querySelectorAll("td")).flatMap((cell) => {
+				const style = getComputedStyle(cell);
+				return [style.borderLeftWidth, style.borderRightWidth];
+			}),
+			ruleBetweenBodies: Array.from(firstBodyLastRow.cells, (cell) => getComputedStyle(cell).borderBottomWidth),
+			lastRowHeaderTag: lastRowHeaderRow.cells[0]?.tagName,
+			lastRowRules: Array.from(lastRowHeaderRow.cells, (cell) => getComputedStyle(cell).borderBottomWidth),
 			pinnedBlocks: Array.from(content.querySelectorAll("*")).filter((element) => {
 				const position = getComputedStyle(element).position;
 				return position === "fixed" || position === "sticky";
@@ -234,6 +268,28 @@ async function readerContentGeometry(page: Page): Promise<void> {
 		0,
 		"escaped inline code samples must render as text, never as live form controls",
 	);
+	assert.deepEqual(
+		measured.tableBorderModels,
+		["separate", "separate", "separate"],
+		"every reader table keeps separate borders so its rounded edge can draw",
+	);
+	assert.equal(measured.tablesWiderThanColumn, 0, "every reader table fits the content width");
+	assert.deepEqual(
+		measured.cellSideBorders,
+		measured.cellSideBorders.map(() => "0px"),
+		"table cells draw no side borders, only the rule under each row",
+	);
+	assert.deepEqual(
+		measured.ruleBetweenBodies,
+		["1px", "1px"],
+		"the rule between two table bodies stays, because only the table's final row loses it",
+	);
+	assert.equal(measured.lastRowHeaderTag, "TH", "the row-header fixture must end on a row header");
+	assert.deepEqual(
+		measured.lastRowRules,
+		["0px", "0px"],
+		"a final row of row headers draws no rule against the table's own border",
+	);
 	assert.equal(
 		measured.pinnedBlocks,
 		0,
@@ -264,5 +320,22 @@ test.describe("Reader renders hostile crawled markup inside the column", () => {
 		await seedHostileArticle(page);
 		await openReader(page);
 		await captureCheckpoint(page, READER_CONTENT_HOSTILE_MARKUP);
+	});
+});
+
+test.describe("Reader keeps hostile crawled markup inside the card at the narrowest width", () => {
+	test.use({ timezoneId: "UTC", viewport: WCAG_REFLOW_MINIMUM });
+
+	test("the same tables, wide code and images stay inside the card at 320px and the page never scrolls sideways", async ({
+		page,
+	}) => {
+		await page.addInitScript(() => {
+			window.localStorage.setItem("readplace.extension-suggestion-dismissed", "1");
+		});
+		await pinFixtureImages(page);
+		await seedHostileArticle(page);
+		await openReader(page);
+		await readerContentSettled(page);
+		await readerContentGeometry(page);
 	});
 });

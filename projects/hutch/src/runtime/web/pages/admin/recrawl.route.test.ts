@@ -419,8 +419,14 @@ describe("Admin recrawl routes", () => {
 			const recrawlMain = doc.querySelector("[data-test-admin-recrawl]");
 			assert(recrawlMain);
 			assert(recrawlMain.querySelector(".admin-recrawl__body [data-test-reader-slot]"));
-			assert(recrawlMain.querySelector(".admin-recrawl__body[data-article-body]"));
+			const recrawlBody = recrawlMain.querySelector(".admin-recrawl__body[data-article-body]");
+			assert(recrawlBody);
+			expect(recrawlBody.tagName).toBe("DIV");
+			expect(Array.from(doc.querySelectorAll("article"), (article) => article.className)).toEqual([
+				"article-body__card article-body__card--article",
+			]);
 			expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
+			expect(response.text).not.toContain("/client-dist/reader-top.client.js");
 			expect(doc.body.className).toBe("page-admin-recrawl page-distraction-free");
 			expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 				"noindex, nofollow",
@@ -691,6 +697,7 @@ describe("Admin recrawl routes", () => {
 			"article-body-progress",
 			"article-header",
 			"document-title",
+			"article-body-reader-notice",
 		]);
 	});
 
@@ -835,6 +842,7 @@ describe("Admin recrawl routes", () => {
 				"article-body-progress",
 				"article-header",
 				"document-title",
+				"article-body-reader-notice",
 			]);
 		});
 	});

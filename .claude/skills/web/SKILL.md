@@ -353,7 +353,7 @@ A copyable value — a server URL, a CLI command, a prompt — renders as **one*
 
 ### Wide Tables Reflow to Stacked Cards on Mobile
 
-A wide comparison / data table reflows to a single-column stacked-card layout at mobile widths — never `overflow-x: auto` + `min-width` to permit a sideways swipe. The page body scrolls **down only**. Keep the semantic `<table>` (screen readers, SEO, and `text/markdown` content-negotiation all depend on it) and drive the mobile layout from CSS — `display: block` rows plus a `data-label` prefix on each cell (`td::before { content: attr(data-label) }`) — not by swapping the `<table>` for `<div>`s.
+A wide comparison / data table reflows to a single-column stacked-card layout at mobile widths — never `overflow-x: auto` + `min-width` to permit a sideways swipe. The page body scrolls **down only**. Keep the semantic `<table>` (screen readers, SEO, and `text/markdown` content-negotiation all depend on it) and drive the mobile layout from CSS — `display: block` rows plus a `data-label` prefix on each cell (`td::before { content: attr(data-label) }`) — not by swapping the `<table>` for `<div>`s. The reflow is for tables the product authors: a saved article's tables are publisher markup with no `data-label`, so they stay a fixed-layout table that wraps inside the reader's article card.
 
 ## Client-Side JavaScript Conventions
 

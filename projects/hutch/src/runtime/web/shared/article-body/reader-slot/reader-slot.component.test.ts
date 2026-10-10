@@ -1,27 +1,29 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { destinationUrl } from "../../../test-helpers/article-fixtures";
-import { renderReaderSlot } from "./reader-slot.component";
+import { type ReaderSlotInput, renderReaderSlot } from "./reader-slot.component";
 
-function parse(html: string) {
-	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window
-		.document;
+function parse(regions: { slot: string; notice: string }) {
+	return new JSDOM(
+		`<!doctype html><html><body>${regions.slot}${regions.notice}</body></html>`,
+	).window.document;
 }
 
 const URL = destinationUrl("https://example.com/article");
 const APP_ORIGIN = "https://readplace.com";
 
 describe("renderReaderSlot", () => {
-	it("returns only the slot HTML (no outer page)", () => {
-		const html = renderReaderSlot({
+	it("returns only the two region fragments (no outer page)", () => {
+		const { slot, notice } = renderReaderSlot({
 			crawl: { status: "ready" },
 			content: "<p>Body</p>",
 			url: URL,
 			appOrigin: APP_ORIGIN,
+			noticeOob: false,
 		});
 
-		expect(html.startsWith("<div")).toBe(true);
-		expect(html.includes("<html")).toBe(false);
+		expect([slot.startsWith("<div"), notice.startsWith("<section")]).toEqual([true, true]);
+		expect((slot + notice).includes("<html")).toBe(false);
 	});
 
 	it("routes status=pending with a poll URL to the pending component", () => {
@@ -31,6 +33,7 @@ describe("renderReaderSlot", () => {
 				url: URL,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -48,6 +51,7 @@ describe("renderReaderSlot", () => {
 				url: destinationUrl("https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf"),
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -63,6 +67,7 @@ describe("renderReaderSlot", () => {
 				url: destinationUrl("https://example.com/articles/some-post"),
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -76,6 +81,7 @@ describe("renderReaderSlot", () => {
 				url: destinationUrl("not-a-valid-url"),
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -88,6 +94,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "pending" },
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -107,6 +114,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -134,6 +142,7 @@ describe("renderReaderSlot", () => {
 				},
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -141,7 +150,7 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
 		const actions = Array.from(
-			slot.querySelectorAll("[data-test-reader-action]"),
+			doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
 		).map((el) => el.getAttribute("data-test-reader-action"));
 		expect(actions).toEqual(["open", "capture"]);
 	});
@@ -155,6 +164,7 @@ describe("renderReaderSlot", () => {
 				},
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -162,7 +172,7 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("failed");
 		const actions = Array.from(
-			slot.querySelectorAll("[data-test-reader-action]"),
+			doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
 		).map((el) => el.getAttribute("data-test-reader-action"));
 		expect(actions).toEqual(["open"]);
 	});
@@ -176,6 +186,7 @@ describe("renderReaderSlot", () => {
 				},
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -183,7 +194,7 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
 		const actions = Array.from(
-			slot.querySelectorAll("[data-test-reader-action]"),
+			doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
 		).map((el) => el.getAttribute("data-test-reader-action"));
 		expect(actions).toEqual(["open", "capture"]);
 	});
@@ -203,12 +214,13 @@ describe("renderReaderSlot", () => {
 					crawl: { status: "failed", reason },
 					url: URL,
 					appOrigin: APP_ORIGIN,
+					noticeOob: false,
 				}),
 			);
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, `reader slot must be rendered for reason=${reason}`);
 			const actions = Array.from(
-				slot.querySelectorAll("[data-test-reader-action]"),
+				doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
 			).map((el) => el.getAttribute("data-test-reader-action"));
 			expect([reason, slot.getAttribute("data-reader-status"), actions]).toEqual([
 				reason,
@@ -229,6 +241,7 @@ describe("renderReaderSlot", () => {
 					},
 					url: URL,
 					appOrigin: APP_ORIGIN,
+					noticeOob: false,
 				}),
 			);
 
@@ -236,7 +249,7 @@ describe("renderReaderSlot", () => {
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("not-found");
 			const actions = Array.from(
-				slot.querySelectorAll("[data-test-reader-action]"),
+				doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
 			).map((el) => el.getAttribute("data-test-reader-action"));
 			expect(actions).toEqual(["open"]);
 		},
@@ -254,6 +267,7 @@ describe("renderReaderSlot", () => {
 					crawl: { status: "failed", reason },
 					url: URL,
 					appOrigin: APP_ORIGIN,
+					noticeOob: false,
 				}),
 			);
 
@@ -261,7 +275,7 @@ describe("renderReaderSlot", () => {
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("origin-down");
 			const actions = Array.from(
-				slot.querySelectorAll("[data-test-reader-action]"),
+				doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
 			).map((el) => el.getAttribute("data-test-reader-action"));
 			expect(actions).toEqual(["open"]);
 		},
@@ -276,6 +290,7 @@ describe("renderReaderSlot", () => {
 				},
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -293,6 +308,7 @@ describe("renderReaderSlot", () => {
 				},
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 				extensionInstallUrl: "/install?client=chrome",
 			}),
 		);
@@ -312,6 +328,7 @@ describe("renderReaderSlot", () => {
 				},
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -332,6 +349,7 @@ describe("renderReaderSlot", () => {
 				content: "<p>Body copy</p>",
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -349,6 +367,7 @@ describe("renderReaderSlot", () => {
 				url: URL,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -359,7 +378,7 @@ describe("renderReaderSlot", () => {
 	});
 
 	it("renders the 'slow' reframe when crawl status is missing and there is no poll URL left", () => {
-		const doc = parse(renderReaderSlot({ url: URL, appOrigin: APP_ORIGIN }));
+		const doc = parse(renderReaderSlot({ url: URL, appOrigin: APP_ORIGIN, noticeOob: false }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -372,6 +391,7 @@ describe("renderReaderSlot", () => {
 				content: "<p>Legacy body</p>",
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -387,6 +407,7 @@ describe("renderReaderSlot", () => {
 				url: URL,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -401,6 +422,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "ready" },
 				url: URL,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -419,6 +441,7 @@ describe("renderReaderSlot", () => {
 				url: URL,
 				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -426,7 +449,9 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("hx-get")).toBeNull();
 		expect(
-			slot.querySelector("[data-reader-capture]")?.getAttribute("data-reader-capture-poll"),
+			doc
+				.querySelector("[data-test-reader-notice] [data-reader-capture]")
+				?.getAttribute("data-reader-capture-poll"),
 		).toBe("/queue/abc/reader?poll=1&capturing=1");
 	});
 
@@ -441,6 +466,7 @@ describe("renderReaderSlot", () => {
 				readerPollUrl: "/queue/abc/reader?poll=2&capturing=1",
 				capturing: true,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -463,6 +489,7 @@ describe("renderReaderSlot", () => {
 				url: URL,
 				capturing: true,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -481,6 +508,7 @@ describe("renderReaderSlot", () => {
 				readerPollUrl: "/queue/abc/reader?poll=3&capturing=1",
 				capturing: true,
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -499,6 +527,7 @@ describe("renderReaderSlot", () => {
 				url: destinationUrl("https://mail.google.com/mail/u/0/"),
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
+				noticeOob: false,
 			}),
 		);
 
@@ -506,7 +535,121 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
 		expect(slot.getAttribute("hx-get")).toBeNull();
-		expect(slot.textContent).toContain("This link isn't an article");
+		expect(doc.querySelector("[data-test-reader-notice]")?.textContent).toContain(
+			"This link isn't an article",
+		);
+	});
+
+	it.each<{
+		state: string;
+		input: Omit<ReaderSlotInput, "url" | "appOrigin" | "noticeOob">;
+		slot: { status: string; stateClass: string };
+		notice: { status: string; stateClass: string };
+	}>([
+		{
+			state: "ready",
+			input: { crawl: { status: "ready" }, content: "<p>x</p>" },
+			slot: { status: "ready", stateClass: "article-body__reader-slot--ready" },
+			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
+		},
+		{
+			state: "legacy row with content",
+			input: { content: "<p>x</p>" },
+			slot: { status: "ready", stateClass: "article-body__reader-slot--ready" },
+			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
+		},
+		{
+			state: "pending",
+			input: { crawl: { status: "pending" }, readerPollUrl: "/p" },
+			slot: { status: "pending", stateClass: "article-body__reader-slot--pending" },
+			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
+		},
+		{
+			state: "ready without content, still polling",
+			input: { crawl: { status: "ready" }, readerPollUrl: "/p" },
+			slot: { status: "pending", stateClass: "article-body__reader-slot--pending" },
+			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
+		},
+		{
+			state: "pending past the poll cap",
+			input: { crawl: { status: "pending" } },
+			slot: { status: "slow", stateClass: "article-body__reader-slot--notice" },
+			notice: { status: "slow", stateClass: "article-body__reader-notice--visible" },
+		},
+		{
+			state: "failed",
+			input: { crawl: { status: "failed", reason: "x" } },
+			slot: { status: "failed", stateClass: "article-body__reader-slot--notice" },
+			notice: { status: "failed", stateClass: "article-body__reader-notice--visible" },
+		},
+		{
+			state: "unsupported",
+			input: { crawl: { status: "unsupported", reason: "x" } },
+			slot: { status: "unsupported", stateClass: "article-body__reader-slot--notice" },
+			notice: { status: "unsupported", stateClass: "article-body__reader-notice--visible" },
+		},
+		{
+			state: "capturing on the device",
+			input: {
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+				readerPollUrl: "/p",
+				capturing: true,
+			},
+			slot: { status: "pending", stateClass: "article-body__reader-slot--pending" },
+			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
+		},
+		{
+			state: "a notice override on a ready crawl",
+			input: { notice: "not-an-article", crawl: { status: "ready" }, content: "<p>x</p>" },
+			slot: { status: "not-an-article", stateClass: "article-body__reader-slot--notice" },
+			notice: { status: "not-an-article", stateClass: "article-body__reader-notice--visible" },
+		},
+	])("pairs the $state slot with the notice region it needs", ({ input, slot, notice }) => {
+		const doc = parse(renderReaderSlot({ ...input, url: URL, appOrigin: APP_ORIGIN, noticeOob: false }));
+
+		const slotElement = doc.querySelector("[data-test-reader-slot]");
+		assert(slotElement, "reader slot must be rendered");
+		const noticeElement = doc.querySelector("[data-test-reader-notice]");
+		assert(noticeElement, "notice region must be rendered");
+		expect({
+			slotStatus: slotElement.getAttribute("data-reader-status"),
+			slotInState: slotElement.classList.contains(slot.stateClass),
+			noticeStatus: noticeElement.getAttribute("data-reader-status"),
+			noticeInState: noticeElement.classList.contains(notice.stateClass),
+		}).toEqual({
+			slotStatus: slot.status,
+			slotInState: true,
+			noticeStatus: notice.status,
+			noticeInState: true,
+		});
+	});
+
+	it.each([
+		{ state: "pending", crawl: { status: "pending" as const }, readerPollUrl: "/p" },
+		{ state: "failed", crawl: { status: "failed" as const, reason: "x" }, readerPollUrl: undefined },
+	])("marks the $state slot and its notice out of band independently", ({ crawl, readerPollUrl }) => {
+		const swaps = [
+			{ oob: false, noticeOob: false },
+			{ oob: true, noticeOob: false },
+			{ oob: false, noticeOob: true },
+			{ oob: true, noticeOob: true },
+		].map(({ oob, noticeOob }) => {
+			const doc = parse(
+				renderReaderSlot({ crawl, readerPollUrl, url: URL, appOrigin: APP_ORIGIN, oob, noticeOob }),
+			);
+			const slotElement = doc.querySelector("[data-test-reader-slot]");
+			assert(slotElement, "reader slot must be rendered");
+			const noticeElement = doc.querySelector("[data-test-reader-notice]");
+			assert(noticeElement, "notice region must be rendered");
+			return [slotElement.getAttribute("hx-swap-oob"), noticeElement.getAttribute("hx-swap-oob")];
+		});
+
+		expect(swaps).toEqual([
+			[null, null],
+			["outerHTML", null],
+			[null, "outerHTML"],
+			["outerHTML", "outerHTML"],
+		]);
 	});
 
 	it("dispatches every CrawlStatus variant — adding a new variant must break this test (and the renderer's exhaustive switch)", () => {
@@ -514,10 +657,10 @@ describe("renderReaderSlot", () => {
 			input: Parameters<typeof renderReaderSlot>[0];
 			expected: string;
 		}> = [
-			{ input: { crawl: { status: "ready" }, content: "<p>x</p>", url: URL, appOrigin: APP_ORIGIN }, expected: "ready" },
-			{ input: { crawl: { status: "pending" }, url: URL, readerPollUrl: "/p", appOrigin: APP_ORIGIN }, expected: "pending" },
-			{ input: { crawl: { status: "failed", reason: "x" }, url: URL, appOrigin: APP_ORIGIN }, expected: "failed" },
-			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, appOrigin: APP_ORIGIN }, expected: "unsupported" },
+			{ input: { crawl: { status: "ready" }, content: "<p>x</p>", url: URL, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "ready" },
+			{ input: { crawl: { status: "pending" }, url: URL, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false }, expected: "pending" },
+			{ input: { crawl: { status: "failed", reason: "x" }, url: URL, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "failed" },
+			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "unsupported" },
 		];
 
 		for (const { input, expected } of variants) {

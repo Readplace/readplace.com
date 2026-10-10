@@ -5,7 +5,7 @@ import {
 	type ActionButtons,
 	ChromelessReader,
 	RegularReader,
-	StickyReader,
+	WebReader,
 } from "./reader-actions.component";
 
 const BACK = {
@@ -45,7 +45,7 @@ function parse(html: string): Document {
 
 describe("readlist picker", () => {
 	it("renders one assign form per offered readlist inside an anchored disclosure", () => {
-		const { top } = StickyReader({
+		const { top } = WebReader({
 			actionBtns: {
 				...ACTION_BTNS,
 				readlistPicker: {
@@ -87,7 +87,7 @@ describe("readlist picker", () => {
 	});
 
 	it("appends a create row that posts the typed name to create-and-assign", () => {
-		const { top } = StickyReader({
+		const { top } = WebReader({
 			actionBtns: {
 				...ACTION_BTNS,
 				readlistPicker: {
@@ -127,7 +127,7 @@ describe("readlist picker", () => {
 	});
 
 	it("keeps the slot in the bar, hidden, when there is nothing to offer", () => {
-		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+		const { top } = WebReader({ actionBtns: ACTION_BTNS });
 		const doc = parse(top.to("text/html").body);
 
 		const slot = doc.querySelector("[data-test-readlists-slot]");
@@ -138,7 +138,7 @@ describe("readlist picker", () => {
 
 describe("downloads", () => {
 	it("renders one direct EPUB link, not a disclosure, when a download is offered", () => {
-		const { top } = StickyReader({
+		const { top } = WebReader({
 			actionBtns: { ...ACTION_BTNS, epubDownloadHref: "/view/example.com/a?format=epub" },
 		});
 		const doc = parse(top.to("text/html").body);
@@ -157,7 +157,7 @@ describe("downloads", () => {
 	});
 
 	it("keeps the slot in the bar, hidden, when no downloads are offered", () => {
-		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+		const { top } = WebReader({ actionBtns: ACTION_BTNS });
 		const doc = parse(top.to("text/html").body);
 
 		const slot = doc.querySelector("[data-test-downloads-slot]");
@@ -179,7 +179,7 @@ describe("narrow-viewport labels", () => {
 	};
 
 	function topBarOf(actionBtns: ActionButtons): Document {
-		return parse(StickyReader({ actionBtns }).top.to("text/html").body);
+		return parse(WebReader({ actionBtns }).top.to("text/html").body);
 	}
 
 	it("keeps every control's full label in the document so the accessible name survives the swap", () => {
@@ -235,7 +235,7 @@ describe("narrow-viewport labels", () => {
 
 describe("mark-read confirmation", () => {
 	it("keeps one plain form, holding the action's own test hook, when nothing needs confirming", () => {
-		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+		const { top } = WebReader({ actionBtns: ACTION_BTNS });
 		const doc = parse(top.to("text/html").body);
 
 		const button = doc.querySelector("[data-test-mark-read-btn]");
@@ -247,7 +247,7 @@ describe("mark-read confirmation", () => {
 	});
 
 	it("splits into a popover trigger and a renamed fallback once the action is confirmed", () => {
-		const { top } = StickyReader({
+		const { top } = WebReader({
 			actionBtns: {
 				...ACTION_BTNS,
 				markReadActions: [
@@ -290,8 +290,9 @@ describe("RegularReader", () => {
 		const topDoc = parse(top.to("text/html").body);
 		const bottomDoc = parse(bottom.to("text/html").body);
 
-		assert(topDoc.querySelector(".article-body__actions--top"), "top bar must render");
-		expect(topDoc.querySelector(".article-body__actions--sticky")).toBe(null);
+		const toolbar = topDoc.querySelector(".article-body__toolbar");
+		assert(toolbar, "the toolbar row must wrap the top bar, as on every reader");
+		assert(toolbar.querySelector(".article-body__actions--top"), "top bar must render inside the toolbar row");
 
 		const backSlot = topDoc.querySelector("[data-test-back-slot]");
 		assert(backSlot, "top back slot must render");
@@ -354,41 +355,41 @@ describe("RegularReader", () => {
 	});
 });
 
-describe("StickyReader", () => {
-	it("places the top action buttons inside a sticky container, keeping the mark-read form", () => {
-		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+describe("WebReader", () => {
+	it("places the top action buttons inside the toolbar row, keeping the mark-read form", () => {
+		const { top } = WebReader({ actionBtns: ACTION_BTNS });
 		const topDoc = parse(top.to("text/html").body);
 
-		const sticky = topDoc.querySelector(".article-body__actions--sticky");
-		assert(sticky, "sticky container must wrap the top action buttons");
+		const toolbar = topDoc.querySelector(".article-body__toolbar");
+		assert(toolbar, "the toolbar row must wrap the top action buttons");
 		assert(
-			sticky.querySelector(".article-body__actions--top"),
-			"the top action bar must live inside the sticky container",
+			toolbar.querySelector(".article-body__actions--top"),
+			"the top action bar must live inside the toolbar row",
 		);
 		expect(topDoc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe(BACK.topHref);
 		assert(topDoc.querySelector("[data-test-mark-read-form]"), "the web reader keeps the top mark-read form");
 	});
 
-	it("drops the entire bottom bar — the sticky top bar stays reachable while scrolling", () => {
-		const { bottom } = StickyReader({ actionBtns: ACTION_BTNS });
+	it("drops the entire bottom bar — the toolbar row carries the article's actions", () => {
+		const { bottom } = WebReader({ actionBtns: ACTION_BTNS });
 		expect(bottom.to("text/html").body).toBe("");
 	});
 
-	it("carries the distraction-free page body class so the shell hides its chrome and the toolbar pins at the top", () => {
-		expect(StickyReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader page-distraction-free");
+	it("carries the distraction-free page body class so the shell hides its chrome", () => {
+		expect(WebReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader page-distraction-free");
 	});
 });
 
 describe("ChromelessReader", () => {
-	it("places the top action buttons inside a sticky container, keeping the mark-read form", () => {
+	it("places the top action buttons inside the toolbar row, keeping the mark-read form", () => {
 		const { top } = ChromelessReader({ actionBtns: ACTION_BTNS });
 		const topDoc = parse(top.to("text/html").body);
 
-		const sticky = topDoc.querySelector(".article-body__actions--sticky");
-		assert(sticky, "sticky container must wrap the top action buttons");
+		const toolbar = topDoc.querySelector(".article-body__toolbar");
+		assert(toolbar, "the toolbar row must wrap the top action buttons");
 		assert(
-			sticky.querySelector(".article-body__actions--top"),
-			"the top action bar must live inside the sticky container",
+			toolbar.querySelector(".article-body__actions--top"),
+			"the top action bar must live inside the toolbar row",
 		);
 		expect(topDoc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe(BACK.topHref);
 		assert(topDoc.querySelector("[data-test-mark-read-form]"), "chromeless keeps the top mark-read form");
@@ -399,7 +400,7 @@ describe("ChromelessReader", () => {
 		expect(bottom.to("text/html").body).toBe("");
 	});
 
-	it("carries the chromeless body class so the reader CSS offsets content below the sticky toolbar", () => {
+	it("carries the chromeless body class so the reader CSS pins the toolbar row at the top", () => {
 		expect(ChromelessReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe(
 			"page-reader page-reader--chromeless",
 		);

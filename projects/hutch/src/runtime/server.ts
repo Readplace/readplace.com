@@ -215,7 +215,7 @@ import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
 import {
 	ChromelessReader,
-	StickyReader,
+	WebReader,
 } from "./web/shared/article-body/reader-actions/reader-actions.component";
 import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
@@ -1433,7 +1433,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		pinContentSource: deps.pinContentSource,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
-		stickyReader: StickyReader,
+		webReader: WebReader,
 		chromelessReader: ChromelessReader,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		getOnboardingSignals: deps.getOnboardingSignals,

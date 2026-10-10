@@ -1,9 +1,14 @@
     <main class="view">
-      <article class="view__body" data-article-body>
-        {{{innerContent}}}
-      </article>
-      <div class="view__share-row">
-        {{{shareBalloon}}}
+      <div class="reading-layout">
+        <div class="reading-layout__main">
+          <div class="view__body" data-article-body>
+            {{{innerContent}}}
+          </div>
+          <div class="view__share-row">
+            {{{shareBalloon}}}
+          </div>
+        </div>
+        <div class="reading-layout__rail" data-test-reader-rail></div>
       </div>
       {{{saveTipHtml}}}
     </main>

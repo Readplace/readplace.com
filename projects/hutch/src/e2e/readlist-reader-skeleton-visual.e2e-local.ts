@@ -21,11 +21,11 @@ const ARTICLE_TITLE = "How Google Sold Its Engineers on Management";
 const READER_DOCUMENT_TITLE = `${ARTICLE_TITLE} — Readplace Reader`;
 const DESKTOP_TALL = { width: 1280, height: 1700 };
 const PHONE_TALL = { width: 390, height: 2000 };
-const READER_MAX_WIDTH = 680;
 const FRAME_TOLERANCE_PX = 0.5;
 
-const COLUMN = "main.reader";
-const TOOLBAR = "main.reader .article-body__actions--sticky";
+const COLUMN = "main.reader .reading-layout__main";
+const TOOLBAR = "main.reader .article-body__toolbar";
+const CARD = "main.reader .article-body__card--article";
 const HEADER = "main.reader .article-body__header";
 const TITLE = "main.reader .article-body__title";
 const SKELETON = "[data-test-reader-skeleton]";
@@ -46,6 +46,14 @@ const VOLATILE_CHROME = [
 	".reader__float-stack",
 	".article-body__progress",
 ];
+
+interface SkeletonFrame {
+	mainTrack: number;
+	cardInset: number;
+}
+
+const DESKTOP_FRAME: SkeletonFrame = { mainTrack: 796, cardInset: 33 };
+const PHONE_FRAME: SkeletonFrame = { mainTrack: 350, cardInset: 21 };
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
@@ -134,7 +142,7 @@ async function skeletonSettled(page: Page): Promise<void> {
 	await page.waitForSelector(SKELETON);
 	await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
 	await page.locator(TITLE).filter({ hasText: ARTICLE_TITLE }).waitFor();
-	await expect(page.locator(TITLE)).toHaveCSS("font-size", "32px");
+	await expect(page.locator(TITLE)).toHaveCSS("font-size", "24px");
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
@@ -153,25 +161,30 @@ async function stableFrameBoxes(page: Page): Promise<MeasuredBox[]> {
 	return boxes;
 }
 
-async function skeletonGeometry(page: Page): Promise<void> {
+async function skeletonGeometry(page: Page, frame: SkeletonFrame): Promise<void> {
 	const viewport = page.viewportSize();
 	assert.ok(viewport, "the skeleton checkpoints must run with an explicit viewport");
 
 	const [toolbar, header, title] = await page.evaluate(measureBoxes, [...FRAME]);
 	assert.ok(toolbar && header && title, "the skeleton frame must be laid out");
 	const column = await measuredBox(page, COLUMN);
+	const card = await measuredBox(page, CARD);
 	assert.ok(
-		Math.abs(column.width - Math.min(READER_MAX_WIDTH, viewport.width)) <= 1,
-		`the reader column must share the reader's measure, saw ${column.width}`,
+		Math.abs(column.width - frame.mainTrack) <= 1,
+		`the skeleton's main track must match the landed reader's ${frame.mainTrack}px, saw ${column.width}`,
 	);
 	assert.ok(
 		column.y + column.height <= viewport.height,
 		`the whole column must fit a page-from-top capture, its bottom sits at ${column.y + column.height}`,
 	);
-	assert.ok(Math.abs(toolbar.x - header.x) <= 0.5, "the toolbar and header share the column's left edge");
-	assert.ok(Math.abs(toolbar.width - header.width) <= 0.5, "the toolbar and header share the column's width");
+	assert.ok(Math.abs(toolbar.x - column.x) <= 0.5, "the toolbar starts at the column's left edge");
+	assert.ok(Math.abs(toolbar.width - column.width) <= 0.5, "the toolbar spans the column");
+	assert.ok(
+		Math.abs(header.x - card.x - frame.cardInset) <= 0.5,
+		`the header must sit ${frame.cardInset}px inside the card's edge, saw ${header.x - card.x}`,
+	);
 	assert.ok(Math.abs(title.width - header.width) <= 0.5, "the title spans the header width");
-	assert.ok(title.y >= toolbar.y + toolbar.height - 0.5, "the title sits below the sticky toolbar");
+	assert.ok(title.y >= toolbar.y + toolbar.height - 0.5, "the title sits below the toolbar");
 
 	const overflows = await page.evaluate(pageOverflowsSideways);
 	assert.equal(overflows, false, "the skeleton must not widen the page");
@@ -180,11 +193,11 @@ async function skeletonGeometry(page: Page): Promise<void> {
 	assert.equal(lines, 9, "the skeleton body must render its placeholder lines");
 }
 
-function checkpoint(name: string): VisualCheckpoint {
+function checkpoint(name: string, frame: SkeletonFrame): VisualCheckpoint {
 	return {
 		name,
 		settled: skeletonSettled,
-		geometry: skeletonGeometry,
+		geometry: (page) => skeletonGeometry(page, frame),
 		target: COLUMN,
 		capture: "page-from-top",
 		pinnedText: [],
@@ -202,7 +215,7 @@ test.describe("Reader skeleton while the reader is held", () => {
 
 		await skeletonSettled(page);
 		const before = await stableFrameBoxes(page);
-		await captureCheckpoint(page, checkpoint("reader-skeleton-desktop-light"));
+		await captureCheckpoint(page, checkpoint("reader-skeleton-desktop-light", DESKTOP_FRAME));
 
 		release();
 		await page.waitForSelector(READY_SLOT);
@@ -248,7 +261,7 @@ test.describe("Reader skeleton while the reader is held", () => {
 	test("paints the same frame in dark mode", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openHeldReader(page, `desktop-dark-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, checkpoint("reader-skeleton-desktop-dark"));
+		await captureCheckpoint(page, checkpoint("reader-skeleton-desktop-dark", DESKTOP_FRAME));
 	});
 });
 
@@ -258,6 +271,6 @@ test.describe("Reader skeleton on a phone", () => {
 	test("paints the reader's frame at a phone width", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openHeldReader(page, `phone-light-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, checkpoint("reader-skeleton-phone-light"));
+		await captureCheckpoint(page, checkpoint("reader-skeleton-phone-light", PHONE_FRAME));
 	});
 });

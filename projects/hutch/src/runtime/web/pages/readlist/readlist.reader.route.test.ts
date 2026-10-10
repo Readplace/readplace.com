@@ -425,10 +425,10 @@ describe("Readlist routes", () => {
 			expect(readerResponse.text).not.toContain("/client-dist/reader-nav.client.js");
 
 			const topForm = doc.querySelector("[data-test-mark-read-form]");
-			assert(topForm, "the sticky mark-read form must be rendered");
+			assert(topForm, "the toolbar mark-read form must be rendered");
 			assert(
-				doc.querySelector(".article-body__actions--sticky [data-test-mark-read-form]"),
-				"the mark-read form must live inside the sticky toolbar",
+				doc.querySelector(".article-body__toolbar [data-test-mark-read-form]"),
+				"the mark-read form must live inside the toolbar row",
 			);
 			expect(doc.querySelector("[data-test-mark-read-bottom-form]")).toBe(null);
 			expect(topForm.getAttribute("action")).toBe(
@@ -1734,18 +1734,20 @@ describe("Readlist routes", () => {
 			assert(slot, "reader slot must be rendered");
 
 			expect(slot.getAttribute("data-reader-status")).toBe("blocked");
-			expect(slot.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, "the blocked notice must be rendered");
+			expect(notice.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(
 				"The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — the browser extension and the iPhone app do this in one tap.",
 			);
-			const actions = Array.from(slot.querySelectorAll("[data-test-reader-action]")).map(
+			const actions = Array.from(notice.querySelectorAll("[data-test-reader-action]")).map(
 				(el) => el.getAttribute("data-test-reader-action"),
 			);
 			expect(actions).toEqual(["open", "capture"]);
-			expect(slot.querySelector("[data-reader-capture]")?.className).toBe(
+			expect(notice.querySelector("[data-reader-capture]")?.className).toBe(
 				"btn btn--secondary article-body__reader-notice-capture",
 			);
 			expect(
-				slot.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
+				notice.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
 			).toBe(ARTICLE_URL);
 		});
 

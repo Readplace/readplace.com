@@ -142,20 +142,19 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(queueDoc.body.className).toBe("page-readlist");
 	});
 
-	it("pins the web reader's mark-as-read in a sticky toolbar with no bottom bar, same as chromeless", async () => {
+	it("puts the web reader's mark-as-read in the toolbar row with no bottom bar", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-web-sticky");
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-web-toolbar");
 
 		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
 
-		const sticky = doc.querySelector(".article-body__actions--sticky");
-		assert(sticky, "the web reader must render the sticky action toolbar");
-		assert(sticky.querySelector("[data-test-mark-read-form]"), "the sticky toolbar keeps the mark-read form");
+		const toolbar = doc.querySelector(".article-body__toolbar");
+		assert(toolbar, "the web reader must render the toolbar row");
+		assert(toolbar.querySelector("[data-test-mark-read-form]"), "the toolbar row keeps the mark-read form");
 		expect(doc.querySelector(".article-body__actions--bottom")).toBe(null);
 		expect(doc.querySelector("[data-test-mark-read-bottom-slot]")).toBe(null);
-		expect(doc.body.classList.contains("page-reader")).toBe(true);
-		expect(doc.body.classList.contains("page-reader--chromeless")).toBe(false);
+		expect(doc.body.className).toBe("page-reader page-distraction-free");
 	});
 
 	it("renders chromeless for a pre-param app build that sends only the client header", async () => {
@@ -285,7 +284,9 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
-		const capture = slot.querySelector("[data-reader-capture]");
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "the blocked notice must be rendered");
+		const capture = notice.querySelector("[data-reader-capture]");
 		assert(capture, "the blocked notice must offer the in-app capture control");
 		expect(capture.getAttribute("data-reader-capture-poll")).toBe(
 			`/queue/${articleId}/reader?poll=1&capturing=1&platform=ios`,
@@ -499,6 +500,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"article-body-reader-notice",
 		]);
 	});
 
@@ -551,6 +553,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"article-body-reader-notice",
 		]);
 	});
 });
@@ -615,6 +618,9 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, "the notice must be rendered");
+			expect(notice.getAttribute("data-reader-status")).toBe("not-an-article");
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("mail.google.com");
 			expect(response.text).toContain("readplaceReader");
 			expect(response.text).not.toContain("captureBlocked");
@@ -636,6 +642,12 @@ describe("Changelog announcement in the chromeless reader (GET /queue/:id/view?p
 				assert(slot, `reader slot must be rendered for ${path}`);
 				expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
 				expect(slot.hasAttribute("hx-get")).toBe(false);
+				const notice = doc.querySelector("[data-test-reader-notice]");
+				assert(notice, `notice must be rendered for ${path}`);
+				expect([notice.getAttribute("data-reader-status"), notice.getAttribute("hx-swap-oob")]).toEqual([
+					"not-an-article",
+					"outerHTML",
+				]);
 				const summarySlot = doc.querySelector("[data-test-reader-summary]");
 				assert(summarySlot, `summary slot must be rendered for ${path}`);
 				expect(summarySlot.hasAttribute("hx-get")).toBe(false);

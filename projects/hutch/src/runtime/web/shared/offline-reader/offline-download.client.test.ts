@@ -101,7 +101,7 @@ function readerPage(bodyHtml: string, outside = ""): string {
 function finishedArticle(content: string): string {
 	return (
 		renderSummarySlot({ crawl: { status: "ready" }, content, summary: { status: "ready", summary: "Key points.", topics: [] } }) +
-		renderReaderSlot({ crawl: { status: "ready" }, content, url: ARTICLE_URL, appOrigin: ORIGIN })
+		renderReaderSlot({ crawl: { status: "ready" }, content, url: ARTICLE_URL, appOrigin: ORIGIN, noticeOob: false }).slot
 	);
 }
 
@@ -514,14 +514,14 @@ describe("initOfflineDownload", () => {
 		];
 		const stillReading =
 			renderSummarySlot({ crawl: { status: "pending" }, summary: undefined, summaryPollUrl: "/queue/u3/summary?poll=1" }) +
-			renderReaderSlot({ crawl: { status: "pending" }, url: ARTICLE_URL, readerPollUrl: "/queue/u3/reader?poll=1", appOrigin: ORIGIN });
+			renderReaderSlot({ crawl: { status: "pending" }, url: ARTICLE_URL, readerPollUrl: "/queue/u3/reader?poll=1", appOrigin: ORIGIN, noticeOob: false }).slot;
 		const stillSummarising =
 			renderSummarySlot({
 				crawl: { status: "ready" },
 				content: "<p>Read</p>",
 				summary: { status: "pending" },
 				summaryPollUrl: "/queue/s4/summary?poll=1",
-			}) + renderReaderSlot({ crawl: { status: "ready" }, content: "<p>Read</p>", url: ARTICLE_URL, appOrigin: ORIGIN });
+			}) + renderReaderSlot({ crawl: { status: "ready" }, content: "<p>Read</p>", url: ARTICLE_URL, appOrigin: ORIGIN, noticeOob: false }).slot;
 		const page = startDownload({
 			routes: {
 				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards }) },

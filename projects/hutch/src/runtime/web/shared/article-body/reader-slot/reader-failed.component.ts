@@ -10,6 +10,11 @@ const TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const MARKER_TEMPLATE = readFileSync(
+	join(__dirname, "reader-notice-marker.template.html"),
+	"utf-8",
+);
+
 export type { ReaderFailedVariant };
 
 export interface ReaderFailedInput {
@@ -30,6 +35,12 @@ export interface ReaderFailedInput {
 	extensionInstallUrl?: string;
 	capturePollUrl?: string;
 	oob?: boolean;
+	noticeOob: boolean;
+}
+
+export interface ReaderRegions {
+	slot: string;
+	notice: string;
 }
 
 const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
@@ -74,16 +85,22 @@ function pitchInstallUrl(input: ReaderFailedInput): string | undefined {
 	});
 }
 
-export function renderReaderFailed(input: ReaderFailedInput): string {
-	return render(TEMPLATE, {
-		url: input.url,
-		variant: input.variant,
-		ctaLabel: CTA_LABELS[input.variant](articleDestinationHost(input.url)),
-		explanation: EXPLANATIONS[input.variant],
-		showCapture: input.variant === "blocked",
-		capturePollUrl: input.capturePollUrl,
-		extensionInstallUrl: pitchInstallUrl(input),
-		captureSurfaces: FULL_PAGE_CAPTURE_PHRASE,
-		oob: input.oob === true,
-	});
+export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
+	return {
+		slot: render(MARKER_TEMPLATE, {
+			variant: input.variant,
+			oob: input.oob === true,
+		}),
+		notice: render(TEMPLATE, {
+			url: input.url,
+			variant: input.variant,
+			ctaLabel: CTA_LABELS[input.variant](articleDestinationHost(input.url)),
+			explanation: EXPLANATIONS[input.variant],
+			showCapture: input.variant === "blocked",
+			capturePollUrl: input.capturePollUrl,
+			extensionInstallUrl: pitchInstallUrl(input),
+			captureSurfaces: FULL_PAGE_CAPTURE_PHRASE,
+			noticeOob: input.noticeOob,
+		}),
+	};
 }

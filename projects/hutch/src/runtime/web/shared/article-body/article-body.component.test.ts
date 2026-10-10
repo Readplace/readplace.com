@@ -124,10 +124,9 @@ describe("renderArticleBody", () => {
 			previouslyReadHtml: '<section data-test-reader-topic-reads>past reads</section>',
 		});
 		const doc = parse(withSection);
-		assert(
-			doc.querySelector("[data-test-reader-topic-reads]"),
-			"the section is spliced into the body",
-		);
+		const section = doc.querySelector("[data-test-reader-topic-reads]");
+		assert(section, "the section is spliced into the body");
+		expect(section.parentElement?.hasAttribute("data-test-article-card")).toBe(true);
 		expect(withSection.indexOf("data-test-reader-topic-reads")).toBeGreaterThan(
 			withSection.indexOf('id="article-body-summary-slot"'),
 		);
@@ -204,8 +203,69 @@ describe("renderArticleBody", () => {
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("failed");
-		const link = slot.querySelector(".article-body__reader-notice-link");
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "the notice must be rendered");
+		expect(notice.getAttribute("data-reader-status")).toBe("failed");
+		const link = notice.querySelector(".article-body__reader-notice-link");
 		expect(link?.getAttribute("href")).toBe("https://example.com/post");
 	});
 
+	it("wraps the header, the panels and the reader slot in one article card", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+			summary: { status: "ready", summary: "Key points.", topics: [] },
+		});
+		const doc = parse(html);
+
+		const card = doc.querySelector("[data-test-article-card]");
+		assert(card, "the article card must be rendered");
+		expect(card.tagName).toBe("ARTICLE");
+		expect(card.className).toBe("article-body__card article-body__card--article");
+		const childIds = Array.from(card.children, (child) => child.id);
+		expect(childIds).toEqual([
+			"article-header",
+			"article-body-progress",
+			"article-body-summary-slot",
+			"article-body-reader-slot",
+		]);
+	});
+
+	it("orders the toolbar, the card, the notice, the issue links and the bottom bar, keeping the notice the card's next sibling", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: undefined,
+			crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
+			topActionsHtml: '<div data-test-top-actions>top</div>',
+			issueLinksHtml: '<section data-test-issue-links>links</section>',
+			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
+		});
+		const doc = parse(html);
+
+		const order = Array.from(doc.body.children, (child) =>
+			Array.from(child.attributes, (attribute) => attribute.name).find((name) => name.startsWith("data-test-")),
+		);
+		expect(order).toEqual([
+			"data-test-top-actions",
+			"data-test-article-card",
+			"data-test-reader-notice",
+			"data-test-issue-links",
+			"data-test-bottom-actions",
+		]);
+		const card = doc.querySelector("[data-test-article-card]");
+		assert(card, "the article card must be rendered");
+		expect(card.nextElementSibling?.id).toBe("article-body-reader-notice");
+	});
+
+	it("renders the notice region hidden after the card while the reader view is ready", () => {
+		const doc = parse(renderArticleBody({ ...baseInput, content: "<p>Body</p>" }));
+
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "the notice region must be rendered unconditionally");
+		expect([notice.getAttribute("data-reader-status"), notice.className]).toEqual([
+			"none",
+			"article-body__reader-notice article-body__reader-notice--hidden",
+		]);
+		expect(notice.previousElementSibling?.hasAttribute("data-test-article-card")).toBe(true);
+	});
 });

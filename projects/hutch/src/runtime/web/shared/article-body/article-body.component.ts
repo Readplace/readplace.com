@@ -62,7 +62,7 @@ export interface ArticleBodyInput {
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
-	const readerSlotHtml = renderReaderSlot({
+	const readerRegions = renderReaderSlot({
 		crawl: input.crawl,
 		content: input.content,
 		url: input.url,
@@ -71,6 +71,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		extensionInstallUrl: input.extensionInstallUrl,
 		notice: input.readerNotice,
 		appOrigin: input.appOrigin,
+		noticeOob: false,
 	});
 
 	const summarySlotHtml = renderSummarySlot({
@@ -101,7 +102,8 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 	return render(ARTICLE_BODY_TEMPLATE, {
 		topActionsHtml: input.topActionsHtml,
 		headerHtml,
-		readerSlotHtml,
+		readerSlotHtml: readerRegions.slot,
+		readerNoticeHtml: readerRegions.notice,
 		summarySlotHtml,
 		previouslyReadHtml: input.previouslyReadHtml ?? "",
 		issueLinksHtml: input.issueLinksHtml ?? "",

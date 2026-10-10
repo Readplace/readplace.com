@@ -525,6 +525,24 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 	res.status(201).json({ ok: true, articleId: saved?.id.value })
 })
 
+const SeedCrawlStatusBody = z.discriminatedUnion('status', [
+	z.object({ url: z.string(), status: z.literal('pending') }),
+	z.object({ url: z.string(), status: z.literal('failed'), reason: z.string() }),
+])
+server.post('/e2e/seed-crawl-status', async (req, res) => {
+	const parsed = SeedCrawlStatusBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	if (parsed.data.status === 'pending') {
+		await fixture.articleCrawl.forceMarkCrawlPending({ url: parsed.data.url })
+	} else {
+		await fixture.articleCrawl.markCrawlFailed({ url: parsed.data.url, reason: parsed.data.reason })
+	}
+	res.status(201).json({ ok: true })
+})
+
 const SeedRelatedArticlesBody = z.object({
 	userId: UserIdSchema,
 	sourceUrl: z.string(),

@@ -19,7 +19,7 @@ const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const ARTICLE_TITLE = "Yes you can measure engineering | Jade Rubick";
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 320, height: 720 };
-const COLUMN = ".reader";
+const COLUMN = ".reading-layout__main";
 const DEEP_WORK = "Deep Work";
 const WEEKEND = "Weekend";
 const LONG_READLIST_NAME = "Weekend reads on flights";
@@ -29,7 +29,7 @@ const READLIST_TAG = "[data-test-readlist-tag]";
 const UNASSIGN = "[data-test-unassign-readlist]";
 
 const SLOT = "[data-test-readlists-slot]";
-const TOOLBAR = ".article-body__actions--sticky";
+const TOOLBAR = ".article-body__toolbar";
 const TRIGGER = `${SLOT} [data-test-readlists-trigger]`;
 const MENU = "[data-test-readlists-menu]";
 const OPTION_BUTTONS = `${MENU} [data-test-assign-readlist]`;

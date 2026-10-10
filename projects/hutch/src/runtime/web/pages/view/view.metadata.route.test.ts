@@ -986,7 +986,9 @@ describe("View routes", () => {
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
-			expect(slot.textContent).toContain("This link isn't an article, so there's no reader view.");
+			expect(doc.querySelector("[data-test-reader-notice]")?.textContent).toContain(
+				"This link isn't an article, so there's no reader view.",
+			);
 
 			const primary = doc.querySelector("[data-test-reader-failed-primary]");
 			assert(primary, "the notice must offer the original link");

@@ -444,10 +444,7 @@ interface ReadlistDependencies {
 	readArticleContent: ReadArticleContent;
 	resolveOwnedArticle: ResolveOwnedArticle;
 	markdownBearerAuth: RequestHandler;
-	/** The reader's Back + Mark-as-read action bar, injected per variant: the sticky
-	 * toolbar for the web reader, the chromeless sticky variant for the iOS app. Both
-	 * pin the toolbar and drop the bottom bar; they differ only in where it pins. */
-	stickyReader: RenderReaderActions;
+	webReader: RenderReaderActions;
 	chromelessReader: RenderReaderActions;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	/** Reads the per-user onboarding signals for the `/queue` render: the iOS
@@ -1327,7 +1324,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					now: deps.now(),
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
 					backLink: VIEW_BACK_LINK,
-					renderActions: deps.stickyReader,
+					renderActions: deps.webReader,
 					readlistFiling,
 					provenance,
 					markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,

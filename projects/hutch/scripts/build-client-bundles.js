@@ -108,6 +108,15 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/pages/reader/reader-top.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "reader-top.client.js"),
+    globalName: "ReaderTop",
+    footer: "ReaderTop.initReaderTop({ document: window.document, window: window });",
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/reader/reader-exit-confirm.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-exit-confirm.client.js"),
