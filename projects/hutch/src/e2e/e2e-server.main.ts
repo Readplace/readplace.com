@@ -138,7 +138,12 @@ const e2eValidateSaveableUrl: ValidateSaveableUrl = (value) => {
 	}
 }
 
-const fixture = createDefaultTestAppFixture(origin)
+// E2E exercises the HTMX polling UI end-to-end, so opt the summary fake into
+// transitioning pending → ready after a few reads. Unit/route tests use the
+// default (stays pending) for deterministic HTML assertions.
+const summary = createFakeSummaryProvider({ readyAfterReads: 3 })
+
+const fixture = createDefaultTestAppFixture(origin, summary)
 
 let lastGmailInstant = 0
 const gmailNow = () => {
@@ -271,11 +276,6 @@ async function seedReadlistSlug(input: { userId: UserId; label: string }): Promi
 	)
 	return outcome.readlist.slug
 }
-
-// E2E exercises the HTMX polling UI end-to-end, so opt the summary fake into
-// transitioning pending → ready after a few reads. Unit/route tests use the
-// default (stays pending) for deterministic HTML assertions.
-const summary = createFakeSummaryProvider({ readyAfterReads: 3 })
 
 // Wire real refresh stack with in-memory publishers so e2e exercises the
 // event-driven refresh/update-timestamp paths (publishRefreshArticleContent

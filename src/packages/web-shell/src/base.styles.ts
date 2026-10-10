@@ -389,6 +389,12 @@ export const BUTTON_STYLES = `
 		inset: -6px 0;
 	}
 
+	.btn--icon {
+		padding: 0;
+		min-width: 48px;
+		aspect-ratio: 1;
+	}
+
 	.btn--primary {
 		background: var(--primary);
 		color: var(--primary-foreground);
@@ -563,6 +569,10 @@ export const FORM_CONTROL_STYLES = `
 		min-height: calc(var(--input-height) * 2.5);
 		line-height: 1.5;
 		resize: vertical;
+	}
+
+	.form-input--leading-icon {
+		padding-inline-start: 40px;
 	}
 
 	.form-input--within {
@@ -805,6 +815,38 @@ export const CHIP_STYLES = `
 	.chip__remove svg {
 		width: 16px;
 		height: 16px;
+	}
+
+	.chip--filter {
+		min-height: 50px;
+		padding: 0 16px;
+		border: 1px solid var(--border);
+		background: transparent;
+		color: var(--foreground);
+		font-size: var(--text-md);
+		font-weight: 500;
+		line-height: 1.25;
+		cursor: pointer;
+		transition: background-color 150ms ease;
+	}
+
+	.chip--filter:hover {
+		background: var(--muted);
+	}
+
+	.chip__input:checked + .chip--filter {
+		border-color: var(--foreground);
+	}
+
+	.chip__input:focus-visible + .chip--filter {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.chip--filter {
+			transition: none;
+		}
 	}
 `;
 

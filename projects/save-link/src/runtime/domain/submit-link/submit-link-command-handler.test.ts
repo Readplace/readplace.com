@@ -20,7 +20,7 @@ import {
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
 import { initFileArticleIntoReadlist } from "@packages/save-article";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type {
 	CrawlAndFinalizeArticle,
@@ -174,7 +174,7 @@ async function run(handler: ReturnType<typeof createHandler>, event: SQSEvent) {
 
 describe("initSubmitLinkCommandHandler", () => {
 	it("converges duplicate Gmail saves on one canonical membership in All and each accepted custom list", async () => {
-		const store = initInMemoryArticleStore();
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 		const accepted = ReadlistSlugSchema.parse("engineering");
 		const rejected = ReadlistSlugSchema.parse("travel");
 		const unavailable = ReadlistSlugSchema.parse("finance");

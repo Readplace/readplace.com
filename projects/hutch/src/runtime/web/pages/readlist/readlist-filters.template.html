@@ -1,0 +1,30 @@
+<form class="readlist-filters__form" method="GET" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-indicator="closest form, .readlist-listing" hx-disabled-elt="find button[type=submit]" hx-disinherit="hx-disabled-elt" data-test-form="readlist-filters" data-test-discovery-form="{{scope}}">
+  {{#each drawerFields}}
+  <input type="hidden" name="{{name}}" value="{{value}}">
+  {{/each}}
+  <header class="readlist-filters__header">
+    <h2 class="readlist-filters__title" id="{{idPrefix}}-title">Filters</h2>
+    {{#each closeControls}}
+    <button class="readlist-filters__close" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="close-discovery-filters">{{icon "x"}}<span class="sr-only">Close</span></button>
+    {{/each}}
+  </header>
+  <div class="readlist-filters__body">
+    {{#each groups}}
+    <fieldset class="readlist-filters__group">
+      <legend class="readlist-filters__legend">{{legend}}</legend>
+      <div class="readlist-filters__chips">
+        {{#each options}}
+        <label class="readlist-filters__option" data-test-discovery-option="{{../name}}:{{value}}">
+          <input class="chip__input sr-only" type="checkbox" name="{{../name}}" value="{{value}}"{{#if checked}} checked{{/if}}>
+          <span class="chip chip--filter">{{label}}</span>
+        </label>
+        {{/each}}
+      </div>
+    </fieldset>
+    {{/each}}
+  </div>
+  <footer class="readlist-filters__footer">
+    <a class="btn btn--neutral" href="{{clearAllHref}}" data-test-action="clear-discovery-filters">Clear all</a>
+    <button class="btn btn--primary readlist-filters__apply" type="submit" data-test-action="apply-discovery-filters"><span class="readlist-filters__apply-label">Apply filters</span>{{{applyLoaderHtml}}}</button>
+  </footer>
+</form>

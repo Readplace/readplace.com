@@ -48,3 +48,7 @@ export const READLIST_TAB_STATUSES: readonly { label: string; status: ArticleSta
 export function tabQuery(tab: TabId): TabQuery {
 	return TAB_DEFINITIONS[tab].query;
 }
+
+export function tabLabel(tab: TabId): string {
+	return TAB_DEFINITIONS[tab].label;
+}

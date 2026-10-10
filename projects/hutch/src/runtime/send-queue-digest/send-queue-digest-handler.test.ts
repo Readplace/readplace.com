@@ -7,7 +7,7 @@ import { DigestPageCursorSchema } from "@packages/provider-contracts/article-sto
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { UserContact } from "@packages/provider-contracts/auth";
 import { EmailRejectedError } from "@packages/provider-contracts/email";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initInMemoryReaderReadyState } from "@packages/test-fixtures/providers/reader-ready-state";
@@ -49,7 +49,7 @@ interface LogLine {
 
 function createSubject(options: { contact?: UserContact | null; overrides?: Partial<SendQueueDigestDeps> } = {}) {
 	const clock = { now: SEND_INSTANT };
-	const articleStore = initInMemoryArticleStore();
+	const articleStore = initInMemoryArticleStore({ findTopics: noArticleTopics });
 	const summaries = initInMemoryGeneratedSummary();
 	const readerReady = initInMemoryReaderReadyState();
 	const subscriptions = initInMemorySubscriptionProviders({ now: () => clock.now });

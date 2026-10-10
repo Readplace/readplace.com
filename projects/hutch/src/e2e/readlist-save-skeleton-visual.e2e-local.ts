@@ -20,7 +20,7 @@ const LAYOUT_TOLERANCE_PX = 1;
 
 const DESKTOP = { width: 1280, height: 900 };
 const DESKTOP_TALL = { width: 1280, height: 1700 };
-const PHONE_TALL = { width: 390, height: 2000 };
+const PHONE_TALL = { width: 390, height: 2100 };
 
 const SAVE_FORM = '[data-test-form="save-article"]';
 const SAVE_INPUT = `${SAVE_FORM} input[name="url"]`;

@@ -19,7 +19,7 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 
-const ArticleSummaryRow = z.object({
+export const ArticleSummaryRow = z.object({
 	url: z.string(),
 	...VerificationFields,
 	summary: dynamoField(z.string()),
@@ -55,7 +55,7 @@ function readyFromRow(stored: {
 	return ready;
 }
 
-function rowToGeneratedSummary(
+export function rowToGeneratedSummary(
 	row: ArticleSummaryRowShape | undefined,
 ): GeneratedSummary | undefined {
 	if (!row) return undefined;

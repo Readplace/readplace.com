@@ -303,4 +303,61 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(toggle).toContainText("All", { timeout: SETTLE_MS });
 		await expect(switcher).toHaveJSProperty("open", false);
 	});
+
+	test("the search and the filter drawer work as plain GET forms with no script", async ({ page }, testInfo) => {
+		const stamp = `${testInfo.workerIndex}-${Date.now()}-discovery`;
+		const email = `readlist-no-js-${stamp}@example.com`;
+		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email, password: PASSWORD, verified: true },
+		});
+		assert.equal(created.status(), 201, "the e2e user fixture must create the owner");
+		const { userId } = CreatedUser.parse(await created.json());
+		const articles = {
+			shortRead: { url: `https://example.com/deep-work-${stamp}`, title: "Deep work in practice", wordCount: 700 },
+			longerRead: { url: `https://example.com/deep-sea-${stamp}`, title: "Deep sea field notes", wordCount: 1900 },
+			unrelated: { url: `https://example.com/budgeting-${stamp}`, title: "Budgeting for a sabbatical", wordCount: 1900 },
+		};
+		for (const article of Object.values(articles)) {
+			const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+				data: {
+					...article,
+					content: "<p>Seeded so the search and the filters have rows to narrow.</p>",
+					contentFetchedAt: CONTENT_FETCHED_AT,
+					savedByUserId: userId,
+				},
+			});
+			assert.equal(seeded.status(), 201, "the seed endpoint must create the saved article");
+		}
+		await loginAs(page, email);
+		const listedUrls = () =>
+			page
+				.locator("[data-test-article] [data-test-article-url]")
+				.evaluateAll((links) => links.map((link) => link.getAttribute("href")).sort());
+		await expect.poll(listedUrls).toEqual(Object.values(articles).map((article) => article.url).sort());
+
+		const search = page.locator('[data-test-form="readlist-search"] input[name="q"]');
+		await search.fill("deep");
+		await Promise.all([page.waitForNavigation({ waitUntil: "domcontentloaded" }), search.press("Enter")]);
+		await expect(page.locator("body.page-readlist")).toBeVisible({ timeout: SETTLE_MS });
+		expect(new URL(page.url()).searchParams.get("q")).toBe("deep");
+		await expect(search).toHaveValue("deep");
+		expect(await listedUrls()).toEqual([articles.longerRead.url, articles.shortRead.url].sort());
+
+		await page.locator('[data-test-action="open-discovery-filters"]').click();
+		const drawer = page.locator("[data-test-discovery-drawer]");
+		await expect(drawer).toBeVisible();
+		await drawer.locator('[data-test-discovery-option="time:5-10"]').click();
+		await expect(drawer.locator('input[name="time"][value="5-10"]')).toBeChecked();
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			drawer.locator('[data-test-action="apply-discovery-filters"]').click(),
+		]);
+
+		await expect(page.locator("body.page-readlist")).toBeVisible({ timeout: SETTLE_MS });
+		const applied = new URL(page.url()).searchParams;
+		expect(applied.get("q")).toBe("deep");
+		expect(applied.getAll("time")).toEqual(["5-10"]);
+		expect(await listedUrls()).toEqual([articles.longerRead.url]);
+		await expect(drawer).toBeHidden();
+	});
 });

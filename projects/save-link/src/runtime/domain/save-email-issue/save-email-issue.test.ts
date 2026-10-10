@@ -4,7 +4,7 @@ import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { initFileArticleIntoReadlist } from "@packages/save-article";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import { initSaveEmailIssue } from "./save-email-issue";
 
 const READER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -13,7 +13,7 @@ const INBOX_PAGE = "https://readplace.com/inbox/2026-06-24T09%3A00%3A00.000Z%23%
 const WORK = ReadlistSlugSchema.parse("work");
 
 function harness(crawl: ArticleCrawl | undefined) {
-	const store = initInMemoryArticleStore();
+	const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 	const calls: string[] = [];
 	const displayUrls: { articleUrl: string; displayUrl: string }[] = [];
 	const saveEmailIssue = initSaveEmailIssue({

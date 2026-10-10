@@ -233,7 +233,7 @@ describe("Readlist routes", () => {
 			}
 		});
 
-		it("should keep every in-flight marker to its own surface, so only the status tabs raise the veil", async () => {
+		it("should keep every in-flight marker to its own surface, so only the status tabs and the discovery forms raise the veil", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/1" });
@@ -251,6 +251,9 @@ describe("Readlist routes", () => {
 						targets:
 							"closest .underline-tabs, closest .underline-tabs__tab, .readlist-listing",
 					},
+					{ surface: "readlist-search", targets: ".readlist-listing" },
+					{ surface: "readlist-filters", targets: "closest form, .readlist-listing" },
+					{ surface: "readlist-filters", targets: "closest form, .readlist-listing" },
 				]);
 			}
 		});

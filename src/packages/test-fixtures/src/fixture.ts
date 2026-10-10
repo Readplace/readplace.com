@@ -12,6 +12,7 @@ import type { ParseArticle } from "@packages/article-parser";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
+import type { FindArticleTopics } from "./providers/article-store/article-store.types";
 import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
 import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
@@ -124,6 +125,7 @@ export const createNoopLogError = (): ((msg: string, err?: Error) => void) =>
 
 export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): {
 	findGeneratedSummary: FindGeneratedSummary;
+	findTopics: FindArticleTopics;
 	markSummaryPending: MarkSummaryPending;
 	markSummaryReady: (params: { url: string; summary: string; excerpt: string; topics: readonly ArticleTopic[] }) => void;
 } {
@@ -147,6 +149,10 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 		}
 		return state.get(id);
 	};
+	const findTopics: FindArticleTopics = async (url) => {
+		const current = state.get(ArticleResourceUniqueId.parse(url).value);
+		return current?.status === "ready" ? current.topics : [];
+	};
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
 		if (state.get(id)?.status === "ready") return;
@@ -158,7 +164,7 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 		state.set(id, { status: "ready", summary, excerpt, topics });
 		reads.set(id, 0);
 	};
-	return { findGeneratedSummary, markSummaryPending, markSummaryReady };
+	return { findGeneratedSummary, findTopics, markSummaryPending, markSummaryReady };
 }
 
 export function createFakeApplyParseResult(deps: {
@@ -235,12 +241,15 @@ export const stubExtractLinksFromPageUrl: ExtractLinksFromPageUrl = async () => 
 
 export const TEST_APP_ORIGIN = "http://localhost:3000";
 
-export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
+export function createDefaultTestAppFixture(
+	appOrigin: string,
+	summary: ReturnType<typeof createFakeSummaryProvider> = createFakeSummaryProvider(),
+): TestAppFixture {
 
 	const fastHashPassword = async (p: string) => `plain:${p}`;
 	const fastVerifyPassword = async (p: string, stored: string | undefined) => stored === `plain:${p}`;
 	const auth = initInMemoryAuth({ hashPassword: fastHashPassword, verifyPassword: fastVerifyPassword, now: () => new Date() });
-	const articleStoreMemory = initInMemoryArticleStore();
+	const articleStoreMemory = initInMemoryArticleStore({ findTopics: summary.findTopics });
 	const articleCrawl = initInMemoryArticleCrawl();
 	const queueEntryCreated = initInMemoryQueueEntryCreated({ logger: noopLogger });
 	const computeRelatedPastReads = initInMemoryComputeRelatedPastReads({ logger: noopLogger });
@@ -256,7 +265,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		articleCrawl,
 		parseArticle,
 	});
-	const summary = createFakeSummaryProvider();
 	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
 	const email = initInMemoryEmail();
 	const emailVerification = initInMemoryEmailVerification();

@@ -159,6 +159,8 @@ import {
 	buildReadlistUrl,
 	READLIST_PATH,
 	canonicalReadlistPageRedirect,
+	toArticleDiscoveryQuery,
+	type ReadlistUrlState,
 } from "./readlist.url";
 import {
 	type ReadlistContext,
@@ -493,7 +495,7 @@ interface ReadlistDependencies {
 	now: () => Date;
 }
 
-import type { SavedArticle } from "@packages/domain/article";
+import type { ArticleDiscoveryQuery, SavedArticle } from "@packages/domain/article";
 
 async function loadSummaries(
 	findGeneratedSummaries: FindGeneratedSummaries,
@@ -765,6 +767,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * handler below runs today's code path byte for byte unless a reader addressed
 	 * one of their own readlists. */
 	const storeFor = (readlist: ReadlistSlug) => readlistScopedStore(deps, readlist);
+
+	const storeDiscoveryOf = (state: ReadlistUrlState): ArticleDiscoveryQuery | undefined =>
+		state.discovery === undefined ? undefined : toArticleDiscoveryQuery(state.discovery, deps.now());
 
 	const findNonEmptyReadlists = initFindNonEmptyReadlists({ countReadlistArticles: deps.countReadlistArticles });
 
@@ -1540,6 +1545,21 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		return held > 0;
 	};
 
+	const openTabHoldsRows = async (params: {
+		userId: UserId;
+		state: ReadlistUrlState;
+		result: FindArticlesResult;
+	}): Promise<boolean> => {
+		if (params.result.articles.length > 0) return true;
+		if (params.state.discovery === undefined) return false;
+		const held = await storeFor(params.state.readlist).countArticlesByUser({
+			userId: params.userId,
+			status: tabQuery(params.state.tab).status,
+			countLimit: 1,
+		});
+		return held > 0;
+	};
+
 	/** Renders the full readlist listing from an already-fetched page of rows — the
 	 * tail shared by the top-of-page GET and the card-mutation fallback. Never
 	 * fetches the listing itself, so GET stays single-fetch and the fallback can
@@ -1562,7 +1582,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	): Promise<void> => {
 		const effectiveAccessPromise = deps.getEffectiveAccess(input.userId);
 		const urls = input.result.articles.map((article) => article.url);
-		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, signals, nonEmptyReadlists, savesByUrl] =
+		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl] =
 			await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
@@ -1570,6 +1590,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				readlistHoldsAnyArticle({
 					userId: input.userId,
 					readlist: input.context.state.readlist,
+					result: input.result,
+				}),
+				openTabHoldsRows({
+					userId: input.userId,
+					state: input.context.state,
 					result: input.result,
 				}),
 				effectiveAccessPromise.then((access) => resolveOnboardingSignals(req, input.userId, access)),
@@ -1600,7 +1625,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
-		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
+		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, discoveryTopics: input.result.discoveryTopics, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
 		const page = ReadlistPage(vm, { ...pageOptions, query: req.query });
 		res.vary("Cookie");
 		sendComponent(
@@ -1643,6 +1668,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const tab = tabQuery(urlState.tab);
 		const order = urlState.order ?? tab.defaultOrder;
 		const pageSize = readlistPageSizeForClient(req.oauthClientId);
+		const discovery = storeDiscoveryOf(urlState);
 		const probePage = (page: number) =>
 			store.findArticlesByUser({
 				userId,
@@ -1652,6 +1678,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				page,
 				pageSize,
 				excludeContent: true,
+				discovery,
 			});
 
 		const result = await probePage(urlState.page);
@@ -1678,7 +1705,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		let renderState = urlState;
 		let renderResult = result;
 		if (statusFlash && rows === 0 && urlState.page > 1) {
-			const total = await store.countArticlesByUser({ userId, status: tab.status });
+			const total = await store.countArticlesByUser({ userId, status: tab.status, discovery });
 			const totalPages = Math.max(1, Math.ceil(total / pageSize));
 			renderState = { ...urlState, page: totalPages };
 			renderResult = await probePage(totalPages);
@@ -1718,6 +1745,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		tagPageviewSortOrder(res, urlState.order);
 		const order = urlState.order ?? tab.defaultOrder;
+		const discovery = siren ? undefined : storeDiscoveryOf(urlState);
 		const result = await store.findArticlesByUser({
 			userId,
 			status: tab.status,
@@ -1727,6 +1755,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			pageSize: readlistPageSizeForClient(req.oauthClientId),
 			includeTotal: siren,
 			excludeContent: true,
+			discovery,
 		});
 
 		if (siren) {
@@ -1776,7 +1805,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		if (result.articles.length === 0 && urlState.page > 1) {
 			const pageRedirect = canonicalReadlistPageRedirect({
 				state: urlState,
-				total: await store.countArticlesByUser({ userId, status: tab.status }),
+				total: await store.countArticlesByUser({ userId, status: tab.status, discovery }),
 				pageSize: result.pageSize,
 				extraParams: [
 					...collectUtmParams(req.query),
@@ -1819,7 +1848,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const urlState = context.state;
 		const store = storeFor(urlState.readlist);
 		const tab = tabQuery(urlState.tab);
-		const tabTotal = await store.countArticlesByUser({ userId, status: tab.status });
+		const tabTotal = await store.countArticlesByUser({
+			userId,
+			status: tab.status,
+			discovery: storeDiscoveryOf(urlState),
+		});
 		const counts = { filters: urlState, tabTotal, pageSize: READLIST_PAGE_SIZE };
 		res.type("html").send(renderReadlistCounts(toReadlistCountsDisplayModel(counts)));
 	});

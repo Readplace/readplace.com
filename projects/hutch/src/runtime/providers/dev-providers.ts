@@ -155,7 +155,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const staleTtlMs = 86400000;
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
-	const articleStore = initInMemoryArticleStore();
+	const summaryStore = initInMemoryGeneratedSummary();
+	const articleStore = initInMemoryArticleStore({ findTopics: summaryStore.findTopics });
 	const engagementStarter = initInMemoryEngagementStarter({ library: articleStore });
 	const onboardingSignals = initInMemoryOnboardingSignals({ now: () => new Date() });
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
@@ -349,7 +350,6 @@ export function initDevProviders(input: { appOrigin: string }) {
 				stateSigningSecret: "dev-apple-state-signing-secret",
 			};
 	const crawlStore = initInMemoryArticleCrawl();
-	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError });

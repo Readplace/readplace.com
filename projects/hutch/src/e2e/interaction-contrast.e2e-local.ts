@@ -17,6 +17,7 @@ const FOCUSED = ["focus", "focus-visible"];
 const LOGIN_EMAIL_FIELD = '[data-test-form="login"] input.form-input[name="email"]';
 const SAVE_FIELD = '[data-test-form="save-article"] input.form-input[name="url"]';
 const FROM_URL_FIELD = '[data-test-form="import-from-url"] input.form-input[name="url"]';
+const SEARCH_FIELD = "#readlist-search-input";
 const REVIEW_URLS = [
 	"https://example.com/essays/focus-ring-first",
 	"https://example.com/essays/focus-ring-second",
@@ -177,6 +178,19 @@ async function signInAsNewReader(page: Page, email: string): Promise<string> {
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
 	return userId;
+}
+
+async function seedQueuedArticle(page: Page, input: { userId: string; stampId: string }): Promise<void> {
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+		data: {
+			url: `https://example.com/search-field-contrast-${input.stampId}`,
+			title: "An article the search field can narrow to",
+			content: "<p>Seeded body for the search field contrast check.</p>",
+			contentFetchedAt: "2026-07-10T09:14:00.000Z",
+			savedByUserId: input.userId,
+		},
+	});
+	assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
 }
 
 async function openImportReview(page: Page, urls: readonly string[]): Promise<void> {
@@ -388,13 +402,19 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 
 	test("every text field shows focus with a ring edge that clears 3:1", async ({ page }, testInfo) => {
 		await auditFocusRing(page, { path: "/login", selector: LOGIN_EMAIL_FIELD, view: "login/email" });
-		await signInAsNewReader(page, `form-ring-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `form-ring-${stampId}@example.com`);
+		await seedQueuedArticle(page, { userId, stampId });
 		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save" });
+		await auditFocusRing(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 	});
 
 	test("the placeholder clears 4.5:1", async ({ page }, testInfo) => {
-		await signInAsNewReader(page, `form-placeholder-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `form-placeholder-${stampId}@example.com`);
+		await seedQueuedArticle(page, { userId, stampId });
 		await auditPlaceholder(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save" });
+		await auditPlaceholder(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 		await auditPlaceholder(page, { path: "/import", selector: FROM_URL_FIELD, view: "import/from-url" });
 	});
 

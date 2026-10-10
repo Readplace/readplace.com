@@ -5,6 +5,7 @@ import type {
 	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
+import type { FindArticleTopics } from "../article-store/article-store.types";
 
 export type InMemoryMarkSummaryReady = (params: {
 	url: string;
@@ -20,6 +21,7 @@ export type InMemoryMarkSummarySkipped = (params: {
 
 export function initInMemoryGeneratedSummary(): {
 	findGeneratedSummary: FindGeneratedSummary;
+	findTopics: FindArticleTopics;
 	markSummaryPending: MarkSummaryPending;
 	markSummaryReady: InMemoryMarkSummaryReady;
 	markSummarySkipped: InMemoryMarkSummarySkipped;
@@ -29,6 +31,11 @@ export function initInMemoryGeneratedSummary(): {
 	const findGeneratedSummary: FindGeneratedSummary = async (url) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		return states.get(id.value);
+	};
+
+	const findTopics: FindArticleTopics = async (url) => {
+		const current = states.get(ArticleResourceUniqueId.parse(url).value);
+		return current?.status === "ready" ? current.topics : [];
 	};
 
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
@@ -56,6 +63,7 @@ export function initInMemoryGeneratedSummary(): {
 
 	return {
 		findGeneratedSummary,
+		findTopics,
 		markSummaryPending,
 		markSummaryReady,
 		markSummarySkipped,

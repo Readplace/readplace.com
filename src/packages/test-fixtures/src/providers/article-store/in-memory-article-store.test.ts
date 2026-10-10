@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ReaderArticleHashId } from "@packages/domain/article";
-import type { Minutes } from "@packages/domain/article";
+import { ReaderArticleHashId, resolveArticleDiscovery, toArticleTopics } from "@packages/domain/article";
+import type { ArticleTopic, Minutes } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
@@ -10,7 +10,7 @@ import {
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { SaveArticleParams } from "./article-store.types";
-import { initInMemoryArticleStore } from "./in-memory-article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "./in-memory-article-store";
 
 const USER_A = "user-a" as UserId;
 const USER_B = "user-b" as UserId;
@@ -42,7 +42,7 @@ describe("initInMemoryArticleStore", () => {
 		const NOW = new Date("2026-07-15T10:00:00.000Z");
 
 		it("claims an alias once and keeps the first claim afterwards", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW });
 			expect(await store.findIdentityRow("https://wrapper.example/x")).toEqual({ kind: "alias", targetUrl: URL });
@@ -52,7 +52,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("refuses to alias an identity a real article already occupies", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 
 			await store.claimAlias({ aliasUrl: URL, targetOriginalUrl: "https://other.example/y", now: NOW });
@@ -61,7 +61,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("tells an article row, an alias row and an absent identity apart", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 			await store.claimAlias({ aliasUrl: "https://wrapper.example/x", targetOriginalUrl: URL, now: NOW });
 
@@ -74,7 +74,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("re-crawls an adopted article from its destination and records an archive capture beside it", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 
 			expect(await store.findAdoptedFetchUrl(URL)).toBeUndefined();
@@ -85,7 +85,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("rejects a pin for an unknown article and finds no fetch url", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			await expect(store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.example/snapshot", sourceOriginalUrl: URL })).rejects.toThrow("Content source identity changed");
 
@@ -95,7 +95,7 @@ describe("initInMemoryArticleStore", () => {
 	});
 
 	it("upgrades a compatible legacy alias with its verified source binding", async () => {
-		const store = initInMemoryArticleStore();
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 		const params = { aliasUrl: "https://archive.ph/abc", targetOriginalUrl: URL, now: new Date() };
 		await store.claimAlias(params);
 		const sourceBinding = { contentSourceUrl: params.aliasUrl, sourceOriginalUrl: URL };
@@ -105,7 +105,7 @@ describe("initInMemoryArticleStore", () => {
 		expect(await store.findIdentityRow(params.aliasUrl)).toEqual({ kind: "alias", targetUrl: URL, sourceBinding });
 	});
 	it("pins a re-saved purged article under the string the re-save stored", async () => {
-		const store = initInMemoryArticleStore();
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 		const resaved = "https://example.com/article";
 		await store.saveArticle(makeArticleParams({ url: "http://example.com/article" }));
 		await store.setPurgedAt({ url: resaved, at: new Date("2026-07-16T10:00:00.000Z") });
@@ -117,7 +117,7 @@ describe("initInMemoryArticleStore", () => {
 		expect(await store.findIdentityRow(resaved)).toEqual({ kind: "article", originalUrl: resaved, sourceBinding: { contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl: resaved } });
 	});
 	it("keeps an adopted article's destination as its identity through purge and revive", async () => {
-		const store = initInMemoryArticleStore();
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 		const displayUrl = "https://victim.example/a";
 		await store.saveArticle(makeArticleParams());
 		await store.setDisplayUrl({ url: URL, displayUrl });
@@ -127,7 +127,7 @@ describe("initInMemoryArticleStore", () => {
 		expect(await store.findIdentityRow(URL)).toEqual({ kind: "article", originalUrl: displayUrl });
 	});
 	it("reads the effective original and paired source proof from a pinned article", async () => {
-		const store = initInMemoryArticleStore();
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 		await store.saveArticle(makeArticleParams());
 		await store.pinContentSource({ articleUrl: URL, contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl: URL });
 		expect(await store.findIdentityRow(URL)).toEqual({ kind: "article", originalUrl: URL, sourceBinding: { contentSourceUrl: "https://archive.ph/abc", sourceOriginalUrl: URL } });
@@ -136,7 +136,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("saveArticle + findArticleById", () => {
 		it("should save and retrieve an article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 
 			const found = await store.findArticleById(saved.id, USER_A);
@@ -146,7 +146,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should return null when user has no relationship to the article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
 			const found = await store.findArticleById(saved.id, USER_B);
@@ -157,7 +157,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("findArticleByUrl", () => {
 		it("should return null for unknown URL", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			const found = await store.findArticleByUrl("https://unknown.com/page");
 
@@ -165,7 +165,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should return article data for known URL", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 
 			const found = await store.findArticleByUrl("https://example.com/article");
@@ -175,7 +175,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should return the global savedAt so downstream consumers can compute time-based policies", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const savedAt = new Date("2026-04-01T12:00:00.000Z");
 			await store.saveArticleGlobally({
 				url: "https://example.com/article",
@@ -192,7 +192,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("saveArticleGlobally savedAt semantics", () => {
 		it("reports created=true on the first insert and created=false on subsequent calls", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const url = "https://example.com/article";
 			const baseMetadata = { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 };
 
@@ -214,7 +214,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("revives a tombstoned row on re-save: reports created=true and clears purgedAt so the tombstone gate reopens", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const url = "https://example.com/article";
 			const metadata = { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 };
 			await store.saveArticleGlobally({ url, metadata, estimatedReadTime: 0 as Minutes, savedAt: new Date("2026-04-01T12:00:00.000Z") });
@@ -235,7 +235,7 @@ describe("initInMemoryArticleStore", () => {
 			// Simulates the /view fallback path landing on a row that already
 			// holds parsed metadata: title/excerpt/wordCount must stay intact;
 			// only savedAt is allowed to advance (via bumpArticleSavedAt).
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const url = "https://example.com/article";
 			const realMetadata = {
 				title: "Real Parsed Title",
@@ -270,7 +270,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("bumps the global savedAt when the same user re-saves the article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 			const firstFound = await store.findArticleByUrl(
 				"https://example.com/article",
@@ -290,7 +290,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("moves the user row to the newer savedAt when a later save lands", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ savedAt: new Date("2026-08-01T10:00:00.000Z") }));
 
 			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: new Date("2026-08-01T10:00:01.000Z") }));
@@ -299,7 +299,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("keeps the user row's newer savedAt when a slower, older-stamped save lands after it", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ savedAt: new Date("2026-08-01T10:00:01.000Z") }));
 
 			const { saved, createdUserArticle, wroteUserArticle } = await store.saveArticle(
@@ -312,7 +312,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("rejects a same-instant re-save exactly as the store's strict savedAt < :savedAt condition does", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const instant = new Date("2026-08-01T10:00:00.000Z");
 			await store.saveArticle(makeArticleParams({ savedAt: instant, provenance: { kind: "web" } }));
 
@@ -326,7 +326,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("saveArticleKeepingPosition leaves an existing row's savedAt, status, and provenance untouched", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const urlSaveInstant = new Date("2026-08-01T10:00:00.000Z");
 			const { saved: first } = await store.saveArticle(makeArticleParams({ savedAt: urlSaveInstant }));
 			await store.updateArticleStatus(first.id, USER_A, "read");
@@ -343,7 +343,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("saveArticleKeepingPosition creates the row when the link was never saved, exactly like a first save", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const instant = new Date("2026-08-01T10:00:00.000Z");
 
 			const { saved, createdUserArticle, wroteUserArticle } = await store.saveArticleKeepingPosition(
@@ -357,7 +357,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("allocateSavedAt hands out strictly increasing instants per user, even within one millisecond", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			const first = await store.allocateSavedAt({ userId: USER_A });
 			const second = await store.allocateSavedAt({ userId: USER_A });
@@ -368,7 +368,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("allocateSavedAt returns to tracking wall clock once it moves past the cursor", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const first = await store.allocateSavedAt({ userId: USER_A });
 			await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -378,7 +378,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("allocateSavedAt restarts from wall clock after account deletion clears the cursor", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			let cursorPushedAheadOfClock = new Date(0);
 			for (let i = 0; i < 50; i += 1) {
 				cursorPushedAheadOfClock = await store.allocateSavedAt({ userId: USER_A });
@@ -391,7 +391,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("allocateSavedAtSequence hands out ascending contiguous instants, each strictly newer than every prior allocation", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const before = await store.allocateSavedAt({ userId: USER_A });
 
 			const sequence = await store.allocateSavedAtSequence({ userId: USER_A, count: 3 });
@@ -403,7 +403,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("allocateSavedAtSequence advances the cursor past its own span, so the next single save lands strictly after the batch", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			const sequence = await store.allocateSavedAtSequence({ userId: USER_A, count: 4 });
 			const next = await store.allocateSavedAt({ userId: USER_A });
@@ -412,7 +412,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("findSavedUrls answers with the subset the user already has, so a batch can tell a re-save from a first save", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/already-saved" }),
 			);
@@ -426,7 +426,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("findSavedUrls scopes the answer to the asking user, so another reader's save never counts as this one's", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(
 				makeArticleParams({ userId: USER_B, url: "https://example.com/other-users-save" }),
 			);
@@ -440,7 +440,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("ignores a bumpArticleSavedAt call for a URL that has never been saved", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			await store.bumpArticleSavedAt({
 				url: "https://example.com/missing",
@@ -454,7 +454,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("findArticleUrlById", () => {
 		it("should return null for an unknown hash", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const unknown = ReaderArticleHashId.from("https://nobody-saved.com/this");
 
 			const url = await store.findArticleUrlById(unknown);
@@ -463,7 +463,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should return the original URL even when no user owns the article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticleGlobally({
 				url: "https://example.com/global-only",
 				metadata: {
@@ -485,7 +485,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("article deduplication", () => {
 		it("should reuse the same global article when two users save the same URL", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: savedA } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			const { saved: savedB } = await store.saveArticle(makeArticleParams({ userId: USER_B }));
 
@@ -493,7 +493,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should produce the same routeId regardless of scheme or fragment", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: https } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/article" }),
 			);
@@ -509,7 +509,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should create separate user-article relationships for each user", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			await store.saveArticle(makeArticleParams({ userId: USER_B }));
 
@@ -521,7 +521,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should not create a duplicate user-article when the same user saves the same URL twice", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const first = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			const second = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
@@ -537,7 +537,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should report a readlist entry as created for each user saving an already-known URL", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			const other = await store.saveArticle(makeArticleParams({ userId: USER_B }));
 
@@ -545,7 +545,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should bump savedAt to top on re-save so the article moves to the head of the readlist", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: first } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
@@ -564,7 +564,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should preserve status and readAt on re-save", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.updateArticleStatus(saved.id, USER_A, "read");
 
@@ -578,7 +578,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("findArticlesByUser", () => {
 		it("should return only articles belonging to the user", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			await store.saveArticle(
 				makeArticleParams({ userId: USER_B, url: "https://other.com/page" }),
@@ -594,7 +594,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should filter by status", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/1" }),
 			);
@@ -613,7 +613,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should sort by savedAt descending by default", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
@@ -629,7 +629,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should sort ascending when specified", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
@@ -648,7 +648,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should sort by readAt descending when sort=readAt", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
@@ -681,7 +681,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should sort by readAt ascending when sort=readAt and order=asc", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
@@ -713,7 +713,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should paginate results", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			for (let i = 0; i < 5; i++) {
 				await store.saveArticle(
 					makeArticleParams({ url: `https://example.com/${i}` }),
@@ -738,7 +738,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should omit total unless the query asks for it", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/1" }),
 			);
@@ -757,7 +757,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should report the whole matching set as the total, uncapped", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			for (let i = 0; i < 5; i++) {
 				await store.saveArticle(
 					makeArticleParams({ url: `https://example.com/${i}` }),
@@ -775,7 +775,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should report hasMore until the last page", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			for (let i = 0; i < 3; i++) {
 				await store.saveArticle(
 					makeArticleParams({ url: `https://example.com/${i}` }),
@@ -800,7 +800,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("countArticlesByUser", () => {
 		it("counts all of a user's articles when no status filter is given", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/1" }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/2" }));
 
@@ -808,7 +808,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("counts only articles matching the status filter", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/1" }),
 			);
@@ -820,7 +820,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("counts only the requesting user's articles", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			await store.saveArticle(
 				makeArticleParams({ userId: USER_B, url: "https://other.com/page" }),
@@ -830,7 +830,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("stops counting at countLimit", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			for (let i = 0; i < 5; i++) {
 				await store.saveArticle(
 					makeArticleParams({ url: `https://example.com/${i}` }),
@@ -841,7 +841,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports the exact count when it sits under countLimit", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/1" }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/2" }));
 
@@ -851,7 +851,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("deleteArticle", () => {
 		it("should remove user's relationship to the article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 
 			const deleted = await store.deleteArticle(saved.id, USER_A);
@@ -861,7 +861,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should not affect another user's relationship to the same article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			await store.saveArticle(makeArticleParams({ userId: USER_B }));
 
@@ -872,7 +872,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should not delete another user's article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
 			const deleted = await store.deleteArticle(saved.id, USER_B);
@@ -881,7 +881,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should return false when deleting a non-existent article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const fakeId = ReaderArticleHashId.fromHash("0".repeat(32));
 
 			const deleted = await store.deleteArticle(fakeId, USER_A);
@@ -892,7 +892,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("deleteAllUserArticles", () => {
 		it("removes every row for the user while leaving the global article and other users' rows intact", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: a1 } = await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/1" }));
 			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/2" }));
 			const { saved: shared } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
@@ -909,7 +909,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("is a no-op when the user has no saved articles", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ userId: USER_B }));
 
 			await store.deleteAllUserArticles(USER_A);
@@ -920,7 +920,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("listUserArticleUrls", () => {
 		it("returns the user's original URLs and excludes other users' saves", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/one" }));
 			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/two" }));
 			await store.saveArticle(makeArticleParams({ userId: USER_B, url: "https://example.com/three" }));
@@ -931,7 +931,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("returns an empty list for a user with no saves", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			expect(await store.listUserArticleUrls(USER_A)).toEqual([]);
 		});
@@ -939,7 +939,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("freshness operations", () => {
 		it("findArticleFreshness returns null for unknown URL", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			const result = await store.findArticleFreshness("https://unknown.com/page");
 
@@ -950,7 +950,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("crawl versions", () => {
 		it("findArticleCrawlVersions returns an empty list before any versions are recorded", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 
 			const versions = await store.findArticleCrawlVersions("https://example.com/article");
@@ -959,7 +959,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("setCrawlVersions seeds the newest-first log surfaced by findArticleCrawlVersions", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 
 			await store.setCrawlVersions({
@@ -980,7 +980,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("updateArticleStatus", () => {
 		it("should update status and set readAt for read, answering with the written row", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 
 			const updated = await store.updateArticleStatus(saved.id, USER_A, "read");
@@ -992,7 +992,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should clear readAt when marking unread", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.updateArticleStatus(saved.id, USER_A, "read");
 			const updated = await store.updateArticleStatus(saved.id, USER_A, "unread");
@@ -1005,7 +1005,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should not update another user's article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
 			const updated = await store.updateArticleStatus(saved.id, USER_B, "read");
@@ -1016,7 +1016,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("should return null when updating status of a non-existent article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const fakeId = ReaderArticleHashId.fromHash("0".repeat(32));
 
 			const updated = await store.updateArticleStatus(fakeId, USER_A, "read");
@@ -1029,7 +1029,7 @@ describe("initInMemoryArticleStore", () => {
 		const URL = "https://example.com/article";
 
 		it("markArticleViewed stamps viewedAt on the user's row", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 			const at = new Date("2026-05-30T10:00:00.000Z");
 
@@ -1039,7 +1039,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("mark stamps on a missing row are no-ops so a delete race cannot resurrect the row", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			await store.markArticleViewed({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "open", at: new Date("2026-05-30T10:00:00.000Z") });
@@ -1049,7 +1049,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("findUserArticlesByUrl returns every saver of the URL with their viewedAt, excluding savers of other URLs", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			await store.saveArticle(makeArticleParams({ userId: USER_B }));
 			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/other" }));
@@ -1064,7 +1064,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("markReaderReadyEmailSent is set-once: a later call does not overwrite the first send", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const savedAt = new Date("2026-05-30T09:00:00.000Z");
 			await store.saveArticle(makeArticleParams({ savedAt }));
 			const first = new Date("2026-05-30T10:05:00.000Z");
@@ -1088,7 +1088,7 @@ describe("initInMemoryArticleStore", () => {
 		const SEND_INSTANT = new Date("2026-05-30T12:00:00.000Z");
 
 		it("lists the reader's own unread saves newest first up to the cutoff, leaving out read saves, later saves, readlist copies and other readers' saves", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/older", savedAt: new Date("2026-05-30T09:00:00.000Z") }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/at-cutoff", savedAt: SEND_INSTANT }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/newer", savedAt: new Date("2026-05-30T10:00:00.000Z") }));
@@ -1122,7 +1122,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("keeps saves never emailed and saves this same send emailed, and drops saves an earlier send emailed unless the filter is any", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/never-emailed", savedAt: new Date("2026-05-30T11:00:00.000Z") }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/this-send", savedAt: new Date("2026-05-30T10:00:00.000Z") }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/earlier-send", savedAt: new Date("2026-05-30T09:00:00.000Z") }));
@@ -1152,7 +1152,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("pages through the matches with an opaque cursor, and reports no cursor after the last page", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/first", savedAt: new Date("2026-05-30T11:00:00.000Z") }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/second", savedAt: new Date("2026-05-30T10:00:00.000Z") }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/third", savedAt: new Date("2026-05-30T09:00:00.000Z") }));
@@ -1170,7 +1170,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("carries the global row's readerAvailableAt and purgedAt so the reader-ready gate can judge each candidate", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/ready", savedAt: new Date("2026-05-30T11:00:00.000Z") }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/purged", savedAt: new Date("2026-05-30T10:00:00.000Z") }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/loading", savedAt: new Date("2026-05-30T09:00:00.000Z") }));
@@ -1207,14 +1207,14 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("readContent", () => {
 		it("should return undefined when article does not exist", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			const content = await store.readContent(ArticleResourceUniqueId.parse("https://example.com/nonexistent"));
 			expect(content).toBeUndefined();
 		});
 
 		it("should return undefined for newly saved article since content is stored in S3", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 
 			const content = await store.readContent(ArticleResourceUniqueId.parse("https://example.com/article"));
@@ -1227,14 +1227,14 @@ describe("initInMemoryArticleStore", () => {
 		const filename = "abcdef0123456789.jpg";
 
 		it("reads back an image written under its article and filename", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.writeImage({ url, filename, body: Buffer.from([1, 2, 3]), contentType: "image/jpeg" });
 
 			expect(await store.readArticleImage({ url, filename })).toEqual(Buffer.from([1, 2, 3]));
 		});
 
 		it("returns undefined for an image that was never written", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			expect(await store.readArticleImage({ url, filename })).toBeUndefined();
 		});
 	});
@@ -1243,7 +1243,7 @@ describe("initInMemoryArticleStore", () => {
 		const URL = "https://example.com/article";
 
 		it("stamps lastSummaryOpenedAt on state=open and lastSummaryClosedAt on state=closed (last-write-wins)", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 
 			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "open", at: new Date("2026-06-01T10:00:00.000Z") });
@@ -1258,7 +1258,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("getSummaryToggleState returns null when no user-article row exists", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			expect(await store.getSummaryToggleState({ userId: USER_A, url: URL })).toBeNull();
 		});
 	});
@@ -1272,7 +1272,7 @@ describe("initInMemoryArticleStore", () => {
 			store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
 
 		it("returns a page the reader saved only to a named readlist", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await defineWork(store);
 			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
 
@@ -1284,7 +1284,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports a page saved to All and a named readlist once, at its latest date", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await defineWork(store);
 			await store.saveArticle(makeArticleParams({ savedAt: D1 }));
 			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D3 }), readlist: WORK });
@@ -1297,7 +1297,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("orders unique articles by the latest save or filing date across copies", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await defineWork(store);
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/x", savedAt: D1 }));
 			await store.assignSavedArticleToReadlist({
@@ -1318,7 +1318,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("orders ascending when asked", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/x", savedAt: D1 }));
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/y", savedAt: D2 }));
 
@@ -1331,7 +1331,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("breaks equal-date ties by article id", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const urlA = "https://example.com/aaa";
 			const urlB = "https://example.com/bbb";
 			await store.saveArticle(makeArticleParams({ url: urlA, savedAt: D1 }));
@@ -1346,7 +1346,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("excludes another reader's saves", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ userId: USER_B, url: "https://other.com/p", savedAt: D1 }));
 
 			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, includeTotal: true });
@@ -1356,7 +1356,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("takes status and read date from the All copy, before filtering", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await defineWork(store);
 			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: D1 }));
 			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
@@ -1371,7 +1371,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("prefers the All copy as representative whatever order the copies were saved", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await defineWork(store);
 			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
 			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: D1 }));
@@ -1383,7 +1383,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("uses the first named readlist as representative when the page is not in All", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await defineWork(store, D1);
 			await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt: D2 });
 			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D2 }), readlist: LATER });
@@ -1396,7 +1396,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("skips a save in a readlist the reader no longer owns", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: D1 }), readlist: WORK });
 
 			const result = await store.findArticlesAcrossReadlists({ userId: USER_A, includeTotal: true });
@@ -1405,7 +1405,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("paginates the combined listing over duplicates that span pages", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await defineWork(store);
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/x", savedAt: D3 }));
 			await store.saveReadlistArticle({ ...makeArticleParams({ url: "https://example.com/x", savedAt: D3 }), readlist: WORK });
@@ -1423,7 +1423,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("sorts by read date when sort=readAt", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved: x } = await store.saveArticle(makeArticleParams({ url: "https://example.com/x", savedAt: D1 }));
 			const { saved: y } = await store.saveArticle(makeArticleParams({ url: "https://example.com/y", savedAt: D2 }));
 			await store.updateArticleStatus(x.id, USER_A, "read");
@@ -1436,7 +1436,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("omits the total when includeTotal is not set", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams({ savedAt: D1 }));
 
 			const result = await store.findArticlesAcrossReadlists({ userId: USER_A });
@@ -1448,7 +1448,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("multiple readlists", () => {
 		it("keeps the same URL as an independent copy in each readlist the reader saved it into", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
@@ -1461,7 +1461,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("marks a status change in every readlist the reader holds the article in", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
@@ -1480,7 +1480,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reverses the status in every readlist when the reader marks it unread again", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			await store.updateArticleStatusAcrossReadlists({
@@ -1504,7 +1504,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("keeps the read date already earned when a copy is marked read again", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			const first = await store.updateArticleStatusAcrossReadlists({
@@ -1530,7 +1530,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports every URL's memberships from one batched membership read", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
@@ -1544,7 +1544,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("restricts batched membership to the supplied readlists, including All only when requested", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			expect((await store.listUserSavesForUrls({ userId: USER_A, urls: [URL], readlists: [WORK] })).get(URL))
@@ -1556,7 +1556,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("deletes only the copy in the readlist the reader deleted it from", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
@@ -1570,7 +1570,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("answers false when the readlist never held the article", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 
 			expect(
@@ -1588,7 +1588,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("keeps readlist copies out of the default listing and counts", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			const listing = await store.findArticlesByUser({ userId: USER_A });
@@ -1598,7 +1598,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("lists only the addressed readlist's copies", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({
 				...makeArticleParams({ url: "https://example.com/second" }),
@@ -1610,7 +1610,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports every readlist holding a URL so a delete can tell the last copy from one of many", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
@@ -1623,7 +1623,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("assigns the default copy into a readlist keeping its read state", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.updateArticleStatus(saved.id, USER_A, "read");
 
@@ -1646,7 +1646,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("does not assign what the default readlist does not hold", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			const result = await store.assignSavedArticleToReadlist({
 				userId: USER_A,
@@ -1660,7 +1660,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("keeps the first copy when the same readlist is assigned twice", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.assignSavedArticleToReadlist({
 				userId: USER_A,
@@ -1685,7 +1685,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("files an article back into the default readlist, reading it from the readlist it still lives in", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.assignSavedArticleToReadlist({
 				userId: USER_A,
@@ -1712,7 +1712,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("stamps viewedAt on the addressed readlist's copy only", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			const at = new Date("2026-08-19T10:00:00.000Z");
@@ -1737,14 +1737,14 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("keeps a readlist copy out of the savers found by URL", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			expect(await store.findUserArticlesByUrl("https://example.com/article")).toEqual([]);
 		});
 
 		it("covers a readlist-only URL when listing everything the reader saved", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
 			expect(await store.listUserArticleUrls(USER_A)).toEqual([
@@ -1753,7 +1753,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports a URL held in two readlists once", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 
@@ -1763,7 +1763,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("drops every readlist copy and definition when the account is deleted", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			await store.createReadlistDefinition({
 				userId: USER_A,
@@ -1783,7 +1783,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("moveReadlistArticles", () => {
 		it("hands every copy to the destination carrying the read state it had in the readlist it left", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			await store.setReadlistArticleStatus({
@@ -1807,7 +1807,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("drains the source even for a copy the destination already holds, and does not count it", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: LATER });
 
@@ -1819,7 +1819,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("leaves another reader's readlist of the same name alone", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
 			await store.saveReadlistArticle({ ...makeArticleParams({ userId: USER_B }), readlist: WORK });
 
@@ -1832,7 +1832,7 @@ describe("initInMemoryArticleStore", () => {
 
 	describe("readlist definitions", () => {
 		it("lists a reader's own readlists oldest first", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.createReadlistDefinition({
 				userId: USER_A,
 				slug: LATER,
@@ -1859,7 +1859,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("orders readlists created in the same instant by slug", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
 			await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
@@ -1871,7 +1871,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("renames a readlist in place, leaving its address and position alone", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
 			await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
@@ -1888,7 +1888,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports a readlist the reader does not hold as unrenamed", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			expect(
 				await store.renameReadlistDefinition({ userId: USER_A, slug: WORK, label: "Deep Work" }),
@@ -1896,7 +1896,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("clears a readlist's purpose and keeps the readlist", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
 			await store.setReadlistDefinitionPurpose({
@@ -1917,7 +1917,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports a readlist the reader does not hold as uncleared", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({
 				cleared: false,
@@ -1925,7 +1925,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("drops the definition it deletes and leaves the reader's others", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
 			await store.createReadlistDefinition({ userId: USER_A, slug: LATER, label: "Later", createdAt });
@@ -1937,7 +1937,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports a readlist the reader does not hold as undeleted", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 
 			expect(await store.deleteReadlistDefinition({ userId: USER_A, slug: WORK })).toEqual({
 				deleted: false,
@@ -1945,7 +1945,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("never deletes another reader's readlist of the same name", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 			await store.createReadlistDefinition({ userId: USER_B, slug: WORK, label: "Theirs", createdAt });
 
@@ -1956,7 +1956,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("never renames another reader's readlist of the same name", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 			await store.createReadlistDefinition({ userId: USER_B, slug: WORK, label: "Theirs", createdAt });
 
@@ -1967,7 +1967,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("reports the reader's readlist count after each create", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 
 			expect(
@@ -1979,7 +1979,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("refuses a slug the reader already holds", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
 
@@ -1994,7 +1994,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("raises the limit error at the per-reader cap", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
 			for (let index = 0; index < READLIST_MAX_PER_USER; index += 1) {
 				await store.createReadlistDefinition({
@@ -2017,7 +2017,7 @@ describe("initInMemoryArticleStore", () => {
 		const SUGGESTION_ID = ReaderArticleHashId.fromHash("0123456789abcdef0123456789abcdef");
 
 		it("surfaces the dismissal and the suggestion it named, so the reader can tell a snooze from a permanent dismissal", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 
 			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z"), suggestionId: SUGGESTION_ID });
@@ -2029,7 +2029,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("clears a previously recorded suggestion when the dismissal names none", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z"), suggestionId: SUGGESTION_ID });
 
@@ -2041,7 +2041,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("leaves relatedDismissedAt unset until the owner dismisses", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			const { saved } = await store.saveArticle(makeArticleParams());
 
 			const article = await store.findArticleById(saved.id, USER_A);
@@ -2050,7 +2050,7 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("is a no-op for a url the user never saved", async () => {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z"), suggestionId: undefined });
 
 			expect(await store.findArticleByUrl(URL)).toBeNull();
@@ -2110,7 +2110,7 @@ describe("initInMemoryArticleStore", () => {
 		}
 
 		async function storeWithReadablePicks() {
-			const store = initInMemoryArticleStore();
+			const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 			for (const url of PICK_URLS) {
 				await crawlReadable(store, url);
 			}
@@ -2202,5 +2202,118 @@ describe("initInMemoryArticleStore", () => {
 			expect(outcome).toBe("conflict");
 			expect(await store.listUserSavesForUrl({ userId: USER_A, url: PICK_URLS[0] })).toEqual([]);
 		});
+	});
+});
+
+describe("initInMemoryArticleStore discovery", () => {
+	const NOW = new Date("2026-10-10T12:00:00.000Z");
+	const discovery = (input: Partial<Parameters<typeof resolveArticleDiscovery>[0]>) =>
+		resolveArticleDiscovery({ time: [], saved: [], topic: [], now: NOW, ...input });
+
+	const savedTitled = (title: string, minutesAgo: number) =>
+		makeArticleParams({
+			url: `https://example.com/${title.toLowerCase().replaceAll(" ", "-")}`,
+			metadata: { title, siteName: "example.com", excerpt: "", wordCount: 500 },
+			savedAt: new Date(NOW.getTime() - minutesAgo * 60_000),
+		});
+
+	const topicsByUrl = (entries: Record<string, string[]>) => {
+		const asked: string[] = [];
+		const findTopics = async (url: string): Promise<readonly ArticleTopic[]> => {
+			asked.push(url);
+			return toArticleTopics(entries[url] ?? []);
+		};
+		return { asked, findTopics };
+	};
+
+	it("searches the open status and pages the matches in sort order with their total", async () => {
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
+		await store.saveArticle(savedTitled("Deep work one", 3));
+		await store.saveArticle(savedTitled("Cooking", 2));
+		await store.saveArticle(savedTitled("Deep work two", 1));
+		const { saved: read } = await store.saveArticle(savedTitled("Deep work read", 4));
+		await store.updateArticleStatus(read.id, USER_A, "read");
+
+		const result = await store.findArticlesByUser({
+			userId: USER_A,
+			status: "unread",
+			page: 2,
+			pageSize: 1,
+			discovery: discovery({ q: "deep" }),
+		});
+
+		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Deep work one"]);
+		expect(result).toMatchObject({ total: 2, hasMore: false, page: 2, pageSize: 1 });
+	});
+
+	it("reads each saved article's topics by its URL and filters by them", async () => {
+		const { asked, findTopics } = topicsByUrl({ "https://example.com/focus": ["Focus"] });
+		const store = initInMemoryArticleStore({ findTopics });
+		await store.saveArticle(savedTitled("Focus", 2));
+		await store.saveArticle(savedTitled("Untopiced", 1));
+
+		const result = await store.findArticlesByUser({
+			userId: USER_A,
+			discovery: discovery({ topic: toArticleTopics(["focus"]) }),
+		});
+
+		expect(asked).toEqual(["https://example.com/untopiced", "https://example.com/focus"]);
+		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Focus"]);
+	});
+
+	it("offers the topics of every row in the open status, including rows the filter leaves out", async () => {
+		const { findTopics } = topicsByUrl({
+			"https://example.com/a": ["Focus", "Habits"],
+			"https://example.com/b": ["Habits"],
+			"https://example.com/c": ["Trends"],
+		});
+		const store = initInMemoryArticleStore({ findTopics });
+		await store.saveArticle(savedTitled("A", 3));
+		await store.saveArticle(savedTitled("B", 2));
+		await store.saveArticle(savedTitled("C", 1));
+
+		const result = await store.findArticlesByUser({
+			userId: USER_A,
+			discovery: discovery({ topic: toArticleTopics(["Focus"]) }),
+		});
+
+		expect(result.articles.map((article) => article.metadata.title)).toEqual(["A"]);
+		expect(result.discoveryTopics).toEqual(["Habits", "Focus", "Trends"]);
+	});
+
+	it("counts the matches, capped at the count limit when one is given", async () => {
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
+		await store.saveArticle(savedTitled("Deep work one", 3));
+		await store.saveArticle(savedTitled("Deep work two", 2));
+		await store.saveArticle(savedTitled("Cooking", 1));
+
+		const counted = await store.countArticlesByUser({ userId: USER_A, discovery: discovery({ q: "deep" }) });
+		const capped = await store.countArticlesByUser({
+			userId: USER_A,
+			countLimit: 1,
+			discovery: discovery({ q: "deep" }),
+		});
+
+		expect([counted, capped]).toEqual([2, 1]);
+	});
+
+	it("searches and counts only the readlist's own partition", async () => {
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
+		await store.saveArticle(savedTitled("Deep work at home", 2));
+		await store.saveReadlistArticle({ ...savedTitled("Deep work at the office", 1), readlist: WORK });
+
+		const found = await store.findReadlistArticles({
+			userId: USER_A,
+			readlist: WORK,
+			discovery: discovery({ q: "deep" }),
+		});
+		const counted = await store.countReadlistArticles({
+			userId: USER_A,
+			readlist: WORK,
+			discovery: discovery({ q: "deep" }),
+		});
+
+		expect(found.articles.map((article) => article.metadata.title)).toEqual(["Deep work at the office"]);
+		expect(counted).toBe(1);
 	});
 });

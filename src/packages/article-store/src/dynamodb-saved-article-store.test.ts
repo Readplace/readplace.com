@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, toArticleTopics } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -3160,5 +3160,305 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 			"https://example.com/only",
 		]);
 		expect(batchGetKeys(commands)).toEqual([{ url: "example.com/only" }]);
+	});
+});
+
+describe("initDynamoDbSavedArticleStore discovery", () => {
+	const discovery = (input: Partial<Parameters<typeof resolveArticleDiscovery>[0]>) =>
+		resolveArticleDiscovery({ time: [], saved: [], topic: [], now: STORE_NOW, ...input });
+
+	const savedUserRow = (slug: string, overrides: Record<string, unknown> = {}) =>
+		userArticleItem({ url: `example.com/${slug}`, ...overrides });
+
+	const savedArticleRow = (slug: string, overrides: Record<string, unknown> = {}) =>
+		articleItem({
+			url: `example.com/${slug}`,
+			originalUrl: `https://example.com/${slug}`,
+			title: `Title ${slug}`,
+			content: undefined,
+			...overrides,
+		});
+
+	const readySummary = (topics: string[]) => ({ summaryStatus: "ready", summary: "Summary.", summaryTopics: topics });
+
+	it("reads every page of the sort index, keeping the status filter and the order, with no row limit", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [savedUserRow("a", { status: "read", readAt: "2026-05-30T10:00:00.000Z" })], LastEvaluatedKey: { url: "a" } },
+					{ Items: [savedUserRow("b", { status: "read", readAt: "2026-05-30T11:00:00.000Z" })] },
+				],
+			},
+			BatchGetCommand: { default: { Responses: { articles: [savedArticleRow("b"), savedArticleRow("a")] } } },
+		});
+
+		const result = await initStore(client).findArticlesByUser({
+			userId: USER,
+			status: "read",
+			sort: "readAt",
+			order: "asc",
+			discovery: discovery({ q: "title" }),
+		});
+
+		const queries = queryCommands(commands);
+		expect(queries).toHaveLength(2);
+		expect(queries[1]?.input.ExclusiveStartKey).toEqual({ url: "a" });
+		expect(queries[0]?.input).toMatchObject({
+			IndexName: "userId-readAt-index",
+			FilterExpression: "#status = :status",
+			ExpressionAttributeValues: { ":userId": USER, ":status": "read" },
+			ScanIndexForward: true,
+		});
+		expect(queries[0]?.input.Limit).toBeUndefined();
+		expect(result.articles.map((article) => article.url)).toEqual(["https://example.com/a", "https://example.com/b"]);
+	});
+
+	it("batch-gets every saved row with a projection that names each summary column once and leaves out the body", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { readlist: [{ Items: [savedUserRow("a"), savedUserRow("b")] }] },
+			BatchGetCommand: { default: { Responses: { articles: [savedArticleRow("a"), savedArticleRow("b")] } } },
+		});
+
+		await initStore(client).findArticlesByUser({ userId: USER, discovery: discovery({ q: "title" }) });
+
+		expect(batchGetKeys(commands)).toEqual([{ url: "example.com/a" }, { url: "example.com/b" }]);
+		const batch = commands.find((c) => c.name === "BatchGetCommand");
+		const projected = batch?.input.RequestItems?.articles.ProjectionExpression?.split(", ") ?? [];
+		const timesProjected = (field: string) => projected.filter((name) => name === `#${field}`).length;
+		expect([timesProjected("url"), timesProjected("summaryStatus"), timesProjected("summaryTopics")]).toEqual([1, 1, 1]);
+		expect(timesProjected("content")).toBe(0);
+	});
+
+	it("filters by the topics of a ready summary, reading a legacy summary as ready and any other as none", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				default: { Items: [savedUserRow("ready"), savedUserRow("legacy"), savedUserRow("pending"), savedUserRow("unsummarised")] },
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							savedArticleRow("ready", readySummary(["Focus"])),
+							savedArticleRow("legacy", { summary: "Old summary.", summaryTopics: ["focus"] }),
+							savedArticleRow("pending", { summaryStatus: "pending", summaryTopics: ["Focus"] }),
+							savedArticleRow("unsummarised"),
+						],
+					},
+				},
+			},
+		});
+		const store = initStore(client);
+
+		const focus = await store.findArticlesByUser({ userId: USER, discovery: discovery({ topic: toArticleTopics(["Focus"]) }) });
+		const others = await store.findArticlesByUser({ userId: USER, discovery: discovery({ topic: ["others"] }) });
+
+		expect(focus.articles.map((article) => article.metadata.title)).toEqual(["Title ready", "Title legacy"]);
+		expect(others.articles.map((article) => article.metadata.title)).toEqual(["Title pending", "Title unsummarised"]);
+	});
+
+	it("gives no topics to a summary over unverified wrapper content or one made from replaced content", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [savedUserRow("wrapped"), savedUserRow("replaced")] } },
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							savedArticleRow("wrapped", { originalUrl: "https://archive.ph/abc12", ...readySummary(["Focus"]) }),
+							savedArticleRow("replaced", {
+								canonicalCandidateId: "new",
+								canonicalOriginalUrl: "https://example.com/replaced",
+								canonicalContentHash: "new-hash",
+								summarySourceContentHash: "old-hash",
+								...readySummary(["Focus"]),
+							}),
+						],
+					},
+				},
+			},
+		});
+		const store = initStore(client);
+
+		const focus = await store.findArticlesByUser({ userId: USER, discovery: discovery({ topic: toArticleTopics(["Focus"]) }) });
+		const others = await store.findArticlesByUser({ userId: USER, discovery: discovery({ topic: ["others"] }) });
+
+		expect(focus.total).toBe(0);
+		expect(others.articles.map((article) => article.metadata.title)).toEqual(["Title wrapped", "Title replaced"]);
+	});
+
+	it("keeps a row listed with no topics when its summary columns are malformed", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [savedUserRow("unparseable"), savedUserRow("textless")] } },
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							savedArticleRow("unparseable", { summaryStatus: "ready", summary: "Summary.", summaryTopics: "Focus" }),
+							savedArticleRow("textless", { summaryStatus: "ready", summaryTopics: ["Focus"] }),
+						],
+					},
+				},
+			},
+		});
+
+		const result = await initStore(client).findArticlesByUser({
+			userId: USER,
+			discovery: discovery({ topic: ["others"] }),
+		});
+
+		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Title unparseable", "Title textless"]);
+	});
+
+	it("returns the requested page of the matches with their total and whether more follow", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				default: { Items: [savedUserRow("a"), savedUserRow("b"), savedUserRow("c"), savedUserRow("skipped")] },
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							savedArticleRow("a"),
+							savedArticleRow("b"),
+							savedArticleRow("c"),
+							savedArticleRow("skipped", { title: "Unrelated" }),
+						],
+					},
+				},
+			},
+		});
+
+		const result = await initStore(client).findArticlesByUser({
+			userId: USER,
+			page: 2,
+			pageSize: 1,
+			discovery: discovery({ q: "title" }),
+		});
+
+		expect(result).toMatchObject({ total: 3, hasMore: true, page: 2, pageSize: 1 });
+		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Title b"]);
+	});
+
+	it("offers the topics of every row the open tab holds, including rows the topic filter leaves out", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [savedUserRow("a"), savedUserRow("b"), savedUserRow("c")] } },
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							savedArticleRow("a", readySummary(["Focus", "Habits"])),
+							savedArticleRow("b", readySummary(["Habits"])),
+							savedArticleRow("c", readySummary(["Trends"])),
+						],
+					},
+				},
+			},
+		});
+
+		const result = await initStore(client).findArticlesByUser({
+			userId: USER,
+			discovery: discovery({ topic: toArticleTopics(["Focus"]) }),
+		});
+
+		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Title a"]);
+		expect(result.discoveryTopics).toEqual(["Habits", "Focus", "Trends"]);
+	});
+
+	it("leaves out a saved row whose article is missing from the global table", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [savedUserRow("orphan"), savedUserRow("kept")] } },
+			BatchGetCommand: { default: { Responses: { articles: [savedArticleRow("kept")] } } },
+		});
+
+		const result = await initStore(client).findArticlesByUser({ userId: USER, discovery: discovery({ q: "title" }) });
+
+		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Title kept"]);
+		expect(result.total).toBe(1);
+	});
+
+	it("searches only the readlist's own partition", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [savedUserRow("a")] } },
+			BatchGetCommand: { default: { Responses: { articles: [savedArticleRow("a")] } } },
+		});
+
+		await initStore(client).findReadlistArticles({
+			userId: USER,
+			readlist: ReadlistSlugSchema.parse("work"),
+			discovery: discovery({ q: "title" }),
+		});
+
+		expect(queryCommands(commands)[0]?.input.ExpressionAttributeValues).toEqual({ ":userId": `${USER}#queue/work` });
+	});
+
+	it("logs each discovery read as one JSON line with the rows read, the matches and the time it took", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [savedUserRow("a"), savedUserRow("b")] } },
+			BatchGetCommand: {
+				default: { Responses: { articles: [savedArticleRow("a"), savedArticleRow("b", { title: "Unrelated" })] } },
+			},
+		});
+		const lines: unknown[] = [];
+		const clock = [new Date("2026-05-30T12:00:00.000Z"), new Date("2026-05-30T12:00:00.025Z")];
+		const store = initDynamoDbSavedArticleStore({
+			client,
+			tableName: "articles",
+			userArticlesTableName: "user-articles",
+			logger: HutchLogger.from({ ...noopLogger, info: (...args) => lines.push(args[0]) }),
+			now: () => {
+				const instant = clock.shift();
+				assert(instant, "the discovery read takes two clock readings");
+				return instant;
+			},
+		});
+
+		await store.findArticlesByUser({ userId: USER, discovery: discovery({ q: "title" }) });
+
+		expect(lines).toHaveLength(1);
+		expect(JSON.parse(String(lines[0]))).toEqual({
+			event: "article-store.discovery",
+			partitionRows: 2,
+			matched: 1,
+			durationMs: 25,
+		});
+	});
+
+	it("counts the matches across the whole partition, capped at the count limit when one is given", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [savedUserRow("a"), savedUserRow("b"), savedUserRow("c")] } },
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [savedArticleRow("a"), savedArticleRow("b"), savedArticleRow("c", { title: "Unrelated" })],
+					},
+				},
+			},
+		});
+		const store = initStore(client);
+
+		const total = await store.countArticlesByUser({ userId: USER, status: "unread", discovery: discovery({ q: "title" }) });
+		const capped = await store.countArticlesByUser({
+			userId: USER,
+			status: "unread",
+			countLimit: 1,
+			discovery: discovery({ q: "title" }),
+		});
+
+		expect([total, capped]).toEqual([2, 1]);
+		expect(countQueries(commands)).toHaveLength(0);
+	});
+
+	it("keeps the paged read and the COUNT query for a query that carries no discovery", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { readlist: [{ Items: [userArticleItem()], Count: 1 }, { Items: [], Count: 1 }] },
+			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
+		});
+		const store = initStore(client);
+
+		await store.findArticlesByUser({ userId: USER, discovery: undefined });
+		await store.countArticlesByUser({ userId: USER, discovery: undefined });
+
+		const queries = queryCommands(commands);
+		expect(queries[0]?.input.Limit).toBe(21);
+		expect(queries[1]?.input.Select).toBe("COUNT");
 	});
 });

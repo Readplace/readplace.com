@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
-import { initInMemoryArticleStore } from "../article-store/in-memory-article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "../article-store/in-memory-article-store";
 import { initInMemoryRelatedArticles } from "./in-memory-related-articles";
 
 const USER_ID = UserIdSchema.parse("user_abc");
@@ -12,7 +12,7 @@ const RELATED_URL = "https://example.com/earlier";
 const AT = new Date("2026-08-04T00:00:00.000Z");
 
 function build() {
-	const articleStore = initInMemoryArticleStore();
+	const articleStore = initInMemoryArticleStore({ findTopics: noArticleTopics });
 	const store = initInMemoryRelatedArticles({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,

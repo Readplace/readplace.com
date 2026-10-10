@@ -117,9 +117,13 @@ export type {
 } from "./shared/confirm-popover/confirm-popover.component";
 export {
 	BASE_CSS_VARIABLES,
+	DARK_ONLY_BODY_CLASS,
 	DISTRACTION_FREE_BODY_CLASS,
 	EMAIL_FRAME_CANVAS,
 	LIGHT_ONLY_BODY_CLASS,
+	SCRIM_BLUR,
+	SCRIM_DARK,
+	SCRIM_LIGHT,
 } from "./base.styles";
 export { etagMatches } from "./etag";
 export {

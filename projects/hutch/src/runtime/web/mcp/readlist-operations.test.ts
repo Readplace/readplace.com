@@ -4,7 +4,7 @@ import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, ReadlistSlugSchema } from
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { SaveArticleParams } from "@packages/provider-contracts/article-store";
 import { initAddArticleToReadlist, initUpsertReadlist } from "@packages/save-article";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import { initResolveOwnedArticle } from "./article-lookup";
 import { initResolveReadlistMembership } from "./readlist-membership";
 import { initMcpReadlistOperations } from "./readlist-operations";
@@ -13,7 +13,7 @@ const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 const otherUserId = authenticatedUserIdFrom("00000000000000000000000000000002");
 
 function buildOps() {
-	const store = initInMemoryArticleStore();
+	const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 	let sequence = 0;
 	const ops = initMcpReadlistOperations({
 		listReadlistDefinitions: store.listReadlistDefinitions,

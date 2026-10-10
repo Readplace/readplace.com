@@ -115,6 +115,23 @@ describe("buildReadlistTabs", () => {
 		expect(hrefParts(tabLink(doc, "read")).params.get("order")).toBe("asc");
 	});
 
+	it("carries the reader's search and filters across a tab switch", () => {
+		const doc = renderTabs({
+			activeTab: "queue",
+			discovery: { q: "focus", time: ["5-10"], saved: ["month"], topic: ["others"] },
+		});
+
+		for (const testFilter of ["unread", "read"]) {
+			const { params } = hrefParts(tabLink(doc, testFilter));
+			expect([params.get("q"), params.getAll("time"), params.getAll("saved"), params.getAll("topic")]).toEqual([
+				"focus",
+				["5-10"],
+				["month"],
+				["others"],
+			]);
+		}
+	});
+
 	it("keeps the preferences tab out of the strip until the feature is asked for", () => {
 		expect(tabKeys(renderTabs({ activeTab: "queue", readlist: WORK }))).toEqual(["unread", "read"]);
 	});

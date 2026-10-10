@@ -9,7 +9,8 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
-import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
+import { ArticleSummaryRow, rowToGeneratedSummary } from "./dynamodb-generated-summary";
+import type { ArticleDiscoveryQuery, ArticleStatus, ArticleTopic, SavedArticle } from "@packages/domain/article";
 import {
 	MinutesSchema,
 	ArticleStatusSchema,
@@ -17,6 +18,9 @@ import {
 	SuggestionAttributionSchema,
 	articleDestinationUrl,
 	articleDisplayMetadata,
+	discoveryCandidateOf,
+	matchesArticleDiscovery,
+	rankDiscoveryTopics,
 } from "@packages/domain/article";
 import type { FindPersonalLibrary } from "@packages/provider-contracts/engagement-starter";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
@@ -65,6 +69,8 @@ import type {
 	SaveArticleGlobally,
 	SaveArticleParams,
 	SaveReadlistArticle,
+	SortField,
+	SortOrder,
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
@@ -111,6 +117,21 @@ const ArticleRow = z.object({
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
+
+const DiscoveryArticleRow = z.looseObject({ url: z.string() });
+
+const DISCOVERY_PROJECTION = [...new Set([...ArticleMetadataFields, ...ArticleSummaryRow.keyof().options])];
+
+function topicsOfSummaryColumns(row: z.infer<typeof DiscoveryArticleRow>): readonly ArticleTopic[] {
+	const parsed = ArticleSummaryRow.safeParse(row);
+	if (!parsed.success) return [];
+	try {
+		const summary = rowToGeneratedSummary(parsed.data);
+		return summary?.status === "ready" ? summary.topics : [];
+	} catch {
+		return [];
+	}
+}
 
 const UnverifiedArticleRow = ArticleRow.extend({
 	routeId: dynamoField(ReaderArticleHashIdSchema),
@@ -494,12 +515,92 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const findReadlistArticleById: FindReadlistArticleById = ({ id, userId, readlist }) =>
 		findInPartition(readlistPartitionValue({ userId, readlist }), userId, id);
 
+	const discoveredRowsInPartition = async (
+		partition: string,
+		query: {
+			userId: UserId;
+			status?: ArticleStatus;
+			sort?: SortField;
+			order?: SortOrder;
+			discovery: ArticleDiscoveryQuery;
+		},
+	): Promise<{ matched: SavedArticle[]; discoveryTopics: ArticleTopic[] }> => {
+		const startedAt = now();
+		const statusFilter = query.status
+			? {
+					FilterExpression: "#status = :status",
+					ExpressionAttributeNames: { "#status": "status" },
+					ExpressionAttributeValues: { ":userId": partition, ":status": query.status },
+				}
+			: { ExpressionAttributeValues: { ":userId": partition } };
+		const userArticleRows: z.infer<typeof UserArticleRow>[] = [];
+		await forEachQueryPage(
+			userArticles,
+			{
+				IndexName: query.sort === "readAt" ? "userId-readAt-index" : "userId-savedAt-index",
+				KeyConditionExpression: "userId = :userId",
+				ScanIndexForward: query.order === "asc",
+				...statusFilter,
+			},
+			async (rows) => {
+				userArticleRows.push(...rows);
+			},
+		);
+		const globalRows = await batchGetFromTable({
+			client,
+			tableName,
+			schema: DiscoveryArticleRow,
+			keys: userArticleRows.map((row) => ({ url: row.url })),
+			projection: DISCOVERY_PROJECTION,
+		});
+		const globalRowsByUrl = new Map(globalRows.map((row) => [row.url, row]));
+		const candidates: { article: SavedArticle; topics: readonly ArticleTopic[] }[] = [];
+		for (const userArticle of userArticleRows) {
+			const row = globalRowsByUrl.get(userArticle.url);
+			if (row === undefined) continue;
+			candidates.push({
+				article: toSavedArticle(ArticleRow.parse(row), { ...userArticle, userId: query.userId }),
+				topics: topicsOfSummaryColumns(row),
+			});
+		}
+		const discoveryTopics = rankDiscoveryTopics(candidates.map((candidate) => candidate.topics));
+		const matched = candidates
+			.filter((candidate) =>
+				matchesArticleDiscovery(discoveryCandidateOf(candidate.article, candidate.topics), query.discovery),
+			)
+			.map((candidate) => candidate.article);
+		logger.info(
+			JSON.stringify({
+				event: "article-store.discovery",
+				partitionRows: userArticleRows.length,
+				matched: matched.length,
+				durationMs: now().getTime() - startedAt.getTime(),
+			}),
+		);
+		return { matched, discoveryTopics };
+	};
+
 	const findArticlesInPartition = async (
 		partition: string,
 		query: FindArticlesQuery,
 	): Promise<FindArticlesResult> => {
 		const page = query.page ?? 1;
 		const pageSize = query.pageSize ?? 20;
+		if (query.discovery) {
+			const { matched, discoveryTopics } = await discoveredRowsInPartition(partition, {
+				...query,
+				discovery: query.discovery,
+			});
+			const start = (page - 1) * pageSize;
+			return {
+				articles: matched.slice(start, start + pageSize),
+				total: matched.length,
+				hasMore: matched.length > start + pageSize,
+				page,
+				pageSize,
+				discoveryTopics,
+			};
+		}
 		const order = query.order ?? "desc";
 		const sort = query.sort ?? "savedAt";
 		const indexName = sort === "readAt" ? "userId-readAt-index" : "userId-savedAt-index";
@@ -819,8 +920,12 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const countArticlesInPartition = async (
 		partition: string,
-		query: { status?: ArticleStatus; countLimit?: number },
+		query: { userId: UserId; status?: ArticleStatus; countLimit?: number; discovery?: ArticleDiscoveryQuery },
 	): Promise<number> => {
+		if (query.discovery) {
+			const { matched } = await discoveredRowsInPartition(partition, { ...query, discovery: query.discovery });
+			return Math.min(matched.length, query.countLimit ?? matched.length);
+		}
 		const expressionValues: Record<string, unknown> = { ":userId": partition };
 		let filterExpression: string | undefined;
 		let expressionAttributeNames: Record<string, string> | undefined;

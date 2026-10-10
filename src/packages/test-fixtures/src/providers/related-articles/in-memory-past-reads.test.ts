@@ -1,7 +1,7 @@
 import { MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import { initInMemoryArticleStore } from "../article-store/in-memory-article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "../article-store/in-memory-article-store";
 import { initInMemoryPastReads } from "./in-memory-past-reads";
 
 const USER_ID = UserIdSchema.parse("user_abc");
@@ -11,7 +11,7 @@ const WORK = ReadlistSlugSchema.parse("work");
 const AT = new Date("2026-09-12T00:00:00.000Z");
 
 function build() {
-	const articleStore = initInMemoryArticleStore();
+	const articleStore = initInMemoryArticleStore({ findTopics: noArticleTopics });
 	const store = initInMemoryPastReads({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,

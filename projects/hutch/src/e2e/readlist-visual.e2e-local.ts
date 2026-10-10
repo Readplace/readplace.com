@@ -105,6 +105,7 @@ const MOVE_ARTICLE_CONFIRM = `${OPEN_MOVE_ARTICLE_POPOVER} [data-test-action="mo
 const MARK_STATUS_CONFIRM_BUTTON = '[data-test-action="mark-status-confirm"]';
 const EMPTY = "[data-test-empty-readlist]";
 const LISTING = "[data-test-listing]";
+const DISCOVERY = "[data-test-discovery]";
 const LISTING_COUNT = "#readlist-count";
 const LISTING_HEADER = ".readlist-listing__header";
 const EMPTY_ART = `${EMPTY} [data-test-illustration="book-lightbulb"]`;
@@ -392,16 +393,25 @@ async function columnTopsAlign(page: Page): Promise<void> {
 	const rail = await measuredBox(page, RAIL);
 	const side = await measuredBox(page, SIDE);
 	const tabs = await measuredBox(page, FILTER_TABS);
-	const listing = await measuredBox(page, LISTING);
 	assert.ok(near(save.y, rail.y), `the save card and rail must start together, measured ${save.y}px and ${rail.y}px`);
 	assert.ok(near(save.y, side.y), `the save card and side column must start together, measured ${save.y}px and ${side.y}px`);
 	assert.ok(near(tabs.y - (save.y + save.height), 32), "the tabs must sit 32px below the save card");
+}
+
+async function emptyColumnGeometry(page: Page): Promise<void> {
+	await columnTopsAlign(page);
+	const tabs = await measuredBox(page, FILTER_TABS);
+	const listing = await measuredBox(page, LISTING);
 	assert.ok(near(listing.y - (tabs.y + tabs.height), 32), "the listing must sit 32px below the tabs");
 }
 
 async function articlesPageGeometry(page: Page): Promise<void> {
 	await columnTopsAlign(page);
+	const tabs = await measuredBox(page, FILTER_TABS);
+	const discovery = await measuredBox(page, DISCOVERY);
 	const listing = await measuredBox(page, LISTING);
+	assert.ok(near(discovery.y - (tabs.y + tabs.height), 32), "the search row must sit 32px below the tabs");
+	assert.ok(near(listing.y - (discovery.y + discovery.height), 16), "the listing must sit 16px below the search row");
 	const pagination = await measuredBox(page, "[data-test-pagination]");
 	assert.ok(near(pagination.y - (listing.y + listing.height), 16), "pagination must sit 16px below the listing");
 }
@@ -968,6 +978,7 @@ async function emptyPageSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(EMPTY)).toBeVisible();
 	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
+	await expect(page.locator(DISCOVERY)).toHaveClass(/\breadlist-discovery--hidden\b/);
 	await listingHeaderHidden(page);
 	await emptyArtAtDrawnSize(page);
 	await settledSetupGuide(page);
@@ -998,6 +1009,7 @@ async function articlesPageSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(ARTICLE)).toHaveCount(2);
 	await expect(page.locator(LISTING_COUNT)).toHaveText("2 Saved Articles");
+	await expect(page.locator(DISCOVERY)).toHaveClass(/\breadlist-discovery--visible\b/);
 	await settledSetupGuide(page);
 }
 
@@ -1006,6 +1018,7 @@ async function articlesWithoutSidePanelsSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(ARTICLE)).toHaveCount(2);
 	await expect(page.locator(LISTING_COUNT)).toHaveText("2 Saved Articles");
+	await expect(page.locator(DISCOVERY)).toHaveClass(/\breadlist-discovery--visible\b/);
 	await expect(page.locator(SETUP_GUIDE)).toHaveClass(/setup-guide--hidden/);
 }
 
@@ -1033,6 +1046,7 @@ async function customReadlistPageSettled(page: Page): Promise<void> {
 	await expect(page.locator(ACTIVE_READLIST_LABEL)).toHaveText("New Readlist");
 	await expect(page.locator(EMPTY)).toBeVisible();
 	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
+	await expect(page.locator(DISCOVERY)).toHaveClass(/\breadlist-discovery--hidden\b/);
 	await listingHeaderHidden(page);
 	await settledSetupGuide(page);
 }
@@ -1285,6 +1299,7 @@ async function subscriptionTrialSettled(page: Page): Promise<void> {
 	await expect(page.locator(trialTile("days"))).toBeVisible();
 	await expect(page.locator(trialTile("hours"))).toBeVisible();
 	await expect(page.locator(trialTile("minutes"))).toBeVisible();
+	await page.mouse.move(0, 0);
 }
 
 async function subscriptionCancellationSettled(page: Page): Promise<void> {
@@ -1334,7 +1349,7 @@ async function setupGuideNextReadSettled(page: Page): Promise<void> {
 const PAGE_EMPTY: VisualCheckpoint = {
 	name: "readlist-page-empty",
 	settled: emptyPageSettled,
-	geometry: columnTopsAlign,
+	geometry: emptyColumnGeometry,
 	target: MAIN,
 	capture: "page-from-top",
 	pinnedText: [],
@@ -1804,7 +1819,7 @@ test.describe("Readlist page (empty)", () => {
 
 			await captureCheckpoint(page, withTheme(PAGE_EMPTY, theme));
 			await page.setViewportSize({ width: 1440, height: DESKTOP_TALL.height });
-			await columnTopsAlign(page);
+			await emptyColumnGeometry(page);
 		});
 	}
 });

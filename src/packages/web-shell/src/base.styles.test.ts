@@ -300,6 +300,10 @@ describe("FORM_CONTROL_STYLES", () => {
 		);
 	});
 
+	it("insets a field's text past a leading glyph", () => {
+		expect(formControlRule(".form-input--leading-icon")).toContain("padding-inline-start: 40px;");
+	});
+
 	it("draws the 2px ring outline on a focused checkbox or radio", () => {
 		const rule = formControlRule(".form-choice:focus-visible");
 		expect(rule).toContain("outline: 2px solid var(--ring);");
@@ -325,6 +329,13 @@ describe("BUTTON_STYLES", () => {
 		const height = Number.parseFloat(declaredValue(ruleBody(BUTTON_STYLES, tier), "min-height"));
 		const [blockInset] = declaredValue(ruleBody(BUTTON_STYLES, `${tier}::before`), "inset").split(" ");
 		expect(height - 2 * Number.parseFloat(blockInset)).toBeGreaterThanOrEqual(44);
+	});
+
+	it("squares the icon-only tier to the 48px target with no padding, so the glyph sits centred", () => {
+		const rule = ruleBody(BUTTON_STYLES, ".btn--icon");
+		expect(declaredValue(rule, "padding")).toBe("0");
+		expect(declaredValue(rule, "min-width")).toBe("48px");
+		expect(declaredValue(rule, "aspect-ratio")).toBe("1");
 	});
 
 	it.each(["primary", "secondary", "neutral"])("gives the %s variant distinct rest, hover and pressed fills", (variant) => {
@@ -393,6 +404,25 @@ describe("CHIP_STYLES", () => {
 		expect(declaredValue(rule, "border-color")).toBe("var(--primary)");
 		expect(declaredValue(rule, "color")).toBe("var(--primary-foreground)");
 		expect(declaredValue(rule, "border-radius")).toBe("var(--radius) var(--radius) 0 0");
+	});
+
+	it("draws a filter chip as an outlined 50px pill whose ticked state darkens the outline to the text ink", () => {
+		const rule = ruleBody(CHIP_STYLES, ".chip--filter");
+		expect(declaredValue(rule, "min-height")).toBe("50px");
+		expect(declaredValue(rule, "padding")).toBe("0 16px");
+		expect(declaredValue(rule, "border")).toBe("1px solid var(--border)");
+		expect(declaredValue(rule, "background")).toBe("transparent");
+		expect(declaredValue(rule, "font-size")).toBe("var(--text-md)");
+		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip__input:checked + .chip--filter"), "border-color")).toBe(
+			"var(--foreground)",
+		);
+		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip--filter:hover"), "background")).toBe("var(--muted)");
+	});
+
+	it("rings a filter chip whose hidden checkbox has keyboard focus", () => {
+		const rule = ruleBody(CHIP_STYLES, ".chip__input:focus-visible + .chip--filter");
+		expect(declaredValue(rule, "outline")).toBe("2px solid var(--ring)");
+		expect(declaredValue(rule, "outline-offset")).toBe("2px");
 	});
 
 	it("insets the remove control's focus ring, so it stays legible on the accent tint", () => {

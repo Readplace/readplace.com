@@ -55,6 +55,8 @@ const MEMBER_PATHS = [
 	"/queue",
 	"/queue?tab=done",
 	"/queue?q=article",
+	"/queue?q=no-such-words-anywhere",
+	"/queue?time=5-10&saved=month",
 	"/account",
 	"/account?section=subscription",
 	"/account/plans",

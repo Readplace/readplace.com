@@ -11,6 +11,18 @@ describe("initInMemoryGeneratedSummary", () => {
 		});
 	});
 
+	describe("findTopics", () => {
+		it("reads a ready summary's topics and no topics for any other state", async () => {
+			const store = initInMemoryGeneratedSummary();
+			await store.markSummaryReady({ url: URL, summary: "S", topics: toArticleTopics(["Focus"]) });
+			await store.markSummaryPending({ url: "https://example.com/pending" });
+
+			expect(await store.findTopics(URL)).toEqual(["Focus"]);
+			expect(await store.findTopics("https://example.com/pending")).toEqual([]);
+			expect(await store.findTopics("https://example.com/never-saved")).toEqual([]);
+		});
+	});
+
 	describe("markSummaryPending", () => {
 		it("creates a pending row when none existed", async () => {
 			const store = initInMemoryGeneratedSummary();

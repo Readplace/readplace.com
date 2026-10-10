@@ -243,6 +243,24 @@ async function auditReadlistQueue(page: Page, where: { theme: string; view: stri
 	await auditMoveDialog(page, where);
 }
 
+async function auditReadlistDiscovery(page: Page, where: { theme: string }): Promise<void> {
+	const openDrawer = page.locator("[data-test-discovery-drawer]:popover-open");
+	await page.goto(`${BASE_URL}/queue?q=no-such-words-anywhere`, { waitUntil: "domcontentloaded" });
+	await expect(page.locator('[data-test-empty-action="clear-discovery"]')).toBeVisible({ timeout: SETTLE_MS });
+	await auditRoot(page, { root: READLIST_ROOT, theme: where.theme, view: "search-no-results" });
+
+	await page.goto(`${BASE_URL}/queue?saved=today`, { waitUntil: "domcontentloaded" });
+	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
+	await waitForCardsSettled(page);
+	await page.locator('[data-test-action="open-discovery-filters"]').click({ timeout: SETTLE_MS });
+	await expect(openDrawer).toBeVisible({ timeout: SETTLE_MS });
+	await expect(openDrawer.locator('input[name="saved"]:checked')).toHaveCount(1);
+	await auditRoot(page, { root: "[data-test-discovery-drawer]", theme: where.theme, view: "filters-open" });
+
+	await page.keyboard.press("Escape");
+	await expect(openDrawer).toBeHidden({ timeout: SETTLE_MS });
+}
+
 async function auditAnnouncementBars(
 	page: Page,
 	where: { theme: string; view: string },
@@ -361,6 +379,7 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 				await auditReadlistQueue(page, { theme, view });
 			}
 			await auditCreateReadlistDialog(page, { theme, view: "create-readlist" });
+			await auditReadlistDiscovery(page, { theme });
 			await page.route("**/client-dist/toast.client.js", (route) => route.abort());
 			await page.goto(
 				`${BASE_URL}/queue?status_changed=read&status_article=${encodeURIComponent(articleId)}`,

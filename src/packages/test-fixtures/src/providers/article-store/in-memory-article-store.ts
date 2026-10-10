@@ -1,13 +1,22 @@
 import assert from "node:assert";
 import type {
+	ArticleDiscoveryQuery,
 	ArticleMetadata,
 	ArticleStatus,
+	ArticleTopic,
 	Minutes,
 	SaveProvenance,
 	SavedArticle,
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ReaderArticleHashId, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
+import {
+	ReaderArticleHashId,
+	articleDestinationUrl,
+	articleDisplayMetadata,
+	discoveryCandidateOf,
+	matchesArticleDiscovery,
+	rankDiscoveryTopics,
+} from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
@@ -70,6 +79,9 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
 import type { FindPersonalLibrary, SaveStarterPack } from "@packages/provider-contracts/engagement-starter";
+import type { FindArticleTopics } from "./article-store.types";
+
+export const noArticleTopics: FindArticleTopics = async () => [];
 
 interface GlobalArticle {
 	url: string;
@@ -144,7 +156,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 	};
 }
 
-export function initInMemoryArticleStore(): {
+export function initInMemoryArticleStore(deps: { findTopics: FindArticleTopics }): {
 	findPersonalLibrary: FindPersonalLibrary;
 	saveStarterPack: SaveStarterPack;
 	saveArticle: SaveArticle;
@@ -481,6 +493,27 @@ export function initInMemoryArticleStore(): {
 		};
 	};
 
+	const discoveredRows = async (
+		userArts: UserArticle[],
+		discovery: ArticleDiscoveryQuery,
+	): Promise<{ matched: SavedArticle[]; discoveryTopics: ArticleTopic[] }> => {
+		const candidates: { article: SavedArticle; topics: readonly ArticleTopic[] }[] = [];
+		for (const ua of userArts) {
+			const article = articles.get(ua.url);
+			assert(article, "every saved row has a global article");
+			const saved = toSavedArticle(article, ua);
+			candidates.push({ article: saved, topics: await deps.findTopics(saved.url) });
+		}
+		return {
+			matched: candidates
+				.filter((candidate) =>
+					matchesArticleDiscovery(discoveryCandidateOf(candidate.article, candidate.topics), discovery),
+				)
+				.map((candidate) => candidate.article),
+			discoveryTopics: rankDiscoveryTopics(candidates.map((candidate) => candidate.topics)),
+		};
+	};
+
 	const listPartition = async (
 		readlist: ReadlistSlug | undefined,
 		query: FindArticlesQuery,
@@ -506,6 +539,19 @@ export function initInMemoryArticleStore(): {
 			const diff = aValue.getTime() - bValue.getTime();
 			return order === "asc" ? diff : -diff;
 		});
+
+		if (query.discovery) {
+			const { matched, discoveryTopics } = await discoveredRows(userArts, query.discovery);
+			const start = (page - 1) * pageSize;
+			return {
+				articles: matched.slice(start, start + pageSize),
+				total: matched.length,
+				hasMore: matched.length > start + pageSize,
+				page,
+				pageSize,
+				discoveryTopics,
+			};
+		}
 
 		const total = query.includeTotal ? userArts.length : undefined;
 		const start = (page - 1) * pageSize;
@@ -588,22 +634,25 @@ export function initInMemoryArticleStore(): {
 		return { articles: result, total, hasMore, page, pageSize };
 	};
 
-	const countPartition = (
+	const countPartition = async (
 		readlist: ReadlistSlug | undefined,
-		query: { userId: UserId; status?: ArticleStatus; countLimit?: number },
-	): number => {
+		query: { userId: UserId; status?: ArticleStatus; countLimit?: number; discovery?: ArticleDiscoveryQuery },
+	): Promise<number> => {
 		let userArts = Array.from(userArticles.values()).filter(
 			(ua) => ua.userId === query.userId && ua.readlist === readlist,
 		);
 		if (query.status) {
 			userArts = userArts.filter((ua) => ua.status === query.status);
 		}
-		return Math.min(userArts.length, query.countLimit ?? userArts.length);
+		const counted = query.discovery
+			? (await discoveredRows(userArts, query.discovery)).matched.length
+			: userArts.length;
+		return Math.min(counted, query.countLimit ?? counted);
 	};
 
-	const countArticlesByUser: CountArticlesByUser = async (query) => countPartition(undefined, query);
+	const countArticlesByUser: CountArticlesByUser = (query) => countPartition(undefined, query);
 
-	const countReadlistArticles: CountReadlistArticles = async (query) => countPartition(query.readlist, query);
+	const countReadlistArticles: CountReadlistArticles = (query) => countPartition(query.readlist, query);
 
 	const deleteFrom = (
 		readlist: ReadlistSlug | undefined,

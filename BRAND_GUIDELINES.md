@@ -144,7 +144,7 @@ Every tint is opaque, so a pair measures the same on a card and on the canvas: r
 - **Inline text links use one token — `--primary-text`.** Light `--primary` is a fill, not a link colour; the link token is the darker amber that clears the floor (5.06:1 light, ~6:1 on the dark card). Do not introduce a third amber for a link, and do not redeclare link colour per block. Emphasis inside a link comes from weight (`<strong>`), never a different hue. There is no global bare-`<a>` reset, so an unstyled link renders browser-default blue — that is a styling gap, not a choice; every body-copy link sets `color: var(--primary-text)`. Links that make up **list UI** (a row title, a source name, a sort control, a page number) are not body copy — they rest in their text-role colour and turn amber or `--foreground` only on hover (see [Components](#lists)).
 - **Reading surfaces stay neutral.** Amber appears in chrome and UI — never behind article text. Article content sits on `--background` (light) or dark grey (dark).
 - **Hero gradient:** `linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%)` — a deep navy gradient mirroring the logo tile. Warm amber highlights (`--color-highlight`) sit directly on it.
-- **Contrast floors.** Words clear 4.5:1, or 3:1 at 24px, or 3:1 at 18.66px/700. Non-text marks clear 3:1 (icons, dots, the fill of an icon-only control). A control labelled by words is judged by its label against its fill. Measure in both themes, and again in greyscale — e-ink panels drop hue, and sRGB greyscale and WCAG luminance disagree by up to 0.7:1. A new surface joins the colour-contrast sweep.
+- **Contrast floors.** Words clear 4.5:1, or 3:1 at 24px, or 3:1 at 18.66px/700. Non-text marks clear 3:1 (icons, dots). A control is judged by what identifies it, against its own fill — its words, or an icon-only control's glyph — and only a control with neither needs its fill to clear 3:1 against what is behind it: the `neutral` filter button's `--card` fill sits on the `--muted` canvas below 3:1, and its glyph carries it. Measure in both themes, and again in greyscale — e-ink panels drop hue, and sRGB greyscale and WCAG luminance disagree by up to 0.7:1. A new surface joins the colour-contrast sweep.
 - **A signed-in page renders in the reader's theme.** Every signed-in surface follows the account's Appearance setting (System, Light or Dark), resolved server-side so there is no flash. Never pin a signed-in page to one theme (a light-pinned page flips mid-navigation when the reader opens a dark reader). Logged-out pages are designed art and are pinned light (`LIGHT_ONLY_BODY_CLASS`); the public reader view is the one logged-out page that follows the system theme. The extension popup is the one signed-in exception (see [Browser Extension](#browser-extension)).
 
 ### Palette Copies Outside the Web
@@ -188,6 +188,7 @@ Panels, cards, lists and dialogs have **no display type**. Product text takes on
 |---|---|---|---|
 | Item title in a list · dialog title | `--text-lg`, ~1.55 line (28px) | 600 | `--foreground`; an item title hovers to `--primary-text` |
 | Empty-state title | `--text-lg`, 1.3 line | 600 | `--foreground` |
+| Drawer title | `1.25rem` (20px, no token), 24px line | 700 | `--foreground` |
 | Panel / card heading · rail heading | `--text-md` | 600 | `--foreground`; a rail heading `--ink-rail-heading` |
 | Tab label | `--text-md` | 600 open · 400 others | `--foreground`; inactive tabs `--ink-tab-inactive` |
 | Announcement bar | `--text-md`, 24px line | 600 | white on `--announcement-bg` |
@@ -200,12 +201,13 @@ Panels, cards, lists and dialogs have **no display type**. Product text takes on
 | Field error | `--text-xs` | 500 | `--error-text` |
 | Pagination | `--text-md` | 500 info and numbers · 400 Previous/Next · 600 current | `--ink-pagination`; the current page `--foreground` |
 | Chip · badge | `--text-xs` | 500 | per [tone](#chips-tags-and-badges) |
+| Filter chip | `--text-md` | 500 | `--foreground` |
 | Tab badge | `--text-sm` | 600 | `--primary-foreground` on `--primary` |
 | Large tag | `--text-sm` | 500 | per [tone](#chips-tags-and-badges) |
 | Status chip | `--text-xs` | 600 | `--foreground` |
 | Figure (stat tile) | `--text-md` | 600, tabular | `--foreground` |
 | Stat tile label | `--text-sm` (18px line) | 400 | `--muted-foreground` |
-| Plan price | `1.5rem` (24px, no token: the one product figure above `--text-lg`) | 600, tabular | `--foreground`; its "/month" unit `--text-sm`/400 `--foreground` |
+| Plan price | `1.5rem` (24px, no token: with the drawer title, one of two product roles above `--text-lg`) | 600, tabular | `--foreground`; its "/month" unit `--text-sm`/400 `--foreground` |
 
 **13px, 15px and 17px are off the scale.** The designed components (list rows, empty states, tabs, dialogs, menus, alerts, the rail) move onto these roles one component at a time; where a section below still quotes 13, 15 or 17px, or an ink or weight the tables here replace, that is the component's value today, and the next change to that component moves it to its role here. Stylesheets for pages with no design already name the tokens, with no 13/15/17px literal.
 
@@ -273,7 +275,8 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
 
   | Where | Glyph | Icon-to-label gap |
   |---|---|---|
-  | Header destination, rail row, alert lead, search or filter box | 24px | 8px in the header |
+  | Header destination, rail row, alert lead, filter button | 24px | 8px in the header |
+  | Search field's leading glyph | 20px (`1.25rem`) | the text starts 40px in |
   | Kebab trigger | 24px (`1.5rem`) | — |
   | Menu item | 20px (`1.25rem`) | 12px |
   | Inside an L or M [button](#buttons), an announcement-bar link or close | 20px | 8px |
@@ -284,7 +287,8 @@ Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-i
   The shell and the pages with no design use these sizes; a designed component (rail, menus, alerts, metadata rows) takes its size in its own pass, and until then its section below may quote its earlier size. The 6px S-button gap is a half-step inside a component (see [Spacing Scale](#spacing-scale)).
 - **A readlist's kind has one glyph.** One table in hutch (`READLIST_KIND_ICON`) maps a readlist's kind to its icon: the default readlist ("All") draws `file`, a custom readlist `folder`. A surface that shows a readlist's kind reads that table rather than choosing its own glyph (the reader's readlist picker still draws `folder` for every option until it adopts the table); the header's Readlist destination keeps `book`.
 - **Filing has one glyph.** `folder-input` marks putting an article into a readlist ("Move to readlist", "Add to readlist"); `folder` stays the glyph of the readlist itself.
-- **An icon's ink comes from its role.** Navigation icons are monochrome and follow their label: in the header, `--ink-nav-current` on the current destination and `--ink-nav-inactive` on the others (account items stay `--foreground`); in a side rail, the icon follows its label: `--foreground` at rest and `--primary-text-on-tint` on the selected row, 8px from the label. Menu-item icons and kebab triggers are `--foreground`; other icon-only triggers are `--muted-foreground`. A state glyph beside words takes the functional text token (`--success-text`, `--error-text`); an alert glyph takes its variant's mark (`--color-error`, `--color-success`, `--color-info`), except the warning glyph takes `--warning-text` to clear 3:1 on its tint. A progress spinner (`loader`) is `--primary-text`. A **metadata glyph** is a fact glyph tinted through its fact token so rows scan by colour — source/site `globe` in `--fact-site`, saved time `clock` in `--fact-saved`, reading time `eye` in `--fact-read-time` — while the text beside it is `--ink-meta`. The fact tokens resolve to `--color-secondary-text`, `--color-error` and `--color-success`; the design's navy `#004593`, red `#D4284B` and teal gradient are not adopted (`#004593` is 1.72:1 on the dark card). Every fact keeps its text label, so hue is never the only cue. This is the one decorative use of the functional hues; everywhere else red and green mean error and success. Every tinted glyph clears 3:1 against its surface in both themes — reach for a page-following token before a theme-pinned brand value (pinned `--color-secondary` is 1.39:1 on the dark card).
+- **Discovery has two glyphs.** `search` leads the search field and `filter-horizontal` draws the filter button.
+- **An icon's ink comes from its role.** Navigation icons are monochrome and follow their label: in the header, `--ink-nav-current` on the current destination and `--ink-nav-inactive` on the others (account items stay `--foreground`); in a side rail, the icon follows its label: `--foreground` at rest and `--primary-text-on-tint` on the selected row, 8px from the label. Menu-item icons and kebab triggers are `--foreground`; an icon-only `.btn` takes its variant's ink; other icon-only triggers are `--muted-foreground`. A state glyph beside words takes the functional text token (`--success-text`, `--error-text`); an alert glyph takes its variant's mark (`--color-error`, `--color-success`, `--color-info`), except the warning glyph takes `--warning-text` to clear 3:1 on its tint. A progress spinner (`loader`) is `--primary-text`. A **metadata glyph** is a fact glyph tinted through its fact token so rows scan by colour — source/site `globe` in `--fact-site`, saved time `clock` in `--fact-saved`, reading time `eye` in `--fact-read-time` — while the text beside it is `--ink-meta`. The fact tokens resolve to `--color-secondary-text`, `--color-error` and `--color-success`; the design's navy `#004593`, red `#D4284B` and teal gradient are not adopted (`#004593` is 1.72:1 on the dark card). Every fact keeps its text label, so hue is never the only cue. This is the one decorative use of the functional hues; everywhere else red and green mean error and success. Every tinted glyph clears 3:1 against its surface in both themes — reach for a page-following token before a theme-pinned brand value (pinned `--color-secondary` is 1.39:1 on the dark card).
 - **Arrows show direction; chevrons show disclosure and paging.** A pagination step (Previous/Next, Newer/Older) uses `chevron-left`/`chevron-right`; arrows are kept for back links and sort, where `arrow-down`/`arrow-up` beside a sort label show the order applied. A disclosure (`<details>` summary, dropdown, account trigger) uses `chevron-down` and rotates it 180° when open — `--muted-foreground` in content, `--foreground` in a 24px slot on the header's account trigger, the readlist switcher, and a setup-guide step or fold; there is no separate up-chevron. A select field's chevron is `--foreground` in a 20px slot and does not turn.
 - **An icon carrying meaning alone needs an `.sr-only` twin** naming what it acts on — `htmlToMarkdown` drops `<svg>`, so a lone icon reaches AI clients and screen readers as an empty cell. Prefer `.sr-only` text over an `aria-label` alone (which markdown also drops). A per-row menu is "More options for <item>", a status marker is "Unread"/"Read", a close is "Close" — never a bare "Menu" repeated down a list.
 
@@ -339,9 +343,11 @@ Outside dialogs, when two buttons sit side by side, the **first is the primary a
 
 **In a dialog**, L buttons have 24px inline padding and sit in one auto-width row, 8px apart: dismiss (`neutral`) first, commit (`primary`) last. The row is right-aligned, or centred when the dialog is illustrated and holds no field. If a pair is too wide for the row, the commit wraps above the dismiss. Below the designed 534px content width, buttons stack full-width with the commit on top.
 
+**In the filter drawer's footer**, Clear all (`neutral`) and Apply filters (`primary`) pair the same way, 16px apart, with 24px inline padding; when they cannot share a line, Apply wraps above Clear all.
+
 #### Size and padding
 
-> Defined in `BUTTON_STYLES`. Pick a size class — a page never sets a button's height, padding or radius.
+> Defined in `BUTTON_STYLES`. Pick a size class — a page never sets a button's height, padding or radius, except the 24px inline padding of a dialog's button row or the filter drawer's footer.
 
 Sizes come by role, not by importance:
 
@@ -350,6 +356,7 @@ Sizes come by role, not by importance:
 | **L** | `.btn` (default) | 48px | `12px 16px` | `--radius` (8) | 16px/600, 24px line | 20px, 8px | 48px | A CTA on its own line: hero, landing, install, pricing, import commit, a card's closing CTA (spanning the card), except the readlist subscription notice, **every dialog button**, and a CTA beside a text input — L equals `--input-height`, so the row lines up with no modifier |
 | **M** | `.btn--m` | 40px | `8px 14px` | `--radius` (8) | 16px/600 | 20px, 8px | ≥44px (`::before`, `inset: -2px 0`) | A list row's state action (Mark as read, Exclude, Save on an inbox link), a toast's Undo, the guest header's Log in, the readlist subscription notice's full-width CTA |
 | **S** | `.btn--s` | 32px | `6px 12px` | `--radius-sm` (6) | 14px/600, 20px line | 16px, 6px | ≥44px (`::before`, `inset: -6px 0`) | An action nested in dense secondary content: a checklist or stepper step, a copy button, a banner CTA, the reader's action bar. Never a card's closing CTA |
+| **Icon-only** | `.btn--icon` (with L) | 48px square | `0` | `--radius` (8) | `.sr-only` name | 20px (the filter button's glyph is 24px) | 48px | A bordered icon control beside an L field: the readlist's filter button |
 | **Icon** | — (not `.btn`) | — | `4px 8px` (`--button-padding-xs`) | `--radius-sm` | — | 16px | per the floor below | Icon-only close and dismiss controls |
 | **Kebab** | `.menu__toggle` | ≥36px | — | `--radius-sm` (6) | — | 24px, no fill | ≥36px square | Overflow trigger inside a list |
 
@@ -399,13 +406,13 @@ Amber at rest is kept for calls to action, links in prose, and the active sideba
 | Default | `8px` | `--radius` | L and M buttons, inputs, rail rows and the other readlist-row consumers (the design's selected-row corner fits 8–8.5px, not 12), alerts and callouts (standalone or nested), toasts, pagination targets and the current-page cell, a header destination's hover; and boxes nested inside a card or dialog (tiles, bordered lists) |
 | Medium | `12px` | `--radius-md` | Dropdown and row menus, and plan-choice rows |
 | Large | `16px` | `--radius-lg` | Cards and panels everywhere, and dialogs |
-| Pill | `999px` | `--radius-pill` | Chips and progress bars |
+| Pill | `999px` | `--radius-pill` | Chips (the filter drawer's checkbox chips included) and progress bars |
 
 **Corners step down one size per level of nesting** (card or dialog 16 → nested box, text field or control 8 → S control 6), so an inner corner is never rounder than its container. Plan-choice rows are the one exception: they keep the designed 12px (`--radius-md`) inside the 16px dialog. A tile set into a card (a stat or countdown box) is enclosed by 1px `var(--border)` and fills with `--muted`, reading as recessed. An image in a card takes `--radius-sm` and `object-fit: cover`, no border. Pick the token by what the element *is*, not by how prominent it should look.
 
 Every card follows `--radius-lg` to 16px. Menus move onto the values above in their own pass, and until then their sections below quote the token they read today.
 
-**Pills are for chips and progress bars only.** A chip (status chips, tags and badges, all non-interactive labels) and a progress bar are pills (`--radius-pill`). A [tab badge](#chips-tags-and-badges) is attached to a box, so it is the one non-pill badge. A tag that can be removed stays a non-interactive pill; its remove × is a separate icon-only button inside it (`--radius-sm` hover square, ≥36px square target, sr-only "Remove from {name}"), and the pill itself is never the click target. Anything else you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards — stays on the radius tokens. This isn't a social app. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots, step markers and radio rings. A checkbox's 5px corner is glyph geometry, not a radius token.
+**Pills are for chips and progress bars only.** A chip (status chips, tags and badges, all non-interactive labels) and a progress bar are pills (`--radius-pill`). A [tab badge](#chips-tags-and-badges) is attached to a box, so it is the one non-pill badge. A tag that can be removed stays a non-interactive pill; its remove × is a separate icon-only button inside it (`--radius-sm` hover square, ≥36px square target, sr-only "Remove from {name}"), and the pill itself is never the click target. The one operable pill is a **filter chip**: a checkbox drawn as a pill, and only inside the filter drawer. Anything else you *operate* or that *frames content* — buttons, inputs, tabs, menus and cards — stays on the radius tokens. This isn't a social app. Circles (`border-radius: 50%`) are shapes, not pills, and are reserved for avatars, status/unread dots, step markers and radio rings. A checkbox's 5px corner is glyph geometry, not a radius token.
 
 A card laid out in a grid is a fully-enclosed box — `1px solid var(--border)` plus a `--radius*` corner. A vertical divided list lives *inside* one enclosed card (see [Lists](#lists)); its hairlines never run bare on the page ground. Reserve a bottom-border-only separator for a divided list, never a grid tile, which reads as half-drawn beside its neighbours.
 
@@ -419,7 +426,7 @@ An app screen has a canvas and at most two raised layers — never more.
 |---|---|---|---|---|
 | **Canvas** | `--muted` on signed-in app pages; `--background` on reading pages; marketing pages keep the band rhythm | — | none | page ground, uncarded navigation rails and tab strips |
 | **Resting** | `--card` (`#FFFFFF` / `#222222`) | 1px `var(--border)` | **none** | cards, panels |
-| **Floating** | `--card` (a full-height drawer takes `--background`) | 1px `var(--border)` | dropdown and row menus: `--shadow-menu`; other layers: their shadow token; none for a dialog | dropdown and row menus, popovers, toasts, dialogs, the mobile nav drawer |
+| **Floating** | `--card` (a full-height drawer takes `--background`) | 1px `var(--border)` | dropdown and row menus: `--shadow-menu`; other layers: their shadow token; none for a dialog or the filter drawer | dropdown and row menus, popovers, toasts, dialogs, the mobile nav drawer, the filter drawer |
 
 | Token | Light | Dark | CSS variable | Role |
 |---|---|---|---|---|
@@ -432,7 +439,7 @@ The menu value matches the measured design halo; the toast value is estimated fr
 
 - **A shadow means it floats.** A resting card is border-only — the fill step from the canvas is barely visible in either theme, so the hairline does the separating. A floating menu takes `--shadow-menu`; other dismissible layers take their own shadow tokens. That keeps every screen at two planes.
 - A **toast** is the one tinted floating layer: the opaque success tint, a 1px `--success` edge and `--shadow-toast`.
-- A **modal dialog** is a bordered `--card` over a scrim and blur, with no shadow of its own. The shared values are exported constants from `base.styles.ts`, not tokens, because `var()` does not reach `::backdrop`: `SCRIM_LIGHT` `rgb(0 0 0 / 0.5)` (the design's scrim samples black at 50%), `SCRIM_DARK` `rgb(13 13 13 / 0.72)` (no dark design), and `SCRIM_BLUR` `2px` (estimated) for a backdrop blur that degrades to the plain scrim on e-ink. A dialog interpolates them rather than writing its own literals.
+- A **modal dialog** is a bordered `--card` over a scrim and blur, with no shadow of its own. The shared values are exported constants from `base.styles.ts`, not tokens, because `var()` does not reach `::backdrop`: `SCRIM_LIGHT` `rgb(0 0 0 / 0.5)` (the design's scrim samples black at 50%), `SCRIM_DARK` `rgb(13 13 13 / 0.72)` (no dark design), and `SCRIM_BLUR` `2px` (estimated) for a backdrop blur that degrades to the plain scrim on e-ink. A dialog interpolates them rather than writing its own literals. The filter drawer floats on the same scrim and blur, shadowless, with a 1px `--border` left edge.
 - A focus halo or an inset outline built with `box-shadow` is not elevation.
 
 ---
@@ -455,7 +462,7 @@ A vertical list of content items (articles, emails, records) is **one enclosed c
 
 ### Empty States
 
-An empty list keeps its card, but the card's header (count and sort) is hidden, so the empty state is the card's only content — centred, 48px above and below and 24px at the sides. It holds a spot [illustration](#illustrations) (80×64, its drawn size) 24px above a sans title (18px/600, `--foreground`, `text-wrap: balance`), one or two sentences of body 8px under the title (14px on a 22px line, `--muted-foreground`) capped at ~56ch (the one place prose may take a narrower measure than its column), then at most one action 16px below. Pagination is hidden — never "Showing 0 of 0". Distinguish the reasons a list is empty (never used, all caught up, nothing in this tab, nothing in this scope), each with its own title and a body naming what to do next. A setting that isn't set yet (a readlist's purpose) uses the same card, with one neutral button that opens its setup dialog.
+An empty list keeps its card, but the card's header (count and sort) is hidden, so the empty state is the card's only content — centred, 48px above and below and 24px at the sides. It holds a spot [illustration](#illustrations) (80×64, its drawn size) 24px above a sans title (18px/600, `--foreground`, `text-wrap: balance`), one or two sentences of body 8px under the title (14px on a 22px line, `--muted-foreground`) capped at ~56ch (the one place prose may take a narrower measure than its column), then at most one action 16px below. Pagination is hidden — never "Showing 0 of 0". Distinguish the reasons a list is empty (never used, all caught up, nothing in this tab, nothing in this scope, nothing matching a search or filter), each with its own title and a body naming what to do next. "No matching articles" names what found nothing and offers one action that clears it: **Clear search**, **Clear filters** or **Clear search and filters**. A setting that isn't set yet (a readlist's purpose) uses the same card, with one neutral button that opens its setup dialog.
 
 ### Tabs
 
@@ -481,6 +488,17 @@ Pagination sits **below** the list card, outside it. The leading edge states the
 - **Numbers.** Each is a 36px square target with 8px (`--radius`) corners that hovers to a `--card` fill and `--foreground` ink. The current page is not a link: it carries `aria-current="page"` as a `--card` cell with a 1px `--border` and 600 `--foreground`.
 - **Gaps.** A gap is the `ellipsis` glyph with `…` as `.sr-only` text.
 - **Layout.** The range and the controls sit 24px apart on one row; at `max-width: 600px` the range takes its own row and the controls wrap.
+
+### Search and filters
+
+The readlist narrows its open tab with a search row and a filter drawer. Both are GET forms, so the URL holds what the reader asked for.
+
+- **Search row.** A 48px [field](#form-inputs) led by the 20px `search` glyph, then the 48px square `neutral` filter button 8px after it, 32px under the tab strip and 16px above the list. Field and button share one line at every width, as the phone design draws them, so where the field is too narrow its placeholder gives way with `text-overflow: ellipsis` instead of the row stacking. It shows only while the open tab has rows, or while the first save into an empty list is in flight, so that card lands where its [skeleton row](#loading-states) stood.
+- **Search is submitted, never live.** Enter runs it; nothing filters while the reader types.
+- **Filter drawer.** A native popover on the right edge, `min(600px, 100%)` wide and full height: `--background` with a 1px `--border` left edge and no shadow, over the dialog [scrim and blur](#shadows--elevation). A 72px header (the drawer title and the `x` close) and a footer (Clear all, then Apply filters) are pinned above and below dividers, and only the body scrolls. Where popover is unsupported, the same form opens from a `<details>` panel under the button.
+- **Filter chips.** Each group (Reading time, Saved date, Category) is a row of [checkbox pills](#chips-tags-and-badges): ticks inside a group widen the list, and ticks across groups narrow it.
+- **Active filters.** While any chip is ticked, the filter button carries an 8px `--foreground` dot and is named "Filters (N)".
+- **Discovery survives paging, sort and tab switches.** Moving to another readlist, or saving an article, drops it.
 
 ### Menus
 
@@ -535,6 +553,7 @@ One pill family: a 1px border, `--radius-pill`, a declared 1.25 line box, and 8p
 | `.chip--badge` | 22px | 12px/500 | no | a short bounded label ("Current", "Me", "Beta") |
 | `.chip--large` | 34px | 14px/500 | yes | the reader's tags, including the removable readlist tag |
 | `.chip--status` | 34px | 12px/600 | no | a [status chip](#alerts-and-status) |
+| `.chip--filter` | 50px | 16px/500 | yes | a filter drawer option: a checkbox drawn as a pill, transparent with 16px inline padding, `--muted` on hover, and a `--foreground` border once ticked |
 | `.chip--tab` | 25px | 14px/600 | no | a tab badge ("Most popular"): `--primary` fill and border under `--primary-foreground`, 12px inline padding, `--radius` top corners, attached to the top-left of a bordered box whose top-left corner goes square |
 
 | Tone | Class | Fill / border / ink |
@@ -556,7 +575,7 @@ A toast holds at most one action, **Undo**, as a `neutral` M button inside the s
 
 ### Loading States
 
-- **Pending swap.** A tab press that replaces a list responds on the press, not the response: the pressed tab takes the open look at once, the previously open tab drops to its rest look (400, no underline), and the region being replaced dims to `opacity: 0.55` with `cursor: progress` until the new content lands. Dimming a region *about to be replaced* is the one sanctioned opacity fade on live content — never on a single filled button.
+- **Pending swap.** A tab press that replaces a list responds on the press, not the response: the pressed tab takes the open look at once, the previously open tab drops to its rest look (400, no underline), and the region being replaced dims to `opacity: 0.55` with `cursor: progress` until the new content lands. Dimming a region *about to be replaced* is the one sanctioned opacity fade on live content — never on a single filled button. A search or filter submit dims the list the same way, and the drawer's Apply shows the in-flight dots in place of its label.
 - **Processing row.** An item still being processed stays in the list, in place, its metadata replaced by a "Processing" line (the 16px `loader` spinning in `--primary-text` beside 14px `--foreground` text); its disabled state action shares that row, delete stays available. If it runs long, say so plainly and offer the source ("Taking a while — open on example.com").
 - **Skeleton row.** When the reader creates an item, a skeleton row stands in where it will land, from the press until the page answers: tinted `--secondary`, bars in `currentColor` at 25% opacity with `--radius-sm` corners, a "Saving…" status led by a pulsing `--primary-text` dot. It matches the height of the row that lands, so the swap doesn't jump.
 
@@ -627,17 +646,18 @@ A field stays at 16px under a coarse pointer because iOS zooms into a focused fi
 | `.form-input--multiline` | A `textarea`: at least 2.5 field-heights tall, resizing vertically |
 | `.form-input--within` with `.form-input__control` | The field box drawn around a borderless inner control and its neighbours (a read-only copyable input and its Copy button); focus on the inner control shows on the box |
 | `.form-input--select` with `.form-input__chevron` | A native `<select>` as the inner control of a `.form-input--within` box: no native arrow, 48px end padding, and a 20px `chevron-down` in `--foreground`, 12px inside the border, that takes no clicks. The option list stays native. |
+| `.form-input--leading-icon` | A field whose text starts 40px in, after a 20px `--foreground` glyph (the readlist search) |
 | `.form-input--cta-ring` | A marketing field paired with a CTA, focused with the button's outline (see [Quiet controls](#quiet-controls)) |
 | `.form-choice` | A checkbox or radio |
 
-- **A text field** has a 1px `--input` border, `--radius` corners and a `--background` fill — in dark mode that fill sits one step below the `--card` around it, so the field reads as a well. Placeholder text is `--input-placeholder`. The field is named by a visible label above it (14px/500 `--foreground`, 8px gap) or by the heading of the card it sits in; a placeholder is never its only name.
+- **A text field** has a 1px `--input` border, `--radius` corners and a `--background` fill — in dark mode that fill sits one step below the `--card` around it, so the field reads as a well. Placeholder text is `--input-placeholder`. The field is named by a visible label above it (14px/500 `--foreground`, 8px gap) or by the heading of the card it sits in; a placeholder is never its only name. A search field the design draws without a label is named by an `.sr-only` label inside a `role="search"` form.
 - **Invalid** is `aria-invalid="true"` on the control, which turns its border `--color-error`; one 12px/500 `--error-text` sentence sits 8px below, tied to the control by `aria-describedby` (announced with `role="alert"` when it appears without a page load).
 - **A neutral field message** (`.form-field__message`) uses the same 12px/500 metrics in `--muted-foreground` for a status line under a field that reports something other than invalid input, such as the readlist import flash. It is never wired to `aria-describedby`.
 - **Disabled** fills the field `--muted` with `--muted-foreground` ink, a `not-allowed` cursor and full opacity; inside a `.form-field` its label greys with it. **In flight:** see [Buttons](#disabled-and-in-flight).
 - **Controls use the body face.** The browser gives `input`, `select`, `textarea` and `button` a system font, so every control declares `font: inherit` (or `font-family: inherit` beside its own size, as `.btn` does), or it shows its value and placeholder in a different face from its label.
 - **An input paired with a button shares the button's height.** `.form-input` carries `height: var(--input-height)`; pair it with a default (L) button, which is 48px — the same as `--input-height` — so the row lines up with no modifier; the input keeps `padding: var(--input-padding)`. Because `box-sizing: border-box` is global, an explicit shared height is the only reliable equaliser — never fake it with padding or font-size, and never re-declare the height on the button.
 
-Below 600px a field-and-button row stacks when its field would otherwise clip its placeholder, as the readlist save card does. The field takes the full width, and the button drops below it at its own width, 16px under, keeping the L button's 48px height.
+Below 600px a field-and-button row stacks when its field would otherwise clip its placeholder, as the readlist save card does. The field takes the full width, and the button drops below it at its own width, 16px under, keeping the L button's 48px height. The one exception is the [readlist search row](#search-and-filters), which keeps its field and icon button on one line.
 
 #### Checkboxes and radios
 
@@ -746,6 +766,8 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 | Errors | Title: "Readlist limit reached" · Body: "You can create up to 7 readlists. Delete an existing readlist before creating a new one." | "Oops! Something went wrong" |
 | Decisions (confirm dialogs) | Title: "Delete this article?" · Body: "This article will be removed from your readlist. You can save it again later." · Buttons: **Delete and don't ask again** / **Delete article**. Title: "Delete this purpose?" · Body: "The readlist and its articles stay. Newsletters saved to it will keep every link until you set a new purpose." · Buttons: **Cancel** / **Delete purpose** | "Are you sure?" · **OK** / **Cancel** |
 | Plan choice | Title: "Choose your plan" · Body: "Get full access to Readplace. Cancel anytime, and everything you've already saved stays readable." · Row: "Yearly" / "Billed $60 once a year" / "$5/month" · Buttons: **Cancel** / **Subscribe now** | **Subscribe Now** in Title Case, or a commit button per plan |
+| Search | Placeholder: "Search articles, topics, or sources…", ending in one "…" | "Search..." with three dots, or "Type to search" |
+| No results | Title: "No matching articles" · Line: "Nothing in To Read matches your search." · Action: **Clear search** (**Clear filters**, **Clear search and filters**) | "No results found :(" or "0 results" |
 | Loading / in progress | The control's label becomes "Saving…"; a skeleton carries "Saving…"; an overrun says "Taking a while — open on example.com" | "Hang tight! We're fetching your stuff!" |
 | Onboarding steps | Step: "Get articles from email" · Why: "Forward a newsletter, or any email with links in it, and the links are saved here for you to read." · Progress: "Saved 12 of 50" | "Welcome to the future of reading!" |
 

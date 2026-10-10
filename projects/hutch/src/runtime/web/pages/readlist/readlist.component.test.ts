@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { toArticleTopics } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
 import { generateCspNonce } from "@packages/web-shell";
@@ -89,6 +90,8 @@ function pageOptions(overrides: Partial<ReadlistPageOptions> = {}): ReadlistPage
 		cspNonce: generateCspNonce(),
 		deviceClass: "desktop",
 		readlistHoldsArticles: false,
+		tabHoldsRows: false,
+		discoveryTopics: undefined,
 		rail: RAIL,
 		saveTip: { state: "due", html: "" },
 		onboarding: {
@@ -435,6 +438,156 @@ describe("ReadlistPage", () => {
 		);
 
 		expect(emptyActionKeys(doc)).toEqual([]);
+	});
+
+	it.each([
+		{
+			active: "a search",
+			discovery: { q: "focus", time: [], saved: [], topic: [] },
+			text: "Nothing in To Read matches your search.",
+			label: "Clear search",
+		},
+		{
+			active: "filters",
+			discovery: { time: ["5-10" as const], saved: ["month" as const], topic: [] },
+			text: "Nothing in To Read matches your filters.",
+			label: "Clear filters",
+		},
+		{
+			active: "a search and filters",
+			discovery: { q: "focus", time: [], saved: [], topic: ["others" as const] },
+			text: "Nothing in To Read matches your search and filters.",
+			label: "Clear search and filters",
+		},
+	])("tells a reader whose tab holds rows that nothing matches $active, with one action that clears it", ({ discovery, text, label }) => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, discovery } },
+			{ readlistHoldsArticles: true, tabHoldsRows: true },
+		);
+
+		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("No matching articles");
+		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(text);
+		expect(emptyActionKeys(doc)).toEqual(["clear-discovery"]);
+		const action = doc.querySelector('[data-test-empty-action="clear-discovery"]');
+		assert(action, "the clear action must be offered");
+		expect(action.textContent).toBe(label);
+	});
+
+	it("names the Read tab when nothing read matches", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, tab: "done", discovery: { q: "focus", time: [], saved: [], topic: [] } } },
+			{ readlistHoldsArticles: true, tabHoldsRows: true },
+		);
+
+		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe("Nothing in Read matches your search.");
+	});
+
+	it("points the clear action at the same readlist, tab and order with no search or filters", () => {
+		const doc = pageDoc(
+			{
+				filters: {
+					readlist: WORK.slug,
+					tab: "done",
+					order: "asc",
+					page: 1,
+					discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] },
+				},
+			},
+			{ readlistHoldsArticles: true, tabHoldsRows: true, query: { feature: "pref" } },
+		);
+
+		const action = doc.querySelector('[data-test-empty-action="clear-discovery"]');
+		assert(action, "the clear action must be offered");
+		const url = new URL(action.getAttribute("href") ?? "", "https://internal.invalid");
+		expect(url.pathname).toBe("/queue");
+		expect([...url.searchParams]).toEqual([
+			["queue", WORK.slug],
+			["tab", "done"],
+			["order", "asc"],
+			["feature", "pref"],
+			["utm_source", "queue-empty"],
+			["utm_medium", "internal"],
+			["utm_content", "clear-discovery"],
+		]);
+	});
+
+	it("keeps the caught-up reason while a search runs over a tab that holds nothing", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: [], saved: [], topic: [] } } },
+			{ readlistHoldsArticles: true, tabHoldsRows: false },
+		);
+
+		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("You're all caught up");
+	});
+
+	it("keeps the empty-readlist reason ahead of a search that matches nothing", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug, discovery: { q: "focus", time: [], saved: [], topic: [] } } },
+			{ readlistHoldsArticles: false, tabHoldsRows: true },
+		);
+
+		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("No articles in this readlist yet");
+	});
+
+	it("keeps the reader's search and filters on the sort link", () => {
+		const doc = pageDoc({
+			articles: [PLAIN_ARTICLE],
+			isEmpty: false,
+			filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] } },
+		});
+
+		const sort = doc.querySelector("[data-test-sort]");
+		assert(sort, "the sort control must render");
+		const params = urlParams(sort.getAttribute("href"));
+		expect([params.get("order"), params.get("q"), params.getAll("time")]).toEqual(["asc", "focus", ["5-10"]]);
+	});
+
+	it("leaves the search and filters off the save action and the unread download", () => {
+		const doc = pageDoc({
+			articles: [PLAIN_ARTICLE],
+			isEmpty: false,
+			filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] } },
+		});
+
+		const form = doc.querySelector('[data-test-form="save-article"]');
+		assert(form, "the save form must render");
+		expect([...urlParams(form.getAttribute("action")).keys()]).toEqual(["utm_source", "utm_medium", "utm_content"]);
+		expect([...urlParams(offlineDownload(doc).getAttribute("data-offline-download")).keys()]).toEqual([
+			"utm_source",
+			"utm_medium",
+			"utm_content",
+		]);
+	});
+
+	it("leads the results with the search row and closes main with the filter drawer", () => {
+		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false }, { tabHoldsRows: true });
+
+		const results = doc.querySelector(".readlist__results");
+		assert(results, "the results group must render");
+		expect(results.firstElementChild?.hasAttribute("data-test-discovery")).toBe(true);
+		const drawer = doc.querySelector("[data-test-discovery-drawer]");
+		assert(drawer, "the filter drawer must render inside main");
+		expect(drawer.closest("main")).toBe(doc.querySelector("main"));
+	});
+
+	it("offers the page's own topics in the drawer while nothing narrows the list", () => {
+		const doc = pageDoc(
+			{ articles: [{ ...PLAIN_ARTICLE, topics: toArticleTopics(["Focus"]) }], isEmpty: false },
+			{ tabHoldsRows: true },
+		);
+
+		const options = Array.from(
+			doc.querySelectorAll('[data-test-discovery-form="popover"] [data-test-discovery-option^="topic:"]'),
+			(option) => option.getAttribute("data-test-discovery-option"),
+		);
+		expect(options).toEqual(["topic:Focus", "topic:others"]);
+	});
+
+	it("ships the search row and drawer styles with the readlist page", () => {
+		const styles = buildPage().styles;
+
+		expect(styles).toContain(".readlist-discovery--visible {");
+		expect(styles).toContain(".readlist-filters::backdrop {");
 	});
 
 	it("hides the list header on an empty list", () => {

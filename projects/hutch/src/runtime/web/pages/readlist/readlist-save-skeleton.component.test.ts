@@ -47,6 +47,11 @@ describe("toReadlistSaveSkeletonDisplayModel", () => {
 		{ name: "oldest first", filters: { ...DESTINATION_FILTERS, order: "asc" }, accessIsReadOnly: false },
 		{ name: "a later page", filters: { ...DESTINATION_FILTERS, page: 2 }, accessIsReadOnly: false },
 		{ name: "read-only access", filters: DESTINATION_FILTERS, accessIsReadOnly: true },
+		{
+			name: "a listing narrowed by a search or filter",
+			filters: { ...DESTINATION_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] } },
+			accessIsReadOnly: false,
+		},
 	];
 
 	for (const { name, filters, accessIsReadOnly } of inertCases) {

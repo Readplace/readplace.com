@@ -1,7 +1,7 @@
 import { UserIdSchema } from "@packages/domain/user";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
@@ -38,7 +38,7 @@ describe("account activity measurement", () => {
 		expect(events.at(-1)).toMatchObject({ campaign_id: "campaign", reason: "timeout" });
 	});
 	it("distinguishes primary outcomes from visits and carries immutable article attribution", async () => {
-		const state = initInMemoryEngagementStarter({ library: initInMemoryArticleStore() });
+		const state = initInMemoryEngagementStarter({ library: initInMemoryArticleStore({ findTopics: noArticleTopics }) });
 		const events: EngagementEvent[] = [];
 		const capture = (event: EngagementEvent) => {
 			events.push(event);
@@ -99,7 +99,7 @@ describe("account activity measurement", () => {
 		expect(events.slice(-2).every((event) => event.qualifies_activation === false)).toBe(true);
 	});
 	it("keeps the assigned campaign on every activity and marks the ones that act on a suggestion", async () => {
-		const state = initInMemoryEngagementStarter({ library: initInMemoryArticleStore() });
+		const state = initInMemoryEngagementStarter({ library: initInMemoryArticleStore({ findTopics: noArticleTopics }) });
 		const events: EngagementEvent[] = [];
 		const capture = (event: EngagementEvent) => {
 			events.push(event);

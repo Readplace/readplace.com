@@ -191,6 +191,8 @@ The URL query string represents the complete page state. All user interactions t
 
 Not every query parameter is state. Some only pick a representation — a feature toggle, a `swap=card` marker, a poll counter — and those are read where they are used, never parsed into the page's state type and never added to a shared link builder. A parameter in the builder rides every link the page emits, so it spreads across the codebase on the way in and has to be unpicked from every caller on the way out.
 
+A GET form that edits one part of the state — a search box, a filter drawer — carries the rest of the URL state as hidden inputs, because its submit replaces the action's query; the state stays in the URL, never in hidden server state. Unlike a representation parameter such as `swap=card`, what such a form edits is state, so its parameters belong in the page's shared link builder and every sort, tab and page link keeps them.
+
 ### View Model Pattern
 
 Transform query string parameters into a structured view model before rendering. Templates should be "dumb" - they render what the view model provides without business logic.
@@ -220,6 +222,8 @@ Build features in two steps:
 ```
 
 No custom `*.client.ts` is needed when htmx covers the interaction. Reserve `*.client.ts` files for behaviour htmx cannot express (e.g., inline validation, animations).
+
+A side drawer is a native popover, opened declaratively so it needs no script, with a `<details>` fallback holding the same form. Its CSS is legacy-first: the popover trigger is hidden by default and revealed under `@supports selector(:popover-open)`, which also hides the fallback — the same flip the rail and card fallbacks use. htmx puts its in-flight class on the `hx-indicator` targets, not on the element that sent the request, so a form that styles its own in-flight state lists `closest form` among them.
 
 IMPORTANT: Ask for human intervention whenever a deviation from htmx is needed away from this basic pattern for SPA navigation.
 

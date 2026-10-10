@@ -2,7 +2,7 @@ import { noopLogger, HutchLogger } from "@packages/hutch-logger";
 import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { z } from "zod";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
 import { MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
@@ -57,7 +57,7 @@ interface HandlerHarness {
 }
 
 function createHarness(): HandlerHarness {
-	const store = initInMemoryArticleStore();
+	const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 	const engagement = initInMemoryEngagementStarter({ library: store });
 	const uploadCalls: HandlerHarness["uploadCalls"] = [];
 	const uploadUserDataExport: UploadUserDataExport = async ({ userId, body }) => {

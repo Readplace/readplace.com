@@ -1,7 +1,7 @@
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { MinutesSchema } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { initRecordPersonalSaves } from "./record-personal-saves";
 import { initRecordImportRequest } from "./record-import-request";
@@ -10,7 +10,7 @@ const userId = UserIdSchema.parse("reader");
 const NOW = new Date("2026-10-10T12:00:00.000Z");
 describe("deliberate requests", () => {
 	it("records personal saves and imports, while preserving attribution and excluding background seeds and ingestion", async () => {
-		const store = initInMemoryArticleStore();
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 		const activity: Parameters<RecordEngagementActivity>[0][] = [];
 		const wrapped = initRecordPersonalSaves({
 			...store,
@@ -75,7 +75,7 @@ describe("deliberate requests", () => {
 		expect(activity).toEqual([{ userId, at: NOW, kind: "import-request" }]);
 	});
 	it("records deliberate filing across All and custom lists while retaining suggestion provenance", async () => {
-		const store = initInMemoryArticleStore();
+		const store = initInMemoryArticleStore({ findTopics: noArticleTopics });
 		const activity: Parameters<RecordEngagementActivity>[0][] = [];
 		const wrapped = initRecordPersonalSaves({
 			...store,

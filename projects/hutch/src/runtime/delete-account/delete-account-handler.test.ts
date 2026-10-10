@@ -14,7 +14,7 @@ import {
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import {
 	initInMemoryInboxAddress,
@@ -69,7 +69,7 @@ function buildSubject() {
 		now: () => new Date(),
 	});
 	const oauthDeps = initInMemoryOAuthModel();
-	const articleStore = initInMemoryArticleStore();
+	const articleStore = initInMemoryArticleStore({ findTopics: noArticleTopics });
 	const readerReady = initInMemoryReaderReadyState();
 	const onboarding = initInMemoryOnboardingSignals({ now: () => SEED_NOW });
 	const engagement = initInMemoryEngagementStarter({ library: articleStore });

@@ -109,3 +109,16 @@ export {
 	toArticleTopics,
 	type ArticleTopic,
 } from "./article-topic";
+export {
+	READ_TIME_BUCKETS,
+	SAVED_WINDOWS,
+	UNTOPICED_FACET,
+	discoveryCandidateOf,
+	matchesArticleDiscovery,
+	rankDiscoveryTopics,
+	resolveArticleDiscovery,
+	type ArticleDiscoveryQuery,
+	type ArticleTopicFacet,
+	type ReadTimeBucketId,
+	type SavedWindowId,
+} from "./article-discovery";

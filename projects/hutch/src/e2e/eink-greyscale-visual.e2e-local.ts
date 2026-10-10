@@ -39,6 +39,7 @@ const READLIST_SAVE_CARD = "[data-test-save-card]";
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const READLIST_LAYOUT = ".readlist__layout";
 const READLIST_PREFERENCES = "[data-test-readlist-preferences]";
+const OPEN_FILTER_DRAWER = "[data-test-discovery-drawer]:popover-open";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
 const VOLATILE_CHROME = [
@@ -288,6 +289,29 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await settle(page, READLIST_TABS);
 			await expect(page.locator(READLIST_TABS)).toHaveScreenshot(
 				`eink-readlist-tabs-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the filter drawer keeps its selected chips in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await seedReaderAndReadlist(
+				page,
+				`filter-drawer-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await page.goto(`${BASE_URL}/queue?time=under-5&saved=today&topic=Focus`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-article]")).toHaveCount(1);
+			await page.locator('[data-test-action="open-discovery-filters"]').click();
+			const drawer = page.locator(OPEN_FILTER_DRAWER);
+			await expect(drawer).toBeVisible();
+			await expect(drawer.locator("input:checked")).toHaveCount(3);
+			await settle(page, OPEN_FILTER_DRAWER);
+
+			const box = await measuredBox(page, OPEN_FILTER_DRAWER);
+			assert.equal(Math.round(box.width), 600);
+			await expect(drawer).toHaveScreenshot(
+				`eink-readlist-filter-drawer-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

@@ -36,6 +36,14 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("chevron-right")).toBe(iconSvg("chevron-right"));
 	});
 
+	it("resolves the search glyph the readlist search field leads with", () => {
+		expect(findIconSvg("search")).toBe(iconSvg("search"));
+	});
+
+	it("resolves the filter glyph the drawer trigger shows", () => {
+		expect(findIconSvg("filter-horizontal")).toBe(iconSvg("filter-horizontal"));
+	});
+
 	it("resolves the warning and info glyphs named by alert variants", () => {
 		expect(findIconSvg("alert-triangle")).toBe(iconSvg("alert-triangle"));
 		expect(findIconSvg("info")).toBe(iconSvg("info"));
@@ -65,6 +73,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"ellipsis-vertical",
 	"file",
 	"file-down",
+	"filter-horizontal",
 	"folder",
 	"folder-input",
 	"inbox",
@@ -79,6 +88,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"pencil",
 	"plug",
 	"plus",
+	"search",
 	"share",
 	"sparkles",
 	"trash",

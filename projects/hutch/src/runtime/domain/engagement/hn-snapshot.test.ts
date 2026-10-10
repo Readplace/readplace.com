@@ -4,7 +4,7 @@ import { MinutesSchema, validateSaveableUrl } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
 import { initStartAnonymousCrawl } from "@packages/save-article";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { initS3HnSnapshot } from "../../providers/hn-snapshot/s3-hn-snapshot";
 import { initHnSnapshot } from "./hn-snapshot";
@@ -31,7 +31,7 @@ function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
 			objects.set(key, String(command.input.Body));
 		},
 	});
-	const articles = initInMemoryArticleStore();
+	const articles = initInMemoryArticleStore({ findTopics: noArticleTopics });
 	const crawl = initInMemoryArticleCrawl();
 	const summaries = initInMemoryGeneratedSummary();
 	const items = new Map<number, unknown>();

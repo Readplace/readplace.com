@@ -1,0 +1,17 @@
+<div class="readlist-discovery {{stateClass}}" data-test-discovery>
+  <form class="readlist-search" method="GET" action="{{action}}" role="search" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-indicator=".readlist-listing" data-test-form="readlist-search">
+    {{#each searchFields}}
+    <input type="hidden" name="{{name}}" value="{{value}}">
+    {{/each}}
+    <label class="sr-only" for="readlist-search-input">Search articles</label>
+    <span class="readlist-search__icon" aria-hidden="true">{{icon "search"}}</span>
+    <input class="form-input form-input--leading-icon readlist-search__input" id="readlist-search-input" type="search" name="q" value="{{query}}" placeholder="Search articles, topics, or sources…" enterkeyhint="search" autocomplete="off" data-test-discovery-search>
+  </form>
+  <button class="btn btn--neutral btn--icon readlist-discovery__filter readlist-discovery__popover-trigger {{filterStateClass}}" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="open-discovery-filters">{{icon "filter-horizontal"}}<span class="sr-only">{{filterLabel}}</span></button>
+  <details class="readlist-discovery__fallback" data-test-discovery-fallback>
+    <summary class="btn btn--neutral btn--icon readlist-discovery__filter {{filterStateClass}}">{{icon "filter-horizontal"}}<span class="sr-only">{{filterLabel}}</span></summary>
+    <div class="readlist-discovery__fallback-panel">
+      {{{fallbackFormHtml}}}
+    </div>
+  </details>
+</div>

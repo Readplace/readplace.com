@@ -69,8 +69,7 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 	/** 1.4.11 asks 3:1 of "visual information required to identify a component".
 	 * A button carrying a rendered word is identified by that word, which the
 	 * text pass below measures against this very fill at the 4.5:1 text floor —
-	 * a stricter bar than the boundary would be. Only an icon-only control has
-	 * nothing but its fill to be found by. An .sr-only label is a hairline box,
+	 * a stricter bar than the boundary would be. An .sr-only label is a hairline box,
 	 * so it does not count as rendered. */
 	function labelledByText(control: Element): boolean {
 		const walker = document.createTreeWalker(control, NodeFilter.SHOW_TEXT);
@@ -82,6 +81,13 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 			if (box.width > HAIRLINE_PX && box.height > HAIRLINE_PX) return true;
 		}
 		return false;
+	}
+
+	function identifiedByGlyph(control: Element): boolean {
+		return Array.from(control.querySelectorAll("svg")).some((glyph) => {
+			const box = glyph.getBoundingClientRect();
+			return box.width > HAIRLINE_PX && box.height > HAIRLINE_PX;
+		});
 	}
 
 	function nameOf(el: Element): string {
@@ -124,7 +130,12 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 		const fontWeight = Number(style.fontWeight);
 		const ownBackground = parseColour(style.backgroundColor);
 
-		if (el.matches(FILLED_CONTROL) && ownBackground.alpha === OPAQUE && !labelledByText(el)) {
+		if (
+			el.matches(FILLED_CONTROL) &&
+			ownBackground.alpha === OPAQUE &&
+			!labelledByText(el) &&
+			!identifiedByGlyph(el)
+		) {
 			const behind = surfaceUnder(el.parentElement);
 			collected.push({
 				name: nameOf(el),

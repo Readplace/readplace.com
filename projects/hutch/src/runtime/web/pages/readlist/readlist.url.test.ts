@@ -1,9 +1,10 @@
-import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
 	buildReadlistCountsUrl,
 	buildReadlistUrl,
 	canonicalReadlistPageRedirect,
 	parseReadlistUrl,
+	toArticleDiscoveryQuery,
 } from "./readlist.url";
 
 describe("parseReadlistUrl", () => {
@@ -191,5 +192,80 @@ describe("canonicalReadlistPageRedirect", () => {
 		expect(
 			canonicalReadlistPageRedirect({ state: { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 2 }, total: 0, pageSize: 20 }),
 		).toBe("/queue");
+	});
+});
+
+describe("search and filters in the readlist URL", () => {
+	it("round-trips a full search and filter state in canonical order, between the order and the page", () => {
+		const state = parseReadlistUrl({
+			queue: "work",
+			tab: "done",
+			order: "asc",
+			q: "  personal   finance ",
+			time: ["10-20", "5-10"],
+			saved: "month",
+			topic: ["others", "Personal finance", "Focus"],
+			page: "2",
+		});
+
+		expect(buildReadlistUrl(state)).toBe(
+			"/queue?queue=work&tab=done&order=asc&q=personal+finance&time=5-10&time=10-20&saved=month&topic=Focus&topic=Personal+finance&topic=others&page=2",
+		);
+	});
+
+	it("drops repeated values and sorts the rest into the order the drawer lists them", () => {
+		const state = parseReadlistUrl({ time: ["10-20", "5-10", "5-10"], saved: ["older", "today", "today"] });
+
+		expect(buildReadlistUrl(state)).toBe("/queue?time=5-10&time=10-20&saved=today&saved=older");
+	});
+
+	it("drops values no option offers", () => {
+		expect(parseReadlistUrl({ time: ["5-10", "forever"], saved: "yesterday" }).discovery).toEqual({
+			q: undefined,
+			time: ["5-10"],
+			saved: [],
+			topic: [],
+		});
+	});
+
+	it("leaves a search of only whitespace out of the state", () => {
+		expect(parseReadlistUrl({ q: "   " }).discovery).toBeUndefined();
+	});
+
+	it("cuts a long search to 200 characters", () => {
+		expect(parseReadlistUrl({ q: "a".repeat(250) }).discovery?.q).toBe("a".repeat(200));
+	});
+
+	it("keeps every ticked topic, however many, merging two spellings of one topic", () => {
+		const state = parseReadlistUrl({ topic: ["Trends", "Focus", "Fintech", "Lifestyle", "focus"] });
+
+		expect(state.discovery?.topic).toEqual(["Fintech", "Focus", "Lifestyle", "Trends"]);
+	});
+
+	it("reads only the exact value others as the Others option, and drops a topic that reuses its label", () => {
+		expect(parseReadlistUrl({ topic: ["Others"] }).discovery).toBeUndefined();
+		expect(parseReadlistUrl({ topic: ["others", "Focus"] }).discovery?.topic).toEqual(["Focus", "others"]);
+	});
+
+	it("keeps the search and filters on the clamped page of an over-deep filtered list", () => {
+		const state = parseReadlistUrl({ q: "finance", saved: "week", page: "5" });
+
+		expect(canonicalReadlistPageRedirect({ state, total: 21, pageSize: 20 })).toBe(
+			"/queue?q=finance&saved=week&page=2",
+		);
+	});
+
+	it("keeps the search and filters on the counts URL of a filtered page", () => {
+		const state = parseReadlistUrl({ queue: ReadlistSlugSchema.parse("work"), q: "finance" });
+
+		expect(buildReadlistCountsUrl(state)).toBe("/queue/counts?queue=work&q=finance");
+	});
+
+	it("resolves the saved windows against the clock it is given", () => {
+		const now = new Date("2026-10-10T12:00:00.000Z");
+
+		expect(toArticleDiscoveryQuery({ time: [], saved: ["today"], topic: [] }, now).savedAtRanges).toEqual([
+			{ from: new Date("2026-10-09T12:00:00.000Z") },
+		]);
 	});
 });

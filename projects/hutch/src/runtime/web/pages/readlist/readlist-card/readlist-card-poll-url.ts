@@ -1,10 +1,10 @@
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
-import type { ReadlistUrlState } from "../readlist.url";
+import { discoveryParams, type ReadlistUrlState } from "../readlist.url";
 import { tabQuery } from "../readlist.tabs";
 
 /**
  * Polling URL for one card. The path takes the article id; the query
- * preserves the filter context (tab/order/page) of the parent /queue page so
+ * preserves the filter context of the parent /queue page so
  * that action forms inside the refreshed card still post back with the
  * filter-aware redirect query the user expects.
  *
@@ -27,6 +27,9 @@ export function buildCardPollUrl(params: {
 	const { defaultOrder } = tabQuery(tab);
 	if (params.filters.order && params.filters.order !== defaultOrder) {
 		search.set("order", params.filters.order);
+	}
+	for (const [key, value] of discoveryParams(params.filters.discovery)) {
+		search.append(key, value);
 	}
 	if (params.filters.page && params.filters.page > 1) {
 		search.set("page", String(params.filters.page));

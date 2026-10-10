@@ -45,4 +45,18 @@ describe("buildCardPollUrl", () => {
 		});
 		expect(url).toBe("/queue/abc123/card?poll=1&page=3");
 	});
+
+	it("carries the search and filters between the order and the page, so a polled card posts back to the filtered page", () => {
+		const url = buildCardPollUrl({
+			articleId: "abc123",
+			pollCount: 2,
+			filters: {
+				tab: "queue",
+				order: "asc",
+				discovery: { q: "deep work", time: ["5-10"], saved: ["week"], topic: ["others"] },
+				page: 2,
+			},
+		});
+		expect(url).toBe("/queue/abc123/card?poll=2&order=asc&q=deep+work&time=5-10&saved=week&topic=others&page=2");
+	});
 });

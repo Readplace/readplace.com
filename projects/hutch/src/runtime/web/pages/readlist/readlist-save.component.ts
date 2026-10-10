@@ -71,7 +71,7 @@ export function toReadlistSaveDisplayModel(input: Pick<
 		saveInputInvalid: Boolean(saveError),
 		fieldMessages: fieldMessage ? [fieldMessage] : [],
 		saveAction: withInternalTracking(
-			`${READLIST_SAVE_PATH}${readlistReturnQuery({ ...input.filters, readlist: DEFAULT_READLIST.slug })}`,
+			`${READLIST_SAVE_PATH}${readlistReturnQuery({ ...input.filters, readlist: DEFAULT_READLIST.slug, discovery: undefined })}`,
 			{ source: "queue", content: "save" },
 		),
 		saveUrl: input.saveUrl,

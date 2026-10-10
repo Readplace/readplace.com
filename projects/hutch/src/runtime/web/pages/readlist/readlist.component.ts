@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ArticleTopic } from "@packages/domain/article";
 import type { IconName } from "@packages/ui-icons";
 import {
 	CONFIRM_POPOVER_STYLES,
@@ -37,7 +38,14 @@ import {
 	renderReadlistCountsTrigger,
 	renderStatusToast,
 } from "./readlist-mutation-fragments";
-import { readlistPreferencesEnabled } from "./readlist-preferences-feature";
+import {
+	buildReadlistDiscovery,
+	renderReadlistDiscovery,
+	renderReadlistFiltersDrawer,
+	tickedFacetCount,
+} from "./readlist-discovery.component";
+import { READLIST_DISCOVERY_STYLES } from "./readlist-discovery.styles";
+import { preferencesFeatureParams, readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import {
 	renderReadlistSaveSkeleton,
 	toReadlistSaveSkeletonDisplayModel,
@@ -46,8 +54,9 @@ import { renderReadlistSave, toReadlistSaveDisplayModel } from "./readlist-save.
 import { READER_PAGE_SCRIPTS, renderReaderSkeleton } from "./reader-skeleton/reader-skeleton.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
 import { DEFAULT_READLIST } from "./readlist.nav";
-import { type TabId, tabQuery } from "./readlist.tabs";
+import { type TabId, tabLabel, tabQuery } from "./readlist.tabs";
 import {
+	type ReadlistDiscovery,
 	type ReadlistUrlState,
 	buildReadlistUrl,
 	readlistDeletePath,
@@ -103,6 +112,8 @@ export interface ReadlistPageOptions {
 	cspNonce: CspNonce;
 	deviceClass: DeviceClass;
 	readlistHoldsArticles: boolean;
+	tabHoldsRows: boolean;
+	discoveryTopics: readonly ArticleTopic[] | undefined;
 	rail: ReadlistRailViewModel;
 	saveTip: SaveTip;
 	saveUrl?: string;
@@ -160,6 +171,30 @@ const CUSTOM_READLIST_EMPTY: Omit<EmptyState, "actions"> = {
 	text: `Choose an article from ${DEFAULT_READLIST.label} and add it here to start organising this readlist.`,
 };
 
+const NO_MATCHES_TITLE = "No matching articles";
+
+type NoMatchesScope = "search" | "filters" | "search-and-filters";
+
+const NO_MATCHES_SCOPES: Record<NoMatchesScope, { phrase: string; label: string }> = {
+	search: { phrase: "your search", label: "Clear search" },
+	filters: { phrase: "your filters", label: "Clear filters" },
+	"search-and-filters": { phrase: "your search and filters", label: "Clear search and filters" },
+};
+
+function noMatchesScopeOf(discovery: ReadlistDiscovery): NoMatchesScope {
+	if (tickedFacetCount(discovery) === 0) return "search";
+	return discovery.q === undefined ? "filters" : "search-and-filters";
+}
+
+function noMatches(input: { tab: TabId; discovery: ReadlistDiscovery; clearDiscoveryUrl: string }): EmptyState {
+	const scope = NO_MATCHES_SCOPES[noMatchesScopeOf(input.discovery)];
+	return {
+		title: NO_MATCHES_TITLE,
+		text: `Nothing in ${tabLabel(input.tab)} matches ${scope.phrase}.`,
+		actions: [{ key: "clear-discovery", href: input.clearDiscoveryUrl, label: scope.label }],
+	};
+}
+
 function nothingSaved(client: DeviceClient): EmptyState {
 	const invite = NOTHING_SAVED_INVITES[client.platform];
 	const install: EmptyAction = {
@@ -180,14 +215,20 @@ function nothingSaved(client: DeviceClient): EmptyState {
 function emptyState(input: {
 	tab: TabId;
 	readlistHoldsArticles: boolean;
+	tabHoldsRows: boolean;
+	discovery: ReadlistDiscovery | undefined;
 	isDefaultReadlist: boolean;
 	unreadUrl: string;
+	clearDiscoveryUrl: string;
 	client: DeviceClient;
 }): EmptyState {
 	if (!input.readlistHoldsArticles) {
 		return input.isDefaultReadlist
 			? nothingSaved(input.client)
 			: { ...CUSTOM_READLIST_EMPTY, actions: [] };
+	}
+	if (input.tabHoldsRows && input.discovery !== undefined) {
+		return noMatches({ tab: input.tab, discovery: input.discovery, clearDiscoveryUrl: input.clearDiscoveryUrl });
 	}
 	return input.tab === "queue"
 		? { ...CAUGHT_UP, actions: [] }
@@ -295,6 +336,14 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			? { label: "Newest first", iconName: "arrow-down" }
 			: { label: "Oldest first", iconName: "arrow-up" };
 	const alert = readlistAlertFor(options.query);
+	const preferencesEnabled = readlistPreferencesEnabled(options.query);
+	const discovery = buildReadlistDiscovery({
+		filters,
+		tabHoldsRows: options.tabHoldsRows,
+		pageTopics: articles.map((article) => article.topics),
+		discoveryTopics: options.discoveryTopics,
+		preferencesEnabled,
+	});
 	const panels = readlistPanels(options.rail);
 	const side = readlistSideColumn({
 		banner: vm.subscriptionBanner,
@@ -305,10 +354,19 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 	const empty = emptyState({
 		tab: filters.tab,
 		readlistHoldsArticles: options.readlistHoldsArticles,
+		tabHoldsRows: options.tabHoldsRows,
+		discovery: filters.discovery,
 		isDefaultReadlist,
 		unreadUrl: withInternalTracking(
 			buildReadlistUrl({ readlist: filters.readlist, tab: "queue" }),
 			{ source: "queue-empty", content: "view-unread" },
+		),
+		clearDiscoveryUrl: withInternalTracking(
+			buildReadlistUrl(
+				{ readlist: filters.readlist, tab: filters.tab, order: filters.order },
+				preferencesFeatureParams(preferencesEnabled),
+			),
+			{ source: "queue-empty", content: "clear-discovery" },
 		),
 		client: installClientOf(options.onboarding.context),
 	});
@@ -354,13 +412,15 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				activeTab: filters.tab,
 				readlist: filters.readlist,
 				order: filters.order,
-				preferencesEnabled: readlistPreferencesEnabled(options.query),
+				discovery: filters.discovery,
+				preferencesEnabled,
 			}),
 		),
+		discoveryHtml: renderReadlistDiscovery(discovery),
 		countsSpanHtml: renderReadlistCountsTrigger({ countsUrl: vm.countsUrl }),
 		countHtml: renderReadlistTabTotal({ total: firstByteTotal(vm) }),
 		sortUrl: withInternalTracking(
-			buildReadlistUrl({ readlist: filters.readlist, tab: filters.tab, order: nextOrder }),
+			buildReadlistUrl({ readlist: filters.readlist, tab: filters.tab, order: nextOrder, discovery: filters.discovery }),
 			{ source: "queue-sort", content: "sort", term: nextOrder },
 		),
 		sortLabel: sort.label,
@@ -437,6 +497,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			)
 			.join("\n"),
 		subscribePlansHtml: side.subscribePlansHtml,
+		filtersDrawerHtml: renderReadlistFiltersDrawer(discovery),
 		saveTipHtml: options.saveTip.html,
 		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
 	});
@@ -451,7 +512,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${CONFIRM_POPOVER_STYLES}\n${SUBSCRIBE_PLANS_STYLES}\n${ONBOARDING_STYLES}\n${READLIST_STYLES}`,
+		styles: `${CONFIRM_POPOVER_STYLES}\n${SUBSCRIBE_PLANS_STYLES}\n${ONBOARDING_STYLES}\n${READLIST_STYLES}\n${READLIST_DISCOVERY_STYLES}`,
 		bodyClass: READLIST_BODY_CLASS,
 		content: { html: content },
 		scripts: scripts.join("\n"),

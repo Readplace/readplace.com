@@ -1,8 +1,10 @@
 import type { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	ArticleDestinationUrl,
+	ArticleDiscoveryQuery,
 	ArticleMetadata,
 	ArticleStatus,
+	ArticleTopic,
 	SaveProvenance,
 	SuggestionAttribution,
 	SavedArticle,
@@ -35,12 +37,14 @@ export interface FindArticlesQuery {
 	/** Skip the article body when reading rows. Use for list/export views that only need metadata. */
 	excludeContent?: boolean;
 	includeTotal?: boolean;
+	discovery?: ArticleDiscoveryQuery;
 }
 
 export interface CountArticlesQuery {
 	userId: UserId;
 	status?: ArticleStatus;
 	countLimit?: number;
+	discovery?: ArticleDiscoveryQuery;
 }
 
 export interface FindArticlesResult {
@@ -49,6 +53,7 @@ export interface FindArticlesResult {
 	hasMore: boolean;
 	page: number;
 	pageSize: number;
+	discoveryTopics?: readonly ArticleTopic[];
 }
 
 export type SaveArticle = (
@@ -127,7 +132,7 @@ export type FindArticlesByUser = (
 ) => Promise<FindArticlesResult>;
 
 export type FindArticlesAcrossReadlists = (
-	query: FindArticlesQuery,
+	query: Omit<FindArticlesQuery, "discovery">,
 ) => Promise<FindArticlesResult>;
 
 export type CountArticlesByUser = (

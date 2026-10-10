@@ -2,6 +2,7 @@ html {
   filter: grayscale(1) !important;
 }
 
-.confirm-popover:popover-open {
+.confirm-popover:popover-open,
+.readlist-filters:popover-open {
   filter: grayscale(1) !important;
 }
