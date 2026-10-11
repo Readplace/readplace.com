@@ -983,6 +983,9 @@ describe("Save a newsletter to a readlist", () => {
 		expect((await gmail.addresses.listAddressesByUserId(userId)).filter((entry) => entry.purpose === "gmail-readlist").map((entry) => entry.readlist)).toEqual([TECH]);
 		const doc = load((await agent.get(GMAIL)).text);
 		expect(Array.from(doc.querySelectorAll("[data-test-gmail-mapping-destination]"), (el) => el.textContent)).toEqual(["Saved to All, Tech", "Saved to All, Tech"]);
+		const allHref = "/queue?utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist";
+		const techHref = "/queue?queue=tech&utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist";
+		expect(Array.from(doc.querySelectorAll("[data-test-gmail-mapping-destination] a"), (link) => link.getAttribute("href"))).toEqual([allHref, techHref, allHref, techHref]);
 	});
 
 	it("submits only the address of a sender that is not an approved newsletter, including while the catalog is unavailable", async () => {
@@ -1262,10 +1265,10 @@ describe("Your newsletters", () => {
 				rowActionKeys(mapped),
 			];
 		};
-		expect(described(LEGACY)).toEqual(["unresolved", "Saved to Choose a readlist", "No readlist yet. Edit it to choose a readlist.", "Not forwarding", ["edit", "remove"]]);
-		expect(described(DISABLED)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination was switched off. Edit it to choose a readlist.", "Not forwarding", ["edit", "remove"]]);
-		expect(described(MISSING)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination no longer exists. Edit it to choose a readlist.", "Not forwarding", ["edit", "remove"]]);
-		expect(described(FOREIGN)).toEqual(["unresolved", "Saved to Choose a readlist", "Its destination no longer exists. Edit it to choose a readlist.", "Not forwarding", ["edit", "remove"]]);
+		expect(described(LEGACY)).toEqual(["unresolved", "Choose a readlist", "No readlist yet. Edit it to choose a readlist.", "Not forwarding", ["edit", "remove"]]);
+		expect(described(DISABLED)).toEqual(["unresolved", "Choose a readlist", "Its destination was switched off. Edit it to choose a readlist.", "Not forwarding", ["edit", "remove"]]);
+		expect(described(MISSING)).toEqual(["unresolved", "Choose a readlist", "Its destination no longer exists. Edit it to choose a readlist.", "Not forwarding", ["edit", "remove"]]);
+		expect(described(FOREIGN)).toEqual(["unresolved", "Choose a readlist", "Its destination no longer exists. Edit it to choose a readlist.", "Not forwarding", ["edit", "remove"]]);
 		expect(described(DELETED)).toEqual(["readlist", "Saved to All", undefined, "Waiting for Gmail", ["edit", "start-import", "remove"]]);
 		const edit = rowAction(row(doc, LEGACY), "edit");
 		expect(edit.getAttribute("method")).toBe("GET");
@@ -1328,7 +1331,7 @@ describe("Your newsletters", () => {
 		assert(section);
 		const targets = Array.from(section.querySelectorAll("form"), (form) => new URL(form.getAttribute("action") ?? "", "https://readplace.com").pathname);
 		expect([...new Set(targets)].sort()).toEqual([GMAIL, IMPORT_START, REMOVE, RETRY].sort());
-		expect(Array.from(section.querySelectorAll("a"), (link) => link.getAttribute("href"))).toEqual([]);
+		expect(Array.from(section.querySelectorAll("a"), (link) => link.getAttribute("href"))).toEqual(["/queue?utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist"]);
 		const edit = rowAction(row(doc, TLDR), "edit");
 		expect(hiddenFields(edit)).toMatchObject({ sender: TLDR, readlist: "default", edit: "1" });
 		const remove = rowAction(row(doc, TLDR), "remove");

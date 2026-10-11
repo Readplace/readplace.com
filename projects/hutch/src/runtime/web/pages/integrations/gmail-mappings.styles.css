@@ -78,6 +78,15 @@
   color: var(--error-text);
 }
 
+.gmail-mappings__readlist {
+  color: inherit;
+  text-decoration: none;
+}
+
+.gmail-mappings__readlist:hover {
+  color: var(--primary-text);
+}
+
 .gmail-mappings__forwarding--live {
   color: var(--success-text);
 }

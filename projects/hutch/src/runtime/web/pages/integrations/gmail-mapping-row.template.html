@@ -2,7 +2,7 @@
               <div class="gmail-mappings__route">
                 <p class="gmail-mappings__source" data-test-gmail-mapping-source>{{#if newsletterName}}<span class="gmail-mappings__name">{{newsletterName}}</span>{{/if}}<span class="gmail-mappings__from">{{sender}}</span></p>
                 <span class="gmail-mappings__arrow" aria-hidden="true">{{icon "arrow-right"}}</span>
-                <p class="gmail-mappings__destination {{destinationClass}}" data-test-gmail-mapping-destination data-destination-kind="{{destinationKind}}"><span class="sr-only">Saved to </span>{{destinationLabel}}</p>
+                <p class="gmail-mappings__destination {{destinationClass}}" data-test-gmail-mapping-destination data-destination-kind="{{destinationKind}}">{{#if destinationLinks}}<span class="sr-only">Saved to </span>{{#each destinationLinks}}{{#unless @first}}, {{/unless}}<a class="gmail-mappings__readlist" href="{{href}}">{{label}}</a>{{/each}}{{else}}{{destinationLabel}}{{/if}}</p>
               </div>
               {{#if destinationNote}}<p class="gmail-mappings__note">{{destinationNote}}</p>{{/if}}
               <p class="gmail-mappings__delivery" data-test-gmail-mapping-delivery="{{deliveryMode}}">{{deliveryLabel}}</p>

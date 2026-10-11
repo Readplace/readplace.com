@@ -14,6 +14,7 @@ import { GMAIL_HISTORY_IMPORT_MAX_POLLS, resolveGmailDeliveryMode, summarizeGmai
 import { type InboxAddressEntry, isLiveAddress } from "@packages/domain/inbox";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { buildReadlistUrl } from "../readlist/readlist.url";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, type GmailFormAction, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
@@ -46,7 +47,8 @@ export interface GmailMappingRow {
 	sender: ForwardableSender;
 	newsletterName: string | undefined;
 	destinationKind: GmailMappingDestination["kind"];
-	destinationLabel: string;
+	destinationLabel: string | undefined;
+	destinationLinks: readonly { label: string; href: string }[];
 	destinationNote: string | undefined;
 	deliveryMode: GmailDeliveryMode;
 	deliveryLabel: string;
@@ -292,7 +294,8 @@ function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHis
 		sender: input.sender.senderEmail,
 		newsletterName: input.candidates.get(input.sender.senderEmail)?.newsletterName,
 		destinationKind: destination.kind,
-		destinationLabel: destination.kind === "readlist" ? destination.readlists.map((readlist) => readlist.label).join(", ") : "Choose a readlist",
+		destinationLabel: destination.kind === "readlist" ? undefined : "Choose a readlist",
+		destinationLinks: destination.kind === "readlist" ? destination.readlists.map((readlist) => ({ label: readlist.label, href: trackGmail(buildReadlistUrl({ readlist: readlist.slug }), "open-readlist") })) : [],
 		destinationNote: destination.kind === "readlist" ? undefined : unresolvedNote({ reason: destination.reason, readlistChoiceShown: input.readlistChoiceShown }),
 		deliveryMode,
 		deliveryLabel: GMAIL_DELIVERY_COPY[deliveryMode].row,
