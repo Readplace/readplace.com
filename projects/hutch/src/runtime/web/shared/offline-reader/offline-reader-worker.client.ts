@@ -16,6 +16,7 @@ import {
 	offlineCacheKey,
 	offlinePageKind,
 } from "./offline-cache";
+import { FILED_READLIST_PARAM } from "../filing-flash";
 import { initOfflineOwnership } from "./offline-owner";
 
 export { offlineOwnerMarker, stampOfflineCopy } from "./offline-cache";
@@ -100,10 +101,15 @@ interface ServedPage {
 interface RequestedPage {
 	key: string;
 	path: string;
+	keepsCopy: boolean;
 }
 
 function read(value: unknown, name: string): unknown {
 	return Reflect.get(Object(value), name);
+}
+
+function rendersOnce(url: URL): boolean {
+	return url.searchParams.has(FILED_READLIST_PARAM);
 }
 
 export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
@@ -219,7 +225,11 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 			(preloaded) => preloaded ?? deps.fetchFn(event.request),
 		);
 		const stored = network.then((answer) =>
-			keepAnswer({ key: requested.key, answer, copy: isFullPage(answer) ? answer.clone() : undefined }),
+			keepAnswer({
+				key: requested.key,
+				answer,
+				copy: requested.keepsCopy && isFullPage(answer) ? answer.clone() : undefined,
+			}),
 		);
 		const served = servePage(requested.key, network);
 		event.respondWith(served.then((page) => page.response));
@@ -230,9 +240,10 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 
 	async function revalidate(input: { client: ReaderTab; url: URL; onScreen: unknown }): Promise<void> {
 		const online = await deps.fetchFn(input.url.href, { cache: "no-cache" });
-		const copy = isFullPage(online) ? online.clone() : undefined;
+		const fullPage = isFullPage(online);
+		const copy = fullPage && !rendersOnce(input.url) ? online.clone() : undefined;
 		await keepAnswer({ key: offlineCacheKey(input.url), answer: online, copy });
-		if (copy === undefined) return;
+		if (!fullPage) return;
 		input.client.postMessage(versionMessage({ path: input.url.pathname, onScreen: input.onScreen, online }));
 	}
 
@@ -263,7 +274,7 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 		if (request.mode !== "navigate" && request.headers.get("HX-Boosted") !== "true") return undefined;
 		const url = new URL(request.url);
 		if (pageKind(url) === undefined) return undefined;
-		return { key: offlineCacheKey(url), path: url.pathname };
+		return { key: offlineCacheKey(url), path: url.pathname, keepsCopy: !rendersOnce(url) };
 	}
 
 	async function activate(): Promise<void> {

@@ -68,11 +68,18 @@ async function assignTo(params: {
 	agent: TestAgent;
 	articleId: string;
 	readlist: string;
+	returnTo?: string;
 }): Promise<request.Response> {
 	return params.agent
 		.post(`/queue/${params.articleId}/assign`)
 		.type("form")
-		.send({ queue: params.readlist, returnTo: `/queue/${params.articleId}/view` });
+		.send({ queue: params.readlist, returnTo: params.returnTo ?? `/queue/${params.articleId}/view` });
+}
+
+function statusToast(doc: Document): Element {
+	const mount = doc.querySelector("main #status-toast");
+	assert(mount, "the reader must carry the status toast mount");
+	return mount;
 }
 
 function listedArticleIds(doc: Document): (string | null)[] {
@@ -125,7 +132,104 @@ describe("the reader's add-to-readlist control", () => {
 		const response = await assignTo({ agent, articleId, readlist: work });
 
 		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`/queue/${articleId}/view?filed_readlist=${work}`);
+	});
+
+	it("keeps the rest of the return path when it flashes the filing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const response = await assignTo({
+			agent,
+			articleId,
+			readlist: work,
+			returnTo: `/queue/${articleId}/view?platform=ios`,
+		});
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`/queue/${articleId}/view?platform=ios&filed_readlist=${work}`);
+	});
+
+	it("returns without the flash when the article was already in that readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		await assignTo({ agent, articleId, readlist: work });
+
+		const response = await assignTo({ agent, articleId, readlist: work });
+
+		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(`/queue/${articleId}/view`);
+	});
+
+	it("confirms the filing with a toast whose Undo takes the article back out", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const deepWork = await createReadlist(agent, "Deep Work");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		const assigned = await assignTo({ agent, articleId, readlist: deepWork });
+
+		const reader = parse((await agent.get(assigned.headers.location)).text);
+
+		const toast = statusToast(reader);
+		expect(toast.querySelector("[data-test-toast-message]")?.textContent).toBe("Added to Deep Work");
+		const undo = toast.querySelector("[data-test-toast-action]")?.closest("form");
+		assert(undo, "the toast must offer Undo");
+		const action = new URL(undo.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect([undo.getAttribute("method"), action.pathname]).toEqual(["POST", `/queue/${articleId}/unassign`]);
+		const fields = Object.fromEntries(
+			Array.from(undo.querySelectorAll("input[type='hidden']"), (field) => [
+				field.getAttribute("name"),
+				field.getAttribute("value"),
+			]),
+		);
+		expect(fields).toEqual({ queue: deepWork, returnTo: `/queue/${articleId}/view` });
+
+		const undone = await agent.post(`${action.pathname}${action.search}`).type("form").send(fields);
+
+		expect(undone.status).toBe(303);
+		const back = parse((await agent.get(undone.headers.location)).text);
+		expect(readlistTags(back)).toEqual([]);
+		expect(pickerOptions(back)).toEqual([deepWork]);
+		expect(statusToast(back).innerHTML).toBe("");
+	});
+
+	it("shows no toast for a flash naming a readlist the article is not in, a malformed slug, or a repeated flash", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const later = await createReadlist(agent, "New Readlist 2");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		await assignTo({ agent, articleId, readlist: work });
+
+		const readers = await Promise.all(
+			[
+				`filed_readlist=${later}`,
+				"filed_readlist=Not%20A%20Slug",
+				`filed_readlist=${work}&filed_readlist=${work}`,
+			].map(async (flash) => parse((await agent.get(`/queue/${articleId}/view?${flash}`)).text)),
+		);
+
+		expect(readers.map((reader) => [statusToast(reader).innerHTML, readlistTags(reader)])).toEqual([
+			["", [work]],
+			["", [work]],
+			["", [work]],
+		]);
+	});
+
+	it("shows no toast in the app reader", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		await assignTo({ agent, articleId, readlist: work });
+
+		const reader = parse((await agent.get(`/queue/${articleId}/view?platform=ios&filed_readlist=${work}`)).text);
+
+		expect([statusToast(reader).innerHTML, readlistTags(reader)]).toEqual(["", [work]]);
 	});
 
 	it("files the article at the top of the chosen readlist, keeping its read state", async () => {

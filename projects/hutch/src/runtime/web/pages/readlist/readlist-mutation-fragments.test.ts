@@ -2,6 +2,7 @@ import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
+	renderFilingToast,
 	renderMoveToast,
 	renderReadlistCountsTrigger,
 	renderReadlistMutationFragment,
@@ -78,6 +79,41 @@ describe("renderMoveToast", () => {
 			],
 		);
 		assert.equal(doc.querySelector("[data-test-toast-action]")?.getAttribute("aria-label"), "Undo");
+	});
+});
+
+describe("renderFilingToast", () => {
+	it("confirms the filing and offers a tracked Undo that takes the article back out of that readlist", () => {
+		const doc = parse(
+			renderFilingToast({
+				message: "Added to Deep Work",
+				undoUrl: "/queue/abc123/unassign",
+				undoFields: { queue: "deep-work", returnTo: "/queue/abc123/view" },
+			}),
+		);
+
+		const toast = doc.querySelector("[data-test-toast]");
+		assert(toast, "toast must render");
+		assert.equal(toast.getAttribute("data-dismiss"), "6000");
+		assert.equal(doc.querySelector("[data-test-toast-message]")?.textContent, "Added to Deep Work");
+
+		const form = doc.querySelector("[data-test-toast-action]")?.closest("form");
+		assert(form, "the Undo must post a form");
+		assert.equal(form.getAttribute("method"), "POST");
+		assert.equal(
+			form.getAttribute("action"),
+			"/queue/abc123/unassign?utm_source=reader-toast&utm_medium=internal&utm_content=undo-filing",
+		);
+		assert.deepEqual(
+			Array.from(form.querySelectorAll("input[type='hidden']"), (field) => [
+				field.getAttribute("name"),
+				field.getAttribute("value"),
+			]),
+			[
+				["queue", "deep-work"],
+				["returnTo", "/queue/abc123/view"],
+			],
+		);
 	});
 });
 

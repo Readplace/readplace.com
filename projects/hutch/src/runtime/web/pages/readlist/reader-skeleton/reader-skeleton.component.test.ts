@@ -17,7 +17,7 @@ const UNSTYLED_HOOK_CLASSES = new Set([
 	"article-body__reader-slot",
 	"reader-skeleton",
 ]);
-const SHELL_BUTTON_CLASSES = new Set(["btn", "btn--secondary", "btn--neutral", "btn--s"]);
+const SHELL_BUTTON_CLASSES = new Set(["btn", "btn--secondary", "btn--neutral", "btn--icon"]);
 const SHELL_UTILITY_CLASSES = new Set(["sr-only"]);
 
 function templateContent(): DocumentFragment {
@@ -45,8 +45,8 @@ describe("renderReaderSkeleton", () => {
 		const slots = [
 			".article-body__back-slot",
 			".article-body__readlists-slot",
-			".article-body__downloads-slot",
 			".article-body__mark-read-slot",
+			".article-body__downloads-slot",
 		].map((selector) => {
 			const slot = content.querySelector(selector);
 			assert(slot, `${selector} must be present`);
@@ -59,8 +59,9 @@ describe("renderReaderSkeleton", () => {
 		expect(toolbarOrder).toEqual([
 			"article-body__back-slot",
 			"article-body__readlists-slot",
-			"article-body__downloads-slot",
 			"article-body__mark-read-slot",
+			"article-body__share-slot",
+			"article-body__downloads-slot",
 		]);
 		expect(content.querySelector(".article-body__actions--top")?.parentElement?.className).toBe(
 			"article-body__toolbar",
@@ -91,6 +92,7 @@ describe("renderReaderSkeleton", () => {
 		const content = templateContent();
 		expect(content.querySelector(".article-body__readlists-slot")?.hasAttribute("inert")).toBe(true);
 		expect(content.querySelector(".article-body__mark-read-slot")?.hasAttribute("inert")).toBe(true);
+		expect(content.querySelector(".article-body__share-slot")?.hasAttribute("inert")).toBe(true);
 		expect(content.querySelector(".article-body__downloads-slot")?.hasAttribute("inert")).toBe(true);
 	});
 
@@ -168,7 +170,7 @@ describe("renderReaderSkeleton", () => {
 	it("lists every reader client bundle the filled reader needs, in load order", () => {
 		const srcs = Array.from(READER_PAGE_SCRIPTS.matchAll(/src="([^"]+)"/g)).map((match) => match[1]);
 		expect(srcs).toEqual([
-			"/client-dist/share-balloon.client.js",
+			"/client-dist/share-dialog.client.js",
 			"/client-dist/next-read.client.js",
 			"/client-dist/progress-bar.client.js",
 			"/client-dist/summary-toggle.client.js",

@@ -15,10 +15,6 @@
   pointer-events: none;
 }
 
-.reader__float-stack .share-balloon__wrap {
-  z-index: 1;
-}
-
 /**
  * The chromeless iOS
  * reader (body class page-reader--chromeless) has no header, so it pins to the very

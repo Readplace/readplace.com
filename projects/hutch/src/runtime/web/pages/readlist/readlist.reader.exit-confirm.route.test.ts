@@ -195,7 +195,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		expect(scopesOf(doc)).toBe(`${ARTICLE_BODY_SCOPE}, ${CARD_SCOPE}`);
 	});
 
-	it("co-renders the exit and mark-status confirmations on the app surface without an id collision", async () => {
+	it("co-renders the exit and mark-status confirmations beside the share and create dialogs on the app surface without an id collision", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/exit-two-panels");
@@ -208,7 +208,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		const ids = Array.from(doc.querySelectorAll("[data-test-confirm-popover]")).map(
 			(panel) => panel.getAttribute("data-test-confirm-popover"),
 		);
-		expect(ids).toEqual(["exit-confirm", "mark-status"]);
+		expect(ids).toEqual(["exit-confirm", "mark-status", "share", "readlist-create"]);
 		expect(new Set(Array.from(doc.querySelectorAll("[popover]")).map((p) => p.id)).size).toBe(
 			ids.length,
 		);

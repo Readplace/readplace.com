@@ -144,17 +144,28 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 		assert.equal(panelOf(response.text).state, "absent");
 	});
 
-	it("withholds the share prompt and the EPUB download from a private newsletter issue", async () => {
+	it("withholds Share and the EPUB download from a private newsletter issue", async () => {
 		const { agent, issueId } = await buildHarness();
 
 		const doc = parse((await agent.get(`/queue/${issueId}/view`)).text);
 
 		assert.deepEqual(
+			Array.from(doc.querySelectorAll(".article-body__actions--top > *"), (slot) => {
+				const block = slot.classList.item(0);
+				return slot.classList.contains(`${block}--hidden`) ? `${block} (hidden)` : block;
+			}),
 			[
-				doc.querySelector("[data-test-reader-float-stack]")?.getAttribute("data-test-reader-share"),
-				doc.querySelector("[data-test-downloads-slot]")?.classList.contains("article-body__downloads-slot--hidden"),
+				"article-body__back-slot",
+				"article-body__readlists-slot",
+				"article-body__mark-read-slot",
+				"article-body__downloads-slot (hidden)",
 			],
-			["withheld", true],
+		);
+		assert.deepEqual(
+			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (popover) =>
+				popover.getAttribute("data-test-confirm-popover"),
+			),
+			["exit-confirm", "readlist-create"],
 		);
 	});
 

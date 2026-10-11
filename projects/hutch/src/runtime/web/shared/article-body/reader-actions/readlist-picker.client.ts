@@ -4,8 +4,6 @@ export interface ReadlistPickerDeps {
 
 const PICKER = ".article-body__readlists";
 const TRIGGER = ".article-body__readlists-trigger";
-const ASSIGN_OPTION = ".article-body__readlists-option";
-const CREATE_INPUT = ".article-body__readlists-create-input";
 
 export function initReadlistPicker(deps: ReadlistPickerDeps): { attach(): void } {
 	function pickers(): NodeListOf<Element> {
@@ -34,12 +32,20 @@ export function initReadlistPicker(deps: ReadlistPickerDeps): { attach(): void }
 		deps.document.addEventListener(
 			"toggle",
 			(event) => {
+				const toggledId: unknown = Reflect.get(Object(event.target), "id");
 				for (const picker of pickers()) {
-					if (picker !== event.target) continue;
-					if (!picker.hasAttribute("open")) return;
-					if (picker.querySelector(ASSIGN_OPTION) !== null) return;
-					const create = picker.querySelector<HTMLInputElement>(CREATE_INPUT);
-					if (create !== null) create.focus();
+					if (picker.querySelector(`[popovertarget="${toggledId}"]`) === null) continue;
+					if (event.newState === "open") {
+						picker.removeAttribute("open");
+						return;
+					}
+					const dialog = `[id="${toggledId}"]`;
+					const focusStranded =
+						deps.document.activeElement === deps.document.body ||
+						deps.document.querySelector(`${dialog}:focus, ${dialog} :focus`) !== null;
+					if (!focusStranded) return;
+					const trigger = picker.querySelector<HTMLElement>(TRIGGER);
+					if (trigger !== null) trigger.focus({ preventScroll: true });
 					return;
 				}
 			},

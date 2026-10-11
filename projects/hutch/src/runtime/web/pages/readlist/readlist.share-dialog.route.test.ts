@@ -84,34 +84,32 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 	return new JSDOM(response.text).window.document;
 }
 
-describe("GET /queue/:id/view share balloon", () => {
-	it("renders share URLs using the default test fixture's appOrigin", async () => {
+function sharedLinks(doc: Document): URL[] {
+	const dialog = doc.querySelector('[data-test-confirm-popover="share"]');
+	assert(dialog, "the reader must render its share dialog");
+	const field = dialog.querySelector<HTMLInputElement>("[data-test-share-url]");
+	assert(field, "the share dialog must show the link");
+	const facebook = dialog.querySelector('[data-test-share-target="facebook"]');
+	assert(facebook, "the share dialog must offer Facebook");
+	return [new URL(field.value), new URL(new URL(facebook.getAttribute("href") ?? "").searchParams.get("u") ?? "")];
+}
+
+describe("GET /queue/:id/view share dialog", () => {
+	it("shares the public view of the article on the default test fixture's appOrigin", async () => {
 		const doc = await saveAndOpenReader(TEST_APP_ORIGIN);
 
-		const btn = doc.querySelector("[data-test-share-balloon]");
-		assert(btn, "share button must be rendered");
-		const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
-		expect(shareUrl.origin).toBe(TEST_APP_ORIGIN);
-		expect(shareUrl.pathname).toBe(`/view/example.com/shareable`);
-
-		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-		assert(copyBtn, "copy button must be rendered");
-		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
-		expect(copyUrl.origin).toBe(TEST_APP_ORIGIN);
-		expect(copyUrl.pathname).toBe(`/view/example.com/shareable`);
+		expect(sharedLinks(doc).map((link) => `${link.origin}${link.pathname}`)).toEqual([
+			`${TEST_APP_ORIGIN}/view/example.com/shareable`,
+			`${TEST_APP_ORIGIN}/view/example.com/shareable`,
+		]);
 	});
 
-	it("renders share URLs against the appOrigin configured at the composition root (not a hardcoded host)", async () => {
+	it("shares links against the appOrigin configured at the composition root (not a hardcoded host)", async () => {
 		const doc = await saveAndOpenReader("https://staging.readplace.com");
 
-		const btn = doc.querySelector("[data-test-share-balloon]");
-		assert(btn, "share button must be rendered");
-		const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
-		expect(shareUrl.origin).toBe("https://staging.readplace.com");
-
-		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-		assert(copyBtn, "copy button must be rendered");
-		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
-		expect(copyUrl.origin).toBe("https://staging.readplace.com");
+		expect(sharedLinks(doc).map((link) => link.origin)).toEqual([
+			"https://staging.readplace.com",
+			"https://staging.readplace.com",
+		]);
 	});
 });

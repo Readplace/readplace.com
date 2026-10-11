@@ -461,6 +461,19 @@ describe("the app surface keeps its markers on everything the suggestion touches
 		);
 	});
 
+	it("keeps a filing flash out of the dismissal's return path, so dismissing never replays the toast", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/view?platform=ios&filed_readlist=deep-work`);
+
+		const dismiss = new JSDOM(response.text).window.document.querySelector(
+			'.next-read__dismiss-form input[name="returnTo"]',
+		);
+		assert(dismiss, "a ready slot must carry where the dismissal returns to");
+		expect(dismiss.getAttribute("value")).toBe(`/queue/${articleId}/view?platform=ios`);
+	});
+
 	it("emits none of them for an unmarked web request", async () => {
 		const { agent, articleId, seedRelated } = await buildHarness();
 		await seedRelated();

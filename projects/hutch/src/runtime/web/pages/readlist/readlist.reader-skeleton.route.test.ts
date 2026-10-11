@@ -6,7 +6,7 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 const useApp = useTestServer();
 
 const READER_PAGE_BUNDLES = [
-	"/client-dist/share-balloon.client.js",
+	"/client-dist/share-dialog.client.js",
 	"/client-dist/next-read.client.js",
 	"/client-dist/progress-bar.client.js",
 	"/client-dist/summary-toggle.client.js",

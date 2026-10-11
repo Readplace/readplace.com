@@ -12,7 +12,7 @@ import {
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
-import { markReadWithConfirmation } from "./page-interactions";
+import { createReadlistFromReader, markReadWithConfirmation } from "./page-interactions";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 import { LENSES, NON_TEXT_MINIMUM, contrastRatio, textMinimum } from "./wcag-contrast";
 
@@ -22,6 +22,16 @@ const BASE_URL = `http://localhost:${E2E_PORT}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
 const VIEWPORT = { width: 1280, height: 900 };
 const READER_ROOT = "main.reader";
+const SHARE_DIALOG_ROOT = '[data-test-confirm-popover="share"]';
+const SHARE_LOGO = "span.share-dialog__circle";
+const WHITE_MARK = { red: 255, green: 255, blue: 255 };
+const SHARE_LOGO_COLOURS = [
+	{ ink: WHITE_MARK, surface: { red: 101, green: 208, blue: 114 } },
+	{ ink: WHITE_MARK, surface: { red: 66, green: 88, blue: 147 } },
+	{ ink: WHITE_MARK, surface: { red: 0, green: 0, blue: 0 } },
+	{ ink: WHITE_MARK, surface: { red: 136, green: 136, blue: 136 } },
+	{ ink: WHITE_MARK, surface: { red: 255, green: 69, blue: 0 } },
+];
 const AUTH_ROOT = "main.auth-page";
 const READLIST_ROOT = "main.readlist";
 const BANNER_AREA_ROOT = ".banner-area";
@@ -127,7 +137,7 @@ async function auditReader(page: Page, where: { theme: string; view: string }): 
 		timeout: SETTLE_MS,
 	});
 	await page.locator("[data-test-readlists-trigger]").click({ timeout: SETTLE_MS });
-	await expect(page.locator("[data-test-readlist-create-name]")).toBeVisible({
+	await expect(page.locator('[data-test-action="readlist-create-open"]')).toBeVisible({
 		timeout: SETTLE_MS,
 	});
 	await page.mouse.move(0, 0);
@@ -138,6 +148,32 @@ async function auditReader(page: Page, where: { theme: string; view: string }): 
 		`${where.theme}/${where.view}: the audit measured nothing inside ${READER_ROOT}`,
 	);
 	assertContrast(measurements, where);
+}
+
+function isShareLogo(measured: RenderedInk): boolean {
+	return measured.role === "graphic" && measured.name.startsWith(SHARE_LOGO);
+}
+
+async function auditShareDialog(page: Page, where: { theme: string; view: string }): Promise<void> {
+	const dialog = page.locator(`${SHARE_DIALOG_ROOT}:popover-open`);
+	await page.locator('[data-test-action="share-open"]').click({ timeout: SETTLE_MS });
+	await expect(dialog).toBeVisible({ timeout: SETTLE_MS });
+	await expect(dialog.locator("[data-test-share-copy]")).toBeVisible({ timeout: SETTLE_MS });
+	await page.mouse.move(0, 0);
+
+	const measurements = await stableMeasurements(page, SHARE_DIALOG_ROOT);
+	assert.deepEqual(
+		measurements.filter(isShareLogo).map(({ ink, surface }) => ({ ink, surface })),
+		SHARE_LOGO_COLOURS,
+		`${where.theme}/${where.view}: the share targets' logos must keep their own colours`,
+	);
+	assertContrast(
+		measurements.filter((measured) => !isShareLogo(measured)),
+		where,
+	);
+
+	await dialog.locator('[data-test-action="share-cancel"]').click();
+	await expect(dialog).toBeHidden({ timeout: SETTLE_MS });
 }
 
 async function auditAuth(page: Page, where: { theme: string; view: string }): Promise<void> {
@@ -424,6 +460,7 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 			await page.setExtraHTTPHeaders({});
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 			await auditReader(page, { theme, view: "reader" });
+			await auditShareDialog(page, { theme, view: "reader-share-dialog" });
 		}
 	});
 });
@@ -580,10 +617,7 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
 		await loginChipReader(page, email);
 		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
-		await page.locator("[data-test-readlists-trigger]").click({ timeout: SETTLE_MS });
-		await page.locator("[data-test-readlist-create-name]").fill("Weekend");
-		await page.locator('[data-test-action="readlist-create-assign"]').click();
-		await expect(page.locator("[data-test-readlist-tag]")).toBeVisible({ timeout: SETTLE_MS });
+		await createReadlistFromReader(page, "Weekend");
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });

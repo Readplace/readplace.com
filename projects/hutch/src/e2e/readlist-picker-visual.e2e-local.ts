@@ -39,9 +39,10 @@ const OPTION_BUTTONS = `${MENU} [data-test-assign-readlist]`;
 const ROW_ONE = `${MENU} li:nth-child(1)`;
 const ROW_TWO = `${MENU} li:nth-child(2)`;
 const ROW_CREATE = `${MENU} [data-test-readlists-row="create"]`;
-const CREATE_INPUT = `${MENU} [data-test-readlist-create-name]`;
-const CREATE_SUBMIT = `${MENU} [data-test-action="readlist-create-assign"]`;
+const CREATE_OPEN = `${MENU} [data-test-action="readlist-create-open"]`;
+const ROW_CHOICES = `${MENU} .article-body__readlists-option:visible`;
 const READLIST_TAB = "[data-test-readlist]";
+const ROW_HEIGHT_PX = 44;
 
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -132,7 +133,7 @@ async function pickerOpen(page: Page): Promise<void> {
 	await expect(page.locator(TOOLBAR)).toHaveCSS("transform", "none");
 	await expect(page.locator(MENU)).toBeVisible();
 	await expect(page.locator(OPTION_BUTTONS)).toHaveText([DEEP_WORK, WEEKEND]);
-	await expect(page.locator(CREATE_INPUT)).toBeVisible();
+	await expect(page.locator(CREATE_OPEN)).toBeVisible();
 	await expect(page.locator(OPTION_BUTTONS).first()).toHaveCSS(
 		"background-color",
 		"rgba(0, 0, 0, 0)",
@@ -140,16 +141,29 @@ async function pickerOpen(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
+async function everyRowPaintsOverTheCard(page: Page): Promise<void> {
+	const hits = await page.locator(ROW_CHOICES).evaluateAll((rows) =>
+		rows.map((row) => {
+			const box = row.getBoundingClientRect();
+			return row.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+		}),
+	);
+	assert.ok(hits.length >= 1, "the open picker must offer at least one row");
+	assert.deepEqual(
+		hits,
+		hits.map(() => true),
+		"every open row must take the pointer over the article card behind it",
+	);
+}
+
 async function bothReadlistsSitAboveTheRowThatNamesANewOne(page: Page): Promise<void> {
 	const menu = await measuredBox(page, MENU);
 	const trigger = await measuredBox(page, TRIGGER);
+	assert.ok(Math.abs(menu.x - trigger.x) <= 0.5, "the menu must hang from the trigger's left edge");
+	assert.ok(menu.width >= trigger.width - 0.5, "the menu must be at least as wide as the trigger");
 	assert.ok(
-		Math.abs(menu.x + menu.width - (trigger.x + trigger.width)) <= 0.5,
-		"the menu must hang from the trigger's right edge",
-	);
-	assert.ok(
-		menu.y >= trigger.y + trigger.height,
-		"the menu must open below the trigger, never over it",
+		menu.y >= trigger.y + trigger.height + 3,
+		"the menu must open just below the trigger, never over it",
 	);
 
 	const stacked = [
@@ -176,17 +190,28 @@ async function bothReadlistsSitAboveTheRowThatNamesANewOne(page: Page): Promise<
 		);
 	}
 
-	const field = await measuredBox(page, CREATE_INPUT);
-	const submit = await measuredBox(page, CREATE_SUBMIT);
-	assert.equal(
-		Math.round(field.height),
-		Math.round(submit.height),
-		"the name field and its + must share one height, the way the menu's other rows do",
+	const choices = await page.locator(ROW_CHOICES).evaluateAll((rows) =>
+		rows.map((row) => row.getBoundingClientRect().height),
 	);
+	assert.equal(choices.length, 3, "the picker offers two readlists and the create row");
+	for (const height of choices) {
+		assert.ok(Math.abs(height - ROW_HEIGHT_PX) <= 0.5, `every row must be ${ROW_HEIGHT_PX}px tall, measured ${height}`);
+	}
+
+	const divider = await page.locator(ROW_CREATE).evaluate((row) => ({
+		width: Number.parseFloat(getComputedStyle(row).borderTopWidth),
+		style: getComputedStyle(row).borderTopStyle,
+	}));
+	assert.deepEqual(divider, { width: 1, style: "solid" }, "a hairline must divide the readlists from the create row");
+	const [, , createRow] = stacked;
 	assert.ok(
-		submit.x >= field.x + field.width,
-		"the + must follow the name field on one line, not wrap below it",
+		Math.abs(createRow[1].x - (menu.x + 1)) <= 0.5 && Math.abs(createRow[1].width - (menu.width - 2)) <= 0.5,
+		"the hairline must run the menu's full width",
 	);
+	const create = await measuredBox(page, CREATE_OPEN);
+	assert.ok(create.y >= createRow[1].y + 1 - 0.5, "the create row must follow the hairline");
+
+	await everyRowPaintsOverTheCard(page);
 }
 
 async function theMenuStaysInsideTheColumn(page: Page): Promise<void> {
@@ -204,10 +229,10 @@ async function theMenuStaysInsideTheColumn(page: Page): Promise<void> {
 		"the menu must not open past the column's right edge",
 	);
 
-	const field = await measuredBox(page, CREATE_INPUT);
+	const create = await measuredBox(page, CREATE_OPEN);
 	assert.ok(
-		field.x >= column.x - 0.5 && field.x + field.width <= column.x + column.width + 0.5,
-		`the name field must sit inside the column, measured ${field.x}..${field.x + field.width}`,
+		create.x >= column.x - 0.5 && create.x + create.width <= column.x + column.width + 0.5,
+		`the create row must sit inside the column, measured ${create.x}..${create.x + create.width}`,
 	);
 
 	const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -216,6 +241,7 @@ async function theMenuStaysInsideTheColumn(page: Page): Promise<void> {
 		viewport.width,
 		`an open picker must not widen the page, measured ${scrollWidth}`,
 	);
+	await everyRowPaintsOverTheCard(page);
 }
 
 function checkpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {

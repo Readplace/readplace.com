@@ -31,12 +31,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: 8px;
   margin-bottom: 1rem;
 }
 
 .article-body__back-slot--visible {
   display: inline-flex;
+  margin-right: auto;
 }
 
 .article-body__back-slot--hidden {
@@ -46,7 +47,7 @@
 .article-body__back {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   min-height: 44px;
   font-size: 0.875rem;
   font-weight: 500;
@@ -55,62 +56,13 @@
   transition: color 0.15s ease;
 }
 
+.article-body__back svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
 .article-body__back:hover {
   color: var(--primary-text);
-}
-
-/**
- * 1. 600px is where the four full labels stop fitting the reader column on one
- *    line — not the 768px the container padding uses. Below it every control
- *    trades its label for an icon and a short form.
- * 2. The full label is clipped rather than removed, so the accessible name and
- *    the markdown representation read the same at every width.
- */
-.article-body__action-icon,
-.article-body__action-label-short {
-  display: none; /* 1 */
-}
-
-@media (max-width: 600px) {
-  .article-body__action-icon {
-    display: inline-flex;
-  }
-
-  .article-body__action-label-short {
-    display: inline;
-  }
-
-  .article-body__action-label {
-    position: absolute; /* 2 */
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .article-body__back {
-    justify-content: center;
-    min-width: 44px;
-  }
-}
-
-@media (max-width: 374px) {
-  .article-body__action-label-short {
-    display: none;
-  }
-}
-
-@supports selector(:has(*)) {
-  @media (max-width: 374px) {
-    .article-body__actions--top:not(:has(.article-body__downloads-slot--visible))
-      .article-body__action-label-short {
-      display: inline;
-    }
-  }
 }
 
 .article-body__mark-read-slot--visible {
@@ -129,14 +81,8 @@
   display: none;
 }
 
-.article-body__download svg {
-  width: 1rem;
-  height: 1rem;
-}
-
 .article-body__readlists-slot--visible {
   display: inline-flex;
-  margin-left: auto;
 }
 
 .article-body__readlists-slot--hidden {
@@ -147,43 +93,56 @@
   position: relative;
 }
 
-.article-body__readlists-trigger {
-  gap: 4px;
+.article-body__readlists-trigger,
+.article-body__share-fallback > summary {
   list-style: none;
 }
 
-.article-body__readlists-trigger::-webkit-details-marker {
+.article-body__readlists-trigger::-webkit-details-marker,
+.article-body__share-fallback > summary::-webkit-details-marker {
   display: none;
 }
 
-.article-body__readlists-trigger:focus-visible {
+.article-body__readlists-trigger:focus-visible,
+.article-body__share-fallback > summary:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
 .article-body__readlists-chevron {
   display: inline-flex;
-  color: var(--muted-foreground);
+  color: var(--foreground);
   transition: transform 0.15s ease;
+}
+
+.article-body__readlists-chevron svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .article-body__readlists[open] .article-body__readlists-chevron {
   transform: rotate(180deg);
 }
 
-.article-body__readlists-menu {
+.article-body__readlists-menu,
+.article-body__share-fallback-panel {
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
   z-index: 13;
-  min-width: max-content;
   margin: 0;
-  padding: 6px;
-  list-style: none;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+.article-body__readlists-menu {
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 2 * var(--page-gutter)));
+  padding: 4px;
+  list-style: none;
 }
 
 .article-body__readlists-form {
@@ -193,36 +152,54 @@
 .article-body__readlists-option {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 0 12px;
   font: inherit;
   font-size: 0.875rem;
   text-align: left;
   color: var(--foreground);
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   cursor: pointer;
   overflow-wrap: anywhere;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .article-body__readlists-option svg {
   flex: 0 0 auto;
-  width: 1rem;
-  height: 1rem;
-  color: var(--muted-foreground);
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
-.article-body__readlists-option:hover {
+.article-body__readlists-option:hover,
+.article-body__readlists-option:focus-visible {
   background: var(--muted);
 }
 
+.article-body__readlists-option:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.article-body__readlists-option:active {
+  background: var(--neutral-pressed);
+}
+
+.article-body__readlists-create-trigger {
+  display: none;
+  color: var(--muted-foreground);
+}
+
+.article-body__readlists-create-trigger:hover {
+  color: var(--foreground);
+}
+
 .article-body__readlists-item + .article-body__readlists-create-item {
-  margin-top: 4px;
-  padding-top: 4px;
+  margin: 4px -4px 0;
+  padding: 0 4px;
   border-top: 1px solid var(--border);
 }
 
@@ -234,27 +211,9 @@
   margin: 0;
 }
 
-.article-body__readlists-create-input {
+.article-body__readlists-create .form-input {
   flex: 1;
   min-width: 0;
-  height: var(--input-height);
-  padding: var(--input-padding);
-  font: inherit;
-  font-size: var(--input-font-size);
-  color: var(--foreground);
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-}
-
-.article-body__readlists-create-input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.article-body__readlists-create-input:focus {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
 .article-body__readlists-create-btn {
@@ -283,18 +242,86 @@
   height: 1rem;
 }
 
-@media (max-width: 600px) {
+.article-body__share-slot {
+  display: inline-flex;
+  position: relative;
+}
+
+.article-body__share {
+  display: none;
+}
+
+.article-body__share-fallback-panel {
+  right: 0;
+  width: min(22rem, calc(100vw - 2 * var(--page-gutter)));
+  padding: 16px;
+}
+
+/**
+ * 1. The full label is clipped rather than removed, so the accessible name and
+ *    the markdown representation read the same at every width.
+ */
+.article-body__action-icon {
+  display: none;
+}
+
+@container reader-toolbar (width < 629px) {
+  .article-body__back .article-body__action-label {
+    position: absolute; /* 1 */
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .article-body__back {
+    justify-content: center;
+    min-width: 44px;
+  }
+}
+
+@container reader-toolbar (width < 532px) {
+  .article-body__action-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .article-body__action-icon {
+    display: inline-flex;
+  }
+
+  .article-body__action-icon svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
   .article-body__actions--top {
     position: relative;
   }
 
-  .article-body__readlists {
+  .article-body__readlists,
+  .article-body__share-slot {
     position: static;
   }
 
-  .article-body__readlists-menu {
+  .article-body__readlists-menu,
+  .article-body__share-fallback-panel {
+    left: 0;
+    right: 0;
+    width: auto;
     min-width: 0;
-    max-width: 100%;
+    max-width: none;
   }
 
   .article-body__readlists-create {
@@ -302,16 +329,22 @@
   }
 }
 
+@container reader-toolbar (width < 304px) {
+  .article-body__readlists-chevron {
+    display: none;
+  }
+}
+
 .article-body__toolbar {
   display: flex;
   align-items: center;
   margin-bottom: 32px;
+  container: reader-toolbar / inline-size;
 }
 
 .article-body__toolbar .article-body__actions--top {
   flex: 1;
   margin: 0;
-  justify-content: space-between;
 }
 
 .article-body__mark-read-form {
@@ -330,18 +363,20 @@
 }
 
 @supports selector(:popover-open) {
-  .article-body__confirm-trigger {
+  .article-body__confirm-trigger,
+  .article-body__share {
     display: inline-flex;
   }
 
-  .article-body__mark-read-fallback {
+  .article-body__readlists-create-trigger {
+    display: flex;
+  }
+
+  .article-body__mark-read-fallback,
+  .article-body__readlists-create-fallback,
+  .article-body__share-fallback {
     display: none;
   }
-}
-
-.article-body__mark-read,
-.article-body__download {
-  gap: 4px;
 }
 
 .article-body__mark-read {

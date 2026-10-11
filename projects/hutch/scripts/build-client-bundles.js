@@ -68,6 +68,24 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/share-dialog/share-dialog.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "share-dialog.client.js"),
+    globalName: "ShareDialog",
+    footer: [
+      "var shareDialog = ShareDialog.initShareDialog({",
+      "  document: window.document,",
+      "  navigator: window.navigator,",
+      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+      "  clearTimeoutFn: function (id) { window.clearTimeout(id); }",
+      "});",
+      "shareDialog.attach();",
+      "window.document.body.addEventListener('htmx:afterSettle', function () { shareDialog.reveal(); });",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/shared/article-body/progress-bar.client.ts",
     ),
     outfile: path.join(OUT_DIR, "progress-bar.client.js"),

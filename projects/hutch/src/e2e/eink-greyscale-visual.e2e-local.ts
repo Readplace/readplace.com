@@ -14,6 +14,7 @@ import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VA
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import {
 	clickAndWaitForPageReload,
+	createReadlistFromReader,
 	fileArticleIntoReadlist,
 	nameNewReadlist,
 	openReadlistSwitcher,
@@ -32,6 +33,9 @@ const CONTRAST_SENSITIVE = {
 } as const;
 
 const READER_ROOT = "main.reader";
+const SHARE_DIALOG = '[data-test-confirm-popover="share"]';
+const PINNED_SHARE_URL =
+	"https://readplace.com/view/example.com/an-e-ink-panel?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-internal";
 const READLIST_LIST = "[data-test-article-list]";
 const READLIST_TABS = "[data-test-filters]";
 const READLIST_RAIL = ".readlist__rail";
@@ -271,6 +275,39 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 			await expect(page.locator(READER_ROOT)).toHaveScreenshot(
 				`eink-reader-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the reader's share dialog keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, readerUrl } = await seedReaderAndReadlist(
+				page,
+				`share-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+			await pinReaderSavedTime(page);
+			await page.click('[data-test-action="share-open"]');
+			await expect(page.locator(`${SHARE_DIALOG}:popover-open`)).toHaveCount(1);
+			await expect(page.locator(`${SHARE_DIALOG} [data-test-share-copy]`)).toBeVisible();
+			await expect
+				.poll(() =>
+					page
+						.locator(`${SHARE_DIALOG} [data-test-share-avatar]`)
+						.evaluate((avatar: HTMLImageElement) => avatar.complete && avatar.naturalWidth > 0),
+				)
+				.toBe(true);
+			await page
+				.locator(`${SHARE_DIALOG} [data-test-share-url]`)
+				.evaluate((link: HTMLInputElement, pinned: string) => {
+					link.value = pinned;
+				}, PINNED_SHARE_URL);
+			await settle(page, SHARE_DIALOG);
+
+			await expect(page.locator(SHARE_DIALOG)).toHaveScreenshot(
+				`eink-reader-share-dialog-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});
@@ -635,10 +672,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 			await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
-			await page.click("[data-test-readlists-slot] [data-test-readlists-trigger]");
-			await page.locator("[data-test-readlists-menu] [data-test-readlist-create-name]").fill("Weekend");
-			await page.click('[data-test-readlists-menu] [data-test-action="readlist-create-assign"]');
-			await expect(page.locator("[data-test-readlist-tag]")).toContainText("Weekend");
+			await createReadlistFromReader(page, "Weekend");
 			await pinReaderSavedTime(page);
 			await settle(page, "#article-header");
 

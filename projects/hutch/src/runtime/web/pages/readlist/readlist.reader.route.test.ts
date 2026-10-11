@@ -1891,10 +1891,14 @@ describe("Readlist routes", () => {
 		it("keeps the link shareable while offering no Next read and no crawl bookmark", async () => {
 			const doc = await ownerReaderDoc();
 
-			assert(
-				doc.querySelector("[data-test-share-balloon-wrap]"),
-				"sharing the link itself stays legitimate",
+			const share = doc.querySelector('[data-test-share-slot] [data-test-action="share-open"]');
+			assert(share, "sharing the link itself stays legitimate");
+			expect(doc.getElementById(share.getAttribute("popovertarget") ?? "")?.getAttribute("data-test-confirm-popover")).toBe(
+				"share",
 			);
+			const floatStack = doc.querySelector("[data-test-reader-float-stack]");
+			assert(floatStack, "the float stack stays for Next read");
+			expect(Array.from(floatStack.children, (child) => child.getAttribute("data-test-reader-related"))).toEqual([""]);
 			const related = doc.querySelector("[data-test-reader-related]");
 			assert(related, "the related slot is always emitted");
 			expect(related.getAttribute("data-related-status")).toBe("skipped");

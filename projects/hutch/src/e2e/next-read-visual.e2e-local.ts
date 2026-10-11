@@ -25,12 +25,10 @@ const SEEDED_PARAGRAPH =
 const CARD = "[data-test-reader-related]";
 /** The painted surface inside the slot wrapper. Geometry is measured here rather
  * than on the wrapper so a wrapper that stops hugging its card — leaving dead
- * space beside it and breaking the right-edge alignment with the balloon — fails
- * the checkpoint instead of passing on the wrapper's box. */
+ * space beside it — fails the checkpoint instead of passing on the wrapper's box. */
 const CARD_SURFACE = ".next-read__card";
 const SITE = ".next-read__site-name";
 const STACK = "[data-test-reader-float-stack]";
-const BALLOON = "[data-test-share-balloon-wrap]";
 const DISMISS = '[data-test-action="next-read-dismiss"]';
 const EYEBROW = ".next-read__eyebrow";
 const READ_STATE = "[data-test-read-status]";
@@ -91,14 +89,8 @@ async function loginAs(page: Page, email: string): Promise<void> {
  * the only thing that reveals the card. */
 async function openRevealedCard(
 	page: Page,
-	options: { stamp: string; suppressBalloon: boolean; markRelatedRead: boolean },
+	options: { stamp: string; markRelatedRead: boolean },
 ): Promise<void> {
-	if (options.suppressBalloon) {
-		await page.addInitScript(() => {
-			window.localStorage.setItem("readplace.share-dismissed", "1");
-		});
-	}
-
 	const email = `next-read-${options.stamp}@example.com`;
 	const userId = await createOwner(page, email);
 	const sourceUrl = `https://example.com/next-read-source-${options.stamp}`;
@@ -151,15 +143,6 @@ async function openRevealedCard(
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function openShareBalloon(page: Page): Promise<void> {
-	await expect(async () => {
-		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-		await expect(page.locator(BALLOON)).toHaveClass(/share-balloon__wrap--open/, {
-			timeout: 2000,
-		});
-	}).toPass({ timeout: 10000 });
-}
-
 async function cardRevealed(page: Page): Promise<void> {
 	await page.waitForSelector(OPEN_CARD);
 	await page.mouse.move(5, 5);
@@ -167,11 +150,6 @@ async function cardRevealed(page: Page): Promise<void> {
 		document.querySelector(".offline-banner")?.remove();
 		document.querySelector(".newer-version-banner")?.remove();
 	});
-}
-
-async function balloonOpenBelowCard(page: Page): Promise<void> {
-	await cardRevealed(page);
-	await openShareBalloon(page);
 }
 
 async function cardAnchoredBottomRight(page: Page): Promise<void> {
@@ -209,23 +187,8 @@ async function cardAnchoredBottomRight(page: Page): Promise<void> {
 	);
 }
 
-async function cardStacksAboveBalloon(page: Page): Promise<void> {
-	await cardAnchoredBottomRight(page);
-	const balloon = await measuredBox(page, BALLOON);
-	const card = await measuredBox(page, CARD_SURFACE);
-	assert.ok(
-		card.y + card.height <= balloon.y,
-		"the next-read card must sit fully above the share balloon, never overlapping it",
-	);
-	assert.equal(
-		balloon.x + balloon.width,
-		card.x + card.width,
-		"the balloon and the card must share the right edge of the float stack",
-	);
-}
-
 async function stackFitsMobileViewport(page: Page): Promise<void> {
-	await cardStacksAboveBalloon(page);
+	await cardAnchoredBottomRight(page);
 	const viewport = page.viewportSize();
 	assert.ok(viewport, "the mobile checkpoint must run with an explicit viewport");
 	const stack = await measuredBox(page, STACK);
@@ -266,24 +229,9 @@ const CARD_DESKTOP_DARK: VisualCheckpoint = {
 	pinnedText: PINNED_SAVED,
 };
 
-const STACK_DESKTOP_LIGHT: VisualCheckpoint = {
-	name: "next-read-balloon-stack-desktop-light",
-	settled: balloonOpenBelowCard,
-	geometry: cardStacksAboveBalloon,
-	target: STACK,
-	capture: "element",
-	pinnedText: PINNED_SAVED,
-};
-
-/** Captures the card rather than the whole stack. The stack's height is the sum
- * of two independently-wrapping text blocks, so it accumulates fractional line
- * heights and rounds to a different integer on the CI renderer than on the one
- * that generated the baseline — and `toHaveScreenshot` rejects a size mismatch
- * before any pixel threshold applies. The stacking itself is what
- * `stackFitsMobileViewport` asserts numerically. */
 const CARD_MOBILE_LIGHT: VisualCheckpoint = {
 	name: "next-read-mobile-light",
-	settled: balloonOpenBelowCard,
+	settled: cardRevealed,
 	geometry: stackFitsMobileViewport,
 	target: CARD,
 	capture: "element",
@@ -299,7 +247,6 @@ test.describe("Next-read card (desktop)", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openRevealedCard(page, {
 			stamp: `desktop-light-${test.info().workerIndex}-${Date.now()}`,
-			suppressBalloon: true,
 			markRelatedRead: false,
 		});
 		await expect(page.locator(EYEBROW)).toHaveText("Next read");
@@ -324,7 +271,6 @@ test.describe("Next-read card (desktop)", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openRevealedCard(page, {
 			stamp: `desktop-dark-${test.info().workerIndex}-${Date.now()}`,
-			suppressBalloon: true,
 			markRelatedRead: false,
 		});
 		await captureCheckpoint(page, CARD_DESKTOP_DARK);
@@ -336,7 +282,6 @@ test.describe("Next-read card (desktop)", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openRevealedCard(page, {
 			stamp: `past-desktop-light-${test.info().workerIndex}-${Date.now()}`,
-			suppressBalloon: true,
 			markRelatedRead: true,
 		});
 		await expect(page.locator(EYEBROW)).toHaveText("Similar past reads");
@@ -347,25 +292,12 @@ test.describe("Next-read card (desktop)", () => {
 		await captureCheckpoint(page, CARD_PAST_DESKTOP_LIGHT);
 	});
 
-	test("stacks above an opened share balloon without either covering the other", async ({
-		page,
-	}) => {
-		await page.emulateMedia({ colorScheme: "light" });
-		await openRevealedCard(page, {
-			stamp: `stack-desktop-${test.info().workerIndex}-${Date.now()}`,
-			suppressBalloon: false,
-			markRelatedRead: false,
-		});
-		await captureCheckpoint(page, STACK_DESKTOP_LIGHT);
-	});
-
 	test("gets out of the way when the reader turns back into the article, and returns at its end", async ({
 		page,
 	}) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openRevealedCard(page, {
 			stamp: `scroll-back-desktop-${test.info().workerIndex}-${Date.now()}`,
-			suppressBalloon: true,
 			markRelatedRead: false,
 		});
 		await cardRevealed(page);
@@ -387,36 +319,15 @@ test.describe("Next-read card (desktop)", () => {
 
 		await expect(page.locator(OPEN_CARD)).toHaveCount(1);
 	});
-
-	test("leaves the opened share balloon alone when the suggestion above it is dismissed", async ({
-		page,
-	}) => {
-		await page.emulateMedia({ colorScheme: "light" });
-		await openRevealedCard(page, {
-			stamp: `dismiss-keeps-balloon-${test.info().workerIndex}-${Date.now()}`,
-			suppressBalloon: false,
-			markRelatedRead: false,
-		});
-		await openShareBalloon(page);
-
-		await page.locator(DISMISS).click();
-		await page.waitForSelector(`${CARD}.next-read--hidden`, { state: "attached" });
-
-		await expect(page.locator(BALLOON)).toBeVisible();
-		await expect(page.locator(BALLOON)).toHaveClass(/share-balloon__wrap--open/);
-	});
 });
 
 test.describe("Next-read card (mobile)", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 390, height: 844 } });
 
-	test("keeps the card and the opened share balloon stacked and on screen", async ({
-		page,
-	}) => {
+	test("keeps the card on screen", async ({ page }) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openRevealedCard(page, {
-			stamp: `stack-mobile-${test.info().workerIndex}-${Date.now()}`,
-			suppressBalloon: false,
+			stamp: `mobile-${test.info().workerIndex}-${Date.now()}`,
 			markRelatedRead: false,
 		});
 		await captureCheckpoint(page, CARD_MOBILE_LIGHT);

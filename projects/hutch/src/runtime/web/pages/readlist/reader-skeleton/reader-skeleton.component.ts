@@ -9,7 +9,7 @@ import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-acti
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
 import { NEXT_READ_SCRIPT } from "../../../shared/next-read/next-read.component";
 import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
-import { SHARE_BALLOON_SCRIPT } from "../../../shared/share-balloon/share-balloon.component";
+import { SHARE_DIALOG_SCRIPT } from "../../../shared/share-dialog/share-dialog.component";
 import { OFFLINE_READER_SCRIPT } from "../../../shared/offline-reader/offline-reader-script";
 import { READER_OPEN_SCRIPT } from "../../../shared/reader-open/reader-open-script";
 import { READER_EXIT_CONFIRM_SCRIPT } from "../../reader/reader-exit-confirm.component";
@@ -27,7 +27,7 @@ export const VIEW_BACK_LINK = {
 } as const;
 
 export const READER_PAGE_SCRIPTS =
-	SHARE_BALLOON_SCRIPT +
+	SHARE_DIALOG_SCRIPT +
 	NEXT_READ_SCRIPT +
 	PROGRESS_BAR_SCRIPT +
 	SUMMARY_TOGGLE_SCRIPT +

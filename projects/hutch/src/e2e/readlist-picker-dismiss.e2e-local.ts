@@ -11,7 +11,9 @@ const OWNER_PASSWORD = "password123";
 const CONTENT_FETCHED_AT = "2026-05-14T11:20:00.000Z";
 const PICKER = ".article-body__readlists";
 const TRIGGER = "[data-test-readlists-trigger]";
-const CREATE_INPUT = "[data-test-readlist-create-name]";
+const MENU = "[data-test-readlists-menu]";
+const CREATE_OPEN = '[data-test-action="readlist-create-open"]';
+const CREATE_DIALOG = '[data-test-confirm-popover="readlist-create"]';
 const ARTICLE_COPY = "[data-test-reader-content] p";
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
@@ -66,8 +68,7 @@ test.describe("Add-to-readlist picker light dismiss", () => {
 		await page.click(TRIGGER);
 		expect(await pickerIsOpen(page)).toBe(true);
 
-		// Typing a new readlist name must not dismiss the menu out from under it.
-		await page.locator(CREATE_INPUT).click();
+		await page.locator(MENU).click({ position: { x: 2, y: 2 } });
 		expect(await pickerIsOpen(page)).toBe(true);
 
 		await page.locator(ARTICLE_COPY).first().click({ position: { x: 4, y: 4 } });
@@ -80,7 +81,7 @@ test.describe("Add-to-readlist picker light dismiss", () => {
 		await openOwnerReaderWithPicker(page, `escape-${testInfo.workerIndex}-${Date.now()}`);
 
 		await page.click(TRIGGER);
-		await page.locator(CREATE_INPUT).click();
+		await page.locator(CREATE_OPEN).focus();
 		expect(await pickerIsOpen(page)).toBe(true);
 
 		await page.keyboard.press("Escape");
@@ -100,5 +101,22 @@ test.describe("Add-to-readlist picker light dismiss", () => {
 		await expect
 			.poll(() => pickerIsOpen(page))
 			.toBe(false);
+	});
+
+	test("Create a readlist opens the naming dialog, closes the picker, and Cancel returns focus to the trigger", async ({
+		page,
+	}, testInfo) => {
+		await openOwnerReaderWithPicker(page, `create-${testInfo.workerIndex}-${Date.now()}`);
+
+		await page.click(TRIGGER);
+		await page.locator(CREATE_OPEN).click();
+		await expect(page.locator(`${CREATE_DIALOG}:popover-open`)).toHaveCount(1);
+		await expect
+			.poll(() => pickerIsOpen(page))
+			.toBe(false);
+
+		await page.locator(`${CREATE_DIALOG} [data-test-action="readlist-create-cancel"]`).click();
+		await expect(page.locator(`${CREATE_DIALOG}:popover-open`)).toHaveCount(0);
+		await expect(page.locator(TRIGGER)).toBeFocused();
 	});
 });

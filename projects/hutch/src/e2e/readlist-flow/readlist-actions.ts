@@ -381,34 +381,20 @@ export function createReadlistActions(
 				const firstArticle = page.locator('[data-test-article]').first()
 				await expect(firstArticle.locator('[data-test-action="mark-read"]')).toHaveCount(1)
 
-				// The earlier anonymous-visit-view-page step dismisses the share
-				// balloon and persists that to localStorage; clear it here so the
-				// balloon's scroll listener attaches when /reader mounts below.
-				await page.evaluate(() => window.localStorage.removeItem('readplace.share-dismissed'))
-
 				await page.locator('[data-test-article-title]').first().click()
 				await expect(
 					page.locator('[data-test-reader-slot][data-reader-status="ready"]'),
 				).toHaveCount(1)
 				await expect(page.locator('body.page-reader')).toHaveCount(1)
 
-				// Trigger the share balloon, click Copy, then visit the produced
-				// /view link in a fresh anonymous browser context.
-				await page.evaluate(() => {
-					const article = document.querySelector<HTMLElement>('[data-article-body]')
-					const height = article ? article.offsetHeight : 0
-					window.scrollTo(0, Math.ceil(height * 0.5) + 1)
-				})
-				const shareWrap = page.locator('[data-test-share-balloon-wrap]')
-				await expect(shareWrap).toHaveClass(/share-balloon__wrap--open/, { timeout: 3000 })
-				const copyButton = page.locator('[data-test-share-balloon-copy]')
-				const shareUrl = await copyButton.getAttribute('data-share-url')
-				assert.ok(shareUrl, 'share copy button must expose data-share-url')
-				await copyButton.click()
+				const shareDialog = page.locator('[data-test-confirm-popover="share"]')
+				await page.locator('[data-test-action="share-open"]').click()
+				await expect(page.locator('[data-test-confirm-popover="share"]:popover-open')).toHaveCount(1)
+				const shareUrl = await shareDialog.locator('[data-test-share-copy]').getAttribute('data-share-url')
+				assert.ok(shareUrl, 'the share dialog must expose the link it copies')
+				await shareDialog.locator('[data-test-action="share-cancel"]').click()
+				await expect(page.locator('[data-test-confirm-popover="share"]:popover-open')).toHaveCount(0)
 
-				// share-balloon hardcodes the canonical https://readplace.com host so
-				// the URL stays right when posted to social media. Rewrite to the test
-				// server's origin so the anon visit hits the app under test.
 				const sharePath = new URL(shareUrl)
 				const localShareUrl = `${new URL(page.url()).origin}${sharePath.pathname}${sharePath.search}`
 

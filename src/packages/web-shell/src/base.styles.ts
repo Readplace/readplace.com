@@ -142,7 +142,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--primary-text-on-tint": "#EAA162",
 	"--color-secondary-text": "#8FA3C8",
 	"--secondary-hover": "#4A3320",
-	"--secondary-pressed": "#5A3E26",
+	"--secondary-pressed": "#583C25",
 	"--secondary-foreground": "hsl(27, 65%, 35%)",
 	"--neutral-hover": "#2A2A2A",
 	"--neutral-pressed": "#2E2E2E",

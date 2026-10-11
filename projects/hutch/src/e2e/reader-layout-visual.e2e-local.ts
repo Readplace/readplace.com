@@ -86,7 +86,6 @@ interface SeededReader {
 
 async function quietReader(page: Page): Promise<void> {
 	await page.addInitScript(() => {
-		window.localStorage.setItem("readplace.share-dismissed", "1");
 		window.localStorage.setItem("readplace.extension-suggestion-dismissed", "1");
 	});
 }

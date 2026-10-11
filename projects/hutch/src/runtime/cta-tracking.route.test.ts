@@ -148,6 +148,11 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			.post(`/queue/queues/${describedReadlist}/preferences`)
 			.type("form")
 			.send({ purpose: "Essays on how teams actually ship." });
+		assert(madeReadlist, "creating a readlist must land on it");
+		await agent
+			.post(`/queue/${articleId}/assign`)
+			.type("form")
+			.send({ queue: madeReadlist, returnTo: `/queue/${articleId}/view` });
 		const readlistPaths =
 			madeReadlist && describedReadlist
 				? [
@@ -156,6 +161,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 						`/queue/queues/${madeReadlist}/preferences/inboxes?feature=pref`,
 						`/queue?moved_article=${articleId}&moved_from=default&moved_to=${madeReadlist}`,
 						`/queue/queues/${describedReadlist}/preferences?feature=pref`,
+						`/queue/${articleId}/view?filed_readlist=${madeReadlist}`,
 					]
 				: [];
 
@@ -170,7 +176,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		}
 
 		expect(readerHref).toContain("/view");
-		expect(readlistPaths.length).toBe(5);
+		expect(readlistPaths.length).toBe(6);
 		expect(untracked).toEqual([]);
 	});
 

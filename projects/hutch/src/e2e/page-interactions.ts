@@ -117,6 +117,16 @@ export async function fileArticleIntoReadlist(
 	await page.waitForSelector(`#article-header [data-test-readlist-tag="${input.readlistSlug}"]`)
 }
 
+export async function createReadlistFromReader(page: Page, name: string): Promise<void> {
+	const dialog = page.locator('[data-test-confirm-popover="readlist-create"]')
+	await page.click('summary[data-test-readlists-trigger]', { timeout: 15000 })
+	await page.click('[data-test-action="readlist-create-open"]', { timeout: 15000 })
+	await page.waitForSelector('[data-test-confirm-popover="readlist-create"]:popover-open')
+	await dialog.locator('input[name="label"]').fill(name)
+	await dialog.locator('[data-test-action="readlist-create-save"]').click({ timeout: 15000 })
+	await expect(page.locator('#article-header [data-test-readlist-tag]', { hasText: name })).toHaveCount(1, { timeout: 15000 })
+}
+
 export function renameableSlugs(page: Page): Promise<string[]> {
 	return page.evaluate(
 		([menu, trigger]) =>

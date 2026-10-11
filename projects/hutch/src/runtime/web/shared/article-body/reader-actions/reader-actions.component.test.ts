@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { type IconName, iconSvg } from "@packages/ui-icons";
 import {
 	type ActionButtons,
 	ChromelessReader,
@@ -22,7 +23,6 @@ const ACTION_BTNS: ActionButtons = {
 			position: "top",
 			postUrl: "/queue/abc/status?utm_content=mark-read-top",
 			label: "Mark as read",
-			shortLabel: "Read",
 			iconName: "check",
 			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
@@ -31,7 +31,6 @@ const ACTION_BTNS: ActionButtons = {
 			position: "bottom",
 			postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
 			label: "Mark as read",
-			shortLabel: "Read",
 			iconName: "check",
 			testAction: "mark-read",
 			fields: [{ name: "status", value: "read" }],
@@ -43,6 +42,22 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
+function drawingOf(svg: Element | null | undefined): string | undefined {
+	return svg?.querySelector("path")?.getAttribute("d") ?? undefined;
+}
+
+function iconDrawing(name: IconName): string | undefined {
+	return drawingOf(parse(iconSvg(name)).querySelector("svg"));
+}
+
+const CREATE = {
+	createUrl: "/queue/abc/create-and-assign",
+	maxLength: 24,
+	popoverId: "reader-readlist-create",
+	nameLabel: "Readlist name",
+	namePlaceholder: "Enter readlist name",
+};
+
 describe("readlist picker", () => {
 	it("renders one assign form per offered readlist inside an anchored disclosure", () => {
 		const { top } = WebReader({
@@ -52,8 +67,8 @@ describe("readlist picker", () => {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
 					options: [
-						{ slug: ReadlistSlugSchema.parse("work"), label: "Work" },
-						{ slug: ReadlistSlugSchema.parse("later"), label: "Later" },
+						{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" },
+						{ slug: ReadlistSlugSchema.parse("later"), label: "Later", iconName: "file" },
 					],
 					create: undefined,
 				},
@@ -80,21 +95,56 @@ describe("readlist picker", () => {
 			Array.from(doc.querySelectorAll("[data-test-assign-readlist]"), (el) => el.textContent),
 		).toEqual(["Work", "Later"]);
 		expect(
+			Array.from(
+				doc.querySelectorAll("[data-test-assign-readlist] .article-body__readlists-option-label"),
+				(el) => el.textContent,
+			),
+		).toEqual(["Work", "Later"]);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-assign-readlist]"), (el) =>
+				drawingOf(el.querySelector(":scope > svg")),
+			),
+		).toEqual([iconDrawing("folder"), iconDrawing("file")]);
+		expect(
 			Array.from(doc.querySelectorAll("[data-test-readlists-row]"), (el) =>
 				el.getAttribute("data-test-readlists-row"),
 			),
 		).toEqual(["work", "later"]);
 	});
 
-	it("appends a create row that posts the typed name to create-and-assign", () => {
+	it("opens from a neutral Add to readlist trigger that leads with its plus", () => {
 		const { top } = WebReader({
 			actionBtns: {
 				...ACTION_BTNS,
 				readlistPicker: {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
-					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
-					create: { createUrl: "/queue/abc/create-and-assign", maxLength: 24 },
+					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
+					create: undefined,
+				},
+			},
+		});
+		const doc = parse(top.to("text/html").body);
+
+		const trigger = doc.querySelector("[data-test-readlists-trigger]");
+		assert(trigger, "the trigger must render");
+		expect(trigger.className).toBe("btn btn--neutral article-body__readlists-trigger");
+		expect(drawingOf(trigger.querySelector(":scope > svg"))).toBe(iconDrawing("plus"));
+		expect(trigger.querySelector(".article-body__action-label")?.textContent).toBe("Add to readlist");
+		expect(drawingOf(trigger.querySelector(".article-body__readlists-chevron svg"))).toBe(
+			iconDrawing("chevron-down"),
+		);
+	});
+
+	it("ends with a create row that opens the naming dialog, over a plain-form fallback", () => {
+		const { top } = WebReader({
+			actionBtns: {
+				...ACTION_BTNS,
+				readlistPicker: {
+					assignUrl: "/queue/abc/assign",
+					returnTo: "/queue/abc/view",
+					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
+					create: CREATE,
 				},
 			},
 		});
@@ -106,20 +156,37 @@ describe("readlist picker", () => {
 			),
 		).toEqual(["work", "create"]);
 
+		const opener = doc.querySelector('[data-test-action="readlist-create-open"]');
+		assert(opener, "the create row must carry the dialog's trigger");
+		expect(opener.getAttribute("type")).toBe("button");
+		expect(opener.getAttribute("popovertarget")).toBe("reader-readlist-create");
+		expect(opener.getAttribute("aria-haspopup")).toBe("dialog");
+		expect(opener.textContent).toBe("Create a readlist");
+		expect(drawingOf(opener.querySelector(":scope > svg"))).toBe(iconDrawing("plus"));
+
 		const createForm = doc.querySelector('[data-test-readlists-row="create"] form');
-		assert(createForm, "the create row must carry its form");
+		assert(createForm, "the create row must keep its plain form for engines without popover");
+		expect(createForm.className).toBe("article-body__readlists-create article-body__readlists-create-fallback");
+		expect(Array.from(createForm.attributes, (attribute) => attribute.name)).toEqual([
+			"class",
+			"method",
+			"action",
+			"hx-boost",
+		]);
 		expect(createForm.getAttribute("action")).toBe("/queue/abc/create-and-assign");
-		expect(createForm.getAttribute("hx-disabled-elt")).toBe("find button");
+		expect(createForm.getAttribute("hx-boost")).toBe("false");
 		expect(createForm.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
 			"/queue/abc/view",
 		);
 
 		const nameInput = doc.querySelector("[data-test-readlist-create-name]");
 		assert(nameInput, "the create row must carry its name input");
+		expect(nameInput.className).toBe("form-input");
 		expect(nameInput.getAttribute("name")).toBe("label");
 		expect(nameInput.hasAttribute("required")).toBe(true);
 		expect(nameInput.getAttribute("maxlength")).toBe("24");
-		expect(nameInput.getAttribute("aria-label")).toBe("New readlist name");
+		expect(nameInput.getAttribute("aria-label")).toBe("Readlist name");
+		expect(nameInput.getAttribute("placeholder")).toBe("Enter readlist name");
 
 		const submit = doc.querySelector('[data-test-action="readlist-create-assign"]');
 		assert(submit, "the create row must carry its submit button");
@@ -151,8 +218,9 @@ describe("downloads", () => {
 		expect(download.tagName).toBe("A");
 		expect(download.getAttribute("data-test-download")).toBe("epub");
 		expect(download.getAttribute("href")).toBe("/view/example.com/a?format=epub");
-		expect(download.className).toBe("btn btn--secondary btn--s article-body__download");
-		expect(download.querySelector(".article-body__action-label")?.textContent).toBe("Download EPUB");
+		expect(download.className).toBe("btn btn--neutral btn--icon article-body__download");
+		expect(download.querySelector(".sr-only")?.textContent).toBe("Download EPUB");
+		expect(drawingOf(download.querySelector(":scope > svg"))).toBe(iconDrawing("download"));
 		expect(doc.querySelectorAll("[data-test-download]")).toHaveLength(1);
 	});
 
@@ -166,15 +234,16 @@ describe("downloads", () => {
 	});
 });
 
-describe("narrow-viewport labels", () => {
-	const NARROW_ACTION_BTNS: ActionButtons = {
+describe("toolbar order", () => {
+	const FULL_ACTION_BTNS: ActionButtons = {
 		...ACTION_BTNS,
 		readlistPicker: {
 			assignUrl: "/queue/abc/assign",
 			returnTo: "/queue/abc/view",
-			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work" }],
+			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
 			create: undefined,
 		},
+		share: { popoverId: "reader-share", fallbackHtml: '<p class="share-fixture">The share panel</p>' },
 		epubDownloadHref: "/view/example.com/a?format=epub",
 	};
 
@@ -182,54 +251,87 @@ describe("narrow-viewport labels", () => {
 		return parse(WebReader({ actionBtns }).top.to("text/html").body);
 	}
 
-	it("keeps every control's full label in the document so the accessible name survives the swap", () => {
-		const doc = topBarOf(NARROW_ACTION_BTNS);
+	function slotsOf(doc: Document): string[] {
+		return Array.from(doc.querySelectorAll(".article-body__actions--top > *"), (slot) => {
+			const hook = Array.from(slot.attributes, (attribute) => attribute.name).find((name) =>
+				name.startsWith("data-test-") && name.endsWith("-slot"),
+			);
+			assert(hook, "every toolbar slot carries its test hook");
+			return hook.slice("data-test-".length, -"-slot".length);
+		});
+	}
 
-		const labelled = [
-			"[data-test-back-link]",
-			"[data-test-readlists-trigger]",
-			"[data-test-mark-read-btn]",
-			"[data-test-download]",
-		];
-		expect(
-			labelled.map(
-				(selector) =>
-					doc.querySelector(`${selector} .article-body__action-label`)?.textContent ?? null,
-			),
-		).toEqual(["Back to readlist", "Add to readlist", "Mark as read", "Download EPUB"]);
+	it("reads back, then Add, Mark, Share and Download", () => {
+		expect(slotsOf(topBarOf(FULL_ACTION_BTNS))).toEqual(["back", "readlists", "mark-read", "share", "downloads"]);
 	});
 
-	it("keeps the needed short labels hidden from assistive technology", () => {
-		const doc = topBarOf(NARROW_ACTION_BTNS);
-
-		const shorts = Array.from(doc.querySelectorAll(".article-body__action-label-short"));
-		expect(shorts.map((el) => el.textContent)).toEqual(["Add", "Read"]);
-		expect(shorts.map((el) => el.getAttribute("aria-hidden"))).toEqual(["true", "true"]);
-		expect(
-			doc.querySelectorAll("[data-test-back-link] .article-body__action-label-short"),
-		).toHaveLength(0);
+	it("renders no share slot for a bar built without share", () => {
+		expect(slotsOf(topBarOf({ ...FULL_ACTION_BTNS, share: undefined }))).toEqual([
+			"back",
+			"readlists",
+			"mark-read",
+			"downloads",
+		]);
 	});
 
-	it("flips the mark-read icon and short label with the direction the button marks in", () => {
-		const doc = topBarOf({
-			...NARROW_ACTION_BTNS,
+	it("opens Share from a square icon button, beside a disclosure holding the same panel", () => {
+		const doc = topBarOf(FULL_ACTION_BTNS);
+
+		const opener = doc.querySelector('[data-test-action="share-open"]');
+		assert(opener, "the share control must render");
+		expect(opener.className).toBe("btn btn--neutral btn--icon article-body__share");
+		expect(opener.getAttribute("type")).toBe("button");
+		expect(opener.getAttribute("popovertarget")).toBe("reader-share");
+		expect(opener.getAttribute("aria-haspopup")).toBe("dialog");
+		expect(opener.querySelector(".sr-only")?.textContent).toBe("Share");
+		expect(drawingOf(opener.querySelector(":scope > svg"))).toBe(iconDrawing("share"));
+
+		const fallback = doc.querySelector("[data-test-share-fallback]");
+		assert(fallback, "the share slot must keep a disclosure for engines without popover");
+		expect(fallback.tagName).toBe("DETAILS");
+		expect(fallback.querySelector("summary")?.className).toBe("btn btn--neutral btn--icon");
+		expect(fallback.querySelector("summary .sr-only")?.textContent).toBe("Share");
+		expect(fallback.querySelector(".article-body__share-fallback-panel")?.innerHTML).toBe(
+			'<p class="share-fixture">The share panel</p>',
+		);
+	});
+
+	it("draws Mark as a secondary button whose icon follows the direction it marks in", () => {
+		const markRead = topBarOf(FULL_ACTION_BTNS).querySelector("[data-test-mark-read-btn]");
+		assert(markRead, "the mark-read button must render");
+		expect(markRead.className).toBe("btn btn--secondary article-body__mark-read");
+		expect(drawingOf(markRead.querySelector(".article-body__mark-read-icon svg"))).toBe(iconDrawing("check"));
+
+		const markUnread = topBarOf({
+			...FULL_ACTION_BTNS,
 			markReadActions: [
 				{
 					position: "top",
-					postUrl: "/queue/abc/status?utm_content=mark-read-top",
+					postUrl: "/queue/abc/status?utm_content=mark-unread-top",
 					label: "Mark as unread",
-					shortLabel: "Unread",
 					iconName: "inbox",
 					testAction: "mark-unread",
 					fields: [{ name: "status", value: "unread" }],
 				},
 			],
-		});
+		}).querySelector("[data-test-mark-read-btn]");
+		assert(markUnread, "the mark-unread button must render");
+		expect(drawingOf(markUnread.querySelector(".article-body__mark-read-icon svg"))).toBe(iconDrawing("inbox"));
+	});
 
-		const button = doc.querySelector("[data-test-mark-read-btn]");
-		assert(button, "the mark-read button must render");
-		expect(button.querySelector(".article-body__action-label-short")?.textContent).toBe("Unread");
-		expect(button.querySelector(".article-body__mark-read-icon svg")).not.toBeNull();
+	it("keeps every control's full name in the document so the accessible name survives the compact row", () => {
+		const doc = topBarOf(FULL_ACTION_BTNS);
+
+		expect(
+			["[data-test-back-link]", "[data-test-readlists-trigger]", "[data-test-mark-read-btn]"].map(
+				(selector) => doc.querySelector(`${selector} .article-body__action-label`)?.textContent,
+			),
+		).toEqual(["Back to readlist", "Add to readlist", "Mark as read"]);
+		expect(
+			['[data-test-action="share-open"]', "[data-test-download]"].map(
+				(selector) => doc.querySelector(`${selector} .sr-only`)?.textContent,
+			),
+		).toEqual(["Share", "Download EPUB"]);
 	});
 });
 
@@ -255,7 +357,6 @@ describe("mark-read confirmation", () => {
 						position: "top",
 						postUrl: "/queue/abc/status?utm_content=mark-read-top",
 						label: "Mark as read",
-						shortLabel: "Read",
 						iconName: "check",
 						testAction: "mark-read",
 						fields: [{ name: "status", value: "read" }],

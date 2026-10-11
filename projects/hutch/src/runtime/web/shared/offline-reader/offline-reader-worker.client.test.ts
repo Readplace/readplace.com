@@ -17,6 +17,7 @@ import {
 const ORIGIN = "https://readplace.com";
 const CACHE_NAME = "readplace-offline-v1";
 const READER_URL = `${ORIGIN}/queue/abc123/view?v=token`;
+const FILED_READER_URL = `${ORIGIN}/queue/abc123/view?filed_readlist=deep-work`;
 const READER_KEY = `${ORIGIN}/queue/abc123/view`;
 const READER_PATH = "/queue/abc123/view";
 const STORED_ETAG = 'W/"stored-page"';
@@ -622,6 +623,33 @@ describe("offline reader worker pages", () => {
 		expect(worker.storedSavedAt()).toEqual({ [OWNER_KEY]: SAVED_NOW, [READER_KEY]: SAVED_NOW });
 	});
 
+	it("keeps the stored copy when the reader it serves carries the one-time filing confirmation, so the toast never replays offline", async () => {
+		const filed = fakeResponse("reader confirming the filing", signedIn);
+		const worker = startWorker({
+			fetch: async () => filed,
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("reader without a toast", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+				},
+			},
+		});
+
+		const event = worker.dispatchFetch(fakeRequest({ url: FILED_READER_URL }), {
+			resultingClientId: "new-document",
+		});
+
+		expect(await event.response()).toBe(filed);
+		await event.settled();
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "reader without a toast" });
+		expect(worker.told).toEqual([
+			{
+				clientId: "new-document",
+				message: { type: "readplace:reader-source", source: "network", path: READER_PATH },
+			},
+		]);
+	});
+
 	it("never serves a stored page saved more than 30 days ago, and deletes it", async () => {
 		const worker = startWorker({
 			fetch: () => Promise.reject(NETWORK_DOWN),
@@ -875,6 +903,28 @@ describe("offline reader worker revalidation", () => {
 			{
 				clientId: "asking-tab",
 				message: { type: "readplace:reader-version", path: READER_PATH, version: "same" },
+			},
+		]);
+	});
+
+	it("keeps the stored copy when the page asking about it carries the one-time filing confirmation", async () => {
+		const worker = startWorker({
+			fetch: async () => fakeResponse("online reader confirming the filing", { version: ONLINE_VERSION, ...signedIn }),
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("reader without a toast", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+				},
+			},
+		});
+
+		await worker.dispatchMessage({ ...revalidation, url: FILED_READER_URL }).settled();
+
+		expect(worker.storedLabels()).toEqual({ [OWNER_KEY]: "owner marker", [READER_KEY]: "reader without a toast" });
+		expect(worker.told).toEqual([
+			{
+				clientId: "asking-tab",
+				message: { type: "readplace:reader-version", path: READER_PATH, version: "newer" },
 			},
 		]);
 	});

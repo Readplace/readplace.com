@@ -21,8 +21,11 @@ const RAIL_MIN_WIDTH = 1024;
 const CREATE_SAVE = '[data-test-action="readlist-create-save"]';
 const CREATE_ERROR = "[data-test-readlist-create-error]";
 const ALERT_TITLE = '[data-test-alert="readlist"] [data-test-alert-title]';
+const READER_CREATE = '[data-test-confirm-popover="readlist-create"]';
+const READER_SCROLL_PX = 40;
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
+const SeededArticle = z.object({ articleId: z.string() });
 
 async function seedQueue(page: Page, stamp: string): Promise<string> {
 	const email = `readlist-scroll-stability-${stamp}@example.com`;
@@ -76,6 +79,33 @@ async function openToReadListing(page: Page, stamp: string): Promise<string[]> {
 	await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
 	await expect(page.locator("article.readlist-article")).toHaveCount(SAVED_ARTICLES - ALREADY_READ);
 	return cardIds(page);
+}
+
+async function openReader(page: Page, stamp: string): Promise<void> {
+	const email = `reader-scroll-stability-${stamp}@example.com`;
+	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+		data: { email, password: OWNER_PASSWORD },
+	});
+	assert.equal(created.status(), 201, "the e2e user fixture must answer the create request");
+	const { userId } = CreatedUser.parse(await created.json());
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+		data: {
+			url: `https://go.dev/blog/reader-scroll-stability?${stamp}`,
+			title: "Reader scroll stability",
+			content: Array.from(
+				{ length: 30 },
+				(_, index) => `<p>Paragraph ${index} of the reader scroll-stability article.</p>`,
+			).join(""),
+			contentFetchedAt: "2026-07-10T09:14:00.000Z",
+			savedByUserId: userId,
+			generatedSummary: { summary: "Seeded summary body.", excerpt: "" },
+		},
+	});
+	assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
+	const { articleId } = SeededArticle.parse(await seeded.json());
+	await loginAs(page, email);
+	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+	await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
 }
 
 async function openCreateDialog(page: Page, viewport: { width: number }, name: string): Promise<void> {
@@ -177,6 +207,28 @@ for (const viewport of VIEWPORTS) {
 				control: `${dialog} [data-test-action="readlist-create-move-save"]`,
 				arrived: () => expect(page.locator("#status-toast [data-test-toast-message]")).toHaveText("Added to Finance"),
 			});
+		});
+
+		test("creating a readlist from the reader's Add keeps the page where it was", async ({ page }, testInfo) => {
+			await openReader(page, `${testInfo.workerIndex}-${Date.now()}`);
+			await page.click("summary[data-test-readlists-trigger]");
+			await page.click('[data-test-action="readlist-create-open"]');
+			await page.waitForSelector(`${READER_CREATE}:popover-open`);
+			await page.locator(`${READER_CREATE} input[name="label"]`).fill("Deep Work");
+			await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), READER_SCROLL_PX);
+			expect(await page.evaluate(readScrollY)).toBe(READER_SCROLL_PX);
+
+			const save = `${READER_CREATE} [data-test-action="readlist-create-save"]`;
+			await page.evaluate(recordScrollAfterSwap, save);
+			const box = await page.locator(save).boundingBox();
+			assert(box, "the create dialog's save button must be laid out to be clicked");
+			await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+			await expect(page.locator("#status-toast [data-test-toast-message]")).toHaveText("Added to Deep Work");
+			await expect(page.locator("html")).toHaveAttribute(
+				"data-test-scroll-after-swap",
+				String(READER_SCROLL_PX),
+			);
 		});
 
 		test("the readlist cap lands at the top like a page load", async ({ page }, testInfo) => {

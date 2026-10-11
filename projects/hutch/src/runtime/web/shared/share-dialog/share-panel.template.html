@@ -1,0 +1,14 @@
+<div class="share-dialog__panel" data-share-panel>
+  <div class="form-input form-input--within share-dialog__field">
+    <input class="form-input__control share-dialog__url" type="text" readonly value="{{copyUrl}}" aria-label="Link to this article" data-share-field data-test-share-url>
+    <button class="share-dialog__copy" type="button" data-share-copy data-share-url="{{copyUrl}}" hidden data-test-share-copy><span class="share-dialog__copy-glyph" data-share-copy-idle>{{icon "copy"}}</span><span class="share-dialog__copy-glyph" data-share-copy-done hidden>{{icon "check"}}</span><span class="sr-only">Copy link</span></button>
+  </div>
+  <ul class="share-dialog__targets">
+    {{#each targets}}
+    <li class="share-dialog__target-item">
+      <a class="share-dialog__target" href="{{href}}"{{#if opensNewTab}} target="_blank" rel="noopener noreferrer"{{/if}} data-test-share-target="{{key}}"><span class="share-dialog__circle {{circleClass}}">{{{logoSvg}}}</span><span class="share-dialog__label">{{label}}</span></a>
+    </li>
+    {{/each}}
+  </ul>
+  <span class="sr-only" role="status" aria-live="polite" data-share-status></span>
+</div>

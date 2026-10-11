@@ -9,22 +9,23 @@
   {{#if readlistPicker}}
   <div class="article-body__readlists-slot article-body__readlists-slot--visible" data-test-readlists-slot>
     <details class="article-body__readlists">
-      <summary class="btn btn--neutral btn--s article-body__readlists-trigger" data-test-readlists-trigger><span class="article-body__action-icon">{{icon "plus"}}</span><span class="article-body__action-label">Add to readlist</span><span class="article-body__action-label-short" aria-hidden="true">Add</span><span class="article-body__readlists-chevron" aria-hidden="true">{{icon "chevron-down"}}</span></summary>
+      <summary class="btn btn--neutral article-body__readlists-trigger" data-test-readlists-trigger>{{icon "plus"}}<span class="article-body__action-label">Add to readlist</span><span class="article-body__readlists-chevron" aria-hidden="true">{{icon "chevron-down"}}</span></summary>
       <ul class="article-body__readlists-menu" data-test-readlists-menu>
         {{#each readlistPicker.options}}
         <li class="article-body__readlists-item" data-test-readlists-row="{{slug}}">
           <form class="article-body__readlists-form" method="POST" action="{{../readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
             <input type="hidden" name="queue" value="{{slug}}">
             <input type="hidden" name="returnTo" value="{{../readlistPicker.returnTo}}">
-            <button class="article-body__readlists-option" type="submit" data-test-assign-readlist="{{slug}}">{{icon "folder"}}{{label}}</button>
+            <button class="article-body__readlists-option" type="submit" data-test-assign-readlist="{{slug}}">{{icon iconName}}<span class="article-body__readlists-option-label">{{label}}</span></button>
           </form>
         </li>
         {{/each}}
         {{#if readlistPicker.create}}
         <li class="article-body__readlists-create-item" data-test-readlists-row="create">
-          <form class="article-body__readlists-create" method="POST" action="{{readlistPicker.create.createUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
+          <button class="article-body__readlists-option article-body__readlists-create-trigger" type="button" popovertarget="{{readlistPicker.create.popoverId}}" aria-haspopup="dialog" data-test-action="readlist-create-open">{{icon "plus"}}<span class="article-body__readlists-option-label">Create a readlist</span></button>
+          <form class="article-body__readlists-create article-body__readlists-create-fallback" method="POST" action="{{readlistPicker.create.createUrl}}" hx-boost="false">
             <input type="hidden" name="returnTo" value="{{readlistPicker.returnTo}}">
-            <input class="article-body__readlists-create-input" type="text" name="label" required maxlength="{{readlistPicker.create.maxLength}}" placeholder="New readlist" aria-label="New readlist name" autocomplete="off" data-test-readlist-create-name>
+            <input class="form-input" type="text" name="label" required maxlength="{{readlistPicker.create.maxLength}}" placeholder="{{readlistPicker.create.namePlaceholder}}" aria-label="{{readlistPicker.create.nameLabel}}" autocomplete="off" data-test-readlist-create-name>
             <button class="article-body__readlists-create-btn" type="submit" data-test-action="readlist-create-assign">{{icon "plus"}}<span class="sr-only">Create readlist and add</span></button>
           </form>
         </li>
@@ -35,20 +36,29 @@
   {{else}}
   <div class="article-body__readlists-slot article-body__readlists-slot--hidden" data-test-readlists-slot></div>
   {{/if}}
-  {{{downloadsHtml}}}
   {{#if markRead}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--visible" data-test-mark-read-slot>
     {{#each markRead.confirmTriggers}}
-    <button class="btn btn--secondary btn--s article-body__mark-read article-body__confirm-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" aria-label="{{label}}" data-test-action="{{testAction}}"><span class="article-body__action-icon article-body__mark-read-icon">{{icon iconName}}</span><span class="article-body__mark-read-label article-body__action-label">{{label}}</span><span class="article-body__mark-read-label article-body__action-label-short" aria-hidden="true">{{shortLabel}}</span></button>
+    <button class="btn btn--secondary article-body__mark-read article-body__confirm-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" aria-label="{{label}}" data-test-action="{{testAction}}"><span class="article-body__action-icon article-body__mark-read-icon">{{icon iconName}}</span><span class="article-body__mark-read-label article-body__action-label">{{label}}</span></button>
     {{/each}}
     <form class="{{markRead.formClass}}" method="POST" action="{{markRead.postUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt=".article-body__mark-read" data-test-mark-read-form>
       {{#each markRead.fields}}
       <input type="hidden" name="{{name}}" value="{{value}}">
       {{/each}}
-      <button class="btn btn--secondary btn--s article-body__mark-read" type="submit" aria-label="{{markRead.label}}" data-test-mark-read-btn data-test-action="{{markRead.testAction}}"><span class="article-body__action-icon article-body__mark-read-icon">{{icon markRead.iconName}}</span><span class="article-body__mark-read-label article-body__action-label">{{markRead.label}}</span><span class="article-body__mark-read-label article-body__action-label-short" aria-hidden="true">{{markRead.shortLabel}}</span>{{{markRead.loaderHtml}}}</button>
+      <button class="btn btn--secondary article-body__mark-read" type="submit" aria-label="{{markRead.label}}" data-test-mark-read-btn data-test-action="{{markRead.testAction}}"><span class="article-body__action-icon article-body__mark-read-icon">{{icon markRead.iconName}}</span><span class="article-body__mark-read-label article-body__action-label">{{markRead.label}}</span>{{{markRead.loaderHtml}}}</button>
     </form>
   </div>
   {{else}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--hidden" data-test-mark-read-slot></div>
   {{/if}}
+  {{#if share}}
+  <div class="article-body__share-slot" data-test-share-slot>
+    <button class="btn btn--neutral btn--icon article-body__share" type="button" popovertarget="{{share.popoverId}}" aria-haspopup="dialog" data-test-action="share-open">{{icon "share"}}<span class="sr-only">Share</span></button>
+    <details class="article-body__share-fallback" data-test-share-fallback>
+      <summary class="btn btn--neutral btn--icon">{{icon "share"}}<span class="sr-only">Share</span></summary>
+      <div class="article-body__share-fallback-panel">{{{share.fallbackHtml}}}</div>
+    </details>
+  </div>
+  {{/if}}
+  {{{downloadsHtml}}}
 </div>

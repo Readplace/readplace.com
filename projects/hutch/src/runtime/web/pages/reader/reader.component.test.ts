@@ -8,9 +8,14 @@ import {
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { generateCspNonce } from "@packages/web-shell";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { Base } from "../../base.component";
 import { ReaderPage } from "./reader.component";
+import { READER_STYLES } from "./reader.styles";
+import { SHARE_DIALOG_STYLES } from "../../shared/share-dialog/share-dialog.styles";
+import { SHARE_BALLOON_STYLES } from "../../shared/share-balloon/share-balloon.styles";
+import { READLIST_NAME_FORM_STYLES } from "../readlist/readlist-name-form.styles";
 import { EXIT_CONFIRM_SCOPE } from "./reader-exit-confirm.component";
 import {
 	ChromelessReader,
@@ -23,6 +28,20 @@ const NO_QUEUE_FILING: ReaderReadlistFiling = {
 	tags: undefined,
 	picker: undefined,
 	markStatusConfirmReadlists: undefined,
+	toast: undefined,
+};
+
+const PICKER = {
+	assignUrl: "/queue/abc/assign?utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
+	returnTo: "/queue/abc/view",
+	options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" as const }],
+	create: {
+		createUrl: "/queue/abc/create-and-assign?utm_source=reader-readlists&utm_medium=internal&utm_content=create-and-assign",
+		maxLength: 24,
+		popoverId: "reader-readlist-create",
+		nameLabel: "Readlist name",
+		namePlaceholder: "Enter readlist name",
+	},
 };
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
@@ -60,6 +79,17 @@ const NOW = new Date("2026-08-05T12:00:00.000Z");
 const CSP_NONCE = generateCspNonce();
 const TEST_CURRENT_PATH = "/queue/abc/view";
 const TEST_READER_PATH = (id: string) => `/queue/${id}/view`;
+
+function renderReaderDocument(
+	renderActions: RenderReaderActions,
+	readlistFiling: ReaderReadlistFiling = NO_QUEUE_FILING,
+): Document {
+	const html = Base(
+		ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions, readlistFiling, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
+		{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+	).to("text/html").body;
+	return new JSDOM(html).window.document;
+}
 
 describe("ReaderPage", () => {
 	it("renders the previously-read section when the owner reader supplies its reading-list link builder", () => {
@@ -106,16 +136,61 @@ describe("ReaderPage", () => {
 		expect(doc.querySelector("[data-test-reader-topic-reads]")).toBeNull();
 	});
 
-	it("renders the share balloon wrap so client init can attach to it", () => {
-		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }), {
-			isAuthenticated: true,
-			emailVerified: undefined,
-			cspNonce: CSP_NONCE,
-		}).to("text/html").body;
+	it("offers Share from the toolbar and keeps the float stack to Next read alone", () => {
+		const doc = renderReaderDocument(WebReader);
+
+		const opener = doc.querySelector('[data-test-share-slot] [data-test-action="share-open"]');
+		assert(opener, "the toolbar must offer Share");
+		const dialog = doc.querySelector('[data-test-confirm-popover="share"]');
+		assert(dialog, "the share dialog must be rendered for the toolbar to open");
+		expect(dialog.id).toBe(opener.getAttribute("popovertarget"));
+		expect(dialog.closest("main.reader")).not.toBeNull();
+		const floatStack = doc.querySelector("[data-test-reader-float-stack]");
+		assert(floatStack, "the float stack stays for Next read");
+		expect(Array.from(floatStack.children, (child) => child.classList.item(0))).toEqual(["next-read"]);
+	});
+
+	it("withholds Share from a private newsletter issue, whose public link would leak it", () => {
+		const html = Base(
+			ReaderPage(makeArticle({ url: "email://inbox/owner/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E" }), {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions: WebReader,
+				readlistFiling: NO_QUEUE_FILING,
+				provenance: undefined,
+				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
+				readerPathFor: TEST_READER_PATH,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-		assert(wrap, "share balloon wrap must be rendered");
+		expect(
+			Array.from(doc.querySelectorAll(".article-body__actions--top > *"), (slot) => slot.classList.item(0)),
+		).toEqual([
+			"article-body__back-slot",
+			"article-body__readlists-slot",
+			"article-body__mark-read-slot",
+			"article-body__downloads-slot",
+		]);
+		expect(doc.querySelectorAll("[data-test-confirm-popover]").length).toBe(0);
+	});
+
+	it("loads the share dialog script in place of the balloon's", () => {
+		const doc = renderReaderDocument(WebReader);
+
+		const scripts = Array.from(doc.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
+		expect(scripts).toContain("/client-dist/share-dialog.client.js");
+		expect(scripts.filter((src) => src === "/client-dist/share-balloon.client.js")).toEqual([]);
+	});
+
+	it("styles the share and naming dialogs, and no longer the balloon", () => {
+		expect([
+			READER_STYLES.includes(SHARE_DIALOG_STYLES),
+			READER_STYLES.includes(READLIST_NAME_FORM_STYLES),
+			READER_STYLES.includes(SHARE_BALLOON_STYLES),
+		]).toEqual([true, true, false]);
 	});
 
 	it("opts the reader <main> out of htmx history snapshots so a boosted open never restores it", () => {
@@ -334,31 +409,66 @@ describe("ReaderPage", () => {
 		expect(html).toContain("/client-dist/reader-exit-confirm.client.js");
 	});
 
-	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
+	it("renders the share dialog's link against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const shareBtn = doc.querySelector("[data-test-share-balloon]");
-		assert(shareBtn, "share button must be rendered");
-		const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
-		assert.equal(shareUrl.origin, "https://staging.readplace.com");
-
-		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-		assert(copyBtn, "copy button must be rendered");
-		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+		const copy = doc.querySelector('[data-test-confirm-popover="share"] [data-test-share-copy]');
+		assert(copy, "the share dialog must carry its Copy button");
+		const copyUrl = new URL(copy.getAttribute("data-share-url") ?? "");
 		assert.equal(copyUrl.origin, "https://staging.readplace.com");
+		assert.equal(copyUrl.pathname, "/view/example.com/post");
+
+		const facebook = doc.querySelector('[data-test-confirm-popover="share"] [data-test-share-target="facebook"]');
+		assert(facebook, "the share dialog must carry its Facebook target");
+		const shared = new URL(new URL(facebook.getAttribute("href") ?? "").searchParams.get("u") ?? "");
+		assert.equal(shared.origin, "https://staging.readplace.com");
 	});
 
-	function renderReaderDocument(renderActions: RenderReaderActions): Document {
-		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
-			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
-		).to("text/html").body;
-		return new JSDOM(html).window.document;
-	}
+	it("renders the create dialog only when the picker offers create, posting the name back to the reader", () => {
+		const offered = renderReaderDocument(WebReader, { ...NO_QUEUE_FILING, picker: PICKER });
+		const form = offered.querySelector('[data-test-confirm-popover="readlist-create"] [data-test-form="readlist-create"]');
+		assert(form, "the create dialog must render its naming form");
+		expect(form.closest("[popover]")?.id).toBe("reader-readlist-create");
+		expect(form.getAttribute("action")).toBe(PICKER.create.createUrl);
+		const fields = Array.from(form.querySelectorAll("input, label"), (field) =>
+			field.tagName === "LABEL" ? "label" : `${field.getAttribute("type")}:${field.getAttribute("name")}`,
+		);
+		expect(fields).toEqual(["hidden:returnTo", "label", "text:label"]);
+		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(PICKER.returnTo);
+		const offeredScripts = Array.from(offered.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
+		expect(offeredScripts).toContain("/client-dist/readlist.client.js");
+
+		const withheld = renderReaderDocument(WebReader, {
+			...NO_QUEUE_FILING,
+			picker: { ...PICKER, create: undefined },
+		});
+		expect(withheld.querySelectorAll('[data-test-confirm-popover="readlist-create"]').length).toBe(0);
+		const withheldScripts = Array.from(withheld.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
+		expect(withheldScripts.filter((src) => src === "/client-dist/readlist.client.js")).toEqual([]);
+	});
+
+	it("mounts the filing toast in the page's status toast slot", () => {
+		const filed = renderReaderDocument(WebReader, {
+			...NO_QUEUE_FILING,
+			toast: {
+				message: "Added to Deep Work",
+				undoUrl: "/queue/abc/unassign",
+				undoFields: { queue: "deep-work", returnTo: "/queue/abc/view" },
+			},
+		});
+		const mount = filed.querySelector("main.reader #status-toast");
+		assert(mount, "the reader must carry the status toast mount");
+		expect(mount.querySelector("[data-test-toast-message]")?.textContent).toBe("Added to Deep Work");
+
+		const quiet = renderReaderDocument(WebReader).querySelector("main.reader #status-toast");
+		assert(quiet, "the reader must carry the status toast mount");
+		expect(quiet.innerHTML).toBe("");
+	});
+
 
 	it("lays the article column and the float stack in the main track, beside the rail", () => {
 		const doc = renderReaderDocument(WebReader);

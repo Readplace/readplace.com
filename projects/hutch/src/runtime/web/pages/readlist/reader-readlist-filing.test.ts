@@ -1,4 +1,5 @@
 import { DEFAULT_READLIST, READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { buildReaderReadlistFiling } from "./reader-readlist-filing";
 
 const WORK = ReadlistSlugSchema.parse("work");
@@ -6,6 +7,9 @@ const LATER = ReadlistSlugSchema.parse("later");
 const CREATE = {
 	createUrl: "/queue/abc123/create-and-assign?utm_source=reader-readlists&utm_medium=internal&utm_content=create-and-assign",
 	maxLength: READLIST_LABEL_MAX_LENGTH,
+	popoverId: "reader-readlist-create",
+	nameLabel: "Readlist name",
+	namePlaceholder: "Enter readlist name",
 };
 
 describe("buildReaderReadlistFiling", () => {
@@ -15,6 +19,7 @@ describe("buildReaderReadlistFiling", () => {
 			definitions: [],
 			saves: [{}],
 			returnTo: "/queue/abc123/view",
+			filed: undefined,
 			markStatusConfirmGated: false,
 		});
 
@@ -36,6 +41,7 @@ describe("buildReaderReadlistFiling", () => {
 			],
 			saves: [{}, { readlist: WORK }],
 			returnTo: "/queue/abc123/view",
+			filed: undefined,
 			markStatusConfirmGated: false,
 		});
 
@@ -47,7 +53,7 @@ describe("buildReaderReadlistFiling", () => {
 		expect(filing.picker).toEqual({
 			assignUrl: "/queue/abc123/assign?utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 			returnTo: "/queue/abc123/view",
-			options: [{ slug: LATER, label: "Later" }],
+			options: [{ slug: LATER, label: "Later", iconName: READLIST_KIND_ICON.custom }],
 			create: CREATE,
 		});
 	});
@@ -61,6 +67,7 @@ describe("buildReaderReadlistFiling", () => {
 			],
 			saves: [{}, { readlist: WORK }, { readlist: LATER }],
 			returnTo: "/queue/abc123/view",
+			filed: undefined,
 			markStatusConfirmGated: false,
 		});
 
@@ -88,12 +95,13 @@ describe("buildReaderReadlistFiling", () => {
 			definitions,
 			saves: [{}],
 			returnTo: "/queue/abc123/view",
+			filed: undefined,
 			markStatusConfirmGated: false,
 		});
 
 		expect(filing.picker?.create).toBeUndefined();
 		expect(filing.picker?.options).toEqual(
-			definitions.map(({ slug, label }) => ({ slug, label })),
+			definitions.map(({ slug, label }) => ({ slug, label, iconName: READLIST_KIND_ICON.custom })),
 		);
 	});
 
@@ -106,6 +114,7 @@ describe("buildReaderReadlistFiling", () => {
 			],
 			saves: [{}, { readlist: LATER }],
 			returnTo: "/queue/abc123/view",
+			filed: undefined,
 			markStatusConfirmGated: true,
 		});
 
@@ -124,10 +133,78 @@ describe("buildReaderReadlistFiling", () => {
 			],
 			saves: [{ readlist: WORK }],
 			returnTo: "/queue/abc123/view",
+			filed: undefined,
 			markStatusConfirmGated: false,
 		});
 
 		expect(filing.picker).toBeUndefined();
 		expect(filing.tags?.tags).toEqual([{ slug: WORK, label: "Work" }]);
+	});
+
+	describe("filing toast", () => {
+		const DEEP_WORK = ReadlistSlugSchema.parse("deep-work");
+		const DEFINITIONS = [
+			{ slug: DEEP_WORK, label: "Deep Work", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+			{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+		];
+
+		it("confirms the filing the flash names, with an Undo that takes the article back out", () => {
+			const filing = buildReaderReadlistFiling({
+				articleId: "abc123",
+				definitions: DEFINITIONS,
+				saves: [{}, { readlist: DEEP_WORK }],
+				returnTo: "/queue/abc123/view",
+				filed: DEEP_WORK,
+				markStatusConfirmGated: false,
+			});
+
+			expect(filing.toast).toEqual({
+				message: "Added to Deep Work",
+				undoUrl: "/queue/abc123/unassign",
+				undoFields: { queue: "deep-work", returnTo: "/queue/abc123/view" },
+			});
+		});
+
+		it("stays silent when the flash names a readlist that does not hold the article", () => {
+			const filing = buildReaderReadlistFiling({
+				articleId: "abc123",
+				definitions: DEFINITIONS,
+				saves: [{}, { readlist: DEEP_WORK }],
+				returnTo: "/queue/abc123/view",
+				filed: LATER,
+				markStatusConfirmGated: false,
+			});
+
+			expect(filing.toast).toBeUndefined();
+			expect(filing.tags?.tags).toEqual([{ slug: DEEP_WORK, label: "Deep Work" }]);
+		});
+
+		it("stays silent when the flash names no readlist the reader owns", () => {
+			const filing = buildReaderReadlistFiling({
+				articleId: "abc123",
+				definitions: DEFINITIONS,
+				saves: [{}, { readlist: DEEP_WORK }],
+				returnTo: "/queue/abc123/view",
+				filed: WORK,
+				markStatusConfirmGated: false,
+			});
+
+			expect(filing.toast).toBeUndefined();
+			expect(filing.picker?.options).toEqual([{ slug: LATER, label: "Later", iconName: READLIST_KIND_ICON.custom }]);
+		});
+
+		it("stays silent without a flash", () => {
+			const filing = buildReaderReadlistFiling({
+				articleId: "abc123",
+				definitions: DEFINITIONS,
+				saves: [{}, { readlist: DEEP_WORK }],
+				returnTo: "/queue/abc123/view",
+				filed: undefined,
+				markStatusConfirmGated: false,
+			});
+
+			expect(filing.toast).toBeUndefined();
+			expect(filing.tags?.tags).toEqual([{ slug: DEEP_WORK, label: "Deep Work" }]);
+		});
 	});
 });

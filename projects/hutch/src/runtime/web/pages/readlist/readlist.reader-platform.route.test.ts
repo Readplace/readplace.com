@@ -391,7 +391,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(doc.querySelector('script[src*="/client-dist/webmcp.client.js"]')).toBe(null);
 	});
 
-	it("keeps the reader extras: AI summary, progress bar, share balloon, and the Original link", async () => {
+	it("keeps the reader extras: AI summary, progress bar, Share, and the Original link", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-extras");
@@ -402,7 +402,10 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		assert(summary, "summary slot must be rendered");
 		expect(summary.getAttribute("data-summary-status")).toBe("ready");
 		expect(doc.querySelector("[data-test-progress-bar]")).not.toBe(null);
-		expect(doc.querySelector("[data-test-share-balloon-wrap]")).not.toBe(null);
+		const share = doc.querySelector('[data-test-share-slot] [data-test-action="share-open"]');
+		assert(share, "the chromeless toolbar must offer Share");
+		expect(share.getAttribute("popovertarget")).toBe("reader-share");
+		expect(doc.getElementById("reader-share")?.getAttribute("data-test-confirm-popover")).toBe("share");
 		expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
 			"https://example.com/app-extras",
 		);

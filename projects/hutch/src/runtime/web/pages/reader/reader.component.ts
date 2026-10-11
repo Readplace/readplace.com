@@ -40,9 +40,14 @@ import {
 import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
 import { type IssueLinksSectionInput, renderIssueLinksSection } from "../../shared/issue-links/issue-links.component";
 import {
-	SHARE_BALLOON_SCRIPT,
-	renderShareBalloon,
-} from "../../shared/share-balloon/share-balloon.component";
+	SHARE_DIALOG_POPOVER_ID,
+	SHARE_DIALOG_SCRIPT,
+	renderShareDialog,
+	renderSharePanel,
+} from "../../shared/share-dialog/share-dialog.component";
+import { renderReadlistCreate } from "../readlist/readlist-create.component";
+import { READLIST_CLIENT_SCRIPT } from "../readlist/readlist-name-form.component";
+import { renderFilingToast } from "../readlist/readlist-mutation-fragments";
 import { viewPathFor } from "../view/view-path";
 import {
 	type ExitConfirmScopes,
@@ -128,7 +133,6 @@ export function ReaderPage(
 	const articleId = article.id.value;
 	const isRead = article.status === "read";
 	const markReadLabel = isRead ? "Mark as unread" : "Mark as read";
-	const markReadShortLabel = isRead ? "Unread" : "Read";
 	const markReadIcon = isRead ? "inbox" : "check";
 	const markReadStatus: ArticleStatus = isRead ? "unread" : "read";
 	const markStatusConfirm =
@@ -146,7 +150,6 @@ export function ReaderPage(
 			position: "top",
 			postUrl: markReadPostUrl({ articleId, utmContent: isRead ? "mark-unread-top" : "mark-read-top" }),
 			label: markReadLabel,
-			shortLabel: markReadShortLabel,
 			iconName: markReadIcon,
 			testAction: `mark-${markReadStatus}`,
 			fields: [{ name: "status", value: markReadStatus }],
@@ -155,11 +158,21 @@ export function ReaderPage(
 				: { confirmPopoverId: markStatusConfirm.popoverId }),
 		},
 	];
+	const isPrivateIssue = parseEmailIssueArticleUrl(article.url) !== undefined;
+	const share = {
+		shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,
+		title: article.metadata.title,
+		campaign: "reader-internal",
+	} as const;
+	const picker = options.readlistFiling.picker;
 	const actions = options.renderActions({
 		actionBtns: {
 			backLink: options.backLink,
 			markReadActions,
-			readlistPicker: options.readlistFiling.picker,
+			readlistPicker: picker,
+			share: isPrivateIssue
+				? undefined
+				: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
 			epubDownloadHref: options.epubDownloadHref,
 		},
 	});
@@ -201,15 +214,18 @@ export function ReaderPage(
 		previouslyReadHtml,
 		issueLinksHtml: renderIssueLinksSection(options.issueLinks),
 	});
-	const isPrivateIssue = parseEmailIssueArticleUrl(article.url) !== undefined;
-	const shareBalloon = isPrivateIssue
-		? ""
-		: renderShareBalloon({
-				shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,
-				shareTitle: article.metadata.title,
-				shareHint: "Click here to share this post!",
-				shareSource: "reader-internal",
-			});
+	const shareDialogHtml = isPrivateIssue ? "" : renderShareDialog(share);
+	const readlistCreateHtml =
+		picker?.create === undefined
+			? ""
+			: renderReadlistCreate({
+					popoverId: picker.create.popoverId,
+					key: "readlist-create",
+					action: picker.create.createUrl,
+					hiddenFields: [{ name: "returnTo", value: picker.returnTo }],
+				});
+	const filingToast = options.readlistFiling.toast;
+	const statusToastHtml = filingToast === undefined ? "" : renderFilingToast(filingToast);
 	const nextRead = renderNextRead({
 		related: options.related
 			? {
@@ -235,11 +251,12 @@ export function ReaderPage(
 			: renderMarkStatusConfirm({ confirm: markStatusConfirm, source: "reader" });
 	const content = render(READER_TEMPLATE, {
 		innerContent,
-		shareBalloon,
-		shareState: isPrivateIssue ? "withheld" : "offered",
 		nextRead,
 		exitConfirmHtml,
 		markStatusConfirmHtml,
+		shareDialogHtml,
+		readlistCreateHtml,
+		statusToastHtml,
 	});
 
 	return {
@@ -255,12 +272,13 @@ export function ReaderPage(
 		scripts: readerScripts({
 			navHide: NAV_HIDE_DISABLED,
 			page:
-				SHARE_BALLOON_SCRIPT +
+				SHARE_DIALOG_SCRIPT +
 				NEXT_READ_SCRIPT +
 				PROGRESS_BAR_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
-				(options.readlistFiling.picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
+				(picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
+				(readlistCreateHtml === "" ? "" : READLIST_CLIENT_SCRIPT) +
 				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT,

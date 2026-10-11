@@ -181,6 +181,47 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(page.locator(`[data-test-article="${articleId}"]`)).toHaveCount(1, { timeout: SETTLE_MS });
 	});
 
+	test("filing from the reader's picker works as plain form submits and confirms with a toast", async ({
+		page,
+	}, testInfo) => {
+		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-filing`);
+		await loginAs(page, email);
+		const readerHref = await page.locator("[data-test-article-title]").first().getAttribute("href");
+		assert(readerHref, "a saved card must link to its own reader");
+		const readerUrl = new URL(readerHref, BASE_URL).toString();
+		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Weekend" } });
+		assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+		const weekend = new URL(created.url()).searchParams.get("queue");
+		assert(weekend, "creating a readlist must land the reader on it");
+
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-reader-content]")).toBeVisible({ timeout: SETTLE_MS });
+		await page.locator("summary[data-test-readlists-trigger]").click();
+		await page.locator('[data-test-action="readlist-create-open"]').click();
+		const dialog = page.locator('[data-test-confirm-popover="readlist-create"]');
+		await expect(dialog).toBeVisible();
+		await dialog.locator('input[name="label"]').fill("Deep Work");
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			dialog.locator('[data-test-action="readlist-create-save"]').click(),
+		]);
+
+		await expect(page.locator("body.page-reader")).toBeVisible({ timeout: SETTLE_MS });
+		await expect(page.locator("#status-toast [data-test-toast-message]")).toHaveText("Added to Deep Work");
+		await expect(page.locator("#article-header [data-test-readlist-tag]", { hasText: "Deep Work" })).toHaveCount(1);
+
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+		await page.locator("summary[data-test-readlists-trigger]").click();
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			page.locator(`button[data-test-assign-readlist="${weekend}"]`).click(),
+		]);
+
+		await expect(page.locator("body.page-reader")).toBeVisible({ timeout: SETTLE_MS });
+		await expect(page.locator("#status-toast [data-test-toast-message]")).toHaveText("Added to Weekend");
+		await expect(page.locator(`#article-header [data-test-readlist-tag="${weekend}"]`)).toHaveCount(1);
+	});
+
 	test("the listing count keeps its noun and shows no bar when the total is deferred", async ({
 		page,
 	}, testInfo) => {

@@ -90,7 +90,9 @@ describe("GET /queue/:id/view Download", () => {
 			const href = new URL(link.getAttribute("href") ?? "", TEST_APP_ORIGIN);
 			return {
 				format: link.getAttribute("data-test-download"),
+				className: link.className,
 				label: link.textContent,
+				spokenOnly: link.querySelector(".sr-only")?.textContent,
 				pathname: href.pathname,
 				utmSource: href.searchParams.get("utm_source"),
 				utmMedium: href.searchParams.get("utm_medium"),
@@ -101,7 +103,9 @@ describe("GET /queue/:id/view Download", () => {
 		expect(links).toEqual([
 			{
 				format: "epub",
+				className: "btn btn--neutral btn--icon article-body__download",
 				label: "Download EPUB",
+				spokenOnly: "Download EPUB",
 				pathname: "/view/example.com/shareable",
 				utmSource: "reader",
 				utmMedium: "internal",

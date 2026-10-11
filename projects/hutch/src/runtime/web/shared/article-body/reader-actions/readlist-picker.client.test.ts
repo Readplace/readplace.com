@@ -6,8 +6,11 @@ function picker(state: "open" | "closed"): string {
 	return `<details class="article-body__readlists"${state === "open" ? " open" : ""}>
 	<summary class="article-body__readlists-trigger">Add</summary>
 	<ul class="article-body__readlists-menu">
-		<li><form class="article-body__readlists-form"><button type="submit">Work</button></form></li>
-		<li><form class="article-body__readlists-create"><input class="article-body__readlists-create-input" name="label"></form></li>
+		<li><form class="article-body__readlists-form"><button class="article-body__readlists-option" type="submit">Work</button></form></li>
+		<li>
+			<button class="article-body__readlists-option article-body__readlists-create-trigger" type="button" popovertarget="reader-readlist-create">Create a readlist</button>
+			<form class="article-body__readlists-create article-body__readlists-create-fallback"><input class="form-input" name="label"></form>
+		</li>
 	</ul>
 </details>`;
 }
@@ -19,7 +22,9 @@ const TOOLBAR = `<div class="article-body__actions article-body__actions--top">
 	${PICKER}
 	<button class="article-body__mark-read" type="submit">Read</button>
 </div>
-<article class="reader__body"><p id="body-copy">The article itself.</p></article>`;
+<article class="reader__body"><p id="body-copy">The article itself.</p></article>
+<div id="reader-readlist-create" popover tabindex="-1"><form><input name="label"></form></div>
+<div id="other-popover" popover></div>`;
 
 function attachedDom(bodyHtml: string = TOOLBAR): JSDOM {
 	const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}</body></html>`, {
@@ -53,27 +58,14 @@ function isOpen(dom: JSDOM): boolean {
 	return picker.hasAttribute("open");
 }
 
-function dispatchToggle(dom: JSDOM, selector = ".article-body__readlists"): void {
-	const details = dom.window.document.querySelector(selector);
-	assert(details, `"${selector}" must be in the fixture to toggle`);
-	details.dispatchEvent(new dom.window.Event("toggle", { bubbles: false }));
+function toggle(dom: JSDOM, { selector, newState }: { selector: string; newState: "open" | "closed" }): void {
+	const popover = dom.window.document.querySelector(selector);
+	assert(popover, `"${selector}" must be in the fixture to toggle`);
+	popover.dispatchEvent(Object.assign(new dom.window.Event("toggle", { bubbles: false }), { newState }));
 }
 
-const CREATE_ITEM = `<li class="article-body__readlists-create-item"><form class="article-body__readlists-create"><input class="article-body__readlists-create-input" name="label"><button type="submit">Create</button></form></li>`;
-const ASSIGN_ITEM = `<li class="article-body__readlists-item"><form class="article-body__readlists-form"><button class="article-body__readlists-option" type="submit">Work</button></form></li>`;
-const SENTINEL = `<button id="sentinel" type="button">elsewhere</button>`;
-const OTHER_POPOVER = `<div id="other-popover"></div>`;
-
-function pickerMenu({ open, items }: { open: boolean; items: string }): string {
-	return `<details class="article-body__readlists"${open ? " open" : ""}>
-	<summary class="article-body__readlists-trigger">Add</summary>
-	<ul class="article-body__readlists-menu">${items}</ul>
-</details>`;
-}
-
-function activeId(dom: JSDOM): string | undefined {
-	const active = dom.window.document.activeElement;
-	return active instanceof dom.window.HTMLElement ? active.id : undefined;
+function focusedElement(dom: JSDOM): Element | null {
+	return dom.window.document.activeElement;
 }
 
 describe("readlist picker light dismiss", () => {
@@ -96,7 +88,7 @@ describe("readlist picker light dismiss", () => {
 	it("stays open while the reader is typing a new readlist name inside it", () => {
 		const dom = attachedDom();
 
-		clickOn(dom, ".article-body__readlists-create-input");
+		clickOn(dom, ".article-body__readlists-create input");
 
 		expect(isOpen(dom)).toBe(true);
 	});
@@ -134,7 +126,7 @@ describe("readlist picker light dismiss", () => {
 describe("readlist picker escape", () => {
 	it("closes on Escape and hands focus back to the trigger the reader opened", () => {
 		const dom = attachedDom();
-		focusOn(dom, ".article-body__readlists-create-input");
+		focusOn(dom, ".article-body__readlists-create-trigger");
 
 		pressKey(dom, "Escape");
 
@@ -162,21 +154,19 @@ describe("readlist picker escape", () => {
 
 	it("does not move focus for a picker that was already closed", () => {
 		const dom = attachedDom(picker("closed"));
-		focusOn(dom, ".article-body__readlists-create-input");
+		focusOn(dom, ".article-body__readlists-create input");
 
 		pressKey(dom, "Escape");
 
 		expect(isOpen(dom)).toBe(false);
-		expect(dom.window.document.activeElement?.className).toBe(
-			"article-body__readlists-create-input",
-		);
+		expect(dom.window.document.activeElement?.getAttribute("name")).toBe("label");
 	});
 
 	it("still closes a picker whose trigger is missing rather than throwing", () => {
 		const dom = attachedDom(
-			`<details class="article-body__readlists" open><ul class="article-body__readlists-menu"><li><input class="article-body__readlists-create-input"></li></ul></details>`,
+			`<details class="article-body__readlists" open><ul class="article-body__readlists-menu"><li><input class="form-input" name="label"></li></ul></details>`,
 		);
-		focusOn(dom, ".article-body__readlists-create-input");
+		focusOn(dom, ".form-input");
 
 		pressKey(dom, "Escape");
 
@@ -184,53 +174,67 @@ describe("readlist picker escape", () => {
 	});
 });
 
-describe("readlist picker auto-focus on open", () => {
-	it("puts the cursor in the create field when naming a new readlist is the only option", () => {
-		const dom = attachedDom(SENTINEL + pickerMenu({ open: true, items: CREATE_ITEM }));
-		focusOn(dom, "#sentinel");
+describe("readlist picker and the create dialog it opens", () => {
+	it("closes the picker as the create dialog opens over it", () => {
+		const dom = attachedDom();
 
-		dispatchToggle(dom);
+		toggle(dom, { selector: "#reader-readlist-create", newState: "open" });
 
-		expect(dom.window.document.activeElement?.className).toBe(
-			"article-body__readlists-create-input",
-		);
+		expect(isOpen(dom)).toBe(false);
 	});
 
-	it("leaves focus alone when there are existing readlists to pick from", () => {
-		const dom = attachedDom(SENTINEL + pickerMenu({ open: true, items: ASSIGN_ITEM + CREATE_ITEM }));
-		focusOn(dom, "#sentinel");
+	it("hands focus back to Add when the dialog closes and focus has fallen to the page", () => {
+		const dom = attachedDom(TOOLBAR.replace(PICKER, picker("closed")));
 
-		dispatchToggle(dom);
+		toggle(dom, { selector: "#reader-readlist-create", newState: "closed" });
 
-		expect(activeId(dom)).toBe("sentinel");
+		expect(focusedElement(dom)?.className).toBe("article-body__readlists-trigger");
 	});
 
-	it("does not steal focus when the toggle fires as the picker closes", () => {
-		const dom = attachedDom(SENTINEL + pickerMenu({ open: false, items: CREATE_ITEM }));
-		focusOn(dom, "#sentinel");
+	it("hands focus back to Add when the dialog closes with focus still inside it, as the browser leaves it until its next frame", () => {
+		const dom = attachedDom(TOOLBAR.replace(PICKER, picker("closed")));
+		focusOn(dom, '#reader-readlist-create input[name="label"]');
 
-		dispatchToggle(dom);
+		toggle(dom, { selector: "#reader-readlist-create", newState: "closed" });
 
-		expect(activeId(dom)).toBe("sentinel");
+		expect(focusedElement(dom)?.className).toBe("article-body__readlists-trigger");
 	});
 
-	it("does nothing for an open picker that has no create field either", () => {
-		const dom = attachedDom(SENTINEL + pickerMenu({ open: true, items: "" }));
-		focusOn(dom, "#sentinel");
+	it("hands focus back to Add when the dialog closes with focus still on its own panel", () => {
+		const dom = attachedDom(TOOLBAR.replace(PICKER, picker("closed")));
+		focusOn(dom, "#reader-readlist-create");
 
-		dispatchToggle(dom);
+		toggle(dom, { selector: "#reader-readlist-create", newState: "closed" });
 
-		expect(activeId(dom)).toBe("sentinel");
+		expect(focusedElement(dom)?.className).toBe("article-body__readlists-trigger");
 	});
 
-	it("ignores a toggle from another element (e.g. a popover) while an option-less picker is open", () => {
+	it("leaves focus where it is when the dialog closes with focus already on a control", () => {
+		const dom = attachedDom(TOOLBAR.replace(PICKER, picker("closed")));
+		focusOn(dom, ".article-body__mark-read");
+
+		toggle(dom, { selector: "#reader-readlist-create", newState: "closed" });
+
+		expect(focusedElement(dom)?.className).toBe("article-body__mark-read");
+	});
+
+	it("ignores a popover the picker does not open", () => {
+		const dom = attachedDom();
+
+		toggle(dom, { selector: "#other-popover", newState: "open" });
+		toggle(dom, { selector: "#other-popover", newState: "closed" });
+
+		expect(isOpen(dom)).toBe(true);
+		expect(focusedElement(dom)?.tagName).toBe("BODY");
+	});
+
+	it("leaves focus on the page when the picker that opened the dialog has no trigger", () => {
 		const dom = attachedDom(
-			SENTINEL + pickerMenu({ open: true, items: CREATE_ITEM }) + OTHER_POPOVER,
+			`<details class="article-body__readlists"><ul class="article-body__readlists-menu"><li><button type="button" popovertarget="reader-readlist-create">Create a readlist</button></li></ul></details><div id="reader-readlist-create" popover></div>`,
 		);
-		focusOn(dom, "#sentinel");
 
-		dispatchToggle(dom, "#other-popover");
+		toggle(dom, { selector: "#reader-readlist-create", newState: "closed" });
 
-		expect(activeId(dom)).toBe("sentinel");
+		expect(focusedElement(dom)?.tagName).toBe("BODY");
 	});
 });

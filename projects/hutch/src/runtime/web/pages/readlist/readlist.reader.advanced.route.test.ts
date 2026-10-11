@@ -505,8 +505,8 @@ describe("Readlist routes", () => {
 			expect(markSummaryPendingCalls).toBe(baseline.summary);
 		});
 
-		describe("Share balloon", () => {
-			it("renders the share balloon pointing at the public /view/<url> (not the owner reader path)", async () => {
+		describe("Share dialog", () => {
+			it("shares the public /view/<url> (not the owner reader path), tagged by the channel it went through", async () => {
 				const articleUrl = "https://example.com/shareable-post";
 				const articleHtml = `
 				<html><head><title>Shareable Post</title></head>
@@ -559,147 +559,33 @@ describe("Readlist routes", () => {
 
 				expect(response.status).toBe(200);
 				const doc = new JSDOM(response.text).window.document;
-				const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-				assert(wrap, "share balloon wrapper must be rendered on /queue/:id/view");
-				expect(wrap.hasAttribute("hidden")).toBe(true);
-
-				const btn = doc.querySelector("[data-test-share-balloon]");
-				assert(btn, "share button must be rendered on /queue/:id/view");
-				const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
-				expect(`${shareUrl.origin}${shareUrl.pathname}`).toBe(
-					`${TEST_APP_ORIGIN}/view/example.com/shareable-post`,
-				);
-				expect(shareUrl.searchParams.get("utm_source")).toBe("share-balloon");
-				expect(shareUrl.searchParams.get("utm_medium")).toBe("share");
-				expect(shareUrl.searchParams.get("utm_campaign")).toBe("reader-internal");
-				expect(btn.getAttribute("data-share-title")).toBe("Shareable Post");
-
-				const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-				assert(copyBtn, "copy button must be rendered on /queue/:id/view");
-				const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
-				expect(`${copyUrl.origin}${copyUrl.pathname}`).toBe(
-					`${TEST_APP_ORIGIN}/view/example.com/shareable-post`,
-				);
-				expect(copyUrl.searchParams.get("utm_source")).toBe("share-balloon");
-				expect(copyUrl.searchParams.get("utm_medium")).toBe("copy");
-				expect(copyUrl.searchParams.get("utm_campaign")).toBe("reader-internal");
-			});
-
-			it("uses the 'share this post' hint copy (not the /view 'share this view' copy)", async () => {
-				const articleHtml = `
-				<html><head><title>Hint Copy</title></head>
-				<body><article>
-					<h1>Hint Copy</h1>
-					<p>Body copy that easily clears the readability threshold check.</p>
-					<p>A second paragraph adds enough words for the parser to succeed.</p>
-				</article></body></html>`;
-
-				const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-				const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
-				const applyParseResult = createFakeApplyParseResult({
-					articleStore: fixture.articleStore,
-					articleCrawl: fixture.articleCrawl,
-					parseArticle,
-				});
-				const harness = useApp({
-					...fixture,
-					parser: { parseArticle, crawlArticle },
-					events: {
-						publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-						publishLinkQueued: fixture.events.publishLinkQueued,
-						publishLinkDequeued: fixture.events.publishLinkDequeued,
-						publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-						publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-						publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-						publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-						publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-						publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-						publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-						publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-						publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-						publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-					},
-				});
-				const { auth } = harness;
-				const agent = await loginAgent(harness.server, auth);
-
-				await agent.post("/queue/save").type("form").send({ url: "https://example.com/hint-copy" });
-				const readlistDoc = new JSDOM((await agent.get("/queue")).text).window.document;
-				const articleId = readlistDoc
-					.querySelector("[data-test-article-list] .readlist-article")
-					?.getAttribute("data-test-article");
-
-				const response = await agent.get(`/queue/${articleId}/view`);
-
-				const doc = new JSDOM(response.text).window.document;
-				const hints = Array.from(
-					doc.querySelectorAll("[data-test-share-balloon-hint]"),
-				).map((el) => el.textContent?.trim());
-				expect(hints).toEqual([
-					"Thanks for using Readplace.",
-					"Click here to share this post!",
+				const dialog = doc.querySelector('[data-test-confirm-popover="share"]');
+				assert(dialog, "the share dialog must be rendered on /queue/:id/view");
+				const field = dialog.querySelector<HTMLInputElement>("[data-test-share-url]");
+				assert(field, "the share dialog must show the link");
+				const facebook = dialog.querySelector('[data-test-share-target="facebook"]');
+				assert(facebook, "the share dialog must offer Facebook");
+				const shared = [
+					new URL(field.value),
+					new URL(new URL(facebook.getAttribute("href") ?? "").searchParams.get("u") ?? ""),
+				];
+				expect(
+					shared.map((link) => [
+						`${link.origin}${link.pathname}`,
+						link.searchParams.get("utm_source"),
+						link.searchParams.get("utm_medium"),
+						link.searchParams.get("utm_campaign"),
+					]),
+				).toEqual([
+					[`${TEST_APP_ORIGIN}/view/example.com/shareable-post`, "share-dialog", "copy", "reader-internal"],
+					[`${TEST_APP_ORIGIN}/view/example.com/shareable-post`, "share-dialog", "facebook", "reader-internal"],
 				]);
-			});
+				const x = dialog.querySelector('[data-test-share-target="x"]');
+				assert(x, "the share dialog must offer X");
+				expect(new URL(x.getAttribute("href") ?? "").searchParams.get("text")).toBe("Shareable Post");
 
-			it("boots the share balloon client via the same bundle as /view", async () => {
-				const articleHtml = `
-				<html><head><title>Bundle Boot</title></head>
-				<body><article>
-					<h1>Bundle Boot</h1>
-					<p>Body copy that easily clears the readability threshold check.</p>
-					<p>A second paragraph adds enough words for the parser to succeed.</p>
-				</article></body></html>`;
-
-				const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-				const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
-				const applyParseResult = createFakeApplyParseResult({
-					articleStore: fixture.articleStore,
-					articleCrawl: fixture.articleCrawl,
-					parseArticle,
-				});
-				const harness = useApp({
-					...fixture,
-					parser: { parseArticle, crawlArticle },
-					events: {
-						publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-						publishLinkQueued: fixture.events.publishLinkQueued,
-						publishLinkDequeued: fixture.events.publishLinkDequeued,
-						publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-						publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-						publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-						publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-						publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-						publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-						publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-						publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-						publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-						publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-					},
-				});
-				const { auth } = harness;
-				const agent = await loginAgent(harness.server, auth);
-
-				await agent.post("/queue/save").type("form").send({ url: "https://example.com/bundle-boot" });
-				const readlistDoc = new JSDOM((await agent.get("/queue")).text).window.document;
-				const articleId = readlistDoc
-					.querySelector("[data-test-article-list] .readlist-article")
-					?.getAttribute("data-test-article");
-
-				const response = await agent.get(`/queue/${articleId}/view`);
-
-				const doc = new JSDOM(response.text).window.document;
-				const script = doc.querySelector(
-					'script[src$="/client-dist/share-balloon.client.js"]',
-				);
-				assert(script, "share balloon client script must be rendered on /queue/:id/view");
+				const script = doc.querySelector('script[src$="/client-dist/share-dialog.client.js"]');
+				assert(script, "the share dialog client must be loaded on /queue/:id/view");
 				expect(script.hasAttribute("defer")).toBe(true);
 			});
 		});

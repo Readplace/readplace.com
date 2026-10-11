@@ -23,7 +23,6 @@ export interface MarkReadAction {
 	position: "top" | "bottom";
 	postUrl: string;
 	label: string;
-	shortLabel: string;
 	iconName: IconName;
 	testAction: string;
 	fields: ReadonlyArray<{ name: string; value: string }>;
@@ -33,14 +32,17 @@ export interface MarkReadAction {
 export interface ReaderReadlistPicker {
 	assignUrl: string;
 	returnTo: string;
-	options: readonly { slug: ReadlistSlug; label: string }[];
-	create: { createUrl: string; maxLength: number } | undefined;
+	options: readonly { slug: ReadlistSlug; label: string; iconName: IconName }[];
+	create:
+		| { createUrl: string; maxLength: number; popoverId: string; nameLabel: string; namePlaceholder: string }
+		| undefined;
 }
 
 export interface ActionButtons {
 	backLink?: { topHref: string; bottomHref?: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
 	readlistPicker: ReaderReadlistPicker | undefined;
+	share?: { popoverId: string; fallbackHtml: string };
 	epubDownloadHref?: string;
 }
 
@@ -58,7 +60,6 @@ function markReadFields(action: MarkReadAction | undefined) {
 		loaderHtml: MARK_READ_LOADER,
 		postUrl: action.postUrl,
 		label: action.label,
-		shortLabel: action.shortLabel,
 		iconName: action.iconName,
 		fields: action.fields,
 		testAction:
@@ -74,7 +75,6 @@ function markReadFields(action: MarkReadAction | undefined) {
 						{
 							popoverId: confirmPopoverId,
 							label: action.label,
-							shortLabel: action.shortLabel,
 							iconName: action.iconName,
 							testAction: action.testAction,
 						},
@@ -95,6 +95,7 @@ function topBar(actionBtns: ActionButtons): string {
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
 		readlistPicker: actionBtns.readlistPicker,
+		share: actionBtns.share,
 		downloadsHtml: render(DOWNLOADS_TEMPLATE, { downloadHref: actionBtns.epubDownloadHref, oob: false }),
 		markRead: markReadFields(actionBtns.markReadActions?.find((action) => action.position === "top")),
 	});

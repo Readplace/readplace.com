@@ -3,6 +3,7 @@ import type { CDPSession, Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, test } from "@packages/e2e-harness";
 import { type InteractionInk, collectInteractionInk } from "./interaction-ink.browser";
+import { createReadlistFromReader } from "./page-interactions";
 import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.browser";
 import { LENSES, NON_TEXT_MINIMUM, type Rgb, contrastRatio, textMinimum } from "./wcag-contrast";
 
@@ -25,6 +26,11 @@ const REVIEW_URLS = [
 ];
 const REVIEW_CHECKBOX_BEFORE = '[data-test-import-checkbox="0"]';
 const REVIEW_CHECKBOX = '[data-test-import-checkbox="1"]';
+const TOOLBAR_CONTROLS = [
+	{ selector: "summary[data-test-readlists-trigger]", auditId: "toolbar-add", ink: "label" },
+	{ selector: '[data-test-mark-read-slot] [data-test-action="mark-read"]', auditId: "toolbar-mark", ink: "label" },
+	{ selector: '[data-test-action="share-open"]', auditId: "toolbar-share", ink: "glyph" },
+] as const;
 
 type Lens = (colour: Rgb) => Rgb;
 type Ring = InteractionInk["outline"];
@@ -524,10 +530,7 @@ test.describe("Removable tag interaction states hold their WCAG contrast in both
 		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
 		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
 		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
-		await page.locator("[data-test-readlists-trigger]").click({ timeout: SETTLE_MS });
-		await page.locator("[data-test-readlist-create-name]").fill("Weekend");
-		await page.locator('[data-test-action="readlist-create-assign"]').click();
-		await expect(page.locator("[data-test-readlist-tag]")).toBeVisible({ timeout: SETTLE_MS });
+		await createReadlistFromReader(page, "Weekend");
 
 		for (const theme of THEMES) {
 			await page.emulateMedia({ colorScheme: theme });
@@ -556,6 +559,53 @@ test.describe("Removable tag interaction states hold their WCAG contrast in both
 					ringContrast >= NON_TEXT_MINIMUM,
 					`${view}: the inset ring clears ${ringContrast.toFixed(2)}:1 < ${NON_TEXT_MINIMUM}:1`,
 				);
+			}
+		}
+	});
+});
+
+test.describe("Reader toolbar interaction states hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("reader toolbar controls keep their ink under hover and pressed", async ({ page }, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `toolbar-contrast-${stampId}@example.com`);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/toolbar-contrast-${stampId}`,
+				title: "An article whose toolbar is pressed",
+				content: "<p>Seeded body for the reader toolbar contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A fixed summary.", excerpt: "A fixed excerpt." },
+			},
+		});
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-action="share-open"]')).toBeVisible({ timeout: SETTLE_MS });
+			const client = await auditContext(page);
+			for (const control of TOOLBAR_CONTROLS) {
+				await stamp(page, { selector: control.selector, auditId: control.auditId });
+				const rest = await measure(page, client, control.auditId, []);
+				const hover = await measure(page, client, control.auditId, ["hover"]);
+				const pressed = await measure(page, client, control.auditId, ["hover", "active"]);
+				const view = `${theme}/reader/${control.auditId}`;
+				assert.notDeepEqual(hover.fill, rest.fill, `${view}: hovering must repaint the fill`);
+				assert.notDeepEqual(pressed.fill, hover.fill, `${view}: pressing must repaint the fill`);
+				for (const [lensName, lens] of Object.entries(LENSES)) {
+					for (const [state, ink] of [["rest", rest], ["hover", hover], ["pressed", pressed]] as const) {
+						const minimum = control.ink === "label" ? textMinimum(ink) : NON_TEXT_MINIMUM;
+						const contrast = labelContrast(ink, lens);
+						assert.ok(
+							contrast >= minimum,
+							`${view}/${lensName}: the ${control.ink} reads ${contrast.toFixed(2)}:1 on its ${state} fill < ${minimum}:1`,
+						);
+					}
+				}
 			}
 		}
 	});

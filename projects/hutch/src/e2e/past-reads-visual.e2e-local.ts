@@ -116,10 +116,6 @@ async function openReader(
 	page: Page,
 	options: { stamp: string; seedPastReads: boolean },
 ): Promise<void> {
-	await page.addInitScript(() => {
-		window.localStorage.setItem("readplace.share-dismissed", "1");
-	});
-
 	const email = `past-reads-${options.stamp}@example.com`;
 	const userId = await createOwner(page, email);
 	const sourceUrl = `https://example.com/past-reads-source-${options.stamp}`;
