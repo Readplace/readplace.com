@@ -14,6 +14,7 @@ function settleQuietly(page: Page): Promise<void> {
 }
 
 export async function clickAndWaitForPageReload(page: Page, locator: ReturnType<Page['locator']>): Promise<void> {
+	await page.waitForLoadState('load')
 	const loadEvent = page.waitForEvent('load')
 	await locator.click()
 	await Promise.race([
