@@ -20,6 +20,12 @@ export interface InteractionInk {
 	fontWeight: number;
 }
 
+export function countUnfinishedAnimations(auditId: string): number {
+	const element = document.querySelector(`[data-audit-id="${auditId}"]`);
+	if (!element) throw new Error(`the page must render [data-audit-id="${auditId}"]`);
+	return element.getAnimations().filter((animation) => animation.playState !== "finished").length;
+}
+
 export function collectInteractionInk(auditId: string): InteractionInk {
 	const OPAQUE = 1;
 	const TRANSPARENT = 0;

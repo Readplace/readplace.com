@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { CDPSession, Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, test } from "@packages/e2e-harness";
-import { type InteractionInk, collectInteractionInk } from "./interaction-ink.browser";
+import { type InteractionInk, collectInteractionInk, countUnfinishedAnimations } from "./interaction-ink.browser";
 import { createReadlistFromReader } from "./page-interactions";
 import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.browser";
 import { LENSES, NON_TEXT_MINIMUM, type Rgb, contrastRatio, textMinimum } from "./wcag-contrast";
@@ -76,22 +76,10 @@ async function measure(
 		nodeId: target.nodeId,
 		forcedPseudoClasses: pseudo,
 	});
-	let ink: InteractionInk | undefined;
-	let previous = "";
 	await expect
-		.poll(
-			async () => {
-				ink = await page.evaluate(collectInteractionInk, auditId);
-				const current = JSON.stringify(ink);
-				const settled = current === previous;
-				previous = current;
-				return settled;
-			},
-			{ timeout: SETTLE_MS },
-		)
-		.toBe(true);
-	assert(ink, "the settle loop must have measured the element");
-	return ink;
+		.poll(() => page.evaluate(countUnfinishedAnimations, auditId), { timeout: SETTLE_MS })
+		.toBe(0);
+	return page.evaluate(collectInteractionInk, auditId);
 }
 
 function boundaryContrast(ink: InteractionInk, lens: Lens): number {
