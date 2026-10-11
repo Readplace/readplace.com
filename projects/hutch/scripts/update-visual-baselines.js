@@ -91,7 +91,7 @@ function reportBaselines(specs) {
 }
 
 async function main() {
-  const specs = visualSpecs();
+  const specs = process.argv.length > 2 ? process.argv.slice(2) : visualSpecs();
   const image = playwrightImage(devDependencies['@playwright/test']);
   logger.info(`\n=== Readplace - Regenerating visual baselines for ${specs.join(', ')} ===\n`);
 
