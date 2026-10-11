@@ -327,6 +327,7 @@ export function initExtractEmailLinksHandler(deps: {
 				let kept = 0;
 				let skipped = 0;
 				let held = 0;
+				let eligibleForAll = 0;
 				let noticePublished = false;
 				let firstInboxNoticePublished = false;
 				if (canSubmit && fanOut.issue) {
@@ -427,6 +428,7 @@ export function initExtractEmailLinksHandler(deps: {
 					// after the submit leaves the row pending and the retry re-publishes
 					// both; the duplicate submit converges in the subscriber.
 					if (saveable && routedReadlist === undefined) {
+						eligibleForAll += 1;
 						if (writeAccess === "full") {
 							await publishSubmitLink({
 								userId,
@@ -527,7 +529,9 @@ export function initExtractEmailLinksHandler(deps: {
 								: { readlist: routedReadlist },
 						...(routing.kind === "gmail" && canSubmit && fanOut.links
 							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
-							: {}),
+							: routing.kind === "inbox" && canSubmit && routedReadlist === undefined
+								? { selectedReadlists: [], eligibleArticleCount: eligibleForAll, savesHeld: writeAccess !== "full" }
+								: {}),
 					},
 				});
 				if (routing.kind === "gmail") await publishReadlistSelections();

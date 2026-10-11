@@ -2024,8 +2024,8 @@ Trigger chain:
 3. Alternatively, a running Gmail history import ingests a historical message with origin "gmail-import" `projects/inbox/src/runtime/domain/inbox/ingest-gmail-import-handler.ts:151`
 4. Ingest stores the inbox email row as "received" and publishes EmailReceivedEvent `projects/inbox/src/runtime/domain/inbox/ingest-parsed-email.ts:97`
 5. The inbox-extract-email-links Lambda re-parses the email, extracts and triages its links, and resolves the reader's write access from their subscription row `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:297`
-6. For Gmail mail whose sender is mapped in "issue" or "both" delivery mode (`src/packages/domain/src/gmail/gmail-delivery-mode.ts:16`), under read-only access it skips the issue save and calls publishSaveHeldNotice before looking at any link `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:343`
-7. Otherwise, for mail to the reader's own Readplace addresses or Gmail mail in "links" mode, at the first saveable pending link under read-only access it skips SubmitLinkCommand and calls publishSaveHeldNotice once for the email `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:446`
+6. For Gmail mail whose sender is mapped in "issue" or "both" delivery mode (`src/packages/domain/src/gmail/gmail-delivery-mode.ts:16`), under read-only access it skips the issue save and calls publishSaveHeldNotice before looking at any link `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:344`
+7. Otherwise, for mail to the reader's own Readplace addresses or Gmail mail in "links" mode, at the first saveable pending link under read-only access it skips SubmitLinkCommand and calls publishSaveHeldNotice once for the email `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:448`
 8. publishSaveHeldNotice publishes SendTrialFeedbackEmailCommand {kind: "automation_saves_held", receivedAtMessageId, inboxAddress}, which EventBridge delivers to send-trial-feedback-email-q `projects/inbox/src/runtime/extract-email-links.main.ts:129`
 9. processAutomationSavesHeld re-checks access, the once-per-lapse marker and the login email, claims the marker, renders the email and sends it through Resend `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:248`
 
@@ -2038,9 +2038,9 @@ Sent only when:
 - The mail arrived live or through a Gmail history import, not a backfill replay, and is attributed to a real reader `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:294`
 - The email is new for the reader: the same sender and Message-ID has not already been ingested for them `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:314`
 - The email body is not empty after sanitising `projects/inbox/src/runtime/domain/inbox/ingest-parsed-email.ts:83`
-- Gmail mail from a sender mapped in "issue" or "both" delivery mode: no link condition applies; the notice is requested for the email itself `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:330`
-- Mail to the reader's own Readplace addresses, or Gmail mail in "links" mode: at least one link is not an action or unsubscribe link and was not judged non-article by the AI triage; if triage is unavailable, every such link counts `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:384`
-- In that case, that link is also a saveable URL and its link row is still pending `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:420`
+- Gmail mail from a sender mapped in "issue" or "both" delivery mode: no link condition applies; the notice is requested for the email itself `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:331`
+- Mail to the reader's own Readplace addresses, or Gmail mail in "links" mode: at least one link is not an action or unsubscribe link and was not judged non-article by the AI triage; if triage is unavailable, every such link counts `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:385`
+- In that case, that link is also a saveable URL and its link row is still pending `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:421`
 - When the send Lambda runs, the reader is still read-only `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:194`
 - No notice has gone out in this lapse (automationSavesHeldEmailSentAt is unset) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:201`
 - The account has a login email on file; there is no email-verified or account-lock check `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:210`
@@ -2050,8 +2050,8 @@ Not sent when:
 
 - Once per lapse: a set automationSavesHeldEmailSentAt marker silences every later held email `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:201`
 - The marker is cleared only when the reader starts a trial (upsertTrialing), subscribes (upsertActive) or becomes active again (markActive); a pending cancellation or a cancellation keeps it `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:133`
-- At most one notice request per inbound email, however many links are held: in "both" mode the issue path sets the shared noticePublished flag first, so the held links request nothing more `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:444`
-- Full access at extraction (no row, active, a trial or pending cancellation still in its window): the links are saved and no notice is requested `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:427`
+- At most one notice request per inbound email, however many links are held: in "both" mode the issue path sets the shared noticePublished flag first, so the held links request nothing more `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:446`
+- Full access at extraction (no row, active, a trial or pending cancellation still in its window): the links are saved and no notice is requested `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:428`
 - Full access again at send time, for example after reactivating in between: nothing is sent `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:194`
 - No login email on file: nothing is sent, the request is not retried and the marker stays unset `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:210`
 - Mail to a turned-off address is recorded under the unrouted partition, so turning addresses off stops future notices from that address `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:258`
@@ -2062,7 +2062,7 @@ Not sent when:
 - A cancelled, superseded or re-selected Gmail import job ingests no new mail `projects/inbox/src/runtime/domain/inbox/ingest-gmail-import-handler.ts:117`
 - Oversize or unparseable mail is recorded as rejected or unparsed and never extracted `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:176`
 - A backfill replay never saves or notifies `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:50`
-- No link is held, for mail to a Readplace address or Gmail mail in "links" mode: every link is an action or unsubscribe link, judged non-article, unsaveable, or already terminal on a redelivery `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:406`
+- No link is held, for mail to a Readplace address or Gmail mail in "links" mode: every link is an action or unsubscribe link, judged non-article, unsaveable, or already terminal on a redelivery `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:407`
 
 **Timing:** Sent immediately with no configured delay: usually seconds to tens of seconds after the mail reaches the Readplace address, and up to about 2 minutes when the AI link triage needs both of its 60-second attempts. Retries add the queue visibility timeouts (receive 180s, extract 240s, send 60s), and for a Gmail history import it goes out when the import processes the message, which can be long after the mail first arrived.
 
@@ -2077,11 +2077,11 @@ Not sent when:
 - Duplicate detection only runs when the sender and Message-ID can be read; otherwise the email proceeds with its proposed id `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:304`
 - When an earlier stalled claim is taken over, the highlight id in the button is that earlier claim's receivedAtMessageId `projects/inbox/src/runtime/domain/inbox/resolve-email-identity.ts:77`
 - A Gmail import message whose sender does not match, or that has no Message-ID, is skipped `projects/inbox/src/runtime/domain/inbox/ingest-gmail-import-handler.ts:99`
-- On first delivery a non-article verdict skips the link for both inbox and Gmail routing; Gmail falls through only on a redelivery when the row was already stored as pending `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:390`
+- On first delivery a non-article verdict skips the link for both inbox and Gmail routing; Gmail falls through only on a redelivery when the row was already stored as pending `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:391`
 - AI triage gives up after 2 attempts and returns "unavailable", so every crawl candidate is treated as an article `projects/inbox/src/runtime/domain/inbox/triage-email-links.ts:133`
 - A raw .eml that is not yet readable at extraction is retried after the 240s extract visibility timeout `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:211`
 - Extraction does not re-check that the address is still turned on, so mail received just before the reader turns it off can still trigger the notice `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:294`
-- The notice is requested before that link's preview publish, so a crash in between republishes the request on retry and the marker deduplicates it `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:446`
+- The notice is requested before that link's preview publish, so a crash in between republishes the request on retry and the marker deduplicates it `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:448`
 - Two concurrent held emails both pass the marker check; the loser of the conditional claim logs "another delivery sent it" and sends nothing `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:220`
 - findEmailByUserId takes the first users row on userId-index; Gmail claim rows carry ownerUserId instead of userId, so they never match `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
 - Account deletion deletes the subscription row, which restores full access, so nothing is sent `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:268`
@@ -2227,7 +2227,7 @@ Exact HTML body: [`html/automation-saves-held--no-inbox-address.html`](html/auto
 - `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:188` — processAutomationSavesHeld: guards, marker claim, tracked URLs and sendEmail call
 - `projects/hutch/src/runtime/send-trial-feedback-email.main.ts:45` — composition root: Resend wrapped by the reserved-domain skip, avatar URL, APP_ORIGIN
 - `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:167` — once-per-lapse marker claim
-- `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:426` — held-save decision that requests the notice; the issue-mode request is at :343
+- `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:427` — held-save decision that requests the notice; the issue-mode request is at :344
 - `projects/inbox/src/runtime/extract-email-links.main.ts:129` — publishSaveHeldNotice wired to SendTrialFeedbackEmailCommand
 - `projects/hutch/src/infra/index.ts:1227` — send-trial-feedback-email queue, Lambda, DLQ alarm and EventBridge subscription (:1264)
 
@@ -2617,7 +2617,7 @@ Trigger chain:
 2. receive-email resolves the recipient address, skips a message already ingested, and ingests the email as inbox mail; mail to the Gmail forwarding address or a gmail-mapped address is ingested as Gmail mail instead, which never triggers this email `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:322`
 3. Ingest writes a 'received' inbox row and publishes EmailReceivedEvent, which EventBridge routes to the extract-email-links Lambda `projects/inbox/src/runtime/domain/inbox/ingest-parsed-email.ts:97`
 4. extract-email-links re-parses the email, drops unsubscribe and action links and LLM-judged non-articles, and checks the reader's write access `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:297`
-5. Right after the email's first SubmitLinkCommand to All (or after EmailLinksTriaged on an alias routed to a custom readlist) it publishes SendFirstInboxEmailNoticeCommand once for that email, only when the email is routed as inbox mail `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:434`
+5. Right after the email's first SubmitLinkCommand to All (or after EmailLinksTriaged on an alias routed to a custom readlist) it publishes SendFirstInboxEmailNoticeCommand once for that email, only when the email is routed as inbox mail `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
 6. EventBridge routes the command to the send-first-inbox-email-notice-q SQS queue and Lambda `projects/hutch/src/infra/index.ts:1309`
 7. The handler re-checks write access, looks up the login email, claims the once-only marker, renders the email and sends it through Resend behind the reserved-domain filter `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:101`
 
@@ -2628,10 +2628,10 @@ Sent only when:
 - The email body is not empty after sanitizing `projects/inbox/src/runtime/domain/inbox/ingest-parsed-email.ts:83`
 - The email arrived live (origin 'receive') at a Readplace address that is not the Gmail forwarding address or a gmail-mapped address, so it is routed as inbox mail; Gmail history imports are always routed as Gmail mail `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:268`
 - The reader has full write access when the links are extracted: an active trial, an active membership, a pending cancellation before its end date, or no membership row (founding member) `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:297`
-- At least one link is not an unsubscribe or action link and is not judged a non-article by the LLM triage; if the triage is unavailable, every link is kept `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:384`
-- That link is a saveable URL `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:406`
-- Signup address and other addresses on All: the link's row is pending and its SubmitLinkCommand to All was just published `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:434`
-- Alias routed to a custom readlist: at least one saveable link was handed to that readlist's filter through EmailLinksTriaged `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:495`
+- At least one link is not an unsubscribe or action link and is not judged a non-article by the LLM triage; if the triage is unavailable, every link is kept `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:385`
+- That link is a saveable URL `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:407`
+- Signup address and other addresses on All: the link's row is pending and its SubmitLinkCommand to All was just published `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
+- Alias routed to a custom readlist: at least one saveable link was handed to that readlist's filter through EmailLinksTriaged `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:497`
 - The reader still has full write access when the send Lambda runs `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - The account has a login email on file `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:72`
 - This email has never been sent to the account (the once-only marker is unset) `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:82`
@@ -2640,14 +2640,14 @@ Sent only when:
 Not sent when:
 
 - Once per account, ever: every later trigger finds the firstInboxEmailNoticeSentAt marker set and is skipped; only deleting the account removes the marker `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:186`
-- A reader who is read-only when the links are extracted (trial ended, membership cancelled or past its end date) does not get it for that email; the inbox Lambda requests the separate Inbox saves paused email instead, and since no marker is set, a later email after access returns can still trigger this one `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:446`
+- A reader who is read-only when the links are extracted (trial ended, membership cancelled or past its end date) does not get it for that email; the inbox Lambda requests the separate Inbox saves paused email instead, and since no marker is set, a later email after access returns can still trigger this one `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:448`
 - A reader who is read-only when the send Lambda runs is skipped without setting the marker, so a later email can still trigger it once access returns `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - An account with no login email on file is skipped without setting the marker `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:72`
 - Email to an unknown or disabled address gets an audit row only and is never ingested `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:248`
-- Mail routed from Gmail never triggers it, even when its links are submitted to All: newsletters Gmail auto-forwards to the reader's Gmail forwarding address (or a gmail-mapped address) and every message from a Gmail history import `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:434`
+- Mail routed from Gmail never triggers it, even when its links are submitted to All: newsletters Gmail auto-forwards to the reader's Gmail forwarding address (or a gmail-mapped address) and every message from a Gmail history import `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
 - Gmail's forwarding-confirmation email is consumed by setup and never ingested `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:225`
 - A message already ingested for the reader (same sender and Message-ID, for example a copy sent to two of their addresses) is skipped; when the copy ingested first came through Gmail, neither copy triggers it `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:314`
-- An email whose links are all skipped (unsubscribe, action, LLM non-article, or unsaveable URLs) never triggers it `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:384`
+- An email whose links are all skipped (unsubscribe, action, LLM non-article, or unsaveable URLs) never triggers it `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:385`
 - Backfill replays (origin 'backfill') never trigger it; no code publishes that origin today `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:50`
 - A login email at example.com, example.net, example.org, or under .test, .example, .invalid or .localhost is dropped, after the marker is already set `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
 
@@ -2675,7 +2675,7 @@ Not sent when:
 > - Silent loss: the once-only marker is claimed before Resend is called, so a Resend failure (4xx or 5xx) is retried into a skip and the reader never gets the email, with nothing in the DLQ; the colocated test checks only the first attempt (`projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.test.ts:207`) `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:81`
 > - Premature on the custom-readlist path: the email goes out before the readlist's filter decides, and a readlist with a purpose can keep zero links, so the reader can be told their links were added when nothing was saved `projects/save-link/src/runtime/domain/filter-email-links/filter-email-links-handler.ts:85`
 > - The copy says Readplace adds the links 'to All, your main readlist' for every address, including aliases routed to a custom readlist where the readlist's filter decides `projects/hutch/src/runtime/web/auth/inbox-first-arrival-email.ts:23`
-> - A reader whose mail all reaches Readplace through Gmail (auto-forwarding or history imports) never gets this email, even though those links are saved to All `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:434`
+> - A reader whose mail all reaches Readplace through Gmail (auto-forwarding or history imports) never gets this email, even though those links are saved to All `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
 > - Gmail mail sets no marker, so a reader whose Gmail newsletters have been landing in their inbox for weeks is still told 'The first email to your Readplace inbox at {address} just came through' the first time mail reaches a Readplace address directly `projects/hutch/src/runtime/web/auth/inbox-first-arrival-email.ts:19`
 > - The LLM triage fails open, so during a DeepSeek outage a non-article email (a receipt or notification) can trigger this once-ever onboarding email `projects/inbox/src/runtime/domain/inbox/triage-email-links.ts:133`
 > - No unsubscribe or preference check and no List-Unsubscribe header; it is sent as a one-time transactional notice `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:101`
@@ -2906,7 +2906,7 @@ Exact HTML body: [`html/inbox-first-arrival--custom-readlist-alias.html`](html/i
 - `projects/hutch/src/runtime/send-first-inbox-email-notice.main.ts:40` — composition root: Resend wrapped by the reserved-domain filter
 - `projects/hutch/src/runtime/providers/email/resend-email.ts:9` — sender: Resend API call
 - `src/packages/onboarding-signals/src/dynamodb-onboarding-signals.ts:175` — once-only marker firstInboxEmailNoticeSentAt
-- `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:434` — publisher of SendFirstInboxEmailNoticeCommand
+- `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436` — publisher of SendFirstInboxEmailNoticeCommand
 - `projects/hutch/src/infra/index.ts:1280` — trigger infra: SQS queue, Lambda and EventBridge subscription
 
 ## 12. Gmail newsletter notice

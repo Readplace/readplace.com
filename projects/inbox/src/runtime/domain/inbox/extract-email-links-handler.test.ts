@@ -579,8 +579,8 @@ describe("initExtractEmailLinksHandler", () => {
 			["0002", "https://c.test/z", "pending"],
 		]);
 		// Meta is always written once extraction finishes (the "extraction ran"
-		// barrier the detail view polls against); only `truncated` differs.
-		expect(meta).toEqual({ truncated: false, extractionFailed: false });
+		// barrier the detail view polls against).
+		expect(meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 3, savesHeld: false, readlistOutcomes: [] });
 		expect(harness.published).toEqual([
 			{ ordinal: "0000", url: "https://a.test/x" },
 			{ ordinal: "0001", url: "https://b.test/y" },
@@ -624,7 +624,7 @@ describe("initExtractEmailLinksHandler", () => {
 				"list-unsubscribe",
 			],
 		]);
-		expect(meta).toEqual({ truncated: false, extractionFailed: false });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] });
 		expect(harness.published).toEqual([
 			{ ordinal: "0000", url: "https://a.test/x" },
 		]);
@@ -648,7 +648,7 @@ describe("initExtractEmailLinksHandler", () => {
 			receivedAtMessageId: RAM,
 		});
 		expect(links).toHaveLength(2);
-		expect(meta).toEqual({ truncated: true, extractionFailed: false });
+		expect(meta).toEqual({ truncated: true, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 2, savesHeld: false, readlistOutcomes: [] });
 		expect(harness.published).toHaveLength(2);
 		expect(harness.alerts).toEqual([{ found: 3 }]);
 		expect(harness.countsWrites).toEqual([
@@ -815,7 +815,7 @@ describe("initExtractEmailLinksHandler", () => {
 			receivedAtMessageId: RAM,
 		});
 		expect(links.map((l) => l.status)).toEqual(["pending", "pending"]);
-		expect(meta).toEqual({ truncated: false, extractionFailed: false });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 2, savesHeld: false, readlistOutcomes: [] });
 		expect(harness.published).toHaveLength(2);
 	});
 
@@ -938,7 +938,7 @@ describe("initExtractEmailLinksHandler", () => {
 			receivedAtMessageId: RAM,
 		});
 		expect(links).toEqual([]);
-		expect(meta).toEqual({ truncated: false, extractionFailed: false });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [] });
 		expect(harness.countsWrites).toEqual([
 			{ kept: 0, skipped: 0, truncated: false },
 		]);
@@ -986,7 +986,7 @@ describe("initExtractEmailLinksHandler", () => {
 		});
 		expect(links).toHaveLength(2);
 		// Meta is an idempotent overwrite — re-delivery leaves a single barrier row.
-		expect(meta).toEqual({ truncated: false, extractionFailed: false });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 2, savesHeld: false, readlistOutcomes: [] });
 		expect(harness.published).toHaveLength(4);
 		// Still-pending rows re-submit too; the subscriber converges duplicates.
 		expect(harness.submitted).toEqual([
@@ -1240,6 +1240,18 @@ describe("initExtractEmailLinksHandler", () => {
 			expect(harness.addressReads).toEqual([]);
 			expect(harness.triaged).toEqual([]);
 			expect(harness.heldNotices).toHaveLength(1);
+			const { meta } = await harness.linkStore.listLinksByEmail({
+				userId: USER,
+				receivedAtMessageId: RAM,
+			});
+			expect(meta).toEqual({
+				truncated: false,
+				extractionFailed: false,
+				selectedReadlists: [],
+				eligibleArticleCount: 1,
+				savesHeld: true,
+				readlistOutcomes: [],
+			});
 		});
 
 		it("never reads the routing for a backfill replay", async () => {
@@ -1295,6 +1307,18 @@ describe("initExtractEmailLinksHandler", () => {
 					readlist: DEFAULT_READLIST_SLUG,
 				},
 			]);
+			const { meta } = await harness.linkStore.listLinksByEmail({
+				userId: USER,
+				receivedAtMessageId: RAM,
+			});
+			expect(meta).toEqual({
+				truncated: false,
+				extractionFailed: false,
+				selectedReadlists: [],
+				eligibleArticleCount: 1,
+				savesHeld: false,
+				readlistOutcomes: [],
+			});
 		});
 
 		it("fails the record when the inbox address has vanished, so SQS redelivers it", async () => {

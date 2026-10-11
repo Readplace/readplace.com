@@ -1302,7 +1302,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		expect(panel.getAttribute("hx-get")).toBeNull();
 		expect(panelNotices(doc)).toEqual(["decided"]);
 		expect(doc.querySelector('[data-test-panel-notice="decided"]')?.textContent).toBe(
-			"Saved to Work. Links that didn't fit are on the Skipped tab.",
+			"Saved to All and Work. Links that didn't fit are on the Skipped tab.",
 		);
 		expect(
 			Array.from(doc.querySelectorAll("[data-test-inbox-article-card]")).map((card) =>

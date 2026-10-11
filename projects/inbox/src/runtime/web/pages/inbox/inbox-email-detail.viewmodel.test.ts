@@ -9,7 +9,10 @@ import {
 	type InboxLinkSaveState,
 	MessageIdSchema,
 } from "@packages/domain/inbox";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { ARTICLES_PAGE_SIZE } from "./inbox-articles-more.url";
 import type { MailTabKey } from "./inbox-email-detail.url";
@@ -1117,7 +1120,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		expect(vm.articles.panelPollUrl).toBeUndefined();
 		expect(vm.articles.alerts).toEqual([]);
 		expect(vm.articles.notices).toEqual([
-			{ key: "decided", text: "Saved to Work.", iconName: undefined },
+			{ key: "decided", text: "Saved to All and Work.", iconName: undefined },
 		]);
 		expect(vm.articles.listing).toEqual({
 			countLabel: "2 Extracted Articles",
@@ -1130,6 +1133,21 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 			"Skipped (0)",
 		]);
 		expect(vm.extractionReported).toBe(true);
+	});
+
+	it("names All alone when the readlist was deleted and every kept link went to All", () => {
+		const vm = build({
+			links: [kept("0000"), kept("0001")],
+			linksMeta: metaWith({
+				state: "decided",
+				readlist: DEFAULT_READLIST_SLUG,
+				readlistLabel: "All",
+			}),
+		});
+
+		expect(vm.articles.notices).toEqual([
+			{ key: "decided", text: "Saved to All.", iconName: undefined },
+		]);
 	});
 
 	it("moves the links the readlist dropped to the Skipped tab, beside the skipped ones", () => {
@@ -1150,7 +1168,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		expect(vm.articles.notices).toEqual([
 			{
 				key: "decided",
-				text: "Saved to Work. Links that didn't fit are on the Skipped tab.",
+				text: "Saved to All and Work. Links that didn't fit are on the Skipped tab.",
 				iconName: undefined,
 			},
 		]);

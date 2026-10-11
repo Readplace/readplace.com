@@ -9,6 +9,10 @@ import type {
 } from "@packages/domain/inbox";
 import { INBOX_PATH, isExcludedLink } from "@packages/domain/inbox";
 import {
+	DEFAULT_READLIST_LABEL,
+	DEFAULT_READLIST_SLUG,
+} from "@packages/domain/readlist";
+import {
 	type LocalTime,
 	toAbsoluteDateTime,
 	withInternalTracking,
@@ -119,13 +123,14 @@ const DECISION_STALE_ALERT: PanelAlert = {
 
 function decidedNoticeText(input: {
 	readlistLabel: string;
+	destination: string;
 	anyDropped: boolean;
 	anyKept: boolean;
 }): string {
-	if (!input.anyDropped) return `Saved to ${input.readlistLabel}.`;
+	if (!input.anyDropped) return `Saved to ${input.destination}.`;
 	if (!input.anyKept)
 		return `Nothing in this email fit ${input.readlistLabel}, so nothing was saved.`;
-	return `Saved to ${input.readlistLabel}. Links that didn't fit are on the Skipped tab.`;
+	return `Saved to ${input.destination}. Links that didn't fit are on the Skipped tab.`;
 }
 
 function droppedNote(drop: InboxEmailLinkDrop): PanelNotice {
@@ -159,6 +164,10 @@ function decisionTerminalRegions(input: {
 				key: "decided",
 				text: decidedNoticeText({
 					readlistLabel: decision.readlistLabel,
+					destination:
+						decision.readlist === DEFAULT_READLIST_SLUG
+							? DEFAULT_READLIST_LABEL
+							: `${DEFAULT_READLIST_LABEL} and ${decision.readlistLabel}`,
 					anyDropped: input.anyDropped,
 					anyKept: input.anyKept,
 				}),
@@ -168,7 +177,7 @@ function decisionTerminalRegions(input: {
 	};
 }
 
-function gmailReadlistNotices(input: {
+function readlistSaveNotices(input: {
 	selectedReadlists: NonNullable<InboxEmailLinksMeta["selectedReadlists"]>;
 	outcomes: InboxEmailLinksMeta["readlistOutcomes"];
 	articles: number;
@@ -521,7 +530,7 @@ export function toInboxEmailDetailViewModel(input: {
 	});
 	if (linksMeta?.selectedReadlists !== undefined) {
 		decisionRegions.notices.push(
-			...gmailReadlistNotices({
+			...readlistSaveNotices({
 				selectedReadlists: linksMeta.selectedReadlists,
 				outcomes: linksMeta.readlistOutcomes,
 				articles: linksMeta.eligibleArticleCount ?? totalCards,
