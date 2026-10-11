@@ -1519,10 +1519,10 @@ describe("initArticleReader", () => {
 			expect(summarySlot.hasAttribute("hx-get")).toBe(false);
 		});
 
-		it("handleSummaryPoll emits a terminal OOB reader slot (no hx-get) when crawl is ready and content is present", async () => {
+		it("handleSummaryPoll leaves the reader slot alone once the reader has settled on the article, so a pending summary does not re-swap the article body every tick", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "pending" },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -1541,12 +1541,17 @@ describe("initArticleReader", () => {
 				renderDownloadsOob: undefined,
 			});
 
-			const doc = parse(toHtml(component));
-			const readerSlot = doc.querySelector("[data-test-reader-slot]");
-			assert(readerSlot, "OOB reader slot must accompany the summary-poll response");
-			expect(readerSlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
-			expect(readerSlot.getAttribute("data-reader-status")).toBe("ready");
-			expect(readerSlot.hasAttribute("hx-get")).toBe(false);
+			const doc = parse(`<div id="poll-response">${toHtml(component)}</div>`);
+			const response = doc.querySelector("#poll-response");
+			assert(response, "poll response wrapper must parse");
+			const swappedIds = Array.from(response.children).map((el) => el.id);
+			expect(swappedIds).toEqual([
+				"article-body-summary-slot",
+				"article-body-progress",
+				"article-header",
+				"document-title",
+				"article-body-reader-notice",
+			]);
 		});
 
 		/* Original stuck-progress-bar reproduction. The /admin/recrawl page
@@ -1888,7 +1893,9 @@ describe("initArticleReader", () => {
 			});
 
 			expect(oobIds(component)).toEqual([
-				...SUMMARY_POLL_BASELINE,
+				"article-body-progress",
+				"article-header",
+				"document-title",
 				"reader-view-failed-probe",
 				"article-body-reader-notice",
 			]);

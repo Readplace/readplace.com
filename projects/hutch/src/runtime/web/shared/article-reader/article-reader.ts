@@ -52,10 +52,7 @@ import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
  * Required input for every poll response. Holds the *full* world state — both
  * crawl and summary axes, both poll URLs — alongside a discriminator naming
  * the axis whose slot is the primary swap target. By construction every
- * caller of `renderPollResponseBody` provides both axes, which means a poll
- * response can never silently drop one slot: the sibling is always emitted as
- * an `hx-swap-oob` swap so its HTMX polling chain re-arms if that axis just
- * flipped to pending while the primary axis was settling.
+ * caller of `renderPollResponseBody` provides both axes.
  *
  * This makes the cross-axis handoff a compile-time invariant rather than a
  * thing the two handlers have to remember.
@@ -116,9 +113,11 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 			reader.notice
 		);
 	}
+	const readerSettledOnArticle =
+		input.readerPollUrl === undefined && input.content !== undefined;
 	return (
 		summarySlot +
-		reader.slot +
+		(readerSettledOnArticle ? "" : reader.slot) +
 		progressBarOob +
 		input.metadataOob +
 		input.readerViewFailedOob +

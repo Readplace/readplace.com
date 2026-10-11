@@ -690,9 +690,9 @@ describe("Admin recrawl routes", () => {
 	});
 
 	it.each([
-		{ poll: "reader", siblingSlot: "article-body-summary-slot" },
-		{ poll: "summary", siblingSlot: "article-body-reader-slot" },
-	])("keeps ready admin $poll polls scoped to the admin reader", async ({ poll, siblingSlot }) => {
+		{ poll: "reader", settledSiblingOob: ["article-body-summary-slot"] },
+		{ poll: "summary", settledSiblingOob: [] },
+	])("keeps ready admin $poll polls scoped to the admin reader", async ({ poll, settledSiblingOob }) => {
 		const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 		await harness.articleStore.saveArticleGlobally({
@@ -709,11 +709,8 @@ describe("Admin recrawl routes", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		const readerSlot = doc.querySelector("[data-test-reader-slot]");
-		assert(readerSlot, "the admin poll must render its reader slot");
-		expect(readerSlot.textContent).toContain("Ready content.");
 		expect(Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
-			siblingSlot,
+			...settledSiblingOob,
 			"article-body-progress",
 			"article-header",
 			"document-title",

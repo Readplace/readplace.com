@@ -165,7 +165,10 @@ describe("GET /queue/:id/view Download", () => {
 		]);
 	});
 
-	it.each(["reader", "summary"])("swaps the Download slot alongside the %s poll on a ready article", async (poll) => {
+	it.each([
+		{ poll: "reader", settledSiblingOob: ["article-body-summary-slot"] },
+		{ poll: "summary", settledSiblingOob: [] },
+	])("swaps the Download slot alongside the $poll poll on a ready article", async ({ poll, settledSiblingOob }) => {
 		const { harness, sessionCookie, articleId } = await openReaderHarness({ ready: true });
 		const response = await request(harness.server)
 			.get(`/queue/${articleId}/${poll}?poll=1`)
@@ -174,7 +177,7 @@ describe("GET /queue/:id/view Download", () => {
 		expect(response.status).toBe(200);
 		const document = new JSDOM(response.text).window.document;
 		expect(Array.from(document.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
-			poll === "reader" ? "article-body-summary-slot" : "article-body-reader-slot",
+			...settledSiblingOob,
 			"article-body-progress",
 			"article-header",
 			"document-title",
