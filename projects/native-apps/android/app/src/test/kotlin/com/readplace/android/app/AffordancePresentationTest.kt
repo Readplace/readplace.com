@@ -7,6 +7,7 @@ import com.readplace.android.core.SirenField
 import com.readplace.android.core.SirenLink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -296,6 +297,39 @@ class AffordancePresentationTest {
 			listOf("action:update-status", "action:delete", "link:share"),
 			row.rowControls.map { it.id },
 		)
+	}
+
+	@Test
+	fun `a lone row action is the full-swipe control`() {
+		val markRead = article(
+			actions = listOf(action(name = "update-status", fields = listOf(statusField("read")))),
+			links = emptyList(),
+		)
+		assertEquals("action:update-status", markRead.fullSwipeControl?.id)
+		val delete = article(actions = listOf(action(name = "delete", href = "/queue/a1/delete")), links = emptyList())
+		val deleteControl = requireNotNull(delete.fullSwipeControl)
+		assertEquals("action:delete", deleteControl.id)
+		assertTrue(ItemRoute.route(deleteControl) is ItemRoute.ConfirmDestructive)
+	}
+
+	@Test
+	fun `a row with several controls or a lone link has no full-swipe control`() {
+		val two = article(
+			actions = listOf(
+				action(name = "update-status", fields = listOf(statusField("read"))),
+				action(name = "delete", href = "/queue/a1/delete"),
+			),
+			links = emptyList(),
+		)
+		assertEquals(2, two.rowControls.size)
+		assertNull(two.fullSwipeControl)
+		val loneLink = article(
+			actions = emptyList(),
+			links = listOf(SirenLink(rel = listOf("share"), href = "/queue/a1/share", title = "Share")),
+		)
+		assertEquals(1, loneLink.rowControls.size)
+		assertNull(loneLink.fullSwipeControl)
+		assertNull(article(actions = emptyList(), links = emptyList()).fullSwipeControl)
 	}
 
 	@Test

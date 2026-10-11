@@ -215,4 +215,18 @@ extension Article {
 		affordances.filter { $0.isInvokableByBareControl && $0.isUserControl }
 			+ links.compactMap(Affordance.init(link:)).filter { $0.isSemanticControlLink && $0.isUserControl }
 	}
+
+	/// The one control a full swipe fires without a tap: the row's lone action. A
+	/// lone link is excluded because a swipe that navigates away surprises more than
+	/// it saves, and a row with several controls is excluded because a full swipe
+	/// could not say which one. Delete still qualifies: the full swipe lands on its
+	/// confirmation, not its invoke.
+	var fullSwipeControl: Affordance? {
+		let controls = rowControls
+		guard controls.count == 1, let control = controls.first else { return nil }
+		switch control.invocation {
+		case .link: return nil
+		case .action: return control
+		}
+	}
 }

@@ -165,6 +165,53 @@ final class SirenDecodingTests: XCTestCase {
 		)
 	}
 
+	func testFullSwipeControlIsTheLoneRowActionOnly() throws {
+		let loneAction = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+			"actions": [
+				{ "name": "update-status", "title": "Mark read", "href": "/queue/x/status", "method": "POST", "fields": [{ "name": "status", "type": "text", "value": "read" }] }
+			] }
+		"""
+		let loneArticle = try XCTUnwrap(Article(entity: try decodeEntity(loneAction)))
+		XCTAssertEqual(loneArticle.fullSwipeControl?.token, "update-status")
+
+		let loneDelete = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+			"actions": [ { "name": "delete", "title": "Delete", "href": "/queue/x/delete", "method": "POST" } ] }
+		"""
+		let deleteArticle = try XCTUnwrap(Article(entity: try decodeEntity(loneDelete)))
+		XCTAssertEqual(deleteArticle.fullSwipeControl?.token, "delete")
+		XCTAssertEqual(
+			ItemRoute.route(for: try XCTUnwrap(deleteArticle.fullSwipeControl)),
+			.confirmDestructive(try XCTUnwrap(deleteArticle.fullSwipeControl?.action))
+		)
+
+		let twoControls = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+			"actions": [
+				{ "name": "update-status", "title": "Mark read", "href": "/queue/x/status", "method": "POST", "fields": [{ "name": "status", "type": "text", "value": "read" }] },
+				{ "name": "delete", "title": "Delete", "href": "/queue/x/delete", "method": "POST" }
+			] }
+		"""
+		let twoArticle = try XCTUnwrap(Article(entity: try decodeEntity(twoControls)))
+		XCTAssertEqual(twoArticle.rowControls.count, 2)
+		XCTAssertNil(twoArticle.fullSwipeControl)
+
+		let loneLink = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+			"links": [ { "rel": ["share"], "href": "/queue/x/share", "title": "Share" } ] }
+		"""
+		let linkArticle = try XCTUnwrap(Article(entity: try decodeEntity(loneLink)))
+		XCTAssertEqual(linkArticle.rowControls.count, 1)
+		XCTAssertNil(linkArticle.fullSwipeControl)
+
+		let noControls = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" } }
+		"""
+		let bareArticle = try XCTUnwrap(Article(entity: try decodeEntity(noControls)))
+		XCTAssertNil(bareArticle.fullSwipeControl)
+	}
+
 	func testAffordanceLabelFallsBackToHumanizedTokenWhenServerSendsNoTitle() throws {
 		let action = SirenAction(name: "update-status", href: "/x", method: "POST", title: nil, type: nil, fields: nil)
 		let affordance = try XCTUnwrap(Affordance(action: action))

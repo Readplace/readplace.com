@@ -364,7 +364,7 @@ struct ReadingListView: View {
 					.onTapGesture {
 						viewModel.openReader(for: article)
 					}
-					.swipeActions(edge: .trailing, allowsFullSwipe: false) {
+					.swipeActions(edge: .trailing, allowsFullSwipe: article.fullSwipeControl != nil) {
 						ForEach(article.rowControls) { affordance in
 							itemControl(affordance)
 						}
@@ -393,11 +393,10 @@ struct ReadingListView: View {
 
 	/// One per-item swipe control, rendered from an advertised affordance. The label
 	/// is the server's `title`; the icon, tint and destructive role are derived
-	/// client-side from the affordance's wire token. A full swipe can't fire it
-	/// (`allowsFullSwipe: false`), and a destructive control routes through a
-	/// confirmation before invoking; both guard the irreversible `delete`. Every
-	/// rendered control resolves to an effect in `activate` — an action invokes, a
-	/// link opens — so none silently no-ops.
+	/// client-side from the affordance's wire token. A destructive control routes
+	/// through a confirmation before invoking, which guards the irreversible
+	/// `delete`. Every rendered control resolves to an effect in `activate` — an
+	/// action invokes, a link opens — so none silently no-ops.
 	private func itemControl(_ affordance: Affordance) -> some View {
 		Button(role: affordance.presentation.isDestructive ? .destructive : nil) {
 			activate(affordance)

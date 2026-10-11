@@ -248,3 +248,13 @@ private val Affordance.hasServerTitle: Boolean
 val Article.rowControls: List<Affordance>
 	get() = affordances.filter { it.isInvokableByBareControl && it.isUserControl } +
 		links.mapNotNull { Affordance.of(it) }.filter { it.isSemanticControlLink && it.isUserControl }
+
+/**
+ * The one control a full swipe fires without a tap: the row's lone action. A lone
+ * link is excluded because a swipe that navigates away surprises more than it
+ * saves, and a row with several controls is excluded because a full swipe could
+ * not say which one. Delete still qualifies: the full swipe lands on its
+ * confirmation, not its invoke.
+ */
+val Article.fullSwipeControl: Affordance?
+	get() = rowControls.singleOrNull()?.takeIf { it.invocation is Affordance.Invocation.OfAction }

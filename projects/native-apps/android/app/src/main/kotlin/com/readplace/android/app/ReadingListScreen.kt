@@ -591,11 +591,10 @@ private fun ArticleList(
 /**
  * One row with its per-item controls, rendered from the advertised affordances.
  * The label is the server's `title`; the icon, tint and destructive role are
- * derived client-side from the affordance's wire token. A full swipe can't fire a
- * control (it only reveals the tray), and a destructive control routes through a
- * confirmation before invoking; both guard the irreversible `delete`. Every
- * rendered control resolves to an effect in `activate` — an action invokes, a
- * link opens — so none silently no-ops.
+ * derived client-side from the affordance's wire token. A destructive control
+ * routes through a confirmation before invoking, which guards the irreversible
+ * `delete`. Every rendered control resolves to an effect in `activate` — an
+ * action invokes, a link opens — so none silently no-ops.
  */
 @Composable
 private fun ArticleItem(
@@ -609,6 +608,7 @@ private fun ArticleItem(
 	val swipe = rememberSwipeToDismissBoxState()
 	var menuOpen by remember { mutableStateOf(false) }
 	val controls = article.rowControls
+	val fullSwipeControl = article.fullSwipeControl
 	val brand = LocalBrandColors.current
 	val fill = if (article.isRead) brand.card else brand.secondary
 	val collapse: () -> Unit = { scope.launch { swipe.reset() } }
@@ -644,6 +644,12 @@ private fun ArticleItem(
 			state = swipe,
 			modifier = Modifier.clip(edge.borderShape),
 			enableDismissFromStartToEnd = false,
+			onDismiss = {
+				if (fullSwipeControl != null) {
+					collapse()
+					onActivate(fullSwipeControl)
+				}
+			},
 			backgroundContent = {
 				RowControlsTray(
 					controls = controls,
