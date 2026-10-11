@@ -1146,6 +1146,8 @@ process.on('SIGINT', () => process.exit(0))
 // Bind explicitly to 127.0.0.1 so the listening socket matches what the
 // extension popup connects to (Firefox treats 127.0.0.1 and IPv6 ::1 as
 // distinct origins; binding to 0.0.0.0 + IPv6 ::1 has surfaced flakes).
-server.listen(PORT, '127.0.0.1').on('listening', () => {
+const listening = server.listen(PORT, '127.0.0.1')
+listening.keepAliveTimeout = 0
+listening.on('listening', () => {
 	logger.info(`E2E server running on http://127.0.0.1:${PORT}`)
 })
