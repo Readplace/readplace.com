@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, toArticleTopics } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -3165,7 +3165,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 
 describe("initDynamoDbSavedArticleStore discovery", () => {
 	const discovery = (input: Partial<Parameters<typeof resolveArticleDiscovery>[0]>) =>
-		resolveArticleDiscovery({ time: [], saved: [], topic: [], now: STORE_NOW, ...input });
+		resolveArticleDiscovery({ time: [], saved: [], now: STORE_NOW, ...input });
 
 	const savedUserRow = (slug: string, overrides: Record<string, unknown> = {}) =>
 		userArticleItem({ url: `example.com/${slug}`, ...overrides });
@@ -3178,8 +3178,6 @@ describe("initDynamoDbSavedArticleStore discovery", () => {
 			content: undefined,
 			...overrides,
 		});
-
-	const readySummary = (topics: string[]) => ({ summaryStatus: "ready", summary: "Summary.", summaryTopics: topics });
 
 	it("reads every page of the sort index, keeping the status filter and the order, with no row limit", async () => {
 		const { client, commands } = createFakeClient({
@@ -3213,7 +3211,7 @@ describe("initDynamoDbSavedArticleStore discovery", () => {
 		expect(result.articles.map((article) => article.url)).toEqual(["https://example.com/a", "https://example.com/b"]);
 	});
 
-	it("batch-gets every saved row with a projection that names each summary column once and leaves out the body", async () => {
+	it("batch-gets every saved row with a projection of its metadata that leaves out the body and the summary", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { readlist: [{ Items: [savedUserRow("a"), savedUserRow("b")] }] },
 			BatchGetCommand: { default: { Responses: { articles: [savedArticleRow("a"), savedArticleRow("b")] } } },
@@ -3225,87 +3223,8 @@ describe("initDynamoDbSavedArticleStore discovery", () => {
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		const projected = batch?.input.RequestItems?.articles.ProjectionExpression?.split(", ") ?? [];
 		const timesProjected = (field: string) => projected.filter((name) => name === `#${field}`).length;
-		expect([timesProjected("url"), timesProjected("summaryStatus"), timesProjected("summaryTopics")]).toEqual([1, 1, 1]);
-		expect(timesProjected("content")).toBe(0);
-	});
-
-	it("filters by the topics of a ready summary, reading a legacy summary as ready and any other as none", async () => {
-		const { client } = createFakeClient({
-			QueryCommand: {
-				default: { Items: [savedUserRow("ready"), savedUserRow("legacy"), savedUserRow("pending"), savedUserRow("unsummarised")] },
-			},
-			BatchGetCommand: {
-				default: {
-					Responses: {
-						articles: [
-							savedArticleRow("ready", readySummary(["Focus"])),
-							savedArticleRow("legacy", { summary: "Old summary.", summaryTopics: ["focus"] }),
-							savedArticleRow("pending", { summaryStatus: "pending", summaryTopics: ["Focus"] }),
-							savedArticleRow("unsummarised"),
-						],
-					},
-				},
-			},
-		});
-		const store = initStore(client);
-
-		const focus = await store.findArticlesByUser({ userId: USER, discovery: discovery({ topic: toArticleTopics(["Focus"]) }) });
-		const others = await store.findArticlesByUser({ userId: USER, discovery: discovery({ topic: ["others"] }) });
-
-		expect(focus.articles.map((article) => article.metadata.title)).toEqual(["Title ready", "Title legacy"]);
-		expect(others.articles.map((article) => article.metadata.title)).toEqual(["Title pending", "Title unsummarised"]);
-	});
-
-	it("gives no topics to a summary over unverified wrapper content or one made from replaced content", async () => {
-		const { client } = createFakeClient({
-			QueryCommand: { default: { Items: [savedUserRow("wrapped"), savedUserRow("replaced")] } },
-			BatchGetCommand: {
-				default: {
-					Responses: {
-						articles: [
-							savedArticleRow("wrapped", { originalUrl: "https://archive.ph/abc12", ...readySummary(["Focus"]) }),
-							savedArticleRow("replaced", {
-								canonicalCandidateId: "new",
-								canonicalOriginalUrl: "https://example.com/replaced",
-								canonicalContentHash: "new-hash",
-								summarySourceContentHash: "old-hash",
-								...readySummary(["Focus"]),
-							}),
-						],
-					},
-				},
-			},
-		});
-		const store = initStore(client);
-
-		const focus = await store.findArticlesByUser({ userId: USER, discovery: discovery({ topic: toArticleTopics(["Focus"]) }) });
-		const others = await store.findArticlesByUser({ userId: USER, discovery: discovery({ topic: ["others"] }) });
-
-		expect(focus.total).toBe(0);
-		expect(others.articles.map((article) => article.metadata.title)).toEqual(["Title wrapped", "Title replaced"]);
-	});
-
-	it("keeps a row listed with no topics when its summary columns are malformed", async () => {
-		const { client } = createFakeClient({
-			QueryCommand: { default: { Items: [savedUserRow("unparseable"), savedUserRow("textless")] } },
-			BatchGetCommand: {
-				default: {
-					Responses: {
-						articles: [
-							savedArticleRow("unparseable", { summaryStatus: "ready", summary: "Summary.", summaryTopics: "Focus" }),
-							savedArticleRow("textless", { summaryStatus: "ready", summaryTopics: ["Focus"] }),
-						],
-					},
-				},
-			},
-		});
-
-		const result = await initStore(client).findArticlesByUser({
-			userId: USER,
-			discovery: discovery({ topic: ["others"] }),
-		});
-
-		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Title unparseable", "Title textless"]);
+		expect([timesProjected("url"), timesProjected("title")]).toEqual([1, 1]);
+		expect([timesProjected("content"), timesProjected("summaryStatus")]).toEqual([0, 0]);
 	});
 
 	it("returns the requested page of the matches with their total and whether more follow", async () => {
@@ -3336,31 +3255,6 @@ describe("initDynamoDbSavedArticleStore discovery", () => {
 
 		expect(result).toMatchObject({ total: 3, hasMore: true, page: 2, pageSize: 1 });
 		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Title b"]);
-	});
-
-	it("offers the topics of every row the open tab holds, including rows the topic filter leaves out", async () => {
-		const { client } = createFakeClient({
-			QueryCommand: { default: { Items: [savedUserRow("a"), savedUserRow("b"), savedUserRow("c")] } },
-			BatchGetCommand: {
-				default: {
-					Responses: {
-						articles: [
-							savedArticleRow("a", readySummary(["Focus", "Habits"])),
-							savedArticleRow("b", readySummary(["Habits"])),
-							savedArticleRow("c", readySummary(["Trends"])),
-						],
-					},
-				},
-			},
-		});
-
-		const result = await initStore(client).findArticlesByUser({
-			userId: USER,
-			discovery: discovery({ topic: toArticleTopics(["Focus"]) }),
-		});
-
-		expect(result.articles.map((article) => article.metadata.title)).toEqual(["Title a"]);
-		expect(result.discoveryTopics).toEqual(["Habits", "Focus", "Trends"]);
 	});
 
 	it("leaves out a saved row whose article is missing from the global table", async () => {

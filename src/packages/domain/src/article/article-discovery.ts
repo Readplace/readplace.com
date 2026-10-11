@@ -1,5 +1,4 @@
 import { articleDestinationHost } from "./article-site";
-import type { ArticleTopic } from "./article-topic";
 import type { SavedArticle } from "./article.types";
 import { displayableReadTime } from "./displayable-read-time";
 
@@ -23,10 +22,6 @@ export const SAVED_WINDOWS = [
 
 export type SavedWindowId = (typeof SAVED_WINDOWS)[number]["id"];
 
-export const UNTOPICED_FACET = "others";
-
-export type ArticleTopicFacet = ArticleTopic | typeof UNTOPICED_FACET;
-
 interface MinutesRange {
 	minMinutes?: number;
 	belowMinutes?: number;
@@ -41,8 +36,6 @@ export interface ArticleDiscoveryQuery {
 	terms: readonly string[];
 	readTimeRanges: readonly MinutesRange[];
 	savedAtRanges: readonly SavedAtRange[];
-	topics: readonly ArticleTopic[];
-	untopiced: boolean;
 }
 
 interface ArticleDiscoveryCandidate {
@@ -51,7 +44,6 @@ interface ArticleDiscoveryCandidate {
 	destinationHost: string;
 	readTimeMinutes: number | undefined;
 	savedAt: Date;
-	topics: readonly ArticleTopic[];
 }
 
 function normalizeForSearch(text: string): string {
@@ -72,7 +64,6 @@ export function resolveArticleDiscovery(input: {
 	q?: string;
 	time: readonly ReadTimeBucketId[];
 	saved: readonly SavedWindowId[];
-	topic: readonly ArticleTopicFacet[];
 	now: Date;
 }): ArticleDiscoveryQuery {
 	return {
@@ -81,15 +72,13 @@ export function resolveArticleDiscovery(input: {
 		savedAtRanges: SAVED_WINDOWS.filter((window) => input.saved.includes(window.id)).map((window) =>
 			savedAtRangeOf(window, input.now),
 		),
-		topics: input.topic.filter((facet): facet is ArticleTopic => facet !== UNTOPICED_FACET),
-		untopiced: input.topic.includes(UNTOPICED_FACET),
 	};
 }
 
 function matchesTerms(candidate: ArticleDiscoveryCandidate, terms: readonly string[]): boolean {
 	if (terms.length === 0) return true;
 	const haystack = normalizeForSearch(
-		[candidate.title, candidate.siteLabel, candidate.destinationHost, ...candidate.topics].join("\n"),
+		[candidate.title, candidate.siteLabel, candidate.destinationHost].join("\n"),
 	);
 	return terms.every((term) => haystack.includes(term));
 }
@@ -113,13 +102,6 @@ function matchesSavedAt(savedAt: Date, ranges: readonly SavedAtRange[]): boolean
 	);
 }
 
-function matchesTopics(topics: readonly ArticleTopic[], query: ArticleDiscoveryQuery): boolean {
-	if (query.topics.length === 0 && !query.untopiced) return true;
-	if (query.untopiced && topics.length === 0) return true;
-	const ticked = new Set(query.topics.map((topic) => topic.toLowerCase()));
-	return topics.some((topic) => ticked.has(topic.toLowerCase()));
-}
-
 export function matchesArticleDiscovery(
 	candidate: ArticleDiscoveryCandidate,
 	query: ArticleDiscoveryQuery,
@@ -127,36 +109,16 @@ export function matchesArticleDiscovery(
 	return (
 		matchesTerms(candidate, query.terms) &&
 		matchesReadTime(candidate.readTimeMinutes, query.readTimeRanges) &&
-		matchesSavedAt(candidate.savedAt, query.savedAtRanges) &&
-		matchesTopics(candidate.topics, query)
+		matchesSavedAt(candidate.savedAt, query.savedAtRanges)
 	);
 }
 
-export function discoveryCandidateOf(
-	article: SavedArticle,
-	topics: readonly ArticleTopic[],
-): ArticleDiscoveryCandidate {
+export function discoveryCandidateOf(article: SavedArticle): ArticleDiscoveryCandidate {
 	return {
 		title: article.metadata.title,
 		siteLabel: article.metadata.siteName,
 		destinationHost: articleDestinationHost(article.destinationUrl),
 		readTimeMinutes: displayableReadTime(article) === undefined ? undefined : article.estimatedReadTime,
 		savedAt: article.savedAt,
-		topics,
 	};
-}
-
-export function rankDiscoveryTopics(topicLists: readonly (readonly ArticleTopic[])[]): ArticleTopic[] {
-	const tally = new Map<string, { topic: ArticleTopic; count: number }>();
-	for (const topics of topicLists) {
-		for (const topic of topics) {
-			const key = topic.toLowerCase();
-			const entry = tally.get(key);
-			if (entry) entry.count += 1;
-			else tally.set(key, { topic, count: 1 });
-		}
-	}
-	return [...tally.values()]
-		.sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic))
-		.map((entry) => entry.topic);
 }

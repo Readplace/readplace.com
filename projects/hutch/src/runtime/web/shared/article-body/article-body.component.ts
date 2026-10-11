@@ -5,7 +5,6 @@ import type { ArticleDestinationUrl, DisplayableReadTime, SiteLabel } from "@pac
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { render } from "@packages/web-shell";
-import { summaryTopics } from "../../../providers/article-summary/article-summary.helpers";
 import { renderArticleHeader, type ReaderReadlistTags } from "./article-header/article-header.component";
 import { renderCrawlBookmark, type CrawlBookmarkRemoval } from "./crawl-bookmark/crawl-bookmark.component";
 import { renderProgressBar } from "./progress-bar.component";
@@ -100,7 +99,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		provenance: input.provenance,
 		readlistTags: input.readlistTags,
 		saved: input.saved,
-		topics: summaryTopics(input.summary),
 	});
 
 	return render(ARTICLE_BODY_TEMPLATE, {

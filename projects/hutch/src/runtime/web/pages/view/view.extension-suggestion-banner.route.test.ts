@@ -85,7 +85,6 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		const findGeneratedSummary: FindGeneratedSummary = async () => ({
 			status: "ready",
 			summary: "TLDR.",
-			topics: [],
 		});
 		const harness = useApp({
 			...fixture,

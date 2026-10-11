@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { MinutesSchema, toArticleTopics, type ArticleTopic } from "@packages/domain/article";
+import { MinutesSchema } from "@packages/domain/article";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -30,8 +30,8 @@ interface SeededArticle {
 }
 
 function pinnedFixture(summary: SummaryProvider = createFakeSummaryProvider()) {
-	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN, summary);
-	return { ...fixture, shared: { ...fixture.shared, now: () => NOW } };
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	return { ...fixture, summary, shared: { ...fixture.shared, now: () => NOW } };
 }
 
 function fixtureWithGmail() {
@@ -73,10 +73,6 @@ async function seed(harness: TestHarness, article: SeededArticle): Promise<void>
 
 async function seedAll(harness: TestHarness, articles: SeededArticle[]): Promise<void> {
 	for (const article of articles) await seed(harness, article);
-}
-
-function readyWithTopics(summary: SummaryProvider, url: string, topics: readonly ArticleTopic[]): void {
-	summary.markSummaryReady({ url, summary: "A summary.", excerpt: "An excerpt.", topics });
 }
 
 async function createReadlist(agent: TestAgent, label: string): Promise<string> {
@@ -123,7 +119,7 @@ function params(href: string | null): URLSearchParams {
 }
 
 function discoveryParamsOf(href: string | null): [string, string][] {
-	return [...params(href)].filter(([name]) => ["q", "time", "saved", "topic"].includes(name));
+	return [...params(href)].filter(([name]) => ["q", "time", "saved"].includes(name));
 }
 
 function hiddenFields(form: Element): [string | null, string | null][] {
@@ -137,13 +133,6 @@ function checkedOptions(doc: Document, scope: string): (string | null)[] {
 	return Array.from(doc.querySelectorAll(`[data-test-discovery-form="${scope}"] [data-test-discovery-option]`))
 		.filter((option) => option.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked)
 		.map((option) => option.getAttribute("data-test-discovery-option"));
-}
-
-function offeredOptions(doc: Document, scope: string, group: string): (string | null)[] {
-	return Array.from(
-		doc.querySelectorAll(`[data-test-discovery-form="${scope}"] [data-test-discovery-option^="${group}:"]`),
-		(option) => option.getAttribute("data-test-discovery-option"),
-	);
 }
 
 function searchSubmission(doc: Document, q: string): string {
@@ -334,31 +323,25 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 			expect(await listedOn(agent, "/queue?q=focus&time=5-10&saved=week")).toEqual(["https://example.com/match"]);
 		});
 
-		it("matches a ticked topic in any case, the untopiced rows under Others, and topic labels in the search", async () => {
+		it("searches the title, never the generated summary, and ignores a topic filter carried by an old link", async () => {
 			const summary = createFakeSummaryProvider();
 			const harness = useApp(pinnedFixture(summary));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seedAll(harness, [
-				{ url: "https://example.com/finance", title: "Spending plans", savedAt: new Date(NOW.getTime() - HOUR) },
-				{ url: "https://example.com/focus", title: "Quiet mornings", savedAt: new Date(NOW.getTime() - 2 * HOUR) },
-				{ url: "https://example.com/no-topics", title: "Untitled thoughts", savedAt: new Date(NOW.getTime() - 3 * HOUR) },
-				{ url: "https://example.com/no-summary", title: "Still summarising", savedAt: new Date(NOW.getTime() - 4 * HOUR) },
+				{ url: "https://example.com/finance", title: "Personal finance basics", savedAt: new Date(NOW.getTime() - HOUR) },
+				{ url: "https://example.com/spending", title: "Spending plans", savedAt: new Date(NOW.getTime() - 2 * HOUR) },
 			]);
-			readyWithTopics(summary, "https://example.com/finance", toArticleTopics(["Personal finance"]));
-			readyWithTopics(summary, "https://example.com/focus", toArticleTopics(["Focus"]));
-			readyWithTopics(summary, "https://example.com/no-topics", []);
+			summary.markSummaryReady({
+				url: "https://example.com/spending",
+				summary: "A finance guide to monthly budgets.",
+				excerpt: "Plan your finance month by month.",
+			});
 
-			expect(await listedOn(agent, "/queue?topic=focus")).toEqual(["https://example.com/focus"]);
-			expect(await listedOn(agent, "/queue?topic=others")).toEqual([
-				"https://example.com/no-topics",
-				"https://example.com/no-summary",
-			]);
-			expect(await listedOn(agent, "/queue?topic=Focus&topic=others")).toEqual([
-				"https://example.com/focus",
-				"https://example.com/no-topics",
-				"https://example.com/no-summary",
-			]);
 			expect(await listedOn(agent, "/queue?q=finance")).toEqual(["https://example.com/finance"]);
+			expect(await listedOn(agent, "/queue?topic=Focus&topic=others")).toEqual([
+				"https://example.com/finance",
+				"https://example.com/spending",
+			]);
 		});
 
 		it("round-trips what Apply submits, keeping the search and dropping the page", async () => {
@@ -706,10 +689,10 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 			await seed(harness, { url: "https://example.com/focus", title: "Focus", readlist: work });
 			await agent.post(`/queue/${articleIdOf(await page(agent, `/queue?queue=${work}`), "https://example.com/focus")}/status?queue=${work}`).type("form").send({ status: "read" });
 
-			const doc = await page(agent, `/queue?queue=${work}&tab=done&order=asc&q=focus&time=5-10&saved=month&topic=others`);
+			const doc = await page(agent, `/queue?queue=${work}&tab=done&order=asc&q=focus&time=5-10&saved=month`);
 
 			for (const scope of ["popover", "fallback"]) {
-				expect(checkedOptions(doc, scope)).toEqual(["time:5-10", "saved:month", "topic:others"]);
+				expect(checkedOptions(doc, scope)).toEqual(["time:5-10", "saved:month"]);
 				expect(hiddenFields(element(doc, `[data-test-discovery-form="${scope}"]`))).toEqual([
 					["queue", work],
 					["tab", "done"],
@@ -726,39 +709,6 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 				close.closest("[data-test-discovery-form]")?.getAttribute("data-test-discovery-form"),
 			);
 			expect(closes).toEqual(["popover"]);
-		});
-
-		it("still offers a topic that only the rows a ticked topic excludes carry", async () => {
-			const summary = createFakeSummaryProvider();
-			const harness = useApp(pinnedFixture(summary));
-			const agent = await loginAgent(harness.server, harness.auth);
-			await seedAll(harness, [
-				{ url: "https://example.com/focus", title: "Quiet mornings", savedAt: new Date(NOW.getTime() - HOUR) },
-				{ url: "https://example.com/lifestyle", title: "Slow weekends", savedAt: new Date(NOW.getTime() - 2 * HOUR) },
-			]);
-			readyWithTopics(summary, "https://example.com/focus", toArticleTopics(["Focus"]));
-			readyWithTopics(summary, "https://example.com/lifestyle", toArticleTopics(["Lifestyle"]));
-
-			const doc = await page(agent, "/queue?topic=Focus");
-
-			expect(listedUrls(doc)).toEqual(["https://example.com/focus"]);
-			expect(offeredOptions(doc, "popover", "topic")).toEqual(["topic:Focus", "topic:Lifestyle", "topic:others"]);
-		});
-
-		it("offers the topics of the page's rows while nothing narrows the list", async () => {
-			const summary = createFakeSummaryProvider();
-			const harness = useApp(pinnedFixture(summary));
-			const agent = await loginAgent(harness.server, harness.auth);
-			await seedAll(harness, [
-				{ url: "https://example.com/focus", title: "Quiet mornings", savedAt: new Date(NOW.getTime() - HOUR) },
-				{ url: "https://example.com/focus-trends", title: "New habits", savedAt: new Date(NOW.getTime() - 2 * HOUR) },
-			]);
-			readyWithTopics(summary, "https://example.com/focus", toArticleTopics(["Focus"]));
-			readyWithTopics(summary, "https://example.com/focus-trends", toArticleTopics(["Trends", "Focus"]));
-
-			const doc = await page(agent, "/queue");
-
-			expect(offeredOptions(doc, "popover", "topic")).toEqual(["topic:Focus", "topic:Trends", "topic:others"]);
 		});
 
 		it("carries the preferences flag through both forms and both clear links on a custom readlist", async () => {

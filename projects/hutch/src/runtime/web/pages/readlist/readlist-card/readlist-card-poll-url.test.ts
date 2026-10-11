@@ -53,10 +53,10 @@ describe("buildCardPollUrl", () => {
 			filters: {
 				tab: "queue",
 				order: "asc",
-				discovery: { q: "deep work", time: ["5-10"], saved: ["week"], topic: ["others"] },
+				discovery: { q: "deep work", time: ["5-10"], saved: ["week"] },
 				page: 2,
 			},
 		});
-		expect(url).toBe("/queue/abc123/card?poll=2&order=asc&q=deep+work&time=5-10&saved=week&topic=others&page=2");
+		expect(url).toBe("/queue/abc123/card?poll=2&order=asc&q=deep+work&time=5-10&saved=week&page=2");
 	});
 });

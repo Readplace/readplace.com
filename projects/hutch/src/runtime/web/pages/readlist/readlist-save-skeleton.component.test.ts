@@ -49,7 +49,7 @@ describe("toReadlistSaveSkeletonDisplayModel", () => {
 		{ name: "read-only access", filters: DESTINATION_FILTERS, accessIsReadOnly: true },
 		{
 			name: "a listing narrowed by a search or filter",
-			filters: { ...DESTINATION_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] } },
+			filters: { ...DESTINATION_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [] } },
 			accessIsReadOnly: false,
 		},
 	];

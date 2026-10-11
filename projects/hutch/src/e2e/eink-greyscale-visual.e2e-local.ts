@@ -73,7 +73,7 @@ const READLIST_ARTICLES = [
 		title: "The second article in the readlist",
 		savedAt: "2026-07-11T09:14:00.000Z",
 		excerpt: "A fixed excerpt, long enough to occupy the two lines a real card excerpt occupies.",
-		topics: ["Productivity", "Focus", "Lifestyle"],
+		wordCount: 1900,
 	},
 	{
 		slug: "eink-greyscale-third",
@@ -101,12 +101,13 @@ async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email
 			data: {
 				url: `https://example.com/${article.slug}`,
 				title: article.title,
+				wordCount: article.wordCount,
 				content: "<p>Seeded body for the greyscale readlist baseline.</p>",
 				contentFetchedAt: FETCHED_AT,
 				savedAt: article.savedAt,
 				savedByUserId: userId,
 				excerpt: article.excerpt,
-				generatedSummary: { summary: "Seeded summary.", excerpt: article.excerpt, topics: article.topics },
+				generatedSummary: { summary: "Seeded summary.", excerpt: article.excerpt },
 			},
 		});
 		assert.equal(seeded.status(), 201, "the seed endpoint must create the readlist article");
@@ -395,12 +396,12 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				`filter-drawer-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
 			await loginAs(page, email);
-			await page.goto(`${BASE_URL}/queue?time=under-5&saved=today&topic=Focus`, { waitUntil: "domcontentloaded" });
+			await page.goto(`${BASE_URL}/queue?time=5-10&saved=today`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("[data-test-article]")).toHaveCount(1);
 			await page.locator('[data-test-action="open-discovery-filters"]').click();
 			const drawer = page.locator(OPEN_FILTER_DRAWER);
 			await expect(drawer).toBeVisible();
-			await expect(drawer.locator("input:checked")).toHaveCount(3);
+			await expect(drawer.locator("input:checked")).toHaveCount(2);
 			await settle(page, OPEN_FILTER_DRAWER);
 
 			const box = await measuredBox(page, OPEN_FILTER_DRAWER);

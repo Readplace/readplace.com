@@ -1,6 +1,5 @@
 import {
 	type ArticleDestinationUrl,
-	type ArticleTopic,
 	articleDestinationUrl,
 	displayableReadTime,
 	hostStubMetadata,
@@ -34,7 +33,6 @@ import {
 } from "@packages/domain/article";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
-import { summaryTopics } from "../../../providers/article-summary/article-summary.helpers";
 import { toAbsoluteShortDateTime, type LocalTime } from "@packages/web-shell/local-time.format";
 import type {
 	ArticleReaderDeps,
@@ -386,7 +384,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 						provenance: undefined,
 						readlistTags: undefined,
 						saved: undefined,
-						topics: [],
 					}) + renderDocumentTitleOob(deps.formatDocumentTitle(stub.title)),
 				readerViewFailedOob: "",
 				downloadsOob: "",
@@ -410,7 +407,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		provenance: ReaderProvenance | undefined;
 		readlistTags: ReaderReadlistTags | undefined;
 		saved: LocalTime | undefined;
-		topics: readonly ArticleTopic[];
 	}): string {
 		const { article } = input;
 		if (!article) return "";
@@ -422,7 +418,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			provenance: input.provenance,
 			readlistTags: input.readlistTags,
 			saved: input.saved,
-			topics: input.topics,
 		});
 		const titleOob = renderDocumentTitleOob(
 			deps.formatDocumentTitle(article.metadata.title),
@@ -463,7 +458,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				provenance: params.provenance,
 				readlistTags: params.readlistTags,
 				saved: params.saved,
-				topics: summaryTopics(summary),
 			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({
@@ -511,7 +505,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				provenance: params.provenance,
 				readlistTags: params.readlistTags,
 				saved: params.saved,
-				topics: summaryTopics(summary),
 			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({

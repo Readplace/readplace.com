@@ -19,7 +19,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
-import { calculateReadTime, toArticleTopics } from "@packages/domain/article";
+import { calculateReadTime } from "@packages/domain/article";
 import { MAX_POLLS } from "@packages/web-shell";
 import type { ViewOpenedEvent } from "@packages/web-analytics";
 import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
@@ -1496,7 +1496,6 @@ describe("View routes", () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({
 				status: "ready",
 				summary: "Key points from the article.",
-				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -1776,7 +1775,6 @@ describe("View routes", () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({
 				status: "ready",
 				summary: "Fragment summary.",
-				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
@@ -1852,11 +1850,10 @@ describe("View routes", () => {
 			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 		});
 
-		it("swaps in a header with the public facts and the ready summary's topics", async () => {
+		it("swaps in a header with the public facts", async () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({
 				status: "ready",
 				summary: "Fragment summary.",
-				topics: toArticleTopics(["Blogging", "Design"]),
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			await fixture.articleStore.saveArticleGlobally({
@@ -1879,8 +1876,7 @@ describe("View routes", () => {
 				Array.from(header.querySelectorAll("[data-test-reader-fact]"), (fact) =>
 					fact.getAttribute("data-test-reader-fact"),
 				),
-				Array.from(header.querySelectorAll("[data-test-reader-topic]"), (topic) => topic.textContent),
-			]).toEqual(["outerHTML", ["site", "read-time", "original"], ["Blogging", "Design"]]);
+			]).toEqual(["outerHTML", ["site", "read-time", "original"]]);
 		});
 
 		it("returns 400 for an invalid url", async () => {

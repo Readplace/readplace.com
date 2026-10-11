@@ -1,7 +1,6 @@
 import {
 	displayableReadTime,
 	isNonArticleHost,
-	type ArticleTopic,
 	type DisplayableReadTime,
 	type SavedArticle,
 	type SaveableUrlErrorCode,
@@ -26,7 +25,6 @@ import type { BillingPlan } from "@packages/provider-contracts/subscription-prov
 import {
 	type PickedExcerpt,
 	pickExcerpt,
-	summaryTopics,
 } from "../../../providers/article-summary/article-summary.helpers";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -91,7 +89,6 @@ export interface ReadlistArticleViewModel {
 	siteName: string;
 	excerpt: string;
 	excerptSource: PickedExcerpt["source"];
-	topics: readonly ArticleTopic[];
 	url: string;
 	status: string;
 	readTime: DisplayableReadTime | undefined;
@@ -340,7 +337,6 @@ export function toReadlistArticleViewModel(params: {
 		siteName: article.metadata.siteName,
 		excerpt: excerpt.text,
 		excerptSource: excerpt.source,
-		topics: summaryTopics(summary),
 		url: article.destinationUrl,
 		status: article.status,
 		suggestionLabel:

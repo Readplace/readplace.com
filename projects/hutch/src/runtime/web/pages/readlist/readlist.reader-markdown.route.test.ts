@@ -71,7 +71,6 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			url,
 			summary: "First point.\n\nSecond point.",
 			excerpt: "Generated blurb.",
-			topics: [],
 		});
 		const token = await createAccessToken(harness);
 
@@ -141,7 +140,6 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			url,
 			summary: "First point.\n\nSecond point.",
 			excerpt: "Generated blurb.",
-			topics: [],
 		});
 
 		const cookieResponse = await agent.get(`/queue/${id}/view`).set("Accept", "text/markdown");

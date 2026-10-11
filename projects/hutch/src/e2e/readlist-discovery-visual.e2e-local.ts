@@ -25,7 +25,7 @@ const THEMES = ["light", "dark"] as const;
 const SEEDED_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const SEARCH_WORD = "deep";
 const NO_MATCH_QUERY = "?q=no-such-words-anywhere";
-const FILTERED_QUERY = "?time=5-10&saved=month&topic=Personal+finance";
+const FILTERED_QUERY = "?time=5-10&saved=month";
 const PINNED_SAVED_TIMES = ["2h ago", "3h ago", "4h ago"];
 
 const MAIN = "main.readlist";
@@ -63,21 +63,18 @@ const SEEDED_ARTICLES = [
 		title: "Deep work in a distracted office",
 		siteName: "Calm Notes",
 		wordCount: 700,
-		topics: ["Focus", "Productivity"],
 	},
 	{
 		slug: "index-funds",
 		title: "Index funds for the patient saver",
 		siteName: "Money Weekly",
 		wordCount: 1900,
-		topics: ["Personal finance"],
 	},
 	{
 		slug: "night-train",
 		title: "The slow return of the night train",
 		siteName: "Field Journal",
 		wordCount: 5200,
-		topics: ["Lifestyle", "Trends"],
 	},
 ];
 
@@ -105,7 +102,6 @@ async function seedReader(page: Page, stamp: string): Promise<void> {
 				generatedSummary: {
 					summary: "Seeded summary for the readlist discovery baseline.",
 					excerpt,
-					topics: article.topics,
 				},
 			},
 		});
@@ -287,7 +283,7 @@ async function drawerOpenSettled(page: Page): Promise<void> {
 	await expect(page.locator(ARTICLE)).toHaveCount(1);
 	await expect(page.locator(LISTING_COUNT)).toHaveText("1 Saved Article");
 	await openDrawer(page);
-	await expect(page.locator(`${OPEN_DRAWER} input:checked`)).toHaveCount(3);
+	await expect(page.locator(`${OPEN_DRAWER} input:checked`)).toHaveCount(2);
 	await page.mouse.move(0, 0);
 }
 

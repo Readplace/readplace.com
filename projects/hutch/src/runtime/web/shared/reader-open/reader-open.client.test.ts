@@ -22,7 +22,6 @@ function realCard(overrides?: Partial<ReadlistArticleViewModel>): string {
 		siteName: "example.com",
 		excerpt: "An excerpt.",
 		excerptSource: "generated",
-		topics: [],
 		url: "https://example.com/post",
 		status: "unread",
 		readTime: { value: "3", label: "3 min read" },

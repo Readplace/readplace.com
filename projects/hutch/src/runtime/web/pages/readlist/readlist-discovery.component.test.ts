@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { toArticleTopics } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
 import {
@@ -17,8 +16,6 @@ function discoveryDoc(input: Partial<Parameters<typeof buildReadlistDiscovery>[0
 	const model = buildReadlistDiscovery({
 		filters: UNFILTERED,
 		tabHoldsRows: true,
-		pageTopics: [],
-		discoveryTopics: undefined,
 		preferencesEnabled: false,
 		...input,
 	});
@@ -90,7 +87,7 @@ describe("buildReadlistDiscovery", () => {
 
 	it("names the search field with a hidden label and shows the query being searched", () => {
 		const doc = discoveryDoc({
-			filters: { ...UNFILTERED, discovery: { q: "São Paulo", time: [], saved: [], topic: [] } },
+			filters: { ...UNFILTERED, discovery: { q: "São Paulo", time: [], saved: [] } },
 		});
 
 		const input = element(doc, "[data-test-discovery-search]");
@@ -102,7 +99,7 @@ describe("buildReadlistDiscovery", () => {
 			input.getAttribute("placeholder"),
 			input.getAttribute("enterkeyhint"),
 			input.getAttribute("autocomplete"),
-		]).toEqual(["readlist-search-input", "search", "q", "São Paulo", "Search articles, topics, or sources…", "search", "off"]);
+		]).toEqual(["readlist-search-input", "search", "q", "São Paulo", "Search articles or sources…", "search", "off"]);
 		const label = element(doc, 'label[for="readlist-search-input"]');
 		expect(label.textContent).toBe("Search articles");
 		expect(label.classList.contains("sr-only")).toBe(true);
@@ -115,7 +112,7 @@ describe("buildReadlistDiscovery", () => {
 				tab: "done",
 				order: "asc",
 				page: 3,
-				discovery: { q: "focus", time: ["5-10", "10-20"], saved: ["month"], topic: ["others"] },
+				discovery: { q: "focus", time: ["5-10", "10-20"], saved: ["month"] },
 			},
 			preferencesEnabled: true,
 		});
@@ -127,7 +124,6 @@ describe("buildReadlistDiscovery", () => {
 			["time", "5-10"],
 			["time", "10-20"],
 			["saved", "month"],
-			["topic", "others"],
 			["feature", "pref"],
 			["utm_source", "queue-search"],
 			["utm_medium", "internal"],
@@ -156,14 +152,14 @@ describe("buildReadlistDiscovery", () => {
 
 	it("counts the ticked options into the filter button's name and marks it active", () => {
 		const doc = discoveryDoc({
-			filters: { ...UNFILTERED, discovery: { q: "focus", time: ["5-10"], saved: ["month"], topic: ["others"] } },
+			filters: { ...UNFILTERED, discovery: { q: "focus", time: ["5-10"], saved: ["month"] } },
 		});
 
 		const trigger = element(doc, '[data-test-action="open-discovery-filters"]');
-		expect(trigger.textContent).toBe("Filters (3)");
+		expect(trigger.textContent).toBe("Filters (2)");
 		expect(trigger.classList.contains("readlist-discovery__filter--active")).toBe(true);
 		const summary = element(doc, "[data-test-discovery-fallback] > summary");
-		expect(summary.textContent).toBe("Filters (3)");
+		expect(summary.textContent).toBe("Filters (2)");
 		expect(summary.classList.contains("readlist-discovery__filter--active")).toBe(true);
 	});
 
@@ -188,13 +184,13 @@ describe("buildReadlistDiscovery", () => {
 		expect(element(doc, "#readlist-filters-title").textContent).toBe("Filters");
 	});
 
-	it("groups the options under reading time, saved date and category", () => {
+	it("groups the options under reading time and saved date", () => {
 		const legends = Array.from(
 			discoveryDoc().querySelectorAll('[data-test-discovery-form="popover"] .readlist-filters__legend'),
 			(legend) => legend.textContent,
 		);
 
-		expect(legends).toEqual(["Reading time", "Saved date", "Category"]);
+		expect(legends).toEqual(["Reading time", "Saved date"]);
 	});
 
 	it("offers every reading-time bucket and saved-date window by its label", () => {
@@ -215,7 +211,6 @@ describe("buildReadlistDiscovery", () => {
 			"This week",
 			"This month",
 			"Older",
-			"Others",
 		]);
 	});
 
@@ -232,44 +227,12 @@ describe("buildReadlistDiscovery", () => {
 		expect(input.nextElementSibling?.className).toBe("chip chip--filter");
 	});
 
-	it("offers the page's topics, most frequent first, while nothing narrows the list", () => {
-		const doc = discoveryDoc({
-			pageTopics: [toArticleTopics(["Trends", "Focus"]), toArticleTopics(["Focus"]), toArticleTopics(["Lifestyle"])],
-		});
-
-		expect(options(doc, "popover", "topic")).toEqual([
-			"topic:Focus",
-			"topic:Lifestyle",
-			"topic:Trends",
-			"topic:others",
-		]);
-	});
-
-	it("offers the store's topics once a search or filter is active, keeping a ticked topic it no longer reports", () => {
-		const doc = discoveryDoc({
-			filters: {
-				...UNFILTERED,
-				discovery: { time: [], saved: [], topic: [...toArticleTopics(["Fintech"]), ...toArticleTopics(["focus"])] },
-			},
-			pageTopics: [toArticleTopics(["Lifestyle"])],
-			discoveryTopics: toArticleTopics(["Focus", "Productivity"]),
-		});
-
-		expect(options(doc, "popover", "topic")).toEqual([
-			"topic:Focus",
-			"topic:Productivity",
-			"topic:Fintech",
-			"topic:others",
-		]);
-		expect(checkedOptions(doc, "popover")).toEqual(["topic:Focus", "topic:Fintech"]);
-	});
-
 	it("ticks exactly the options the URL names, in both copies of the drawer", () => {
 		const doc = discoveryDoc({
-			filters: { ...UNFILTERED, discovery: { time: ["5-10", "20-plus"], saved: ["older"], topic: ["others"] } },
+			filters: { ...UNFILTERED, discovery: { time: ["5-10", "20-plus"], saved: ["older"] } },
 		});
 
-		const ticked = ["time:5-10", "time:20-plus", "saved:older", "topic:others"];
+		const ticked = ["time:5-10", "time:20-plus", "saved:older"];
 		expect(checkedOptions(doc, "popover")).toEqual(ticked);
 		expect(checkedOptions(doc, "fallback")).toEqual(ticked);
 	});
@@ -281,7 +244,7 @@ describe("buildReadlistDiscovery", () => {
 				tab: "done",
 				order: "asc",
 				page: 2,
-				discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] },
+				discovery: { q: "focus", time: ["5-10"], saved: [] },
 			},
 			preferencesEnabled: true,
 		});
@@ -307,7 +270,7 @@ describe("buildReadlistDiscovery", () => {
 				tab: "done",
 				order: "asc",
 				page: 2,
-				discovery: { q: "focus", time: ["5-10"], saved: ["week"], topic: ["others"] },
+				discovery: { q: "focus", time: ["5-10"], saved: ["week"] },
 			},
 			preferencesEnabled: true,
 		});

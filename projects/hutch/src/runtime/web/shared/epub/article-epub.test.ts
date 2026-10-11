@@ -188,7 +188,6 @@ describe("initBuildArticleEpub", () => {
 				status: "ready",
 				summary: "First point.\n\nSecond point.",
 				excerpt: "Generated blurb.",
-				topics: [],
 			},
 			contentHtml: "<p>Body copy.</p>",
 		});

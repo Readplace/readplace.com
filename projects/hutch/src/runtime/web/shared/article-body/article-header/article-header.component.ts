@@ -3,7 +3,6 @@ import { join } from "node:path";
 import Handlebars from "handlebars";
 import type {
 	ArticleDestinationUrl,
-	ArticleTopic,
 	DisplayableReadTime,
 	SiteLabel,
 } from "@packages/domain/article";
@@ -31,7 +30,6 @@ export interface ArticleHeaderInput {
 	provenance: ReaderProvenance | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
 	saved: LocalTime | undefined;
-	topics: readonly ArticleTopic[];
 }
 
 function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
@@ -46,8 +44,7 @@ function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
 		provenanceIconSvg: provenance?.iconSvg,
 		readlistTags: input.readlistTags,
 		saved: input.saved,
-		topics: input.topics.map((label) => ({ label })),
-		hasTags: input.topics.length > 0 || input.readlistTags !== undefined,
+		hasTags: input.readlistTags !== undefined,
 		oob,
 	});
 }

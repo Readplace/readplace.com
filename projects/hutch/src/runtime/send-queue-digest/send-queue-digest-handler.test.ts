@@ -7,7 +7,7 @@ import { DigestPageCursorSchema } from "@packages/provider-contracts/article-sto
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { UserContact } from "@packages/provider-contracts/auth";
 import { EmailRejectedError } from "@packages/provider-contracts/email";
-import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initInMemoryReaderReadyState } from "@packages/test-fixtures/providers/reader-ready-state";
@@ -49,7 +49,7 @@ interface LogLine {
 
 function createSubject(options: { contact?: UserContact | null; overrides?: Partial<SendQueueDigestDeps> } = {}) {
 	const clock = { now: SEND_INSTANT };
-	const articleStore = initInMemoryArticleStore({ findTopics: noArticleTopics });
+	const articleStore = initInMemoryArticleStore();
 	const summaries = initInMemoryGeneratedSummary();
 	const readerReady = initInMemoryReaderReadyState();
 	const subscriptions = initInMemorySubscriptionProviders({ now: () => clock.now });
@@ -151,7 +151,6 @@ async function saveReadyArticle(subject: Subject, input: { url: string; title: s
 		url: input.url,
 		summary: `${input.title} summary.`,
 		excerpt: `${input.title} teaser.`,
-		topics: [],
 	});
 }
 
@@ -356,7 +355,7 @@ describe("initSendQueueDigestHandler", () => {
 				savedAt: DAY_OLD_SAVE,
 			});
 			await subject.articleStore.setReaderAvailableAt({ url, at: DAY_OLD_SAVE });
-			await subject.summaries.markSummaryReady({ url, summary: "Summary", topics: [] });
+			await subject.summaries.markSummaryReady({ url, summary: "Summary" });
 		}
 		await subject.run();
 		expect(cardTitlesOf(onlySentEmail(subject).text)).toEqual(["gmail"]);
@@ -641,7 +640,7 @@ describe("initSendQueueDigestHandler", () => {
 			[
 				"its reader view never loaded",
 				async (subject) => {
-					await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Summarised.", topics: [] });
+					await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Summarised." });
 				},
 				{},
 			],
@@ -649,7 +648,7 @@ describe("initSendQueueDigestHandler", () => {
 				"its content was purged",
 				async (subject) => {
 					await subject.articleStore.setReaderAvailableAt({ url: NOT_READY_URL, at: hoursBefore(40) });
-					await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Gone.", topics: [] });
+					await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Gone." });
 					await subject.articleStore.setPurgedAt({ url: NOT_READY_URL, at: hoursBefore(2) });
 				},
 				{},
@@ -711,7 +710,7 @@ describe("initSendQueueDigestHandler", () => {
 			await saveArticle(subject, { url: NOT_READY_URL, title: "Loading", savedAt: hoursBefore(40) });
 			await subject.run();
 			await subject.articleStore.setReaderAvailableAt({ url: NOT_READY_URL, at: hoursBefore(1) });
-			await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Loaded.", excerpt: "Loaded teaser.", topics: [] });
+			await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Loaded.", excerpt: "Loaded teaser." });
 			const nextTick = new Date(SEND_INSTANT.getTime() + 48 * HOUR_MS);
 			subject.clock.now = nextTick;
 

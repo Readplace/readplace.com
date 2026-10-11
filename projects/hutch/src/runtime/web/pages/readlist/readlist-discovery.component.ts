@@ -1,13 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-	READ_TIME_BUCKETS,
-	SAVED_WINDOWS,
-	UNTOPICED_FACET,
-	rankDiscoveryTopics,
-	type ArticleTopic,
-	type ArticleTopicFacet,
-} from "@packages/domain/article";
+import { READ_TIME_BUCKETS, SAVED_WINDOWS } from "@packages/domain/article";
 import { render, renderInFlightDots, withInternalTracking } from "@packages/web-shell";
 
 import { preferencesFeatureParams } from "./readlist-preferences-feature";
@@ -21,11 +14,9 @@ const FILTERS_POPOVER_ID = "readlist-filters";
 
 const PARSE_ORIGIN = "https://internal.invalid";
 
-const UNTOPICED_LABEL = "Others";
-
 const APPLY_LOADER_HTML = renderInFlightDots("readlist-filters__apply-loader in-flight-dots");
 
-const NO_DISCOVERY: ReadlistDiscovery = { time: [], saved: [], topic: [] };
+const NO_DISCOVERY: ReadlistDiscovery = { time: [], saved: [] };
 
 const ROW_STATE_CLASSES = {
 	visible: "readlist-discovery--visible",
@@ -74,36 +65,16 @@ export interface ReadlistDiscoveryDisplayModel {
 }
 
 export function tickedFacetCount(discovery: ReadlistDiscovery): number {
-	return discovery.time.length + discovery.saved.length + discovery.topic.length;
+	return discovery.time.length + discovery.saved.length;
 }
 
 function hiddenFieldsOf(href: string): HiddenField[] {
 	return Array.from(new URL(href, PARSE_ORIGIN).searchParams, ([name, value]) => ({ name, value }));
 }
 
-function isTopic(facet: ArticleTopicFacet): facet is ArticleTopic {
-	return facet !== UNTOPICED_FACET;
-}
-
-function categoryOptions(input: {
-	offered: readonly ArticleTopic[];
-	ticked: readonly ArticleTopicFacet[];
-}): DiscoveryOption[] {
-	const tickedTopics = input.ticked.filter(isTopic);
-	const tickedKeys = new Set(tickedTopics.map((topic) => topic.toLowerCase()));
-	const offeredKeys = new Set(input.offered.map((topic) => topic.toLowerCase()));
-	const topics = [...input.offered, ...tickedTopics.filter((topic) => !offeredKeys.has(topic.toLowerCase()))];
-	return [
-		...topics.map((topic) => ({ value: topic, label: topic, checked: tickedKeys.has(topic.toLowerCase()) })),
-		{ value: UNTOPICED_FACET, label: UNTOPICED_LABEL, checked: input.ticked.includes(UNTOPICED_FACET) },
-	];
-}
-
 export function buildReadlistDiscovery(input: {
 	filters: ReadlistUrlState;
 	tabHoldsRows: boolean;
-	pageTopics: readonly (readonly ArticleTopic[])[];
-	discoveryTopics: readonly ArticleTopic[] | undefined;
 	preferencesEnabled: boolean;
 }): ReadlistDiscoveryDisplayModel {
 	const discovery = input.filters.discovery ?? NO_DISCOVERY;
@@ -137,14 +108,6 @@ export function buildReadlistDiscovery(input: {
 					label: window.label,
 					checked: discovery.saved.includes(window.id),
 				})),
-			},
-			{
-				legend: "Category",
-				name: "topic",
-				options: categoryOptions({
-					offered: input.discoveryTopics ?? rankDiscoveryTopics(input.pageTopics),
-					ticked: discovery.topic,
-				}),
 			},
 		],
 		drawerFields: hiddenFieldsOf(withInternalTracking(drawerUrl, { source: "queue-filter-drawer", content: "apply" })),

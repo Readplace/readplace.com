@@ -118,17 +118,12 @@ describe("buildReadlistTabs", () => {
 	it("carries the reader's search and filters across a tab switch", () => {
 		const doc = renderTabs({
 			activeTab: "queue",
-			discovery: { q: "focus", time: ["5-10"], saved: ["month"], topic: ["others"] },
+			discovery: { q: "focus", time: ["5-10"], saved: ["month"] },
 		});
 
 		for (const testFilter of ["unread", "read"]) {
 			const { params } = hrefParts(tabLink(doc, testFilter));
-			expect([params.get("q"), params.getAll("time"), params.getAll("saved"), params.getAll("topic")]).toEqual([
-				"focus",
-				["5-10"],
-				["month"],
-				["others"],
-			]);
+			expect([params.get("q"), params.getAll("time"), params.getAll("saved")]).toEqual(["focus", ["5-10"], ["month"]]);
 		}
 	});
 

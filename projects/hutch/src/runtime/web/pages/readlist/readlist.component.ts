@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ArticleTopic } from "@packages/domain/article";
 import type { IconName } from "@packages/ui-icons";
 import {
 	CONFIRM_POPOVER_STYLES,
@@ -113,7 +112,6 @@ export interface ReadlistPageOptions {
 	deviceClass: DeviceClass;
 	readlistHoldsArticles: boolean;
 	tabHoldsRows: boolean;
-	discoveryTopics: readonly ArticleTopic[] | undefined;
 	rail: ReadlistRailViewModel;
 	saveTip: SaveTip;
 	saveUrl?: string;
@@ -340,8 +338,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 	const discovery = buildReadlistDiscovery({
 		filters,
 		tabHoldsRows: options.tabHoldsRows,
-		pageTopics: articles.map((article) => article.topics),
-		discoveryTopics: options.discoveryTopics,
 		preferencesEnabled,
 	});
 	const panels = readlistPanels(options.rail);

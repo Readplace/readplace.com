@@ -2,9 +2,6 @@
   <h1 class="article-body__title" data-test-reader-title>{{title}}</h1>
   {{#if hasTags}}
   <ul class="article-body__tags" data-test-reader-tags>
-    {{#each topics}}
-    <li class="article-body__tag"><span class="chip chip--large" data-test-reader-topic="{{label}}">{{label}}</span></li>
-    {{/each}}
     {{#each readlistTags.tags}}
     <li class="article-body__tag"><span class="chip chip--large chip--accent" data-test-readlist-tag="{{slug}}">{{label}}<form class="chip__remove-form" method="POST" action="{{../readlistTags.unassignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
       <input type="hidden" name="queue" value="{{slug}}">

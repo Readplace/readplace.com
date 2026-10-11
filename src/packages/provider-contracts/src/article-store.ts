@@ -4,7 +4,6 @@ import type {
 	ArticleDiscoveryQuery,
 	ArticleMetadata,
 	ArticleStatus,
-	ArticleTopic,
 	SaveProvenance,
 	SuggestionAttribution,
 	SavedArticle,
@@ -53,7 +52,6 @@ export interface FindArticlesResult {
 	hasMore: boolean;
 	page: number;
 	pageSize: number;
-	discoveryTopics?: readonly ArticleTopic[];
 }
 
 export type SaveArticle = (

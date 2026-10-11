@@ -1,4 +1,4 @@
-import { SaveAttemptIdSchema, calculateReadTime, resolveArticleDiscovery, toArticleTopics } from "@packages/domain/article";
+import { SaveAttemptIdSchema, calculateReadTime } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	createFakeSummaryProvider,
@@ -13,7 +13,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	TEST_APP_ORIGIN,
 } from "./fixture";
-import { initInMemoryArticleStore, noArticleTopics } from "./providers/article-store/in-memory-article-store";
+import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import type { ParseArticle } from "@packages/article-parser";
 
@@ -38,7 +38,6 @@ describe("createFakeSummaryProvider", () => {
 		expect(await findGeneratedSummary(url)).toEqual({
 			status: "ready",
 			summary: `Fake summary for ${url}.`,
-			topics: [],
 		});
 	});
 
@@ -53,24 +52,7 @@ describe("createFakeSummaryProvider", () => {
 		expect(await findGeneratedSummary(url)).toEqual({
 			status: "ready",
 			summary: `Fake summary for ${url}.`,
-			topics: [],
 		});
-	});
-
-	it("findTopics reads a ready summary's topics without advancing readyAfterReads", async () => {
-		const { findGeneratedSummary, findTopics, markSummaryPending, markSummaryReady } = createFakeSummaryProvider({
-			readyAfterReads: 2,
-		});
-		const pendingUrl = "https://example.com/pending";
-		const readyUrl = "https://example.com/ready";
-
-		await markSummaryPending({ url: pendingUrl });
-		markSummaryReady({ url: readyUrl, summary: "Manual summary", excerpt: "Lead.", topics: toArticleTopics(["Focus"]) });
-
-		expect(await findTopics(pendingUrl)).toEqual([]);
-		expect(await findTopics(pendingUrl)).toEqual([]);
-		expect(await findGeneratedSummary(pendingUrl)).toEqual({ status: "pending" });
-		expect(await findTopics(readyUrl)).toEqual(["Focus"]);
 	});
 
 	it("returns undefined for a URL that has never been marked pending", async () => {
@@ -79,17 +61,16 @@ describe("createFakeSummaryProvider", () => {
 		expect(await findGeneratedSummary("https://example.com/never-saved")).toBeUndefined();
 	});
 
-	it("markSummaryReady writes the supplied summary, excerpt and topics", async () => {
+	it("markSummaryReady writes the supplied summary and excerpt", async () => {
 		const { findGeneratedSummary, markSummaryReady } = createFakeSummaryProvider();
 		const url = "https://example.com/article";
 
-		markSummaryReady({ url, summary: "Manual summary", excerpt: "Lead.", topics: toArticleTopics(["Fintech", "Trends"]) });
+		markSummaryReady({ url, summary: "Manual summary", excerpt: "Lead." });
 
 		expect(await findGeneratedSummary(url)).toEqual({
 			status: "ready",
 			summary: "Manual summary",
 			excerpt: "Lead.",
-			topics: ["Fintech", "Trends"],
 		});
 	});
 });
@@ -159,30 +140,6 @@ describe("createDefaultTestAppFixture", () => {
 		expect(bad.ok).toBe(false);
 	});
 
-	it("wires the store's topics to the summary provider it is given, so discovery filters by them", async () => {
-		const summary = createFakeSummaryProvider();
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN, summary);
-		const userId = UserIdSchema.parse("user-1");
-		const url = "https://example.com/focus";
-		await fixture.articleStore.saveArticle({
-			userId,
-			url,
-			metadata: { title: "Focus", siteName: "example.com", excerpt: "", wordCount: 500 },
-			estimatedReadTime: calculateReadTime(500),
-			provenance: { kind: "web" },
-			savedAt: new Date(),
-		});
-		summary.markSummaryReady({ url, summary: "Summary.", excerpt: "Lead.", topics: toArticleTopics(["Focus"]) });
-
-		const result = await fixture.articleStore.findArticlesByUser({
-			userId,
-			discovery: resolveArticleDiscovery({ time: [], saved: [], topic: toArticleTopics(["Focus"]), now: new Date() }),
-		});
-
-		expect(fixture.summary).toBe(summary);
-		expect(result.articles.map((article) => article.url)).toEqual([url]);
-	});
-
 	it("shared.logError is a no-op that doesn't throw", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 
@@ -245,7 +202,7 @@ describe("createFakeApplyParseResult", () => {
 	};
 
 	it("writes parsed metadata + content and marks crawl ready when parseArticle succeeds", async () => {
-		const articleStore = initInMemoryArticleStore({ findTopics: noArticleTopics });
+		const articleStore = initInMemoryArticleStore();
 		const articleCrawl = initInMemoryArticleCrawl();
 		const parseArticle: ParseArticle = async () => ({
 			ok: true,
@@ -270,7 +227,7 @@ describe("createFakeApplyParseResult", () => {
 	});
 
 	it("marks crawl failed when parseArticle returns ok:false", async () => {
-		const articleStore = initInMemoryArticleStore({ findTopics: noArticleTopics });
+		const articleStore = initInMemoryArticleStore();
 		const articleCrawl = initInMemoryArticleCrawl();
 		const parseArticle: ParseArticle = async () => ({ ok: false, reason: "no-content" });
 
@@ -285,7 +242,7 @@ describe("createFakeApplyParseResult", () => {
 	});
 
 	it("propagates an imageUrl from the parsed article when present", async () => {
-		const articleStore = initInMemoryArticleStore({ findTopics: noArticleTopics });
+		const articleStore = initInMemoryArticleStore();
 		const articleCrawl = initInMemoryArticleCrawl();
 		const parseArticle: ParseArticle = async () => ({
 			ok: true,

@@ -1,4 +1,3 @@
-import type { ArticleTopic } from "@packages/domain/article";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 
 export interface PickedExcerpt {
@@ -13,10 +12,6 @@ export function pickExcerpt(
 	if (summary?.status === "ready" && summary.excerpt)
 		return { text: summary.excerpt, source: "generated" };
 	return { text: fallback, source: "parsed" };
-}
-
-export function summaryTopics(summary: GeneratedSummary | undefined): readonly ArticleTopic[] {
-	return summary?.status === "ready" ? summary.topics : [];
 }
 
 const SEO_DESCRIPTION_MAX_CHARS = 160;

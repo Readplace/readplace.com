@@ -1,5 +1,4 @@
 import { deriveReaderViewStatus, enteredReaderViewSucceeded } from "@packages/article-state-types";
-import type { ArticleTopic } from "../../article/article-topic";
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
@@ -16,7 +15,6 @@ export interface MarkSummaryReadyInput {
 	 * against. Recorded on the ready summary so a future caller can detect
 	 * "content unchanged since last summary" and skip regeneration. */
 	sourceContentHash?: string;
-	topics?: readonly ArticleTopic[];
 }
 
 /* `writes` covers summary + summaryAutoHeal so a successful regen resets the
@@ -38,9 +36,6 @@ export function markSummaryReady(
 	};
 	if (input.sourceContentHash !== undefined) {
 		summary.sourceContentHash = input.sourceContentHash;
-	}
-	if (input.topics !== undefined) {
-		summary.topics = input.topics;
 	}
 	const next: Article = {
 		...article,

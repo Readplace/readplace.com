@@ -3,7 +3,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { noopLogger } from "@packages/hutch-logger";
-import { initInMemoryArticleStore, noArticleTopics } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
@@ -46,7 +46,7 @@ async function subject(
 ) {
 	const id = UserIdSchema.parse(input.id ?? userId);
 	const clock = { now: NOW };
-	const library = initInMemoryArticleStore({ findTopics: noArticleTopics });
+	const library = initInMemoryArticleStore();
 	const state = initInMemoryEngagementStarter({ library });
 	const summaries = initInMemoryGeneratedSummary();
 	const subscriptions = initInMemorySubscriptionProviders({ now: () => clock.now });
@@ -74,7 +74,6 @@ async function subject(
 		await summaries.markSummaryReady({
 			url: pick.url,
 			summary: "A useful summary of this article.",
-			topics: [],
 		});
 	}
 	const contact: UserContact = {

@@ -167,7 +167,6 @@ describe("GET /view/<url>?format=<download>", () => {
 			url: ARTICLE_URL,
 			summary: "First point.\n\nSecond point.",
 			excerpt: "Generated blurb.",
-			topics: [],
 		});
 		const afterSummary = await request(harness.server)
 			.get(EPUB_PATH)

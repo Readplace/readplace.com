@@ -2,12 +2,8 @@ import { z } from "zod";
 import {
 	READ_TIME_BUCKETS,
 	SAVED_WINDOWS,
-	UNTOPICED_FACET,
 	resolveArticleDiscovery,
-	toArticleTopics,
 	type ArticleDiscoveryQuery,
-	type ArticleTopic,
-	type ArticleTopicFacet,
 	type ReadTimeBucketId,
 	type SavedWindowId,
 } from "@packages/domain/article";
@@ -27,7 +23,6 @@ export interface ReadlistDiscovery {
 	q?: string;
 	time: ReadTimeBucketId[];
 	saved: SavedWindowId[];
-	topic: ArticleTopicFacet[];
 }
 
 export interface ReadlistUrlState {
@@ -50,7 +45,6 @@ const ReadlistQuerySchema = z.looseObject({
 	q: z.string().optional().catch(undefined),
 	time: RepeatableParam,
 	saved: RepeatableParam,
-	topic: RepeatableParam,
 	page: z.coerce.number().int().min(1).optional().catch(undefined),
 });
 
@@ -65,19 +59,6 @@ function searchQueryOf(raw: string | undefined): string | undefined {
 	return q === "" ? undefined : q;
 }
 
-function topicFacetsOf(raw: readonly string[]): ArticleTopicFacet[] {
-	const topics: ArticleTopic[] = [];
-	for (const value of raw) {
-		if (value === UNTOPICED_FACET) continue;
-		const [topic] = toArticleTopics([value]);
-		if (topic === undefined) continue;
-		if (topics.some((kept) => kept.toLowerCase() === topic.toLowerCase())) continue;
-		topics.push(topic);
-	}
-	topics.sort((a, b) => a.localeCompare(b));
-	return raw.includes(UNTOPICED_FACET) ? [...topics, UNTOPICED_FACET] : topics;
-}
-
 function discoveryOf(parsed: z.infer<typeof ReadlistQuerySchema>): ReadlistDiscovery | undefined {
 	const time = listOf(parsed.time);
 	const saved = listOf(parsed.saved);
@@ -85,13 +66,8 @@ function discoveryOf(parsed: z.infer<typeof ReadlistQuerySchema>): ReadlistDisco
 		q: searchQueryOf(parsed.q),
 		time: READ_TIME_BUCKETS.map((bucket) => bucket.id).filter((id) => time.includes(id)),
 		saved: SAVED_WINDOWS.map((window) => window.id).filter((id) => saved.includes(id)),
-		topic: topicFacetsOf(listOf(parsed.topic)),
 	};
-	const active =
-		discovery.q !== undefined ||
-		discovery.time.length > 0 ||
-		discovery.saved.length > 0 ||
-		discovery.topic.length > 0;
+	const active = discovery.q !== undefined || discovery.time.length > 0 || discovery.saved.length > 0;
 	return active ? discovery : undefined;
 }
 
@@ -113,7 +89,6 @@ export function discoveryParams(discovery: ReadlistDiscovery | undefined): LinkP
 		...(discovery.q === undefined ? [] : [["q", discovery.q] as const]),
 		...discovery.time.map((value) => ["time", value] as const),
 		...discovery.saved.map((value) => ["saved", value] as const),
-		...discovery.topic.map((value) => ["topic", value] as const),
 	];
 }
 

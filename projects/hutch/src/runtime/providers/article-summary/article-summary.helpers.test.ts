@@ -1,5 +1,4 @@
-import { toArticleTopics } from "@packages/domain/article";
-import { pickExcerpt, summaryTopics, truncateForSeo } from "./article-summary.helpers";
+import { pickExcerpt, truncateForSeo } from "./article-summary.helpers";
 
 describe("pickExcerpt", () => {
 	const PARSED = { text: "Parsed excerpt.", source: "parsed" };
@@ -11,7 +10,6 @@ describe("pickExcerpt", () => {
 					status: "ready",
 					summary: "Long AI summary covering many points.",
 					excerpt: "Short decision-helper blurb.",
-					topics: [],
 				},
 				"Parsed excerpt.",
 			),
@@ -21,7 +19,7 @@ describe("pickExcerpt", () => {
 	it("returns the fallback when status is ready but excerpt is absent (does not use summary text)", () => {
 		expect(
 			pickExcerpt(
-				{ status: "ready", summary: "Long AI summary covering many points.", topics: [] },
+				{ status: "ready", summary: "Long AI summary covering many points." },
 				"Parsed excerpt.",
 			),
 		).toEqual(PARSED);
@@ -30,7 +28,7 @@ describe("pickExcerpt", () => {
 	it("returns the fallback when status is ready but excerpt is the empty string", () => {
 		expect(
 			pickExcerpt(
-				{ status: "ready", summary: "AI summary.", excerpt: "", topics: [] },
+				{ status: "ready", summary: "AI summary.", excerpt: "" },
 				"Parsed excerpt.",
 			),
 		).toEqual(PARSED);
@@ -58,27 +56,10 @@ describe("pickExcerpt", () => {
 		expect(pickExcerpt(undefined, "Parsed excerpt.").source).toBe("parsed");
 		expect(
 			pickExcerpt(
-				{ status: "ready", summary: "AI summary.", excerpt: "Blurb.", topics: [] },
+				{ status: "ready", summary: "AI summary.", excerpt: "Blurb." },
 				"Parsed excerpt.",
 			).source,
 		).toBe("generated");
-	});
-});
-
-describe("summaryTopics", () => {
-	it("returns the topics a ready summary tagged the article with", () => {
-		const topics = toArticleTopics(["Blogging", "Design"]);
-
-		expect(summaryTopics({ status: "ready", summary: "AI summary.", topics })).toEqual(topics);
-	});
-
-	it("returns no topics while the summary is absent, pending, failed or skipped", () => {
-		expect([
-			summaryTopics(undefined),
-			summaryTopics({ status: "pending" }),
-			summaryTopics({ status: "failed", reason: "boom" }),
-			summaryTopics({ status: "skipped" }),
-		]).toEqual([[], [], [], []]);
 	});
 });
 

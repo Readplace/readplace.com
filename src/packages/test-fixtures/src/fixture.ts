@@ -3,7 +3,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { noopLogger } from "@packages/hutch-logger";
-import { type ArticleTopic, calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
+import { calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
 import type {
 	BotDefenseEvent,
 	ConversionEvent,
@@ -12,7 +12,6 @@ import type { ParseArticle } from "@packages/article-parser";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
-import type { FindArticleTopics } from "./providers/article-store/article-store.types";
 import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
 import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
@@ -125,9 +124,8 @@ export const createNoopLogError = (): ((msg: string, err?: Error) => void) =>
 
 export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): {
 	findGeneratedSummary: FindGeneratedSummary;
-	findTopics: FindArticleTopics;
 	markSummaryPending: MarkSummaryPending;
-	markSummaryReady: (params: { url: string; summary: string; excerpt: string; topics: readonly ArticleTopic[] }) => void;
+	markSummaryReady: (params: { url: string; summary: string; excerpt: string }) => void;
 } {
 	// Test-only fake for the Deepseek-backed summary generation. Local E2E
 	// doesn't call a real LLM, so we simulate the pending → ready transition
@@ -144,14 +142,10 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 			const count = (reads.get(id) ?? 0) + 1;
 			reads.set(id, count);
 			if (count >= opts.readyAfterReads) {
-				state.set(id, { status: "ready", summary: `Fake summary for ${url}.`, topics: [] });
+				state.set(id, { status: "ready", summary: `Fake summary for ${url}.` });
 			}
 		}
 		return state.get(id);
-	};
-	const findTopics: FindArticleTopics = async (url) => {
-		const current = state.get(ArticleResourceUniqueId.parse(url).value);
-		return current?.status === "ready" ? current.topics : [];
 	};
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
@@ -159,12 +153,12 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 		state.set(id, { status: "pending" });
 		reads.set(id, 0);
 	};
-	const markSummaryReady = ({ url, summary, excerpt, topics }: { url: string; summary: string; excerpt: string; topics: readonly ArticleTopic[] }) => {
+	const markSummaryReady = ({ url, summary, excerpt }: { url: string; summary: string; excerpt: string }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
-		state.set(id, { status: "ready", summary, excerpt, topics });
+		state.set(id, { status: "ready", summary, excerpt });
 		reads.set(id, 0);
 	};
-	return { findGeneratedSummary, findTopics, markSummaryPending, markSummaryReady };
+	return { findGeneratedSummary, markSummaryPending, markSummaryReady };
 }
 
 export function createFakeApplyParseResult(deps: {
@@ -241,15 +235,12 @@ export const stubExtractLinksFromPageUrl: ExtractLinksFromPageUrl = async () => 
 
 export const TEST_APP_ORIGIN = "http://localhost:3000";
 
-export function createDefaultTestAppFixture(
-	appOrigin: string,
-	summary: ReturnType<typeof createFakeSummaryProvider> = createFakeSummaryProvider(),
-): TestAppFixture {
+export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 
 	const fastHashPassword = async (p: string) => `plain:${p}`;
 	const fastVerifyPassword = async (p: string, stored: string | undefined) => stored === `plain:${p}`;
 	const auth = initInMemoryAuth({ hashPassword: fastHashPassword, verifyPassword: fastVerifyPassword, now: () => new Date() });
-	const articleStoreMemory = initInMemoryArticleStore({ findTopics: summary.findTopics });
+	const articleStoreMemory = initInMemoryArticleStore();
 	const articleCrawl = initInMemoryArticleCrawl();
 	const queueEntryCreated = initInMemoryQueueEntryCreated({ logger: noopLogger });
 	const computeRelatedPastReads = initInMemoryComputeRelatedPastReads({ logger: noopLogger });
@@ -265,6 +256,7 @@ export function createDefaultTestAppFixture(
 		articleCrawl,
 		parseArticle,
 	});
+	const summary = createFakeSummaryProvider();
 	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
 	const email = initInMemoryEmail();
 	const emailVerification = initInMemoryEmailVerification();

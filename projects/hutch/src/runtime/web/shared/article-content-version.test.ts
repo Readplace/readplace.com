@@ -15,7 +15,7 @@ function baseInput(overrides?: Partial<ArticleContentVersionInput>): ArticleCont
 			contentFetchedAt: new Date("2026-03-26T14:32:00.000Z"),
 		},
 		crawl: { status: "ready" },
-		summary: { status: "ready", summary: "TL;DR", excerpt: "short", topics: [] },
+		summary: { status: "ready", summary: "TL;DR", excerpt: "short" },
 		...overrides,
 	};
 }
@@ -94,15 +94,15 @@ describe("computeArticleContentVersion", () => {
 	});
 
 	it("changes when the summary text changes while status stays ready", () => {
-		const a = computeArticleContentVersion(baseInput({ summary: { status: "ready", summary: "one", topics: [] } }));
-		const b = computeArticleContentVersion(baseInput({ summary: { status: "ready", summary: "two", topics: [] } }));
+		const a = computeArticleContentVersion(baseInput({ summary: { status: "ready", summary: "one" } }));
+		const b = computeArticleContentVersion(baseInput({ summary: { status: "ready", summary: "two" } }));
 		assert.notEqual(a, b);
 	});
 
 	it("changes when the summary excerpt appears where there was none", () => {
-		const without = computeArticleContentVersion(baseInput({ summary: { status: "ready", summary: "x", topics: [] } }));
+		const without = computeArticleContentVersion(baseInput({ summary: { status: "ready", summary: "x" } }));
 		const withExcerpt = computeArticleContentVersion(
-			baseInput({ summary: { status: "ready", summary: "x", excerpt: "short", topics: [] } }),
+			baseInput({ summary: { status: "ready", summary: "x", excerpt: "short" } }),
 		);
 		assert.notEqual(without, withExcerpt);
 	});

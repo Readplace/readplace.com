@@ -22,11 +22,9 @@ const OWNER_PASSWORD = "password123";
  * tag behaves when the sender does not fit rather than only the short-address case. */
 const NEWSLETTER_SENDER = "the-friday-long-read@newsletters.example.com";
 
-const TOPICS = ["Blogging", "Design", "Inspiration"];
 const GENERATED_SUMMARY = {
 	summary: "A seeded summary for the reader header baseline.",
 	excerpt: "A seeded summary for the reader header baseline.",
-	topics: TOPICS,
 };
 const SAVED_PIN = { selector: "[data-test-reader-saved]", text: "6h ago" };
 
@@ -94,12 +92,11 @@ async function openPublicView(page: Page, stamp: string): Promise<void> {
 
 async function headerSettled(page: Page): Promise<void> {
 	await page.waitForSelector("[data-test-reader-provenance]");
-	await page.waitForSelector("[data-test-reader-topic]");
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
 async function publicHeaderSettled(page: Page): Promise<void> {
-	await page.waitForSelector("[data-test-reader-topic]");
+	await page.waitForSelector("[data-test-reader-title]");
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
@@ -273,7 +270,7 @@ test.describe("Reader save-provenance tag", () => {
 		await captureCheckpoint(page, CLIENT_DARK);
 	});
 
-	test("the public view names only the article's own facts, under its topics", async ({ page }) => {
+	test("the public view names only the article's own facts", async ({ page }) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPublicView(page, `light-${Date.now()}`);
 		await captureCheckpoint(page, PUBLIC_LIGHT);

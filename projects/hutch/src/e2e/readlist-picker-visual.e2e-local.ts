@@ -88,7 +88,6 @@ async function openReaderWithReadlists(
 			generatedSummary: {
 				summary: "Seeded summary so the reader's summary poller settles before the capture.",
 				excerpt: "Seeded summary.",
-				topics: ["Blogging", "Design", "Inspiration"],
 			},
 		},
 	});

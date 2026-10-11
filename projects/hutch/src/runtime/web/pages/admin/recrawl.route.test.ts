@@ -545,7 +545,6 @@ describe("Admin recrawl routes", () => {
 				url: ARTICLE_URL,
 				summary: "Existing summary",
 				excerpt: "Existing summary blurb",
-				topics: [],
 			});
 
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -558,7 +557,6 @@ describe("Admin recrawl routes", () => {
 				status: "ready",
 				summary: "Existing summary",
 				excerpt: "Existing summary blurb",
-				topics: [],
 			});
 		});
 	});

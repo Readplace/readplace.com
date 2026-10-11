@@ -103,7 +103,6 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 						input: {
 							summary: result.summary,
 							excerpt: result.excerpt,
-							topics: result.topics,
 							inputTokens: result.inputTokens,
 							outputTokens: result.outputTokens,
 							sourceContentHash,

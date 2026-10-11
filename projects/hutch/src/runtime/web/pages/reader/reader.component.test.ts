@@ -276,7 +276,7 @@ describe("ReaderPage", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
 				appOrigin: DEFAULT_APP_ORIGIN,
-				summary: { status: "ready", summary: "Key points.", topics: [] },
+				summary: { status: "ready", summary: "Key points." },
 				crawl: { status: "ready" },
 				backLink: TEST_BACK_LINK,
 				renderActions: WebReader,
@@ -299,7 +299,7 @@ describe("ReaderPage", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
 				appOrigin: DEFAULT_APP_ORIGIN,
-				summary: { status: "ready", summary: "Key points.", topics: [] },
+				summary: { status: "ready", summary: "Key points." },
 				crawl: { status: "ready" },
 				backLink: TEST_BACK_LINK,
 				renderActions: WebReader,

@@ -155,8 +155,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	const staleTtlMs = 86400000;
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
-	const summaryStore = initInMemoryGeneratedSummary();
-	const articleStore = initInMemoryArticleStore({ findTopics: summaryStore.findTopics });
+	const articleStore = initInMemoryArticleStore();
 	const engagementStarter = initInMemoryEngagementStarter({ library: articleStore });
 	const onboardingSignals = initInMemoryOnboardingSignals({ now: () => new Date() });
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
@@ -350,6 +349,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 				stateSigningSecret: "dev-apple-state-signing-secret",
 			};
 	const crawlStore = initInMemoryArticleCrawl();
+	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
@@ -385,7 +385,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		await summaryStore.markSummaryPending({ url: params.url });
 		const summary = devSummariseInline({ html: params.html });
 		if (summary.kind === "ready") {
-			await summaryStore.markSummaryReady({ url: params.url, summary: summary.summary, excerpt: summary.excerpt, topics: [] });
+			await summaryStore.markSummaryReady({ url: params.url, summary: summary.summary, excerpt: summary.excerpt });
 			return;
 		}
 		await summaryStore.markSummarySkipped({ url: params.url, reason: summary.reason });

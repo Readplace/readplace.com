@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { toArticleTopics } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
 import { generateCspNonce } from "@packages/web-shell";
@@ -33,7 +32,6 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	siteName: "example.com",
 	excerpt: "An excerpt.",
 	excerptSource: "generated",
-	topics: [],
 	url: "https://example.com/article",
 	status: "unread",
 	readTime: { value: "3", label: "3 min read" },
@@ -61,7 +59,6 @@ const PLAIN_ARTICLE: ReadlistArticleViewModel = {
 	siteName: "example.org",
 	excerpt: "Another excerpt.",
 	excerptSource: "generated",
-	topics: [],
 	url: "https://example.org/plain",
 	status: "unread",
 	readTime: undefined,
@@ -91,7 +88,6 @@ function pageOptions(overrides: Partial<ReadlistPageOptions> = {}): ReadlistPage
 		deviceClass: "desktop",
 		readlistHoldsArticles: false,
 		tabHoldsRows: false,
-		discoveryTopics: undefined,
 		rail: RAIL,
 		saveTip: { state: "due", html: "" },
 		onboarding: {
@@ -443,19 +439,19 @@ describe("ReadlistPage", () => {
 	it.each([
 		{
 			active: "a search",
-			discovery: { q: "focus", time: [], saved: [], topic: [] },
+			discovery: { q: "focus", time: [], saved: [] },
 			text: "Nothing in To Read matches your search.",
 			label: "Clear search",
 		},
 		{
 			active: "filters",
-			discovery: { time: ["5-10" as const], saved: ["month" as const], topic: [] },
+			discovery: { time: ["5-10" as const], saved: ["month" as const] },
 			text: "Nothing in To Read matches your filters.",
 			label: "Clear filters",
 		},
 		{
 			active: "a search and filters",
-			discovery: { q: "focus", time: [], saved: [], topic: ["others" as const] },
+			discovery: { q: "focus", time: ["5-10" as const], saved: [] },
 			text: "Nothing in To Read matches your search and filters.",
 			label: "Clear search and filters",
 		},
@@ -475,7 +471,7 @@ describe("ReadlistPage", () => {
 
 	it("names the Read tab when nothing read matches", () => {
 		const doc = pageDoc(
-			{ filters: { ...DEFAULT_FILTERS, tab: "done", discovery: { q: "focus", time: [], saved: [], topic: [] } } },
+			{ filters: { ...DEFAULT_FILTERS, tab: "done", discovery: { q: "focus", time: [], saved: [] } } },
 			{ readlistHoldsArticles: true, tabHoldsRows: true },
 		);
 
@@ -490,7 +486,7 @@ describe("ReadlistPage", () => {
 					tab: "done",
 					order: "asc",
 					page: 1,
-					discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] },
+					discovery: { q: "focus", time: ["5-10"], saved: [] },
 				},
 			},
 			{ readlistHoldsArticles: true, tabHoldsRows: true, query: { feature: "pref" } },
@@ -513,7 +509,7 @@ describe("ReadlistPage", () => {
 
 	it("keeps the caught-up reason while a search runs over a tab that holds nothing", () => {
 		const doc = pageDoc(
-			{ filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: [], saved: [], topic: [] } } },
+			{ filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: [], saved: [] } } },
 			{ readlistHoldsArticles: true, tabHoldsRows: false },
 		);
 
@@ -522,7 +518,7 @@ describe("ReadlistPage", () => {
 
 	it("keeps the empty-readlist reason ahead of a search that matches nothing", () => {
 		const doc = pageDoc(
-			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug, discovery: { q: "focus", time: [], saved: [], topic: [] } } },
+			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug, discovery: { q: "focus", time: [], saved: [] } } },
 			{ readlistHoldsArticles: false, tabHoldsRows: true },
 		);
 
@@ -533,7 +529,7 @@ describe("ReadlistPage", () => {
 		const doc = pageDoc({
 			articles: [PLAIN_ARTICLE],
 			isEmpty: false,
-			filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] } },
+			filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [] } },
 		});
 
 		const sort = doc.querySelector("[data-test-sort]");
@@ -546,7 +542,7 @@ describe("ReadlistPage", () => {
 		const doc = pageDoc({
 			articles: [PLAIN_ARTICLE],
 			isEmpty: false,
-			filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [], topic: [] } },
+			filters: { ...DEFAULT_FILTERS, discovery: { q: "focus", time: ["5-10"], saved: [] } },
 		});
 
 		const form = doc.querySelector('[data-test-form="save-article"]');
@@ -568,19 +564,6 @@ describe("ReadlistPage", () => {
 		const drawer = doc.querySelector("[data-test-discovery-drawer]");
 		assert(drawer, "the filter drawer must render inside main");
 		expect(drawer.closest("main")).toBe(doc.querySelector("main"));
-	});
-
-	it("offers the page's own topics in the drawer while nothing narrows the list", () => {
-		const doc = pageDoc(
-			{ articles: [{ ...PLAIN_ARTICLE, topics: toArticleTopics(["Focus"]) }], isEmpty: false },
-			{ tabHoldsRows: true },
-		);
-
-		const options = Array.from(
-			doc.querySelectorAll('[data-test-discovery-form="popover"] [data-test-discovery-option^="topic:"]'),
-			(option) => option.getAttribute("data-test-discovery-option"),
-		);
-		expect(options).toEqual(["topic:Focus", "topic:others"]);
 	});
 
 	it("ships the search row and drawer styles with the readlist page", () => {

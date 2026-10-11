@@ -31,7 +31,7 @@ describe("computeReadlistCardEtag", () => {
 		const etag = computeReadlistCardEtag({
 			article: makeArticle(),
 			crawl: { status: "ready" },
-			summary: { status: "ready", summary: "TL;DR", topics: [] },
+			summary: { status: "ready", summary: "TL;DR" },
 		});
 		assert(etag.startsWith('W/"'));
 		assert(etag.endsWith('"'));
@@ -41,7 +41,7 @@ describe("computeReadlistCardEtag", () => {
 		const input = {
 			article: makeArticle(),
 			crawl: { status: "ready" as const },
-			summary: { status: "ready" as const, summary: "TL;DR", topics: [] },
+			summary: { status: "ready" as const, summary: "TL;DR" },
 		};
 		expect(computeReadlistCardEtag(input)).toBe(computeReadlistCardEtag(input));
 	});
@@ -56,7 +56,7 @@ describe("computeReadlistCardEtag", () => {
 	it("changes when summaryStatus changes", () => {
 		const article = makeArticle();
 		const a = computeReadlistCardEtag({ article, crawl: { status: "ready" }, summary: { status: "pending" } });
-		const b = computeReadlistCardEtag({ article, crawl: { status: "ready" }, summary: { status: "ready", summary: "TL;DR", topics: [] } });
+		const b = computeReadlistCardEtag({ article, crawl: { status: "ready" }, summary: { status: "ready", summary: "TL;DR" } });
 		expect(a).not.toBe(b);
 	});
 
@@ -78,14 +78,14 @@ describe("computeReadlistCardEtag", () => {
 		const without = computeReadlistCardEtag({
 			article: makeArticle({ metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 500 } }),
 			crawl: { status: "ready" },
-			summary: { status: "ready", summary: "TL;DR", topics: [] },
+			summary: { status: "ready", summary: "TL;DR" },
 		});
 		const withImage = computeReadlistCardEtag({
 			article: makeArticle({
 				metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 500, imageUrl: "https://cdn.example.com/img.jpg" },
 			}),
 			crawl: { status: "ready" },
-			summary: { status: "ready", summary: "TL;DR", topics: [] },
+			summary: { status: "ready", summary: "TL;DR" },
 		});
 		expect(without).not.toBe(withImage);
 	});
@@ -94,12 +94,12 @@ describe("computeReadlistCardEtag", () => {
 		const earlier = computeReadlistCardEtag({
 			article: makeArticle({ contentFetchedAt: new Date("2026-01-01T00:00:00Z") }),
 			crawl: { status: "ready" },
-			summary: { status: "ready", summary: "TL;DR", topics: [] },
+			summary: { status: "ready", summary: "TL;DR" },
 		});
 		const later = computeReadlistCardEtag({
 			article: makeArticle({ contentFetchedAt: new Date("2026-02-01T00:00:00Z") }),
 			crawl: { status: "ready" },
-			summary: { status: "ready", summary: "TL;DR", topics: [] },
+			summary: { status: "ready", summary: "TL;DR" },
 		});
 		expect(earlier).not.toBe(later);
 	});
@@ -108,12 +108,12 @@ describe("computeReadlistCardEtag", () => {
 		const unread = computeReadlistCardEtag({
 			article: makeArticle({ status: "unread" }),
 			crawl: { status: "ready" },
-			summary: { status: "ready", summary: "TL;DR", topics: [] },
+			summary: { status: "ready", summary: "TL;DR" },
 		});
 		const read = computeReadlistCardEtag({
 			article: makeArticle({ status: "read", readAt: new Date("2025-06-02T00:00:00Z") }),
 			crawl: { status: "ready" },
-			summary: { status: "ready", summary: "TL;DR", topics: [] },
+			summary: { status: "ready", summary: "TL;DR" },
 		});
 		expect(unread).not.toBe(read);
 	});

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { toArticleTopics } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
 import { destinationUrl, siteLabel } from "../../../test-helpers/article-fixtures";
@@ -18,7 +17,6 @@ const baseInput = {
 	provenance: undefined,
 	readlistTags: undefined,
 	saved: undefined,
-	topics: [],
 };
 
 const SIX_HOURS_AGO = { iso: "2026-04-25T06:00:00.000Z", label: "6h ago", mode: "relative" } as const;
@@ -40,14 +38,10 @@ function facts(doc: Document): [string | null, string][] {
 	]);
 }
 
-function tagRow(doc: Document): [string, string | null][] {
+function tagRow(doc: Document): (string | null)[] {
 	const row = doc.querySelector("[data-test-reader-tags]");
 	assert(row, "the tag row must render");
-	return Array.from(row.querySelectorAll(":scope > li > .chip"), (chip): [string, string | null] =>
-		chip.hasAttribute("data-test-reader-topic")
-			? ["topic", chip.getAttribute("data-test-reader-topic")]
-			: ["readlist", chip.getAttribute("data-test-readlist-tag")],
-	);
+	return Array.from(row.querySelectorAll(":scope > li > .chip"), (chip) => chip.getAttribute("data-test-readlist-tag"));
 }
 
 function headerRows(doc: Document): string[] {
@@ -144,31 +138,19 @@ describe("read time", () => {
 });
 
 describe("tag row", () => {
-	it("leads with the summary's topics, in order, then the readlists holding the article", () => {
+	it("lists the readlists holding the article, in order, between the title and the facts", () => {
 		const doc = parse(
 			renderArticleHeader({
 				...baseInput,
-				topics: toArticleTopics(["Blogging", "Design"]),
-				readlistTags: WORK_READLIST,
+				readlistTags: {
+					...WORK_READLIST,
+					tags: [...WORK_READLIST.tags, { slug: ReadlistSlugSchema.parse("later"), label: "Later" }],
+				},
 			}),
 		);
 
-		expect(tagRow(doc)).toEqual([
-			["topic", "Blogging"],
-			["topic", "Design"],
-			["readlist", "work"],
-		]);
+		expect(tagRow(doc)).toEqual(["work", "later"]);
 		expect(headerRows(doc)).toEqual(["article-body__title", "article-body__tags", "article-body__meta"]);
-	});
-
-	it("renders a topic as a neutral pill with nothing to press", () => {
-		const doc = parse(renderArticleHeader({ ...baseInput, topics: toArticleTopics(["Blogging"]) }));
-
-		const topic = doc.querySelector('[data-test-reader-topic="Blogging"]');
-		assert(topic, "the topic pill must render");
-		expect(topic.className).toBe("chip chip--large");
-		expect(topic.textContent).toBe("Blogging");
-		expect(tagRow(doc)).toEqual([["topic", "Blogging"]]);
 	});
 
 	it("renders a removable chip per readlist holding the article", () => {
@@ -188,11 +170,11 @@ describe("tag row", () => {
 		assert(remove, "the tag must carry its remove button");
 	});
 
-	it("renders no tag row for an article with no topics that lives only in the default readlist", () => {
+	it("renders no tag row for an article that lives only in the default readlist", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 
-		const tags = Array.from(doc.querySelectorAll("[data-test-reader-topic], [data-test-readlist-tag]"), (el) =>
-			el.getAttribute("data-test-reader-topic") ?? el.getAttribute("data-test-readlist-tag"),
+		const tags = Array.from(doc.querySelectorAll("[data-test-readlist-tag]"), (el) =>
+			el.getAttribute("data-test-readlist-tag"),
 		);
 		expect(tags).toEqual([]);
 		expect(headerRows(doc)).toEqual(["article-body__title", "article-body__meta"]);
@@ -278,7 +260,6 @@ describe("renderArticleHeaderOob", () => {
 				...baseInput,
 				provenance: { kind: "web" },
 				saved: SIX_HOURS_AGO,
-				topics: toArticleTopics(["Blogging"]),
 				readlistTags: WORK_READLIST,
 			}),
 		);
@@ -290,10 +271,7 @@ describe("renderArticleHeaderOob", () => {
 			["provenance", "via Web"],
 			["original", "Original article"],
 		]);
-		expect(tagRow(doc)).toEqual([
-			["topic", "Blogging"],
-			["readlist", "work"],
-		]);
+		expect(tagRow(doc)).toEqual(["work"]);
 	});
 });
 

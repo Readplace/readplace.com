@@ -313,7 +313,6 @@ describe("ViewPage", () => {
 				status: "ready",
 				summary: "Long TL;DR that should not surface in social cards.",
 				excerpt: "AI-curated excerpt.",
-				topics: [],
 			},
 		});
 
@@ -336,7 +335,6 @@ describe("ViewPage", () => {
 			summary: {
 				status: "ready",
 				summary: "Long TL;DR that must not surface in social cards.",
-				topics: [],
 			},
 		});
 
@@ -462,7 +460,7 @@ describe("ViewPage", () => {
 
 		const ready = render({
 			...baseInput,
-			summary: { status: "ready", summary: "Key points.", topics: [] },
+			summary: { status: "ready", summary: "Key points." },
 		});
 		const slotReady = ready.querySelector("[data-test-reader-summary]");
 		assert(slotReady, "summary slot must be rendered");
@@ -474,7 +472,7 @@ describe("ViewPage", () => {
 	it("renders the summary collapsed by default on the public view", () => {
 		const doc = render({
 			...baseInput,
-			summary: { status: "ready", summary: "Key points.", topics: [] },
+			summary: { status: "ready", summary: "Key points." },
 		});
 		const details = doc.querySelector(".article-body__summary");
 		assert(details, "summary details element must be rendered");

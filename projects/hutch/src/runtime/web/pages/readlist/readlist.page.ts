@@ -1648,7 +1648,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
-		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, discoveryTopics: input.result.discoveryTopics, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
+		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ query: req.query, context: input.context, accessIsReadOnly: vm.accessIsReadOnly, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
 		const page = ReadlistPage(vm, { ...pageOptions, query: req.query });
 		res.vary("Cookie");
 		sendComponent(

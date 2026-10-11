@@ -84,7 +84,6 @@ describe("Readlist routes", () => {
 			const findGeneratedSummary = async () => ({
 				status: "ready" as const,
 				summary: "Ready summary.",
-				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
@@ -149,7 +148,6 @@ describe("Readlist routes", () => {
 			const findGeneratedSummary = async () => ({
 				status: "ready" as const,
 				summary: "Poll ready summary.",
-				topics: [],
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });

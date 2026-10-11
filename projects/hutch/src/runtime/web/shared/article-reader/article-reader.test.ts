@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
-import { ReaderArticleHashId, toArticleTopics } from "@packages/domain/article";
+import { ReaderArticleHashId } from "@packages/domain/article";
 import type { ArticleCrawlVersion } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -117,7 +117,7 @@ function toHtml(component: { to: (mediaType: "text/html") => { body: string } })
 
 const SIX_HOURS_AGO = { iso: "2026-04-25T06:00:00.000Z", label: "6h ago", mode: "relative" } as const;
 
-function headerOf(doc: Document): { facts: (string | null)[]; saved: string | null | undefined; topics: (string | null)[] } {
+function headerOf(doc: Document): { facts: (string | null)[]; saved: string | null | undefined } {
 	const header = doc.querySelector("#article-header");
 	assert(header, "the header OOB fragment must accompany the slot");
 	return {
@@ -125,7 +125,6 @@ function headerOf(doc: Document): { facts: (string | null)[]; saved: string | nu
 			fact.getAttribute("data-test-reader-fact"),
 		),
 		saved: header.querySelector("[data-test-reader-saved]")?.textContent,
-		topics: Array.from(header.querySelectorAll("[data-test-reader-topic]"), (topic) => topic.textContent),
 	};
 }
 
@@ -155,7 +154,7 @@ describe("initArticleReader", () => {
 		it("maps the crawl-version log to newest-first short-datetime LocalTimes", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 				contentFetchedAt: "2026-03-26T14:32:00.000Z",
 				crawlVersions: [
@@ -185,7 +184,7 @@ describe("initArticleReader", () => {
 			}));
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 				contentFetchedAt: "2026-03-26T14:32:00.000Z",
 				crawlVersions: stored,
@@ -216,7 +215,7 @@ describe("initArticleReader", () => {
 		it("falls back to a single crawlVersions element from contentFetchedAt when the version log is empty", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 				contentFetchedAt: "2026-03-26T14:32:00.000Z",
 			});
@@ -426,7 +425,7 @@ describe("initArticleReader", () => {
 		it("hides the bar once both pipelines are terminal", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -478,7 +477,7 @@ describe("initArticleReader", () => {
 		it("omits summaryPollUrl when the summary is ready", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -490,7 +489,7 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.summaryPollUrl).toBeUndefined();
-			expect(result.summary).toEqual({ status: "ready", summary: "TL;DR", topics: [] });
+			expect(result.summary).toEqual({ status: "ready", summary: "TL;DR" });
 		});
 
 		it("omits readerPollUrl when the crawl has failed", async () => {
@@ -537,7 +536,7 @@ describe("initArticleReader", () => {
 		it("emits readerPollUrl when crawl is undefined with no content (read-after-write race)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: undefined,
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -556,7 +555,7 @@ describe("initArticleReader", () => {
 		it("omits readerPollUrl when crawl is undefined but content is present (legacy row)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: undefined,
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -573,7 +572,7 @@ describe("initArticleReader", () => {
 		it("emits readerPollUrl when crawl is ready but content is undefined (promotion race)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -644,7 +643,7 @@ describe("initArticleReader", () => {
 		it("flags neither readerViewFailed nor readerContentUnavailable once the reader view has succeeded", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -747,7 +746,7 @@ describe("initArticleReader", () => {
 		it("renders a ready summary expanded (summaryOpen: true) and stops polling", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 			});
 			const reader = initArticleReader(deps);
 
@@ -777,7 +776,7 @@ describe("initArticleReader", () => {
 		it("renders a ready summary collapsed when the reader is configured summaryOpen: false (internal reader)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				summaryOpen: false,
 			});
 			const reader = initArticleReader(deps);
@@ -1159,11 +1158,11 @@ describe("initArticleReader", () => {
 			);
 		});
 
-		it("carries the reader's saved time and the ready summary's topics into the header it swaps in", async () => {
+		it("carries the reader's saved time into the header it swaps in", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				content: "<p>body</p>",
-				summary: { status: "ready", summary: "TL;DR", topics: toArticleTopics(["Blogging", "Design"]) },
+				summary: { status: "ready", summary: "TL;DR" },
 			});
 			const reader = initArticleReader(deps);
 
@@ -1184,7 +1183,6 @@ describe("initArticleReader", () => {
 			expect(headerOf(parse(toHtml(component)))).toEqual({
 				facts: ["site", "saved", "read-time", "provenance", "original"],
 				saved: "6h ago",
-				topics: ["Blogging", "Design"],
 			});
 		});
 
@@ -1325,11 +1323,11 @@ describe("initArticleReader", () => {
 			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
 		});
 
-		it("carries the reader's saved time and the ready summary's topics into the header it swaps in", async () => {
+		it("carries the reader's saved time into the header it swaps in", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				content: "<p>body</p>",
-				summary: { status: "ready", summary: "TL;DR", topics: toArticleTopics(["Blogging", "Design"]) },
+				summary: { status: "ready", summary: "TL;DR" },
 			});
 			const reader = initArticleReader(deps);
 
@@ -1350,7 +1348,6 @@ describe("initArticleReader", () => {
 			expect(headerOf(parse(toHtml(component)))).toEqual({
 				facts: ["site", "saved", "read-time", "provenance", "original"],
 				saved: "6h ago",
-				topics: ["Blogging", "Design"],
 			});
 		});
 
@@ -1462,7 +1459,7 @@ describe("initArticleReader", () => {
 		it("handleSummaryPoll emits an OOB reader slot with hx-get when crawl has gone pending while summary is settling", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending", stage: "crawl-fetching" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -1492,7 +1489,7 @@ describe("initArticleReader", () => {
 		it("handleReaderPoll emits a terminal OOB summary slot (no hx-get) when summary is already ready — keeps the chain idempotent", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -1662,7 +1659,7 @@ describe("initArticleReader", () => {
 		it("stops the loop once the capture has healed the row: the ready fragment carries no hx-get even with the flag still set", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>Captured body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -1778,7 +1775,7 @@ describe("initArticleReader", () => {
 		it("hides the notice out of band on a summary poll once the reader view is ready", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -1978,7 +1975,7 @@ describe("initArticleReader", () => {
 		it("omits the fragment once the reader view has succeeded (crawl and summary ready)", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR", topics: [] },
+				summary: { status: "ready", summary: "TL;DR" },
 				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -2020,7 +2017,7 @@ describe("initArticleReader", () => {
 		it("resolves to a state carrying nothing the crawl produced, with both poll chains disarmed", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "Your inbox has 42 unread messages.", topics: [] },
+				summary: { status: "ready", summary: "Your inbox has 42 unread messages." },
 				content: "<p>Re: your invoice</p>",
 				contentFetchedAt: "2026-04-25T11:00:00.000Z",
 				crawlVersions: [{ crawledAtMinute: "2026-04-25T11:00", authorUserId: undefined }],
@@ -2051,7 +2048,7 @@ describe("initArticleReader", () => {
 		it("answers a reader poll with the terminal notice, a collapsed summary and no further tick", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "Your inbox has 42 unread messages.", topics: [] },
+				summary: { status: "ready", summary: "Your inbox has 42 unread messages." },
 				content: "<p>Re: your invoice</p>",
 			});
 			const reader = initArticleReader(deps);
@@ -2161,7 +2158,7 @@ describe("initArticleReader", () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				content: "<p>body</p>",
-				summary: { status: "ready", summary: "TL;DR", topics: toArticleTopics(["Email"]) },
+				summary: { status: "ready", summary: "TL;DR" },
 			});
 			const reader = initArticleReader(deps);
 
@@ -2186,7 +2183,6 @@ describe("initArticleReader", () => {
 			assert.deepEqual(headerOf(doc), {
 				facts: ["site", "read-time", "original"],
 				saved: undefined,
-				topics: [],
 			});
 			const header = doc.querySelector("#article-header");
 			assert(header, "the stub header must swap in");

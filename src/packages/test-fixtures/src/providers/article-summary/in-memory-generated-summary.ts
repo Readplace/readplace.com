@@ -1,17 +1,14 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { ArticleTopic } from "@packages/domain/article";
 import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
-import type { FindArticleTopics } from "../article-store/article-store.types";
 
 export type InMemoryMarkSummaryReady = (params: {
 	url: string;
 	summary: string;
 	excerpt?: string;
-	topics: readonly ArticleTopic[];
 }) => Promise<void>;
 
 export type InMemoryMarkSummarySkipped = (params: {
@@ -21,7 +18,6 @@ export type InMemoryMarkSummarySkipped = (params: {
 
 export function initInMemoryGeneratedSummary(): {
 	findGeneratedSummary: FindGeneratedSummary;
-	findTopics: FindArticleTopics;
 	markSummaryPending: MarkSummaryPending;
 	markSummaryReady: InMemoryMarkSummaryReady;
 	markSummarySkipped: InMemoryMarkSummarySkipped;
@@ -33,11 +29,6 @@ export function initInMemoryGeneratedSummary(): {
 		return states.get(id.value);
 	};
 
-	const findTopics: FindArticleTopics = async (url) => {
-		const current = states.get(ArticleResourceUniqueId.parse(url).value);
-		return current?.status === "ready" ? current.topics : [];
-	};
-
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		const current = states.get(id.value);
@@ -45,11 +36,11 @@ export function initInMemoryGeneratedSummary(): {
 		states.set(id.value, { status: "pending" });
 	};
 
-	const markSummaryReady: InMemoryMarkSummaryReady = async ({ url, summary, excerpt, topics }) => {
+	const markSummaryReady: InMemoryMarkSummaryReady = async ({ url, summary, excerpt }) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		const ready: GeneratedSummary = excerpt
-			? { status: "ready", summary, excerpt, topics }
-			: { status: "ready", summary, topics };
+			? { status: "ready", summary, excerpt }
+			: { status: "ready", summary };
 		states.set(id.value, ready);
 	};
 
@@ -63,7 +54,6 @@ export function initInMemoryGeneratedSummary(): {
 
 	return {
 		findGeneratedSummary,
-		findTopics,
 		markSummaryPending,
 		markSummaryReady,
 		markSummarySkipped,

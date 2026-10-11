@@ -149,7 +149,6 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const findGeneratedSummary: FindGeneratedSummary = async () => ({
 			status: "ready",
 			summary: "TLDR.",
-			topics: [],
 		});
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const { parseArticle } = initReadabilityParser({

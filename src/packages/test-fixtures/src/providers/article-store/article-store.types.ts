@@ -1,5 +1,3 @@
-import type { ArticleTopic } from "@packages/domain/article";
-
 export type {
 	ArticleFreshnessData,
 	BumpArticleSavedAt,
@@ -32,5 +30,3 @@ export type {
 	UpdateArticleStatus,
 	UserArticleByUrl,
 } from "@packages/provider-contracts/article-store";
-
-export type FindArticleTopics = (url: string) => Promise<readonly ArticleTopic[]>;

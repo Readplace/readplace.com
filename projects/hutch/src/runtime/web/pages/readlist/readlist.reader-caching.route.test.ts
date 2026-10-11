@@ -59,7 +59,6 @@ function buildFixture(opts?: { summaryReady?: boolean }): TestAppFixture {
 						status: "ready",
 						summary: "A concise summary.",
 						excerpt: "Lead line.",
-						topics: [],
 					}),
 				}
 			: base.summary,

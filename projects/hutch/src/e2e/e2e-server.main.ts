@@ -6,7 +6,6 @@ import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
 import {
 	calculateReadTime,
 	SaveProvenanceSchema,
-	toArticleTopics,
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
@@ -143,7 +142,7 @@ const e2eValidateSaveableUrl: ValidateSaveableUrl = (value) => {
 // default (stays pending) for deterministic HTML assertions.
 const summary = createFakeSummaryProvider({ readyAfterReads: 3 })
 
-const fixture = createDefaultTestAppFixture(origin, summary)
+const fixture = createDefaultTestAppFixture(origin)
 
 let lastGmailInstant = 0
 const gmailNow = () => {
@@ -460,13 +459,7 @@ const SeedCrawledArticleBody = z.object({
 	savedAt: z.string().optional(),
 	provenance: SaveProvenanceSchema.default({ kind: 'web' }),
 	excerpt: z.string().default('Seeded for the crawl-bookmark visual test.'),
-	generatedSummary: z
-		.object({
-			summary: z.string(),
-			excerpt: z.string(),
-			topics: z.array(z.string()).default([]).transform(toArticleTopics),
-		})
-		.optional(),
+	generatedSummary: z.object({ summary: z.string(), excerpt: z.string() }).optional(),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)

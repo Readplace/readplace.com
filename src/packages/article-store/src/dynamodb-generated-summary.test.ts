@@ -66,7 +66,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 
 		const result = await findGeneratedSummary("https://example.com/article");
 
-		expect(result).toEqual({ status: "ready", summary: "Legacy summary", topics: [] });
+		expect(result).toEqual({ status: "ready", summary: "Legacy summary" });
 	});
 
 	it("returns ready with summary only when summaryExcerpt is absent", async () => {
@@ -83,7 +83,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 
 		const result = await findGeneratedSummary("https://example.com/article");
 
-		expect(result).toEqual({ status: "ready", summary: "Fresh summary", topics: [] });
+		expect(result).toEqual({ status: "ready", summary: "Fresh summary" });
 	});
 
 	it("withholds a summary from unverified wrapper content", async () => {
@@ -120,7 +120,6 @@ describe("initDynamoDbGeneratedSummary", () => {
 			status: "ready",
 			summary: "Verified article summary",
 			excerpt: "Verified article excerpt",
-			topics: [],
 		});
 	});
 
@@ -169,41 +168,6 @@ describe("initDynamoDbGeneratedSummary", () => {
 			status: "ready",
 			summary: "Fresh summary",
 			excerpt: "Decision-helper blurb",
-			topics: [],
-		});
-	});
-
-	it("returns the topics stored with a ready summary", async () => {
-		const client = createFakeClient({
-			url: "https://example.com/article",
-			summary: "Fresh summary",
-			summaryStatus: "ready",
-			summaryTopics: ["Remote work", "Culture", "Collaboration"],
-		});
-		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
-
-		expect(await findGeneratedSummary("https://example.com/article")).toEqual({
-			status: "ready",
-			summary: "Fresh summary",
-			topics: ["Remote work", "Culture", "Collaboration"],
-		});
-	});
-
-	it("drops a stored topic the topic rules now refuse, keeping the summary and excerpt", async () => {
-		const client = createFakeClient({
-			url: "https://example.com/article",
-			summary: "Fresh summary",
-			summaryExcerpt: "Decision-helper blurb",
-			summaryStatus: "ready",
-			summaryTopics: ["Behavioural economics now", "Fintech"],
-		});
-		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
-
-		expect(await findGeneratedSummary("https://example.com/article")).toEqual({
-			status: "ready",
-			summary: "Fresh summary",
-			excerpt: "Decision-helper blurb",
-			topics: ["Fintech"],
 		});
 	});
 
@@ -357,10 +321,10 @@ describe("initDynamoDbGeneratedSummary", () => {
 				"canonicalCandidateId", "canonicalContentHash", "canonicalOriginalUrl", "contentSourceTier",
 				"contentSourceUrl", "directContentBeforePin", "displayUrl", "originalUrl", "revokedCandidateIds",
 				"summary", "summaryExcerpt", "summaryFailureReason", "summarySkippedReason",
-				"summarySourceContentHash", "summaryStage", "summaryStatus", "summaryTopics", "url",
+				"summarySourceContentHash", "summaryStage", "summaryStatus", "url",
 			].sort());
-			expect(map.get("https://example.com/a")).toEqual({ status: "ready", summary: "A", topics: [] });
-			expect(map.get("https://example.com/a#heading")).toEqual({ status: "ready", summary: "A", topics: [] });
+			expect(map.get("https://example.com/a")).toEqual({ status: "ready", summary: "A" });
+			expect(map.get("https://example.com/a#heading")).toEqual({ status: "ready", summary: "A" });
 		});
 
 		it("withholds unverified archive summaries alongside verified rebuilt and ordinary summaries", async () => {
@@ -385,29 +349,8 @@ describe("initDynamoDbGeneratedSummary", () => {
 			]);
 
 			expect(result.get("https://example.com/unverified")).toBeUndefined();
-			expect(result.get("https://archive.ph/verified")).toEqual({ status: "ready", summary: "Verified article summary", topics: [] });
-			expect(result.get("https://example.com/direct")).toEqual({ status: "ready", summary: "Ordinary legacy summary", topics: [] });
-		});
-
-		it("returns each row's stored topics, dropping a label the topic rules now refuse without losing the row", async () => {
-			const captured: Captured = { commands: [] };
-			const client = batchClient([
-				{ url: "example.com/topics", summaryStatus: "ready", summary: "Topics", summaryTopics: ["Productivity", "Focus", "Lifestyle"] },
-				{
-					url: "example.com/over-length", summaryStatus: "ready", summary: "Over length", summaryExcerpt: "Kept blurb",
-					summaryTopics: ["Behavioural economics now", "Trends"],
-				},
-			], captured);
-			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
-
-			const map = await findGeneratedSummaries(["https://example.com/topics", "https://example.com/over-length"]);
-
-			expect(map.get("https://example.com/topics")).toEqual({
-				status: "ready", summary: "Topics", topics: ["Productivity", "Focus", "Lifestyle"],
-			});
-			expect(map.get("https://example.com/over-length")).toEqual({
-				status: "ready", summary: "Over length", excerpt: "Kept blurb", topics: ["Trends"],
-			});
+			expect(result.get("https://archive.ph/verified")).toEqual({ status: "ready", summary: "Verified article summary" });
+			expect(result.get("https://example.com/direct")).toEqual({ status: "ready", summary: "Ordinary legacy summary" });
 		});
 
 		it("keys every input url, mapping a missing row to undefined", async () => {
@@ -425,7 +368,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 
 			expect(map.has("https://example.com/absent")).toBe(true);
 			expect(map.get("https://example.com/absent")).toBeUndefined();
-			expect(map.get("https://example.com/present")).toEqual({ status: "ready", summary: "Here", topics: [] });
+			expect(map.get("https://example.com/present")).toEqual({ status: "ready", summary: "Here" });
 		});
 
 		it("degrades only the poisoned row (unknown status enum), mapping its siblings", async () => {
@@ -445,7 +388,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			]);
 
 			expect(map.get("https://example.com/poison")).toBeUndefined();
-			expect(map.get("https://example.com/good")).toEqual({ status: "ready", summary: "Good", topics: [] });
+			expect(map.get("https://example.com/good")).toEqual({ status: "ready", summary: "Good" });
 		});
 
 		it("degrades a row that trips a mapper assert (ready without summary text) without throwing the batch", async () => {
@@ -465,7 +408,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			]);
 
 			expect(map.get("https://example.com/broken")).toBeUndefined();
-			expect(map.get("https://example.com/ok")).toEqual({ status: "ready", summary: "OK", topics: [] });
+			expect(map.get("https://example.com/ok")).toEqual({ status: "ready", summary: "OK" });
 		});
 
 		it("maps an unparseable input url to undefined and never sends its key", async () => {
@@ -580,7 +523,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 	it("serves a ready summary stamped with a source hash on a legacy row that has no canonical hash and no candidate", async () => {
 		const client = createFakeClient({ url: "https://example.com/article", originalUrl: "https://example.com/article", summaryStatus: "ready", summary: "Legacy summary", summarySourceContentHash: "legacy-hash" });
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
-		expect(await findGeneratedSummary("https://example.com/article")).toEqual({ status: "ready", summary: "Legacy summary", topics: [] });
+		expect(await findGeneratedSummary("https://example.com/article")).toEqual({ status: "ready", summary: "Legacy summary" });
 	});
 
 });
