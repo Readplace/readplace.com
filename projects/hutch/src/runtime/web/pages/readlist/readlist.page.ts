@@ -20,7 +20,11 @@ import {
 	parseEmailIssueArticleUrl,
 } from "@packages/domain/inbox";
 import type { IssueLinksSectionInput } from "../../shared/issue-links/issue-links.component";
-import type { ResolveReaderProvenance } from "../../shared/article-body/article-header/resolve-reader-provenance";
+import type {
+	ResolveReaderProvenance,
+	ResolveReaderProvenances,
+} from "../../shared/article-body/article-header/resolve-reader-provenance";
+import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import type { UserId } from "@packages/domain/user";
 import { SaveAttemptIdSchema, newSaveAttemptId, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
@@ -426,6 +430,7 @@ interface ReadlistDependencies {
 	findIssueLink: InboxEmailLinkStore["getLink"];
 	findIssueLinkSaveStates: InboxSavedLinkStore["findSavedLinks"];
 	resolveReaderProvenance: ResolveReaderProvenance;
+	resolveReaderProvenances: ResolveReaderProvenances;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -1605,7 +1610,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	): Promise<void> => {
 		const effectiveAccessPromise = deps.getEffectiveAccess(input.userId);
 		const urls = input.result.articles.map((article) => article.url);
-		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl] =
+		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl, readerProvenances] =
 			await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
@@ -1623,7 +1628,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				effectiveAccessPromise.then((access) => resolveOnboardingSignals(req, input.userId, access)),
 				findNonEmptyReadlists({ userId: input.userId, readlists: input.context.readlists }),
 				savesAcrossReadlists({ userId: input.userId, context: input.context, urls }),
+				deps.resolveReaderProvenances(input.result.articles.map((article) => article.provenance)),
 			]);
+		const readerProvenanceByUrl = new Map(
+			input.result.articles.map((article, index): [string, ReaderProvenance | undefined] => [
+				article.url,
+				readerProvenances[index],
+			]),
+		);
 		const confirmReadlistsByUrl = markStatusConfirmReadlistsFor({
 			context: input.context,
 			urls,
@@ -1638,6 +1650,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			importSkipped: input.importSkipped,
 			summaryByUrl,
 			crawlByUrl,
+			readerProvenanceByUrl,
 			effectiveAccess,
 			now: deps.now(),
 			confirmReadlistsByUrl,
@@ -2974,12 +2987,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			return;
 		}
 
-		const [crawl, summary] = await Promise.all([
+		const [crawl, summary, readerProvenance] = await Promise.all([
 			deps.findArticleCrawlStatus(article.url),
 			deps.findGeneratedSummary(article.url),
+			deps.resolveReaderProvenance(article.provenance),
 		]);
 
-		const etag = computeReadlistCardEtag({ article, crawl, summary });
+		const etag = computeReadlistCardEtag({ article, crawl, summary, readerProvenance });
 		/** Per-user data — never share across CDN edges or between users on a
 		 * shared cache. `no-cache` requires revalidation on every request, which
 		 * is exactly what we want: the browser always asks, the server cheaply
@@ -3020,6 +3034,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			returnQuery,
 			summary,
 			crawl,
+			readerProvenance,
 			filters,
 			pollCount: requestedPoll + 1,
 			maxPolls: MAX_POLLS,

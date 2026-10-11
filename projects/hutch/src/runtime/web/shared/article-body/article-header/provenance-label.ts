@@ -3,11 +3,16 @@ import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import { iconSvg } from "@packages/ui-icons";
 import { CLIENT_ICON_SVG } from "../../client-icons";
 
-export type ReaderProvenance = SaveProvenance | { kind: "newsletter"; name: string };
+export type ReaderProvenance = SaveProvenance | { kind: "newsletter"; name: string; senderEmail: string };
 
 export interface ProvenanceLabel {
 	label: string;
 	iconSvg?: string;
+	senderEmail?: string;
+}
+
+export function provenanceTitle(label: ProvenanceLabel): string {
+	return label.senderEmail ?? label.label;
 }
 
 /** Absent rather than a raw slug: the name is a stored value, so a client that
@@ -49,7 +54,7 @@ export function provenanceLabel(provenance: ReaderProvenance): ProvenanceLabel |
 			return { label: `via ${sender === "" ? "Email" : sender}`, iconSvg: iconSvg("envelope") };
 		}
 		case "newsletter":
-			return { label: `via ${provenance.name}`, iconSvg: iconSvg("envelope") };
+			return { label: `via ${provenance.name}`, iconSvg: iconSvg("envelope"), senderEmail: provenance.senderEmail };
 		default:
 			return labelForAssistant(provenance.registeredName);
 	}

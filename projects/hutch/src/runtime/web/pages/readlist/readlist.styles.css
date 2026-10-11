@@ -587,7 +587,8 @@
 
 .readlist-article__site,
 .readlist-article__saved,
-.readlist-article__read-time {
+.readlist-article__read-time,
+.readlist-article__via {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -595,13 +596,15 @@
   text-decoration: none;
 }
 
-.readlist-article__site {
+.readlist-article__site,
+.readlist-article__via {
   flex: 1 1 12ch;
   min-width: 0;
   max-width: max-content;
 }
 
-.readlist-article__site-name {
+.readlist-article__site-name,
+.readlist-article__via-label {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -620,6 +623,7 @@
 .readlist-article__site svg,
 .readlist-article__saved svg,
 .readlist-article__read-time svg,
+.readlist-article__via svg,
 .readlist-article__processing svg {
   flex: 0 0 auto;
   width: 1rem;
@@ -638,8 +642,13 @@
   color: var(--fact-read-time);
 }
 
+.readlist-article__via svg {
+  color: var(--fact-provenance);
+}
+
 .readlist-article__site--empty,
-.readlist-article__read-time--empty {
+.readlist-article__read-time--empty,
+.readlist-article__via--empty {
   display: none;
 }
 

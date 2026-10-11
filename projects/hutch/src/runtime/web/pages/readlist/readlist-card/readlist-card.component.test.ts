@@ -93,10 +93,22 @@ function menuControls(doc: Document): (string | null)[] {
 	);
 }
 
-function glyph(name: "folder-input" | "trash"): string {
+function glyph(name: "envelope" | "folder-input" | "trash"): string {
 	const svg = parse(iconSvg(name)).querySelector("svg");
 	assert(svg, `the ${name} icon must be an svg drawing`);
 	return svg.innerHTML;
+}
+
+function viaFallback(doc: Document): Element {
+	const fallback = doc.querySelector("[data-test-article-via-fallback]");
+	assert(fallback, "the plain via fact a browser without popovers shows must always be rendered");
+	return fallback;
+}
+
+function metaRow(doc: Document): string[] {
+	const meta = doc.querySelector(".readlist-article__meta");
+	assert(meta, "the meta row must be present");
+	return Array.from(meta.children, (child) => child.className);
 }
 
 describe("renderReadlistCard", () => {
@@ -393,6 +405,88 @@ describe("renderReadlistCard", () => {
 		const name = link.querySelector(".readlist-article__site-name");
 		assert(name, "the site name span must be rendered");
 		expect(name.textContent).toBe(fullName);
+	});
+
+	it("removes the via fact from a card whose save did not arrive by email", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel(), { isFirst: false })));
+
+		const via = doc.querySelector("[data-test-article-via]");
+		assert(via, "the via fact must always be rendered");
+		expect(via.tagName.toLowerCase()).toBe("span");
+		expect(via.classList.contains("readlist-article__via--empty")).toBe(true);
+		expect(via.textContent).toBe("");
+		expect(viaFallback(doc).isSameNode(via)).toBe(true);
+		expect(metaRow(doc)).toEqual([
+			"readlist-article__site",
+			"readlist-article__saved",
+			"readlist-article__read-time",
+			"readlist-article__via readlist-article__via--empty",
+		]);
+	});
+
+	it("names the sender an emailed save arrived from, after the read time, as the plain fact alone with no popover to open", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(makeViewModel({ via: { label: "via news@example.com", iconSvg: iconSvg("envelope") } }), {
+					isFirst: false,
+				}),
+			),
+		);
+
+		const via = doc.querySelector("[data-test-article-via]");
+		assert(via, "the via fact must always be rendered");
+		expect(via.tagName.toLowerCase()).toBe("span");
+		expect(via.classList.contains("readlist-article__via--empty")).toBe(false);
+		expect(via.getAttribute("title")).toBe("via news@example.com");
+		expect(via.querySelector("svg")?.innerHTML).toBe(glyph("envelope"));
+		const label = via.querySelector(".readlist-article__via-label");
+		assert(label, "the via label span must be rendered");
+		expect(label.textContent).toBe("via news@example.com");
+		expect(viaFallback(doc).isSameNode(via)).toBe(true);
+		expect(metaRow(doc)).toEqual([
+			"readlist-article__site",
+			"readlist-article__saved",
+			"readlist-article__read-time",
+			"readlist-article__via",
+		]);
+	});
+
+	it("names the newsletter a catalogued sender publishes, keeping the address on hover, behind a tap, and on the plain fact a browser without popovers shows", () => {
+		const doc = parse(
+			renderReadlistCard(
+				display(
+					makeViewModel({ via: { label: "via TLDR", iconSvg: iconSvg("envelope"), senderEmail: "dan@tldr.tech" } }),
+					{ isFirst: false },
+				),
+			),
+		);
+
+		const via = doc.querySelector("[data-test-article-via]");
+		assert(via, "the via fact must always be rendered");
+		expect(via.tagName.toLowerCase()).toBe("button");
+		expect(via.getAttribute("type")).toBe("button");
+		expect(via.getAttribute("popovertarget")).toBe("readlist-via-abc123");
+		expect(via.getAttribute("title")).toBe("dan@tldr.tech");
+		expect(via.classList.contains("sender-popover__trigger")).toBe(true);
+		expect(via.querySelector(".readlist-article__via-label")?.textContent).toBe("via TLDR");
+		const fallback = viaFallback(doc);
+		expect(fallback.tagName.toLowerCase()).toBe("span");
+		expect(fallback.getAttribute("title")).toBe("dan@tldr.tech");
+		expect(fallback.querySelector("svg")?.innerHTML).toBe(glyph("envelope"));
+		expect(fallback.querySelector(".readlist-article__via-label")?.textContent).toBe("via TLDR");
+		const sender = doc.querySelector("#readlist-via-abc123");
+		assert(sender, "the sender popover must render for a named newsletter");
+		expect(sender.getAttribute("popover")).toBe("auto");
+		expect(sender.hasAttribute("data-test-article-via-sender")).toBe(true);
+		expect(sender.textContent).toBe("dan@tldr.tech");
+		expect(metaRow(doc)).toEqual([
+			"readlist-article__site",
+			"readlist-article__saved",
+			"readlist-article__read-time",
+			"readlist-article__via sender-popover__fallback",
+			"readlist-article__via sender-popover__trigger",
+			"sender-popover",
+		]);
 	});
 
 	it("marks the read time empty when the crawl has not landed", () => {

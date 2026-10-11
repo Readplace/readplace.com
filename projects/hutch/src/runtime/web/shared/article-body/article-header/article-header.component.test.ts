@@ -38,6 +38,18 @@ function facts(doc: Document): [string | null, string][] {
 	]);
 }
 
+function provenanceFallback(doc: Document): Element {
+	const fallback = doc.querySelector("[data-test-reader-provenance-fallback]");
+	assert(fallback, "the plain provenance fact a browser without popovers shows must render");
+	return fallback;
+}
+
+function metaRow(doc: Document): string[] {
+	const meta = doc.querySelector(".article-body__meta");
+	assert(meta, "the meta row must render");
+	return Array.from(meta.children, (child) => child.className);
+}
+
 function tagRow(doc: Document): (string | null)[] {
 	const row = doc.querySelector("[data-test-reader-tags]");
 	assert(row, "the tag row must render");
@@ -218,6 +230,67 @@ describe("save provenance tag", () => {
 		const envelope = parse(iconSvg("envelope")).querySelector("svg");
 		assert(envelope, "the envelope must parse as an svg");
 		expect(doc.querySelector("[data-test-reader-provenance] svg")?.outerHTML).toBe(envelope.outerHTML);
+	});
+
+	it("names the newsletter a catalogued sender publishes, keeping the address on hover, behind a tap, and on the plain fact a browser without popovers shows", () => {
+		const doc = parse(
+			renderArticleHeader({
+				...baseInput,
+				provenance: { kind: "newsletter", name: "TLDR", senderEmail: "dan@tldr.tech" },
+			}),
+		);
+
+		expect(facts(doc)).toEqual([
+			["site", "example.com"],
+			["read-time", "3 min read"],
+			["provenance", "via TLDR"],
+			["original", "Original article"],
+		]);
+		const tag = doc.querySelector("[data-test-reader-provenance]");
+		assert(tag, "provenance tag must render");
+		expect(tag.tagName.toLowerCase()).toBe("button");
+		expect(tag.getAttribute("type")).toBe("button");
+		expect(tag.getAttribute("title")).toBe("dan@tldr.tech");
+		expect(tag.getAttribute("popovertarget")).toBe("article-provenance-sender");
+		expect(tag.classList.contains("sender-popover__trigger")).toBe(true);
+		const fallback = provenanceFallback(doc);
+		expect(fallback.tagName.toLowerCase()).toBe("span");
+		expect(fallback.getAttribute("title")).toBe("dan@tldr.tech");
+		expect(fallback.textContent?.trim()).toBe("via TLDR");
+		const sender = doc.querySelector("#article-provenance-sender");
+		assert(sender, "the sender popover must render for a named newsletter");
+		expect(sender.getAttribute("popover")).toBe("auto");
+		expect(sender.hasAttribute("data-test-reader-provenance-sender")).toBe(true);
+		expect(sender.textContent).toBe("dan@tldr.tech");
+		expect(metaRow(doc)).toEqual([
+			"article-body__fact article-body__site",
+			"article-body__fact article-body__read-time",
+			"article-body__fact article-body__provenance sender-popover__fallback",
+			"article-body__fact article-body__provenance sender-popover__trigger",
+			"sender-popover",
+			"article-body__fact article-body__original",
+		]);
+	});
+
+	it("keeps an uncatalogued sender's fact a plain span alone, whose title repeats the address it already shows", () => {
+		const doc = parse(
+			renderArticleHeader({
+				...baseInput,
+				provenance: { kind: "email", senderEmail: "news@example.com" },
+			}),
+		);
+
+		const tag = doc.querySelector("[data-test-reader-provenance]");
+		assert(tag, "provenance tag must render");
+		expect(tag.tagName.toLowerCase()).toBe("span");
+		expect(tag.getAttribute("title")).toBe("via news@example.com");
+		expect(provenanceFallback(doc).isSameNode(tag)).toBe(true);
+		expect(metaRow(doc)).toEqual([
+			"article-body__fact article-body__site",
+			"article-body__fact article-body__read-time",
+			"article-body__fact article-body__provenance",
+			"article-body__fact article-body__original",
+		]);
 	});
 
 	it("carries no icon for a save the web app made itself", () => {

@@ -46,6 +46,11 @@ import {
 	moveDialogPopoverId,
 } from "./readlist-card/move-dialog.component";
 import { isCardTerminal } from "./readlist-card/is-card-terminal";
+import { readlistCardVia } from "./readlist-card/readlist-card-via";
+import type {
+	ProvenanceLabel,
+	ReaderProvenance,
+} from "../../shared/article-body/article-header/provenance-label";
 import type { ReadlistUrlState } from "./readlist.url";
 import { buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
 import { computeArticleContentVersion } from "../../shared/article-content-version";
@@ -92,6 +97,7 @@ export interface ReadlistArticleViewModel {
 	url: string;
 	status: string;
 	readTime: DisplayableReadTime | undefined;
+	via?: ProvenanceLabel;
 	saved: LocalTime;
 	actions: ArticleAction[];
 	deleteConfirm?: DeleteConfirmViewModel;
@@ -295,6 +301,7 @@ export function toReadlistArticleViewModel(params: {
 	returnQuery: string;
 	summary: GeneratedSummary | undefined;
 	crawl: ArticleCrawl | undefined;
+	readerProvenance: ReaderProvenance | undefined;
 	filters: ReadlistUrlState;
 	pollCount?: number;
 	maxPolls: number;
@@ -344,6 +351,7 @@ export function toReadlistArticleViewModel(params: {
 				? "Added by Readplace from Hacker News"
 				: undefined,
 		readTime: displayableReadTime(article),
+		via: readlistCardVia(params.readerProvenance),
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
 		actions: [
 			...toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
@@ -376,6 +384,7 @@ export function toReadlistViewModel(
 		statusFlash?: StatusFlash;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
+		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
 		effectiveAccess?: EffectiveAccess;
 		confirmReadlistsByUrl?: ReadonlyMap<string, readonly ReadlistRef[]>;
 		deleteAcknowledged?: boolean;
@@ -406,6 +415,7 @@ export function toReadlistViewModel(
 				returnQuery,
 				summary: options?.summaryByUrl?.get(a.url),
 				crawl: options?.crawlByUrl?.get(a.url),
+				readerProvenance: options?.readerProvenanceByUrl?.get(a.url),
 				filters,
 				maxPolls: MAX_POLLS,
 				confirmReadlists: options?.confirmReadlistsByUrl?.get(a.url),

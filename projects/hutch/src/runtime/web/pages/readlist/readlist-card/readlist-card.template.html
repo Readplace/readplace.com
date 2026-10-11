@@ -26,6 +26,11 @@
       <a class="readlist-article__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" title="{{siteName}}" data-test-article-url data-reader-field="site">{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></a>
       <span class="readlist-article__saved">{{icon "clock"}}<time class="readlist-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}" data-reader-field="saved">{{saved.label}}</time></span>
       <span class="readlist-article__read-time{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{icon "eye"}}<span>{{readTimeLabel}}</span></span>
+      <span class="readlist-article__via{{viaEmptyClass}}{{viaFallbackClass}}" title="{{viaTitle}}" data-test-article-via-fallback{{#unless viaSender}} data-test-article-via{{/unless}}>{{icon "envelope"}}<span class="readlist-article__via-label">{{viaLabel}}</span></span>
+      {{#if viaSender}}
+      <button class="readlist-article__via sender-popover__trigger" type="button" popovertarget="{{viaPopoverId}}" title="{{viaTitle}}" data-test-article-via>{{icon "envelope"}}<span class="readlist-article__via-label">{{viaLabel}}</span></button>
+      <div class="sender-popover" id="{{viaPopoverId}}" popover="auto" data-test-article-via-sender>{{viaSender}}</div>
+      {{/if}}
     </div>
     {{#each statusActions}}
     <form method="{{method}}" action="{{url}}" class="readlist-article__status-form{{fallbackClass}}" hx-boost="true" hx-target="closest .readlist-article" hx-swap="outerHTML show:none" hx-push-url="false" hx-disabled-elt="find button">

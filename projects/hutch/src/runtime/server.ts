@@ -292,7 +292,10 @@ import { HelpAddLinksPage } from "./web/pages/help";
 import { isAppShell, nativeSurfaceOf } from "./web/onboarding/native-client";
 import { APP_BACK_LINK } from "./web/shared/native-app-links";
 import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
-import { initResolveReaderProvenance } from "./web/shared/article-body/article-header/resolve-reader-provenance";
+import {
+	initResolveReaderProvenance,
+	initResolveReaderProvenances,
+} from "./web/shared/article-body/article-header/resolve-reader-provenance";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes, type FetchFirefoxDownloadUrl } from "./web/pages/install";
@@ -1354,6 +1357,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const markdownBearerAuth = initMarkdownBearerAuth({
 		validateAccessToken: deps.validateAccessToken,
 	});
+	const readerProvenanceNewsletters = initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog });
 
 	const queueRouter = initReadlistRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
@@ -1406,9 +1410,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		listIssueLinks: deps.listIssueLinks,
 		findIssueLink: deps.findIssueLink,
 		findIssueLinkSaveStates: deps.findIssueLinkSaveStates,
-		resolveReaderProvenance: initResolveReaderProvenance({
-			detectNewsletters: initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog }),
-		}),
+		resolveReaderProvenance: initResolveReaderProvenance({ detectNewsletters: readerProvenanceNewsletters }),
+		resolveReaderProvenances: initResolveReaderProvenances({ detectNewsletters: readerProvenanceNewsletters }),
 		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,

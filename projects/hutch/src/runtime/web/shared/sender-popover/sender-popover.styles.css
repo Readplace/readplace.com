@@ -1,0 +1,53 @@
+.sender-popover {
+  display: none;
+  position: fixed;
+  inset: 0;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  box-shadow: var(--shadow-menu);
+}
+
+.sender-popover__trigger {
+  display: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+@supports selector(:popover-open) {
+  .sender-popover:popover-open {
+    display: block;
+  }
+
+  .sender-popover__trigger {
+    display: inline-flex;
+  }
+
+  .sender-popover__fallback {
+    display: none;
+  }
+}
+
+@supports (position-area: top) {
+  .sender-popover:popover-open {
+    inset: auto;
+    max-width: calc(100% - 16px);
+    margin: 0 0 4px;
+    position-area: top span-right;
+    position-try-fallbacks: flip-block, flip-inline;
+  }
+}

@@ -119,12 +119,33 @@ describe("Reader save-provenance tag", () => {
 			expect([view, reader, summary].map((response) => provenanceTag(response.text))).toEqual(["via TLDR", "via TLDR", "via TLDR"]);
 		});
 
-		it("falls back to the sender address when the catalog does not know the sender", async () => {
+		it("keeps the catalogued sender's address on the named tag, on hover, behind a tap, and on the plain tag a browser without popovers shows", async () => {
+			const { agent, articleId } = await savedFromEmail("dan@tldr.tech");
+
+			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+
+			const tag = doc.querySelector("[data-test-reader-provenance]");
+			assert(tag, "the provenance tag must render");
+			expect(tag.getAttribute("title")).toBe("dan@tldr.tech");
+			const popoverId = tag.getAttribute("popovertarget");
+			assert(popoverId, "the named tag must open the sender popover");
+			expect(doc.getElementById(popoverId)?.textContent).toBe("dan@tldr.tech");
+			const fallback = doc.querySelector("[data-test-reader-provenance-fallback]");
+			assert(fallback, "the plain tag must render for a browser without popovers");
+			expect(fallback.className).toBe("article-body__fact article-body__provenance sender-popover__fallback");
+			expect([fallback.textContent?.trim(), fallback.getAttribute("title")]).toEqual(["via TLDR", "dan@tldr.tech"]);
+		});
+
+		it("falls back to the sender address, as the plain tag alone, when the catalog does not know the sender", async () => {
 			const { agent, articleId } = await savedFromEmail("stranger@example.com");
 
-			const response = await agent.get(`/queue/${articleId}/view`);
+			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
 
-			expect(provenanceTag(response.text)).toBe("via stranger@example.com");
+			const tag = doc.querySelector("[data-test-reader-provenance]");
+			assert(tag, "the provenance tag must render");
+			expect(tag.textContent?.trim()).toBe("via stranger@example.com");
+			expect(tag.className).toBe("article-body__fact article-body__provenance");
+			expect(doc.querySelector("[data-test-reader-provenance-fallback]")?.isSameNode(tag)).toBe(true);
 		});
 	});
 });

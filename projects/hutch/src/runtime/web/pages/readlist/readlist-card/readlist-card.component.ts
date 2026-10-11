@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { render, renderInFlightDots, withInternalTracking } from "@packages/web-shell";
 import type { DeviceClass } from "@packages/web-analytics";
 
+import {
+	type ProvenanceLabel,
+	provenanceTitle,
+} from "../../../shared/article-body/article-header/provenance-label";
 import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
 import { renderMoveMenuItems } from "./move-dialog.component";
 
@@ -34,6 +38,12 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	urlEmptyClass: string;
 	readTimeLabel: string;
 	readTimeEmptyClass: string;
+	viaLabel: string;
+	viaTitle: string;
+	viaSender: string | undefined;
+	viaPopoverId: string;
+	viaEmptyClass: string;
+	viaFallbackClass: string;
 	statusActions: DesignCardAction[];
 	statusTriggers: DesignCardTrigger[];
 	menuActions: DesignCardAction[];
@@ -64,6 +74,33 @@ function toDesignAction(
 		disabled: options.isProcessing && isStatus,
 		loaderHtml: isStatus ? STATUS_LOADER_HTML : "",
 		buttonId: isStatus ? `readlist-status-${options.articleId}` : undefined,
+	};
+}
+
+type ViaDisplay = Pick<
+	ReadlistCardDisplayModel,
+	"viaLabel" | "viaTitle" | "viaSender" | "viaPopoverId" | "viaEmptyClass" | "viaFallbackClass"
+>;
+
+function toViaDisplay(article: { id: string; via?: ProvenanceLabel }): ViaDisplay {
+	const viaPopoverId = `readlist-via-${article.id}`;
+	if (article.via === undefined) {
+		return {
+			viaLabel: "",
+			viaTitle: "",
+			viaSender: undefined,
+			viaPopoverId,
+			viaEmptyClass: " readlist-article__via--empty",
+			viaFallbackClass: "",
+		};
+	}
+	return {
+		viaLabel: article.via.label,
+		viaTitle: provenanceTitle(article.via),
+		viaSender: article.via.senderEmail,
+		viaPopoverId,
+		viaEmptyClass: "",
+		viaFallbackClass: article.via.senderEmail === undefined ? "" : " sender-popover__fallback",
 	};
 }
 
@@ -108,6 +145,7 @@ export function toReadlistCardDisplayModel(
 		urlEmptyClass: article.siteName ? "" : " readlist-article__site--empty",
 		readTimeLabel: article.readTime?.label ?? "",
 		readTimeEmptyClass: article.readTime ? "" : " readlist-article__read-time--empty",
+		...toViaDisplay(article),
 		statusActions: statusActions.map(toAction),
 		statusTriggers: statusActions.flatMap(toTrigger),
 		menuActions: deleteActions.map(toAction),

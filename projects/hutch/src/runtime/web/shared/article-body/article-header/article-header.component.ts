@@ -9,9 +9,11 @@ import type {
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { render } from "@packages/web-shell";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
-import { type ReaderProvenance, provenanceLabel } from "./provenance-label";
+import { type ReaderProvenance, provenanceLabel, provenanceTitle } from "./provenance-label";
 
 const TEMPLATE = readFileSync(join(__dirname, "article-header.template.html"), "utf-8");
+
+const PROVENANCE_SENDER_POPOVER_ID = "article-provenance-sender";
 
 export interface ReaderReadlistTags {
 	unassignUrl: string;
@@ -42,6 +44,10 @@ function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
 		url: input.url,
 		provenanceLabel: provenance?.label,
 		provenanceIconSvg: provenance?.iconSvg,
+		provenanceTitle: provenance === undefined ? undefined : provenanceTitle(provenance),
+		provenanceSender: provenance?.senderEmail,
+		provenanceFallbackClass: provenance?.senderEmail === undefined ? "" : " sender-popover__fallback",
+		provenancePopoverId: PROVENANCE_SENDER_POPOVER_ID,
 		readlistTags: input.readlistTags,
 		saved: input.saved,
 		hasTags: input.readlistTags !== undefined,

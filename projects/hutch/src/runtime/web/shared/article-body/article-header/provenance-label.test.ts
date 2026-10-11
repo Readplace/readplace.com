@@ -1,6 +1,6 @@
 import { iconSvg } from "@packages/ui-icons";
 import { CLIENT_ICON_SVG } from "../../client-icons";
-import { provenanceLabel } from "./provenance-label";
+import { provenanceLabel, provenanceTitle } from "./provenance-label";
 
 describe("provenanceLabel", () => {
 	it("identifies automatic suggestions and legacy founder seeds", () => {
@@ -43,9 +43,10 @@ describe("provenanceLabel", () => {
 	});
 
 	it("names the newsletter a recognised sender publishes, in place of its address", () => {
-		expect(provenanceLabel({ kind: "newsletter", name: "TLDR" })).toEqual({
+		expect(provenanceLabel({ kind: "newsletter", name: "TLDR", senderEmail: "dan@tldr.tech" })).toEqual({
 			label: "via TLDR",
 			iconSvg: iconSvg("envelope"),
+			senderEmail: "dan@tldr.tech",
 		});
 	});
 
@@ -60,5 +61,19 @@ describe("provenanceLabel", () => {
 		expect(provenanceLabel({ kind: "mcp", registeredName: "dyn-registered-mcp-client" })).toEqual({
 			label: "via AI assistant",
 		});
+	});
+});
+
+describe("provenanceTitle", () => {
+	it("puts the sender address behind a newsletter name, so hover still reaches the address", () => {
+		expect(provenanceTitle({ label: "via TLDR", senderEmail: "dan@tldr.tech" })).toBe("dan@tldr.tech");
+	});
+
+	it("repeats the label when it already shows everything there is to show", () => {
+		expect([
+			provenanceTitle({ label: "via news@example.com" }),
+			provenanceTitle({ label: "via Email" }),
+			provenanceTitle({ label: "via Chrome" }),
+		]).toEqual(["via news@example.com", "via Email", "via Chrome"]);
 	});
 });

@@ -14,6 +14,18 @@ export function measureBoxes(selectors: readonly string[]): MeasuredBox[] {
 	});
 }
 
+export interface TextFit {
+	needed: number;
+	painted: number;
+	height: number;
+}
+
+export function measureTextFit(selector: string): TextFit {
+	const element = document.querySelector(selector);
+	if (!element) throw new Error(`"${selector}" must be laid out to be measured`);
+	return { needed: element.scrollWidth, painted: element.clientWidth, height: element.getBoundingClientRect().height };
+}
+
 export function pageOverflowsSideways(): boolean {
 	return document.documentElement.scrollWidth > document.documentElement.clientWidth;
 }

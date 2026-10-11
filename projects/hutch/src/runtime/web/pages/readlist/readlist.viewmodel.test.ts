@@ -6,6 +6,7 @@ import type {
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { iconSvg } from "@packages/ui-icons";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -388,6 +389,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 		summary: undefined,
 		filters: DEFAULT_FILTERS,
 		maxPolls: 3,
+		readerProvenance: undefined,
 	};
 
 	it("is false on the first tick of a normal pending row (polling continues)", () => {
@@ -441,6 +443,55 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	});
 });
 
+describe("toReadlistArticleViewModel — via", () => {
+	const base = {
+		article: makeArticle(),
+		now: NOW,
+		returnQuery: "",
+		summary: undefined,
+		crawl: undefined,
+		filters: DEFAULT_FILTERS,
+		maxPolls: 3,
+	};
+
+	it("names the sender an emailed save arrived from", () => {
+		const vm = toReadlistArticleViewModel({
+			...base,
+			readerProvenance: { kind: "email", senderEmail: "news@example.com" },
+		});
+		expect(vm.via).toEqual({ label: "via news@example.com", iconSvg: iconSvg("envelope") });
+	});
+
+	it("names the newsletter the catalog resolved, keeping its address behind the name", () => {
+		const vm = toReadlistArticleViewModel({
+			...base,
+			readerProvenance: { kind: "newsletter", name: "TLDR", senderEmail: "dan@tldr.tech" },
+		});
+		expect(vm.via).toEqual({ label: "via TLDR", iconSvg: iconSvg("envelope"), senderEmail: "dan@tldr.tech" });
+	});
+
+	it("carries no via for a save that did not arrive by email, and none for a row saved before provenance was kept", () => {
+		const web = toReadlistArticleViewModel({ ...base, readerProvenance: { kind: "web" } });
+		const unknown = toReadlistArticleViewModel({ ...base, readerProvenance: undefined });
+		expect([web.via, unknown.via]).toEqual([undefined, undefined]);
+	});
+});
+
+describe("toReadlistViewModel — via", () => {
+	it("hands each card the provenance resolved for its url", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readerProvenanceByUrl: new Map([[ARTICLE_URL, { kind: "newsletter", name: "TLDR", senderEmail: "dan@tldr.tech" }]]),
+		});
+		expect(vm.articles[0].via?.label).toBe("via TLDR");
+	});
+
+	it("shows no via when the listing resolved no provenance", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, { now: NOW });
+		expect(vm.articles[0].via).toBeUndefined();
+	});
+});
+
 describe("toReadlistArticleViewModel — versioned reader href", () => {
 	function readerVersion(readerHref: string): string | null {
 		return new URL(readerHref, "https://internal.invalid").searchParams.get("v");
@@ -455,6 +506,7 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			crawl: { status: "ready" },
 			filters: DEFAULT_FILTERS,
 			maxPolls: 3,
+			readerProvenance: undefined,
 		});
 		const version = readerVersion(vm.readerHref);
 		assert(version, "the reader href must carry a v param");
@@ -471,6 +523,7 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			crawl: { status: "ready" },
 			filters: { readlist: ReadlistSlugSchema.parse("reading"), tab: "queue", order: "desc", page: 1 },
 			maxPolls: 3,
+			readerProvenance: undefined,
 		});
 		expect(vm.readerHref).toMatch(new RegExp(`^/queue/${ARTICLE_ID}/view\\?queue=reading&v=[0-9a-f]{16}$`));
 	});
@@ -483,6 +536,7 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			crawl: { status: "ready" as const },
 			filters: DEFAULT_FILTERS,
 			maxPolls: 3,
+			readerProvenance: undefined,
 		};
 		const pending = toReadlistArticleViewModel({ ...base, summary: undefined });
 		const ready = toReadlistArticleViewModel({ ...base, summary: { status: "ready", summary: "TL;DR" } });
@@ -497,6 +551,7 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			crawl: { status: "ready" as const },
 			filters: DEFAULT_FILTERS,
 			maxPolls: 3,
+			readerProvenance: undefined,
 		};
 		const earlier = toReadlistArticleViewModel({
 			...base,
