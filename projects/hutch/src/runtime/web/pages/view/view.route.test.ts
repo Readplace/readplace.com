@@ -2148,7 +2148,6 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			expect(oobIds(response.text)).toEqual([
-				"article-body-reader-slot",
 				"article-body-progress",
 				"article-header",
 				"document-title",
