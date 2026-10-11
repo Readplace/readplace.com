@@ -1,20 +1,12 @@
 ---
 title: "Faster Pages for Readers an Ocean Away From the Server"
 description: "Readplace's server sits in Sydney and most of its readers don't. A first visit from far away paid 3 round trips across the ocean before the first byte, and probes measured that cost at 660 to 955 milliseconds from the US. TLS now finishes at an edge near the reader, 1 warm connection pool sits beside the origin, and only the request itself still makes the crossing."
+tldr: "Opening a page from the US or Europe used to pay for its distance in round trips: a first visit crossed the ocean 3 times, for the connection, the TLS handshake, and the request itself, before Readplace's server in Sydney could send anything back. The site now answers the first 2 legs from a CloudFront edge near the reader, and after a day of cold-connection measurements, a single warm pool beside the origin carries the third. Getting there meant giving each reader back their own identity behind the edge, catching a cookie a shared cache would have replayed, and finding out that connection reuse does little for traffic too sparse to reuse anything."
 slug: "faster-pages-an-ocean-from-the-server"
 date: "2026-08-29"
 author: "Fayner Brack"
 keywords: "cdn latency, time to first byte, cloudfront origin shield, tls termination at the edge, transpacific latency, read it later app speed, rate limiting behind a cdn, server-side rendering behind a cdn, connection reuse keepalive, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Opening a page from the US or Europe used to pay for its distance in round trips: a first visit crossed the ocean 3 times, for the connection, the TLS handshake, and the request itself, before Readplace's server in Sydney could send anything back. The site now answers the first 2 legs from a CloudFront edge near the reader, and after a day of cold-connection measurements, a single warm pool beside the origin carries the third. Getting there meant giving each reader back their own identity behind the edge, catching a cookie a shared cache would have replayed, and finding out that connection reuse does little for traffic too sparse to reuse anything.
-
-</div>
-</details>
 
 Readplace runs out of Sydney. Most of the people reading it are an ocean away, in the US, the UK and Europe, and the distance was showing up in every first page load.
 

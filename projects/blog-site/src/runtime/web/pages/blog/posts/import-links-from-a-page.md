@@ -1,21 +1,13 @@
 ---
 title: "Paste One Link, Save Every Article on the Page"
 description: "Readplace can now import links from a single page. Paste a newsletter issue or a links page, and Readplace lists every outbound link for you to pick from. Save the whole batch in one click."
+tldr: "Readplace now imports links from one page. Open Import Links in the menu. \"Paste a link\" is the first tab. Drop in a newsletter issue or any page that lists articles. Readplace loads the page and lists every outbound link, each one checked by default. Untick what you skip, then click Import. The articles appear as cards right away and fill in their titles and excerpts within seconds. One page can hold up to 2,000 links, and the same screen still takes a file upload too."
 slug: "import-links-from-a-page"
 date: "2026-05-31"
 author: "Fayner Brack"
 lastModified: "2026-09-30"
 keywords: "import newsletter links, save all links from a page, bulk save articles, read it later, save newsletter to read later, extract links from web page, blogroll, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace now imports links from one page. Open Import Links in the menu. "Paste a link" is the first tab. Drop in a newsletter issue or any page that lists articles. Readplace loads the page and lists every outbound link, each one checked by default. Untick what you skip, then click Import. The articles appear as cards right away and fill in their titles and excerpts within seconds. One page can hold up to 2,000 links, and the same screen still takes a file upload too.
-
-</div>
-</details>
 
 A good newsletter is a list of other people's pages, and the work of reading it is the work of opening each one. You mean to read maybe half. So you click the first link, wait for it to load, save it, then go back and do the same thing for the next one. Twenty links turn into twenty round trips.
 

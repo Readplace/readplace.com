@@ -1,21 +1,13 @@
 ---
 title: "You're Subscribed to 30 Newsletters. You Read 3. Here's a Better System."
 description: "Most developers subscribe to far more newsletters than they read. The problem isn't the newsletters. It's the lack of a system to extract the few links worth reading from each one."
+tldr: "You subscribe to dozens of newsletters and read almost none. The fix is plumbing, not discipline. Route the links into a read-it-later app, triage them with summaries, and archive the email. Each issue then costs about 30 seconds of triage instead of a low background guilt. Readplace automates this with a forwarding address per newsletter, so the article links in each issue land in your reading list with AI summaries."
 slug: "newsletter-overload"
 date: "2026-04-06"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "newsletter overload, developer newsletters, read it later, email newsletters, reading system"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-You subscribe to dozens of newsletters and read almost none. The fix is plumbing, not discipline. Route the links into a read-it-later app, triage them with summaries, and archive the email. Each issue then costs about 30 seconds of triage instead of a low background guilt. Readplace automates this with a forwarding address per newsletter, so the article links in each issue land in your reading list with AI summaries.
-
-</div>
-</details>
 
 Your inbox has unread issues of JavaScript Weekly, TLDR, Pointer, Bytes, Changelog, and 4 others you forgot you signed up for. You already know you won't read them, and you keep them anyway, because deleting unread feels worse than letting them sit. Tomorrow another one lands, you skim two links, close the tab, and carry a small sense of being behind into the rest of the day.
 

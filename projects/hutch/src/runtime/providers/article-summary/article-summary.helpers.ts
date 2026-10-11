@@ -1,4 +1,5 @@
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
+import { truncateAtWordBoundary } from "@packages/web-shell";
 
 export interface PickedExcerpt {
 	text: string;
@@ -15,14 +16,6 @@ export function pickExcerpt(
 }
 
 const SEO_DESCRIPTION_MAX_CHARS = 160;
-
-export function truncateAtWordBoundary(text: string, maxChars: number): string {
-	if (text.length <= maxChars) return text;
-	const slice = text.slice(0, maxChars - 1);
-	const lastSpace = slice.lastIndexOf(" ");
-	const cut = lastSpace > 0 ? slice.slice(0, lastSpace) : slice;
-	return `${cut.trimEnd()}…`;
-}
 
 export function truncateForSeo(
 	text: string,

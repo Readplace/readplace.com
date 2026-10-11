@@ -1,20 +1,12 @@
 ---
 title: "Save a Stack Overflow Question, Keep Every Answer"
 description: "A Stack Overflow thread saved to Readplace now comes back whole: the question, its code, and the answers under it. The stored copy of the site's most upvoted question grew from 1,196 words and a lone answer to 10,302 words and all 25, and the save stopped depending on winning a race against a bot wall."
+tldr: "The reason to save a Stack Overflow thread is rarely 1 answer. 1 answer was all Readplace kept: its stored copy of the site's most upvoted question held 1,196 words, with no question and no code. The crawl now reads the question's own Atom feed, which Stack Overflow serves without the bot wall that guards the page, so the same save stores the question and all 25 answers, 10,302 words, in about 10 seconds. When the feed doesn't answer, the old path still runs underneath."
 slug: "save-a-stack-overflow-question-keep-every-answer"
 date: "2026-09-01"
 author: "Fayner Brack"
 keywords: "save stack overflow questions, stack overflow read it later, read stack overflow offline, stack overflow atom feed, cloudflare bot wall, save a whole thread with answers, read it later for developers, pocket alternative, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-The reason to save a Stack Overflow thread is rarely 1 answer. 1 answer was all Readplace kept: its stored copy of the site's most upvoted question held 1,196 words, with no question and no code. The crawl now reads the question's own Atom feed, which Stack Overflow serves without the bot wall that guards the page, so the same save stores the question and all 25 answers, 10,302 words, in about 10 seconds. When the feed doesn't answer, the old path still runs underneath.
-
-</div>
-</details>
 
 Stack Overflow's [most upvoted question](/view/stackoverflow.com/q/11227809?utm_source=blog-save-a-stack-overflow-question-keep-every-answer&utm_medium=internal&utm_content=read-stackoverflow-com) asks why a sorted array is faster to process than an unsorted one. The copy Readplace had stored of it ran 1,196 words and held neither the question nor the code sample the whole thread argues about. What it held was 1 answer, the block an extractor scored highest on a page it could barely reach.
 

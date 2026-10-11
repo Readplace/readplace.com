@@ -1,21 +1,13 @@
 ---
 title: "Embedded Videos Stop Breaking Your Reader"
 description: "Readplace's reader used to leave a dead video box mid-article. Now each embedded video becomes a short link to the source, so you read the text clean and tap through to the video only if you want it."
+tldr: "Readplace's reader used to leave a dead box where a native video tag sat in an article. Now each one becomes a short line of text with a link to the original page. This applies to video tags in the HTML, not to YouTube or Vimeo embeds. You read the article clean, and if you want the video, one tap takes you to it on the source site. The fix works for articles in your readlist and for any link you paste into the box on the readplace.com homepage."
 slug: "embedded-videos-stop-breaking-your-reader"
 date: "2026-06-07"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "reader view, remove autoplay video, read article without video, distraction-free reader, embedded video placeholder, clean reader, read it later, video link, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace's reader used to leave a dead box where a native video tag sat in an article. Now each one becomes a short line of text with a link to the original page. This applies to video tags in the HTML, not to YouTube or Vimeo embeds. You read the article clean, and if you want the video, one tap takes you to it on the source site. The fix works for articles in your readlist and for any link you paste into the box on the readplace.com homepage.
-
-</div>
-</details>
 
 I was reading a saved tutorial on web.dev when I lost my place halfway down, because a black rectangle had pushed the next paragraph clean off the screen and I had to scroll to find where I had been.
 

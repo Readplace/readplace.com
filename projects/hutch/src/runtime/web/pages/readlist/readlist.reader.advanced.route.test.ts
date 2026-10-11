@@ -134,7 +134,7 @@ describe("Readlist routes", () => {
 
 			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
-			const details = doc.querySelector(".article-body__summary");
+			const details = doc.querySelector(".tldr-disclosure");
 			assert(details, "summary details element must be rendered");
 			expect(details.hasAttribute("open")).toBe(false);
 			expect(details.getAttribute("data-summary-toggle-url")).toBe(
@@ -198,7 +198,7 @@ describe("Readlist routes", () => {
 
 			const pollResponse = await agent.get(`/queue/${articleId}/summary`);
 			const doc = new JSDOM(pollResponse.text).window.document;
-			const details = doc.querySelector(".article-body__summary");
+			const details = doc.querySelector(".tldr-disclosure");
 			assert(details, "summary details element must be rendered");
 			expect(details.hasAttribute("open")).toBe(false);
 			expect(details.getAttribute("data-summary-toggle-url")).toBe(

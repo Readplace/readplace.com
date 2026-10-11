@@ -290,7 +290,7 @@ describe("ReaderPage", () => {
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const details = doc.querySelector(".article-body__summary");
+		const details = doc.querySelector(".tldr-disclosure");
 		assert(details, "ready summary <details> must render");
 		expect(details.hasAttribute("open")).toBe(false);
 	});
@@ -313,7 +313,7 @@ describe("ReaderPage", () => {
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const details = doc.querySelector(".article-body__summary");
+		const details = doc.querySelector(".tldr-disclosure");
 		assert(details, "ready summary <details> must render");
 		expect(details.getAttribute("data-summary-toggle-url")).toBe(
 			`/queue/${articleId.value}/summary-toggle`,

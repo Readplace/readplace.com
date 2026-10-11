@@ -1,6 +1,7 @@
 ---
 title: "Import Your Reading List Before You Make an Account"
 description: "Readplace's link importer is now reachable logged out. Upload a file or paste a link, review the URLs it finds, and pick what to keep before you sign up. The account waits until you commit, and your reviewed selections survive it."
+tldr: "Importing your saved links into Readplace used to need an account first. Now the importer is open logged out. You upload a file or paste a link, Readplace pulls every web address out of it, and you tick the ones you want to keep. The account waits for one button, Import selected, the step that actually saves the links. Sign up there and the review comes back as you left it, because an unfinished import is reached by its own unguessable link, not tied to an owner yet. The links save under your new account and fill in their titles and text on their own."
 slug: "import-links-before-signing-up"
 date: "2026-06-23"
 lastModified: "2026-10-01"
@@ -9,15 +10,6 @@ keywords: "import reading list, import Pocket links, import without signing up, 
 tags: ["changelog"]
 banner: "You can import your links before making an account"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Importing your saved links into Readplace used to need an account first. Now the importer is open logged out. You upload a file or paste a link, Readplace pulls every web address out of it, and you tick the ones you want to keep. The account waits for one button, Import selected, the step that actually saves the links. Sign up there and the review comes back as you left it, because an unfinished import is reached by its own unguessable link, not tied to an owner yet. The links save under your new account and fill in their titles and text on their own.
-
-</div>
-</details>
 
 Bringing a saved reading list into a new app usually starts with making an account. The importer sits behind a signup form, so you hand over an email and a password before you have watched a single one of your own links arrive.
 

@@ -1,20 +1,12 @@
 ---
 title: "How Readplace Saves a Page Without Getting Blocked"
 description: "Some apps fail to save a link. They fetch the page twice and trip its bot protection. Readplace now fetches each page once, then routes HTML, PDFs, and tweets from that single download. Faster saves, fewer blocks."
+tldr: "Readplace now fetches each saved page one time. The crawler downloads the body once, checks the content type, and sends HTML, PDFs, and tweets down the right path from that single download. The old design fetched some pages twice, which raised the load on the origin site and the odds of getting blocked. One request per save means faster saves and a higher success rate on sites that guard against bots."
 slug: "save-pages-without-getting-blocked"
 date: "2026-05-30"
 author: "Fayner Brack"
 keywords: "read it later, save articles, save web page, bot protection, cloudflare block, save pdf, conditional get, readplace, web crawler reliability"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace now fetches each saved page one time. The crawler downloads the body once, checks the content type, and sends HTML, PDFs, and tweets down the right path from that single download. The old design fetched some pages twice, which raised the load on the origin site and the odds of getting blocked. One request per save means faster saves and a higher success rate on sites that guard against bots.
-
-</div>
-</details>
 
 A reader saved a PDF report and got back the line a lot of read-it-later tools hand you when the crawler trips: sorry, we couldn't save this link.
 

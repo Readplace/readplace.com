@@ -1,14 +1,15 @@
+import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { drawFigure } from "./blog-figure";
 import { labelTableCells } from "./blog-table-labels";
-import { withTldrCaret } from "./blog-tldr-caret";
 import { deriveChangelogBanner, initBlogPosts, parseBlogFrontmatter } from "./blog.posts";
 
-const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: "readplace.com" });
+const blogPosts = initBlogPosts({ drawFigure, labelTableCells, ownHost: "readplace.com" });
 
 const VALID_FRONTMATTER = {
 	title: "A Post",
 	description: "About something",
+	tldr: "The short version.",
 	slug: "a-post",
 	date: "2026-01-02",
 	author: "Fagner",
@@ -48,6 +49,14 @@ describe("blog posts", () => {
 			expect(typeof post.markdownContent).toBe("string");
 			expect(post.markdownContent.length).toBeGreaterThan(0);
 			expect(post.markdownContent).not.toContain("---\ntitle:");
+		}
+	});
+
+	it("renders every post's TL;DR and opens its markdown with the summary callout", () => {
+		for (const post of posts) {
+			assert("html" in post.tldr, "a blog TL;DR is rendered markdown");
+			expect(post.tldr.html.length).toBeGreaterThan(0);
+			expect(post.markdownContent.startsWith("> [!summary] Summary (TL;DR)\n> ")).toBe(true);
 		}
 	});
 
@@ -109,6 +118,12 @@ describe("parseBlogFrontmatter", () => {
 		);
 		expect(parsed.tags).toEqual(["changelog"]);
 		expect(parsed.banner).toBe("I shipped a thing");
+	});
+
+	it("rejects a post with no tldr", () => {
+		const { tldr: _tldr, ...withoutTldr } = VALID_FRONTMATTER;
+		expect(() => parseBlogFrontmatter(withoutTldr, "a-post.md")).toThrow(/tldr/);
+		expect(() => parseBlogFrontmatter({ ...withoutTldr, tldr: "" }, "a-post.md")).toThrow(/tldr/);
 	});
 
 	it("rejects a changelog-tagged post with no banner copy", () => {

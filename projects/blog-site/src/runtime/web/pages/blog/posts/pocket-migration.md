@@ -1,21 +1,13 @@
 ---
 title: "Pocket Shut Down in 2025. Here's How to Recover and Move Your Reading List."
 description: "Pocket closed on July 8, 2025. If you missed the export, your articles are often still recoverable. Here's how to find them and move to Readplace."
+tldr: "Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, open Import Links in the Readplace menu and use the \"Upload a file\" tab. Pick the file, untick anything you don't want, then click Import. An account is needed only for that last click. Files over 4.5 MB or above 2,000 links have to be split into smaller files first."
 slug: "pocket-migration"
 date: "2026-05-06"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, open Import Links in the Readplace menu and use the "Upload a file" tab. Pick the file, untick anything you don't want, then click Import. An account is needed only for that last click. Files over 4.5 MB or above 2,000 links have to be split into smaller files first.
-
-</div>
-</details>
 
 I went to getpocket.com in July 2025 to grab the export I had put off for years, and the site was already gone. Pocket had shut down on July 8. Mozilla acquired it back in 2017, slowed the work down over the years, and then pulled the plug. There had been a window to export before the servers went offline, and I had walked right past it.
 

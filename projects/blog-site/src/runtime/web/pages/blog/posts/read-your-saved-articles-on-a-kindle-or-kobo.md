@@ -1,6 +1,7 @@
 ---
 title: "Read your saved articles on a Kindle or Kobo"
 description: "Every saved article now has a Download EPUB button, for everyone, with no setting to turn on. The file carries the article's text, its images, and its TL;DR as the opening page, so what lands on your e-reader is the same thing the web reader shows. Public /view pages have the button too, so a shared link needs no account."
+tldr: "Tap Download EPUB in the reader and a file lands on your device. It carries the article's text, its images, and its TL;DR as the opening page, so an e-reader shows the same thing the web reader does. The button is on a public /view page too, which means a link someone sent you downloads without an account. Readplace used to keep a saved article inside Readplace. The article can leave now."
 slug: "read-your-saved-articles-on-a-kindle-or-kobo"
 date: "2026-09-12"
 lastModified: "2026-10-01"
@@ -9,15 +10,6 @@ keywords: "download article as epub, read it later epub export, send saved artic
 tags: ["changelog"]
 banner: "I gave your saved articles a way onto your e-reader"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Tap Download EPUB in the reader and a file lands on your device. It carries the article's text, its images, and its TL;DR as the opening page, so an e-reader shows the same thing the web reader does. The button is on a public /view page too, which means a link someone sent you downloads without an account. Readplace used to keep a saved article inside Readplace. The article can leave now.
-
-</div>
-</details>
 
 Saving an article moves it off an open tab and into a service. It does not move it onto the thing many people actually read on, which is a 6-inch e-ink screen with a browser nobody would choose to use.
 

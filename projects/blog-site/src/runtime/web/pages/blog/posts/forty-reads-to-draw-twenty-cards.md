@@ -1,20 +1,12 @@
 ---
 title: "Forty Reads to Draw Twenty Cards"
 description: "A full page of the Readplace readlist is 20 cards. Drawing it used to fire 40 separate database reads, each hauling back the whole article row. Two batched, projected reads now do it, and the archive and delete buttons dropped a read of their own, which closed a race that could leave a broken half-row behind."
+tldr: "A full page of the readlist shows 20 cards, and drawing it used to fire 40 separate reads at the database, one for each card's summary and one for its crawl status. Each read hauled back the whole article row, including the old inline copy of the text the card never shows. Readplace now collects those into two batched reads that ask only for the fields a card renders, so 40 round trips become 2 and the heavy column stays on disk. The readlist's archive and delete buttons dropped a read too. They used to look the row up to check it existed, then write. Now the write carries its own condition, so it is one round trip instead of two, and that change also closed a race where a delete landing mid-write could leave a broken half-row behind."
 slug: "forty-reads-to-draw-twenty-cards"
 date: "2026-07-28"
 author: "Fayner Brack"
 keywords: "fast read it later app, reduce database round trips, dynamodb batchgetitem projection, n+1 reads readlist, conditional write attribute_exists, read it later performance, pocket alternative fast readlist, why the readlist loads fast, save articles fast list"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-A full page of the readlist shows 20 cards, and drawing it used to fire 40 separate reads at the database, one for each card's summary and one for its crawl status. Each read hauled back the whole article row, including the old inline copy of the text the card never shows. Readplace now collects those into two batched reads that ask only for the fields a card renders, so 40 round trips become 2 and the heavy column stays on disk. The readlist's archive and delete buttons dropped a read too. They used to look the row up to check it existed, then write. Now the write carries its own condition, so it is one round trip instead of two, and that change also closed a race where a delete landing mid-write could leave a broken half-row behind.
-
-</div>
-</details>
 
 Twenty cards fill one screen of the readlist. Drawing them used to cost 40 reads from the database, and the page could not paint the first card until the last read came back.
 

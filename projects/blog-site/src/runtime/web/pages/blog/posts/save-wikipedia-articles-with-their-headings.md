@@ -1,6 +1,7 @@
 ---
 title: "The Edit Link That Deleted the Heading"
 description: "Saving a Wikipedia article used to flatten it into one column, with a stray '[edit]' where every section heading had been. The cleaner that strips page clutter was counting the edit link beside each heading as clutter and taking the heading with it. Readplace now clears those edit links before the cleaner scores the page, so the headings survive."
+tldr: "Section headings are what make a long Wikipedia entry skimmable, and a saved copy that loses them is harder to read than the page it came from. Readplace used to lose them. It runs each saved page through Mozilla Readability, the cleaner behind browser reader modes, and Readability deletes a short block when most of its text sits inside links. MediaWiki wraps every section heading in a div with an \"edit\" link beside it, so that wrapper read as mostly-link and Readability took the whole thing, heading included. Saved Wikipedia articles came back as one flat column with stray \"[edit]\" text where the headings belonged. The fix strips the `.mw-editsection` edit links before Readability scores the page, which leaves each heading as a plain block with no links, and Readability keeps it. It runs as a pre-pass that only removes edit chrome, so it leaves body text alone, and it fires on any MediaWiki page, detected by the `generator` meta tag rather than the domain, so a distribution's wiki or a fan reference gets it too. On real pages the headings came back, the Mythical Man-Month from 0 to 6 and Bioluminescence from 0 to 11, while a page that was already correct stayed put. The crawler's health check now saves the Bioluminescence article every run and fails if a section heading goes missing, so the fix can't regress unnoticed."
 slug: "save-wikipedia-articles-with-their-headings"
 date: "2026-07-18"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "save wikipedia article to read later, read wikipedia offline clean, w
 tags: ["changelog"]
 banner: "I kept the section headings on saved Wikipedia pages"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Section headings are what make a long Wikipedia entry skimmable, and a saved copy that loses them is harder to read than the page it came from. Readplace used to lose them. It runs each saved page through Mozilla Readability, the cleaner behind browser reader modes, and Readability deletes a short block when most of its text sits inside links. MediaWiki wraps every section heading in a div with an "edit" link beside it, so that wrapper read as mostly-link and Readability took the whole thing, heading included. Saved Wikipedia articles came back as one flat column with stray "[edit]" text where the headings belonged. The fix strips the `.mw-editsection` edit links before Readability scores the page, which leaves each heading as a plain block with no links, and Readability keeps it. It runs as a pre-pass that only removes edit chrome, so it leaves body text alone, and it fires on any MediaWiki page, detected by the `generator` meta tag rather than the domain, so a distribution's wiki or a fan reference gets it too. On real pages the headings came back, the Mythical Man-Month from 0 to 6 and Bioluminescence from 0 to 11, while a page that was already correct stayed put. The crawler's health check now saves the Bioluminescence article every run and fails if a section heading goes missing, so the fix can't regress unnoticed.
-
-</div>
-</details>
 
 Every section heading had gone missing from the saved copy of a Wikipedia article. A stray "[edit]" sat where each one used to be, and the entry that should have broken into parts ran as one long column instead.
 

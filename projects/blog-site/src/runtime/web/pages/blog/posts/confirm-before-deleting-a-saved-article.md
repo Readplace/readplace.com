@@ -1,21 +1,13 @@
 ---
 title: "The One Button You Couldn't Take Back"
 description: "Deleting a saved article in Readplace used to be one click with no undo. It asks for confirmation now, built on the browser's native HTML popover with no JavaScript, no extra route, and no change to the delete API the apps and extensions already use."
+tldr: "Every other action in the readlist could be walked back. Mark an article read and an undo toast waited a few seconds to reverse it. Delete could not: one tap and the saved copy was gone, on every row of both tabs, with nothing offering it back. Readplace now puts a confirmation in front of that click. The delete button opens a panel that asks before anything is removed, and the panel is the browser's native popover, so pressing Esc, clicking outside it, and the backdrop element behind it are the platform's own behaviour rather than code I wrote. Only the dim on that backdrop is mine, a couple of lines of CSS. There is no client bundle, no extra route, and no query parameter carrying the state. A submit button cannot open a popover, so the confirmed delete ships as its own trigger, and the plain one-click form stays as the fallback for a browser too old to support popover. The route that actually removes an article did not change, so the extensions, the iPhone app, and every other client that deletes are untouched. Only the website added a question in front of the one action you could not take back."
 slug: "confirm-before-deleting-a-saved-article"
 date: "2026-07-27"
 lastModified: "2026-09-20"
 author: "Fayner Brack"
 keywords: "read it later delete confirmation, confirm before deleting saved article, undo delete read it later, accidental delete read later app, html popover confirmation dialog, native popover no javascript, delete confirmation without javascript, read it later app data safety, save readlist protect deletes, are you sure delete web app"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Every other action in the readlist could be walked back. Mark an article read and an undo toast waited a few seconds to reverse it. Delete could not: one tap and the saved copy was gone, on every row of both tabs, with nothing offering it back. Readplace now puts a confirmation in front of that click. The delete button opens a panel that asks before anything is removed, and the panel is the browser's native popover, so pressing Esc, clicking outside it, and the backdrop element behind it are the platform's own behaviour rather than code I wrote. Only the dim on that backdrop is mine, a couple of lines of CSS. There is no client bundle, no extra route, and no query parameter carrying the state. A submit button cannot open a popover, so the confirmed delete ships as its own trigger, and the plain one-click form stays as the fallback for a browser too old to support popover. The route that actually removes an article did not change, so the extensions, the iPhone app, and every other client that deletes are untouched. Only the website added a question in front of the one action you could not take back.
-
-</div>
-</details>
 
 One click on a 44-pixel icon, and a saved article was gone. There was no confirmation and no undo behind it. The button sat on every card in the readlist, on the tab of things to read and the tab of things already read, and it did the same thing on all of them.
 

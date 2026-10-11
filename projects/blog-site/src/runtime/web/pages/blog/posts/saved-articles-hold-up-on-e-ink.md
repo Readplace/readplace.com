@@ -1,6 +1,7 @@
 ---
 title: "Saved Articles That Hold Up on an E-ink Screen"
 description: "11 pairs of ink and background across the Readplace reader and readlist sat under their WCAG contrast floor, with article links rendering fainter than the prose around them. All 11 now clear it, thumbnails and the logout menu work with scripting off, and 3 test suites measure both pages the way an e-ink panel sees them."
+tldr: "An e-reader's built-in browser keeps 16 shades of grey, fires no hover, and often runs no script. Measured under those conditions, Readplace came up short in 11 places: article links fainter than the prose around them, a Mark as read button at 2.95:1 in dark mode, thumbnails a scriptless browser would show as a blank strip, and a menu that kept the logout link out of reach without JavaScript. All 11 are fixed, the worst of them by darkening the one amber button the whole product leans on, and 3 test suites now measure contrast, greyscale ink, and script-free reading on each build."
 slug: "saved-articles-hold-up-on-e-ink"
 date: "2026-08-22"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "read articles on e-ink, e-reader browser reading app, wcag contrast r
 tags: ["changelog"]
 banner: "I made the reader hold up on an e-ink screen"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-An e-reader's built-in browser keeps 16 shades of grey, fires no hover, and often runs no script. Measured under those conditions, Readplace came up short in 11 places: article links fainter than the prose around them, a Mark as read button at 2.95:1 in dark mode, thumbnails a scriptless browser would show as a blank strip, and a menu that kept the logout link out of reach without JavaScript. All 11 are fixed, the worst of them by darkening the one amber button the whole product leans on, and 3 test suites now measure contrast, greyscale ink, and script-free reading on each build.
-
-</div>
-</details>
 
 Amber is the colour Readplace signs itself with, and it was painting the links in an article fainter than the prose around them. Against white that amber lands at 3.62:1, under the 4.5:1 [WCAG floor](/view/www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html?utm_source=blog-saved-articles-hold-up-on-e-ink&utm_medium=internal&utm_content=read-www-w3-org) for body-size text, and it was serving as link ink across [the reader](/blog/read-any-article-clean-reader?utm_source=blog-saved-articles-hold-up-on-e-ink&utm_medium=internal&utm_content=post-read-any-article-clean-reader) and the readlist. I only found this because I stopped trusting my own screen: this month I walked every rendered element on both pages, in both themes, and measured each pair of ink and background against its floor. 11 pairs came back under it. 8 were that one amber.
 

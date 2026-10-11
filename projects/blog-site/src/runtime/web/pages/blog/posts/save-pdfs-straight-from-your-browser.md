@@ -1,21 +1,13 @@
 ---
 title: "Save PDFs Straight From Your Browser, Even the Blocked Ones"
 description: "Some PDFs sit behind bot protection or a login, so crawlers get turned away. Readplace now reads the PDF from your own browser tab and saves a clean copy to your readlist. Open it in your browser, and you can save it."
+tldr: "Readplace can now save a PDF straight from your browser. Open the file in a tab, click save in the extension, and the extension reads the bytes from that tab. The request carries your own session, so sites that block crawlers still let the file through. Readplace reads the text, runs OCR on scanned pages, and drops a clean copy into your readlist. HTML articles save the same way as before."
 slug: "save-pdfs-straight-from-your-browser"
 date: "2026-06-06"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "save pdf, read it later pdf, save pdf to read later, save pdf browser extension, save login pdf, bot protection, cloudflare block pdf, ocr pdf, save scanned pdf, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace can now save a PDF straight from your browser. Open the file in a tab, click save in the extension, and the extension reads the bytes from that tab. The request carries your own session, so sites that block crawlers still let the file through. Readplace reads the text, runs OCR on scanned pages, and drops a clean copy into your readlist. HTML articles save the same way as before.
-
-</div>
-</details>
 
 A file you can open should be a file you can save. For most PDFs it works that way. The trouble starts with the ones a website hands to you but refuses to hand to anyone else.
 

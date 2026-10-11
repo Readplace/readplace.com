@@ -19,7 +19,6 @@ import request from "supertest";
 import { createBlogApp } from "../../../app";
 import { drawFigure } from "./blog-figure";
 import { labelTableCells } from "./blog-table-labels";
-import { withTldrCaret } from "./blog-tldr-caret";
 import { initBlogRoutes } from "./blog.page";
 import { type BlogPosts, initBlogPosts } from "./blog.posts";
 
@@ -51,7 +50,7 @@ const app = createBlogApp(
 		appOrigin: "https://readplace.test",
 	},
 );
-const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: "readplace.com" });
+const blogPosts = initBlogPosts({ drawFigure, labelTableCells, ownHost: "readplace.com" });
 const firstPost = blogPosts.getAllPosts()[0];
 
 const FAKE_VERSION = "a1b2c3d4";
@@ -207,13 +206,24 @@ describe("GET /blog/:slug", () => {
 		expect(doc.querySelector(".blog-post__content")?.innerHTML.length ?? 0).toBeGreaterThan(0);
 	});
 
-	// The blog renders no TL;DR summary slot, so it is out of scope for the
-	// summary open/close instrumentation: there is nothing to collapse or beacon.
-	it("renders no reader summary slot (the blog has no TL;DR to instrument)", async () => {
+	it("renders the shared TL;DR disclosure before the body", async () => {
 		const response = await request(app).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
+		const tldr = doc.querySelector("[data-test-tldr]");
+		assert(tldr, "the post must render the TL;DR disclosure");
+		const content = doc.querySelector(".blog-post__content");
+		assert(content, "the post must render its body");
+		expect(tldr.hasAttribute("open")).toBe(false);
+		expect(tldr.hasAttribute("data-summary-toggle-url")).toBe(false);
+		expect(tldr.compareDocumentPosition(content) & 4).toBe(4);
 		expect(doc.querySelector("[data-test-reader-summary]")).toBeNull();
-		expect(doc.querySelector(".article-body__summary")).toBeNull();
+		expect(tldr.querySelector(".tldr-disclosure__preview")?.textContent).toBe(
+			`${firstPost.description} view more …`,
+		);
+		assert("html" in firstPost.tldr, "a blog TL;DR is rendered markdown");
+		const expectedBody = new JSDOM(`<div>${firstPost.tldr.html}</div>`).window.document.querySelector("div");
+		assert(expectedBody, "the expected body must parse");
+		expect(tldr.querySelector(".tldr-disclosure__body")?.innerHTML).toBe(expectedBody.innerHTML);
 	});
 
 	it("should render post metadata", async () => {
@@ -483,6 +493,13 @@ describe("GET /blog/:slug with Accept: text/markdown", () => {
 		expect(response.text.startsWith(`# ${firstPost.title}`)).toBe(true);
 		expect(response.text).toContain(`Canonical: https://readplace.com/blog/${firstPost.slug}`);
 		expect(response.text).toContain(`Author: ${firstPost.author}`);
+	});
+
+	it("opens the post body with the TL;DR as a summary callout", async () => {
+		const response = await request(app)
+			.get(`/blog/${firstPost.slug}`)
+			.set("Accept", "text/markdown");
+		expect(response.text).toContain("\n\n> [!summary] Summary (TL;DR)\n> ");
 	});
 
 	it("serves the raw markdown source verbatim, without HTML conversion", async () => {

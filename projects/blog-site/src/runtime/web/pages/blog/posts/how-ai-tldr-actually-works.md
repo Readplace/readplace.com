@@ -1,21 +1,13 @@
 ---
 title: "How AI TL;DR Actually Works in Readplace (And Why It's Not Slop)"
 description: "Readplace uses AI to generate short article summaries for triage, not replacement. Here's how it works technically, and why it avoids the usual AI content problems."
+tldr: "Readplace generates a short TL;DR for each saved article using DeepSeek V3. Summaries are cached globally by URL, so one API call serves anyone who saves the same link. The prompt bans corporate jargon and forces plain language. The summary is a triage tool to help you decide when to read, not a replacement for reading. Readplace skips smart highlights, AI commentary, and daily briefings."
 slug: "how-ai-tldr-actually-works"
 date: "2026-05-06"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "ai summary, read it later, article tl;dr, deepseek, ai slop, readplace app"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace generates a short TL;DR for each saved article using DeepSeek V3. Summaries are cached globally by URL, so one API call serves anyone who saves the same link. The prompt bans corporate jargon and forces plain language. The summary is a triage tool to help you decide when to read, not a replacement for reading. Readplace skips smart highlights, AI commentary, and daily briefings.
-
-</div>
-</details>
 
 If you have read more than a handful of AI-written articles, you know the texture. It reads like it came out of a tube. The "key takeaways" listicle flattens every nuance into 5 bullets nobody asked for, and the LinkedIn post says nothing across 3 paragraphs. The word "slop" stuck because it describes the result better than anything else.
 

@@ -1,20 +1,12 @@
 ---
 title: "The Next Read Under Your Article Stopped Guessing"
 description: "The card that offers a related save from your own readlist used to invent 1 connection in every 6. After 5 shipped fixes it invents 1 in 32, it hands you unread saves first, and it stays quiet when nothing truly relates. Finishing one article now shortens your pile instead of just ending."
+tldr: "Under each article you finish in Readplace sits a small card offering one more save from your own readlist, picked because it relates to what you just read, with unread saves taking the slot first. Those picks used to be wrong often enough to ignore: 1 suggestion in 6 had no real connection, and 73% of the explanations opened with the word \"Both\". I graded 544 of the card's own suggestions across 5 rounds of fixes on a live test account, with every \"wrong\" verdict forced to survive 3 independent skeptics. Wrong picks fell from 18 in 116 to 3 in 98, the explanations read like sentences a person would write, and a save with no genuine relative now gets silence instead of an invention. Reading one article pulls the next one off your pile."
 slug: "the-next-read-under-your-article-stopped-guessing"
 date: "2026-08-12"
 author: "Fayner Brack"
 keywords: "what to read next, reduce reading backlog, related articles suggestion, read it later readlist, next read card, pocket alternative, reading pile, ai reading recommendations accuracy, save articles for later"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Under each article you finish in Readplace sits a small card offering one more save from your own readlist, picked because it relates to what you just read, with unread saves taking the slot first. Those picks used to be wrong often enough to ignore: 1 suggestion in 6 had no real connection, and 73% of the explanations opened with the word "Both". I graded 544 of the card's own suggestions across 5 rounds of fixes on a live test account, with every "wrong" verdict forced to survive 3 independent skeptics. Wrong picks fell from 18 in 116 to 3 in 98, the explanations read like sentences a person would write, and a save with no genuine relative now gets silence instead of an invention. Reading one article pulls the next one off your pile.
-
-</div>
-</details>
 
 "PostgreSQL 14 release notes expand on partitioning and performance improvements."
 

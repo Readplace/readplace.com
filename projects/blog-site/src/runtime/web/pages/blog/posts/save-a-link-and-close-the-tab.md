@@ -1,20 +1,12 @@
 ---
 title: "Saved the Instant You Click, Even If You Close the Tab"
 description: "The Readplace browser extension used to make you wait for the whole page to upload before it said Saved. Now it saves your link the instant you click, so you can close the tab a second later and still keep it. The page finishes uploading on its own, in both Chrome and Firefox."
+tldr: "Clicking save in the browser extension used to read the whole rendered page, upload it, and only then say Saved. That wait had nothing to do with whether the link was in your readlist. Readplace now posts a save with the URL alone and paints Saved the instant the server records it. Capturing the page and uploading it move to a persisted background readlist, woken on a timer, so they finish after the popup closes and pick themselves back up if the browser reclaims the worker mid-upload. The job is keyed to the exact address you saved from, not the page's canonical URL, so the bytes land on the article you watched appear rather than a near neighbour. One change had to land first. A background upload that runs an hour later meets an expired access token, and a 401 used to sign you out on the spot. The fetch layer now refreshes the token and replays the request, and only tears the session down if the refresh itself fails. Chrome and Firefox both save this way now. What you give up is the wait. What you keep is the link, even if you close the tab a second after the button turns green."
 slug: "save-a-link-and-close-the-tab"
 date: "2026-08-01"
 author: "Fayner Brack"
 keywords: "save articles fast browser extension, read it later extension instant save, chrome extension read it later, firefox extension read it later, save a link before the page uploads, background upload readlist browser extension, extension save without signing you out, pocket alternative browser extension, save an article without waiting, read it later save button fast"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Clicking save in the browser extension used to read the whole rendered page, upload it, and only then say Saved. That wait had nothing to do with whether the link was in your readlist. Readplace now posts a save with the URL alone and paints Saved the instant the server records it. Capturing the page and uploading it move to a persisted background readlist, woken on a timer, so they finish after the popup closes and pick themselves back up if the browser reclaims the worker mid-upload. The job is keyed to the exact address you saved from, not the page's canonical URL, so the bytes land on the article you watched appear rather than a near neighbour. One change had to land first. A background upload that runs an hour later meets an expired access token, and a 401 used to sign you out on the spot. The fetch layer now refreshes the token and replays the request, and only tears the session down if the refresh itself fails. Chrome and Firefox both save this way now. What you give up is the wait. What you keep is the link, even if you close the tab a second after the button turns green.
-
-</div>
-</details>
 
 Saving a link and uploading its page are two different jobs. The browser extension used to run them as one. A click on save, and the button sat on "Saving" while it read the whole rendered page, uploaded the bytes, and waited for the server to answer. Only then did it say Saved.
 

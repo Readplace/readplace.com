@@ -1,6 +1,7 @@
 ---
 title: "A Confirm Dialog Is Not a Guard"
 description: "Deleting a Readplace account removes the account, every saved article, and the reading history behind it, with no undo. That button used to take one tap on OK. It now takes a phrase you type by hand, checked on the server, so the door out stays yours to open on purpose."
+tldr: "Deleting your Readplace account removes the account, every saved article, and your reading history, with no trash and no undo behind it. The old guard on that button was the browser's own confirm box, one tap on OK, the same two taps whether you meant it or mis-scrolled into it. The control now asks you to type a phrase by hand, \"delete my account permanently\", four words matched exactly. The field checks itself in the browser, but the guard that counts sits on the delete route: the server reads the field again and refuses any value that isn't the exact phrase, redirecting back with a notice that your account was not deleted. The same release made deletion self-serve, so it ends your sessions, revokes the tokens behind a Google or Apple sign-in, and clears your data without a person in the loop, on both the web and the iPhone app. You own the way out, and opening it takes a deliberate act instead of a reflex."
 slug: "delete-your-account-with-a-typed-phrase"
 date: "2026-07-11"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "delete readplace account, delete read it later account, self-serve ac
 tags: ["changelog"]
 banner: "I made deleting an account a thing you type out by hand"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Deleting your Readplace account removes the account, every saved article, and your reading history, with no trash and no undo behind it. The old guard on that button was the browser's own confirm box, one tap on OK, the same two taps whether you meant it or mis-scrolled into it. The control now asks you to type a phrase by hand, "delete my account permanently", four words matched exactly. The field checks itself in the browser, but the guard that counts sits on the delete route: the server reads the field again and refuses any value that isn't the exact phrase, redirecting back with a notice that your account was not deleted. The same release made deletion self-serve, so it ends your sessions, revokes the tokens behind a Google or Apple sign-in, and clears your data without a person in the loop, on both the web and the iPhone app. You own the way out, and opening it takes a deliberate act instead of a reflex.
-
-</div>
-</details>
 
 Four words now stand between a Readplace account and the end of it: delete my account permanently, typed into the box by hand.
 

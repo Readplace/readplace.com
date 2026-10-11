@@ -1,21 +1,13 @@
 ---
 title: "Why I Built Readplace"
 description: "I ran my own reading system on Gmail filters and DynamoDB for ten years. When Pocket and Omnivore shut down, I turned it into a product. Here's the story, and the promise I wrote into the code."
+tldr: "I wrote js-cookie, a tiny JavaScript library browsers download about 22 billion times a year, and for ten years I ran my own reading on Gmail filters, DynamoDB tables, and a stack of Reddit automations. That system taught me the bottleneck was never saving. It was deciding what *not* to read. When Pocket was acquired and abandoned, and Omnivore shut down overnight, the tool I needed didn't exist as a product anyone could use, so I turned my system into Readplace. It's a solo project, built in public. The part that matters most isn't a feature: if you ever stop paying, your account goes read-only rather than dark. You keep reading everything you saved, and you can still export. That behaviour is a few lines of code you can read on GitHub, not a promise on a page."
 slug: "why-readplace-exists"
 date: "2026-07-23"
 author: "Fayner Brack"
 lastModified: "2026-09-30"
 keywords: "Readplace founder, why I built Readplace, js-cookie, read-it-later app, Pocket alternative, Omnivore alternative, build in public, data ownership"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-I wrote js-cookie, a tiny JavaScript library browsers download about 22 billion times a year, and for ten years I ran my own reading on Gmail filters, DynamoDB tables, and a stack of Reddit automations. That system taught me the bottleneck was never saving. It was deciding what *not* to read. When Pocket was acquired and abandoned, and Omnivore shut down overnight, the tool I needed didn't exist as a product anyone could use, so I turned my system into Readplace. It's a solo project, built in public. The part that matters most isn't a feature: if you ever stop paying, your account goes read-only rather than dark. You keep reading everything you saved, and you can still export. That behaviour is a few lines of code you can read on GitHub, not a promise on a page.
-
-</div>
-</details>
 
 You might know me as the creator of [js-cookie](https://www.jsdelivr.com/package/npm/js-cookie), a JavaScript library that browsers download around 22 billion times a year. It's the tiniest, most consumed browser library in the world. So yes, I've been building for the web for a long time. I also read and share a lot of writing across it.
 

@@ -1,20 +1,12 @@
 ---
 title: "You Don't Need an Analytics Vendor to Count Pageviews"
 description: "The HTTP request already contains the fields that matter. The rest is a hash function and a log line, not a third-party tracker and a consent banner."
+tldr: "Readplace counts pageviews without an analytics vendor, tracking scripts, or a consent banner. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. The same IP yields the same hash, so distinct visitors are countable, and because the hash is one-way it cannot be reversed into an IP. The logs flow to CloudWatch and the dashboard ships as infrastructure-as-code. About 80 lines of TypeScript stand in for an analytics vendor."
 slug: "analytics-without-a-vendor"
 date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "privacy analytics, cookieless analytics, IP hashing, read it later privacy, Google Analytics alternative, privacy first, visitor hash"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace counts pageviews without an analytics vendor, tracking scripts, or a consent banner. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. The same IP yields the same hash, so distinct visitors are countable, and because the hash is one-way it cannot be reversed into an IP. The logs flow to CloudWatch and the dashboard ships as infrastructure-as-code. About 80 lines of TypeScript stand in for an analytics vendor.
-
-</div>
-</details>
 
 I had a Hacker News post climbing the front page and no idea whether it was sending real readers or the same dozen people hitting refresh. Readplace ran without third-party analytics, without cookies, and without a consent banner, which is the privacy story I wanted to keep. It also meant I had nothing to look at while the traffic spiked.
 

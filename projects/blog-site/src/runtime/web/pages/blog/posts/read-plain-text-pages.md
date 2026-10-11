@@ -1,20 +1,12 @@
 ---
 title: "Readplace Now Reads Plain Text Pages"
 description: "A .txt link, like a Project Gutenberg book or an old internet spec, used to show a 'not a webpage' error even after Readplace had read and summarised it. Now plain text opens in the same reader as web articles and PDFs."
+tldr: "Readplace now reads plain text pages. A `.txt` link used to show a \"not a webpage\" message, even though Readplace had already fetched and summarised it. Now plain text opens in the same reader as web articles and PDFs, with a title, readable paragraphs, and a short summary on top. That covers Project Gutenberg books, old internet specs, mailing-list archives, and any page served as raw text."
 slug: "read-plain-text-pages"
 date: "2026-06-03"
 author: "Fayner Brack"
 keywords: "read it later, plain text, txt file, project gutenberg, rfc, reader view, save txt file, plain text reader, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace now reads plain text pages. A `.txt` link used to show a "not a webpage" message, even though Readplace had already fetched and summarised it. Now plain text opens in the same reader as web articles and PDFs, with a title, readable paragraphs, and a short summary on top. That covers Project Gutenberg books, old internet specs, mailing-list archives, and any page served as raw text.
-
-</div>
-</details>
 
 I saved a Project Gutenberg book to my readlist. The card showed up, the AI summary landed under it a few seconds later, and then I tapped to read and got a screen that told me the link was not a webpage. Readplace had fetched the file and summarised it, so the work was done, but the part I wanted, reading it, was the part it blocked.
 

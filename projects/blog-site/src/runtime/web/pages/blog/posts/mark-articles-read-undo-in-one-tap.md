@@ -1,20 +1,12 @@
 ---
 title: "Mark Articles Read, Undo in One Tap"
 description: "Your Readplace readlist now shows a clear Read or Unread label on every article. Mark an item read or unread with one tap, and undo a mis-tap with a single click."
+tldr: "Your readlist now shows a plain Read or Unread label on every article. Mark an item read or unread with one tap, and a short confirmation slides in with an Undo button, so a mis-tap takes one click to fix. The filter tab reads \"Read\" instead of \"Done\", and the status buttons stay disabled until an article finishes saving."
 slug: "mark-articles-read-undo-in-one-tap"
 date: "2026-06-02"
 author: "Fayner Brack"
 keywords: "read it later, readlist, mark as read, mark as unread, undo, read status, save articles, reading list, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Your readlist now shows a plain Read or Unread label on every article. Mark an item read or unread with one tap, and a short confirmation slides in with an Undo button, so a mis-tap takes one click to fix. The filter tab reads "Read" instead of "Done", and the status buttons stay disabled until an article finishes saving.
-
-</div>
-</details>
 
 You open your readlist to pick the next thing to read, and you want a fast answer to one question: what have you read, and what is left?
 

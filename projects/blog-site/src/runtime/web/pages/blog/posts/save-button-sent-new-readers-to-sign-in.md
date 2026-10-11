@@ -1,21 +1,13 @@
 ---
 title: "A Sign-in Page Assumes an Account That Isn't There"
 description: "A logged-out reader who tapped Save to My Readlist on a Readplace article used to land on the sign-in page, built for people who already signed up. It routes to signup now, so the newest reader meets a form that has somewhere for them to go, and the saved link still rides through to the readlist."
+tldr: "One line in the save flow changed, and it sits at the warmest step in the funnel. A logged-out visitor reading a Readplace article taps Save to My Readlist. Until now that tap sent them to `/login`, the sign-in page, which asks for an email and password on an account they never made. It goes to `/signup` now. The article's address rides along in a `return` parameter through either page, so the save still finishes the second the account exists. A returning reader who lands on signup by mistake is one link from sign-in, article address intact, so nobody is stranded either way. The redirect just stopped defaulting the newest reader onto the one page built for people who already left."
 slug: "save-button-sent-new-readers-to-sign-in"
 date: "2026-07-09"
 lastModified: "2026-08-24"
 author: "Fayner Brack"
 keywords: "save article without an account, read it later save before signup, save to read later no account, save a link you were sent, save button sign in vs sign up, save to my readlist readplace, keep a shared article, read it later signup flow, save link route to signup, read it later no account needed"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-One line in the save flow changed, and it sits at the warmest step in the funnel. A logged-out visitor reading a Readplace article taps Save to My Readlist. Until now that tap sent them to `/login`, the sign-in page, which asks for an email and password on an account they never made. It goes to `/signup` now. The article's address rides along in a `return` parameter through either page, so the save still finishes the second the account exists. A returning reader who lands on signup by mistake is one link from sign-in, article address intact, so nobody is stranded either way. The redirect just stopped defaulting the newest reader onto the one page built for people who already left.
-
-</div>
-</details>
 
 A sign-in page is built for people who already have an account. A signup page is built for the ones who don't.
 

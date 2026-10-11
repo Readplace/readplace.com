@@ -8,12 +8,11 @@ import {
 import type { ReadlistRef, ReadlistSlug } from "@packages/domain/readlist";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import { htmlToMarkdown } from "@packages/web-shell";
+import { htmlToMarkdown, tldrCallout } from "@packages/web-shell";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
 import { buildQueryString } from "../../api/collection-query";
 
 const FRONTMATTER_OPTIONS = { language: "yaml", lineWidth: -1 };
-const SUMMARY_CALLOUT_OPENER = "> [!summary] Summary (TL;DR)";
 
 type ContentStatus = "ready" | "processing" | "failed" | "not-an-article";
 
@@ -54,11 +53,6 @@ function documentParts(input: ArticleMarkdownInput): DocumentParts {
 	return { contentStatus: "ready", metadata, summary, body: htmlToMarkdown(content) };
 }
 
-function summaryCallout(summary: string): string {
-	const quotedLines = summary.split("\n").map((line) => (line === "" ? ">" : `> ${line}`));
-	return [SUMMARY_CALLOUT_OPENER, ...quotedLines].join("\n");
-}
-
 export function articleMarkdown(input: ArticleMarkdownInput): string {
 	const { article, readlist, readlists, appOrigin } = input;
 	const parts = documentParts(input);
@@ -92,6 +86,6 @@ export function articleMarkdown(input: ArticleMarkdownInput): string {
 	};
 
 	const frontmatter = matter.stringify("", data, FRONTMATTER_OPTIONS).trimEnd();
-	const callout = readySummary === undefined ? "" : summaryCallout(readySummary);
+	const callout = readySummary === undefined ? "" : tldrCallout(readySummary);
 	return `${[frontmatter, callout, parts.body].filter((part) => part !== "").join("\n\n")}\n`;
 }

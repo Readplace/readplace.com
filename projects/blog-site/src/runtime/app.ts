@@ -19,7 +19,6 @@ import { createViewerIdentityMiddleware, viewerOf } from "@packages/viewer-ident
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { drawFigure } from "./web/pages/blog/blog-figure";
 import { labelTableCells } from "./web/pages/blog/blog-table-labels";
-import { withTldrCaret } from "./web/pages/blog/blog-tldr-caret";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
 import { initBlogRoutes } from "./web/pages/blog/blog.page";
 
@@ -95,7 +94,7 @@ export function createBlogApp(
 	);
 
 	const base = initBase(config);
-	const blogPosts = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: deps.ownHost });
+	const blogPosts = initBlogPosts({ drawFigure, labelTableCells, ownHost: deps.ownHost });
 
 	app.use(contentSignalMiddleware);
 	app.use(

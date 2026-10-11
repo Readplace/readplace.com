@@ -65,7 +65,7 @@
       "file": "projects/hutch/static-assets/screenshots/reader-tldr.webp",
       "still": "reader-1440",
       "callout": {
-        "around": ".article-body__summary-heading",
+        "around": ".tldr-disclosure__heading",
         "pad": [
           22,
           16
@@ -101,7 +101,7 @@
       "file": "projects/browser-extensions/chrome-extension/store-assets/03-reader-tldr.png",
       "still": "reader-1280",
       "callout": {
-        "around": ".article-body__summary-heading",
+        "around": ".tldr-disclosure__heading",
         "pad": [
           22,
           16

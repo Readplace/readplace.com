@@ -1,20 +1,12 @@
 ---
 title: "Saving the Article Means Following the Redirect"
 description: "A shortener, a Google News URL, or a newsletter tracker points at the real page through a chain of hops. Walking that chain is part of the save, and Readplace now walks it the same way on every fetch path it uses for sites that block a plain request."
+tldr: "A shortened link, a Google News URL, or a newsletter tracker points at the real article through a chain of redirects, and saving the article means walking that chain to the end. Readplace fetches some pages through fallbacks built for sites that block a bare request: a curl subprocess, an HTTP/2 client, and a hand-built TLS request for incomplete certificate chains. None of them can hand redirect-following to the layer underneath, so the app follows redirects itself. Until now each of the three did it a little differently. The HTTP/2 and TLS paths resolved some relative redirects against the wrong base, threw on a 3xx that carried no Location instead of treating it as the final page, and carried request headers across an origin boundary the curl path would have dropped them at. Those two paths handle the pages a plain fetch already failed on, so the article behind both a block and a redirect was the one most likely to hit the weaker handling. All three share one redirect loop now: relative links resolved against the current hop, a cap of 5, http and https only, credential headers dropped on a cross-origin hop, and a 3xx with no Location returned as the final response. A single timeout budget spans the whole chain, so a slow origin can't multiply the ceiling by redirecting."
 slug: "save-the-article-not-the-redirect"
 date: "2026-07-10"
 author: "Fayner Brack"
 keywords: "save article behind redirect, read it later follow redirects, save a shortened link, save google news link, save newsletter link, read it later link shortener, save the article not the tracker, crawler follow redirects, save a link that redirects, read it later save the real article"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-A shortened link, a Google News URL, or a newsletter tracker points at the real article through a chain of redirects, and saving the article means walking that chain to the end. Readplace fetches some pages through fallbacks built for sites that block a bare request: a curl subprocess, an HTTP/2 client, and a hand-built TLS request for incomplete certificate chains. None of them can hand redirect-following to the layer underneath, so the app follows redirects itself. Until now each of the three did it a little differently. The HTTP/2 and TLS paths resolved some relative redirects against the wrong base, threw on a 3xx that carried no Location instead of treating it as the final page, and carried request headers across an origin boundary the curl path would have dropped them at. Those two paths handle the pages a plain fetch already failed on, so the article behind both a block and a redirect was the one most likely to hit the weaker handling. All three share one redirect loop now: relative links resolved against the current hop, a cap of 5, http and https only, credential headers dropped on a cross-origin hop, and a 3xx with no Location returned as the final response. A single timeout budget spans the whole chain, so a slow origin can't multiply the ceiling by redirecting.
-
-</div>
-</details>
 
 Newsletter links rarely point straight at the article. The address wraps another one, sometimes two or three deep, before the real page shows up. A shortener works the same way. Google News wraps the link before it hands it over. Any email that counts your clicks routes you through a tracker first.
 

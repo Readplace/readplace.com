@@ -29,7 +29,7 @@ describe("renderSummarySlot", () => {
 		const slot = doc.querySelector("[data-test-reader-summary]");
 		assert(slot, "summary slot must be rendered");
 		expect(slot.getAttribute("data-summary-status")).toBe("ready");
-		const details = doc.querySelector(".article-body__summary");
+		const details = doc.querySelector(".tldr-disclosure");
 		assert(details, "summary details element must be rendered");
 		expect(details.hasAttribute("open")).toBe(true);
 	});
@@ -42,7 +42,7 @@ describe("renderSummarySlot", () => {
 			}),
 		);
 
-		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
+		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe(
 			"The teaser. view more …",
 		);
 	});

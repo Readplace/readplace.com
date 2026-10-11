@@ -1,6 +1,7 @@
 ---
 title: "The File That Was Too Big to Save"
 description: "Readplace used to cap a saved file at a few megabytes and send anything larger to a slow path by email. It now takes PDFs up to 500 MB by handing the browser a one-time upload address straight to storage, then checking the staged file before it counts as saved."
+tldr: "Most read-it-later tools keep the files you can save small, because a single web request can only carry so much. Readplace used to do the same. Anything past about 3 megabytes had no direct save and went to a slower path by email. A big file rides a different route now. When it is too large for the request, Readplace hands the browser a one-time upload address that points straight at storage, the file goes there directly, and the request-size limit stays out of it. The ceiling is 500 megabytes for a PDF, up to 300 pages for the read that follows, and 40 megabytes for a web page's HTML. Before a staged file counts as saved, Readplace checks it: the right size, recently uploaded, and starting with the five bytes every PDF starts with. A file that fails any of those is refused, not kept. The browser extension carries the same route, so a heavy capture no longer stops at the old few-megabyte cap. Small saves are unchanged, still going straight through in one request."
 slug: "save-large-pdfs-up-to-500-mb"
 date: "2026-07-17"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "save large pdf read it later, read it later pdf size limit, save big 
 tags: ["changelog"]
 banner: "I raised the ceiling on how big a file you can save"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Most read-it-later tools keep the files you can save small, because a single web request can only carry so much. Readplace used to do the same. Anything past about 3 megabytes had no direct save and went to a slower path by email. A big file rides a different route now. When it is too large for the request, Readplace hands the browser a one-time upload address that points straight at storage, the file goes there directly, and the request-size limit stays out of it. The ceiling is 500 megabytes for a PDF, up to 300 pages for the read that follows, and 40 megabytes for a web page's HTML. Before a staged file counts as saved, Readplace checks it: the right size, recently uploaded, and starting with the five bytes every PDF starts with. A file that fails any of those is refused, not kept. The browser extension carries the same route, so a heavy capture no longer stops at the old few-megabyte cap. Small saves are unchanged, still going straight through in one request.
-
-</div>
-</details>
 
 How big is a book once it is scanned to a PDF? Often 80 to 200 megabytes, and not one of those megabytes is text a computer can read yet.
 

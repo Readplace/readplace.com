@@ -1,20 +1,12 @@
 ---
 title: "The Save That Went Back for a Page You Already Had"
 description: "Save a link Readplace already kept and, when its copy had gone stale, the save used to make you wait: it went back to the page, downloaded it again, and re-read it before it answered. It comes back right away now and refreshes the copy in the background, the same on the website, the browser extension, and the iPhone app."
+tldr: "You save a link you kept a while back. Readplace already has it, but its saved copy has aged past fresh, so the save used to go back out to the original page, download it again, read it through, and store the new copy before it would answer you. You waited on a page Readplace already had. Readplace runs a background job whose only purpose is that refresh, and the job is [idempotent](/view/en.wikipedia.org/wiki/Idempotence?utm_source=blog-re-saving-a-link-comes-back-right-away&utm_medium=internal&utm_content=read-en-wikipedia-org), so asking it to run again lands where the first run did. The save leans on that job now instead of redoing its work. It records your save, and when the copy is settled but stale it hands the refresh over with one message, then answers right away. Your card is back at the top of the readlist immediately, and the fresh copy lands a moment later when the job catches up. Every place you save from rides the same path, the save bar on the site, the browser extension, and the iPhone app, so all of them stop waiting on the crawl."
 slug: "re-saving-a-link-comes-back-right-away"
 date: "2026-08-02"
 author: "Fayner Brack"
 keywords: "fast read it later save, instant save article, why is saving an article slow, re-save read it later, save article without waiting, read it later app performance, idempotent refresh pipeline, async crawl read it later, move work off the save path, pocket alternative fast save"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-You save a link you kept a while back. Readplace already has it, but its saved copy has aged past fresh, so the save used to go back out to the original page, download it again, read it through, and store the new copy before it would answer you. You waited on a page Readplace already had. Readplace runs a background job whose only purpose is that refresh, and the job is [idempotent](/view/en.wikipedia.org/wiki/Idempotence?utm_source=blog-re-saving-a-link-comes-back-right-away&utm_medium=internal&utm_content=read-en-wikipedia-org), so asking it to run again lands where the first run did. The save leans on that job now instead of redoing its work. It records your save, and when the copy is settled but stale it hands the refresh over with one message, then answers right away. Your card is back at the top of the readlist immediately, and the fresh copy lands a moment later when the job catches up. Every place you save from rides the same path, the save bar on the site, the browser extension, and the iPhone app, so all of them stop waiting on the crawl.
-
-</div>
-</details>
 
 Every save Readplace takes runs through one accept step. On a re-save of an article whose stored copy had gone stale, that step used to turn into a full web crawl before it would answer you.
 

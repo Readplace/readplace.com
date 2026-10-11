@@ -65,9 +65,6 @@ importers:
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../../src/packages/supported-clients
-      '@packages/ui-icons':
-        specifier: workspace:*
-        version: link:../../src/packages/ui-icons
       '@packages/viewer-identity':
         specifier: workspace:*
         version: link:../../src/packages/viewer-identity

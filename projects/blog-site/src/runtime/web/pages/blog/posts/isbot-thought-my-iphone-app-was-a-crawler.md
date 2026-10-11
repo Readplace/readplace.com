@@ -1,20 +1,12 @@
 ---
 title: "isbot Thought My iPhone App Was a Crawler"
 description: "A read-it-later app named Readplace starts its native User-Agent with the word read, and the bot-detection library in its analytics flags exactly that prefix as a crawler. For 90 days, 11% of mark-as-read events counted as bot traffic even though each one came from a signed-in reader. The fix exempts one exact User-Agent, anchored so a real crawler can't wear it."
+tldr: "An app whose User-Agent opens with the word \"read\" walks straight into a bot-detection pattern that flags exactly that prefix. So for 90 days, Readplace's own iPhone app was filed as a crawler in the analytics: 17 of 155 mark-as-read events, 11%, carried the bot label even though each one required a signed-in reader. The share extension went wrong the other way and counted as a desktop browser. Both clients now match on their one exact User-Agent, anchored front and back so a real crawler can't borrow the exemption, and the audience numbers describe people again."
 slug: "isbot-thought-my-iphone-app-was-a-crawler"
 date: "2026-08-23"
 author: "Fayner Brack"
 keywords: "isbot false positive, cfnetwork user agent, bot detection false positive, user agent device detection, self-hosted analytics, ios app user agent, crawler detection, read it later app, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-An app whose User-Agent opens with the word "read" walks straight into a bot-detection pattern that flags exactly that prefix. So for 90 days, Readplace's own iPhone app was filed as a crawler in the analytics: 17 of 155 mark-as-read events, 11%, carried the bot label even though each one required a signed-in reader. The share extension went wrong the other way and counted as a desktop browser. Both clients now match on their one exact User-Agent, anchored front and back so a real crawler can't borrow the exemption, and the audience numbers describe people again.
-
-</div>
-</details>
 
 There are 183 patterns in [isbot](/view/github.com/omrilotan/isbot?utm_source=blog-isbot-thought-my-iphone-app-was-a-crawler&utm_medium=internal&utm_content=read-github-com), the library that tells Readplace's [vendor-free analytics](/blog/analytics-without-a-vendor?utm_source=blog-isbot-thought-my-iphone-app-was-a-crawler&utm_medium=internal&utm_content=post-analytics-without-a-vendor) which requests come from crawlers. One of them is `^read`. A User-Agent that opens with those 4 letters gets called a bot and asked nothing further. I named this product Readplace.
 

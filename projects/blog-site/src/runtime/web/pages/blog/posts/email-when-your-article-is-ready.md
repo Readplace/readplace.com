@@ -1,20 +1,12 @@
 ---
 title: "Save a Long Article, Get an Email the Moment It's Ready"
 description: "Save a heavy page in Readplace, then close the tab. When the clean reader view and summary finish, Readplace emails you a link. It only emails if you looked and left, and at most once every six hours."
+tldr: "You save a long article. Readplace fetches the page, strips the clutter, and writes a short summary, which on a heavy page can take a minute or two. If you peek at it before it finishes and then close the tab, Readplace emails you a link once the clean reader view is done. The email fires under 3 conditions: you opened the article and left before it finished, the work took over a minute, and you have had no other such email in the past 6 hours."
 slug: "email-when-your-article-is-ready"
 date: "2026-06-11"
 author: "Fayner Brack"
 keywords: "read it later, article ready email, reader view notification, save long articles, clean reader view, read later app, article summary email"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-You save a long article. Readplace fetches the page, strips the clutter, and writes a short summary, which on a heavy page can take a minute or two. If you peek at it before it finishes and then close the tab, Readplace emails you a link once the clean reader view is done. The email fires under 3 conditions: you opened the article and left before it finished, the work took over a minute, and you have had no other such email in the past 6 hours.
-
-</div>
-</details>
 
 Saving an article happens in a click. The slow part is waiting for a heavy page to turn into something you can actually read.
 

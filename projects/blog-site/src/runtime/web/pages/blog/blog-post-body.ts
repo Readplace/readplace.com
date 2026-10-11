@@ -1,11 +1,10 @@
 import assert from "node:assert";
 import MarkdownIt from "markdown-it";
-import { withInternalTracking } from "@packages/web-shell";
+import { type HtmlText, htmlText, withInternalTracking } from "@packages/web-shell";
 import { FIGURE_FENCE } from "./blog-figure.parse";
 
 /** Expands an ```rp-figure fence into a drawn figure, leaving every other fence
- * as ordinary code. The data stays in the post as a dozen lines of `key: value`,
- * for the same reason `withTldrCaret` keeps the caret out of the content files:
+ * as ordinary code. The data stays in the post as a dozen lines of `key: value`:
  * a drawing does not belong in 67 markdown files. It also decides what the
  * `text/markdown` representation carries, since that is built from the raw
  * source — a fence reaches an AI client as labelled numbers, where the expanded
@@ -18,7 +17,6 @@ interface PostEnv {
 export interface RenderPostBodyDeps {
 	drawFigure: (body: string, index: number) => string;
 	labelTableCells: (state: MarkdownIt.StateCore) => void;
-	withTldrCaret: (html: string) => string;
 	ownHost: string;
 }
 
@@ -45,7 +43,10 @@ function tagOwnLink(link: { href: string; ownHost: string; slug: string }): stri
 
 export function initRenderPostBody(
 	deps: RenderPostBodyDeps,
-): (post: { slug: string; content: string }) => string {
+): {
+	renderPostBody: (post: { slug: string; content: string }) => string;
+	renderTldr: (post: { slug: string; tldr: string }) => HtmlText;
+} {
 	const renderer = new MarkdownIt({ html: true });
 	const renderCodeFence = renderer.renderer.rules.fence;
 	assert(renderCodeFence, "markdown-it ships a default fence rule");
@@ -68,8 +69,15 @@ export function initRenderPostBody(
 	 * `env` so a figure's input ids depend only on its position within its own post
 	 * — a counter shared across the directory would renumber every later post's
 	 * inputs whenever an earlier one gained a figure. */
-	return function renderPostBody(post: { slug: string; content: string }): string {
+	function renderPostBody(post: { slug: string; content: string }): string {
 		const env: PostEnv = { figureCount: 0, slug: post.slug };
-		return deps.withTldrCaret(renderer.render(post.content, env));
-	};
+		return renderer.render(post.content, env);
+	}
+
+	function renderTldr(post: { slug: string; tldr: string }): HtmlText {
+		const env: PostEnv = { figureCount: 0, slug: post.slug };
+		return htmlText(renderer.renderInline(post.tldr, env));
+	}
+
+	return { renderPostBody, renderTldr };
 }

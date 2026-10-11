@@ -1,21 +1,13 @@
 ---
 title: "Save a Safari PDF From the iPhone Share Sheet to Read Later"
 description: "In Safari on iPhone, tap Share on a PDF and pick Readplace to read it later. The app uploads files up to 25 MiB itself, so a PDF behind a login still saves."
+tldr: "On an iPhone, a PDF was the one thing you could not hand to Readplace. Open a PDF in Safari, in Files, or as a mail attachment, tap share, and Readplace was missing from the row of apps. That was a bug in how the app told iOS what it accepts, not a choice. The share extension now declares PDFs too, so it shows up for them, and it uploads the file the share sheet already holds instead of fetching it again. That last part matters for a PDF behind a login: the app sends the bytes it was handed, so a file a crawler would be blocked from still saves. One limit stayed. A PDF shared straight from Files, with no web address behind it, reports no link to save, because Readplace files articles by their URL. The iPhone app is on the App Store."
 slug: "save-pdf-from-iphone-share-sheet"
 date: "2026-07-03"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "save pdf from iphone, save pdf to read later iphone, share pdf to read it later, iphone share sheet pdf, save safari pdf ios, read pdf later app iphone, save pdf behind login, ios share extension pdf, readplace iphone"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-On an iPhone, a PDF was the one thing you could not hand to Readplace. Open a PDF in Safari, in Files, or as a mail attachment, tap share, and Readplace was missing from the row of apps. That was a bug in how the app told iOS what it accepts, not a choice. The share extension now declares PDFs too, so it shows up for them, and it uploads the file the share sheet already holds instead of fetching it again. That last part matters for a PDF behind a login: the app sends the bytes it was handed, so a file a crawler would be blocked from still saves. One limit stayed. A PDF shared straight from Files, with no web address behind it, reports no link to save, because Readplace files articles by their URL. The iPhone app is on the App Store.
-
-</div>
-</details>
 
 Every app in the iPhone share sheet has to declare what it accepts. Readplace's declaration named web pages and plain text. It left PDFs off, so sharing a PDF from Safari did not show Readplace in the list at all. The declaration now names PDFs too, so tapping Share on a PDF in Safari and picking Readplace saves it.
 

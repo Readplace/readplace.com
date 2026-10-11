@@ -1,20 +1,12 @@
 ---
 title: "Your AI Summary Updates When the Article Does"
 description: "Readplace keeps one TL;DR per link. When it later reads a cleaner copy of a page, it rebuilds the summary instead of serving the stale one, so your saved articles stay accurate without a manual refresh."
+tldr: "Readplace keeps one TL;DR per link, shared across anyone who saves it. The first save sometimes grabs a thin copy of a page, like a paywall screen or a half-loaded article, and the summary matches that thin copy. Readplace re-reads pages it saved and often lands a cleaner, fuller version. It now rebuilds the summary against that better copy on its own. The refreshed TL;DR replaces the stale one for the next reader who opens that link. You get an accurate summary without asking for a refresh."
 slug: "ai-summary-updates-with-the-article"
 date: "2026-05-31"
 author: "Fayner Brack"
 keywords: "ai summary, article tl;dr, read it later, stale summary, summary refresh, save articles, deepseek summary, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace keeps one TL;DR per link, shared across anyone who saves it. The first save sometimes grabs a thin copy of a page, like a paywall screen or a half-loaded article, and the summary matches that thin copy. Readplace re-reads pages it saved and often lands a cleaner, fuller version. It now rebuilds the summary against that better copy on its own. The refreshed TL;DR replaces the stale one for the next reader who opens that link. You get an accurate summary without asking for a refresh.
-
-</div>
-</details>
 
 A user saved a long news article on a Monday and then emailed me, because the TL;DR on his saved card read like two lines, as if Readplace had only ever seen the headline and one stray paragraph. He opened the card and the full article was sitting right there, every word of it. The summary and the page disagreed, and at first I had no idea why.
 

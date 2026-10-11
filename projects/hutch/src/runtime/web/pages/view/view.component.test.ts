@@ -474,7 +474,7 @@ describe("ViewPage", () => {
 			...baseInput,
 			summary: { status: "ready", summary: "Key points." },
 		});
-		const details = doc.querySelector(".article-body__summary");
+		const details = doc.querySelector(".tldr-disclosure");
 		assert(details, "summary details element must be rendered");
 		expect(details.hasAttribute("open")).toBe(false);
 		// Public reader records no toggles, so the <details> carries no beacon URL.

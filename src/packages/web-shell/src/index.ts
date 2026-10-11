@@ -135,3 +135,15 @@ export {
 export { QuerystringFeatureToggle } from "./feature-toggle";
 export type { FeatureToggleSource } from "./feature-toggle";
 export { formatTabCountLabel } from "./tab-count-label";
+export {
+	TLDR_DISCLOSURE_STYLES,
+	renderTldrDisclosure,
+} from "./shared/tldr-disclosure/tldr-disclosure.component";
+export type {
+	TldrBody,
+	TldrDisclosure,
+} from "./shared/tldr-disclosure/tldr-disclosure.component";
+export { htmlText, plainText } from "./trusted-text";
+export type { HtmlText, PlainText } from "./trusted-text";
+export { tldrCallout } from "./tldr-callout";
+export { truncateAtWordBoundary } from "./truncate-at-word-boundary";

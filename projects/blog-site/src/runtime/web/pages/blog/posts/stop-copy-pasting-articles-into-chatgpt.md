@@ -1,21 +1,13 @@
 ---
 title: "Summarize Articles Without Copy-Pasting into ChatGPT"
 description: "Pasting articles into ChatGPT for a summary is manual and leaves no record. Readplace saves the article in 1 click and adds an AI summary beside it."
+tldr: "Copy-pasting articles into ChatGPT for a summary runs to 8 steps, leaves no record, and loses the source. Readplace does it in 1 click. You save the article, an AI summary arrives on its own, and both stay in your archive. Summaries are cached by URL, so they tend to be ready right away."
 slug: "stop-copy-pasting-articles-into-chatgpt"
 date: "2026-05-06"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "chatgpt article summary, read it later, article summarizer, chatgpt alternative for articles"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Copy-pasting articles into ChatGPT for a summary runs to 8 steps, leaves no record, and loses the source. Readplace does it in 1 click. You save the article, an AI summary arrives on its own, and both stay in your archive. Summaries are cached by URL, so they tend to be ready right away.
-
-</div>
-</details>
 
 You find a 2,400-word article that looks worth reading, except not right now, and what you really want is the gist before you commit any more of your afternoon to it. So you fall into the routine you have run a hundred times.
 

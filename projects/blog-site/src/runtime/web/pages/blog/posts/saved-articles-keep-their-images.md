@@ -1,20 +1,12 @@
 ---
 title: "Your Saved Articles Keep Their Pictures"
 description: "Most read-it-later apps store the text and link the photos back to the source site, so they break when the site changes. Readplace saves a copy of every image on its own CDN. A recent fix makes sure each photo in a multi-image article gets saved, at every screen size."
+tldr: "Readplace saves a copy of an article's images on its own CDN, so your saved copy keeps its pictures after the source site changes. A recent fix makes sure each photo in a multi-image article gets saved, at every screen size, not just the first few. A second fix keeps the fresh images when an article gets re-checked and its pictures changed."
 slug: "saved-articles-keep-their-images"
 date: "2026-06-01"
 author: "Fayner Brack"
 keywords: "read it later, save article images, offline reading, broken images, image preservation, responsive images, srcset, save web page, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace saves a copy of an article's images on its own CDN, so your saved copy keeps its pictures after the source site changes. A recent fix makes sure each photo in a multi-image article gets saved, at every screen size, not just the first few. A second fix keeps the fresh images when an article gets re-checked and its pictures changed.
-
-</div>
-</details>
 
 I saved a long photo feature, opened it on my phone the next morning, and a picture halfway down was the wrong one. Not a gray box where an image used to be, but a close-up of a sauce pan sitting where a wide kitchen shot should have been. The photos further down were broken gray boxes.
 

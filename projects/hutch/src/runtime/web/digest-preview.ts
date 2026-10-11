@@ -2,7 +2,7 @@ import {
 	MAX_EXCERPT_LENGTH,
 	type GeneratedSummary,
 } from "@packages/provider-contracts/article-summary";
-import { truncateAtWordBoundary } from "../providers/article-summary/article-summary.helpers";
+import { truncateAtWordBoundary } from "@packages/web-shell";
 
 /** Size the preview like the article's own excerpt so the digest teases rather
  * than reprints: the excerpt's maximum length, plus a buffer that lets the

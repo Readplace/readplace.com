@@ -1,20 +1,12 @@
 ---
 title: "The Best Way to Save Hacker News Articles for Later"
 description: "You open 15 tabs from the HN front page and read 3. The rest haunt your browser for weeks. There's a better system."
+tldr: "Tabs are a guilt system, not a reading system. Split discovery from reading: save HN articles to a readlist during your morning scan, then read from the readlist when you have time. AI summaries let you triage 30 to 40 saved articles in minutes. Readplace's browser extension works on news.ycombinator.com, and one click saves the article and generates a summary."
 slug: "save-hacker-news-articles-for-later"
 date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "hacker news, save articles, read it later, hn reader, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Tabs are a guilt system, not a reading system. Split discovery from reading: save HN articles to a readlist during your morning scan, then read from the readlist when you have time. AI summaries let you triage 30 to 40 saved articles in minutes. Readplace's browser extension works on news.ycombinator.com, and one click saves the article and generates a summary.
-
-</div>
-</details>
 
 It's 8am, coffee in hand, and you open news.ycombinator.com. 15 minutes later you have 12 tabs open and you have not finished reading any of them.
 

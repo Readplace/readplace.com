@@ -1,15 +1,14 @@
 import { drawFigure } from "./blog-figure";
 import { initRenderPostBody, type RenderPostBodyDeps } from "./blog-post-body";
 import { labelTableCells } from "./blog-table-labels";
-import { withTldrCaret } from "./blog-tldr-caret";
 
 function initRender(overrides: Partial<RenderPostBodyDeps>) {
-	return initRenderPostBody({ drawFigure, labelTableCells, withTldrCaret, ownHost: "readplace.com", ...overrides });
+	return initRenderPostBody({ drawFigure, labelTableCells, ownHost: "readplace.com", ...overrides });
 }
 
 describe("initRenderPostBody", () => {
 	it("draws each rp-figure fence with the injected drawFigure, numbered from 1 in every post", () => {
-		const renderPostBody = initRender({
+		const { renderPostBody } = initRender({
 			drawFigure: (body, index) => `<figure data-index="${index}">${body.trim()}</figure>`,
 		});
 		const post = "```rp-figure\nfirst\n```\n\n```js\nconst code = 1;\n```\n\n```rp-figure\nsecond\n```\n";
@@ -20,7 +19,7 @@ describe("initRenderPostBody", () => {
 	});
 
 	it("renders a fence that is not rp-figure as a code block with its content", () => {
-		const renderPostBody = initRender({});
+		const { renderPostBody } = initRender({});
 
 		expect(renderPostBody({ slug: "a-post", content: '```json\n{ "event": "pageview" }\n```\n\nAfter the block.\n' })).toBe(
 			'<pre><code class="language-json">{ &quot;event&quot;: &quot;pageview&quot; }\n</code></pre>\n<p>After the block.</p>\n',
@@ -28,7 +27,7 @@ describe("initRenderPostBody", () => {
 	});
 
 	it("renders the token stream the injected labelTableCells leaves behind", () => {
-		const renderPostBody = initRender({
+		const { renderPostBody } = initRender({
 			labelTableCells: (state) => {
 				for (const token of state.tokens) if (token.type === "td_open") token.attrSet("data-label", "stubbed");
 			},
@@ -39,14 +38,24 @@ describe("initRenderPostBody", () => {
 		);
 	});
 
-	it("returns what the injected withTldrCaret makes of the rendered HTML", () => {
-		const renderPostBody = initRender({ withTldrCaret: (html) => `<div class="caret-stub">${html}</div>` });
+	describe("renderTldr", () => {
+		const { renderTldr } = initRender({});
 
-		expect(renderPostBody({ slug: "a-post", content: "Hello" })).toBe('<div class="caret-stub"><p>Hello</p>\n</div>');
+		it("renders inline markdown without a paragraph wrapper", () => {
+			expect(renderTldr({ slug: "a-post", tldr: "Run `pnpm check` and *wait*." })).toBe(
+				"Run <code>pnpm check</code> and <em>wait</em>.",
+			);
+		});
+
+		it("tags a link to the site's own pages with the post as source", () => {
+			expect(renderTldr({ slug: "a-post", tldr: "See [install](https://readplace.com/install)." })).toBe(
+				'See <a href="/install?utm_source=blog-a-post&amp;utm_medium=internal&amp;utm_content=install">install</a>.',
+			);
+		});
 	});
 
 	describe("links to the site's own pages", () => {
-		const renderPostBody = initRender({ withTldrCaret: (html) => html });
+		const { renderPostBody } = initRender({});
 		const hrefOf = (markdown: string) => {
 			const match = renderPostBody({ slug: "a-post", content: markdown }).match(/href="([^"]*)"/);
 			expect(match).not.toBeNull();

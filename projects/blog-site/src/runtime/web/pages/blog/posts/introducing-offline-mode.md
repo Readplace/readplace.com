@@ -1,6 +1,7 @@
 ---
 title: "Introducing Offline Mode: Read Saved Articles Without Internet"
 description: "Introducing Offline Mode for Readplace on the web and iPhone. Saved articles, their images and the reading list open with no internet connection, and one button downloads every unread article before a flight, a train or a tunnel, without marking any of them as read."
+tldr: "A flight, a train tunnel or hotel Wi-Fi that wants a room number no longer stands between a saved article and its reader. Readplace now has Offline Mode on the web and on iPhone: an article opened once stays readable on that device, images and reading list included, and \"Download unread for offline\" stores the whole To Read tab in one press. Downloaded articles carry a \"Saved offline\" tag, downloading marks none of them as read, and the stored copies belong to the account that saved them."
 slug: "introducing-offline-mode"
 date: "2026-10-09"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "offline mode, read articles offline, offline reading app, read it lat
 tags: ["changelog"]
 banner: "Introducing Offline Mode: saved articles open with no signal"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-A flight, a train tunnel or hotel Wi-Fi that wants a room number no longer stands between a saved article and its reader. Readplace now has Offline Mode on the web and on iPhone: an article opened once stays readable on that device, images and reading list included, and "Download unread for offline" stores the whole To Read tab in one press. Downloaded articles carry a "Saved offline" tag, downloading marks none of them as read, and the stored copies belong to the account that saved them.
-
-</div>
-</details>
 
 At 35,000 feet, a saved article used to be a network error. The same error waited underground between 2 stations and on hotel Wi-Fi that drops every few minutes, which are the exact places a reading list gets saved up for.
 

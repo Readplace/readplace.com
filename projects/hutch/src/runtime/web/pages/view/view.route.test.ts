@@ -1543,7 +1543,7 @@ describe("View routes", () => {
 				slot.classList.contains("article-body__summary-slot--visible"),
 			).toBe(true);
 			expect(
-				doc.querySelector(".article-body__summary-text")?.textContent,
+				doc.querySelector(".tldr-disclosure__text")?.textContent,
 			).toBe("Key points from the article.");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
 		});

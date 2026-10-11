@@ -120,8 +120,8 @@ async function openReader(page, origin) {
     await page.goto(`${origin}${href}`, { waitUntil: "networkidle" });
     const status = await page.locator("[data-test-reader-summary]").getAttribute("data-summary-status");
     if (status !== "ready") continue;
-    await page.click("details.article-body__summary > summary");
-    await page.waitForSelector("details.article-body__summary[open]");
+    await page.click("details.tldr-disclosure > summary");
+    await page.waitForSelector("details.tldr-disclosure[open]");
     await page.evaluate(() => {
       for (const element of document.querySelectorAll("[data-test-reader-float-stack]")) element.remove();
     });

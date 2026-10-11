@@ -1,21 +1,13 @@
 ---
 title: "Telling 'Not Yet' From 'Not Coming'"
 description: "Some pages can't be turned into an article, so their AI TL;DR has nothing to write. Readplace's summary pipeline used to retry that job on a loop, about 170 dead-letter messages a month. It now reads the crawl's verdict first and marks the summary done when no text is coming."
+tldr: "Some pages can't be turned into a clean article. A 404, a page that is only an image or a video, a paywall, a page that draws nothing until JavaScript runs. Readplace's crawler marks those as failed or unsupported, and no article text follows. The AI TL;DR still had a job queued for each one, and with no text to read it threw an error, retried, and after enough tries was marked failed. A background stale-check then reprimed every failed summary to heal a model outage, and it could not tell a brief outage from a page that has no text to read, so it retried the same job on a loop, about 170 dead-letter messages a month. The summary step now reads the crawl's verdict before it reaches for content. If the crawl gave up for good and there is no text, it marks the summary skipped, a done state the stale-check leaves alone, so the loop ends. A crawl still running keeps the retry, because its text may yet land, and a ready crawl with missing text still raises the alarm, because that is a real fault. A reader opening one of these pages sees the same note that the page couldn't be read. What changed sits underneath, where a job that used to run in a loop runs once and stops, and the real summary failures are no longer buried under a crowd of impossible ones."
 slug: "ai-summary-stops-when-a-page-cant-be-read"
 date: "2026-07-15"
 lastModified: "2026-09-02"
 author: "Fayner Brack"
 keywords: "ai summary stuck, read it later ai summary, why ai summary fails, article that cant be summarized, ai tldr reliability, read it later summary not working, summary pipeline retry loop, dead letter queue summary, ai summary for unreadable page, reliable ai article summary"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Some pages can't be turned into a clean article. A 404, a page that is only an image or a video, a paywall, a page that draws nothing until JavaScript runs. Readplace's crawler marks those as failed or unsupported, and no article text follows. The AI TL;DR still had a job queued for each one, and with no text to read it threw an error, retried, and after enough tries was marked failed. A background stale-check then reprimed every failed summary to heal a model outage, and it could not tell a brief outage from a page that has no text to read, so it retried the same job on a loop, about 170 dead-letter messages a month. The summary step now reads the crawl's verdict before it reaches for content. If the crawl gave up for good and there is no text, it marks the summary skipped, a done state the stale-check leaves alone, so the loop ends. A crawl still running keeps the retry, because its text may yet land, and a ready crawl with missing text still raises the alarm, because that is a real fault. A reader opening one of these pages sees the same note that the page couldn't be read. What changed sits underneath, where a job that used to run in a loop runs once and stops, and the real summary failures are no longer buried under a crowd of impossible ones.
-
-</div>
-</details>
 
 About 170 messages a month were landing in a queue for jobs that had given up. Each one asked for the same thing, a summary of an article whose page Readplace could not read. There was no text to hand the model, so the job failed, went back in line, and failed again.
 

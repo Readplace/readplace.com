@@ -1,20 +1,12 @@
 ---
 title: "Why Readplace Blocks Disposable Email at Signup"
 description: "Readplace turns away disposable inboxes at signup. A read-it-later list only pays off in the gap between saving and reading, and a throwaway address is gone before the gap opens, so the form asks for an inbox you keep."
+tldr: "A throwaway inbox works for 10 minutes and then forgets you, which is the opposite of a reading list you mean to come back to. So Readplace turns those addresses away at signup. The form reads the domain after the @, checks it against a list of more than 7,000 disposable services, and walks up the name so a fresh subdomain does not slip past. The list comes from an open, community-maintained project, synced by a script and topped up by hand. Sign up with the inbox you actually open, and the account is one that can still reach you next month."
 slug: "disposable-email-blocked-at-signup"
 date: "2026-06-20"
 author: "Fayner Brack"
 keywords: "disposable email signup, temporary email read it later, throwaway email blocked, read it later sign up, real email required, Readplace signup, disposable email blocklist, 10 minute mail, read later account, no fake email"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-A throwaway inbox works for 10 minutes and then forgets you, which is the opposite of a reading list you mean to come back to. So Readplace turns those addresses away at signup. The form reads the domain after the @, checks it against a list of more than 7,000 disposable services, and walks up the name so a fresh subdomain does not slip past. The list comes from an open, community-maintained project, synced by a script and topped up by hand. Sign up with the inbox you actually open, and the account is one that can still reach you next month.
-
-</div>
-</details>
 
 More than 7,000 email domains can't be used to sign up for Readplace. Every one of them belongs to a disposable inbox service, the kind that hands you an address that works for 10 minutes and then forgets it existed. The signup form checks each new email against that list and turns those addresses away.
 

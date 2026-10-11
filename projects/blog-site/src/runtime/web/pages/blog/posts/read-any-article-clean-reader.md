@@ -1,21 +1,13 @@
 ---
 title: "Read Any Article in a Clean Reader, No Account Needed"
 description: "Paste any link into the box on the readplace.com homepage and the article opens in a clean reader with a short summary, no signup. Share the link, and anyone reads it the same way. One button saves it to your own readlist."
+tldr: "You can read any article in Readplace without an account. Paste a link into the box at the top of the readplace.com homepage and the page opens in a clean reader, clutter stripped out, with a short summary on top. Share that link and the next person reads it the same way, no signup. One button saves the article to your own readlist. Readplace can also hand back the same article as plain markdown, which helps notes apps and AI assistants read it cleanly."
 slug: "read-any-article-clean-reader"
 date: "2026-06-05"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "reader view, read any article, distraction-free reader, clean reader link, share article, read without an account, read it later, markdown article, no login reader, readplace"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-You can read any article in Readplace without an account. Paste a link into the box at the top of the readplace.com homepage and the page opens in a clean reader, clutter stripped out, with a short summary on top. Share that link and the next person reads it the same way, no signup. One button saves the article to your own readlist. Readplace can also hand back the same article as plain markdown, which helps notes apps and AI assistants read it cleanly.
-
-</div>
-</details>
 
 Most articles you want to read come wrapped in noise. There are popups, a cookie banner, an autoplay video, and a couple of newsletter prompts standing between you and the first real paragraph.
 

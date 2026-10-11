@@ -1,20 +1,12 @@
 ---
 title: "Your AI Assistant Finds Readplace in DNS, Before It Loads a Page"
 description: "Readplace publishes agent-discovery records in DNS, so an AI assistant can find your readlist's tools the same way a browser finds the site. Readplace signs the zone with DNSSEC, so the agent trusts the answer it gets back."
+tldr: "Readplace now answers a question in DNS that AI agents used to guess at: where do my reading tools live? Two records under `_agents.readplace.com` point an assistant to the front door and to the save tool. The agent reads DNS, follows the record, and lands on the right page with no setup from you. Readplace signs the zone with DNSSEC, so the agent gets an answer it can verify rather than a forged one. You ask your assistant to save an article, and it finds Readplace the rest of the way."
 slug: "ai-assistant-finds-readplace-in-dns"
 date: "2026-06-19"
 author: "Fayner Brack"
 keywords: "AI agent discovery, DNS-AID, DNS for AI discovery, SVCB record, MCP server discovery, read it later AI agent, agent discovery DNS, DNSSEC, find API from DNS, AI assistant reading list"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace now answers a question in DNS that AI agents used to guess at: where do my reading tools live? Two records under `_agents.readplace.com` point an assistant to the front door and to the save tool. The agent reads DNS, follows the record, and lands on the right page with no setup from you. Readplace signs the zone with DNSSEC, so the agent gets an answer it can verify rather than a forged one. You ask your assistant to save an article, and it finds Readplace the rest of the way.
-
-</div>
-</details>
 
 You tell your AI assistant to save an article for later. First it has to find the right service. Most apps make the assistant guess, or make you paste an address and copy a key by hand. Readplace now answers that question in DNS, the same system that turns a web address into a server.
 

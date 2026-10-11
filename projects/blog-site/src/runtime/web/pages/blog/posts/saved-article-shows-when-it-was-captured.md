@@ -1,6 +1,7 @@
 ---
 title: "A Saved Article Should Carry Its Own Date"
 description: "Readplace now shows when each saved copy was captured. A small bookmark rides the right edge of the reader with the date and time it fetched your copy, written in UTC so it reads without JavaScript and rewritten into your own time zone. The live page can change with no note, but the copy holds still at a moment you can now see."
+tldr: "Open any article in the Readplace reader and a small bookmark now rides the right edge, showing when your copy was captured. It reads Last crawled at, with the date and time Readplace fetched the page and built your reader view. The server writes that time in UTC so it reads without JavaScript, and a script rewrites it into your own time zone. On a wide screen the bookmark sits open. On a phone it folds to a thin handle you tap to expand. The live page can change or vanish with no note, but the copy holds at a moment you can now see, and if Readplace fetches the page again the date moves to the newer capture."
 slug: "saved-article-shows-when-it-was-captured"
 date: "2026-07-07"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "when was this article saved, read it later snapshot date, saved artic
 tags: ["changelog"]
 banner: "I added a bookmark that shows when your copy was taken"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Open any article in the Readplace reader and a small bookmark now rides the right edge, showing when your copy was captured. It reads Last crawled at, with the date and time Readplace fetched the page and built your reader view. The server writes that time in UTC so it reads without JavaScript, and a script rewrites it into your own time zone. On a wide screen the bookmark sits open. On a phone it folds to a thin handle you tap to expand. The live page can change or vanish with no note, but the copy holds at a moment you can now see, and if Readplace fetches the page again the date moves to the newer capture.
-
-</div>
-</details>
 
 Web pages change after they go up, and they rarely date the change. A story gets corrected a day later, or a paragraph disappears, or the whole page starts returning a 404. Nothing on it says when, so the version you read last month is just gone.
 

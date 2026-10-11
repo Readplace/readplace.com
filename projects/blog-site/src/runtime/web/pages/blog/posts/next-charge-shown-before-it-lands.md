@@ -1,6 +1,7 @@
 ---
 title: "A Charge You Can See Coming"
 description: "Readplace shows the exact date and amount of your next renewal on the account page, but only in the 30 days before it lands. The number is read live from the billing provider when its stored copy goes stale, hidden inside the iPhone app to satisfy App Store rules, and paired with a live cancelling state that heals into a one-tap reactivate."
+tldr: "Subscription pages tend to stay quiet about money until the day the card is charged. Readplace's account page does the reverse. In the 30 days before a renewal it shows the exact date the charge falls and the exact amount, read from the billing provider and shown in your own currency. Outside that window it shows nothing, because a renewal 11 months out is a number you learn to read past. The figure is cached on your subscription record and refetched only when the stored copy is missing, stale, or sitting in the past, so most of the year nothing is fetched at all. Cancel, and the card shows a live Cancelling state while the request runs, then settles into your subscription's end date with a one-tap Reactivate under it. Inside the iPhone app the price line is stripped, because App Store rules object to a web page naming a price. The reminder that goes out before a free trial ends now says where a subscription's money goes, too. None of the billing is hidden until after it has already happened."
 slug: "next-charge-shown-before-it-lands"
 date: "2026-07-14"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "when will I be charged subscription, see next charge date read it lat
 tags: ["changelog"]
 banner: "I made the account page show your next charge before it lands"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Subscription pages tend to stay quiet about money until the day the card is charged. Readplace's account page does the reverse. In the 30 days before a renewal it shows the exact date the charge falls and the exact amount, read from the billing provider and shown in your own currency. Outside that window it shows nothing, because a renewal 11 months out is a number you learn to read past. The figure is cached on your subscription record and refetched only when the stored copy is missing, stale, or sitting in the past, so most of the year nothing is fetched at all. Cancel, and the card shows a live Cancelling state while the request runs, then settles into your subscription's end date with a one-tap Reactivate under it. Inside the iPhone app the price line is stripped, because App Store rules object to a web page naming a price. The reminder that goes out before a free trial ends now says where a subscription's money goes, too. None of the billing is hidden until after it has already happened.
-
-</div>
-</details>
 
 Once a year, a Readplace subscription renews. For the other 11 months, the account page said nothing about that at all.
 

@@ -1,6 +1,7 @@
 ---
 title: "A Reused Session Shouldn't Choose Your Account"
 description: "Connect an app to Readplace on a phone and the fastest login binds the approval to whichever account your browser already holds, with no email shown. The consent screen now names that account and gives you a one-tap way to switch to the one you meant."
+tldr: "With two Google accounts on one phone, work and personal, connecting a reading app should let you say which one it links to. Readplace's fastest login did the reverse. When you sign in on a phone, the browser often reuses a session Chrome already holds, so the consent screen approved that account, printed no email, and gave no way to pick the other one. The screen now names the account it is bound to, \"Signed in as\", with the email under the app's request, and carries a \"Use a different account\" link. The link ends this one browser session, clears its cookie, and returns you to the login page with the pending connection preserved, so you sign in as the account you meant and the app still links on the first try. When you switch, Readplace also asks Google to show its own account list instead of auto-selecting its single signed-in account. All of it runs on the server, so the iPhone app, the browser extensions, and an AI assistant connecting over the same screen got it at once, with no new release to ship."
 slug: "switch-accounts-when-connecting-an-app"
 date: "2026-07-12"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "connect app to read it later, sign in with the wrong google account, 
 tags: ["changelog"]
 banner: "I let you pick which account an app connects to"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-With two Google accounts on one phone, work and personal, connecting a reading app should let you say which one it links to. Readplace's fastest login did the reverse. When you sign in on a phone, the browser often reuses a session Chrome already holds, so the consent screen approved that account, printed no email, and gave no way to pick the other one. The screen now names the account it is bound to, "Signed in as", with the email under the app's request, and carries a "Use a different account" link. The link ends this one browser session, clears its cookie, and returns you to the login page with the pending connection preserved, so you sign in as the account you meant and the app still links on the first try. When you switch, Readplace also asks Google to show its own account list instead of auto-selecting its single signed-in account. All of it runs on the server, so the iPhone app, the browser extensions, and an AI assistant connecting over the same screen got it at once, with no new release to ship.
-
-</div>
-</details>
 
 The screen that connects an app to Readplace shows two buttons, Approve and Deny. On a phone it used to leave out the one fact those buttons act on, which account the approval belongs to.
 

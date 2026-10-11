@@ -1,6 +1,7 @@
 ---
 title: "Introducing GMail integration"
 description: "A newsletter you chose arrives in Gmail between a receipt and a calendar invite, and gets cleared with the rest. Connect Gmail to Readplace, point a sender at a readlist, and each new issue lands there summarized, either as the issue itself or as the articles it links to, sorted out from the packaging. The subscription keeps its address, the mail stays unread, and connecting reads mail headers, not mail."
+tldr: "Week after week, the newsletters you chose lose to the email you didn't. Readplace now connects to Gmail: pick a sender, point it at a readlist, and each new issue lands there as one article, with a Save button beside each article it links to. A sender can save the linked articles instead, sorted out from the sponsor slots and the unsubscribe footer, or both. The subscription keeps its address, and the mail stays in Gmail, unread and unmoved. The connection comes with a paid Readplace subscription, reads mail headers, not the mail itself, and permission to read arrives only if you ask for the unread issues of the last 30 days, one sender at a time."
 slug: "introducing-gmail-integration"
 date: "2026-10-03"
 lastModified: "2026-10-10"
@@ -9,15 +10,6 @@ keywords: "gmail integration, read gmail newsletters, gmail newsletter reader, s
 tags: ["changelog"]
 banner: "Introducing GMail integration"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Week after week, the newsletters you chose lose to the email you didn't. Readplace now connects to Gmail: pick a sender, point it at a readlist, and each new issue lands there as one article, with a Save button beside each article it links to. A sender can save the linked articles instead, sorted out from the sponsor slots and the unsubscribe footer, or both. The subscription keeps its address, and the mail stays in Gmail, unread and unmoved. The connection comes with a paid Readplace subscription, reads mail headers, not the mail itself, and permission to read arrives only if you ask for the unread issues of the last 30 days, one sender at a time.
-
-</div>
-</details>
 
 The mailbox is a machine for clearing, and a falling count is what a good day there looks like. A newsletter asks for the opposite of clearing, 20 unhurried minutes, and it arrives in the middle of the clearing anyway, between a receipt and a calendar invite.
 

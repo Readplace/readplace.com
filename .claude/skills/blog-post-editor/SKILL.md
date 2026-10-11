@@ -37,6 +37,7 @@ The schema is a zod object in the post loader — the module that scans the post
 |---|---|---|
 | `title` | yes | Rendered as the post `<h1>`. Posts carry no H1 of their own — see [Post Body Format](#post-body-format). |
 | `description` | yes | The field is `description`. There is no `summary` field. |
+| `tldr` | yes | One markdown paragraph (inline code and links are fine). Rendered by the shared disclosure before the body; `description` doubles as its collapsed preview line. |
 | `slug` | yes | Must equal the filename — see [Slug-Filename Invariant](#slug-filename-invariant). |
 | `date` | yes | `YYYY-MM-DD`, regex-enforced. Drives ordering. |
 | `author` | yes | |
@@ -60,20 +61,11 @@ The `slug` value in frontmatter **must** match the filename (minus `.md`). For e
 
 **No H1.** The template renders `title` as the `<h1>`. The body's own headings start at `##`. There is no subtitle element either — `description` plays that role, on the index card and in the page metadata.
 
-**Every post opens with a TL;DR disclosure.** This is hand-written HTML at the top of the markdown, before the first heading, and it is the same in all posts:
+**Every post opens with a TL;DR disclosure, and the body carries none of it.** The paragraph lives in the `tldr:` frontmatter field; the body holds no TL;DR HTML. The page draws the disclosure before the body from that field, collapsed, with `description` as the one preview line a reader sees before opening it. The `text/markdown` representation carries the same paragraph as a `> [!summary]` callout ahead of the body.
 
-```html
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
+Write `tldr:` as one double-quoted YAML string on one line, so a colon or a `#` in the paragraph cannot end the value early. Escape a literal `"` as `\"` and a literal backslash as `\\`.
 
-One paragraph summarising the post.
-
-</div>
-</details>
-```
-
-The blank lines inside the `div` are required, or markdown will not render the paragraph. The `blog-tldr__toggle` class is load-bearing: the render step that draws the disclosure caret matches on it at render time (grep the blog's non-test TypeScript for the class — the one hit outside the stylesheet and the posts), so a `<summary>` without that exact class silently loses its chevron. The `blog-tldr` class names are a content contract rather than code identifiers: every published post carries this block verbatim, so renaming one means editing every post, and this skill names them on purpose.
+The disclosure is one component shared with the reader's article summary, so a design change lands on both. To open it, grep the non-test sources of the shared presentational shell package (`pnpm nx show projects` lists it; its description says so) for the heading text `Summary (TL;DR)` — the hit inside a `<details>` template is the component.
 
 **Citing an external article.** Link through the reader rather than off the site. Drop the `https://` scheme and append the rest to `/view/`, as a root-relative link:
 
@@ -609,7 +601,7 @@ Never hardcode a hex. The blog stylesheet is entirely token-driven so both theme
 
 ### Placing one
 
-Put the figure directly after the paragraph it illustrates, with a blank line either side. Never inside the TL;DR disclosure block, and never before the first `##` heading. A post may carry more than one figure; input ids are numbered per post, so two figures never collide.
+Put the figure directly after the paragraph it illustrates, with a blank line either side. Never in `tldr:`, and never before the first `##` heading. A post may carry more than one figure; input ids are numbered per post, so two figures never collide.
 
 ---
 

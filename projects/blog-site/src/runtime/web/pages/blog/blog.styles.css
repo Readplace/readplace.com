@@ -272,74 +272,9 @@
   border-bottom: none;
 }
 
-/* Blog TL;DR collapsible — classes used as raw HTML inside blog post .md files */
-
-/* purgecss-ignore-start: used in <details> HTML embedded in markdown blog posts */
-.blog-tldr {
+.blog-post__tldr {
   margin: 0 0 32px;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
 }
-
-.blog-tldr__toggle {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  padding: 1.25rem 1.5rem;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted-foreground);
-  list-style: none;
-  user-select: none;
-  border-radius: var(--radius);
-  transition: background-color 150ms ease, color 150ms ease;
-}
-
-.blog-tldr__toggle::-webkit-details-marker {
-  display: none;
-}
-
-.blog-tldr__toggle:hover {
-  background: var(--card);
-  color: var(--foreground);
-}
-
-.blog-tldr__toggle:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.blog-tldr[open] .blog-tldr__toggle {
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.blog-tldr__caret {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--muted-foreground);
-  transition: transform 150ms ease, color 150ms ease;
-}
-
-.blog-tldr__caret svg {
-  width: 1em;
-  height: 1em;
-}
-
-.blog-tldr[open] .blog-tldr__caret {
-  transform: rotate(180deg);
-}
-
-.blog-tldr__body {
-  padding: 0 1.5rem 1.25rem;
-  color: var(--foreground);
-  line-height: 1.6;
-  font-size: var(--text-md);
-}
-/* purgecss-ignore-end */
 
 /* Blog conversion CTA — classes used as raw HTML inside blog post .md files */
 
@@ -502,8 +437,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .rpf__switch-track,
-  .rpf__switch-track::after,
-  .blog-tldr__caret {
+  .rpf__switch-track::after {
     transition: none;
   }
 }

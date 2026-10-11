@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
-import { render } from "@packages/web-shell";
+import { render, renderTldrDisclosure } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { BLOG_STYLES } from "./blog.styles";
@@ -85,6 +85,7 @@ export function BlogPostPage(params: { post: BlogPost; staticBaseUrl: string }):
 				date: post.date,
 				formattedDate: post.formattedDate,
 				author: post.author,
+				tldrHtml: renderTldrDisclosure({ body: post.tldr, excerpt: post.description, open: false }),
 				htmlContent: post.htmlContent,
 			}),
 			markdown: post.markdownContent,

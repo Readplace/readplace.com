@@ -1,20 +1,12 @@
 ---
 title: "Share a Saved Article and the Link Preview Comes Out Clean"
 description: "Save an article in Readplace, tap share, and send the link. The preview shows Readplace's clean reader copy with the saved thumbnail, and a tap lands your friend in the quiet version. Search engines still credit the original publisher."
+tldr: "Save an article in Readplace and share the link. The preview shows Readplace's clean reader copy: the title with a Reader View label, a short excerpt, and the thumbnail Readplace already downloaded. The link points back to Readplace, so whoever taps it lands in the quiet reader instead of a page full of pop-ups. Search engines still credit the original publisher, so readers see the right source."
 slug: "share-a-clean-article-link"
 date: "2026-06-13"
 author: "Fayner Brack"
 keywords: "read it later, share article link, link preview, clean reader link, share saved articles, social link preview, open graph preview, share read later"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Save an article in Readplace and share the link. The preview shows Readplace's clean reader copy: the title with a Reader View label, a short excerpt, and the thumbnail Readplace already downloaded. The link points back to Readplace, so whoever taps it lands in the quiet reader instead of a page full of pop-ups. Search engines still credit the original publisher, so readers see the right source.
-
-</div>
-</details>
 
 You read something good. You want to send it to a friend, a group chat, or your team, so you copy the link and paste it.
 

@@ -1,20 +1,12 @@
 ---
 title: "A Deleted Page Now Gets a Straight Answer"
 description: "Save a link whose page the site later deleted and Readplace used to blame a bot wall, then pitch the browser extension as the fix. A deleted page now gets a straight answer: the notice says the page is gone, your link stays saved, and the capture offer appears only on failures a capture can still rescue."
+tldr: "Save a link to a page its site has since deleted, and the explanation under it used to blame a bot wall and pitch the browser extension as the cure. Readplace now tells that page's story straight: when a site answers 404 or 410, the notice says the page no longer exists at that address, your link and its place in the readlist stay saved, and the capture offer is left out, because a browser capture cannot reach a page that isn't there. The bot-wall explanation and the capture path stay on the failures they're true for, where opening the page in your own browser still rescues the save. 22 of last week's failed crawls ended at a 404, so the wrong advice was showing more often than a corner case would."
 slug: "a-deleted-page-gets-a-straight-answer"
 date: "2026-08-18"
 author: "Fayner Brack"
 keywords: "saved article 404 page not found, link rot read it later, deleted page saved link, http 410 gone vs 404, dead links in reading list, pocket import link rot, read it later error messages, why a saved article failed, save articles before they disappear, pocket alternative"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Save a link to a page its site has since deleted, and the explanation under it used to blame a bot wall and pitch the browser extension as the cure. Readplace now tells that page's story straight: when a site answers 404 or 410, the notice says the page no longer exists at that address, your link and its place in the readlist stay saved, and the capture offer is left out, because a browser capture cannot reach a page that isn't there. The bot-wall explanation and the capture path stay on the failures they're true for, where opening the page in your own browser still rescues the save. 22 of last week's failed crawls ended at a 404, so the wrong advice was showing more often than a corner case would.
-
-</div>
-</details>
 
 Sites delete pages and leave the addresses behind. Follow one of those addresses today and the answer is a [404](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/404?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=read-mdn-404), or a [410](/view/developer.mozilla.org/en-US/docs/Web/HTTP/Status/410?utm_source=blog-a-deleted-page-gets-a-straight-answer&utm_medium=internal&utm_content=read-mdn-410) from a site tidy enough to admit the page is gone for good. 22 of the crawls that failed in Readplace last week ended at a 404.
 

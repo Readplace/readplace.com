@@ -1,20 +1,12 @@
 ---
 title: "AI Agents Can Now Find and Connect to Readplace on Their Own"
 description: "Readplace now publishes standard discovery files so an AI agent can find its API, read docs written for machines, and log in with a safe OAuth flow. A content signal lets AI read the site to answer a question but keeps it out of model training."
+tldr: "You ask your AI assistant to pull up your reading list, and first it has to find the right service. Readplace now publishes a small set of standard files that tell an agent where its API lives, how to read the docs written for machines, and how to log in with a safe OAuth flow. A `Link` header on every page points to an API catalog. The catalog points to plain-text docs, a secure sign-in, and a health check. Readplace also tells AI crawlers they may read the site to answer a question, but not use it to train a model."
 slug: "ai-agents-discover-readplace"
 date: "2026-06-10"
 author: "Fayner Brack"
 keywords: "AI agents, agent discovery, read it later API, OAuth PKCE, llms.txt, RFC 9727 api-catalog, AI assistant reading list, MCP, Claude, ChatGPT, Perplexity, read it later"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-You ask your AI assistant to pull up your reading list, and first it has to find the right service. Readplace now publishes a small set of standard files that tell an agent where its API lives, how to read the docs written for machines, and how to log in with a safe OAuth flow. A `Link` header on every page points to an API catalog. The catalog points to plain-text docs, a secure sign-in, and a health check. Readplace also tells AI crawlers they may read the site to answer a question, but not use it to train a model.
-
-</div>
-</details>
 
 You use an AI assistant, and you want it to reach your saved reading and act on it. For an agent to do that, it has to discover the service, read its instructions, and log in. Most sites make the agent guess. Readplace now spells it out.
 

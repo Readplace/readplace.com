@@ -32,8 +32,8 @@ const LINK = ".past-reads__link";
 const TITLE = `${ROW} .past-reads__title`;
 const REASON = ".past-reads__reason";
 const SUMMARY_SLOT = "#article-body-summary-slot";
-const SUMMARY_CARD = ".article-body__summary";
-const SUMMARY_TOGGLE = ".article-body__summary-toggle";
+const SUMMARY_CARD = ".tldr-disclosure";
+const SUMMARY_TOGGLE = ".tldr-disclosure__toggle";
 const READER_SLOT = "#article-body-reader-slot";
 const ROW_GAP_PX = 0;
 

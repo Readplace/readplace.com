@@ -6,7 +6,9 @@ import { z } from "zod";
 import {
 	CHANGELOG_VERSION_LENGTH,
 	type ChangelogBanner,
+	type TldrBody,
 	isChangelogVersion,
+	tldrCallout,
 	toAbsoluteDate,
 	withInternalTracking,
 } from "@packages/web-shell";
@@ -22,6 +24,7 @@ const BlogFrontmatter = z
 	.object({
 		title: z.string(),
 		description: z.string(),
+		tldr: z.string().min(1),
 		slug: z.string(),
 		date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 		/** Set only on a post whose text has actually been revised since
@@ -52,7 +55,8 @@ const BlogFrontmatter = z
 
 type BlogFrontmatterData = z.infer<typeof BlogFrontmatter>;
 
-export type BlogPost = BlogFrontmatterData & {
+export type BlogPost = Omit<BlogFrontmatterData, "tldr"> & {
+	tldr: TldrBody;
 	htmlContent: string;
 	markdownContent: string;
 	formattedDate: string;
@@ -112,7 +116,7 @@ export interface BlogPosts {
 }
 
 export function initBlogPosts(deps: RenderPostBodyDeps): BlogPosts {
-	const renderPostBody = initRenderPostBody(deps);
+	const { renderPostBody, renderTldr } = initRenderPostBody(deps);
 	const postsDir = join(__dirname, "posts");
 	const files = readdirSync(postsDir).filter((f) => f.endsWith(".md"));
 
@@ -124,8 +128,9 @@ export function initBlogPosts(deps: RenderPostBodyDeps): BlogPosts {
 
 			return {
 				...frontmatter,
+				tldr: { html: renderTldr({ slug: frontmatter.slug, tldr: frontmatter.tldr }) },
 				htmlContent: renderPostBody({ slug: frontmatter.slug, content }),
-				markdownContent: content,
+				markdownContent: `${tldrCallout(frontmatter.tldr)}\n\n${content}`,
 				formattedDate: toAbsoluteDate({ iso: `${frontmatter.date}T00:00:00Z` }).label,
 			};
 		})

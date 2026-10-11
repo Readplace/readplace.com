@@ -1,21 +1,13 @@
 ---
 title: "Read It Later, Even After the Original Page Is Gone"
 description: "Save a link to Readplace and it builds a clean copy on its own servers. The source page can change, hide behind a paywall, or go offline, and your saved article stays readable, with no expiry on your copy."
+tldr: "Save a link to Readplace and it opens the page on its own servers, then stores a clean copy of the text and images. The source can edit the article, drop a paywall in front of it, or go offline, and your saved copy stays readable. That copy carries no expiry, so an article you keep today opens the same way next month. You read on your own schedule, off your own copy."
 slug: "saved-articles-outlast-the-original-page"
 date: "2026-06-17"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "read it later no expiry, saved article disappeared, link rot, save a copy of a web page, article deleted read later, page went offline, Pocket alternative, read it later that keeps your copy, save article before it changes"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Save a link to Readplace and it opens the page on its own servers, then stores a clean copy of the text and images. The source can edit the article, drop a paywall in front of it, or go offline, and your saved copy stays readable. That copy carries no expiry, so an article you keep today opens the same way next month. You read on your own schedule, off your own copy.
-
-</div>
-</details>
 
 You find a good article and you have no time to read it. So you save it for the weekend. You come back, click the link, and the page is gone. The site moved it, a paywall slid in, or the link now returns a 404. The thing you set aside took itself away.
 

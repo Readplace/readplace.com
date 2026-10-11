@@ -7,7 +7,6 @@ import { describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-har
 import { createBlogApp } from "./app";
 import { drawFigure } from "./web/pages/blog/blog-figure";
 import { labelTableCells } from "./web/pages/blog/blog-table-labels";
-import { withTldrCaret } from "./web/pages/blog/blog-tldr-caret";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
 
 const discard: HutchLogger.Typed<AnalyticsEvent> = {
@@ -48,7 +47,7 @@ function makeApp() {
 
 describe("every same-origin CTA carries its own utm_source", () => {
 	const app = makeApp();
-	const slugs = initBlogPosts({ drawFigure, labelTableCells, withTldrCaret, ownHost: OWN_HOST }).getAllSlugs();
+	const slugs = initBlogPosts({ drawFigure, labelTableCells, ownHost: OWN_HOST }).getAllSlugs();
 	const paths = ["/blog", "/blog/no-such-post", ...slugs.map((slug) => `/blog/${slug}`)];
 
 	it("checks at least one published post", () => {

@@ -930,16 +930,16 @@ describe("Readlist routes", () => {
 				summarySlot.classList.contains("article-body__summary-slot--visible"),
 			).toBe(true);
 			expect(summarySlot.textContent).toContain("Key points from the article");
-			expect(doc.querySelector(".article-body__summary-heading")?.textContent).toBe("Summary (TL;DR)");
+			expect(doc.querySelector(".tldr-disclosure__heading")?.textContent).toBe("Summary (TL;DR)");
 			// Collapsed reader still teases the summary: the preview must live inside
 			// the <summary> so it shows while the <details> is closed.
-			const preview = doc.querySelector(".article-body__summary-preview");
+			const preview = doc.querySelector(".tldr-disclosure__preview");
 			assert(preview, "collapsed reader must show a summary preview");
 			assert(preview.closest("summary"), "preview must live inside the <summary>");
 			expect(summarySlot.hasAttribute("hx-get")).toBe(false);
 			// Internal reader ships the TL;DR collapsed so an expand is a deliberate,
 			// measurable act, and carries the beacon URL so the toggle is recorded.
-			const details = doc.querySelector(".article-body__summary");
+			const details = doc.querySelector(".tldr-disclosure");
 			assert(details, "summary details element must be rendered");
 			expect(details.hasAttribute("open")).toBe(false);
 			expect(details.getAttribute("data-summary-toggle-url")).toBe(
@@ -1429,7 +1429,7 @@ describe("Readlist routes", () => {
 			expect(slot.getAttribute("data-summary-status")).toBe("ready");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
 			expect(
-				doc.querySelector(".article-body__summary-text")?.textContent,
+				doc.querySelector(".tldr-disclosure__text")?.textContent,
 			).toBe("Fragment ready summary.");
 		});
 

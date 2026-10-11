@@ -1,21 +1,13 @@
 ---
 title: "Readplace for iPhone Is on the App Store"
 description: "The Readplace iPhone app has left TestFlight and is on the App Store. Save any page or PDF from the share sheet, read your saved copy with its TL;DR in the app, and sign in without leaving it. It runs on a Mac too. There is still no Android app and no offline reading."
+tldr: "The Readplace iPhone app was invite-only on TestFlight since June. Apple approved it, so it installs from the App Store like anything else, with no invite and no second app to set up first. What it does has not changed. Share a page or a PDF from any browser on the phone and it saves to your readlist in the background, your list is in the app with pull to refresh and a swipe that marks an article read, and tapping one opens your saved copy with its TL;DR instead of the original site. The part that took the longest was signing in. App Store review turned down an earlier build for handing the login to the default browser, so the login now runs inside a sheet the app owns and never leaves. The same app runs on a Mac. What it still does not do: no Android version, no offline reading, and no search or tags. It needs iOS 16 or later, and a Readplace account."
 slug: "readplace-iphone-app-on-the-app-store"
 date: "2026-07-26"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "read it later app iphone app store, readplace iphone app, save articles from iphone share sheet, pocket alternative iphone app, ios read it later app, save pdf from iphone, app store read it later app, save to read later ios, best read it later app iphone"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-The Readplace iPhone app was invite-only on TestFlight since June. Apple approved it, so it installs from the App Store like anything else, with no invite and no second app to set up first. What it does has not changed. Share a page or a PDF from any browser on the phone and it saves to your readlist in the background, your list is in the app with pull to refresh and a swipe that marks an article read, and tapping one opens your saved copy with its TL;DR instead of the original site. The part that took the longest was signing in. App Store review turned down an earlier build for handing the login to the default browser, so the login now runs inside a sheet the app owns and never leaves. The same app runs on a Mac. What it still does not do: no Android version, no offline reading, and no search or tags. It needs iOS 16 or later, and a Readplace account.
-
-</div>
-</details>
 
 Installing the app used to take two apps and an invitation. You installed TestFlight, found the Readplace invite, accepted it, installed the build from there, and opened it once. Five steps before the thing had saved a single article.
 

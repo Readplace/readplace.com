@@ -768,7 +768,7 @@ describe("initArticleReader", () => {
 			const slot = doc.querySelector("[data-test-reader-summary]");
 			assert(slot, "summary slot must be rendered");
 			expect(slot.getAttribute("data-summary-status")).toBe("ready");
-			const details = doc.querySelector(".article-body__summary");
+			const details = doc.querySelector(".tldr-disclosure");
 			assert(details, "summary details element must be rendered");
 			expect(details.hasAttribute("open")).toBe(true);
 		});
@@ -796,7 +796,7 @@ describe("initArticleReader", () => {
 			});
 
 			const doc = parse(toHtml(component));
-			const details = doc.querySelector(".article-body__summary");
+			const details = doc.querySelector(".tldr-disclosure");
 			assert(details, "summary details element must be rendered");
 			expect(details.hasAttribute("open")).toBe(false);
 			expect(details.getAttribute("data-summary-toggle-url")).toBe("/queue/abc/summary-toggle");

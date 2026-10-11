@@ -5,7 +5,7 @@ import { initSummaryToggleBeacon } from "./summary-toggle.client";
 const TOGGLE_URL = "/queue/abc/summary-toggle";
 
 function readySummary(toggleUrlAttr: string): string {
-	return `<div data-test-reader-summary><details class="article-body__summary"${toggleUrlAttr}><summary>Summary (TL;DR)</summary><pre>TL;DR</pre></details></div>`;
+	return `<div data-test-reader-summary><details class="tldr-disclosure"${toggleUrlAttr}><summary>Summary (TL;DR)</summary><pre>TL;DR</pre></details></div>`;
 }
 
 function makeDom(bodyHtml: string): { document: Document; toggle: (el: Element) => void } {
@@ -98,7 +98,7 @@ describe("initSummaryToggleBeacon", () => {
 		// Simulate htmx replacing the summary slot with a new (unbound) details.
 		const slot = dom.document.querySelector("[data-test-reader-summary]");
 		assert(slot);
-		slot.innerHTML = `<details class="article-body__summary" data-summary-toggle-url="${TOGGLE_URL}"><summary>Summary (TL;DR)</summary><pre>TL;DR</pre></details>`;
+		slot.innerHTML = `<details class="tldr-disclosure" data-summary-toggle-url="${TOGGLE_URL}"><summary>Summary (TL;DR)</summary><pre>TL;DR</pre></details>`;
 		harness.fireSwap();
 
 		const el = details(dom.document);

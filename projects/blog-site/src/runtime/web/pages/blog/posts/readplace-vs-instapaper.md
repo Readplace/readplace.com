@@ -1,21 +1,13 @@
 ---
 title: "Instapaper vs Readplace in 2026: Which One to Pick"
 description: "Instapaper has run since 2008 with a free tier, Android apps and Kobo sync. Readplace is a newer, paid app that writes an AI summary on its own when you save."
+tldr: "Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, paid plans and no free tier, an iPhone app that also runs on Mac but nothing on Android, and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development."
 slug: "readplace-vs-instapaper"
 date: "2026-05-01"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "instapaper alternative, read it later, readplace vs instapaper, pocket replacement, AI summaries"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, paid plans and no free tier, an iPhone app that also runs on Mac but nothing on Android, and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development.
-
-</div>
-</details>
 
 Pocket shut down in July 2025, and a lot of readers lost their go-to save-for-later tool overnight. Some moved to Omnivore, but that shut down too. Many of them landed on Instapaper, which has been running since 2008.
 

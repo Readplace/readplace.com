@@ -1,20 +1,12 @@
 ---
 title: "Save a LinkedIn Post and Keep Its Paragraphs"
 description: "Readplace now saves LinkedIn posts with their paragraph breaks intact. The page hides its paragraphs inside an inline tag split by double line breaks, and most readers flatten that into one block. Readplace rebuilds the paragraphs, so a saved post reads the way it was written. The same fix helps Substack notes and plain blog posts."
+tldr: "Readplace now saves LinkedIn posts with their paragraph breaks intact. A LinkedIn post separates thoughts with blank lines, but the page builds those breaks in a way most readers flatten into one block of text. Readplace reads that layout and rebuilds the paragraphs, so a saved post reads the way the author spaced it. The same fix helps Substack notes and plain blog posts built the same way. You save the link as usual, and the reader does the rest."
 slug: "save-linkedin-posts-to-read-later"
 date: "2026-06-14"
 author: "Fayner Brack"
 keywords: "save linkedin posts, read it later linkedin, save linkedin post to read later, linkedin post reader, save substack notes, clean reader view, readplace, read it later app, save articles for later"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Readplace now saves LinkedIn posts with their paragraph breaks intact. A LinkedIn post separates thoughts with blank lines, but the page builds those breaks in a way most readers flatten into one block of text. Readplace reads that layout and rebuilds the paragraphs, so a saved post reads the way the author spaced it. The same fix helps Substack notes and plain blog posts built the same way. You save the link as usual, and the reader does the rest.
-
-</div>
-</details>
 
 A paragraph break is the cheapest piece of formatting a writer has, and it is the first thing a feed throws away. You read a sharp LinkedIn post, you want it later without the noise around it, so you save it to Readplace. The post used to land in your reader as one solid block, every break gone and the rhythm of the writing flattened into a run-on note.
 

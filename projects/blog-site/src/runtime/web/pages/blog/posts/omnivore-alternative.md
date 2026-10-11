@@ -1,21 +1,13 @@
 ---
 title: "Omnivore Alternative: A Read-It-Later App With No Investors"
 description: "Why Omnivore shut down 2 weeks after its team joined ElevenLabs, and a table of what Readplace matches and still lacks, like highlights and full-text search."
+tldr: "Omnivore shut down 2 weeks after its team joined ElevenLabs. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law."
 slug: "omnivore-alternative"
 date: "2026-05-06"
 lastModified: "2026-10-01"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Omnivore shut down 2 weeks after its team joined ElevenLabs. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law.
-
-</div>
-</details>
 
 On October 29, 2024, Omnivore announced its team was joining ElevenLabs. About 2 weeks later, on November 15, the service shut down and data deletion began. If you had years of saved articles, highlights, and notes in there, you had 17 days to get them out before they were gone.
 

@@ -1,6 +1,7 @@
 ---
 title: "One Email for Every Ready Article, Not Just the First"
 description: "Readplace used to email you about the first saved article that turned readable and drop the rest for six hours. Now a single digest, sent at most every 6 hours, lists every article you were waiting on that is ready, each with its title, its site, and the first lines of the clean reader text."
+tldr: "Save several heavy pages, open each while it is still building, then close the tabs. Readplace used to email you about the first page to finish and drop the rest for 6 hours, so you only ever heard about one. It now collects them. Every 6 hours it sends a single digest listing each article you were waiting on that has since turned readable, with its title, its site, and the first lines of the clean reader text. The 6-hour cap still holds, but it bounds the digest now, not the news, so the second and third ready articles arrive in the same email instead of vanishing. What has to be true before it writes you at all did not change: you opened the article and left before it finished, the work ran over a minute, and you have not since read, deleted, or re-saved it."
 slug: "one-email-for-every-ready-article"
 date: "2026-07-05"
 author: "Fayner Brack"
@@ -8,15 +9,6 @@ keywords: "read it later digest email, article ready notification, reader view r
 tags: ["changelog"]
 banner: "I batched the ready-article emails into one digest"
 ---
-
-<details class="blog-tldr">
-<summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
-<div class="blog-tldr__body">
-
-Save several heavy pages, open each while it is still building, then close the tabs. Readplace used to email you about the first page to finish and drop the rest for 6 hours, so you only ever heard about one. It now collects them. Every 6 hours it sends a single digest listing each article you were waiting on that has since turned readable, with its title, its site, and the first lines of the clean reader text. The 6-hour cap still holds, but it bounds the digest now, not the news, so the second and third ready articles arrive in the same email instead of vanishing. What has to be true before it writes you at all did not change: you opened the article and left before it finished, the work ran over a minute, and you have not since read, deleted, or re-saved it.
-
-</div>
-</details>
 
 Nothing stops a read-it-later app from emailing you the moment each saved article finishes loading. Readplace stopped itself.
 
