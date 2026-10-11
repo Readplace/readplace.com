@@ -48,7 +48,6 @@ export interface AdminRecrawlDependencies {
 	findUserByEmail: FindUserByEmail;
 	adminEmails: readonly string[];
 	serviceToken: string;
-	now: () => Date;
 	buildBannerState: BuildBannerState;
 }
 
@@ -201,7 +200,6 @@ async function renderRecrawlPage(
 		readerPollUrl: state.readerPollUrl,
 		summary: state.summary,
 		summaryPollUrl: state.summaryPollUrl,
-		progress: state.progress,
 		contentSourceTier: existing.contentSourceTier,
 		extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		recrawlFormAction,
@@ -337,7 +335,6 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
 		summaryOpen: false,
-		now: deps.now,
 	});
 
 	const resolveStoredArticle = initResolveStoredArticle({

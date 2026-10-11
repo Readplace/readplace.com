@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
 import {
 	calculateReadTime,
+	CRAWL_STAGES,
 	SaveProvenanceSchema,
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
@@ -460,6 +461,12 @@ const SeedCrawledArticleBody = z.object({
 	provenance: SaveProvenanceSchema.default({ kind: 'web' }),
 	excerpt: z.string().default('Seeded for the crawl-bookmark visual test.'),
 	generatedSummary: z.object({ summary: z.string(), excerpt: z.string() }).optional(),
+	summaryState: z
+		.discriminatedUnion('status', [
+			z.object({ status: z.literal('failed'), reason: z.string() }),
+			z.object({ status: z.literal('skipped'), reason: z.string() }),
+		])
+		.optional(),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -480,6 +487,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		provenance,
 		excerpt,
 		generatedSummary,
+		summaryState,
 	} = parsed.data
 	const hostname = new URL(url).hostname
 	const metadata = {
@@ -510,6 +518,8 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 	await fixture.articleStore.writeContent({ url, content })
 	await fixture.articleCrawl.markCrawlReady({ url })
 	if (generatedSummary) summary.markSummaryReady({ url, ...generatedSummary })
+	if (summaryState?.status === 'failed') summary.markSummaryFailed({ url, reason: summaryState.reason })
+	if (summaryState?.status === 'skipped') summary.markSummarySkipped({ url, reason: summaryState.reason })
 	await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
 	await fixture.articleStore.setCrawlVersions({
 		url,
@@ -519,7 +529,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 })
 
 const SeedCrawlStatusBody = z.discriminatedUnion('status', [
-	z.object({ url: z.string(), status: z.literal('pending') }),
+	z.object({ url: z.string(), status: z.literal('pending'), stage: z.enum(CRAWL_STAGES).optional() }),
 	z.object({ url: z.string(), status: z.literal('failed'), reason: z.string() }),
 	z.object({ url: z.string(), status: z.literal('unsupported'), reason: z.string() }),
 ])
@@ -532,6 +542,9 @@ server.post('/e2e/seed-crawl-status', async (req, res) => {
 	switch (parsed.data.status) {
 		case 'pending':
 			await fixture.articleCrawl.forceMarkCrawlPending({ url: parsed.data.url })
+			if (parsed.data.stage) {
+				await fixture.articleCrawl.markCrawlStage({ url: parsed.data.url, stage: parsed.data.stage })
+			}
 			break
 		case 'failed':
 			await fixture.articleCrawl.markCrawlFailed({ url: parsed.data.url, reason: parsed.data.reason })

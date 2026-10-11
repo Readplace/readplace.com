@@ -1,1 +1,7 @@
-<div id="article-body-summary-slot" class="article-body__summary-slot article-body__summary-slot--visible" data-test-reader-summary data-summary-status="pending"{{#if oob}} hx-swap-oob="outerHTML"{{/if}}{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}><span class="article-body__summary-loading">{{#if pollUrl}}{{icon "loader"}}{{/if}}{{message}}</span></div>
+<div id="article-body-summary-slot" class="article-body__summary-slot article-body__summary-slot--visible" data-test-reader-summary data-summary-status="pending"{{#if oob}} hx-swap-oob="outerHTML"{{/if}}{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
+  <div class="article-body__panel article-body__summary-pending">
+    <p class="article-body__summary-pending-heading" id="{{titleId}}" data-test-summary-pending-title><span class="article-body__summary-icon" aria-hidden="true">{{icon "sparkles" variant="solid"}}</span>Generating summary</p>
+    <p class="article-body__panel-text {{descriptionClass}}" data-test-summary-pending-text>Taking a while — refresh to check again.</p>
+    {{{progressHtml}}}
+  </div>
+</div>

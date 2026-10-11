@@ -24,9 +24,18 @@ describe("renderTldrDisclosure", () => {
 		const details = disclosure(doc);
 		expect(details.tagName.toLowerCase()).toBe("details");
 		expect(details.classList.contains("tldr-disclosure")).toBe(true);
-		expect(doc.querySelector(".tldr-disclosure__heading")?.textContent).toBe("Summary (TL;DR)");
+		expect(doc.querySelector(".tldr-disclosure__heading")?.textContent).toBe("Summary");
 		expect(doc.querySelector(".tldr-disclosure__caret svg")).not.toBe(null);
 		expect(doc.querySelector(".tldr-disclosure__text")?.textContent).toBe("Key points.");
+	});
+
+	it("leads the heading with a decorative sparkles mark", () => {
+		const doc = parse(renderTldrDisclosure({ body: { text: plainText("Key points.") }, open: false }));
+
+		const icon = doc.querySelector(".tldr-disclosure__heading .tldr-disclosure__icon");
+		assert(icon, "the heading's icon box must be rendered");
+		expect(icon.getAttribute("aria-hidden")).toBe("true");
+		expect(icon.querySelectorAll("svg").length).toBe(1);
 	});
 
 	it("renders collapsed when open=false", () => {
@@ -94,7 +103,7 @@ describe("renderTldrDisclosure", () => {
 		);
 	});
 
-	it("shows the excerpt as the collapsed preview with a view-more affordance", () => {
+	it("renders no view-more affordance", () => {
 		const doc = parse(
 			renderTldrDisclosure({
 				body: { text: plainText(LONG_SUMMARY) },
@@ -104,9 +113,8 @@ describe("renderTldrDisclosure", () => {
 		);
 
 		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe(
-			"A one-sentence teaser of the piece. view more …",
+			"A one-sentence teaser of the piece.",
 		);
-		expect(doc.querySelector(".tldr-disclosure__more")?.textContent).toBe("view more …");
 	});
 
 	it("renders an excerpt whole, even one longer than the fallback's budget", () => {
@@ -121,7 +129,7 @@ describe("renderTldrDisclosure", () => {
 			renderTldrDisclosure({ body: { text: plainText(LONG_SUMMARY) }, excerpt: overBudget, open: false }),
 		);
 
-		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe(`${overBudget} view more …`);
+		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe(overBudget);
 	});
 
 	it("keeps the preview inside the <summary> so it shows while the <details> is closed", () => {
@@ -147,7 +155,7 @@ describe("renderTldrDisclosure", () => {
 
 		const preview = doc.querySelector(".tldr-disclosure__preview")?.textContent;
 		assert(preview, "preview must be rendered");
-		expect(preview.endsWith(" view more …")).toBe(true);
+		expect(preview.endsWith("…")).toBe(true);
 		expect(preview.startsWith("The article walks through")).toBe(true);
 		expect(preview.length).toBeLessThan(LONG_SUMMARY.length);
 	});
@@ -157,18 +165,16 @@ describe("renderTldrDisclosure", () => {
 			renderTldrDisclosure({ body: { text: plainText("First point.\n\nSecond point.") }, open: false }),
 		);
 
-		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe(
-			"First point. Second point. view more …",
-		);
+		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe("First point. Second point.");
 		expect(doc.querySelector(".tldr-disclosure__text")?.textContent).toBe("First point.\n\nSecond point.");
 	});
 
-	it("strips a trailing ellipsis from the excerpt so it does not double up", () => {
+	it("keeps a truncation ellipsis on the preview", () => {
 		const doc = parse(
 			renderTldrDisclosure({ body: { text: plainText(LONG_SUMMARY) }, excerpt: "Cut short…", open: false }),
 		);
 
-		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe("Cut short view more …");
+		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe("Cut short…");
 	});
 
 	it("HTML-escapes the preview", () => {
@@ -189,7 +195,7 @@ describe("renderTldrDisclosure", () => {
 
 describe("TLDR_DISCLOSURE_STYLES", () => {
 	it("declares every class the templates render", () => {
-		for (const name of ["", "__toggle", "__heading", "__caret", "__preview", "__more", "__text", "__body"]) {
+		for (const name of ["", "__toggle", "__heading", "__icon", "__caret", "__preview", "__text", "__body"]) {
 			expect(TLDR_DISCLOSURE_STYLES).toContain(`.tldr-disclosure${name} {`);
 		}
 		expect(TLDR_DISCLOSURE_STYLES).toMatch(/\.tldr-disclosure\[open\] \.tldr-disclosure__preview\s*\{\s*display:\s*none;/);

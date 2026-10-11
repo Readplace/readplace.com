@@ -1,31 +1,48 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
+import { renderHiddenProgressBar, renderProgressBar } from "../progress-bar.component";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "reader-pending.template.html"),
 	"utf-8",
 );
 
-const DEFAULT_LABEL = "Generating clean reader view";
+const READER_PENDING_TITLE = "Preparing your reader view";
+export const READER_PENDING_DESCRIPTION =
+	"Readplace is cleaning up this article for a focused, distraction-free reading experience.";
+const READER_CAPTURING_TITLE = "Copying the page from your device";
+const TITLE_ID = "article-body-reader-pending-title";
 
-export interface ReaderPendingInput {
-	/** The next polling URL. Required: pending-without-poll is now handled
-	 * by the slot dispatcher routing to `renderReaderFailed({ variant: "slow" })`. */
-	pollUrl: string;
-	oob?: boolean;
-	label?: string;
-	/** Optional secondary line rendered in a smaller, muted style below the
-	 * primary label. Callers pass the hint text directly — this component stays
-	 * media-type-agnostic. */
-	loadingHint?: string;
-}
+export type ReaderPendingInput =
+	| {
+			kind: "crawl";
+			/** The next polling URL. Required: pending-without-poll is now handled
+			 * by the slot dispatcher routing to `renderReaderFailed({ variant: "slow" })`. */
+			pollUrl: string;
+			pct: number;
+			descriptions: readonly string[];
+			oob?: boolean;
+		}
+	| { kind: "capture"; pollUrl: string; oob?: boolean };
 
 export function renderReaderPending(input: ReaderPendingInput): string {
+	const panel =
+		input.kind === "crawl"
+			? {
+					title: READER_PENDING_TITLE,
+					descriptions: input.descriptions,
+					progressHtml: renderProgressBar({ axis: "reader", pct: input.pct, labelledBy: TITLE_ID }),
+				}
+			: {
+					title: READER_CAPTURING_TITLE,
+					descriptions: [],
+					progressHtml: renderHiddenProgressBar({ axis: "reader" }),
+				};
 	return render(TEMPLATE, {
 		pollUrl: input.pollUrl,
 		oob: input.oob === true,
-		label: input.label ?? DEFAULT_LABEL,
-		loadingHint: input.loadingHint,
+		titleId: TITLE_ID,
+		...panel,
 	});
 }

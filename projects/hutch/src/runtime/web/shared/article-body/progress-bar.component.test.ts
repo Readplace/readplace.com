@@ -1,87 +1,64 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { renderProgressBar, renderProgressBarOob } from "./progress-bar.component";
+import { renderHiddenProgressBar, renderProgressBar } from "./progress-bar.component";
 
 function parse(html: string): Document {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
 }
 
 describe("renderProgressBar", () => {
-	it("renders a visible bar with the stage, pct and tickAt as data attributes", () => {
-		const doc = parse(
-			renderProgressBar({
-				progress: {
-					stage: "crawl-parsed",
-					pct: 29,
-					tickAt: "2026-04-25T12:00:00.000Z",
-				},
-			}),
-		);
+	it.each(["reader", "summary"] as const)(
+		"renders the %s axis as a labelled progressbar whose fill matches its label",
+		(axis) => {
+			const doc = parse(renderProgressBar({ axis, pct: 49, labelledBy: "panel-title" }));
 
-		const bar = doc.querySelector("[data-test-progress-bar]");
-		assert(bar, "bar must be rendered");
-		expect(bar.classList.contains("article-body__progress--visible")).toBe(true);
-		expect(bar.getAttribute("data-progress-stage")).toBe("crawl-parsed");
-		expect(bar.getAttribute("data-progress-pct")).toBe("29");
-		expect(bar.getAttribute("data-progress-tick-at")).toBe(
-			"2026-04-25T12:00:00.000Z",
-		);
-		expect(bar.hasAttribute("hx-swap-oob")).toBe(false);
+			const bar = doc.querySelector(`[data-test-progress-bar="${axis}"]`);
+			assert(bar, "the progress block must be rendered");
+			expect(bar.classList.contains("article-body__progress--visible")).toBe(true);
 
-		const fill = bar.querySelector<HTMLElement>(".article-body__progress-fill");
-		assert(fill, "progress fill must be rendered");
-		expect(fill.style.width).toBe("29%");
-	});
+			const label = bar.querySelector("[data-test-progress-label]");
+			assert(label, "the label must be rendered");
+			expect(label.textContent).toBe("49% complete");
+			expect(label.getAttribute("aria-hidden")).toBe("true");
 
-	it("renders the bar in its hidden state when progress is undefined so HTMX OOB swaps still have a target", () => {
-		const doc = parse(renderProgressBar({ progress: undefined }));
+			const track = bar.querySelector(".article-body__progress-track");
+			assert(track, "the track must be rendered");
+			expect(track.getAttribute("role")).toBe("progressbar");
+			expect(track.getAttribute("aria-labelledby")).toBe("panel-title");
+			expect(track.getAttribute("aria-valuemin")).toBe("0");
+			expect(track.getAttribute("aria-valuemax")).toBe("100");
+			expect(track.getAttribute("aria-valuenow")).toBe("49");
+			expect(track.getAttribute("aria-valuetext")).toBe("49% complete");
 
-		const bar = doc.querySelector("[data-test-progress-bar]");
-		assert(bar, "bar element must always be present");
-		expect(bar.classList.contains("article-body__progress--hidden")).toBe(true);
-	});
+			const fill = track.querySelector<HTMLElement>(".article-body__progress-fill");
+			assert(fill, "the fill must be rendered");
+			expect(fill.style.width).toBe("49%");
+		},
+	);
 
-	it("uses a stable id so HTMX hx-swap-oob can target the live element across swaps", () => {
-		const doc = parse(
-			renderProgressBar({
-				progress: {
-					stage: "summary-generating",
-					pct: 90,
-					tickAt: "2026-04-25T12:00:00.000Z",
-				},
-			}),
-		);
+	it("floors a fractional value in the label and the ARIA value but not in the fill width", () => {
+		const doc = parse(renderProgressBar({ axis: "reader", pct: 46.5, labelledBy: "panel-title" }));
 
-		const bar = doc.querySelector("#article-body-progress");
-		assert(bar, "bar must carry a stable id for HTMX OOB swaps");
-		expect(bar.getAttribute("id")).toBe("article-body-progress");
+		const bar = doc.querySelector('[data-test-progress-bar="reader"]');
+		assert(bar, "the progress block must be rendered");
+		expect(bar.querySelector("[data-test-progress-label]")?.textContent).toBe("46% complete");
+		const track = bar.querySelector(".article-body__progress-track");
+		assert(track, "the track must be rendered");
+		expect(track.getAttribute("aria-valuenow")).toBe("46");
+		expect(track.getAttribute("aria-valuetext")).toBe("46% complete");
+		const fill = track.querySelector<HTMLElement>(".article-body__progress-fill");
+		assert(fill, "the fill must be rendered");
+		expect(fill.style.width).toBe("46.5%");
 	});
 });
 
-describe("renderProgressBarOob", () => {
-	it("emits the same bar carrying hx-swap-oob for inclusion in poll responses", () => {
-		const html = renderProgressBarOob({
-			progress: {
-				stage: "summary-generating",
-				pct: 90,
-				tickAt: "2026-04-25T12:00:00.000Z",
-			},
-		});
-		const doc = parse(html);
+describe("renderHiddenProgressBar", () => {
+	it.each(["reader", "summary"] as const)("renders an empty, hidden block for the %s axis", (axis) => {
+		const doc = parse(renderHiddenProgressBar({ axis }));
 
-		const bar = doc.querySelector("#article-body-progress");
-		assert(bar, "OOB bar must be rendered");
-		expect(bar.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(bar.getAttribute("data-progress-pct")).toBe("90");
-	});
-
-	it("emits a hidden OOB bar when progress is undefined so the live bar collapses on terminal polls", () => {
-		const html = renderProgressBarOob({ progress: undefined });
-		const doc = parse(html);
-
-		const bar = doc.querySelector("#article-body-progress");
-		assert(bar, "OOB bar must be rendered even when progress is undefined");
-		expect(bar.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		const bar = doc.querySelector(`[data-test-progress-bar="${axis}"]`);
+		assert(bar, "the hidden progress block must be rendered");
 		expect(bar.classList.contains("article-body__progress--hidden")).toBe(true);
+		expect(bar.children.length).toBe(0);
 	});
 });

@@ -73,6 +73,30 @@ describe("createFakeSummaryProvider", () => {
 			excerpt: "Lead.",
 		});
 	});
+
+	it("markSummaryFailed settles the summary as failed with the supplied reason", async () => {
+		const { findGeneratedSummary, markSummaryFailed } = createFakeSummaryProvider();
+		const url = "https://example.com/article";
+
+		markSummaryFailed({ url, reason: "deepseek timeout" });
+
+		expect(await findGeneratedSummary(url)).toEqual({
+			status: "failed",
+			reason: "deepseek timeout",
+		});
+	});
+
+	it("markSummarySkipped settles the summary as skipped with the supplied reason", async () => {
+		const { findGeneratedSummary, markSummarySkipped } = createFakeSummaryProvider();
+		const url = "https://example.com/article";
+
+		markSummarySkipped({ url, reason: "content-too-short" });
+
+		expect(await findGeneratedSummary(url)).toEqual({
+			status: "skipped",
+			reason: "content-too-short",
+		});
+	});
 });
 
 describe("createDefaultTestAppFixture", () => {

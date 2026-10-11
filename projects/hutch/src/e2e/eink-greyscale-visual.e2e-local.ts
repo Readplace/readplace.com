@@ -54,7 +54,6 @@ const VOLATILE_CHROME = [
 	"[data-test-changelog-banner]",
 	".crawl-bookmark",
 	".reader__float-stack",
-	".article-body__progress",
 ];
 const PINNED_SAVED_TIMES = ["2 days ago", "3 days ago", "4 days ago"];
 
@@ -134,8 +133,7 @@ async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email
 	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view`, articleId };
 }
 
-/** Omitting generatedSummary leaves the row's summary pending, which is the one
- * state that renders the animated ellipsis. */
+/** Omitting generatedSummary leaves the row's summary pending. */
 async function seedPendingSummary(
 	page: Page,
 	stamp: string,
@@ -745,10 +743,8 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 		await loginAs(page, email);
 		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 
-		const loader = page.locator(".article-body__summary-loading svg");
-		await expect(loader).toBeVisible();
-		const animationName = await loader.evaluate((el) => getComputedStyle(el).animationName);
-
-		assert.equal(animationName, "none", "a panel that refuses motion must not animate");
+		const summarySlot = page.locator("#article-body-summary-slot");
+		await expect(summarySlot.locator("[data-test-summary-pending-title]")).toBeVisible();
+		await expect(summarySlot.locator("[data-test-progress-label]")).toBeVisible();
 	});
 });

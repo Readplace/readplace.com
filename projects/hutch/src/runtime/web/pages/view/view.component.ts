@@ -24,7 +24,6 @@ import { renderArticleBody } from "../../shared/article-body/article-body.compon
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import { articleEpubHref } from "../../shared/epub/epub-link";
-import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
 	SHARE_BALLOON_SCRIPT,
@@ -37,7 +36,6 @@ import { VIEW_STYLES } from "./view.styles";
 import { displayableReadTime } from "@packages/domain/article";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
-const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 
 const DEFAULT_OG_IMAGE = `${STATIC_BASE_URL}/og-image-1200x630.png`;
 const DEFAULT_TWITTER_IMAGE = `${STATIC_BASE_URL}/twitter-card-1200x600.png`;
@@ -120,7 +118,6 @@ export interface ViewPageInput {
 	readerPollUrl?: string;
 	summary?: GeneratedSummary;
 	summaryPollUrl?: string;
-	progress?: ProgressTick;
 	actions: ViewAction[];
 	epubDownloadHref?: string;
 	saveTip: SaveTip;
@@ -145,7 +142,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
 		summaryOpen: false,
-		progress: input.progress,
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
@@ -224,7 +220,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			navHide: NAV_HIDE_DISABLED,
 			page:
 				SHARE_BALLOON_SCRIPT +
-				PROGRESS_BAR_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
 				SAVE_TIP_SCRIPT,
 		}),

@@ -1555,7 +1555,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		findUserByEmail: deps.findUserByEmail,
 		adminEmails: deps.adminEmails,
 		serviceToken: deps.recrawlServiceToken,
-		now: deps.now,
 		buildBannerState,
 	});
 	app.use("/admin/recrawl", adminRecrawlRouter);

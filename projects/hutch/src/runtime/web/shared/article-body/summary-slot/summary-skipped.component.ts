@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, renderAlert } from "@packages/web-shell";
 import { messageForSkip } from "./summary-skip-messages";
 
 const TEMPLATE = readFileSync(
@@ -15,8 +15,14 @@ export interface SummarySkippedInput {
 
 export function renderSummarySkipped(input: SummarySkippedInput): string {
 	return render(TEMPLATE, {
-		message: messageForSkip(input.reason),
 		reasonCode: input.reason ?? "",
 		oob: input.oob === true,
+		alertHtml: renderAlert({
+			key: "reader-summary-skipped",
+			content: {
+				variant: "info",
+				title: { text: messageForSkip(input.reason), element: "p" },
+			},
+		}),
 	});
 }

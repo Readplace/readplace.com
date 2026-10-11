@@ -125,7 +125,7 @@ describe("renderReaderSkeleton", () => {
 		assert(slot, "the skeleton must render its loading reader slot");
 		expect(slot.getAttribute("data-reader-status")).toBe("loading");
 		expect(content.querySelectorAll(".reader-skeleton__line").length).toBe(9);
-		expect(content.querySelectorAll("[data-progress-bar]").length).toBe(0);
+		expect(content.querySelectorAll("[data-test-progress-bar]").length).toBe(0);
 	});
 
 	it("carries no ids, so htmx never id-matches the skeleton against the reader it replaces", () => {
@@ -168,7 +168,6 @@ describe("renderReaderSkeleton", () => {
 		expect(srcs).toEqual([
 			"/client-dist/share-dialog.client.js",
 			"/client-dist/next-read.client.js",
-			"/client-dist/progress-bar.client.js",
 			"/client-dist/summary-toggle.client.js",
 			"/client-dist/crawl-bookmark.client.js",
 			"/client-dist/readlist-picker.client.js",

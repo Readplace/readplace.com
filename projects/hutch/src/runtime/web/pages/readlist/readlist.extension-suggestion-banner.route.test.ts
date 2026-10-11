@@ -255,7 +255,6 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 
 		expect(response.status).toBe(200);
 		expect(oobIds(response.text)).toEqual([
-			"article-body-progress",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
@@ -378,7 +377,6 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		).map((el) => el.id);
 		expect(ids).toEqual([
 			"article-body-summary-slot",
-			"article-body-progress",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",

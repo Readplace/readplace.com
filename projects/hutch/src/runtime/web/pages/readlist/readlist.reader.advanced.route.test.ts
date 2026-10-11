@@ -334,7 +334,7 @@ describe("Readlist routes", () => {
 			assert(slot, "reader slot must be rendered");
 			// At the cap, the slot stops polling and swaps to the friendly
 			// "Your link is saved" reframe so the user gets a clear CTA to the
-			// source rather than a dead spinner.
+			// source.
 			expect(slot.getAttribute("data-reader-status")).toBe("slow");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
 			const primary = doc.querySelector("[data-test-reader-failed-primary]");
@@ -358,9 +358,7 @@ describe("Readlist routes", () => {
 			// an ETag so an unchanged body collapses to 304 instead of re-shipping
 			// a few KB on every 3s tick.
 			//
-			// The progress bar OOB carries `tickAt: now.toISOString()`, so a real
-			// `() => new Date()` clock would bust the ETag on every poll and
-			// defeat the steady-state 304 contract. Pinning `now` to a fixed
+			// Pinning `now` to a fixed
 			// instant gives a deterministic body across the two requests.
 			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

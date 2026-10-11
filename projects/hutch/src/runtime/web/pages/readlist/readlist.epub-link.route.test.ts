@@ -178,7 +178,6 @@ describe("GET /queue/:id/view Download", () => {
 		const document = new JSDOM(response.text).window.document;
 		expect(Array.from(document.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
 			...settledSiblingOob,
-			"article-body-progress",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",

@@ -65,7 +65,6 @@ const VOLATILE_CHROME = [
 	"[data-test-reader-related]",
 	".crawl-bookmark",
 	".reader__float-stack",
-	".article-body__progress",
 ];
 
 const SHORT_ARTICLE = [

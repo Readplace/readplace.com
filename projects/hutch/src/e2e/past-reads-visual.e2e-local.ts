@@ -33,7 +33,6 @@ const TITLE = `${ROW} .past-reads__title`;
 const REASON = ".past-reads__reason";
 const SUMMARY_SLOT = "#article-body-summary-slot";
 const SUMMARY_CARD = ".tldr-disclosure";
-const SUMMARY_TOGGLE = ".tldr-disclosure__toggle";
 const READER_SLOT = "#article-body-reader-slot";
 const ROW_GAP_PX = 0;
 
@@ -302,22 +301,13 @@ async function cardCollapsed(page: Page): Promise<void> {
 	await betaTagIsBadgeSize(page);
 	assert.equal(await page.locator(CARD).getAttribute("open"), null, "the card starts collapsed");
 
-	const summaryBackground = await page
-		.locator(SUMMARY_CARD)
-		.evaluate((el) => window.getComputedStyle(el).backgroundColor);
 	const summaryBorderColor = await page
 		.locator(SUMMARY_CARD)
 		.evaluate((el) => window.getComputedStyle(el).borderTopColor);
-	const summaryTogglePadding = await page
-		.locator(SUMMARY_TOGGLE)
-		.evaluate((el) => window.getComputedStyle(el).padding);
 
-	assert.notEqual(summaryBackground, "rgba(0, 0, 0, 0)", "the summary card paints a surface");
-	await expect(page.locator(CARD)).toHaveCSS("background-color", summaryBackground);
 	await expect(page.locator(CARD)).toHaveCSS("border-top-width", "1px");
 	await expect(page.locator(CARD)).toHaveCSS("border-top-color", summaryBorderColor);
 	await expect(page.locator(CARD)).toHaveCSS("border-top-left-radius", "16px");
-	await expect(page.locator(TOGGLE)).toHaveCSS("padding", summaryTogglePadding);
 
 	const previewTitle = await page.locator(PREVIEW_TITLE).evaluate((el) => ({
 		clipped: el.scrollWidth > el.clientWidth,

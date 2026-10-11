@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_SUMMARY_STAGE, summaryStagePct } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { render } from "@packages/web-shell";
 import { renderSummaryFailed } from "./summary-failed.component";
 import { renderSummaryPending } from "./summary-pending.component";
 import { renderSummaryReady } from "./summary-ready.component";
+import { isCrawlVerdictSkip } from "./summary-skip-messages";
 import { renderSummarySkipped } from "./summary-skipped.component";
 
 const COLLAPSED_TEMPLATE = readFileSync(
@@ -35,11 +37,7 @@ export interface SummarySlotInput {
 	oob?: boolean;
 }
 
-// An empty, display:none slot that renders no card. Used both when the crawl
-// has failed (the reader-failed card already carries the message, so a visible
-// "skipped" card would duplicate it) and while the reader view is still
-// generating (the summary pipeline has not started yet, so a pending indicator
-// would spin with nothing behind it). The stable `id` keeps OOB swaps targeting
+// An empty, display:none slot that renders no card. The stable `id` keeps OOB swaps targeting
 // it across state transitions; passing a pollUrl keeps the htmx poll alive so
 // the deferred case promotes to the real indicator on the next poll. pollUrl is
 // HTML-escaped by Handlebars, matching the visible pending slot.
@@ -56,9 +54,7 @@ function renderCollapsedSlot(input: {
 // row). Content presence alone is not enough — renderReaderSlot's `pending`
 // branch ignores content, and content-present-with-crawl-pending is reachable
 // (e.g. an admin recrawl flips the crawl back to `pending` without dropping the
-// already-published content), a state where the reader still shows its pending
-// spinner. Gating on the crawl too keeps the summary deferred there instead of
-// spinning a second, orphaned indicator beside the reader's.
+// already-published content). Gating on the crawl too keeps the summary deferred there.
 function isReaderViewReady(
 	crawl: ArticleCrawl | undefined,
 	content: string | undefined,
@@ -68,7 +64,7 @@ function isReaderViewReady(
 
 export function renderSummarySlot(input: SummarySlotInput): string {
 	const oob = input.oob === true;
-	if (input.crawl?.status === "failed")
+	if (input.crawl?.status === "failed" || input.crawl?.status === "unsupported")
 		return renderCollapsedSlot({ status: "skipped", oob });
 	const summary = input.summary ?? { status: "pending" };
 	switch (summary.status) {
@@ -81,16 +77,21 @@ export function renderSummarySlot(input: SummarySlotInput): string {
 				oob,
 			});
 		case "pending":
-			return isReaderViewReady(input.crawl, input.content)
-				? renderSummaryPending({ pollUrl: input.summaryPollUrl, oob })
-				: renderCollapsedSlot({
-						status: "pending",
+			if (!isReaderViewReady(input.crawl, input.content))
+				return renderCollapsedSlot({ status: "pending", pollUrl: input.summaryPollUrl, oob });
+			return input.summaryPollUrl
+				? renderSummaryPending({
+						kind: "polling",
 						pollUrl: input.summaryPollUrl,
+						pct: summaryStagePct(summary.stage ?? DEFAULT_SUMMARY_STAGE),
 						oob,
-					});
+					})
+				: renderSummaryPending({ kind: "exhausted", oob });
 		case "failed":
-			return renderSummaryFailed({ reason: summary.reason, oob });
+			return renderSummaryFailed({ oob });
 		case "skipped":
-			return renderSummarySkipped({ reason: summary.reason, oob });
+			return isCrawlVerdictSkip(summary.reason)
+				? renderCollapsedSlot({ status: "skipped", oob })
+				: renderSummarySkipped({ reason: summary.reason, oob });
 	}
 }

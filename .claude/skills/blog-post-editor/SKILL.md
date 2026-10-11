@@ -65,7 +65,7 @@ The `slug` value in frontmatter **must** match the filename (minus `.md`). For e
 
 Write `tldr:` as one double-quoted YAML string on one line, so a colon or a `#` in the paragraph cannot end the value early. Escape a literal `"` as `\"` and a literal backslash as `\\`.
 
-The disclosure is one component shared with the reader's article summary, so a design change lands on both. To open it, grep the non-test sources of the shared presentational shell package (`pnpm nx show projects` lists it; its description says so) for the heading text `Summary (TL;DR)` — the hit inside a `<details>` template is the component.
+The disclosure is one component shared with the reader's article summary, so a design change lands on both. To open it, grep the non-test sources of the shared presentational shell package (`pnpm nx show projects` lists it; its description says so) for the `data-summary-toggle-url` attribute — the `<details>` template that writes it is the component.
 
 **Citing an external article.** Link through the reader rather than off the site. Drop the `https://` scheme and append the rest to `/view/`, as a root-relative link:
 

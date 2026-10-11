@@ -50,7 +50,6 @@ const VOLATILE_CHROME = [
 	"[data-test-reader-related]",
 	".crawl-bookmark",
 	".reader__float-stack",
-	".article-body__progress",
 ];
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });

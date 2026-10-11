@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, renderAlert } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "summary-failed.template.html"),
@@ -8,10 +8,19 @@ const TEMPLATE = readFileSync(
 );
 
 export interface SummaryFailedInput {
-	reason: string;
 	oob?: boolean;
 }
 
 export function renderSummaryFailed(input: SummaryFailedInput): string {
-	return render(TEMPLATE, { reason: input.reason, oob: input.oob === true });
+	return render(TEMPLATE, {
+		oob: input.oob === true,
+		alertHtml: renderAlert({
+			key: "reader-summary-failed",
+			content: {
+				variant: "error",
+				title: { text: "Summary unavailable", element: "p" },
+				message: { text: "Readplace couldn't generate a summary for this article." },
+			},
+		}),
+	});
 }

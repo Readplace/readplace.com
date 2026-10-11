@@ -1,27 +1,19 @@
 /**
- * Unified progress mapping for the single article-body progress bar.
- *
- * The page has two pending sub-states (crawl, summary) but exposes one bar to
- * the reader. Crawl stages live on the lower half of the 0–100 scale and
- * summary stages on the upper half so the bar marches forward across both
- * pipelines without ever moving backwards when crawl flips ready and the
- * summary worker takes over.
- *
  * Only stages observable to a poll are listed: terminal "ready"-like stages
  * (crawl-ready, summary-complete) are not included because by the time the
  * worker writes them the row's status attribute has already flipped to a
- * terminal value, and `buildUnifiedProgress` drops the bar entirely.
+ * terminal value.
  */
 
 export const CRAWL_STAGE_TO_PCT = {
-	"crawl-fetching": 5,
-	"crawl-fetched": 17,
-	"comprehensive-fetching": 20,
-	"comprehensive-extracting": 23,
-	"comprehensive-cleaning": 26,
-	"crawl-parsed": 29,
-	"crawl-metadata-written": 41,
-	"crawl-content-uploaded": 53,
+	"crawl-fetching": 8,
+	"crawl-fetched": 29,
+	"comprehensive-fetching": 34,
+	"comprehensive-extracting": 39,
+	"comprehensive-cleaning": 44,
+	"crawl-parsed": 49,
+	"crawl-metadata-written": 70,
+	"crawl-content-uploaded": 90,
 } as const;
 
 export type CrawlStage = keyof typeof CRAWL_STAGE_TO_PCT;
@@ -29,7 +21,7 @@ export type CrawlStage = keyof typeof CRAWL_STAGE_TO_PCT;
 export const CRAWL_STAGES = Object.keys(CRAWL_STAGE_TO_PCT) as readonly CrawlStage[];
 
 export const SUMMARY_STAGE_TO_PCT = {
-	"summary-started": 65,
+	"summary-started": 29,
 	"summary-generating": 90,
 } as const;
 
@@ -40,16 +32,20 @@ export const SUMMARY_STAGES = Object.keys(SUMMARY_STAGE_TO_PCT) as readonly Summ
 export const DEFAULT_CRAWL_STAGE: CrawlStage = "crawl-fetching";
 export const DEFAULT_SUMMARY_STAGE: SummaryStage = "summary-started";
 
-export type ProgressStage = CrawlStage | SummaryStage;
-
-export interface ProgressTick {
-	stage: ProgressStage;
-	pct: number;
-	tickAt: string;
-}
-
 export function crawlStagePct(stage: CrawlStage): number {
 	return CRAWL_STAGE_TO_PCT[stage];
+}
+
+export function crawlProgressPct(crawl: {
+	stage: CrawlStage;
+	parts?: { current: number; total: number };
+}): number {
+	const stagePct = CRAWL_STAGE_TO_PCT[crawl.stage];
+	const isComprehensiveSubStage =
+		crawl.stage === "comprehensive-extracting" || crawl.stage === "comprehensive-cleaning";
+	return isComprehensiveSubStage && crawl.parts !== undefined && crawl.parts.total > 0
+		? stagePct + (crawl.parts.current / crawl.parts.total) * (CRAWL_STAGE_TO_PCT["crawl-parsed"] - stagePct)
+		: stagePct;
 }
 
 export function summaryStagePct(stage: SummaryStage): number {

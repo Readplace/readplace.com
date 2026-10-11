@@ -102,7 +102,6 @@ function initFakeDeps(initial: {
 		formatDocumentTitle: (title) => `${title} — TestReader`,
 		appOrigin: "https://readplace.com",
 		summaryOpen: initial.summaryOpen ?? true,
-		now: () => FIXED_NOW,
 	};
 	return { state, deps };
 }
@@ -246,213 +245,6 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.crawlVersions).toEqual([]);
-		});
-
-		it("emits a unified progress tick driven by the crawl stage while crawl is pending", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "pending", stage: "crawl-parsed" },
-				summary: { status: "pending" },
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toEqual({
-				stage: "crawl-parsed",
-				pct: 29,
-				tickAt: FIXED_NOW.toISOString(),
-			});
-		});
-
-		it("falls back to crawl-fetching at the bottom of the bar when no crawl stage has been recorded yet", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
-				summary: { status: "pending" },
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toEqual({
-				stage: "crawl-fetching",
-				pct: 5,
-				tickAt: FIXED_NOW.toISOString(),
-			});
-		});
-
-		it("scales pct inside the comprehensive-extracting → crawl-parsed band when per-part progress is reported", async () => {
-			const { deps } = initFakeDeps({
-				crawl: {
-					status: "pending",
-					stage: "comprehensive-extracting",
-					parts: { current: 1, total: 2 },
-				},
-				summary: { status: "pending" },
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toEqual({
-				stage: "comprehensive-extracting",
-				pct: 26,
-				tickAt: FIXED_NOW.toISOString(),
-			});
-		});
-
-		it("emits stage-base pct when stage=comprehensive-extracting and no parts have been recorded yet", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "pending", stage: "comprehensive-extracting" },
-				summary: { status: "pending" },
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toEqual({
-				stage: "comprehensive-extracting",
-				pct: 23,
-				tickAt: FIXED_NOW.toISOString(),
-			});
-		});
-
-		it("does not scale pct on stages outside the comprehensive-extracting band (parts are ignored on other stages)", async () => {
-			const { deps } = initFakeDeps({
-				crawl: {
-					status: "pending",
-					stage: "crawl-fetching",
-					parts: { current: 1, total: 2 },
-				},
-				summary: { status: "pending" },
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toEqual({
-				stage: "crawl-fetching",
-				pct: 5,
-				tickAt: FIXED_NOW.toISOString(),
-			});
-		});
-
-		it("clamps the scaled pct at the top of the band when parts.current === parts.total", async () => {
-			const { deps } = initFakeDeps({
-				crawl: {
-					status: "pending",
-					stage: "comprehensive-extracting",
-					parts: { current: 4, total: 4 },
-				},
-				summary: { status: "pending" },
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toEqual({
-				stage: "comprehensive-extracting",
-				pct: 29,
-				tickAt: FIXED_NOW.toISOString(),
-			});
-		});
-
-		it("hands the unified bar over to the summary stage once the crawl has gone ready", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "ready" },
-				summary: { status: "pending", stage: "summary-generating" },
-				content: "<p>body</p>",
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toEqual({
-				stage: "summary-generating",
-				pct: 90,
-				tickAt: FIXED_NOW.toISOString(),
-			});
-		});
-
-		it("falls back to summary-started at the bottom of the summary range when no summary stage has been recorded yet", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "ready" },
-				summary: { status: "pending" },
-				content: "<p>body</p>",
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toEqual({
-				stage: "summary-started",
-				pct: 65,
-				tickAt: FIXED_NOW.toISOString(),
-			});
-		});
-
-		it("hides the bar once both pipelines are terminal", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
-				content: "<p>body</p>",
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toBeUndefined();
-		});
-
-		it("hides the bar when the crawl has failed (summary slot collapses; the bar would just stall)", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: "blocked" },
-				summary: { status: "pending" },
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-			});
-
-			expect(result.progress).toBeUndefined();
 		});
 
 		it("omits readerPollUrl when the crawl is ready", async () => {
@@ -714,10 +506,11 @@ describe("initArticleReader", () => {
 			expect(slot.hasAttribute("hx-get")).toBe(false);
 		});
 
-		it("includes the unified progress bar as an hx-swap-oob fragment so the bar updates without a separate poll", async () => {
+		it("carries the summary panel's own progress in the slot it swaps, with no separate bar", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "pending", stage: "summary-generating" },
+				content: "<p>body</p>",
 			});
 			const reader = initArticleReader(deps);
 
@@ -736,11 +529,11 @@ describe("initArticleReader", () => {
 			});
 
 			const doc = parse(toHtml(component));
-			const bar = doc.querySelector("#article-body-progress");
-			assert(bar, "progress bar OOB element must accompany the slot fragment");
-			expect(bar.getAttribute("hx-swap-oob")).toBe("outerHTML");
-			expect(bar.getAttribute("data-progress-stage")).toBe("summary-generating");
-			expect(bar.getAttribute("data-progress-pct")).toBe("90");
+			const slot = doc.querySelector("[data-test-reader-summary]");
+			assert(slot, "summary slot must be rendered");
+			const track = slot.querySelector('[data-test-progress-bar="summary"] [role="progressbar"]');
+			assert(track, "the pending summary panel must carry its own progress track");
+			expect(track.getAttribute("aria-valuenow")).toBe("90");
 		});
 
 		it("renders a ready summary expanded (summaryOpen: true) and stops polling", async () => {
@@ -888,7 +681,7 @@ describe("initArticleReader", () => {
 			expect(primary.getAttribute("href")).toBe(ARTICLE_URL);
 		});
 
-		it("includes the unified progress bar as an hx-swap-oob fragment driven by the recorded crawl stage", async () => {
+		it("carries the reader panel's own progress in the slot it swaps, driven by the recorded crawl stage", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending", stage: "crawl-content-uploaded" },
 				content: undefined,
@@ -910,11 +703,11 @@ describe("initArticleReader", () => {
 			});
 
 			const doc = parse(toHtml(component));
-			const bar = doc.querySelector("#article-body-progress");
-			assert(bar, "progress bar OOB element must accompany the slot fragment");
-			expect(bar.getAttribute("hx-swap-oob")).toBe("outerHTML");
-			expect(bar.getAttribute("data-progress-stage")).toBe("crawl-content-uploaded");
-			expect(bar.getAttribute("data-progress-pct")).toBe("53");
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			const track = slot.querySelector('[data-test-progress-bar="reader"] [role="progressbar"]');
+			assert(track, "the pending reader panel must carry its own progress track");
+			expect(track.getAttribute("aria-valuenow")).toBe("90");
 		});
 
 		it("renders the ready reader with content when the crawl is ready", async () => {
@@ -1385,7 +1178,7 @@ describe("initArticleReader", () => {
 		});
 	});
 
-	/* The progress bar tracks BOTH crawl and summary, but each slot has its
+	/* Each slot has its
 	 * own self-driven poll. If the page loads while one axis is terminal and
 	 * later the recrawl pipeline flips that axis back to pending (e.g. admin
 	 * recrawl reseeds summary when canonicalContentHash differs), the original
@@ -1422,7 +1215,7 @@ describe("initArticleReader", () => {
 			expect(summarySlot.getAttribute("hx-get")).toBe("/test/summary?poll=1");
 		});
 
-		it("handleReaderPoll emits a deferred OOB summary slot (no loading span, still polling) while the crawl is pending", async () => {
+		it("handleReaderPoll emits a deferred OOB summary slot (hidden, still polling) while the crawl is pending", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 				summary: { status: "pending" },
@@ -1453,7 +1246,6 @@ describe("initArticleReader", () => {
 				summarySlot.classList.contains("article-body__summary-slot--hidden"),
 			).toBe(true);
 			expect(summarySlot.getAttribute("hx-get")).toBe("/test/summary?poll=1");
-			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 		});
 
 		it("handleSummaryPoll emits an OOB reader slot with hx-get when crawl has gone pending while summary is settling", async () => {
@@ -1544,7 +1336,6 @@ describe("initArticleReader", () => {
 			const swappedIds = Array.from(response.children).map((el) => el.id);
 			expect(swappedIds).toEqual([
 				"article-body-summary-slot",
-				"article-body-progress",
 				"article-header",
 				"document-title",
 				"article-body-reader-notice",
@@ -1587,9 +1378,9 @@ describe("initArticleReader", () => {
 			assert(summarySlot, "summary slot must be present as an OOB swap to keep the chain alive");
 			expect(summarySlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
 			expect(summarySlot.getAttribute("hx-get")).toBe("/test/summary?poll=1");
-			const bar = doc.querySelector("#article-body-progress");
-			assert(bar, "progress bar still present");
-			expect(bar.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			const track = summarySlot.querySelector('[data-test-progress-bar="summary"] [role="progressbar"]');
+			assert(track, "the summary panel must carry its own progress track");
+			expect(track.getAttribute("aria-valuenow")).toBe("29");
 		});
 	});
 
@@ -1827,13 +1618,11 @@ describe("initArticleReader", () => {
 
 		const READER_POLL_BASELINE = [
 			"article-body-summary-slot",
-			"article-body-progress",
 			"article-header",
 			"document-title",
 		];
 		const SUMMARY_POLL_BASELINE = [
 			"article-body-reader-slot",
-			"article-body-progress",
 			"article-header",
 			"document-title",
 		];
@@ -1890,7 +1679,6 @@ describe("initArticleReader", () => {
 			});
 
 			expect(oobIds(component)).toEqual([
-				"article-body-progress",
 				"article-header",
 				"document-title",
 				"reader-view-failed-probe",
@@ -2037,7 +1825,6 @@ describe("initArticleReader", () => {
 				readerPollUrl: undefined,
 				summaryPollUrl: undefined,
 				capturePollUrl: undefined,
-				progress: undefined,
 				crawlVersions: [],
 				readerViewFailed: false,
 				readerContentUnavailable: true,

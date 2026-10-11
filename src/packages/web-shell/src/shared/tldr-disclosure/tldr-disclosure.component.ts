@@ -20,13 +20,11 @@ export interface TldrDisclosure {
 	toggleUrl?: string;
 }
 
-// Strips a trailing ellipsis so it never doubles up with the "view more …" the
-// template appends after the preview.
 function buildPreview(input: TldrDisclosure): string {
-	if (input.excerpt) return input.excerpt.replace(/…\s*$/u, "").trimEnd();
+	if (input.excerpt) return input.excerpt;
 	assert("text" in input.body, "an html TL;DR body needs an excerpt");
 	const flattened = input.body.text.replace(/\s+/g, " ").trim();
-	return truncateAtWordBoundary(flattened, MAX_EXCERPT_LENGTH).replace(/…\s*$/u, "").trimEnd();
+	return truncateAtWordBoundary(flattened, MAX_EXCERPT_LENGTH);
 }
 
 export function renderTldrDisclosure(input: TldrDisclosure): string {

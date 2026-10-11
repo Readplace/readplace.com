@@ -318,7 +318,7 @@ describe("save provenance tag", () => {
 });
 
 describe("renderArticleHeaderOob", () => {
-	it("emits the same header markup carrying hx-swap-oob so it slots into poll responses alongside the existing reader-slot and progress-bar OOB", () => {
+	it("emits the same header markup carrying hx-swap-oob so it slots into poll responses alongside the existing reader-slot", () => {
 		const doc = parse(renderArticleHeaderOob(baseInput));
 
 		const header = doc.querySelector("#article-header");

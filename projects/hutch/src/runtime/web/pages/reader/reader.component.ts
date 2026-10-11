@@ -28,10 +28,8 @@ import {
 	renderMarkStatusConfirm,
 } from "../readlist/mark-status-confirm.component";
 import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
-import { PROGRESS_BAR_SCRIPT } from "../../shared/article-body/progress-bar.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../shared/article-body/summary-slot/summary-slot.component";
 import { READER_OPEN_SCRIPT } from "../../shared/reader-open/reader-open-script";
-import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
 	NEXT_READ_SCRIPT,
@@ -103,7 +101,6 @@ export function ReaderPage(
 		crawl?: ArticleCrawl;
 		readerPollUrl?: string;
 		capturePollUrl?: string;
-		progress?: ProgressTick;
 		related?: RelatedArticles;
 		relatedPollUrl?: string;
 		previouslyRead?: PastReads;
@@ -203,7 +200,6 @@ export function ReaderPage(
 		summaryPollUrl: options.summaryPollUrl,
 		summaryOpen: false,
 		summaryToggleUrl: `/queue/${articleId}/summary-toggle`,
-		progress: options.progress,
 		appOrigin: options.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
@@ -274,7 +270,6 @@ export function ReaderPage(
 			page:
 				SHARE_DIALOG_SCRIPT +
 				NEXT_READ_SCRIPT +
-				PROGRESS_BAR_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
 				(picker === undefined ? "" : READLIST_PICKER_SCRIPT) +

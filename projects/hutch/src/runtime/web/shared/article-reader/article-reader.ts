@@ -21,16 +21,6 @@ import {
 	renderDocumentTitleOob,
 } from "../article-body/article-header/article-header.component";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
-import { renderProgressBarOob } from "../article-body/progress-bar.component";
-import {
-	CRAWL_STAGE_TO_PCT,
-	type CrawlStage,
-	DEFAULT_CRAWL_STAGE,
-	DEFAULT_SUMMARY_STAGE,
-	type ProgressTick,
-	SUMMARY_STAGE_TO_PCT,
-	type SummaryStage,
-} from "@packages/domain/article";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
 import { toAbsoluteShortDateTime, type LocalTime } from "@packages/web-shell/local-time.format";
@@ -68,7 +58,6 @@ interface PollResponseBodyInput {
 	summaryOpen: boolean;
 	summaryToggleUrl: string | undefined;
 	extensionInstallUrl: string | undefined;
-	progress: ProgressTick | undefined;
 	metadataOob: string;
 	readerViewFailedOob: string;
 	downloadsOob: string;
@@ -99,12 +88,10 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		content: input.content,
 		oob: input.primary !== "summary",
 	});
-	const progressBarOob = renderProgressBarOob({ progress: input.progress });
 	if (input.primary === "reader") {
 		return (
 			reader.slot +
 			summarySlot +
-			progressBarOob +
 			input.metadataOob +
 			input.readerViewFailedOob +
 			input.downloadsOob +
@@ -116,7 +103,6 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 	return (
 		summarySlot +
 		(readerSettledOnArticle ? "" : reader.slot) +
-		progressBarOob +
 		input.metadataOob +
 		input.readerViewFailedOob +
 		input.downloadsOob +
@@ -213,61 +199,6 @@ function shouldKeepPollingReader(
 }
 
 /**
- * Single-bar progress: pick the further-along pipeline. While the crawl is
- * pending, drive the bar from the crawl stage on the lower half of the
- * unified scale. Once the crawl is ready (or undefined-with-content, the
- * legacy-row path) the summary takes over on the upper half.
- *
- * Returns undefined when there is nothing left to animate — both pipelines
- * terminal, or the crawl has failed/unsupported and the summary slot has
- * collapsed (rendering a half-full bar there would just stall forever).
- */
-function buildUnifiedProgress(
-	crawl: ArticleCrawl | undefined,
-	summary: GeneratedSummary | undefined,
-	now: Date,
-): ProgressTick | undefined {
-	if (crawl?.status === "failed" || crawl?.status === "unsupported") return undefined;
-
-	if (crawl?.status === "pending") {
-		const stage: CrawlStage = crawl.stage ?? DEFAULT_CRAWL_STAGE;
-		const stagePct = CRAWL_STAGE_TO_PCT[stage];
-		// Scale the bar inside the comprehensive-extracting / -cleaning band
-		// when the OCR provider reports per-part progress. Without this, a
-		// 300-page PDF would sit at the bottom of the band (23–26 %) for
-		// minutes while the bar's client-side smoother drifts forward
-		// without ground truth from the server.
-		const isComprehensiveSubStage =
-			stage === "comprehensive-extracting" || stage === "comprehensive-cleaning";
-		const pct =
-			isComprehensiveSubStage &&
-			crawl.parts !== undefined &&
-			crawl.parts.total > 0
-				? stagePct +
-					(crawl.parts.current / crawl.parts.total) *
-						(CRAWL_STAGE_TO_PCT["crawl-parsed"] - stagePct)
-				: stagePct;
-		return {
-			stage,
-			pct,
-			tickAt: now.toISOString(),
-		};
-	}
-
-	const summaryStatus = summary?.status ?? "pending";
-	if (summaryStatus !== "pending") return undefined;
-
-	const recordedStage =
-		summary?.status === "pending" ? summary.stage : undefined;
-	const stage: SummaryStage = recordedStage ?? DEFAULT_SUMMARY_STAGE;
-	return {
-		stage,
-		pct: SUMMARY_STAGE_TO_PCT[stage],
-		tickAt: now.toISOString(),
-	};
-}
-
-/**
  * The reader bookmark surfaces only the newest few dated versions. The stored
  * log is intentionally unbounded (see `appendCrawlVersion`), so raising this
  * limit — or building a dedicated all-versions view — needs no backfill.
@@ -305,7 +236,6 @@ const GATED_READER_STATE: ReaderState = {
 	readerPollUrl: undefined,
 	summaryPollUrl: undefined,
 	capturePollUrl: undefined,
-	progress: undefined,
 	crawlVersions: [],
 	readerViewFailed: false,
 	readerContentUnavailable: true,
@@ -343,7 +273,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			readerPollUrl,
 			summaryPollUrl,
 			capturePollUrl: pollUrlBuilder.reader(1, true),
-			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			crawlVersions: resolveCrawlVersions(versions, freshness?.contentFetchedAt),
 			readerViewFailed: isReaderViewFailed({
 				crawlStatus: crawl?.status,
@@ -374,7 +303,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				summaryOpen: deps.summaryOpen,
 				summaryToggleUrl: undefined,
 				extensionInstallUrl: undefined,
-				progress: undefined,
 				metadataOob:
 					renderArticleHeaderOob({
 						title: stub.title,
@@ -451,7 +379,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
-			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob({
 				article,
 				destinationUrl,
@@ -498,7 +425,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
-			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob({
 				article,
 				destinationUrl,

@@ -12,6 +12,18 @@ function parse(regions: { slot: string; notice: string }) {
 const URL = destinationUrl("https://example.com/article");
 const APP_ORIGIN = "https://readplace.com";
 
+function readerProgressTrack(doc: Document): Element {
+	const track = doc.querySelector('[data-test-progress-bar="reader"] [role="progressbar"]');
+	assert(track, "the reader progress track must be rendered");
+	return track;
+}
+
+function pendingDescriptions(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-reader-pending-text]")).map(
+		(el) => el.textContent,
+	);
+}
+
 describe("renderReaderSlot", () => {
 	it("returns only the two region fragments (no outer page)", () => {
 		const { slot, notice } = renderReaderSlot({
@@ -42,6 +54,41 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1");
 		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(readerProgressTrack(doc).getAttribute("aria-valuenow")).toBe("8");
+	});
+
+	it("reports the recorded crawl stage on the reader's own axis", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending", stage: "crawl-parsed" },
+				url: URL,
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+			}),
+		);
+
+		expect(readerProgressTrack(doc).getAttribute("aria-valuenow")).toBe("49");
+	});
+
+	it("floors the OCR part interpolation in the label", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "pending",
+					stage: "comprehensive-extracting",
+					parts: { current: 3, total: 10 },
+				},
+				url: URL,
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+			}),
+		);
+
+		expect(
+			doc.querySelector('[data-test-progress-bar="reader"] [data-test-progress-label]')?.textContent,
+		).toBe("42% complete");
 	});
 
 	it("renders the PDF accuracy-over-slop loading hint when the pending URL is a .pdf", () => {
@@ -55,9 +102,10 @@ describe("renderReaderSlot", () => {
 			}),
 		);
 
-		const subtitle = doc.querySelector(".article-body__reader-loading-subtitle");
-		assert(subtitle, "loading-hint subtitle must render for a pending .pdf URL");
-		expect(subtitle.textContent).toMatch(/accuracy over slop/);
+		expect(pendingDescriptions(doc)).toEqual([
+			"Readplace is cleaning up this article for a focused, distraction-free reading experience.",
+			"Readplace optimises for accuracy over slop — low-quality PDFs may produce some optical scan gibberish.",
+		]);
 	});
 
 	it("omits the loading hint when the pending URL is an HTML article", () => {
@@ -71,7 +119,9 @@ describe("renderReaderSlot", () => {
 			}),
 		);
 
-		expect(doc.querySelector(".article-body__reader-loading-subtitle")).toBeNull();
+		expect(pendingDescriptions(doc)).toEqual([
+			"Readplace is cleaning up this article for a focused, distraction-free reading experience.",
+		]);
 	});
 
 	it("omits the loading hint when the URL is invalid (URL parse throws)", () => {
@@ -85,7 +135,9 @@ describe("renderReaderSlot", () => {
 			}),
 		);
 
-		expect(doc.querySelector(".article-body__reader-loading-subtitle")).toBeNull();
+		expect(pendingDescriptions(doc)).toEqual([
+			"Readplace is cleaning up this article for a focused, distraction-free reading experience.",
+		]);
 	});
 
 	it("routes status=pending WITHOUT a poll URL to the 'slow' reframe (poll cap exhausted)", () => {
@@ -377,6 +429,7 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1");
+		expect(readerProgressTrack(doc).getAttribute("aria-valuenow")).toBe("8");
 	});
 
 	it("renders the 'slow' reframe when crawl status is missing and there is no poll URL left", () => {
@@ -416,6 +469,7 @@ describe("renderReaderSlot", () => {
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
+		expect(readerProgressTrack(doc).getAttribute("aria-valuenow")).toBe("90");
 	});
 
 	it("renders the 'slow' reframe when crawl is ready but content is missing and the poll cap has exhausted", () => {
@@ -476,9 +530,12 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=2&capturing=1");
-		expect(doc.querySelector(".article-body__reader-loading")?.textContent).toBe(
+		expect(slot.querySelector("[data-test-reader-pending-title]")?.textContent).toBe(
 			"Copying the page from your device",
 		);
+		const bar = slot.querySelector('[data-test-progress-bar="reader"]');
+		assert(bar, "the reader progress block must be rendered");
+		expect(bar.classList.contains("article-body__progress--hidden")).toBe(true);
 	});
 
 	it("falls back to the blocked notice when a capture outlives the poll budget", () => {

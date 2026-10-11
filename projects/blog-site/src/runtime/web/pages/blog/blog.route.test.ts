@@ -217,9 +217,7 @@ describe("GET /blog/:slug", () => {
 		expect(tldr.hasAttribute("data-summary-toggle-url")).toBe(false);
 		expect(tldr.compareDocumentPosition(content) & 4).toBe(4);
 		expect(doc.querySelector("[data-test-reader-summary]")).toBeNull();
-		expect(tldr.querySelector(".tldr-disclosure__preview")?.textContent).toBe(
-			`${firstPost.description} view more …`,
-		);
+		expect(tldr.querySelector(".tldr-disclosure__preview")?.textContent).toBe(firstPost.description);
 		assert("html" in firstPost.tldr, "a blog TL;DR is rendered markdown");
 		const expectedBody = new JSDOM(`<div>${firstPost.tldr.html}</div>`).window.document.querySelector("div");
 		assert(expectedBody, "the expected body must parse");

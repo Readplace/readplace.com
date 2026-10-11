@@ -1595,8 +1595,9 @@ describe("View routes", () => {
 			expect(slot.getAttribute("data-summary-status")).toBe("pending");
 			expect(slot.getAttribute("hx-get")).toMatch(/^\/view\/summary\?url=.+&poll=1$/);
 			expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
-			const loading = doc.querySelector(".article-body__summary-loading");
-			assert(loading, "loading indicator must be rendered when status=pending");
+			const pendingTitle = slot.querySelector("[data-test-summary-pending-title]");
+			assert(pendingTitle, "the pending summary panel must be rendered when status=pending");
+			expect(pendingTitle.textContent).toBe("Generating summary");
 		});
 
 		it("shows an inline error when status=failed", async () => {
@@ -1648,13 +1649,15 @@ describe("View routes", () => {
 			assert(slot, "summary slot must be rendered");
 			expect(slot.getAttribute("data-summary-status")).toBe("failed");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
-			expect(
-				doc.querySelector(".article-body__summary-error")?.textContent,
-			).toContain("couldn't generate a summary");
-			expect(
-				doc.querySelector("[data-test-reader-summary-failure-reason]")
-					?.textContent,
-			).toBe("deepseek timeout");
+			const alert = slot.querySelector('[data-test-alert="reader-summary-failed"]');
+			assert(alert, "the failed summary must render the error alert");
+			expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
+				"Summary unavailable",
+			);
+			expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
+				"Readplace couldn't generate a summary for this article.",
+			);
+			expect(response.text.includes("deepseek timeout")).toBe(false);
 		});
 
 		it("renders a visible info card with the reason copy when status=skipped", async () => {
@@ -1708,13 +1711,13 @@ describe("View routes", () => {
 			expect(
 				slot.classList.contains("article-body__summary-slot--visible"),
 			).toBe(true);
-			const info = doc.querySelector(".article-body__summary-info");
-			assert(info, "info card must be rendered");
-			expect(info.getAttribute("data-test-reader-summary-skip-reason")).toBe(
+			expect(slot.getAttribute("data-test-reader-summary-skip-reason")).toBe(
 				"content-too-short",
 			);
-			expect(info.textContent).toBe(
-				"This article is too short to summarise.",
+			const alert = slot.querySelector('[data-test-alert="reader-summary-skipped"]');
+			assert(alert, "the skipped summary must render the info alert");
+			expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
+				"This article is too short to generate a summary.",
 			);
 		});
 
@@ -1840,14 +1843,12 @@ describe("View routes", () => {
 			assert(slot, "summary slot must be rendered");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
 			// Reader view never became ready (no content), so the summary stays
-			// deferred and empty rather than showing the misleading
-			// "Still generating — refresh" message; the reader slot carries the
+			// deferred and empty; the reader slot carries the
 			// terminal reframe in this state.
 			expect(slot.getAttribute("data-summary-status")).toBe("pending");
 			expect(
 				slot.classList.contains("article-body__summary-slot--hidden"),
 			).toBe(true);
-			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 		});
 
 		it("swaps in a header with the public facts", async () => {
@@ -1932,9 +1933,7 @@ describe("View routes", () => {
 			// hx-swap-oob fragments, plus an ETag so an unchanged body collapses
 			// to 304 instead of re-shipping the same payload every 3s.
 			//
-			// The progress bar OOB carries `tickAt: now.toISOString()`, so a real
-			// `() => new Date()` clock would bust the ETag on every poll and
-			// defeat the steady-state 304 contract. Pinning `now` to a fixed
+			// Pinning `now` to a fixed
 			// instant gives a deterministic body across the two requests.
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -2144,7 +2143,6 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			expect(oobIds(response.text)).toEqual([
-				"article-body-progress",
 				"article-header",
 				"document-title",
 				"view-cta-save",
@@ -2186,7 +2184,6 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			expect(oobIds(response.text)).toEqual([
 				"article-body-summary-slot",
-				"article-body-progress",
 				"article-header",
 				"document-title",
 				"article-body-reader-notice",

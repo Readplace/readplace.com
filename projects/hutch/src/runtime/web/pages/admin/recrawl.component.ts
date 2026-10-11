@@ -11,7 +11,6 @@ import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
-import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 import { displayableReadTime } from "@packages/domain/article";
@@ -28,8 +27,6 @@ import { displayableReadTime } from "@packages/domain/article";
 export function recrawlPathFor(articleUrl: string): string {
 	return `/admin/recrawl?url=${encodeURIComponent(articleUrl)}`;
 }
-
-const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 
 // POST-Redirect-GET: the recrawl is a state mutation, so the operator's
 // browser submits it via POST instead of firing it on the read-only GET.
@@ -76,7 +73,6 @@ export interface AdminRecrawlPageInput {
 	readerPollUrl?: string;
 	summary?: GeneratedSummary;
 	summaryPollUrl?: string;
-	progress?: ProgressTick;
 	contentSourceTier?: ContentTier;
 	extensionInstallUrl?: string;
 	appOrigin: string;
@@ -112,7 +108,6 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
 		summaryOpen: false,
-		progress: input.progress,
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
@@ -138,7 +133,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		content: { html: content },
 		scripts: readerScripts({
 			navHide: NAV_HIDE_DISABLED,
-			page: PROGRESS_BAR_SCRIPT + CRAWL_BOOKMARK_SCRIPT + triggerScript,
+			page: CRAWL_BOOKMARK_SCRIPT + triggerScript,
 		}),
 	};
 }

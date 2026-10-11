@@ -924,7 +924,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		summaryOpen: false,
-		now: deps.now,
 	});
 	const resolveReaderPermalinkIn = (readlist: ReadlistSlug) =>
 		initReaderPermalink({
@@ -1267,7 +1266,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				crawl: state.crawl,
 				readerPollUrl: state.readerPollUrl,
 				capturePollUrl: state.capturePollUrl,
-				progress: state.progress,
 				related,
 				relatedPollUrl,
 				...pastReadsOptions,
@@ -1346,7 +1344,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					crawl: state.crawl,
 					readerPollUrl: state.readerPollUrl,
 					capturePollUrl: state.capturePollUrl,
-					progress: state.progress,
 					related,
 					relatedPollUrl,
 					...pastReadsOptions,

@@ -930,7 +930,7 @@ describe("Readlist routes", () => {
 				summarySlot.classList.contains("article-body__summary-slot--visible"),
 			).toBe(true);
 			expect(summarySlot.textContent).toContain("Key points from the article");
-			expect(doc.querySelector(".tldr-disclosure__heading")?.textContent).toBe("Summary (TL;DR)");
+			expect(doc.querySelector(".tldr-disclosure__heading")?.textContent).toBe("Summary");
 			// Collapsed reader still teases the summary: the preview must live inside
 			// the <summary> so it shows while the <details> is closed.
 			const preview = doc.querySelector(".tldr-disclosure__preview");
@@ -1006,8 +1006,9 @@ describe("Readlist routes", () => {
 			expect(summarySlot.getAttribute("data-summary-status")).toBe("pending");
 			expect(summarySlot.getAttribute("hx-get")).toMatch(/^\/queue\/.+\/summary\?poll=1$/);
 			expect(summarySlot.getAttribute("hx-trigger")).toBe("every 3s");
-			const loading = doc.querySelector(".article-body__summary-loading");
-			assert(loading, "loading indicator must be rendered when status=pending");
+			const pendingTitle = summarySlot.querySelector("[data-test-summary-pending-title]");
+			assert(pendingTitle, "the pending summary panel must be rendered when status=pending");
+			expect(pendingTitle.textContent).toBe("Generating summary");
 		});
 
 		it("defers the summary slot (empty, still polling) while the crawl is pending at request time", async () => {
@@ -1081,14 +1082,13 @@ describe("Readlist routes", () => {
 			).toBe(true);
 			expect(summarySlot.getAttribute("hx-get")).toMatch(/^\/queue\/.+\/summary\?poll=1$/);
 			expect(summarySlot.getAttribute("hx-trigger")).toBe("every 3s");
-			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 
 			const readerSlot = doc.querySelector("[data-test-reader-slot]");
 			assert(readerSlot, "reader slot must be rendered");
 			expect(readerSlot.getAttribute("data-reader-status")).toBe("pending");
 			expect(
-				doc.querySelector(".article-body__reader-loading")?.textContent,
-			).toContain("Generating clean reader view");
+				readerSlot.querySelector("[data-test-reader-pending-title]")?.textContent,
+			).toBe("Preparing your reader view");
 		});
 
 		it("should show an inline error when status=failed", async () => {
@@ -1157,13 +1157,15 @@ describe("Readlist routes", () => {
 			assert(summarySlot, "summary slot must be rendered");
 			expect(summarySlot.getAttribute("data-summary-status")).toBe("failed");
 			expect(summarySlot.hasAttribute("hx-get")).toBe(false);
-			expect(
-				doc.querySelector(".article-body__summary-error")?.textContent,
-			).toContain("couldn't generate a summary");
-			expect(
-				doc.querySelector("[data-test-reader-summary-failure-reason]")
-					?.textContent,
-			).toBe("deepseek timeout");
+			const alert = summarySlot.querySelector('[data-test-alert="reader-summary-failed"]');
+			assert(alert, "the failed summary must render the error alert");
+			expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
+				"Summary unavailable",
+			);
+			expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
+				"Readplace couldn't generate a summary for this article.",
+			);
+			expect(readerResponse.text.includes("deepseek timeout")).toBe(false);
 		});
 
 		it("should render a visible info card with the reason copy when status=skipped", async () => {
@@ -1234,13 +1236,13 @@ describe("Readlist routes", () => {
 			expect(
 				summarySlot.classList.contains("article-body__summary-slot--visible"),
 			).toBe(true);
-			const info = doc.querySelector(".article-body__summary-info");
-			assert(info, "info card must be rendered");
-			expect(info.getAttribute("data-test-reader-summary-skip-reason")).toBe(
+			expect(summarySlot.getAttribute("data-test-reader-summary-skip-reason")).toBe(
 				"content-too-short",
 			);
-			expect(info.textContent).toBe(
-				"This article is too short to summarise.",
+			const alert = summarySlot.querySelector('[data-test-alert="reader-summary-skipped"]');
+			assert(alert, "the skipped summary must render the info alert");
+			expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
+				"This article is too short to generate a summary.",
 			);
 		});
 
@@ -1537,9 +1539,10 @@ describe("Readlist routes", () => {
 			const slot = doc.querySelector("[data-test-reader-summary]");
 			assert(slot, "summary slot must be rendered");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
-			expect(
-				doc.querySelector(".article-body__summary-loading")?.textContent,
-			).toContain("Still generating");
+			const description = slot.querySelector("[data-test-summary-pending-text]");
+			assert(description, "the pending summary panel must render its description");
+			expect(description.textContent).toBe("Taking a while — refresh to check again.");
+			expect(description.classList.contains("article-body__panel-text--visible")).toBe(true);
 		});
 
 		it("GET /queue/:id/summary returns 404 for a missing article", async () => {
@@ -1792,7 +1795,7 @@ describe("Readlist routes", () => {
 			assert(capturingSlot, "reader slot must be rendered while the capture is in flight");
 			expect(capturingSlot.getAttribute("data-reader-status")).toBe("pending");
 			expect(
-				capturingSlot.querySelector(".article-body__reader-loading")?.textContent,
+				capturingSlot.querySelector("[data-test-reader-pending-title]")?.textContent,
 			).toBe("Copying the page from your device");
 			expect(capturingSlot.getAttribute("hx-get")).toBe(
 				`/queue/${articleId}/reader?poll=2&capturing=1`,

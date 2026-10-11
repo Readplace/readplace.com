@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
-import type { ArticleDestinationUrl } from "@packages/domain/article";
+import {
+	type ArticleDestinationUrl,
+	DEFAULT_CRAWL_STAGE,
+	crawlProgressPct,
+	crawlStagePct,
+} from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
 import { render } from "@packages/web-shell";
@@ -10,7 +15,7 @@ import {
 	type ReaderRegions,
 	renderReaderFailed,
 } from "./reader-failed.component";
-import { renderReaderPending } from "./reader-pending.component";
+import { READER_PENDING_DESCRIPTION, renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady } from "./reader-ready.component";
 
 export interface ReaderSlotInput {
@@ -52,15 +57,14 @@ function withEmptyNotice(slot: string, noticeOob: boolean): ReaderRegions {
  *
  * Pending without a poll URL (the worker is still going but the page has
  * exhausted its 40-tick budget) routes to the same `Your link is saved`
- * reframe as the failure variants — the user shouldn't sit watching a dead
- * spinner; the URL is recoverable on the source.
+ * reframe as the failure variants — the URL is recoverable on the source.
  */
 /* The message tells readers this pipeline prefers visible OCR artifacts over
  * confidently-wrong rewrites. Pre-fetch we only have the URL, so we pass the
  * pathname signal alone; a false negative just shows the standard pending
  * message. */
 const PDF_LOADING_HINT =
-	"We optimise for accuracy over slop — low-quality PDFs may produce some optical scan gibberish.";
+	"Readplace optimises for accuracy over slop — low-quality PDFs may produce some optical scan gibberish.";
 
 function resolveLoadingHint(url: string): string | undefined {
 	let pathname: string;
@@ -85,8 +89,6 @@ function failedVariant(reason: string): ReaderFailedVariant {
 	return "failed";
 }
 
-const CAPTURING_LABEL = "Copying the page from your device";
-
 function noticeOrCapture(
 	input: ReaderSlotInput,
 	variant: ReaderFailedVariant,
@@ -95,8 +97,8 @@ function noticeOrCapture(
 	if (input.capturing === true && input.readerPollUrl !== undefined) {
 		return withEmptyNotice(
 			renderReaderPending({
+				kind: "capture",
 				pollUrl: input.readerPollUrl,
-				label: CAPTURING_LABEL,
 				oob,
 			}),
 			input.noticeOob,
@@ -112,13 +114,20 @@ function noticeOrCapture(
 	});
 }
 
-function pollOrSlow(input: ReaderSlotInput, oob: boolean): ReaderRegions {
+function pendingDescriptions(url: string): readonly string[] {
+	const hint = resolveLoadingHint(url);
+	return hint === undefined ? [READER_PENDING_DESCRIPTION] : [READER_PENDING_DESCRIPTION, hint];
+}
+
+function pollOrSlow(input: ReaderSlotInput, oob: boolean, pct: number): ReaderRegions {
 	return input.readerPollUrl
 		? withEmptyNotice(
 				renderReaderPending({
+					kind: "crawl",
 					pollUrl: input.readerPollUrl,
+					pct,
+					descriptions: pendingDescriptions(input.url),
 					oob,
-					loadingHint: resolveLoadingHint(input.url),
 				}),
 				input.noticeOob,
 			)
@@ -150,7 +159,7 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 	}
 	if (input.crawl === undefined) {
 		if (input.content) return ready(input, input.content, oob);
-		return pollOrSlow(input, oob);
+		return pollOrSlow(input, oob, crawlStagePct(DEFAULT_CRAWL_STAGE));
 	}
 
 	switch (input.crawl.status) {
@@ -159,9 +168,16 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 			 * inconsistency picked up by stuck-articles-canary; render pending
 			 * so the slot retries instead of erroring. */
 			if (input.content) return ready(input, input.content, oob);
-			return pollOrSlow(input, oob);
+			return pollOrSlow(input, oob, crawlStagePct("crawl-content-uploaded"));
 		case "pending":
-			return pollOrSlow(input, oob);
+			return pollOrSlow(
+				input,
+				oob,
+				crawlProgressPct({
+					stage: input.crawl.stage ?? DEFAULT_CRAWL_STAGE,
+					parts: input.crawl.parts,
+				}),
+			);
 		case "failed":
 			return noticeOrCapture(input, failedVariant(input.crawl.reason), oob);
 		case "unsupported":

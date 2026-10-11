@@ -390,7 +390,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(doc.querySelector('script[src*="/client-dist/webmcp.client.js"]')).toBe(null);
 	});
 
-	it("keeps the reader extras: AI summary, progress bar, Share, and the Original link", async () => {
+	it("keeps the reader extras: AI summary, Share, and the Original link", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-extras");
@@ -400,7 +400,6 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const summary = doc.querySelector("[data-test-reader-summary]");
 		assert(summary, "summary slot must be rendered");
 		expect(summary.getAttribute("data-summary-status")).toBe("ready");
-		expect(doc.querySelector("[data-test-progress-bar]")).not.toBe(null);
 		const share = doc.querySelector('[data-test-share-slot] [data-test-action="share-open"]');
 		assert(share, "the chromeless toolbar must offer Share");
 		expect(share.getAttribute("popovertarget")).toBe("reader-share");
@@ -518,7 +517,6 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		).map((el) => el.id);
 		expect(ids).toEqual([
 			"article-body-summary-slot",
-			"article-body-progress",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
@@ -546,6 +544,9 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const hxGet = slot.getAttribute("hx-get");
 		assert.ok(hxGet, "a pending chromeless reader slot must poll");
 		expect(hxGet).toContain("shell=app");
+		const progress = slot.querySelector('[data-test-progress-bar="reader"]');
+		assert.ok(progress, "a pending chromeless reader slot must carry its progress block");
+		expect(progress.classList.contains("article-body__progress--visible")).toBe(true);
 	});
 
 	it("emits no banner OOB on a ?shell=app owner reader poll even when the reader view has failed", async () => {
@@ -571,7 +572,6 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		).map((el) => el.id);
 		expect(ids).toEqual([
 			"article-body-summary-slot",
-			"article-body-progress",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",

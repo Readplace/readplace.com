@@ -7,8 +7,6 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 import { render } from "@packages/web-shell";
 import { renderArticleHeader, type ReaderReadlistTags } from "./article-header/article-header.component";
 import { renderCrawlBookmark, type CrawlBookmarkRemoval } from "./crawl-bookmark/crawl-bookmark.component";
-import { renderProgressBar } from "./progress-bar.component";
-import type { ProgressTick } from "@packages/domain/article";
 import type { ReaderProvenance } from "./article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
@@ -37,13 +35,6 @@ export interface ArticleBodyInput {
 	topActionsHtml: string;
 	bottomActionsHtml: string;
 	extensionInstallUrl?: string;
-	/**
-	 * Single unified progress tick. When omitted (everything terminal, or
-	 * crawl-failed) the bar still renders but in its hidden state so OOB
-	 * progress-bar swaps from poll responses remain valid even when the
-	 * initial SSR bar was hidden.
-	 */
-	progress?: ProgressTick;
 	appOrigin: string;
 	crawlVersions?: LocalTime[];
 	/** Owner-only removal controls for the crawl bookmark. Present only on the
@@ -84,8 +75,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		content: input.content,
 	});
 
-	const progressBarHtml = renderProgressBar({ progress: input.progress });
-
 	const crawlBookmarkHtml = renderCrawlBookmark({
 		versions: input.crawlVersions ?? [],
 		removal: input.crawlBookmarkRemoval,
@@ -109,7 +98,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		summarySlotHtml,
 		previouslyReadHtml: input.previouslyReadHtml ?? "",
 		issueLinksHtml: input.issueLinksHtml ?? "",
-		progressBarHtml,
 		crawlBookmarkHtml,
 		bottomActionsHtml: input.bottomActionsHtml,
 	});

@@ -1,6 +1,9 @@
 <div id="article-body-reader-slot" class="article-body__reader-slot article-body__reader-slot--pending" data-test-reader-slot data-reader-status="pending"{{#if oob}} hx-swap-oob="outerHTML"{{/if}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML">
-  <span class="article-body__reader-loading">{{icon "loader"}}{{label}}</span>
-  {{#if loadingHint}}
-  <p class="article-body__reader-loading-subtitle">{{loadingHint}}</p>
-  {{/if}}
+  <div class="article-body__panel article-body__reader-pending">
+    <p class="article-body__panel-title" id="{{titleId}}" data-test-reader-pending-title>{{title}}</p>
+    {{#each descriptions}}
+    <p class="article-body__panel-text" data-test-reader-pending-text>{{this}}</p>
+    {{/each}}
+    {{{progressHtml}}}
+  </div>
 </div>

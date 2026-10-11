@@ -93,7 +93,6 @@ describe("renderArticleBody", () => {
 		expect(slot.classList.contains("article-body__summary-slot--hidden")).toBe(
 			true,
 		);
-		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 	});
 
 	it("shows 'Generating summary' once the reader view is ready and the summary is still pending", () => {
@@ -110,7 +109,7 @@ describe("renderArticleBody", () => {
 		assert(slot, "summary slot must be rendered");
 		expect(slot.getAttribute("data-summary-status")).toBe("pending");
 		expect(
-			doc.querySelector(".article-body__summary-loading")?.textContent,
+			doc.querySelector("[data-test-summary-pending-title]")?.textContent,
 		).toBe("Generating summary");
 	});
 
@@ -179,6 +178,9 @@ describe("renderArticleBody", () => {
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1");
 		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
+		const bar = slot.querySelector('[data-test-progress-bar="reader"]');
+		assert(bar, "the reader panel must carry its own progress block");
+		expect(bar.classList.contains("article-body__progress--visible")).toBe(true);
 	});
 
 	it("renders the crawl bookmark tabs when versions are supplied", () => {
@@ -237,7 +239,6 @@ describe("renderArticleBody", () => {
 		const childIds = Array.from(card.children, (child) => child.id);
 		expect(childIds).toEqual([
 			"article-header",
-			"article-body-progress",
 			"article-body-summary-slot",
 			"article-body-reader-slot",
 		]);

@@ -86,29 +86,6 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
-      "src/runtime/web/shared/article-body/progress-bar.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "progress-bar.client.js"),
-    globalName: "ProgressBar",
-    footer: [
-      // HTMX fires htmx:afterSwap on the container around any swapped node,
-      // including OOB swaps targeting #article-body-progress. The listener
-      // re-anchors the bar against the new (tickAt, pct) so the rAF loop
-      // projects forward from there.
-      "ProgressBar.initProgressBars({",
-      "  document: window.document,",
-      "  now: function () { return Date.now(); },",
-      "  requestAnimationFrame: function (cb) { return window.requestAnimationFrame(cb); },",
-      "  cancelAnimationFrame: function (id) { window.cancelAnimationFrame(id); },",
-      "  addSwapListener: function (listener) {",
-      "    window.document.body.addEventListener('htmx:afterSwap', listener);",
-      "  }",
-      "});",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
       "src/runtime/web/pages/reader/reader-nav.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-nav.client.js"),

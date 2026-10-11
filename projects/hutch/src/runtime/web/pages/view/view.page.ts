@@ -213,7 +213,6 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatViewDocumentTitle,
 		summaryOpen: false,
-		now: deps.now,
 	};
 }
 
@@ -477,7 +476,6 @@ function handleViewArticle(
 					readerPollUrl: state.readerPollUrl,
 					summary: state.summary,
 					summaryPollUrl: state.summaryPollUrl,
-					progress: state.progress,
 					actions,
 					epubDownloadHref:
 						state.content === undefined

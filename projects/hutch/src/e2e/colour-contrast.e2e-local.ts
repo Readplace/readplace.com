@@ -666,6 +666,84 @@ test.describe("The reader's failed-crawl notice holds its WCAG contrast in both 
 	});
 });
 
+test.describe("The reader's pipeline panels hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the pending, ready, failed and skipped panels clear colour and greyscale minimums", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-reader-panels-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const panels = [
+			{
+				state: "reader-pending",
+				root: "#article-body-reader-slot",
+				hook: "[data-test-reader-pending-title]",
+				summary: {},
+				crawl: [{ status: "pending", stage: "crawl-parsed" }],
+			},
+			{
+				state: "summary-pending",
+				root: "#article-body-summary-slot",
+				hook: "[data-test-summary-pending-title]",
+				summary: {},
+				crawl: [],
+			},
+			{
+				state: "summary-ready",
+				root: "#article-body-summary-slot",
+				hook: "[data-test-tldr]",
+				summary: { generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." } },
+				crawl: [],
+			},
+			{
+				state: "summary-failed",
+				root: "#article-body-summary-slot",
+				hook: '[data-test-alert="reader-summary-failed"]',
+				summary: { summaryState: { status: "failed", reason: "deepseek timeout" } },
+				crawl: [],
+			},
+			{
+				state: "summary-skipped",
+				root: "#article-body-summary-slot",
+				hook: '[data-test-alert="reader-summary-skipped"]',
+				summary: { summaryState: { status: "skipped", reason: "content-too-short" } },
+				crawl: [],
+			},
+		];
+		const seededPanels: { state: string; root: string; hook: string; readerUrl: string }[] = [];
+		for (const panel of panels) {
+			const url = `https://example.com/colour-contrast-reader-panels-${panel.state}-${run}`;
+			const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+				data: {
+					url,
+					title: "A page still in the pipeline",
+					content: "<p>Seeded body under the summary panel.</p>",
+					contentFetchedAt: "2026-07-10T09:14:00.000Z",
+					savedByUserId: userId,
+					...panel.summary,
+				},
+			});
+			assert.equal(seeded.status(), 201);
+			const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+			for (const crawl of panel.crawl) {
+				const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: { url, ...crawl } });
+				assert.equal(moved.status(), 201, `the crawl-status seed must move the crawl to ${crawl.status}`);
+			}
+			seededPanels.push({ ...panel, readerUrl: `${BASE_URL}/queue/${articleId}/view` });
+		}
+		await loginChipReader(page, email);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			for (const panel of seededPanels) {
+				await page.goto(panel.readerUrl, { waitUntil: "domcontentloaded" });
+				await expect(page.locator(`${panel.root} ${panel.hook}`)).toBeVisible({ timeout: SETTLE_MS });
+				await auditRoot(page, { root: panel.root, theme, view: `reader-panels/${panel.state}` });
+			}
+		}
+	});
+});
+
 test.describe("Plan choice holds its WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 

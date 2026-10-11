@@ -7,67 +7,85 @@ function parse(html: string) {
 		.document;
 }
 
+function skippedSlot(doc: Document): Element {
+	const slot = doc.querySelector("[data-test-reader-summary]");
+	assert(slot, "summary slot must be rendered");
+	return slot;
+}
+
+function skippedAlert(slot: Element): Element {
+	const alert = slot.querySelector('[data-test-alert="reader-summary-skipped"]');
+	assert(alert, "the skipped alert must be rendered");
+	return alert;
+}
+
 describe("renderSummarySkipped", () => {
-	it("renders a visible info card with the content-too-short message", () => {
+	it("renders a visible, title-only info alert with the content-too-short message", () => {
 		const doc = parse(renderSummarySkipped({ reason: "content-too-short" }));
 
-		const slot = doc.querySelector("[data-test-reader-summary]");
-		assert(slot, "summary slot must be rendered");
+		const slot = skippedSlot(doc);
 		expect(slot.getAttribute("data-summary-status")).toBe("skipped");
 		expect(slot.classList.contains("article-body__summary-slot--visible")).toBe(
 			true,
 		);
-		const info = doc.querySelector(".article-body__summary-info");
-		assert(info, "info card must be rendered");
-		expect(info.getAttribute("data-test-reader-summary-skip-reason")).toBe(
+		expect(slot.getAttribute("data-test-reader-summary-skip-reason")).toBe(
 			"content-too-short",
 		);
-		expect(info.textContent).toBe("This article is too short to summarise.");
+		const alert = skippedAlert(slot);
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("info");
+		expect(alert.getAttribute("role")).toBe("status");
+		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
+			"This article is too short to generate a summary.",
+		);
+		expect(alert.querySelectorAll("[data-test-alert-message]").length).toBe(0);
 	});
 
-	it("renders the ai-unavailable message when AI declined to summarise", () => {
-		const doc = parse(renderSummarySkipped({ reason: "ai-unavailable" }));
+	it.each(["ai-unavailable", "declined"])(
+		"renders the no-useful-summary message when the reason is %s",
+		(reason) => {
+			const doc = parse(renderSummarySkipped({ reason }));
 
-		const info = doc.querySelector(".article-body__summary-info");
-		assert(info, "info card must be rendered");
-		expect(info.getAttribute("data-test-reader-summary-skip-reason")).toBe(
-			"ai-unavailable",
-		);
-		expect(info.textContent).toBe(
-			"Our summariser couldn't produce a useful summary for this article.",
-		);
-	});
-
-	it("renders the crawl-unsupported message when the source isn't a webpage", () => {
-		const doc = parse(renderSummarySkipped({ reason: "crawl-unsupported" }));
-
-		const info = doc.querySelector(".article-body__summary-info");
-		assert(info, "info card must be rendered");
-		expect(info.getAttribute("data-test-reader-summary-skip-reason")).toBe(
-			"crawl-unsupported",
-		);
-		expect(info.textContent).toBe(
-			"Summary not generated for this link.",
-		);
-	});
+			const slot = skippedSlot(doc);
+			expect(slot.getAttribute("data-test-reader-summary-skip-reason")).toBe(reason);
+			expect(skippedAlert(slot).querySelector("[data-test-alert-title]")?.textContent).toBe(
+				"Readplace couldn't generate a useful summary for this article.",
+			);
+		},
+	);
 
 	it("falls back to a generic message when reason is undefined (legacy rows)", () => {
 		const doc = parse(renderSummarySkipped({ reason: undefined }));
 
-		const info = doc.querySelector(".article-body__summary-info");
-		assert(info, "info card must be rendered");
-		expect(info.getAttribute("data-test-reader-summary-skip-reason")).toBe("");
-		expect(info.textContent).toBe("No summary was generated for this article.");
+		const slot = skippedSlot(doc);
+		expect(slot.getAttribute("data-test-reader-summary-skip-reason")).toBe("");
+		expect(skippedAlert(slot).querySelector("[data-test-alert-title]")?.textContent).toBe(
+			"No summary was generated for this article.",
+		);
 	});
 
 	it("falls back to a generic message for forward-compat unknown reasons", () => {
 		const doc = parse(renderSummarySkipped({ reason: "future-reason" }));
 
-		const info = doc.querySelector(".article-body__summary-info");
-		assert(info, "info card must be rendered");
-		expect(info.getAttribute("data-test-reader-summary-skip-reason")).toBe(
+		const slot = skippedSlot(doc);
+		expect(slot.getAttribute("data-test-reader-summary-skip-reason")).toBe(
 			"future-reason",
 		);
-		expect(info.textContent).toBe("No summary was generated for this article.");
+		expect(skippedAlert(slot).querySelector("[data-test-alert-title]")?.textContent).toBe(
+			"No summary was generated for this article.",
+		);
+	});
+
+	it("carries hx-swap-oob when rendered as an out-of-band sibling", () => {
+		const doc = parse(renderSummarySkipped({ reason: "content-too-short", oob: true }));
+
+		expect(skippedSlot(doc).getAttribute("hx-swap-oob")).toBe("outerHTML");
+	});
+
+	it("leaves hx-swap-oob off when it is the primary swap target", () => {
+		const doc = parse(renderSummarySkipped({ reason: "content-too-short" }));
+
+		const slot = skippedSlot(doc);
+		expect(slot.getAttribute("id")).toBe("article-body-summary-slot");
+		expect(slot.hasAttribute("hx-swap-oob")).toBe(false);
 	});
 });

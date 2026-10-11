@@ -50,7 +50,7 @@ export function initReaderNav(deps: ReaderNavDeps): void {
 		lastY = y;
 	};
 
-	/** A genuine navigation replaces <main>; the ~3s progress-bar hx-swap-oob
+	/** A genuine navigation replaces <main>; the ~3s
 	 * poll swaps an inner node and leaves <main> intact. Re-arm only on a real
 	 * <main> swap, so a poll never springs the hidden nav back open mid-read. */
 	const onSwap = (): void => {

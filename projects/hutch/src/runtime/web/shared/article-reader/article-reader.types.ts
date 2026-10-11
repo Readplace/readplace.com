@@ -16,7 +16,6 @@ import type {
 	FindArticleFreshness,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
-import type { ProgressTick } from "@packages/domain/article";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
@@ -65,7 +64,6 @@ export interface ArticleReaderDeps {
 	 * deliberate, measurable act — while the public /view reader stays open.
 	 */
 	summaryOpen: boolean;
-	now: () => Date;
 }
 
 export interface ArticleSnapshot {
@@ -86,14 +84,6 @@ export interface ReaderState {
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
 	capturePollUrl: string | undefined;
-	/**
-	 * Single unified progress tick driving the article-body progress bar.
-	 * Computed from whichever pipeline (crawl → summary) is in flight,
-	 * mapped onto a 0–100 scale. `undefined` once both pipelines are terminal
-	 * (or the crawl has failed — we hide the bar instead of stalling at a
-	 * percentage that will never advance).
-	 */
-	progress: ProgressTick | undefined;
 	/**
 	 * Dated crawl versions for the reader bookmark, newest first; the first entry
 	 * is the canonical/current version. `[]` hides the bookmark (article not yet
