@@ -9,17 +9,20 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { neutraliseVolatileChrome } from "./page-measurements.browser";
+import { measureBoxes, neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 900 };
+const DESKTOP_WIDTHS = [1024, 1200, 1440];
 
 const CTA = "[data-test-view-cta]";
 const CTA_BUTTON = ".view__cta-btn, .view__download";
 const CTA_LABEL = `${CTA} .view__cta-label, ${CTA} .view__download-label`;
 const DOWNLOAD = "[data-test-view-download]";
+const COLUMN = ".reading-layout__main";
+const CTA_CONTENT = ".view__cta-content";
 
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -112,8 +115,26 @@ async function phoneGeometry(page: Page): Promise<void> {
 	}
 }
 
+async function ctaSharesTheColumn(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "the shared-column check must run with an explicit viewport");
+	const [column, content] = await page.evaluate(measureBoxes, [COLUMN, CTA_CONTENT]);
+	const edges = [
+		{ edge: "centre", column: column.x + column.width / 2, cta: content.x + content.width / 2 },
+		{ edge: "left edge", column: column.x, cta: content.x },
+		{ edge: "right edge", column: column.x + column.width, cta: content.x + content.width },
+	];
+	for (const { edge, column: expected, cta } of edges) {
+		assert.ok(
+			Math.abs(cta - expected) <= 1,
+			`at ${viewport.width}px the CTA bar's ${edge} must line up with the card column's, column ${expected} against CTA ${cta}`,
+		);
+	}
+}
+
 async function desktopGeometry(page: Page): Promise<void> {
 	await everyLabelOnOneLine(page);
+	await ctaSharesTheColumn(page);
 	assert.equal(
 		(await page.locator(`${DOWNLOAD} .view__download-label`).textContent())?.trim(),
 		"Download EPUB",
@@ -183,7 +204,7 @@ test.describe("Public view CTA row on a phone", () => {
 test.describe("Public view CTA row above the breakpoint", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("keeps the full labels", async ({ page }, testInfo) => {
+	test("keeps the full labels, with the bar's edges on the card column's", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPublicView(page, {
 			stamp: `desktop-${testInfo.workerIndex}-${Date.now()}`,
@@ -191,5 +212,10 @@ test.describe("Public view CTA row above the breakpoint", () => {
 		});
 		await page.waitForSelector(DOWNLOAD);
 		await captureCheckpoint(page, checkpoint("view-cta-desktop", desktopGeometry));
+
+		for (const width of DESKTOP_WIDTHS) {
+			await page.setViewportSize({ width, height: DESKTOP.height });
+			await ctaSharesTheColumn(page);
+		}
 	});
 });

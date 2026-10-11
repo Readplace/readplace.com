@@ -1,5 +1,10 @@
-.reading-layout {
+.reading-layout,
+.reading-frame {
   --reading-main-max: 812px;
+  --reading-top-width: 112px;
+}
+
+.reading-layout {
   display: grid;
   grid-template-columns: minmax(0, var(--reading-main-max));
   justify-content: center;
@@ -25,8 +30,10 @@
   bottom: 32px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   align-self: flex-start;
   gap: 8px;
+  min-width: var(--reading-top-width);
   height: 56px;
   margin-top: auto;
   margin-bottom: 32px;
@@ -62,25 +69,40 @@
 }
 
 @media (min-width: 1024px) {
-  .reading-layout {
-    grid-template-columns: minmax(0, 1fr) 340px;
+  .reading-layout,
+  .reading-frame {
+    grid-template-columns:
+      minmax(var(--reading-top-width), 1fr)
+      minmax(0, var(--reading-main-max))
+      minmax(var(--reading-top-width), 1fr);
     column-gap: var(--column-gap);
+  }
+
+  .reading-layout {
     row-gap: 32px;
     padding-bottom: 80px;
   }
 
-  .reading-layout > :not(.reading-layout__rail) {
-    grid-column: 1;
+  .reading-frame {
+    display: grid;
+    max-width: calc(var(--frame-max-width) + 2 * var(--page-gutter));
+    margin: 0 auto;
+    padding-inline: var(--page-gutter);
+  }
+
+  .reading-layout > :not(.reading-layout__rail),
+  .reading-frame > * {
+    grid-column: 2;
   }
 
   .reading-layout__main {
-    grid-column: 1;
+    grid-column: 2;
     grid-row: 1;
     align-self: start;
   }
 
   .reading-layout__rail {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1;
     align-self: stretch;
   }

@@ -46,7 +46,13 @@ const FLOAT_STACK = "[data-test-reader-float-stack]";
 const SCROLL_STAMP = "data-test-scroll-after-swap";
 
 const DESKTOP_MAIN_TRACK = 812;
-const RAIL_TRACK = 340;
+const DESIGN_WIDTH_COLUMN = { width: 1440, column: DESKTOP_MAIN_TRACK, gap: 48, gutter: 48 };
+const DESKTOP_COLUMNS = [
+	{ width: 1024, column: 704, gap: 24, gutter: 24 },
+	{ width: 1200, column: 784, gap: 48, gutter: 48 },
+	{ width: 1280, column: DESKTOP_MAIN_TRACK, gap: 48, gutter: 48 },
+	DESIGN_WIDTH_COLUMN,
+];
 const SINGLE_COLUMN_BOTTOM_PADDING = 64;
 const TOP_INSET = 32;
 const FLOAT_STACK_INSET = 24;
@@ -77,6 +83,13 @@ const LONG_ARTICLE = Array.from({ length: 30 }, () => LONG_PARAGRAPH).join("");
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
+
+interface DesktopColumn {
+	width: number;
+	column: number;
+	gap: number;
+	gutter: number;
+}
 
 interface SeededReader {
 	email: string;
@@ -143,6 +156,23 @@ async function openSettledReader(page: Page, input: { stamp: string; content: st
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
+async function openSettledPublicView(page: Page, stamp: string): Promise<void> {
+	const slug = `reader-layout-public-${stamp}`;
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+		data: {
+			url: `https://example.com/${slug}`,
+			title: ARTICLE_TITLE,
+			content: SHORT_ARTICLE,
+			contentFetchedAt: CONTENT_FETCHED_AT,
+			generatedSummary: SUMMARY,
+		},
+	});
+	assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
+	await page.goto(`${BASE_URL}/view/example.com/${slug}`, { waitUntil: "domcontentloaded" });
+	await page.waitForSelector(READY_SLOT);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
 function assertNear(measured: { actual: number; expected: number; tolerance: number }, message: string): void {
 	assert.ok(
 		Math.abs(measured.actual - measured.expected) <= measured.tolerance,
@@ -150,8 +180,41 @@ function assertNear(measured: { actual: number; expected: number; tolerance: num
 	);
 }
 
-async function railDisplay(page: Page): Promise<string> {
-	return page.locator(RAIL).evaluate((rail) => getComputedStyle(rail).display);
+async function railDisplays(page: Page): Promise<string[]> {
+	return page.locator(RAIL).evaluateAll((rails) => rails.map((rail) => getComputedStyle(rail).display));
+}
+
+async function expectCentredColumn(page: Page, desktop: DesktopColumn): Promise<void> {
+	const [main] = await page.evaluate(measureBoxes, [MAIN]);
+	const pageWidth = await page.evaluate(() => document.documentElement.clientWidth);
+	assertNear(
+		{ actual: main.x, expected: pageWidth - (main.x + main.width), tolerance: 0.5 },
+		`at ${desktop.width}px the column's left margin matches its right margin`,
+	);
+	assertNear(
+		{ actual: main.width, expected: desktop.column, tolerance: 1 },
+		`at ${desktop.width}px the column is ${desktop.column}px wide`,
+	);
+	assert.equal(await page.evaluate(pageOverflowsSideways), false, `at ${desktop.width}px the reader must not scroll sideways`);
+}
+
+async function expectTopInTheRightMargin(page: Page, desktop: DesktopColumn): Promise<void> {
+	const [main, top, layout] = await page.evaluate(measureBoxes, [MAIN, TOP, LAYOUT]);
+	assertNear(
+		{ actual: top.x, expected: main.x + main.width + desktop.gap, tolerance: 0.5 },
+		`at ${desktop.width}px Top starts one column gap right of the column`,
+	);
+	assert.ok(
+		top.x + top.width <= layout.x + layout.width - desktop.gutter + 0.5,
+		`at ${desktop.width}px Top must end inside the frame, measured ${top.x + top.width} against ${layout.x + layout.width - desktop.gutter}`,
+	);
+}
+
+async function expectDesktopColumns(page: Page, check: (page: Page, desktop: DesktopColumn) => Promise<void>): Promise<void> {
+	for (const desktop of DESKTOP_COLUMNS) {
+		await page.setViewportSize({ width: desktop.width, height: 900 });
+		await check(page, desktop);
+	}
 }
 
 async function expectLayoutFitsViewport(page: Page): Promise<void> {
@@ -188,20 +251,11 @@ async function expectArticleTypography(page: Page): Promise<void> {
 
 async function desktopGeometry(page: Page): Promise<void> {
 	await expectLayoutFitsViewport(page);
-	const [main, rail, toolbar, card, header, body] = await page.evaluate(measureBoxes, [
-		MAIN,
-		RAIL,
-		TOOLBAR,
-		CARD,
-		HEADER,
-		READY_SLOT,
-	]);
-	assertNear({ actual: main.width, expected: DESKTOP_MAIN_TRACK, tolerance: 1 }, "the main track is the design's 812px column");
-	assertNear({ actual: rail.width, expected: RAIL_TRACK, tolerance: 0.5 }, "the rail is 340px");
-	assertNear({ actual: rail.x - (main.x + main.width), expected: 48, tolerance: 0.5 }, "the tracks sit a 48px column gap apart");
+	await expectCentredColumn(page, DESIGN_WIDTH_COLUMN);
+	await expectTopInTheRightMargin(page, DESIGN_WIDTH_COLUMN);
+	const [toolbar, card, header, body] = await page.evaluate(measureBoxes, [TOOLBAR, CARD, HEADER, READY_SLOT]);
 	assertNear({ actual: header.x - card.x, expected: 33, tolerance: 0.5 }, "the card pads its content 32px inside its 1px edge");
 	assertNear({ actual: card.y, expected: toolbar.y + toolbar.height + 32, tolerance: 0.5 }, "the card starts 32px under the toolbar row");
-	assertNear({ actual: rail.y, expected: toolbar.y, tolerance: 0.5 }, "the rail starts on the toolbar's line");
 	assertNear({ actual: body.x, expected: card.x + 1, tolerance: 0.5 }, "the divider starts at the card's inner left edge");
 	assertNear({ actual: body.width, expected: card.width - 2, tolerance: 0.5 }, "the divider spans the card's inner width");
 	await expectArticleTypography(page);
@@ -215,7 +269,7 @@ async function phoneGeometry(page: Page): Promise<void> {
 	assertNear({ actual: main.x, expected: 20, tolerance: 0.5 }, "the column starts at the phone gutter");
 	assertNear({ actual: main.width, expected: viewport.width - 40, tolerance: 0.5 }, "the column fills the phone between its gutters");
 	assertNear({ actual: header.x - card.x, expected: 21, tolerance: 0.5 }, "the card pads its content 20px inside its 1px edge on a phone");
-	assert.equal(await railDisplay(page), "none", "a phone hides the rail that holds only the Top link");
+	assert.deepEqual(await railDisplays(page), ["none"], "a phone hides the rail that holds only the Top link");
 	assertNear(
 		{ actual: layout.y + layout.height - SINGLE_COLUMN_BOTTOM_PADDING, expected: main.y + main.height, tolerance: 0.5 },
 		"the page's bottom padding starts at the column's end, with no row gap left by a hidden rail",
@@ -238,17 +292,6 @@ function layoutCheckpoint(name: string, geometry: (page: Page) => Promise<void>)
 	};
 }
 
-async function expectTracks(page: Page, track: { width: number; main: number; gap: number }): Promise<void> {
-	await page.setViewportSize({ width: track.width, height: 900 });
-	const [main, rail] = await page.evaluate(measureBoxes, [MAIN, RAIL]);
-	assertNear({ actual: main.width, expected: track.main, tolerance: 1 }, `at ${track.width}px the main track narrows`);
-	assertNear({ actual: rail.width, expected: RAIL_TRACK, tolerance: 0.5 }, `at ${track.width}px the rail keeps 340px`);
-	assertNear(
-		{ actual: rail.x - (main.x + main.width), expected: track.gap, tolerance: 0.5 },
-		`at ${track.width}px the tracks sit the column gap apart`,
-	);
-}
-
 async function expectSingleColumn(page: Page, width: number): Promise<void> {
 	await page.setViewportSize({ width, height: 900 });
 	const [layout, main] = await page.evaluate(measureBoxes, [LAYOUT, MAIN]);
@@ -257,7 +300,9 @@ async function expectSingleColumn(page: Page, width: number): Promise<void> {
 		{ actual: main.x - layout.x, expected: layout.x + layout.width - (main.x + main.width), tolerance: 0.5 },
 		`at ${width}px the one column is centred in the frame`,
 	);
-	assert.equal(await railDisplay(page), "none", `at ${width}px the Top-only rail takes no row`);
+	for (const display of await railDisplays(page)) {
+		assert.equal(display, "none", `at ${width}px the Top-only rail takes no row`);
+	}
 	assertNear(
 		{ actual: layout.y + layout.height - SINGLE_COLUMN_BOTTOM_PADDING, expected: main.y + main.height, tolerance: 0.5 },
 		`at ${width}px the page's bottom padding starts at the column's end`,
@@ -291,7 +336,7 @@ test.describe("Reader layout at 1440", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 2200 } });
 
 	for (const scheme of ["light", "dark"] as const) {
-		test(`the article card and the rail share the frame (${scheme})`, async ({ page }, testInfo) => {
+		test(`the article card is centred in the frame, with Top in the right margin (${scheme})`, async ({ page }, testInfo) => {
 			await quietReader(page);
 			await page.emulateMedia({ colorScheme: scheme });
 			await openSettledReader(page, {
@@ -307,15 +352,30 @@ test.describe("Reader layout at 1440", () => {
 test.describe("Reader layout below the design width", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 900 } });
 
-	test("the tracks narrow to 1024 and fold into one centred column below it", async ({ page }, testInfo) => {
+	test("the column stays centred down to 1024 and folds into one centred column below it", async ({ page }, testInfo) => {
 		await quietReader(page);
 		await openSettledReader(page, {
 			stamp: `widths-${testInfo.workerIndex}-${Date.now()}`,
 			content: SHORT_ARTICLE,
 			query: "",
 		});
-		await expectTracks(page, { width: 1200, main: 716, gap: 48 });
-		await expectTracks(page, { width: 1024, main: 612, gap: 24 });
+		await expectDesktopColumns(page, async (measured, desktop) => {
+			await expectCentredColumn(measured, desktop);
+			await expectTopInTheRightMargin(measured, desktop);
+		});
+		await expectSingleColumn(page, 1023);
+		await expectSingleColumn(page, 768);
+	});
+});
+
+test.describe("Public view layout", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 900 } });
+
+	test("centres the same column as the owner reader at every desktop width, with no rail", async ({ page }, testInfo) => {
+		await quietReader(page);
+		await openSettledPublicView(page, `${testInfo.workerIndex}-${Date.now()}`);
+		await expect(page.locator(RAIL)).toHaveCount(0);
+		await expectDesktopColumns(page, expectCentredColumn);
 		await expectSingleColumn(page, 1023);
 		await expectSingleColumn(page, 768);
 	});

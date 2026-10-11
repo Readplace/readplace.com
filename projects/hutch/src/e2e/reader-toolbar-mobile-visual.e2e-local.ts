@@ -275,6 +275,11 @@ async function arrowOnlyRowGeometry(page: Page): Promise<void> {
 	);
 }
 
+async function labelledBackRowGeometry(page: Page): Promise<void> {
+	await everyControlOnOneRow(page);
+	assert.ok((await labelWidth(page, BACK)) > 1, "Back reads as text again where the column clears the arrow-only threshold");
+}
+
 async function chromelessSheetGeometry(page: Page): Promise<void> {
 	await everyControlOnOneRow(page);
 	const viewport = page.viewportSize();
@@ -423,7 +428,7 @@ test.describe("Reader toolbar in the dark", () => {
 test.describe("Reader toolbar in the read state", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("keeps one row at 620px and beside the rail at 1024px, with Back down to its arrow", async ({ page }, testInfo) => {
+	test("keeps one row with Back down to its arrow at 620px, and Back's label back in the 1024px column", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const articleId = await openOwnerReader(page, {
 			stamp: `read-${testInfo.workerIndex}-${Date.now()}`,
@@ -432,20 +437,24 @@ test.describe("Reader toolbar in the read state", () => {
 		});
 		await markRead(page, articleId);
 
-		for (const viewport of [{ width: 620, height: 900 }, { width: 1024, height: 900 }]) {
-			await page.setViewportSize(viewport);
-			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
-			await page.waitForSelector(DOWNLOAD);
-			await toolbarSettled(page);
-			await arrowOnlyRowGeometry(page);
-		}
+		await page.setViewportSize({ width: 620, height: 900 });
+		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector(DOWNLOAD);
+		await toolbarSettled(page);
+		await arrowOnlyRowGeometry(page);
+
+		await page.setViewportSize({ width: 1024, height: 900 });
+		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector(DOWNLOAD);
+		await toolbarSettled(page);
+		await labelledBackRowGeometry(page);
 
 		await page.setViewportSize(TABLET_SHEET);
 		await page.goto(`${BASE_URL}/queue/${articleId}/view?shell=app`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-reader--chromeless");
 		await page.waitForSelector(DOWNLOAD);
 		await toolbarSettled(page);
-		await arrowOnlyRowGeometry(page);
+		await labelledBackRowGeometry(page);
 	});
 
 	test("switches each row at the width that row needs", async ({ page }, testInfo) => {

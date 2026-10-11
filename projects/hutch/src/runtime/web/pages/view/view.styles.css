@@ -46,6 +46,18 @@
   display: none;
 }
 
+@media (min-width: 1024px) {
+  .view__cta {
+    padding-inline: 0;
+    border-inline-width: 0;
+  }
+
+  .view__cta-content {
+    max-width: none;
+    margin: 0;
+  }
+}
+
 @media (max-width: 600px) {
   .view__cta-label,
   .view__download-label {

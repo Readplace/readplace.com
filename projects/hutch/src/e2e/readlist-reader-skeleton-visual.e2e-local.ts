@@ -52,7 +52,13 @@ interface SkeletonFrame {
 	cardInset: number;
 }
 
-const DESKTOP_FRAME: SkeletonFrame = { mainTrack: 796, cardInset: 33 };
+const DESKTOP_FRAME: SkeletonFrame = { mainTrack: 812, cardInset: 33 };
+const DESKTOP_COLUMNS = [
+	{ width: 1024, column: 704 },
+	{ width: 1200, column: 784 },
+	{ width: 1280, column: 812 },
+	{ width: 1440, column: 812 },
+];
 const PHONE_FRAME: SkeletonFrame = { mainTrack: 350, cardInset: 21 };
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
@@ -193,6 +199,25 @@ async function skeletonGeometry(page: Page, frame: SkeletonFrame): Promise<void>
 	assert.equal(lines, 9, "the skeleton body must render its placeholder lines");
 }
 
+async function centredColumnAtEveryDesktopWidth(page: Page): Promise<MeasuredBox[]> {
+	const columns: MeasuredBox[] = [];
+	for (const desktop of DESKTOP_COLUMNS) {
+		await page.setViewportSize({ width: desktop.width, height: DESKTOP_TALL.height });
+		const column = await measuredBox(page, COLUMN);
+		const pageWidth = await page.evaluate(() => document.documentElement.clientWidth);
+		assert.ok(
+			Math.abs(column.x - (pageWidth - (column.x + column.width))) <= FRAME_TOLERANCE_PX,
+			`at ${desktop.width}px the column's left margin must match its right margin, measured ${column.x} against ${pageWidth - (column.x + column.width)}`,
+		);
+		assert.ok(
+			Math.abs(column.width - desktop.column) <= 1,
+			`at ${desktop.width}px the column must be ${desktop.column}px wide, measured ${column.width}`,
+		);
+		columns.push(column);
+	}
+	return columns;
+}
+
 function checkpoint(name: string, frame: SkeletonFrame): VisualCheckpoint {
 	return {
 		name,
@@ -256,6 +281,30 @@ test.describe("Reader skeleton while the reader is held", () => {
 		await reloaded;
 		await expect(page.locator("body.page-readlist")).toHaveCount(1);
 		await expect(page.locator(CARD_TITLE)).toHaveText(ARTICLE_TITLE);
+	});
+
+	test("paints the landed reader's centred column at every desktop width", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const { release } = await openHeldReader(page, `desktop-widths-${testInfo.workerIndex}-${Date.now()}`);
+		await skeletonSettled(page);
+		const held = await centredColumnAtEveryDesktopWidth(page);
+
+		release();
+		await page.waitForSelector(READY_SLOT);
+		await page.locator(READER_CONTENT).waitFor({ state: "visible" });
+		const landed = await centredColumnAtEveryDesktopWidth(page);
+
+		for (const [index, desktop] of DESKTOP_COLUMNS.entries()) {
+			const heldColumn = held[index];
+			const landedColumn = landed[index];
+			assert.ok(heldColumn && landedColumn, "every desktop width must be measured before and after the fill");
+			for (const side of ["x", "width"] as const) {
+				assert.ok(
+					Math.abs(heldColumn[side] - landedColumn[side]) <= FRAME_TOLERANCE_PX,
+					`at ${desktop.width}px the column's ${side} must not jump when the content lands`,
+				);
+			}
+		}
 	});
 
 	test("paints the same frame in dark mode", async ({ page }, testInfo) => {

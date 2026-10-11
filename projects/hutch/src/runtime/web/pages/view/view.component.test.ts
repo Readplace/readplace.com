@@ -493,7 +493,7 @@ describe("ViewPage", () => {
 		assert(link, "cta action must still be rendered without content");
 	});
 
-	it("lays the article column and the share row in the main track, beside an empty rail", () => {
+	it("lays the article column and the share row in the reading layout's only track, with no rail", () => {
 		const doc = render();
 
 		const main = doc.querySelector("main.view > .reading-layout > .reading-layout__main");
@@ -506,9 +506,11 @@ describe("ViewPage", () => {
 			[true, false],
 			[false, true],
 		]);
-		const rail = doc.querySelector(".reading-layout > [data-test-reader-rail]");
-		assert(rail, "the rail must sit beside the main track");
-		expect([rail.previousElementSibling === main, rail.children.length]).toEqual([true, 0]);
+		const layout = doc.querySelector("main.view > .reading-layout");
+		assert(layout, "the reading layout must be rendered");
+		expect(Array.from(layout.children, (child) => child.className)).toEqual(["reading-layout__main"]);
+		expect(doc.querySelector("[data-test-reader-rail]")).toBeNull();
+		expect(doc.querySelector("[data-test-view-cta] > .reading-frame > .view__cta-content")).not.toBeNull();
 	});
 
 	it("carries one article, the card, with the notice after it rather than inside it", () => {
