@@ -513,6 +513,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				`delete-dialog-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
 			await loginAs(page, email);
+			await expect(page.locator("[data-test-offline-download-start]")).toBeVisible();
 			const card = page.locator("[data-test-article]").first();
 			await card.locator('[data-test-action="article-menu"]').click();
 			await card.locator('[data-test-action="delete"]').click();
