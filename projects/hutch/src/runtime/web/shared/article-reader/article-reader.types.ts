@@ -22,7 +22,9 @@ import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ReaderReadlistTags } from "../article-body/article-header/article-header.component";
 
-export type ReaderViewFailedOob = () => string;
+export type ReaderViewFailure = { readerContentUnavailable: boolean };
+
+export type ReaderViewFailedOob = (failure: ReaderViewFailure) => string;
 
 export interface ArticleReaderDeps {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -99,6 +101,7 @@ export interface ReaderState {
 	 */
 	crawlVersions: LocalTime[];
 	readerViewFailed: boolean;
+	readerContentUnavailable: boolean;
 	notice: ReaderFailedVariant | undefined;
 }
 

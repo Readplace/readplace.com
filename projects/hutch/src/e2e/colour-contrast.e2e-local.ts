@@ -656,6 +656,46 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 	});
 });
 
+test.describe("The reader's failed-crawl notice holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the notice, its action and its capture pitch clear colour and greyscale minimums", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-reader-notice-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const url = `https://example.com/colour-contrast-reader-notice-${run}`;
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url,
+				title: "A page the crawler could not bring back",
+				content: "<p>Seeded body that a failed crawl never shows.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		for (const crawl of [
+			{ url, status: "pending" },
+			{ url, status: "failed", reason: JSON.stringify({ kind: "fetch-failed" }) },
+		]) {
+			const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: crawl });
+			assert.equal(moved.status(), 201, `the crawl-status seed must move the crawl to ${crawl.status}`);
+		}
+		await loginChipReader(page, email);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await expect(
+				page.locator('[data-test-reader-notice] [data-test-alert="reader-capture-pitch"][data-test-alert-variant="info"]'),
+			).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "[data-test-reader-notice]", theme, view: "reader-notice-failed" });
+		}
+	});
+});
+
 test.describe("Plan choice holds its WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 

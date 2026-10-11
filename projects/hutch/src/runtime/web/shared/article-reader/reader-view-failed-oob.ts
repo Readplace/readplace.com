@@ -9,9 +9,11 @@ export function extensionSuggestionBannerOob(req: Request): ReaderViewFailedOob 
 	if (!canOfferExtensionInstall(req)) {
 		return NO_READER_VIEW_FAILED_OOB;
 	}
-	return () =>
-		renderExtensionSuggestionBannerOob({
-			show: true,
-			extensionInstalled: isExtensionInstalled(req),
-		});
+	return (failure) =>
+		failure.readerContentUnavailable
+			? renderExtensionSuggestionBannerOob({
+					show: true,
+					extensionInstalled: isExtensionInstalled(req),
+				})
+			: "";
 }

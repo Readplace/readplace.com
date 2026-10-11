@@ -28,6 +28,16 @@ function bannerAttr(html: string): string | null {
 	return banner.getAttribute("data-show-extension-suggestion");
 }
 
+function noticeStatus(html: string): string | null {
+	const notice = new JSDOM(html).window.document.querySelector("[data-test-reader-notice]");
+	assert(notice, "the reader notice region must always be present");
+	return notice.getAttribute("data-reader-status");
+}
+
+function oobIds(html: string): string[] {
+	return Array.from(new JSDOM(html).window.document.querySelectorAll("[hx-swap-oob]")).map((el) => el.id);
+}
+
 async function saveAndFindId(
 	agent: ReturnType<typeof loginAgent> extends Promise<infer A> ? A : never,
 	url: string,
@@ -178,7 +188,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		expect(bannerAttr(response.text)).toBe("false");
 	});
 
-	it("sets data-show='true' when the crawl is ready but summary generation failed", async () => {
+	function useRenderedArticleWithFailedSummary() {
 		const articleHtml = `<html><head><title>Failed</title></head><body><article><p>Body.</p></article></body></html>`;
 		const crawlArticle = async () => ({
 			status: "fetched" as const,
@@ -201,7 +211,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			articleCrawl: fixture.articleCrawl,
 			parseArticle,
 		});
-		const harness = useApp({
+		return useApp({
 			...fixture,
 			parser: { parseArticle, crawlArticle },
 			events: {
@@ -218,6 +228,10 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			},
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
+	}
+
+	it("keeps the bar hidden when only the summary failed — the article rendered", async () => {
+		const harness = useRenderedArticleWithFailedSummary();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(
 			agent,
@@ -226,6 +240,64 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 
 		const response = await agent.get(`/queue/${articleId}/view`).set(BROWSER_REQUEST_HEADERS);
 
+		expect(new JSDOM(response.text).window.document.querySelectorAll("[data-test-reader-content]")).toHaveLength(1);
+		expect(bannerAttr(response.text)).toBe("false");
+	});
+
+	it("emits no banner OOB on a settled poll where only the summary failed", async () => {
+		const harness = useRenderedArticleWithFailedSummary();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndFindId(
+			agent,
+			"https://example.com/summary-failed-poll",
+		);
+
+		const response = await agent.get(`/queue/${articleId}/summary?poll=1`).set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		expect(oobIds(response.text)).toEqual([
+			"article-body-reader-slot",
+			"article-body-progress",
+			"article-header",
+			"document-title",
+			"reader-downloads-slot",
+			"article-body-reader-notice",
+		]);
+	});
+
+	it("sets data-show='true' when the owned article's page is gone — a not-found crawl still has no content to show", async () => {
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "failed",
+			reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
+		});
+		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+			status: "skipped",
+		});
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+			summary: { ...fixture.summary, findGeneratedSummary },
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndFindId(agent, "https://example.com/deleted-read");
+
+		const response = await agent.get(`/queue/${articleId}/view`).set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		expect(noticeStatus(response.text)).toBe("not-found");
+		expect(bannerAttr(response.text)).toBe("true");
+	});
+
+	it("sets data-show='true' on a link whose host can never hold an article", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndFindId(agent, "https://mail.google.com/mail/u/0/");
+
+		const response = await agent.get(`/queue/${articleId}/view`).set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		expect(noticeStatus(response.text)).toBe("not-an-article");
 		expect(bannerAttr(response.text)).toBe("true");
 	});
 

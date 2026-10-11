@@ -186,8 +186,8 @@ function viewReaderViewFailedOob(input: {
 	articleUrl: string;
 	utmParams: [string, string][];
 }): ReaderViewFailedOob {
-	return () =>
-		extensionSuggestionBannerOob(input.req)() +
+	return (failure) =>
+		extensionSuggestionBannerOob(input.req)(failure) +
 		renderViewCtaActionOob(
 			saveAction({
 				articleUrl: input.articleUrl,
@@ -461,7 +461,7 @@ function handleViewArticle(
 		];
 
 		const showExtensionSuggestionBanner =
-			state.readerViewFailed && canOfferExtensionInstall(req);
+			state.readerContentUnavailable && canOfferExtensionInstall(req);
 
 		sendComponent(
 			req, res,

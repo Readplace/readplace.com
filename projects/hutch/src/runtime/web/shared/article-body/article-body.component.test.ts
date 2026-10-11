@@ -235,7 +235,7 @@ describe("renderArticleBody", () => {
 		const notice = doc.querySelector("[data-test-reader-notice]");
 		assert(notice, "the notice must be rendered");
 		expect(notice.getAttribute("data-reader-status")).toBe("failed");
-		const link = notice.querySelector(".article-body__reader-notice-link");
+		const link = notice.querySelector("[data-test-reader-failed-primary]");
 		expect(link?.getAttribute("href")).toBe("https://example.com/post");
 	});
 

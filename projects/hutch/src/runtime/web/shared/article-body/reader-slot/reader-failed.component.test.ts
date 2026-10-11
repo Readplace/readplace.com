@@ -21,64 +21,95 @@ const ALL_VARIANTS = [
 	"not-an-article",
 ] as const satisfies readonly ReaderFailedVariant[];
 
-function ctaLabelFor(variant: ReaderFailedVariant): string {
+function noticeFor(input: { variant: ReaderFailedVariant; extensionInstallUrl?: string }): Element {
 	const doc = parse(
-		renderReaderFailed({ url: destinationUrl("https://example.com/some-article"), variant, noticeOob: false }).notice,
+		renderReaderFailed({
+			url: destinationUrl("https://example.com/some-article"),
+			variant: input.variant,
+			extensionInstallUrl: input.extensionInstallUrl,
+			noticeOob: false,
+		}).notice,
 	);
-	return doc.querySelector("[data-test-reader-failed-primary]")?.textContent?.trim() ?? "";
+	const notice = doc.querySelector("[data-test-reader-notice]");
+	assert(notice, `notice must be rendered for variant=${input.variant}`);
+	return notice;
 }
 
+const PITCH_VISIBLE_CLASS = "article-body__reader-notice-pitch article-body__reader-notice-pitch--visible";
+const PITCH_HIDDEN_CLASS = "article-body__reader-notice-pitch article-body__reader-notice-pitch--hidden";
+
 describe("renderReaderFailed", () => {
-	it("renders the reassuring 'Your link is saved' title regardless of variant", () => {
+	it("titles every variant 'Your link is saved' except not-found, which says the article itself is unavailable", () => {
+		const titles: Record<ReaderFailedVariant, string> = {
+			failed: "Your link is saved",
+			unsupported: "Your link is saved",
+			slow: "Your link is saved",
+			blocked: "Your link is saved",
+			"origin-down": "Your link is saved",
+			"not-found": "Link saved, but the article is unavailable",
+			"not-an-article": "Your link is saved",
+		};
 		for (const variant of ALL_VARIANTS) {
-			const doc = parse(
-				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant, noticeOob: false }).notice,
-			);
-			assert.equal(
-				doc.querySelector(".article-body__reader-notice-title")?.textContent?.trim(),
-				"Your link is saved",
-				`title for variant=${variant}`,
-			);
+			const title = noticeFor({ variant }).querySelector(".article-body__reader-notice-title");
+			assert(title, `title must be rendered for variant=${variant}`);
+			assert.equal(title.tagName, "H2");
+			assert.equal(title.textContent?.trim(), titles[variant], `title for variant=${variant}`);
+			assert.equal(title.children.length, 0, `title for variant=${variant} carries no icon`);
 		}
 	});
 
-	it("renders the primary CTA pointing at the source URL with the hostname in the visible text", () => {
-		const doc = parse(
-			renderReaderFailed({
-				url: destinationUrl("https://example.com/some-article"),
-				variant: "failed",
-				noticeOob: false,
-			}).notice,
-		);
-
-		const primary = doc.querySelector("[data-test-reader-failed-primary]");
-		assert(primary, "primary CTA must be rendered");
-		assert.equal(primary.getAttribute("href"), "https://example.com/some-article");
-		assert.equal(primary.getAttribute("target"), "_blank");
-		assert.equal(primary.getAttribute("rel"), "noopener");
-		assert.match(primary.textContent ?? "", /example\.com/);
+	it("labels the primary CTA for the original page without naming its host, opening it in a new tab", () => {
+		const labels: Record<ReaderFailedVariant, string> = {
+			failed: "Read original article",
+			unsupported: "Read original article",
+			slow: "Read original article",
+			blocked: "Read original article",
+			"origin-down": "Read original article",
+			"not-found": "Visit original page",
+			"not-an-article": "Read original article",
+		};
+		for (const variant of ALL_VARIANTS) {
+			const primary = noticeFor({ variant }).querySelector("[data-test-reader-failed-primary]");
+			assert(primary, `primary CTA must be rendered for variant=${variant}`);
+			assert.equal(primary.textContent?.trim(), labels[variant], `CTA for variant=${variant}`);
+			assert.equal(primary.children.length, 0, `CTA for variant=${variant} carries no icon`);
+			assert.equal(primary.getAttribute("href"), "https://example.com/some-article");
+			assert.equal(primary.getAttribute("target"), "_blank");
+			assert.equal(primary.getAttribute("rel"), "noopener");
+		}
 	});
 
-	it("uses a different one-line explanation per variant", () => {
-		const cases: Array<[ReaderFailedVariant, RegExp]> = [
-			["unsupported", /not webpages which we yet don't show/],
-			["failed", /blocking automated fetches/],
-			["slow", /taking longer than usual/],
-			["blocked", /Open it in your browser/],
-			["origin-down", /its server was down, not blocking us/],
-			["not-found", /no longer exists at this address/],
-			["not-an-article", /This link isn't an article, so there's no reader view\./],
-		];
-		for (const [variant, expected] of cases) {
-			const doc = parse(
-				renderReaderFailed({
-					url: destinationUrl("https://example.com/post"),
-					variant,
-					noticeOob: false,
-				}).notice,
+	it("explains each variant in the product's voice, naming the next step", () => {
+		const explanations: Record<ReaderFailedVariant, string> = {
+			unsupported:
+				"This type of page isn't supported in the Readplace reader yet. You can still open it on the original site.",
+			failed:
+				"Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using the browser extension or the iPhone app.",
+			slow: "Reader view is taking longer than usual.",
+			blocked:
+				"This site blocked Readplace from loading the full article. Use the browser extension or the iPhone app to save the complete page instead.",
+			"origin-down":
+				"Readplace couldn't reach this site right now. It may be temporarily unavailable, so you can try again later.",
+			"not-found": "This page no longer appears to exist, so Readplace couldn't retrieve the article content.",
+			"not-an-article": "This link isn't an article, so it can't be shown in reader view.",
+		};
+		for (const variant of ALL_VARIANTS) {
+			const text = noticeFor({ variant }).querySelector(".article-body__reader-notice-text");
+			assert(text, `explanation must be rendered for variant=${variant}`);
+			assert.equal(text.textContent?.trim(), explanations[variant], `explanation for variant=${variant}`);
+		}
+	});
+
+	it("leads every variant's card with the book-and-lightbulb illustration", () => {
+		for (const variant of ALL_VARIANTS) {
+			const lead = noticeFor({ variant }).firstElementChild;
+			assert(lead, `notice for variant=${variant} must have content`);
+			assert.equal(lead.className, "article-body__reader-notice-illustration");
+			assert.equal(
+				lead.querySelectorAll('[data-test-illustration="book-lightbulb"]').length,
+				1,
+				`illustration for variant=${variant}`,
 			);
-			const text = doc.querySelector(".article-body__reader-notice-text")?.textContent ?? "";
-			assert.match(text, expected, `explanation for variant=${variant}`);
 		}
 	});
 
@@ -146,26 +177,28 @@ describe("renderReaderFailed", () => {
 		}
 	});
 
-	it("renders the extension install pitch when extensionInstallUrl is provided — for every variant a capture could still rescue", () => {
+	it("closes the card with an info alert pitching a capture when extensionInstallUrl is provided — for every variant a capture could still rescue", () => {
 		for (const variant of ["failed", "unsupported", "slow", "blocked"] as const) {
-			const doc = parse(
-				renderReaderFailed({
-					url: destinationUrl("https://example.com/post"),
-					variant,
-					extensionInstallUrl: "/install?client=chrome",
-					noticeOob: false,
-				}).notice,
-			);
+			const notice = noticeFor({ variant, extensionInstallUrl: "/install?client=chrome" });
 
-			const installCta = doc.querySelector("[data-test-reader-failed-install]");
-			assert(installCta, `install CTA must be rendered for variant=${variant}`);
+			const pitch = notice.querySelector(".article-body__reader-notice-pitch");
+			assert(pitch, `pitch wrapper must be rendered for variant=${variant}`);
+			assert.equal(pitch.className, PITCH_VISIBLE_CLASS, `pitch for variant=${variant}`);
+			assert.equal(notice.lastElementChild, pitch, `the pitch closes the card for variant=${variant}`);
+			const alert = pitch.querySelector(
+				'[data-test-alert="reader-capture-pitch"][data-test-alert-variant="info"][role="status"]',
+			);
+			assert(alert, `info alert must be rendered for variant=${variant}`);
+			assert.equal(
+				alert.querySelector("[data-test-alert-title]")?.textContent,
+				"Want the full article in Readplace? Save it with the browser extension or the iPhone app.",
+			);
+			const installCta = alert.querySelector("[data-test-reader-failed-install]");
+			assert(installCta, `install link must be rendered for variant=${variant}`);
+			assert.equal(installCta.textContent, "See ways to save");
 			assert.equal(
 				installCta.getAttribute("href"),
 				`/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-${variant}`,
-			);
-			assert.match(
-				doc.body.textContent ?? "",
-				/Tip: the browser extension and the iPhone app capture the full page in one tap/,
 			);
 		}
 	});
@@ -186,53 +219,23 @@ describe("renderReaderFailed", () => {
 		}
 	});
 
-	it("withholds the extension pitch on the not-found variant — no client can capture a page the origin has deleted", () => {
-		const doc = parse(
-			renderReaderFailed({
-				url: destinationUrl("https://example.com/post"),
-				variant: "not-found",
-				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
-				noticeOob: false,
-			}).notice,
-		);
+	it("withholds the capture pitch where no capture can help — a deleted page, a dead origin, a link that is not an article — and when the extension is installed", () => {
+		const cases: Array<{ variant: ReaderFailedVariant; extensionInstallUrl: string | undefined }> = [
+			{ variant: "not-found", extensionInstallUrl: "/install?client=chrome" },
+			{ variant: "origin-down", extensionInstallUrl: "/install?client=chrome" },
+			{ variant: "not-an-article", extensionInstallUrl: "/install?client=chrome" },
+			{ variant: "failed", extensionInstallUrl: undefined },
+		];
+		for (const { variant, extensionInstallUrl } of cases) {
+			const notice = noticeFor({ variant, extensionInstallUrl });
 
-		const notice = doc.querySelector("[data-test-reader-notice]");
-		assert(notice, "notice must render so the absence check is meaningful");
-		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
-		assert.doesNotMatch(doc.body.textContent ?? "", /capture the full page in one tap/);
-	});
-
-	it("withholds the extension pitch on the origin-down variant — the reader's own browser would hit the same dead origin", () => {
-		const doc = parse(
-			renderReaderFailed({
-				url: destinationUrl("https://example.com/post"),
-				variant: "origin-down",
-				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
-				noticeOob: false,
-			}).notice,
-		);
-
-		const notice = doc.querySelector("[data-test-reader-notice]");
-		assert(notice, "notice must render so the absence check is meaningful");
-		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
-		assert.doesNotMatch(doc.body.textContent ?? "", /blocking automated fetches/);
-	});
-
-	it("labels the origin-down CTA 'Try it on <host>', not 'Read it on', because the page just failed to load", () => {
-		assert.equal(ctaLabelFor("origin-down"), "Try it on example.com");
-	});
-
-	it("never blames a bot wall on the not-found variant — the 404 copy must not send the reader after a fix that cannot work", () => {
-		const doc = parse(
-			renderReaderFailed({
-				url: destinationUrl("https://example.com/post"),
-				variant: "not-found",
-				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
-				noticeOob: false,
-			}).notice,
-		);
-
-		assert.doesNotMatch(doc.body.textContent ?? "", /blocking automated fetches/);
+			const pitch = notice.querySelector(".article-body__reader-notice-pitch");
+			assert(pitch, `pitch wrapper must be rendered for variant=${variant}`);
+			assert.equal(pitch.className, PITCH_HIDDEN_CLASS, `pitch for variant=${variant}`);
+			const alert = pitch.querySelector('[data-test-alert="reader-capture-pitch"]');
+			assert(alert, `alert slot must be rendered for variant=${variant}`);
+			assert.equal(alert.className, "alert alert--hidden", `alert for variant=${variant}`);
+		}
 	});
 
 	it("ships the capture control hidden and keeps the source link primary, so a plain browser still sees only the affordance it can honour", () => {
@@ -251,46 +254,11 @@ describe("renderReaderFailed", () => {
 			capture.className,
 			"btn btn--secondary article-body__reader-notice-capture",
 		);
+		assert.equal(capture.textContent, "Capture it here");
+		assert.equal(capture.children.length, 0, "the capture control carries no icon");
 		assert.equal(
 			doc.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
 			"https://example.com/some-article",
 		);
-	});
-
-	it("names the source host in the primary CTA on every variant a fetch could still have worked for", () => {
-		for (const variant of ["failed", "unsupported", "slow", "blocked", "not-found"] as const) {
-			assert.equal(ctaLabelFor(variant), "Read it on example.com", `CTA for variant=${variant}`);
-		}
-	});
-
-	it("drops the host from the primary CTA on the not-an-article variant — there is nothing to read on it", () => {
-		assert.equal(ctaLabelFor("not-an-article"), "View the link");
-	});
-
-	it("withholds the extension pitch on the not-an-article variant — a capture of a mail session is not an article either", () => {
-		const doc = parse(
-			renderReaderFailed({
-				url: destinationUrl("https://mail.google.com/mail/u/0/"),
-				variant: "not-an-article",
-				extensionInstallUrl: "/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-unsupported",
-				noticeOob: false,
-			}).notice,
-		);
-
-		const notice = doc.querySelector("[data-test-reader-notice]");
-		assert(notice, "notice must render so the absence check is meaningful");
-		assert.equal(notice.getAttribute("data-reader-status"), "not-an-article");
-		assert.equal(doc.querySelector("[data-test-reader-failed-install]"), null);
-	});
-
-	it("omits the extension install pitch when extensionInstallUrl is not provided (extension already installed)", () => {
-		const doc = parse(
-			renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant: "failed", noticeOob: false }).notice,
-		);
-
-		const notice = doc.querySelector("[data-test-reader-notice]");
-		assert(notice, "notice must render so the absence check is meaningful");
-		const installCta = doc.querySelector("[data-test-reader-failed-install]");
-		assert.equal(installCta, null);
 	});
 });

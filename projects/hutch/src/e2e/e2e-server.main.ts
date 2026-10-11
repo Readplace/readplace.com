@@ -528,6 +528,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 const SeedCrawlStatusBody = z.discriminatedUnion('status', [
 	z.object({ url: z.string(), status: z.literal('pending') }),
 	z.object({ url: z.string(), status: z.literal('failed'), reason: z.string() }),
+	z.object({ url: z.string(), status: z.literal('unsupported'), reason: z.string() }),
 ])
 server.post('/e2e/seed-crawl-status', async (req, res) => {
 	const parsed = SeedCrawlStatusBody.safeParse(req.body)
@@ -535,10 +536,16 @@ server.post('/e2e/seed-crawl-status', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	if (parsed.data.status === 'pending') {
-		await fixture.articleCrawl.forceMarkCrawlPending({ url: parsed.data.url })
-	} else {
-		await fixture.articleCrawl.markCrawlFailed({ url: parsed.data.url, reason: parsed.data.reason })
+	switch (parsed.data.status) {
+		case 'pending':
+			await fixture.articleCrawl.forceMarkCrawlPending({ url: parsed.data.url })
+			break
+		case 'failed':
+			await fixture.articleCrawl.markCrawlFailed({ url: parsed.data.url, reason: parsed.data.reason })
+			break
+		case 'unsupported':
+			await fixture.articleCrawl.markCrawlUnsupported({ url: parsed.data.url, reason: parsed.data.reason })
+			break
 	}
 	res.status(201).json({ ok: true })
 })

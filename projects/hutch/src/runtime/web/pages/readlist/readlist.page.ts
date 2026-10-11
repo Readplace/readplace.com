@@ -1312,7 +1312,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		res.vary("Cookie");
 
 		const showExtensionSuggestionBanner =
-			state.readerViewFailed && canOfferExtensionInstall(req);
+			state.readerContentUnavailable && canOfferExtensionInstall(req);
 
 		// Owner-only removal controls: which snapshots this owner authored, so the
 		// bookmark can offer to delete their versions. Only the full-shell owner

@@ -1,20 +1,12 @@
 <section id="article-body-reader-notice" class="article-body__card article-body__reader-notice article-body__reader-notice--visible" data-test-reader-notice data-reader-status="{{variant}}"{{#if noticeOob}} hx-swap-oob="outerHTML"{{/if}}>
-  <h2 class="article-body__reader-notice-title">Your link is saved {{icon "check"}}</h2>
+  <div class="article-body__reader-notice-illustration">{{{illustrationHtml}}}</div>
+  <h2 class="article-body__reader-notice-title">{{title}}</h2>
   <p class="article-body__reader-notice-text">{{explanation}}</p>
   <div class="article-body__reader-notice-actions">
-    <a class="btn btn--primary article-body__reader-notice-link" href="{{url}}" target="_blank" rel="noopener" data-test-reader-failed-primary data-test-reader-action="open">
-      {{ctaLabel}} {{icon "arrow-right"}}
-    </a>
+    <a class="btn btn--primary" href="{{url}}" target="_blank" rel="noopener" data-test-reader-failed-primary data-test-reader-action="open">{{ctaLabel}}</a>
     {{#if showCapture}}
-    <button type="button" class="btn btn--secondary article-body__reader-notice-capture" data-reader-capture{{#if capturePollUrl}} data-reader-capture-poll="{{capturePollUrl}}"{{/if}} data-test-reader-action="capture">
-      Capture it here {{icon "arrow-right"}}
-    </button>
+    <button type="button" class="btn btn--secondary article-body__reader-notice-capture" data-reader-capture{{#if capturePollUrl}} data-reader-capture-poll="{{capturePollUrl}}"{{/if}} data-test-reader-action="capture">Capture it here</button>
     {{/if}}
   </div>
-  {{#if extensionInstallUrl}}
-  <p class="article-body__reader-notice-extension-pitch">
-    Tip: {{captureSurfaces}} capture the full page in one tap — including sites that don't open well in the reader.
-    <a href="{{extensionInstallUrl}}" data-test-reader-failed-install>See the ways to save</a>
-  </p>
-  {{/if}}
+  <div class="{{pitchClass}}">{{{pitchHtml}}}</div>
 </section>

@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import {
 	captureCheckpoint,
+	measuredBox,
 	test,
 	type VisualCheckpoint,
 } from "@packages/e2e-harness";
@@ -20,6 +21,7 @@ const CAPTURED_BODY = "<p>Re: your invoice is attached, please find the PDF belo
 const NOTICE = '[data-test-reader-notice][data-reader-status="not-an-article"]';
 const NOTICE_TEXT = ".article-body__reader-notice-text";
 const NOTICE_CTA = "[data-test-reader-failed-primary]";
+const NOTICE_ART = `${NOTICE} [data-test-illustration="book-lightbulb"]`;
 const READER_VIEWPORT = { width: 1280, height: 900 };
 
 const CreatedUser = z.union([
@@ -80,11 +82,15 @@ async function noticeGeometry(page: Page): Promise<void> {
 	const notice = page.locator(NOTICE);
 	assert.equal(
 		(await notice.locator(NOTICE_TEXT).innerText()).trim(),
-		"This link isn't an article, so there's no reader view.",
+		"This link isn't an article, so it can't be shown in reader view.",
 	);
 	const cta = notice.locator(NOTICE_CTA);
-	assert.equal((await cta.innerText()).trim(), "View the link");
+	assert.equal((await cta.innerText()).trim(), "Read original article");
 	assert.equal(await cta.getAttribute("href"), GATED_URL);
+
+	const art = await measuredBox(page, NOTICE_ART);
+	assert.deepEqual({ width: art.width, height: art.height }, { width: 80, height: 64 }, "the notice art keeps its drawn 80x64");
+	assert.equal((await measuredBox(page, `${NOTICE} ${NOTICE_CTA}`)).height, 48, "the notice CTA is the 48px L button");
 
 	const rendered = await page.locator("body").innerText();
 	assert.ok(

@@ -44,6 +44,7 @@ import type {
 	ReaderViewFailedOob,
 	ResolveReaderStateParams,
 } from "./article-reader.types";
+import { isReaderContentUnavailable } from "../article-state/is-reader-content-unavailable";
 import { isReaderViewFailed } from "../article-state/is-reader-view-failed";
 import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 
@@ -190,7 +191,7 @@ function settledFailureOob(input: {
 			crawlStatus: input.crawl?.status,
 			summaryStatus: input.summary?.status,
 		})
-		? input.render()
+		? input.render({ readerContentUnavailable: isReaderContentUnavailable({ crawlStatus: input.crawl?.status }) })
 		: "";
 }
 
@@ -310,6 +311,7 @@ const GATED_READER_STATE: ReaderState = {
 	progress: undefined,
 	crawlVersions: [],
 	readerViewFailed: false,
+	readerContentUnavailable: true,
 	notice: NOT_AN_ARTICLE,
 };
 
@@ -350,6 +352,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				crawlStatus: crawl?.status,
 				summaryStatus: summary?.status,
 			}),
+			readerContentUnavailable: isReaderContentUnavailable({ crawlStatus: crawl?.status }),
 			notice: undefined,
 		};
 	}

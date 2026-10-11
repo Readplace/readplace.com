@@ -987,13 +987,13 @@ describe("View routes", () => {
 			expect(slot.getAttribute("data-reader-status")).toBe("not-an-article");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
 			expect(doc.querySelector("[data-test-reader-notice]")?.textContent).toContain(
-				"This link isn't an article, so there's no reader view.",
+				"This link isn't an article, so it can't be shown in reader view.",
 			);
 
 			const primary = doc.querySelector("[data-test-reader-failed-primary]");
 			assert(primary, "the notice must offer the original link");
 			expect(primary.getAttribute("href")).toBe(GATED_URL);
-			expect(primary.textContent?.trim()).toBe("View the link");
+			expect(primary.textContent?.trim()).toBe("Read original article");
 		});
 
 		it("never saves an anonymous stub and publishes no crawl or stale check", async () => {

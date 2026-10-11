@@ -449,7 +449,7 @@ describe("Readlist routes", () => {
 			const primary = cappedDoc.querySelector("[data-test-reader-failed-primary]");
 			assert(primary, "primary source CTA must be rendered when polling caps out");
 			expect(primary.getAttribute("href")).toBe("https://destination.example/article");
-			expect(primary.textContent).toContain("destination.example");
+			expect(primary.textContent?.trim()).toBe("Read original article");
 		});
 
 		it("GET /queue/:id/view does NOT re-prime a legacy row from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {

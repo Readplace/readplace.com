@@ -1601,15 +1601,16 @@ describe("Readlist routes", () => {
 
 		it("offers the extension install CTA on a desktop browser", async () => {
 			const link = new JSDOM(await openFailedReader(DESKTOP_UA)).window.document
-				.querySelector("[data-test-reader-failed-install]");
+				.querySelector('[data-test-alert="reader-capture-pitch"] [data-test-reader-failed-install]');
 			assert(link, "desktop reader-failed card must offer the extension install CTA");
 			expect(link.getAttribute("href")).toBe("/install?client=chrome&utm_source=reader-failed&utm_medium=internal&utm_content=install-failed");
 		});
 
 		it("suppresses the extension install CTA on iPhone, which has no extension", async () => {
-			const link = new JSDOM(await openFailedReader(IPHONE_UA)).window.document
-				.querySelector("[data-test-reader-failed-install]");
-			assert.equal(link, null, "iPhone reader-failed card must not offer an extension install CTA");
+			const pitch = new JSDOM(await openFailedReader(IPHONE_UA)).window.document
+				.querySelector("[data-test-reader-notice] .article-body__reader-notice-pitch");
+			assert(pitch, "the reader-failed card must render its capture pitch wrapper");
+			expect(pitch.className).toBe("article-body__reader-notice-pitch article-body__reader-notice-pitch--hidden");
 		});
 	});
 
@@ -1737,7 +1738,7 @@ describe("Readlist routes", () => {
 			const notice = doc.querySelector("[data-test-reader-notice]");
 			assert(notice, "the blocked notice must be rendered");
 			expect(notice.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(
-				"The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — the browser extension and the iPhone app do this in one tap.",
+				"This site blocked Readplace from loading the full article. Use the browser extension or the iPhone app to save the complete page instead.",
 			);
 			const actions = Array.from(notice.querySelectorAll("[data-test-reader-action]")).map(
 				(el) => el.getAttribute("data-test-reader-action"),

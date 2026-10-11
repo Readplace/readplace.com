@@ -33,6 +33,7 @@ const CONTRAST_SENSITIVE = {
 } as const;
 
 const READER_ROOT = "main.reader";
+const FAILED_NOTICE = '[data-test-reader-notice][data-reader-status="failed"].article-body__reader-notice--visible';
 const SHARE_DIALOG = '[data-test-confirm-popover="share"]';
 const PINNED_SHARE_URL =
 	"https://readplace.com/view/example.com/an-e-ink-panel?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-internal";
@@ -156,6 +157,37 @@ async function seedPendingSummary(
 	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
 }
 
+async function seedFailedReader(page: Page, stamp: string): Promise<{ email: string; readerUrl: string }> {
+	const { email, userId } = await createEinkUser(page, stamp);
+	const url = `https://example.com/eink-greyscale-notice-${stamp}`;
+
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+		data: {
+			url,
+			title: "A page the crawler could not bring back",
+			content: READER_BODY,
+			contentFetchedAt: FETCHED_AT,
+			savedAt: "2026-07-12T09:14:00.000Z",
+			savedByUserId: userId,
+			generatedSummary: {
+				summary: "A fixed summary so the panel is baselined in one state.",
+				excerpt: "A fixed summary so the panel is baselined in one state.",
+			},
+		},
+	});
+	assert.equal(seeded.status(), 201, "the seed endpoint must create the reader article");
+	const { articleId } = SeededArticle.parse(await seeded.json());
+	for (const crawl of [
+		{ url, status: "pending" },
+		{ url, status: "failed", reason: JSON.stringify({ kind: "fetch-failed" }) },
+	]) {
+		const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: crawl });
+		assert.equal(moved.status(), 201, `the crawl-status seed must move the crawl to ${crawl.status}`);
+	}
+
+	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
+}
+
 async function createReadlist(page: Page, label: string): Promise<string> {
 	const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
 	assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
@@ -275,6 +307,23 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 			await expect(page.locator(READER_ROOT)).toHaveScreenshot(
 				`eink-reader-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the failed-crawl notice keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, readerUrl } = await seedFailedReader(
+				page,
+				`notice-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await loginAs(page, email);
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector(FAILED_NOTICE);
+			await settle(page, FAILED_NOTICE);
+
+			await expect(page.locator(FAILED_NOTICE)).toHaveScreenshot(
+				`eink-reader-notice-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});

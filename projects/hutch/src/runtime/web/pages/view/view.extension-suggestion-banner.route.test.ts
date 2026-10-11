@@ -208,7 +208,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		expect(bannerAttr(response.text)).toBe("true");
 	});
 
-	it("sets data-show='true' when the summary has failed on a ready crawl", async () => {
+	it("keeps the bar hidden when only the summary failed on a ready crawl", async () => {
 		const parseArticle: ParseArticle = async () => buildParseResult();
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
@@ -229,6 +229,20 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			.get(`/view/${CANONICAL_PATH}`)
 			.set(BROWSER_REQUEST_HEADERS);
 
+		expect(bannerAttr(response.text)).toBe("false");
+	});
+
+	it("sets data-show='true' on a link whose host can never hold an article", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server)
+			.get("/view/mail.google.com/mail/u/0/")
+			.set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		const notice = new JSDOM(response.text).window.document.querySelector("[data-test-reader-notice]");
+		assert(notice, "the reader notice must be rendered");
+		expect(notice.getAttribute("data-reader-status")).toBe("not-an-article");
 		expect(bannerAttr(response.text)).toBe("true");
 	});
 });

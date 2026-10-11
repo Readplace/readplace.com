@@ -808,7 +808,7 @@ describe("View routes", () => {
 				.set(BROWSER_REQUEST_HEADERS);
 
 			const doc = new JSDOM(response.text).window.document;
-			const install = doc.querySelector("[data-test-reader-failed-install]");
+			const install = doc.querySelector('[data-test-alert="reader-capture-pitch"] [data-test-reader-failed-install]');
 			assert(install, "the reader-failed card must pitch an install for a client-capable guest");
 			const href = new URL(install.getAttribute("href") ?? "", "http://localhost");
 			expect(href.searchParams.get("utm_medium")).toBe("internal");
@@ -2135,7 +2135,7 @@ describe("View routes", () => {
 			expect(parsed.searchParams.get(SAVE_SURFACE_QUERY)).toBe(SAVE_SURFACES.readerView);
 		});
 
-		it("appends the banner and gated Save CTA to a settled failed summary poll", async () => {
+		it("a settled summary-failed poll still swaps the gated Save CTA, and carries no bar", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "ready" }),
 				summary: async () => ({ status: "failed", reason: "model timeout" }),
@@ -2147,11 +2147,16 @@ describe("View routes", () => {
 				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(200);
-			const doc = new JSDOM(response.text).window.document;
-			const banner = doc.querySelector("#extension-suggestion-banner");
-			assert(banner, "banner OOB fragment must be present");
-			expect(banner.getAttribute("data-show-extension-suggestion")).toBe("true");
-			const cta = doc.querySelector("#view-cta-save");
+			expect(oobIds(response.text)).toEqual([
+				"article-body-reader-slot",
+				"article-body-progress",
+				"article-header",
+				"document-title",
+				"view-cta-save",
+				"view-cta-downloads-slot",
+				"article-body-reader-notice",
+			]);
+			const cta = new JSDOM(response.text).window.document.querySelector("#view-cta-save");
 			assert(cta, "Save CTA OOB fragment must be present");
 			expect(cta.getAttribute("data-save-tip")).toBe("due");
 		});

@@ -13,6 +13,7 @@ import type {
 	ArticleReaderDeps,
 	ArticleSnapshot,
 	PollUrlBuilder,
+	ReaderViewFailedOob,
 } from "./article-reader.types";
 
 const ARTICLE_URL = "https://example.com/post";
@@ -588,7 +589,7 @@ describe("initArticleReader", () => {
 			expect(result.readerPollUrl).toBe("/test/reader?poll=1");
 		});
 
-		it("flags readerViewFailed when the crawl has failed", async () => {
+		it("flags readerViewFailed and readerContentUnavailable when the crawl has failed", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "failed", reason: "blocked" },
 				summary: { status: "pending" },
@@ -602,9 +603,10 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.readerViewFailed).toBe(true);
+			expect(result.readerContentUnavailable).toBe(true);
 		});
 
-		it("flags readerViewFailed when the summary has failed on a ready crawl", async () => {
+		it("flags readerViewFailed but not readerContentUnavailable when only the summary has failed on a ready crawl — the article rendered", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "failed", reason: "model timeout" },
@@ -619,9 +621,10 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.readerViewFailed).toBe(true);
+			expect(result.readerContentUnavailable).toBe(false);
 		});
 
-		it("does not flag readerViewFailed while the crawl and summary are still pending", async () => {
+		it("flags neither readerViewFailed nor readerContentUnavailable while the crawl and summary are still pending", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 				summary: { status: "pending" },
@@ -635,9 +638,10 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.readerViewFailed).toBe(false);
+			expect(result.readerContentUnavailable).toBe(false);
 		});
 
-		it("does not flag readerViewFailed once the reader view has succeeded", async () => {
+		it("flags neither readerViewFailed nor readerContentUnavailable once the reader view has succeeded", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "ready", summary: "TL;DR", topics: [] },
@@ -652,6 +656,7 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.readerViewFailed).toBe(false);
+			expect(result.readerContentUnavailable).toBe(false);
 		});
 	});
 
@@ -1241,7 +1246,7 @@ describe("initArticleReader", () => {
 			const primary = doc.querySelector("[data-test-reader-failed-primary]");
 			assert(primary, "primary source CTA must be rendered when the poll cap is reached");
 			expect(primary.getAttribute("href")).toBe("https://destination.example/article");
-			expect(primary.textContent).toContain("destination.example");
+			expect(primary.textContent?.trim()).toBe("Read original article");
 		});
 
 		it("omits the header + <title> OOB fragments when the row has gone missing — falling back to swapping only the slot so the existing header text stays put", async () => {
@@ -1799,8 +1804,16 @@ describe("initArticleReader", () => {
 	});
 
 	describe("readerViewFailedOob emission (settled + failed only)", () => {
-		const PROBE = () =>
-			'<div id="reader-view-failed-probe" hx-swap-oob="outerHTML"></div>';
+		const PROBE: ReaderViewFailedOob = (failure) =>
+			`<div id="reader-view-failed-probe" data-content-unavailable="${failure.readerContentUnavailable}" hx-swap-oob="outerHTML"></div>`;
+
+		function probeContentUnavailable(component: {
+			to: (mediaType: "text/html") => { body: string };
+		}): string | null {
+			const probe = parse(toHtml(component)).querySelector("#reader-view-failed-probe");
+			assert(probe, "the reader-view-failed fragment must be emitted");
+			return probe.getAttribute("data-content-unavailable");
+		}
 
 		function oobIds(component: {
 			to: (mediaType: "text/html") => { body: string };
@@ -1823,7 +1836,7 @@ describe("initArticleReader", () => {
 			"document-title",
 		];
 
-		it("appends the fragment on a reader poll once the crawl has failed and both chains are settled", async () => {
+		it("appends the fragment on a reader poll once the crawl has failed and both chains are settled, telling it the reader has no content", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "failed", reason: "blocked" },
 				summary: { status: "skipped" },
@@ -1849,9 +1862,10 @@ describe("initArticleReader", () => {
 				"reader-view-failed-probe",
 				"article-body-reader-notice",
 			]);
+			expect(probeContentUnavailable(component)).toBe("true");
 		});
 
-		it("appends the fragment on a summary poll once the summary has failed on a ready crawl", async () => {
+		it("appends the fragment on a summary poll once the summary has failed on a ready crawl, telling it the article rendered", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "failed", reason: "model timeout" },
@@ -1878,6 +1892,7 @@ describe("initArticleReader", () => {
 				"reader-view-failed-probe",
 				"article-body-reader-notice",
 			]);
+			expect(probeContentUnavailable(component)).toBe("false");
 		});
 
 		it("omits the fragment while the reader chain is still polling through the content-promotion race, even though the summary failed", async () => {
@@ -2021,6 +2036,7 @@ describe("initArticleReader", () => {
 				progress: undefined,
 				crawlVersions: [],
 				readerViewFailed: false,
+				readerContentUnavailable: true,
 				notice: "not-an-article",
 			});
 		});

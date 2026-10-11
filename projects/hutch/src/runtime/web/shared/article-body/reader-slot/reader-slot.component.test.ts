@@ -299,7 +299,7 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("failed");
 	});
 
-	it("tells a reader of a deleted page that it is gone, not that the site is blocking us", () => {
+	it("tells a reader of a deleted page that it is gone, and pitches no capture that could not bring it back", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: {
@@ -313,10 +313,12 @@ describe("renderReaderSlot", () => {
 			}),
 		);
 
-		const text = doc.querySelector(".article-body__reader-notice-text")?.textContent ?? "";
-		expect(text).toMatch(/no longer exists at this address/);
-		expect(doc.body.textContent ?? "").not.toMatch(/blocking automated fetches/);
-		expect(doc.querySelector("[data-test-reader-failed-install]")).toBeNull();
+		expect(doc.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(
+			"This page no longer appears to exist, so Readplace couldn't retrieve the article content.",
+		);
+		const pitch = doc.querySelector(".article-body__reader-notice-pitch");
+		assert(pitch, "the capture pitch wrapper must be rendered");
+		expect(pitch.className).toBe("article-body__reader-notice-pitch article-body__reader-notice-pitch--hidden");
 	});
 
 	it("routes status=unsupported to the unsupported variant with the reassuring title", () => {
