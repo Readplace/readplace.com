@@ -16,6 +16,7 @@ import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-uns
 import { QUEUE_DIGEST_MARK_READ_PATH, QUEUE_DIGEST_UNSUBSCRIBE_PATH } from "./web/queue-digest-email";
 
 const useApp = useTestServer();
+const useArmB = useTestServer({ drawRandomByte: () => 128 });
 
 const ARTICLE_CONTENT_REGIONS = ["[data-test-reader-content]"];
 
@@ -252,5 +253,23 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		expect([...actionKeys].sort()).toEqual(["cancel-import", "edit", "grant-import-permission", "remove", "retry-import", "start-import"]);
 		expect(rendered[0]?.querySelector("[data-test-gmail-readlist-picker]")?.hasAttribute("open")).toBe(true);
 		expect(pages.flatMap(([path, html]) => untrackedOn(path, html))).toEqual([]);
+	});
+
+	it("holds across homepage arm B, including its comparison signup link", async () => {
+		const harness = useArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS);
+		expect(response.status).toBe(200);
+		const document = new JSDOM(response.text).window.document;
+		const body = document.querySelector("body.page-home.variant-b");
+		assert(body, "the CTA audit must render homepage arm B");
+		const signup = body.querySelector('[data-test-cta="compare-signup"]');
+		assert(signup, "the comparison must offer its signup link");
+		const href = signup.getAttribute("href");
+		assert(href, "the comparison signup must navigate");
+		const destination = new URL(href, TEST_APP_ORIGIN);
+		expect(destination.pathname).toBe("/signup");
+		expect(destination.searchParams.get("utm_source")).toBe("home-compare");
+		expect(destination.searchParams.get("utm_content")).toBe("compare-signup");
+		expect(untrackedOn("homepage arm B", response.text)).toEqual([]);
 	});
 });

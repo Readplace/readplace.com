@@ -507,7 +507,7 @@ describe("Google auth routes", () => {
 
 			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`)
+				.set("Cookie", [`hutch_gstate=${encodeURIComponent(state)}`, "hutch_exp=homepage-ai-cost%3A1%3Avariant-d"])
 				.set("User-Agent", BROWSER_USER_AGENT);
 
 			expect(response.status).toBe(303);
@@ -534,6 +534,7 @@ describe("Google auth routes", () => {
 
 			const conversionEvent = conversions.events.find((e) => e.method === "google" && e.tier === "trial");
 			assert(conversionEvent, "Google trial signup must emit a user_created conversion event with tier=trial");
+			expect(conversionEvent.homepage_variant).toBe("variant-d");
 		}, 30000);
 
 		it("carries the OAuth client id through the signed state, which the callback never reads off the query", async () => {
@@ -554,13 +555,14 @@ describe("Google auth routes", () => {
 
 			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`)
+				.set("Cookie", [`hutch_gstate=${encodeURIComponent(state)}`, "hutch_exp=homepage-ai-cost%3A1%3Avariant-c"])
 				.set("User-Agent", BROWSER_USER_AGENT);
 
 			expect(response.status).toBe(303);
 			const event = harness.conversions.events.find((e) => e.method === "google");
 			assert(event, "Google signup must emit a conversion event");
 			expect(event.tier).toBe("free");
+			expect(event.homepage_variant).toBe("variant-c");
 			expect(event.oauth_client_id).toBe("hutch-chrome-extension");
 			expect(JSON.stringify(event)).not.toContain("xyz");
 		});

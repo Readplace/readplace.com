@@ -582,7 +582,7 @@ describe("Auth routes", () => {
 			}
 
 			const before = Date.now();
-			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A1%3Avariant-d").type("form").send({
 				email: "trial@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -619,6 +619,7 @@ describe("Auth routes", () => {
 
 			const conversionEvent = conversions.events.find((e) => e.method === "email" && e.tier === "trial");
 			assert(conversionEvent, "trial signup must emit a user_created conversion event with tier=trial");
+			expect(conversionEvent.homepage_variant).toBe("variant-d");
 
 			// No Stripe checkout, no pending signup row.
 			const consumed = await pendingSignup.consumePendingSignup(
@@ -717,7 +718,7 @@ describe("Auth routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { conversions } = harness;
 
-			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A1%3Avariant-c").type("form").send({
 				email: "convert-free@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -731,6 +732,7 @@ describe("Auth routes", () => {
 				method: "email",
 				tier: "free",
 			});
+			expect(conversions.events[0].homepage_variant).toBe("variant-c");
 			expect(conversions.events[0].email_hash).toBeDefined();
 			expect(conversions.events[0].user_id).toBeDefined();
 		});

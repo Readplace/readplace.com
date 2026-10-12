@@ -10,10 +10,6 @@ function hashEmail(email: string): string {
 	return createHash("sha256").update(email.toLowerCase()).digest("hex").slice(0, 16);
 }
 
-/**
- * Attribution is device-scoped — a signup completed in a different browser from
- * the one that drove the click will carry no attribution on the event.
- */
 export function buildUserCreatedEvent(
 	deps: {
 		now: () => Date;
@@ -24,6 +20,7 @@ export function buildUserCreatedEvent(
 		method: "email" | "google" | "apple";
 		tier: "free" | "trial";
 		attribution: ClickAttribution | undefined;
+		homepageVariant: string | undefined;
 		visitorId?: string;
 		pendingSaveId?: string;
 		oauthClientId: string | undefined;
@@ -39,6 +36,7 @@ export function buildUserCreatedEvent(
 		tier: params.tier,
 		...(params.attribution ?? {}),
 		...(params.visitorId ? { visitor_id: params.visitorId } : {}),
+		...(params.homepageVariant ? { homepage_variant: params.homepageVariant } : {}),
 		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
 		...(params.oauthClientId ? { oauth_client_id: params.oauthClientId } : {}),
 	};

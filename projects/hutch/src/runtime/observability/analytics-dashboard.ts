@@ -8,7 +8,8 @@ import {
 	GMAIL_METRIC_NAMESPACE,
 } from "@packages/hutch-infra-components";
 import { CLICK_SURFACES } from "@packages/web-shell";
-import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
+import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
+import { HOMEPAGE_EXPOSURE } from "../web/pages/home/home.version";
 import { SAVE_LINK_TOOL } from "../web/mcp/tool-definitions";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
@@ -329,7 +330,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			title: "Recent Conversions",
 			logGroupNames: analyticsSource,
 			query: [
-				"fields @timestamp, user_id, method, tier, oauth_client_id, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path, first_seen_at",
+				"fields @timestamp, user_id, method, tier, oauth_client_id, homepage_variant, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path, first_seen_at",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
 				...exclude,
 				"| sort @timestamp desc",
@@ -568,10 +569,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 0, y: 98, width: 12, height: 8,
 			view: "bar",
 		}),
-		/** Save failures the user actually hit, by surface — a save-funnel signal.
-		 * Placed at x:12 y:146 (next free 12-wide slot, beside the checkout
-		 * conversions widget) because the y:122–146 rows below the funnel are taken
-		 * by the Homepage A/B, blog-pageviews, signup-form, and checkout-funnel widgets. */
 		logWidget({
 			region,
 			title: "Save errors by surface (view_save_intent outcome=error)",
@@ -721,21 +718,16 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// --- Homepage ---
 	// The `/` render stamps experiment=<campaign> + experiment_variant=<version> on
 	// its own pageview. The retired A/B split's tag is matched alongside the current
-	// one so the arms stay beside the page that replaced them until they age out of
-	// the log group's retention, which is what makes "did the new homepage beat the
-	// arms it replaced" answerable at all.
-	//
-	// The conversion leg is `landing_path = "/"`, not a field stamped at signup: the
-	// click-attribution cookie records the first page a visitor landed on, so a
-	// signup that started at /oauth/authorize is never counted as a homepage
-	// conversion, and no second copy of the page identity can drift from it.
+	// one so the arms stay beside the page that replaced them, which is what makes
+	// "did the new homepage beat the arms it replaced" answerable at all.
 	//
 	// The denominator is `visitor_id` (the sticky first-party cookie identity the
 	// conversion also carries), not `visitor_hash` (a salted IP hash that collapses
 	// people behind shared NAT and is not the id a signup joins on).
 
 	const RETIRED_SPLIT_CAMPAIGN = "homepage-split-e3";
-	const homepageExposureFilter = `(experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "${RETIRED_SPLIT_CAMPAIGN}"] or utm_campaign = "${RETIRED_SPLIT_CAMPAIGN}")`;
+	const homepageExposureFilter = `(experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "${RETIRED_SPLIT_CAMPAIGN}", "${campaignTag(HOMEPAGE_SPLIT)}"] or utm_campaign = "${RETIRED_SPLIT_CAMPAIGN}")`;
+	const homepageArmSlugs = HOMEPAGE_SPLIT.variants.map(({ slug }) => `"${slug}"`).join(", ");
 
 	widgets.push(
 		logWidget({
@@ -782,6 +774,40 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort signups desc",
 			].join(" "),
 			x: 12, y: 162, width: 12, height: 8,
+			view: "table",
+		}),
+	);
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Homepage — assigned visitors vs signups by arm",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, visitor_id, coalesce(experiment_variant, homepage_variant) as arm",
+				`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and experiment = "${campaignTag(HOMEPAGE_SPLIT)}") or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant))`,
+				...exclude,
+				`| filter arm in [${homepageArmSlugs}]`,
+				"| filter ispresent(visitor_id)",
+				"| stats count_distinct(visitor_id) as visitors by arm, event",
+				"| sort arm asc",
+			].join(" "),
+			x: 0, y: 170, width: 12, height: 8,
+			view: "bar",
+		}),
+		logWidget({
+			region,
+			title: "Signups by homepage arm × tier",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, homepage_variant as arm, tier",
+				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant)`,
+				...exclude,
+				`| filter arm in [${homepageArmSlugs}]`,
+				"| stats count_distinct(user_id) as signups by arm, tier",
+				"| sort signups desc",
+			].join(" "),
+			x: 12, y: 170, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -933,7 +959,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort calls desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 170, width: 12, height: 8,
+			x: 0, y: 178, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -946,7 +972,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count(*) as calls by bin(1d), outcome",
 			].join(" "),
-			x: 12, y: 170, width: 12, height: 8,
+			x: 12, y: 178, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -961,7 +987,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort calls desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 178, width: 12, height: 8,
+			x: 0, y: 186, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -979,7 +1005,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort signups desc",
 				"| limit 50",
 			].join(" "),
-			x: 12, y: 178, width: 12, height: 8,
+			x: 12, y: 186, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -997,7 +1023,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort oauth_client_id asc, users desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 222, width: 24, height: 8,
+			x: 0, y: 230, width: 24, height: 8,
 			view: "table",
 		}),
 	);
@@ -1026,7 +1052,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as readers, median(unseen_px) as unseen_px_median, pct(unseen_px, 90) as unseen_px_p90, median(seen_percent) as seen_percent_median by bin(1d) as day",
 				"| sort day asc",
 			].join(" "),
-			x: 0, y: 198, width: 12, height: 8,
+			x: 0, y: 206, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -1040,7 +1066,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as readers, median(seen_percent) as seen_percent_median, median(unseen_px) as unseen_px_median, max(page_height_px) as page_height_px by device_class",
 				"| sort readers desc",
 			].join(" "),
-			x: 12, y: 198, width: 12, height: 8,
+			x: 12, y: 206, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1064,7 +1090,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as downloads, count_distinct(visitor_id) as downloaders by device, browser_label, source",
 				"| sort downloads desc",
 			].join(" "),
-			x: 0, y: 230, width: 12, height: 8,
+			x: 0, y: 238, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1080,7 +1106,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count(*) as sends by bin(1d), kind",
 			].join(" "),
-			x: 0, y: 238, width: 24, height: 8,
+			x: 0, y: 246, width: 24, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -1094,7 +1120,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(user_id) as users, count(*) as ticks by reason, tier",
 				"| sort users desc",
 			].join(" "),
-			x: 0, y: 246, width: 12, height: 8,
+			x: 0, y: 254, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1109,7 +1135,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort users desc",
 				"| limit 50",
 			].join(" "),
-			x: 12, y: 246, width: 12, height: 8,
+			x: 12, y: 254, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1123,7 +1149,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as views, count_distinct(user_id) as users by terms",
 				"| sort views desc",
 			].join(" "),
-			x: 0, y: 254, width: 12, height: 8,
+			x: 0, y: 262, width: 12, height: 8,
 			view: "bar",
 		}),
 		logWidget({
@@ -1137,7 +1163,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as unsubscribes, count_distinct(user_id) as users by method",
 				"| sort users desc",
 			].join(" "),
-			x: 12, y: 254, width: 12, height: 8,
+			x: 12, y: 262, width: 12, height: 8,
 			view: "bar",
 		}),
 	);
@@ -1145,7 +1171,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 296, width: 8, height: 4,
+			x: index * 8, y: 304, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1171,7 +1197,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort grants desc",
 				"| limit 40",
 			].join(" "),
-			x: 0, y: 186, width: 12, height: 8,
+			x: 0, y: 194, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1185,7 +1211,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort refusals desc",
 				"| limit 40",
 			].join(" "),
-			x: 12, y: 186, width: 12, height: 8,
+			x: 12, y: 194, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1210,7 +1236,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort clicks desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 206, width: 12, height: 8,
+			x: 0, y: 214, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1228,7 +1254,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as visitors, sum(last_signup_ms > first_touch_ms) as signed_up_after, sum(visitor_events = touches) as touch_only_visitors by first_control",
 				"| sort visitors desc",
 			].join(" "),
-			x: 12, y: 206, width: 12, height: 8,
+			x: 12, y: 214, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1236,7 +1262,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		{
 			type: "metric",
-			x: 0, y: 214, width: 6, height: 4,
+			x: 0, y: 222, width: 6, height: 4,
 			properties: {
 				region,
 				title: "Gmail filter rewrites that failed",
@@ -1250,7 +1276,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		},
 		{
 			type: "metric",
-			x: 6, y: 214, width: 6, height: 4,
+			x: 6, y: 222, width: 6, height: 4,
 			properties: {
 				region,
 				title: "Gmail forwarding confirmations that failed",
@@ -1278,7 +1304,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort failures desc",
 				"| limit 20",
 			].join(" "),
-			x: 12, y: 214, width: 12, height: 8,
+			x: 12, y: 222, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1295,7 +1321,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as events, count_distinct(user_id) as accounts by campaign_id, event, arm, reason",
 				"| sort events desc",
 			].join(" "),
-			x: 0, y: 266, width: 24, height: 8,
+			x: 0, y: 274, width: 24, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1310,7 +1336,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as actions, count_distinct(user_id) as accounts by campaign_id, arm, activity_kind, marked_read, on_suggestion",
 				"| sort actions desc",
 			].join(" "),
-			x: 0, y: 274, width: 12, height: 8,
+			x: 0, y: 282, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1325,7 +1351,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| filter ispresent(original_arm) and unsubscribes > 0",
 				"| stats count(*) as accounts by campaign, original_arm",
 			].join(" "),
-			x: 12, y: 274, width: 12, height: 8,
+			x: 12, y: 282, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1341,7 +1367,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"latest(treatment.inserted) as t_inserted, latest(treatment.insertionFailed) as t_insertion_failed, latest(treatment.sent) as t_sent, latest(treatment.suppressed) as t_suppressed, latest(treatment.review) as t_review",
 				"by campaign_id",
 			].join(" "),
-			x: 0, y: 282, width: 24, height: 6,
+			x: 0, y: 290, width: 24, height: 6,
 			view: "table",
 		}),
 		logWidget({
@@ -1356,7 +1382,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"by campaign_id, cohort",
 				"| sort cohort asc",
 			].join(" "),
-			x: 0, y: 288, width: 12, height: 8,
+			x: 0, y: 296, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1369,7 +1395,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"max(comparison.activated) as comparison_activated, max(comparison.mature) as comparison_mature",
 				"by bin(6h)",
 			].join(" "),
-			x: 12, y: 288, width: 12, height: 8,
+			x: 12, y: 296, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 	);

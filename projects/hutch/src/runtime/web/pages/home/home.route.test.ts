@@ -21,6 +21,7 @@ import {
 	HOME_WAYS_WITHOUT_A_CLIENT,
 } from "./home.content";
 import { HOMEPAGE_EXPOSURE } from "./home.version";
+import { campaignTag, HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
 
 const GOOGLEBOT_UA =
 	"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
@@ -81,7 +82,7 @@ describe("GET /", () => {
 		expect(response.headers["cache-control"]).toBe("private, no-cache");
 	});
 
-	it("should stamp the homepage version on its own pageview so it stays separable from the retired arms", async () => {
+	it("should stamp the active campaign and continuous control version on its pageview", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS);
 
@@ -89,7 +90,7 @@ describe("GET /", () => {
 			expect.objectContaining({
 				event: "pageview",
 				path: "/",
-				experiment: HOMEPAGE_EXPOSURE.campaign,
+				experiment: campaignTag(HOMEPAGE_SPLIT),
 				experiment_variant: HOMEPAGE_EXPOSURE.version,
 			}),
 		);

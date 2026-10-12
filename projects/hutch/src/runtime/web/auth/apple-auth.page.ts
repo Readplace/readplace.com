@@ -41,6 +41,7 @@ import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { buildUserCreatedEvent } from "../../conversions";
+import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { verifyState } from "./oauth-state";
 import { signAppleState } from "./apple-state";
 
@@ -53,16 +54,13 @@ const CancelBodySchema = z.object({
 	error: z.literal("user_cancelled_authorize"),
 });
 
-/** Apple's cross-site form_post callback carries none of the first-party cookies
- * (hutch_click / hutch_vid / hutch_psid), so the acquisition context is captured
- * at GET /auth/apple and tunneled inside this HMAC-signed (tamper-evident) state
- * rather than re-read on the callback. */
 const StatePayloadSchema = z.object({
 	nonce: z.string(),
 	returnUrl: z.string().optional(),
 	createdAt: z.number(),
 	attribution: ClickAttributionSchema.optional(),
 	visitorId: z.string().optional(),
+	homepageVariant: z.string().optional(),
 	pendingSaveId: z.string().optional(),
 	lastViewUrl: z.string().optional(),
 });
@@ -131,6 +129,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		 * intact for a later signup. */
 		const attribution = readClickAttribution(req);
 		const visitorId = req.visitorId;
+		const homepageVariant = readHomepageVariantSlug(req);
 		const pendingSaveId = readPendingSaveId(req);
 		const lastViewUrl = readLastViewUrl(req);
 		const signedState = signAppleState({
@@ -140,6 +139,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				createdAt,
 				...(attribution ? { attribution } : {}),
 				...(visitorId ? { visitorId } : {}),
+				...(homepageVariant ? { homepageVariant } : {}),
 				...(pendingSaveId ? { pendingSaveId } : {}),
 			},
 			lastViewUrl,
@@ -255,6 +255,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const conversionContext = {
 			attribution,
 			visitorId: stateData.visitorId,
+			homepageVariant: stateData.homepageVariant,
 			pendingSaveId: stateData.pendingSaveId,
 			oauthClientId: oauthClientIdFrom(safeReturnUrl),
 		};

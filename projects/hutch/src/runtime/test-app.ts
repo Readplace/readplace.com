@@ -78,6 +78,7 @@ export { loginAgent } from "@packages/web-test-harness";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 
 interface TestAppOverrides {
+	drawRandomByte?: () => number;
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
 	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
@@ -303,6 +304,7 @@ function flattenFixtureToAppDependencies(
 		findIssueLink: fixture.inboxEmail.inboxEmailLinkStore.getLink,
 		findIssueLinkSaveStates: fixture.inboxEmail.inboxSavedLinkStore.findSavedLinks,
 		now: fixture.shared.now,
+		drawRandomByte: () => 0,
 		retrieveCheckoutSession: fixture.hostedCheckout.retrieveCheckoutSession,
 		createCheckoutSession: fixture.hostedCheckout.createCheckoutSession,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,

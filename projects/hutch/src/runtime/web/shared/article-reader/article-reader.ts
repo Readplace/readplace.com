@@ -212,7 +212,7 @@ function shouldKeepPollingReader(
  * The stored log is intentionally unbounded (see `appendCrawlVersion`), so raising this
  * limit — or building a dedicated all-versions view — needs no backfill.
  */
-const MAX_ARTICLE_HISTORY_VERSIONS = 10;
+export const MAX_ARTICLE_HISTORY_VERSIONS = 10;
 
 function toArticleVersion(iso: string): ArticleVersion {
 	return { minuteId: iso, date: toAbsoluteDate({ iso }), time: toAbsoluteTime({ iso }) };

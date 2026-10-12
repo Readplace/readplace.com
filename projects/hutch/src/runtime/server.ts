@@ -280,7 +280,10 @@ import {
 	buildProtectedResourceMetadata,
 	renderAuthMarkdown,
 } from "./web/agent-auth";
-import { HOMEPAGE_EXPOSURE, HomePage } from "./web/pages/home";
+import { buildHomepageArmBody } from "./web/pages/home";
+import { resolveHomepageArm } from "./web/experiments/homepage-arm";
+import { writeHomepageAssignment } from "./web/experiments/homepage-assignment";
+import { campaignTag, HOMEPAGE_SPLIT } from "./web/experiments/homepage-split";
 import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
 import { initSaveTipEventRoute } from "./web/shared/save-tip/save-tip.route";
 import { initPageDepthRoute } from "./web/shared/page-depth/page-depth.route";
@@ -485,6 +488,7 @@ interface AppDependencies {
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
 	clearReadlistFromAddresses: InboxAddressStore["clearReadlistFromAddresses"];
 	now: () => Date;
+	drawRandomByte: () => number;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
 	consumePendingSignup: ConsumePendingSignup;
@@ -1048,16 +1052,20 @@ export function createApp(dependencies: AppDependencies): Express {
 			return;
 		}
 
-		// A crawler is not a human-facing read, so it stays out of the measurement
-		// rather than counting as a visitor who saw the page.
-		if (!isbot(req.get("user-agent")) && !wantsMarkdown(req)) {
+		const eligible = !isbot(req.get("user-agent")) && !wantsMarkdown(req);
+		const arm = resolveHomepageArm({
+			req,
+			config: HOMEPAGE_SPLIT,
+			eligible,
+			drawRandomByte: deps.drawRandomByte,
+		});
+		if (arm.participating) {
+			writeHomepageAssignment(res, { config: HOMEPAGE_SPLIT, variant: arm.variant, secure: secureCookies });
 			tagPageviewExperiment(res, {
-				experiment: HOMEPAGE_EXPOSURE.campaign,
-				variant: HOMEPAGE_EXPOSURE.version,
+				experiment: campaignTag(HOMEPAGE_SPLIT),
+				variant: arm.variant.slug,
 			});
 		}
-		// The reader-view arrival treatment rides a cookie, so this response is
-		// per-visitor and must not be held by a shared cache.
 		res.set("Cache-Control", "private, no-cache");
 
 		const banner = await buildBannerState(req);
@@ -1065,10 +1073,11 @@ export function createApp(dependencies: AppDependencies): Express {
 			req,
 			res,
 			Base(
-				HomePage({
+				buildHomepageArmBody({
 					staticBaseUrl,
 					lastViewUrl: readLastViewUrl(req),
 					saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }),
+					variant: arm.variant.marker,
 				}),
 				banner,
 			),

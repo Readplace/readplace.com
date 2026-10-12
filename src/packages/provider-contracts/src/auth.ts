@@ -172,6 +172,7 @@ export interface ConversionEvent {
 	first_seen_at?: string;
 	landing_path?: string;
 	visitor_id?: string;
+	homepage_variant?: string;
 	/** The id minted when an anonymous save was held behind the sign-in wall
 	 * (carried on the matching `view_save_intent`), so a signup-blocked save can
 	 * be traced to the account it eventually created. Absent when the signup did

@@ -67,7 +67,7 @@ export {
 	type UnwrappedUrl,
 	type WrapperFamily,
 } from "./wrapper-url";
-export { calculateReadTime } from "./estimated-read-time";
+export { calculateReadTime, WORDS_PER_MINUTE } from "./estimated-read-time";
 export {
 	displayableReadTime,
 	type DisplayableReadTime,

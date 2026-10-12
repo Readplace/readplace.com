@@ -1,0 +1,152 @@
+.home-compare {
+  padding: 48px var(--page-gutter);
+  background: var(--background);
+}
+
+.home-compare__lede,
+.home-compare__close {
+  font-size: var(--text-lg);
+  line-height: 1.6;
+  text-wrap: pretty;
+  color: var(--foreground);
+  margin: 0 0 24px;
+}
+
+.home-compare__highlight {
+  color: var(--color-highlight);
+}
+
+.home-compare__table {
+  display: block;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 8px;
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+.home-compare__caption {
+  display: block;
+  text-align: left;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 8px;
+}
+
+.home-compare__table thead {
+  display: block;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.home-compare__table tbody,
+.home-compare__table tfoot,
+.home-compare__table tr,
+.home-compare__table th,
+.home-compare__table td {
+  display: block;
+}
+
+.home-compare__table tr {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+
+.home-compare__table th,
+.home-compare__table td {
+  padding: 4px 0;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+}
+
+.home-compare__table th {
+  font-weight: 600;
+}
+
+.home-compare__table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.home-compare__table td::before {
+  content: attr(data-label) ": ";
+  font-weight: 600;
+}
+
+.home-compare__table tfoot th,
+.home-compare__table tfoot td {
+  font-weight: 600;
+}
+
+.home-compare__notes {
+  padding-inline-start: 20px;
+  margin: 24px 0;
+}
+
+.home-compare__note {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  margin-bottom: 16px;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+  .home-compare {
+    padding-block: 64px;
+  }
+
+  .home-compare__table {
+    display: table;
+    table-layout: fixed;
+  }
+
+  .home-compare__caption {
+    display: table-caption;
+    caption-side: top;
+  }
+
+  .home-compare__table thead {
+    display: table-header-group;
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    background: var(--muted);
+  }
+
+  .home-compare__table tbody {
+    display: table-row-group;
+  }
+
+  .home-compare__table tfoot {
+    display: table-footer-group;
+  }
+
+  .home-compare__table tr {
+    display: table-row;
+    padding: 0;
+  }
+
+  .home-compare__table th,
+  .home-compare__table td {
+    display: table-cell;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .home-compare__table td::before {
+    content: none;
+  }
+}

@@ -1,0 +1,143 @@
+<main class="home">
+  <section id="paste-a-link" class="home-hero" data-test-section="hero" aria-label="What Readplace is">
+    <div class="home-hero__container">
+      {{#if heroEyebrow}}<p class="home-hero__eyebrow" data-test-hero-eyebrow>{{heroEyebrow}}</p>{{/if}}
+      <h1 class="home-hero__title" data-test-tagline>{{heroTitle}}</h1>
+      <p class="home-hero__subhead">{{heroSubhead}}</p>
+      <div class="home-hero__actions">
+        {{#each heroActions}}
+        <div class="home-hero__action">
+          {{#if lead}}<p class="home-hero__action-lead">{{lead}}</p>{{/if}}
+          {{#if target}}<a class="home-hero__action-target" href="{{target.href}}" title="{{target.label}}" data-test-hero-target="{{key}}">{{target.label}}</a>{{/if}}
+          <form class="home-hero__form" method="GET" action="{{action}}"{{#if saveTipState}} data-save-tip="{{saveTipState}}"{{/if}} data-test-hero-form="{{key}}">
+            {{#each hiddenParams}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            {{#if input}}
+            <label class="sr-only" for="home-field-{{key}}">{{input.label}}</label>
+            <input class="form-input form-input--cta-ring home-hero__input" id="home-field-{{key}}" type="url" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-hero-input="{{key}}">
+            {{/if}}
+            <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+          </form>
+        </div>
+        {{/each}}
+      </div>
+      <p class="home-hero__reassurance">{{heroReassurance}}</p>
+    </div>
+  </section>
+
+  <section id="ways-to-save" class="home-ways" data-test-section="ways-to-save" aria-label="Every way to save">
+    <div class="home-section__container">
+      <h2 class="home-section__title home-ways__title">{{waysTitle}}</h2>
+      <ul class="home-ways__list" role="list" data-test-ways-list>
+        {{#each ways}}
+        <li class="home-ways__item" data-test-way="{{name}}">
+          <strong class="home-ways__name">{{name}}</strong>
+          <span class="home-ways__body">{{bodyLead}}{{#if bodyIcon}} <span class="home-ways__icon">{{icon bodyIcon}}</span>{{/if}}{{#if bodyMid}}{{bodyMid}}{{/if}}{{#if bodyLink}} <a class="home-link" href="{{bodyLink.href}}" data-test-way-body-link="{{name}}">{{bodyLink.label}}</a>{{/if}}{{#if examples}} {{#each examples}}<span class="home-ways__example">{{this}}</span>{{#unless @last}} or {{/unless}}{{/each}}. {{/if}}{{#if bodyTail}}{{bodyTail}}{{/if}}</span>
+          <span class="home-ways__links">
+            {{#each links}}
+            <a class="home-link" href="{{href}}" data-test-way-link="{{label}}">{{label}}{{icon "arrow-right"}}</a>
+            {{/each}}
+          </span>
+        </li>
+        {{/each}}
+      </ul>
+      <p class="home-ways__note">{{waysNoteLead}} <a class="home-link" href="{{waysNoteLink.href}}" data-test-way-link="pdf">{{waysNoteLink.label}}{{icon "arrow-right"}}</a></p>
+    </div>
+  </section>
+
+  <section id="assistant" class="home-assistant home-band--muted" data-test-section="assistant" aria-label="Save from an AI assistant">
+    <div class="home-section__container">
+      <h2 class="home-section__title">{{assistantTitle}}</h2>
+      <p class="home-assistant__body">{{assistantBodyLead}} <strong data-test-assistant-names>{{assistantNames}}</strong> {{assistantBodyTail}}</p>
+      <p class="home-assistant__action"><a class="home-link" href="{{assistantLink.href}}" data-test-cta="assistant">{{assistantLink.label}}{{icon "arrow-right"}}</a></p>
+    </div>
+  </section>
+
+  <section class="home-proof" data-test-section="proof" aria-label="What that looks like">
+    <div class="home-section__container">
+      <h2 class="home-section__title">{{proofTitle}}</h2>
+      <video class="home-proof__video" width="{{proofVideo.width}}" height="{{proofVideo.height}}" poster="{{proofVideo.poster}}" muted playsinline controls preload="none" aria-label="{{proofVideo.ariaLabel}}">
+        {{#each proofVideo.sources}}
+        <source src="{{src}}" type="{{type}}">
+        {{/each}}
+      </video>
+      <figure class="home-proof__quote">
+        <blockquote class="home-proof__quote-text">{{proofQuote}}</blockquote>
+        <figcaption class="home-proof__quote-by">&mdash; {{proofAttribution}}</figcaption>
+      </figure>
+      <p class="home-proof__founder">{{proofFounderLead}} <a class="home-link" href="{{proofJsCookieLink.href}}" data-test-cta="js-cookie">{{proofJsCookieLink.label}}</a>, {{proofFounderMid}} <a class="home-link" href="{{proofFounderLink.href}}" data-test-cta="what-not-to-read">{{proofFounderLink.label}}</a>.</p>
+      <p class="home-proof__founder">{{proofFounderClose}}</p>
+    </div>
+  </section>
+
+  <section id="not-becoming" class="home-principle home-band--muted" data-test-section="principle" aria-label="What Readplace is for">
+    <div class="home-section__container">
+      <h2 class="home-section__title home-principle__title"><img class="home-principle__avatar" src="{{principleAvatarUrl}}" alt="{{principleAvatarAlt}}" width="56" height="56">{{principleTitle}}</h2>
+      <p class="home-principle__body">{{principleBody}}</p>
+      <p class="home-principle__signature">{{principleSignature}}</p>
+    </div>
+  </section>
+
+  {{{compareSection}}}
+
+  <section id="pricing" class="home-pricing home-band--muted" data-test-section="pricing" aria-label="Pricing">
+    <div class="home-section__container home-pricing__container">
+      <h2 class="home-section__title home-pricing__title">{{pricingTitleBefore}} <span class="home-pricing__amount" data-test-price>{{pricingPriceAmount}}</span> {{pricingTitleAfter}}</h2>
+    </div>
+    <div class="home-pricing__grid-container">
+      <ul class="home-pricing__grid" role="list" data-test-plans>
+        {{#each pricingPanels}}
+        <li class="{{panelClass}}" data-test-plan="{{tierId}}">
+          {{#if badge}}<p class="home-pricing__plan-badge" data-test-plan-badge>{{badge}}</p>{{/if}}
+          <h3 class="home-pricing__plan-name">{{name}}</h3>
+          <p class="home-pricing__plan-price"><span class="home-pricing__plan-amount" data-test-plan-price>{{monthlyDisplay}}</span><span class="home-pricing__plan-per">/month</span></p>
+          <p class="home-pricing__plan-billing" data-test-plan-billing>{{billedNote}}</p>
+          <form class="home-pricing__plan-form" method="GET" action="{{cta.action}}">
+            {{#each cta.hiddenParams}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            <button class="btn {{cta.cssClass}}" type="submit" data-test-cta="{{cta.key}}">{{cta.label}}</button>
+          </form>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    <div class="home-section__container home-pricing__container">
+      <p class="home-pricing__note">{{pricingNote}}</p>
+      <ul class="home-pricing__assurances" data-test-assurances>
+        {{#each pricingAssurances}}
+        <li class="home-pricing__assurance">{{this}}</li>
+        {{/each}}
+      </ul>
+      <p class="home-pricing__source">{{pricingSourceLead}} <a class="home-link" href="{{pricingSourceLink.href}}">{{pricingSourceLink.label}}</a> {{pricingSourceClose}}</p>
+    </div>
+  </section>
+
+  <section id="faq" class="home-faq" data-test-section="faq" aria-label="Questions">
+    <div class="home-section__container">
+      <h2 class="home-section__title">{{faqTitle}}</h2>
+      <dl class="home-faq__list">
+        {{#each faq}}
+        <div class="home-faq__item">
+          <dt class="home-faq__question" data-test-faq-question>{{question}}</dt>
+          <dd class="home-faq__answer">{{answer}}</dd>
+        </div>
+        {{/each}}
+      </dl>
+    </div>
+  </section>
+
+  <section class="home-close home-band--muted" data-test-section="close" aria-label="Get started">
+    <div class="home-section__container home-close__container">
+      <h2 class="home-section__title">{{closeTitle}}</h2>
+      <p class="home-close__links">
+        <a class="home-link" href="{{closeInstallLink.href}}" data-test-cta="close-install">{{closeInstallLink.label}}{{icon "arrow-right"}}</a>
+        <a class="home-link" href="{{closeImportLink.href}}" data-test-cta="close-import">{{closeImportLink.label}}{{icon "arrow-right"}}</a>
+      </p>
+      <p class="home-close__signoff">{{closeSignoff}}</p>
+    </div>
+  </section>
+  {{{saveTipHtml}}}
+  {{{pageDepthBeacon}}}
+</main>

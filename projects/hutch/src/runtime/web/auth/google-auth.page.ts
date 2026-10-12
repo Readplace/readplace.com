@@ -39,6 +39,7 @@ import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { buildUserCreatedEvent } from "../../conversions";
+import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { signState, verifyState } from "./oauth-state";
 import { viewerOf } from "@packages/viewer-identity";
 
@@ -234,6 +235,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 						method: "google",
 						tier: "free",
 						attribution,
+						homepageVariant: readHomepageVariantSlug(req),
 						visitorId: req.visitorId,
 						pendingSaveId: consumePendingSaveId({ req, res }),
 						oauthClientId: oauthClientIdFrom(safeReturnUrl),
@@ -293,6 +295,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					method: "google",
 					tier: "trial",
 					attribution: readClickAttribution(req),
+					homepageVariant: readHomepageVariantSlug(req),
 					visitorId: req.visitorId,
 					pendingSaveId: consumePendingSaveId({ req, res }),
 					oauthClientId: oauthClientIdFrom(safeReturnUrl),

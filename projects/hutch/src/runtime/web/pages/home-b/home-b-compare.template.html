@@ -1,0 +1,41 @@
+<section id="compare" class="home-compare" data-test-section="compare" aria-label="What an AI plan can't keep">
+    <div class="home-section__container">
+      <h2 class="home-section__title">{{titleLead}}<span class="home-compare__highlight">{{titleHighlight}}</span>{{titleTail}}</h2>
+      <p class="home-compare__lede">{{lede}}</p>
+      <table class="home-compare__table" role="table" aria-labelledby="home-compare-caption">
+        <caption id="home-compare-caption" class="home-compare__caption">{{caption}}</caption>
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">{{columns.outcome}}</th>
+            <th scope="col" role="columnheader">{{columns.readplace}}</th>
+            <th scope="col" role="columnheader">{{columns.ai}}</th>
+            <th scope="col" role="columnheader">{{columns.share}}</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          {{#each rows}}
+          <tr role="row" data-test-outcome="{{key}}">
+            <th scope="row" role="rowheader">{{outcome}}</th>
+            <td role="cell" data-label="{{../columns.readplace}}">{{readplace}}</td>
+            <td role="cell" data-label="{{../columns.ai}}">{{ai}}</td>
+            <td role="cell" data-label="{{../columns.share}}">{{share}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+        <tfoot role="rowgroup">
+          <tr role="row">
+            <th scope="row" role="rowheader">{{total.outcome}}</th>
+            <td role="cell" data-label="{{columns.readplace}}">{{total.readplace}}</td>
+            <td role="cell" data-label="{{columns.ai}}">{{total.ai}}</td>
+            <td role="cell" data-label="{{columns.share}}">{{total.share}}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <ol class="home-compare__notes">
+        {{#each footnotes}}
+        <li class="home-compare__note">{{text}}{{#each sources}} <a class="home-link" href="{{href}}">{{label}}</a>.{{/each}}</li>
+        {{/each}}
+      </ol>
+      <p class="home-compare__close">{{closeLead}} <a class="home-link" href="{{ctaHref}}" data-test-cta="compare-signup">{{ctaLabel}}</a></p>
+    </div>
+  </section>

@@ -9,6 +9,7 @@ import {
 	SAVE_LINK_LOG_GROUPS,
 } from "@packages/hutch-infra-components";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
+import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
 import {
@@ -87,9 +88,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 67 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 2 homepage, 1 landing-path-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 69 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 consent-seed, 1 oauth-token-grants, 1 save-refusals, 2 public-reader-controls, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(67);
+		expect(body.widgets).toHaveLength(69);
 	});
 
 	it("counts EPUB visitor/article pairs after a public render or directly from the owner reader, preferring click labels over historical pageviews", () => {
@@ -98,7 +99,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		);
 		assert(widget, "the human-shaped EPUB downloads widget must exist");
 		expect(widget).toMatchObject({
-			type: "log", x: 0, y: 230, width: 12, height: 8,
+			type: "log", x: 0, y: 238, width: 12, height: 8,
 			properties: { view: "table" },
 		});
 		const query = widget.properties.query;
@@ -163,11 +164,11 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 					type, x, y, width, height, title: properties.title, view: properties.view,
 				})),
 			).toEqual([
-				{ type: "log", x: 0, y: 238, width: 24, height: 8, title: "Queue digest — sends per day by kind", view: "timeSeries" },
-				{ type: "log", x: 0, y: 246, width: 12, height: 8, title: "Queue digest — skipped users by reason × tier", view: "table" },
-				{ type: "log", x: 12, y: 246, width: 12, height: 8, title: "Queue digest — signed-in email clicks by source / link", view: "table" },
-				{ type: "log", x: 0, y: 254, width: 12, height: 8, title: "Queue digest — plans page views by terms", view: "bar" },
-				{ type: "log", x: 12, y: 254, width: 12, height: 8, title: "Queue digest — unsubscribes by method", view: "bar" },
+				{ type: "log", x: 0, y: 246, width: 24, height: 8, title: "Queue digest — sends per day by kind", view: "timeSeries" },
+				{ type: "log", x: 0, y: 254, width: 12, height: 8, title: "Queue digest — skipped users by reason × tier", view: "table" },
+				{ type: "log", x: 12, y: 254, width: 12, height: 8, title: "Queue digest — signed-in email clicks by source / link", view: "table" },
+				{ type: "log", x: 0, y: 262, width: 12, height: 8, title: "Queue digest — plans page views by terms", view: "bar" },
+				{ type: "log", x: 12, y: 262, width: 12, height: 8, title: "Queue digest — unsubscribes by method", view: "bar" },
 			]);
 		});
 
@@ -265,23 +266,55 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(byVersion).not.toContain("count_distinct(visitor_hash)");
 	});
 
-	// The retired split's arms sit in the same log group until they age out of
-	// retention, so every homepage widget matches both tags — otherwise the
-	// cutover reads as the new page losing all its traffic.
-	it("the homepage widgets count an exposure from the current version tag or the retired split's", () => {
+	it("the homepage history widgets count exposures from the current split, the current version, and the retired split", () => {
 		const homepageQueries = buildBody()
-			.widgets.filter((widget) => String(widget.properties.title).startsWith("Homepage —"))
+			.widgets.filter(({ properties }) => [
+				"Homepage — distinct visitors and landings by version",
+				"Homepage — visitors, and signups whose first page was the homepage",
+			].includes(String(properties.title)))
 			.map((widget) => String(widget.properties.query));
 		expect(homepageQueries.length).toBe(2);
 		for (const query of homepageQueries) {
-			expect(query).toContain(`experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "homepage-split-e3"]`);
+			expect(query).toContain(`experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "homepage-split-e3", "${campaignTag(HOMEPAGE_SPLIT)}"]`);
 			expect(query).toContain('utm_campaign = "homepage-split-e3"');
 		}
 	});
 
-	// A signup that started at /oauth/authorize must never read as a homepage
-	// conversion, so the conversion leg is the first-touch landing path rather
-	// than a version stamped at signup time.
+	it("counts distinct assigned visitors and signups by arm using only exposures from the current test", () => {
+		const widget = buildBody().widgets.find(({ properties }) =>
+			properties.title === "Homepage — assigned visitors vs signups by arm",
+		);
+		assert(widget, "the homepage arm visitor and signup widget must exist");
+		expect(widget).toMatchObject({
+			type: "log", x: 0, y: 170, width: 12, height: 8,
+			properties: { view: "bar" },
+		});
+		const query = String(widget.properties.query);
+		expect(query).toContain("coalesce(experiment_variant, homepage_variant) as arm");
+		expect(query).toContain(`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and experiment = "${campaignTag(HOMEPAGE_SPLIT)}") or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant))`);
+		expect(query).toContain('| filter arm in ["variant-c", "variant-d"]');
+		expect(query).toContain("| filter ispresent(visitor_id)");
+		expect(query).toContain("| stats count_distinct(visitor_id) as visitors by arm, event");
+		expect(query).toContain("| sort arm asc");
+	});
+
+	it("counts distinct signups by homepage arm and tier", () => {
+		const widget = buildBody().widgets.find(({ properties }) =>
+			properties.title === "Signups by homepage arm × tier",
+		);
+		assert(widget, "the homepage arm and tier signup widget must exist");
+		expect(widget).toMatchObject({
+			type: "log", x: 12, y: 170, width: 12, height: 8,
+			properties: { view: "table" },
+		});
+		const query = String(widget.properties.query);
+		expect(query).toContain("homepage_variant as arm");
+		expect(query).toContain(`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant)`);
+		expect(query).toContain('| filter arm in ["variant-c", "variant-d"]');
+		expect(query).toContain("| stats count_distinct(user_id) as signups by arm, tier");
+		expect(query).toContain("| sort signups desc");
+	});
+
 	it("the homepage conversion widget counts only signups whose landing path was the homepage", () => {
 		const queries = widgetQueries();
 		const visitorsVsSignups = queries.find((q) => q.includes('landing_path = "/"'));

@@ -15,6 +15,7 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);
@@ -39,6 +40,7 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "trial",
 				attribution: undefined,
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);
@@ -64,6 +66,7 @@ describe("buildUserCreatedEvent", () => {
 				tier: "free",
 				attribution: undefined,
 				visitorId: "550e8400-e29b-41d4-a716-446655440000",
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);
@@ -71,6 +74,23 @@ describe("buildUserCreatedEvent", () => {
 		expect(event).toMatchObject({
 			visitor_id: "550e8400-e29b-41d4-a716-446655440000",
 		});
+	});
+
+	it("includes the assigned homepage arm so exposures and signups can be grouped without a join", () => {
+		const event = buildUserCreatedEvent(
+			{ now: TEST_NOW },
+			{
+				userId: TEST_USER_ID,
+				email: "arm@example.com",
+				method: "email",
+				tier: "trial",
+				attribution: undefined,
+				homepageVariant: "variant-d",
+				oauthClientId: undefined,
+			},
+		);
+
+		expect(event.homepage_variant).toBe("variant-d");
 	});
 
 	it("flattens click attribution into the event so downstream queries can group by utm_* without a join", () => {
@@ -91,6 +111,7 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "free",
 				attribution,
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);
@@ -114,6 +135,7 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);
@@ -125,6 +147,7 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);
@@ -141,6 +164,7 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);
@@ -166,6 +190,7 @@ describe("buildUserCreatedEvent", () => {
 				tier: "free",
 				attribution: undefined,
 				pendingSaveId: "9f1c0c8e-3b2a-4d6e-8c1f-2a7b5d4e6f10",
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);
@@ -184,6 +209,7 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				homepageVariant: undefined,
 				oauthClientId: "ios-app",
 			},
 		);
@@ -200,6 +226,7 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "free",
 				attribution: undefined,
+				homepageVariant: undefined,
 				oauthClientId: undefined,
 			},
 		);

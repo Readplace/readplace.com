@@ -1,7 +1,7 @@
 import { MinutesSchema } from "./article.schema";
 import type { Minutes } from "./article.types";
 
-const WORDS_PER_MINUTE = 238;
+export const WORDS_PER_MINUTE = 238;
 
 export function calculateReadTime(wordCount: number): Minutes {
 	if (wordCount <= 0) {
