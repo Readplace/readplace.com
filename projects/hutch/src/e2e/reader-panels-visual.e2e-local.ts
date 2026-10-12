@@ -165,6 +165,7 @@ async function captureStarted(page: Page): Promise<void> {
 		timeout: SETTLE_MS,
 	});
 	await expect(page.locator(READER_SLOT)).toHaveAttribute("data-reader-status", "pending");
+	await expect(page.locator(READER_SLOT)).toBeVisible();
 }
 
 async function summaryPendingShown(page: Page): Promise<void> {
