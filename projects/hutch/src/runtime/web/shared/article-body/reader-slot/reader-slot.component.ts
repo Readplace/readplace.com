@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseCrawlFailureReason } from "@packages/article-state-types";
 import {
 	type ArticleDestinationUrl,
 	DEFAULT_CRAWL_STAGE,
@@ -10,6 +9,7 @@ import {
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
 import { render } from "@packages/web-shell";
+import { failedCrawlNotice } from "./failed-crawl-notice";
 import {
 	type ReaderFailedVariant,
 	type ReaderRegions,
@@ -75,18 +75,6 @@ function resolveLoadingHint(url: string): string | undefined {
 	}
 	if (isPDF({ pathname })) return PDF_LOADING_HINT;
 	return undefined;
-}
-
-function failedVariant(reason: string): ReaderFailedVariant {
-	const parsed = parseCrawlFailureReason(reason);
-	/* A 404/410 is the one failure the reader can do nothing about: the generic
-	 * `failed` copy sends the user to install a client,
-	 * advice that cannot resurrect a deleted page. */
-	if (parsed?.kind === "not-found") return "not-found";
-	if (parsed?.kind === "origin-unreachable") return "origin-down";
-	if (parsed?.kind !== "blocked") return "failed";
-	if (parsed.cause === "edge-block" || parsed.cause === "rate-limited") return "blocked";
-	return "failed";
 }
 
 function noticeOrCapture(
@@ -179,7 +167,7 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 				}),
 			);
 		case "failed":
-			return noticeOrCapture(input, failedVariant(input.crawl.reason), oob);
+			return noticeOrCapture(input, failedCrawlNotice(input.crawl.reason).variant, oob);
 		case "unsupported":
 			return noticeOrCapture(input, "unsupported", oob);
 	}
