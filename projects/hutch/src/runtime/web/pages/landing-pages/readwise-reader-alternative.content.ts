@@ -16,7 +16,7 @@ function track(path: string, content: string): string {
 }
 
 export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-01",
+	lastModified: "2026-10-12",
 	title: "Readwise Reader Alternative, With the Gaps Listed | Readplace",
 	description:
 		"Readplace next to Readwise Reader, row by row: what it does for less, and the highlights, RSS, video, podcast and listening features it doesn't have.",
@@ -115,7 +115,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 					readplace: "EPUB file you send yourself",
 					competitor: "Sends documents to a Kindle",
 				},
-				{ feature: "Offline reading", readplace: "No", competitor: "Yes" },
+				{ feature: "Offline reading", readplace: "Yes, web and iPhone", competitor: "Yes" },
 				{
 					feature: "Apps",
 					readplace: "iPhone and Mac, Chrome and Firefox extensions",
@@ -136,7 +136,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 		"No RSS or podcasts.",
 		"No listening or text-to-speech.",
 		"No video transcripts.",
-		"No Android app and no offline reading.",
+		"No Android app.",
 		"No full-text search across saved articles.",
 		"Newsletters bring their article links across, not the email body as an article.",
 	],
