@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
@@ -18,6 +20,9 @@ import { initQueueDigestMarkReadToken } from "../domain/email/queue-digest-mark-
 import { initQueueDigestUnsubscribeToken } from "../domain/email/queue-digest-unsubscribe-token";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "../observability/queue-digest-events";
 import { CONSENT_SEED_ARTICLE_URL } from "../web/oauth/consent-seed-save";
+import { initReadArticleContentOrThrow } from "@packages/article-store";
+import { initBuildQueueDigestBook } from "../web/queue-digest-book";
+import { initBuildBookEpub } from "../web/shared/epub/book-epub";
 import { initSendQueueDigestHandler, type SendQueueDigestDeps } from "./send-queue-digest-handler";
 
 const USER_ID = UserIdSchema.parse("user-1");
@@ -73,6 +78,12 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 			return page;
 		},
 		findGeneratedSummary: summaries.findGeneratedSummary,
+		readArticleContent: initReadArticleContentOrThrow({
+			storageProviderQueryOrder: [articleStore.readContent],
+		}),
+		buildQueueDigestBook: initBuildQueueDigestBook({
+			buildBookEpub: initBuildBookEpub({ readArticleImage: articleStore.readArticleImage, maxImageBytes: 1_000_000 }),
+		}),
 		claimReaderReadyEmailSlot: readerReady.claimReaderReadyEmailSlot,
 		releaseReaderReadyEmailSlot: readerReady.releaseReaderReadyEmailSlot,
 		claimPayDigest: subscriptions.claimPayDigest,
@@ -147,6 +158,7 @@ async function saveArticle(subject: Subject, input: { url: string; title: string
 async function saveReadyArticle(subject: Subject, input: { url: string; title: string; savedAt: Date }) {
 	await saveArticle(subject, input);
 	await subject.articleStore.setReaderAvailableAt({ url: input.url, at: input.savedAt });
+	await subject.articleStore.writeContent({ url: input.url, content: `<p>${input.title} body.</p>` });
 	await subject.summaries.markSummaryReady({
 		url: input.url,
 		summary: `${input.title} summary.`,
@@ -180,6 +192,21 @@ function cardTitlesOf(text: string | undefined): string[] {
 		.map((block) => block.split("\n"))
 		.filter(([, url]) => url !== undefined && new URL(url).searchParams.get("utm_content") === "article")
 		.map(([title]) => title ?? "");
+}
+
+function bookOf(message: { attachments?: readonly { filename: string; contentType: string; content: Uint8Array }[] }) {
+	assert.equal(message.attachments?.length, 1, "the digest carries exactly one attachment");
+	const [book] = message.attachments ?? [];
+	assert(book);
+	const nav = unzipSync(book.content)["OEBPS/nav.xhtml"];
+	assert(nav, "the attachment is an EPUB with a table of contents");
+	return {
+		filename: book.filename,
+		contentType: book.contentType,
+		chapterTitles: [...new JSDOM(strFromU8(nav)).window.document.querySelectorAll("nav li")].map(
+			(entry) => entry.textContent,
+		),
+	};
 }
 
 function linkUrlsOf(html: string): URL[] {
@@ -355,6 +382,7 @@ describe("initSendQueueDigestHandler", () => {
 				savedAt: DAY_OLD_SAVE,
 			});
 			await subject.articleStore.setReaderAvailableAt({ url, at: DAY_OLD_SAVE });
+			await subject.articleStore.writeContent({ url, content: `<p>${slug}</p>` });
 			await subject.summaries.markSummaryReady({ url, summary: "Summary" });
 		}
 		await subject.run();
@@ -710,6 +738,7 @@ describe("initSendQueueDigestHandler", () => {
 			await saveArticle(subject, { url: NOT_READY_URL, title: "Loading", savedAt: hoursBefore(40) });
 			await subject.run();
 			await subject.articleStore.setReaderAvailableAt({ url: NOT_READY_URL, at: hoursBefore(1) });
+			await subject.articleStore.writeContent({ url: NOT_READY_URL, content: "<p>Loaded.</p>" });
 			await subject.summaries.markSummaryReady({ url: NOT_READY_URL, summary: "Loaded.", excerpt: "Loaded teaser." });
 			const nextTick = new Date(SEND_INSTANT.getTime() + 48 * HOUR_MS);
 			subject.clock.now = nextTick;
@@ -1430,6 +1459,150 @@ describe("initSendQueueDigestHandler", () => {
 
 			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-bad" }] });
 			expect(findUserContactByUserId).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("EPUB attachment", () => {
+		const PLANS = {
+			regular: (subject: Subject) =>
+				subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TEN_DAYS_OUT }),
+			pay: (subject: Subject) =>
+				subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_EIGHTY_HOURS_OUT }),
+		};
+
+		it.each(["regular", "pay"] as const)("attaches one EPUB of a %s digest's articles, in the order the email lists them", async (kind) => {
+			const subject = createSubject();
+			await PLANS[kind](subject);
+			await saveReadyArticle(subject, { url: "https://example.com/older", title: "Older", savedAt: hoursBefore(50) });
+			await saveReadyArticle(subject, { url: "https://example.com/newer", title: "Newer", savedAt: hoursBefore(30) });
+
+			await subject.run();
+
+			const sent = onlySentEmail(subject);
+			expect(cardTitlesOf(sent.text)).toEqual(["Newer", "Older"]);
+			expect(bookOf(sent)).toEqual({
+				filename: "readplace-readlist-2026-06-10.epub",
+				contentType: "application/epub+zip",
+				chapterTitles: ["Newer", "Older"],
+			});
+		});
+
+		it("leaves an article whose body cannot be read out of both the email and the book", async () => {
+			const subject = createSubject();
+			await PLANS.regular(subject);
+			await saveReadyArticle(subject, { url: "https://example.com/readable", title: "Readable", savedAt: hoursBefore(50) });
+			await saveArticle(subject, { url: "https://example.com/bodiless", title: "Bodiless", savedAt: hoursBefore(40) });
+			await subject.articleStore.setReaderAvailableAt({ url: "https://example.com/bodiless", at: hoursBefore(40) });
+			await subject.summaries.markSummaryReady({ url: "https://example.com/bodiless", summary: "Bodiless summary." });
+
+			await subject.run();
+
+			const sent = onlySentEmail(subject);
+			expect(cardTitlesOf(sent.text)).toEqual(["Readable"]);
+			expect(bookOf(sent).chapterTitles).toEqual(["Readable"]);
+		});
+
+		it("fails the record without sending or claiming when reading a body fails, rather than leaving the article out", async () => {
+			const subject = createSubject({
+				overrides: {
+					readArticleContent: async () => {
+						throw new Error("SlowDown");
+					},
+				},
+			});
+			await PLANS.regular(subject);
+			await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: DAY_OLD_SAVE });
+
+			const result = await subject.run();
+
+			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: MESSAGE_ID }] });
+			expect(subject.email.getSentEmails()).toEqual([]);
+			expect(await subject.readerReady.findReaderReadyEmailState(USER_ID)).toEqual({
+				lastSentAt: undefined,
+				lastMessageId: undefined,
+			});
+		});
+
+		describe.each(["regular", "pay"] as const)("when the book cannot be built for a %s digest", (kind) => {
+			const IMAGE_ARTICLE_URL = "https://example.com/pictured";
+			const IMAGE_FILENAME = "abcdef0123456789.png";
+
+			async function arrangePicturedSave(subject: Subject) {
+				await PLANS[kind](subject);
+				await saveReadyArticle(subject, { url: IMAGE_ARTICLE_URL, title: "Pictured", savedAt: DAY_OLD_SAVE });
+				const src = ArticleResourceUniqueId.parse(IMAGE_ARTICLE_URL).toImageCdnUrl({
+					baseUrl: "https://cdn.readplace.test",
+					filename: IMAGE_FILENAME,
+				});
+				await subject.articleStore.writeContent({ url: IMAGE_ARTICLE_URL, content: `<p><img src="${src}" /></p>` });
+			}
+
+			it.each([
+				[
+					"an image is missing from the store",
+					() => ({}),
+					(subject: Subject) =>
+						subject.articleStore.writeImage({
+							url: IMAGE_ARTICLE_URL,
+							filename: IMAGE_FILENAME,
+							body: Buffer.from([1]),
+							contentType: "image/png",
+						}),
+				],
+				[
+					"reading an image fails",
+					(state: { readFails: boolean }, store: () => Subject["articleStore"]) => ({
+						buildQueueDigestBook: initBuildQueueDigestBook({
+							buildBookEpub: initBuildBookEpub({
+								readArticleImage: async (query) => {
+									if (state.readFails) throw new Error("S3 unavailable");
+									return store().readArticleImage(query);
+								},
+								maxImageBytes: 1_000_000,
+							}),
+						}),
+					}),
+					async (subject: Subject) => {
+						await subject.articleStore.writeImage({
+							url: IMAGE_ARTICLE_URL,
+							filename: IMAGE_FILENAME,
+							body: Buffer.from([1]),
+							contentType: "image/png",
+						});
+					},
+				],
+			] as const)("fails the record without sending, claiming or stamping anything when %s, and the same message sends once repaired", async (_failure, overridesFor, repair) => {
+				const state = { readFails: true };
+				const holder: { subject?: Subject } = {};
+				const subject = createSubject({
+					overrides: overridesFor(state, () => {
+						assert(holder.subject);
+						return holder.subject.articleStore;
+					}),
+				});
+				holder.subject = subject;
+				await arrangePicturedSave(subject);
+
+				const failed = await subject.run();
+
+				expect(failed).toEqual({ batchItemFailures: [{ itemIdentifier: MESSAGE_ID }] });
+				expect(subject.email.getSentEmails()).toEqual([]);
+				expect(await subject.readerReady.findReaderReadyEmailState(USER_ID)).toEqual({
+					lastSentAt: undefined,
+					lastMessageId: undefined,
+				});
+				expect((await subject.subscriptions.findByUserId(USER_ID))?.payDigestMessageId).toBeUndefined();
+				expect((await emailSentAtByUrl(subject)).get(IMAGE_ARTICLE_URL)).toBeUndefined();
+				expect(subject.published).toEqual([]);
+
+				state.readFails = false;
+				await repair(subject);
+				const redelivered = await subject.run();
+
+				expect(redelivered).toEqual({ batchItemFailures: [] });
+				expect(bookOf(onlySentEmail(subject)).chapterTitles).toEqual(["Pictured"]);
+				expect((await emailSentAtByUrl(subject)).get(IMAGE_ARTICLE_URL)).toEqual(SEND_INSTANT);
+			});
 		});
 	});
 });

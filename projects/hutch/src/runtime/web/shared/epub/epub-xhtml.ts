@@ -24,7 +24,7 @@ const VOID_ELEMENTS = new Set([
 
 const DROP_ELEMENTS = ["script", "style", "iframe"];
 const DROP_IMAGE_ATTRIBUTES = ["srcset", "sizes", "loading", "decoding"];
-const SAFE_IMAGE_FILENAME = /^[A-Za-z0-9._-]+$/;
+const SAFE_IMAGE_FILENAME = /^[A-Za-z0-9._-]+\.(jpg|jpeg|png|gif|webp|avif|svg)$/i;
 const OWNED_IMAGE_FILENAME = /^attempts\/[a-f0-9]{64}\/[a-f0-9]{64}\.(jpg|jpeg|png|gif|webp|avif|svg)$/;
 
 export function embeddableImageFilename(params: {
@@ -76,8 +76,21 @@ export function articleEpubXhtml(params: {
 	articleUrl: string;
 	embeddedFilenames: readonly string[];
 }): string {
+	return chapterEpubXhtml({
+		contentHtml: params.contentHtml,
+		title: params.title,
+		articleUrl: params.articleUrl,
+		imageHrefs: new Map(params.embeddedFilenames.map((filename) => [filename, `images/${filename}`])),
+	});
+}
+
+export function chapterEpubXhtml(params: {
+	contentHtml: string;
+	title: string;
+	articleUrl: string;
+	imageHrefs: ReadonlyMap<string, string>;
+}): string {
 	const imagePrefix = ArticleResourceUniqueId.parse(params.articleUrl).toS3ImagePrefix();
-	const embedded = new Set(params.embeddedFilenames);
 	const { document } = parseHTML(`<div id="epub-root">${params.contentHtml}</div>`);
 	const root = document.querySelector("#epub-root");
 	assert(root, "epub content root must parse");
@@ -92,7 +105,8 @@ export function articleEpubXhtml(params: {
 		for (const attribute of DROP_IMAGE_ATTRIBUTES) img.removeAttribute(attribute);
 		const src = img.getAttribute("src");
 		const filename = src === null ? undefined : embeddableImageFilename({ src, imagePrefix });
-		if (filename && embedded.has(filename)) img.setAttribute("src", `images/${filename}`);
+		const href = filename === undefined ? undefined : params.imageHrefs.get(filename);
+		if (href) img.setAttribute("src", href);
 		else img.remove();
 	}
 

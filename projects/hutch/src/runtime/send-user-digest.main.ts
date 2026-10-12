@@ -6,6 +6,10 @@ import { initGetEffectiveAccess } from "@packages/subscription-access";
 import {
 	initDynamoDbEngagementStarter,
 	initDynamoDbReadlistDefinitions,
+	initReadArticleContentOrThrow,
+	initReadContentLocation,
+	initS3ReadArticleImage,
+	initS3ReadContent,
 } from "@packages/article-store";
 import { initS3HnSnapshot } from "./providers/hn-snapshot/s3-hn-snapshot";
 import { initS3StarterRollout } from "./providers/hn-snapshot/s3-starter-rollout";
@@ -29,6 +33,8 @@ import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-uns
 import { QUEUE_DIGEST_MIN_GAP_MS, QUEUE_DIGEST_MIN_SAVE_AGE_MS } from "./domain/email/queue-digest-cadence";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "./observability/queue-digest-events";
 import { initSendQueueDigestHandler } from "./send-queue-digest/send-queue-digest-handler";
+import { initBuildQueueDigestBook } from "./web/queue-digest-book";
+import { initBuildBookEpub } from "./web/shared/epub/book-epub";
 import { requireEnv } from "@packages/require-env";
 
 /** Dedupe cooldown for the per-user digest slot. Set below the 6h flush cadence
@@ -44,6 +50,8 @@ const DIGEST_EMAIL_COOLDOWN_MS = 5.5 * 60 * 60 * 1000;
 const MAX_DIGEST_ITEMS = 10;
 
 const MAX_CANDIDATES_READ = 50;
+
+const MAX_DIGEST_BOOK_IMAGE_BYTES = 10_000_000;
 
 const logger = HutchLogger.from(consoleLogger);
 const appOrigin = requireEnv("APP_ORIGIN");
@@ -112,6 +120,21 @@ const rolloutStore = initS3StarterRollout({
 	get: (command) => s3.send(command),
 	put: (command) => s3.send(command),
 });
+const readArticleContent = initReadArticleContentOrThrow({
+	storageProviderQueryOrder: [
+		initS3ReadContent({
+			send: (command) => s3.send(command),
+			readContentLocation: initReadContentLocation({ client: dynamoClient, tableName: articlesTable, bucketName: contentBucketName }),
+		}),
+		articleStore.readContent,
+	],
+});
+const buildQueueDigestBook = initBuildQueueDigestBook({
+	buildBookEpub: initBuildBookEpub({
+		readArticleImage: initS3ReadArticleImage({ send: (command) => s3.send(command), bucketName: contentBucketName }),
+		maxImageBytes: MAX_DIGEST_BOOK_IMAGE_BYTES,
+	}),
+});
 const starterState = initDynamoDbEngagementStarter({
 	client: dynamoClient,
 	onboardingTableName,
@@ -165,6 +188,8 @@ const processStarter = initSendStarter({
 	listUserSavesForUrl: articleStore.listUserSavesForUrl,
 	findArticleByUrl: articleStore.findArticleByUrl,
 	findGeneratedSummary: summaryStore.findGeneratedSummary,
+	readArticleContent,
+	buildQueueDigestBook,
 	sendEmail,
 	signUnsubscribeToken: initQueueDigestUnsubscribeToken(analyticsSalt).sign,
 	appOrigin,
@@ -180,6 +205,8 @@ export const handler = initSendQueueDigestHandler({
 	findReaderReadyEmailState: readerReadyState.findReaderReadyEmailState,
 	findUnreadSavesForDigest: articleStore.findUnreadSavesForDigest,
 	findGeneratedSummary: summaryStore.findGeneratedSummary,
+	readArticleContent,
+	buildQueueDigestBook,
 	claimReaderReadyEmailSlot: readerReadyState.claimReaderReadyEmailSlot,
 	releaseReaderReadyEmailSlot: readerReadyState.releaseReaderReadyEmailSlot,
 	claimPayDigest: subscriptions.claimPayDigest,

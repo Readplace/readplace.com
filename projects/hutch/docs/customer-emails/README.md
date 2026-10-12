@@ -15,6 +15,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 - Nine emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
 - Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link, and they share one opt-out. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that turning off their inbox addresses stops it.
 - Only the Gmail newsletter notice and the Hacker News starter email set a Resend idempotency key. The rest rely on their own once-only markers, or on none.
+- Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry an attachment: one EPUB book of the articles they list (`projects/hutch/src/runtime/web/queue-digest-book.ts:12`, passed to Resend at `projects/hutch/src/runtime/providers/email/resend-email.ts:18`). No other email has an attachment.
 
 ## At a glance
 
@@ -418,7 +419,7 @@ Not sent when:
 - Requests with no resolvable client IP all share one "unknown" rate-limit bucket `projects/hutch/src/runtime/web/middleware/rate-limit.ts:12`
 - Requests that are denied by the rate limit do not add to the count, because the counter update is conditional `projects/hutch/src/runtime/providers/rate-limit/dynamodb-rate-limit.ts:43`
 - When a reserved domain skips the send, the token has already been written and stays until the DynamoDB TTL removes it `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:81`
-- A DynamoDB error, a Resend 4xx (EmailRejectedError) or a Resend 5xx or network failure in the background chain loses the email after one log line `projects/hutch/src/runtime/providers/email/resend-email.ts:27`
+- A DynamoDB error, a Resend 4xx (EmailRejectedError) or a Resend 5xx or network failure in the background chain loses the email after one log line `projects/hutch/src/runtime/providers/email/resend-email.ts:34`
 - Account deletion race: the delete-account worker scrubs reset tokens before it deletes the users row, so a request in between still sends an email and leaves a fresh token that outlives the account until the TTL removes it `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:189`
 - Staging runs the same code and sends real email through Resend, with links on https://readplace-staging.com and a limit of 5000 requests per IP per hour `projects/hutch/Pulumi.staging.yaml:49`
 - Local development with PERSISTENCE=development only logs the message, HTML included, and never sends, and its in-memory tokens never expire; the production web Lambda always runs with PERSISTENCE=prod `projects/hutch/src/runtime/providers/dev-providers.ts:544`
@@ -511,18 +512,20 @@ Exact HTML body: [`html/password-reset--default.html`](html/password-reset--defa
 
 ### When it is sent
 
-When a trialist reaches 96 hours before their trial ends, the next 6-hourly digest check sends this version of 'Waiting in your readlist' instead of the regular readlist digest. It lists up to 10 of their newest ready unread saves of any age, including ones already emailed, then states the date to choose a plan by and adds a Keep Readplace button to /account/plans. It goes out once per trial window, ignores the readlist digest's 7-day gap and restarts it, and once sent it stops the 'your Readplace trial ends in 2 days' reminder from going out 48 hours before the end. Because the regular readlist digest only lists saves at least 30 days old, on a standard 14-day trial this is the only readlist digest a trialist gets.
+When a trialist reaches 96 hours before their trial ends, the next 6-hourly digest check sends this version of 'Waiting in your readlist' instead of the regular readlist digest. It lists up to 10 of their newest ready unread saves of any age, including ones already emailed, then states the date to choose a plan by and adds a Keep Readplace button to /account/plans, with one EPUB of the listed saves attached. It goes out once per trial window, ignores the readlist digest's 7-day gap and restarts it, and once sent it stops the 'your Readplace trial ends in 2 days' reminder from going out 48 hours before the end. Because the regular readlist digest only lists saves at least 30 days old, on a standard 14-day trial this is the only readlist digest a trialist gets.
 
 Trigger chain:
 
 1. EventBridge Scheduler `hutch-digest-flush` puts a trigger message on the digest-scan queue every 6 hours `projects/hutch/src/infra/index.ts:941`
 2. digest-scan lists trialing, active and pending_cancellation users and sends one SendUserDigestCommand per user `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:52`
-3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:145`
-4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
+3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:151`
+4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
 5. isPayDigestDue finds a trialing row inside [trialEndsAt − 96h, trialEndsAt − 60h) with no trial-ending digest yet, so the pay plan replaces the regular one `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:44`
-6. It picks up to 10 ready unread saves of any age and claims the pay marker (payDigestEmailSentAt) on the subscription row `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:189`
-7. It sends through Resend with the pay block, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:200`
-8. When the trial reminder fires 48h before trial end, it sees the pay marker and skips `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
+6. It picks up to 10 ready unread saves of any age whose saved body is readable `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:357`
+7. It builds one EPUB of the listed saves before claiming anything `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`
+8. It claims the pay marker (payDigestEmailSentAt) on the subscription row `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:189`
+9. It sends through Resend with the pay block and the EPUB attached, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:213`
+10. When the trial reminder fires 48h before trial end, it sees the pay marker and skips `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
 
 Sent only when:
 
@@ -530,38 +533,40 @@ Sent only when:
 - The check runs at or after trialEndsAt − 96h `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:55`
 - The check runs before trialEndsAt − 60h `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:56`
 - No trial-ending digest has been sent in this trial window yet `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:58`
-- The user row exists and its email is verified `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
-- The user has not unsubscribed from the readlist digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:167`
-- At least one save qualifies: it is in the All readlist and unread, at any age, including saves already listed in an earlier digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:306`
-- Its reader view has loaded, its content has not been purged, and it is not the consent-seed article `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:369`
-- Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:382`
-- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:44`
+- The user row exists and its email is verified `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
+- The user has not unsubscribed from the readlist digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:173`
+- At least one save qualifies: it is in the All readlist and unread, at any age, including saves already listed in an earlier digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:320`
+- Its reader view has loaded, its content has not been purged, and it is not the consent-seed article `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:383`
+- Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:392`
+- Its saved article body can be read from the content store `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
+- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:50`
+- The EPUB of the listed saves builds `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`
 - The claim on the subscription row succeeds: the row is still trialing with the same trialEndsAt and no pay marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:196`
 
 Not sent when:
 
-- No user row or an unverified email: skipped with reason no-verified-email, and the trial reminder goes out 48h before trial end instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
-- Unsubscribed from the readlist digest: this version is never sent either, and the trial reminder goes out instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:167`
+- No user row or an unverified email: skipped with reason no-verified-email, and the trial reminder goes out 48h before trial end instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
+- Unsubscribed from the readlist digest: this version is never sent either, and the trial reminder goes out instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:173`
 - The trialist pressed cancel (pending_cancellation): never sent `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:50`, and since the regular readlist digest only lists saves at least 30 days old `projects/hutch/src/runtime/domain/email/queue-digest-cadence.ts:7`, on a standard 14-day trial they get no readlist digest before access ends either
 - The trialist already chose a plan: their row is active, so they count as a paying member and get regular readlist digests only `src/packages/subscription-access/src/effective-access.ts:45`
 - Already sent in this trial window: not sent again `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:58`
 - Re-opening the trial window clears the once-only marker, so a trialist who cancels and then reactivates, or gets an admin trial extension, can receive it again `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:58`
-- No ready unread save on a check: skipped with reason pay-no-ready-saves and retried on the next check; if none of the window's 6 checks finds one, it never goes out and the trial reminder is sent instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:179`
+- No ready unread save on a check: skipped with reason pay-no-ready-saves and retried on the next check; if none of the window's 6 checks finds one, it never goes out and the trial reminder is sent instead `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:185`
 - Deleting an account does not stop it right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:182`
 
 **Timing:** Sent on the first 6-hourly check at or after trialEndsAt − 96h that finds a ready unread save, and never at or after trialEndsAt − 60h; on a standard 14-day trial that is 10.0 to 11.5 days after signup, normally the first check of the window, 90 to 96h before the trial ends. On a standard trial no regular readlist digest comes before it, since none of the trialist's saves is 30 days old yet (after an admin extension one can, as little as 6h earlier); the next regular digest waits at least 7 days less 30 minutes (167.5h) after it, and the deadline it shows is trialEndsAt − 48h05m in UTC.
 
-**If sending fails:** Any error fails the SQS record, which is retried after 120s up to 3 receives and then moves to the send-user-digest DLQ, whose alarm emails the team. A Resend 4xx releases the pay marker so a retry or a later check in the window can send, while a 5xx or network error keeps it so the trialist never gets a second copy.
+**If sending fails:** Any error fails the SQS record, which is retried after 120s up to 3 receives and then moves to the send-user-digest DLQ, whose alarm emails the team. The EPUB is built before the pay marker is claimed, so an image missing from the content store or an image read error fails the record with nothing claimed or sent, and the email never goes out without the attachment (`projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`, `projects/hutch/src/runtime/web/shared/epub/book-epub.ts:30`). A Resend 4xx releases the pay marker so a retry or a later check in the window can send, while a 5xx or network error keeps it so the trialist never gets a second copy.
 
 <details><summary>Edge cases</summary>
 
 - The pay claim requires the row to still be trialing with the same trialEndsAt; an admin extension or a cancel landing between the read and the claim makes that check log '[SendQueueDigest] pay-already-claimed' and send nothing `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:196`
-- A redelivered message that already holds the pay marker only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:255`
+- A redelivered message that already holds the pay marker only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:269`
 - The window is measured from the current trialEndsAt, so after an admin extension it moves with the new end date `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:52`
-- Saves are picked by the same reader as the readlist digest apart from the age floor and the emailed filter: All readlist only, 10-item cap, 50-candidate read budget, consent-seed URL match, and saves with no shared article row dropped `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:343`
+- Saves are picked by the same reader as the readlist digest apart from the age floor and the emailed filter: All readlist only, 10-item cap, 50-candidate read budget, consent-seed URL match, and saves with no shared article row dropped `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:357`
 - Recipients at reserved test domains are dropped by a wrapper that reports success, so the pay marker is still set and the trial reminder is then skipped for that account `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
-- queue_digest_sent records kind pay with hours_to_trial_end rounded down `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:305`
-- The deadline and end date are always formatted in UTC, whatever the reader's timezone `projects/hutch/src/runtime/web/queue-digest-email.ts:158`
+- queue_digest_sent records kind pay with hours_to_trial_end rounded down `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:319`
+- The deadline and end date are always formatted in UTC, whatever the reader's timezone `projects/hutch/src/runtime/web/queue-digest-email.ts:172`
 - Every deployed stack, staging included, sends it through Resend with that stack's APP_ORIGIN in the links `projects/hutch/src/infra/index.ts:806`
 
 </details>
@@ -575,7 +580,7 @@ Not sent when:
 > - A trialist who pressed cancel gets neither this email nor the trial reminder, which also requires status trialing `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:276`.
 > - It shares the readlist digest's template, so the developer HTML comment in every card `projects/hutch/src/runtime/web/queue-digest-email.template.html:28` and the reply line without a closing period `projects/hutch/src/runtime/web/email-copy.ts:2` appear here too.
 > - On a standard 14-day trial `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:4` no save reaches the readlist digest's 30-day age floor `projects/hutch/src/runtime/domain/email/queue-digest-cadence.ts:7`, so a trialist gets no regular readlist digest: this email is the first and only readlist digest of the trial, and in the trial's first window none of the saves it lists has been emailed before.
-> - After an admin extension that leaves a trialist with saves at least 30 days old (the extension accepts any future end date `projects/hutch/src/runtime/domain/trial/resolve-trial-extension.ts:62`), they can get a regular readlist digest that says 'This is a one-time reminder about them.' `projects/hutch/src/runtime/web/queue-digest-email.ts:131`, and this email can then list the same saves again, because it ignores whether a save was already emailed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:306`.
+> - After an admin extension that leaves a trialist with saves at least 30 days old (the extension accepts any future end date `projects/hutch/src/runtime/domain/trial/resolve-trial-extension.ts:62`), they can get a regular readlist digest that says 'This is a one-time reminder about them.' `projects/hutch/src/runtime/web/queue-digest-email.ts:139`, and this email can then list the same saves again, because it ignores whether a save was already emailed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:320`.
 
 ### Message
 
@@ -587,14 +592,15 @@ Not sent when:
 | Reply-To | `fayner@readplace.com` |
 | Subject | Waiting in your readlist |
 | Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
-| Plain-text part | Yes: the readlist digest's plain-text layout with this version's one-line intro and footer reason and without the 'Mark all as read: {link}' line, plus the charge-terms paragraph and a 'Keep Readplace: {link}' line. |
+| Plain-text part | Yes: the readlist digest's plain-text layout with this version's one-line intro and footer reason and without the 'Mark all as read: {link}' line, plus the charge-terms paragraph, a 'Keep Readplace: {link}' line and the attachment line with 'How Send to Kindle works: {link}'. |
+| Attachment | One EPUB book, `readplace-readlist-YYYY-MM-DD.epub` (the UTC date of the check), application/epub+zip, titled 'Waiting in your readlist — {UTC date, e.g. Oct 12, 2026}'. It has one chapter per listed article, in email order, each opening with the title, site name, excerpt and 'Summary (TL;DR)' before the article body. Images are packed in article order under one 10 MB budget shared by the whole book; an image that would pass the budget is left out and the text kept. |
 | Idempotency key | none |
 
 Content variants:
 
 | Variant | Shown when |
 |---|---|
-| pay | The trial-ending digest is due. Unlike the readlist digest, the intro is '{n} articles you saved are ready to read.' and the footer reason is 'You're getting this because you save articles to Readplace.'. Below a divider it adds 'Choose a plan before {trialEndsAt − 48h05m, e.g. Oct 7, 2026, 07:26 UTC} and nothing is charged until {trialEndsAt date, e.g. Oct 9, 2026}. After that, choosing a plan starts it the same day.' and an amber Keep Readplace button to /account/plans; Continue reading becomes a white button with a grey border, the readlist digest's Mark all as read button is left out, and every link carries utm_campaign=pay. |
+| pay | The trial-ending digest is due. Unlike the readlist digest, the intro is '{n} articles you saved are ready to read.' and the footer reason is 'You're getting this because you save articles to Readplace.'. Below a divider it adds 'Choose a plan before {trialEndsAt − 48h05m, e.g. Oct 7, 2026, 07:26 UTC} and nothing is charged until {trialEndsAt date, e.g. Oct 9, 2026}. After that, choosing a plan starts it the same day.' and an amber Keep Readplace button to /account/plans; Continue reading becomes a white button with a grey border, the readlist digest's Mark all as read button is left out, and every link carries utm_campaign=pay. Before the reply line it adds 'The {n} articles above are attached as one EPUB book. To read them on a Kindle, forward this email to your Send to Kindle address.' followed by a How Send to Kindle works link to /blog/read-your-saved-articles-on-a-kindle-or-kobo tagged utm_content=kindle-guide; with one article it reads 'The article above is attached as an EPUB. To read it on a Kindle, forward this email to your Send to Kindle address.' |
 | pay-single-article | Exactly one ready unread save: intro '1 article you saved is ready to read.'. Not captured for this version. |
 | pay-summary-fallback-preview | Card previews follow the readlist digest's rules: the excerpt, or for a summary that predates excerpts, the summary cut to 200 characters with '…'. Not captured for this version. |
 
@@ -708,13 +714,14 @@ Exact HTML body: [`html/trial-ending-digest--pay.html`](html/trial-ending-digest
 ### Source
 
 - `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:44` — isPayDigestDue: trialing, window, once per window
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:297` — pay plan: no age floor, any emailed state, pay claim and release
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:132` — pay intro '{n} articles you saved are ready to read.' (pay footer reason at :27)
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:161` — charge-terms paragraph, Keep Readplace link at :203, and at :151 the neutral Continue reading button with no Mark all as read
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:311` — pay plan: no age floor, any emailed state, pay claim and release
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:140` — pay intro '{n} articles you saved are ready to read.' (pay footer reason at :29)
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:175` — charge-terms paragraph, Keep Readplace link at :219, and at :165 the neutral Continue reading button with no Mark all as read
 - `projects/hutch/src/runtime/web/queue-digest-email.template.html:63` — pay block template
 - `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:189` — pay marker claim (release at :223)
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:200` — sender (sendEmail call)
-- `projects/hutch/src/runtime/send-user-digest.main.ts:175` — composition root
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191` — EPUB built before the claim (readable-body filter at :394)
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:213` — sender (sendEmail call with the EPUB attached)
+- `projects/hutch/src/runtime/send-user-digest.main.ts:201` — composition root
 - `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297` — trial reminder skipped once this is sent
 
 ## 5. Trial pre-expiry reminder
@@ -788,7 +795,7 @@ Not sent when:
 > - There is no way to opt out. It ignores the queue-digest opt-out and has no List-Unsubscribe header or unsubscribe link, even though it is a nudge to subscribe `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:327`
 > - The copy always says the trial ends in 2 days, but the handler only checks that the end is still ahead. A late delivery, such as an SQS redrive or EventBridge Scheduler's default retries for up to 24 hours (from AWS docs, unverified in code), overstates the time left `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:283`
 > - A permanent Resend rejection (a 4xx, such as an invalid address) is retried like any other error. After 3 receives it lands in the DLQ and emails the alert address `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:99`
-> - The trial-ending digest's claim (payDigestEmailSentAt) is set before that digest is sent and is released only on a Resend 4xx. After a 5xx or network failure, the reminder is skipped even if the trial-ending digest never arrived `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:210`
+> - The trial-ending digest's claim (payDigestEmailSentAt) is set before that digest is sent and is released only on a Resend 4xx. After a 5xx or network failure, the reminder is skipped even if the trial-ending digest never arrived `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:224`
 > - The wording for the same email varies. The subject says "ends in 2 days", the HTML title says "Your Readplace trial ends soon", the button reads "Keep using Readplace", and the text part labels the same link "Subscribe:" `projects/hutch/src/runtime/web/auth/trial-reminder-email.template.html:36`
 > - Staging deploys the same Lambda and its own scheduler group, hutch-trial-end-staging, so staging trialists with real addresses may also get it through Resend (unverified: depends on staging's RESEND_API_KEY) `projects/hutch/Pulumi.staging.yaml:56`
 
@@ -2237,68 +2244,73 @@ Exact HTML body: [`html/automation-saves-held--no-inbox-address.html`](html/auto
 
 ### When it is sent
 
-Every 6 hours Readplace checks every trialist and paying member. If at least 7 days less 30 minutes have passed since their last digest and their All readlist holds unread saves that are at least 30 days old, were never in an earlier digest, and have a ready reader view and AI summary, it emails up to 10 of the newest. On the checks where a trialist's trial-ending digest is due, that version goes out instead, and once it is sent the next readlist digest waits at least 7 days less 30 minutes from it and never repeats the saves it listed. A trial ends 14 days after signup, so in practice the readlist digest goes to paying members, not trialists.
+Every 6 hours Readplace checks every trialist and paying member. If at least 7 days less 30 minutes have passed since their last digest and their All readlist holds unread saves that are at least 30 days old, were never in an earlier digest, and have a ready reader view, AI summary and readable saved body, it emails up to 10 of the newest, with one EPUB of them attached. On the checks where a trialist's trial-ending digest is due, that version goes out instead, and once it is sent the next readlist digest waits at least 7 days less 30 minutes from it and never repeats the saves it listed. A trial ends 14 days after signup, so in practice the readlist digest goes to paying members, not trialists.
 
 Trigger chain:
 
 1. EventBridge Scheduler `hutch-digest-flush` puts a trigger message on the digest-scan queue every 6 hours `projects/hutch/src/infra/index.ts:941`
 2. digest-scan lists every user whose subscription is trialing, active or pending_cancellation and sends one SendUserDigestCommand per user to the send-user-digest queue `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:52`
-3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:145`
-4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
-5. The trial-ending digest is not due, so the regular plan applies `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:164`
-6. The regular plan holds if under 7 days less 30 minutes (167.5h) have passed since the last regular or trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:284`
-7. It picks up to 10 qualifying saves and claims the user's digest slot on the reader-ready-notifications row `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:181`
-8. It signs a mark-read token over the user id and the ids of the listed saves for the Mark all as read button `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:292`
-9. It sends through Resend, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:200`
+3. send-user-digest loads the user's contact, subscription row and last regular-digest state `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:151`
+4. It skips users who are unverified, unsubscribed, or not on a trial or paid tier `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
+5. The trial-ending digest is not due, so the regular plan applies `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:170`
+6. The regular plan holds if under 7 days less 30 minutes (167.5h) have passed since the last regular or trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:298`
+7. It picks up to 10 qualifying saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:357`
+8. It signs a mark-read token over the user id and the ids of the listed saves for the Mark all as read button `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:306`
+9. It builds one EPUB of the listed saves before claiming anything `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`
+10. It claims the user's digest slot on the reader-ready-notifications row `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:198`
+11. It sends through Resend with the EPUB attached, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:213`
 
 Sent only when:
 
 - The user's subscription status is trialing, active or pending_cancellation, so the 6-hourly scan includes them `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:15`
-- The user row exists and its email is verified `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
-- The user has not unsubscribed from this digest; it is on by default `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:167`
-- Access is trial (trialing before trialEndsAt, or a cancelled trial before its end date) or paid (an active membership, including a trialist who already chose a plan, or a cancelled membership before its end date) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:168`
-- The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:164`
-- At least 7 days less 30 minutes (167.5h) have passed since the later of the last regular digest and the trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:284`
-- At least one save qualifies: it is in the All readlist, unread, and was saved at least 30 days before this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:281`
+- The user row exists and its email is verified `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
+- The user has not unsubscribed from this digest; it is on by default `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:173`
+- Access is trial (trialing before trialEndsAt, or a cancelled trial before its end date) or paid (an active membership, including a trialist who already chose a plan, or a cancelled membership before its end date) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:174`
+- The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:170`
+- At least 7 days less 30 minutes (167.5h) have passed since the later of the last regular digest and the trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:298`
+- At least one save qualifies: it is in the All readlist, unread, and was saved at least 30 days before this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:295`
 - The save was never listed in an earlier regular or trial-ending digest `src/packages/article-store/src/dynamodb-saved-article-store.ts:635`
-- Its reader view has loaded, its content has not been purged, and it is not the consent-seed article (the one saved automatically when a user with no saves first authorizes an external app or AI assistant) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:369`
-- Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:382`
-- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:44`
+- Its reader view has loaded, its content has not been purged, and it is not the consent-seed article (the one saved automatically when a user with no saves first authorizes an external app or AI assistant) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:383`
+- Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:392`
+- Its saved article body can be read from the content store `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
+- The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:50`
+- The EPUB of the listed saves builds `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`
 - No other message claimed this user's digest slot in the last 5.5h `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:60`
 
 Not sent when:
 
-- No user row or an unverified email: skipped, and queue_digest_skipped is recorded with reason no-verified-email `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
+- No user row or an unverified email: skipped, and queue_digest_skipped is recorded with reason no-verified-email `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
 - Unsubscribed, either by confirming on the page behind the email's Stop these emails link or through the mail client's one-click unsubscribe: skipped for good with reason unsubscribed `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page.ts:68`
-- Founding members (no subscription row), expired trials, cancelled memberships and cancellations past their end date: never sent, logged only with no analytics event `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:168`
-- Under 7 days less 30 minutes (167.5h) since the last regular or trial-ending digest: held and logged as cadence `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:284`
-- A trialist inside [trialEndsAt − 96h, trialEndsAt − 60h) who has not had the trial-ending digest gets that version instead on every check until it is sent `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:164`
-- No qualifying save: skipped with reason no-eligible-items; nothing is recorded, so a later check can still send `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:179`
-- Saves under 30 days old are not listed yet; because a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33`, a trialist whose trial was not extended holds no qualifying save and is skipped with reason no-eligible-items on every check outside the trial-ending window `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:281`
+- Founding members (no subscription row), expired trials, cancelled memberships and cancellations past their end date: never sent, logged only with no analytics event `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:174`
+- Under 7 days less 30 minutes (167.5h) since the last regular or trial-ending digest: held and logged as cadence `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:298`
+- A trialist inside [trialEndsAt − 96h, trialEndsAt − 60h) who has not had the trial-ending digest gets that version instead on every check until it is sent `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:170`
+- No qualifying save: skipped with reason no-eligible-items; nothing is recorded, so a later check can still send `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:185`
+- Saves under 30 days old are not listed yet; because a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33`, a trialist whose trial was not extended holds no qualifying save and is skipped with reason no-eligible-items on every check outside the trial-ending window `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:295`
 - A save listed in any earlier digest, regular or trial-ending, is stamped once and never listed in a regular digest again, so a user whose waiting saves were all listed gets nothing `src/packages/article-store/src/dynamodb-saved-article-store.ts:1270`
-- Saves whose summary was skipped or failed, or whose reader view never loads, are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:382`
+- Saves whose summary was skipped or failed, or whose reader view never loads, are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:392`
+- Saves whose saved body cannot be read are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
 - Deleting an account does not stop the digest right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:182`
 
 **Timing:** Checked every 6 hours by an EventBridge Scheduler rate(6 hours) schedule whose clock times depend on when it was created (the examples assume 03:12, 09:12, 15:12 and 21:12 UTC). A user gets it at most once per 7 days less 30 minutes (167.5h) after their last regular or trial-ending digest, which is every 7 days (every 28th check) while unlisted saves keep turning 30 days old; the 30 minutes stop a few minutes of processing delay from holding the 28th check. A save first qualifies on the first check at least 30 days after it was saved.
 
-**If sending fails:** Any error fails the SQS record, which is retried after 120s up to 3 receives and then moves to the send-user-digest DLQ, whose alarm emails the team. A Resend 4xx releases the claim so the retry sends a fresh copy, while a 5xx or network error keeps the claim so the retry never sends again (at most once); failures stamping saves or publishing the sent event afterwards are logged and ignored.
+**If sending fails:** Any error fails the SQS record, which is retried after 120s up to 3 receives and then moves to the send-user-digest DLQ, whose alarm emails the team. The EPUB is built before the slot is claimed, so an image missing from the content store or an image read error fails the record with nothing claimed or sent, and the email never goes out without the attachment (`projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`, `projects/hutch/src/runtime/web/shared/epub/book-epub.ts:30`). A Resend 4xx releases the claim so the retry sends a fresh copy, while a 5xx or network error keeps the claim so the retry never sends again (at most once); failures stamping saves or publishing the sent event afterwards are logged and ignored.
 
 <details><summary>Edge cases</summary>
 
 - A save that exists only in a named readlist (removed from All) is never read, because the query covers only the All readlist partition `src/packages/article-store/src/dynamodb-saved-article-store.ts:642`
 - Re-saving an article moves its savedAt forward, which restarts the 30-day wait, but keeps its read status and its emailSentAt stamp `src/packages/article-store/src/dynamodb-saved-article-store.ts:423`
 - A save whose shared article row is missing is dropped without notice `src/packages/article-store/src/dynamodb-saved-article-store.ts:618`
-- Each check reads at most 50 candidate saves, newest first; unready saves are never stamped and are re-read every check, so a user whose 50 newest unread saves are all unready never sees older ready ones `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:353`
-- The consent-seed exclusion matches by URL, so a user who saves that fagnerbrack.com article themselves never sees it in a digest either `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:369`
+- Each check reads at most 50 candidate saves, newest first; unready saves are never stamped and are re-read every check, so a user whose 50 newest unread saves are all unready never sees older ready ones `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:367`
+- The consent-seed exclusion matches by URL, so a user who saves that fagnerbrack.com article themselves never sees it in a digest either `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:383`
 - The query also accepts saves whose emailSentAt equals this run's instant, but that never matches: each receive takes a fresh time and a redelivery finishes from the URLs stored with its claim `src/packages/article-store/src/dynamodb-saved-article-store.ts:635`
 - The 7-day gap check uses eventually consistent reads; the 5.5h conditional claim is the only atomic guard against a duplicate `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:119`
-- Another message for the same user already holds the slot (for example after a scan tick is redelivered): this one logs '[SendQueueDigest] rate-limited' and sends nothing `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:335`
-- A redelivered message that already holds the claim only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:242`
-- If stamping a save fails after the send, the error is logged and that save can be listed again in a later digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:417`
+- Another message for the same user already holds the slot (for example after a scan tick is redelivered): this one logs '[SendQueueDigest] rate-limited' and sends nothing `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:349`
+- A redelivered message that already holds the claim only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:256`
+- If stamping a save fails after the send, the error is logged and that save can be listed again in a later digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:442`
 - Recipients at example.com, example.net or example.org, or under .test, .example, .invalid or .localhost, are dropped by a wrapper that reports success, so the handler still claims, stamps the saves and records queue_digest_sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
 - Every deployed stack, staging included, runs this Lambda and sends through Resend with that stack's APP_ORIGIN in the links; the local dev server has no wiring for this email `projects/hutch/src/infra/index.ts:806`
 - A failed per-user dispatch in the scan is logged and that user waits for the next 6h check; if the scan itself fails, the whole tick is retried after 120s and the cadence check and claim prevent duplicates `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:51`
-- An unverified or unsubscribed user whose access has ended still records queue_digest_skipped with tier inactive, because those gates run before the tier gate `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:166`
+- An unverified or unsubscribed user whose access has ended still records queue_digest_skipped with tier inactive, because those gates run before the tier gate `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
 - Opening the Mark all as read link only shows a confirm page ('Mark these articles as read?'); nothing is marked until the reader presses that page's Mark all as read button, which posts the form, so a mail scanner that opens every link marks nothing `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:51` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:70`
 - Confirming marks each listed save read in the first readlist that still holds it (All first, then the reader's other readlists) and in every other readlist that holds the same save, so a save moved out of All since the email is still marked read. Only a save the reader deleted from every readlist is skipped, but the done page still says all {N} articles were marked as read, because it counts the ids in the link `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:43` `src/packages/article-store/src/dynamodb-saved-article-store.ts:1002` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:80` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:57`
 - A changed or cut-off Mark all as read link shows 'Couldn't read this mark-as-read link' with status 400 and marks nothing `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.component.ts:59`
@@ -2308,15 +2320,15 @@ Not sent when:
 > **Observations**
 >
 > - In practice the readlist digest reaches only paying members and pending cancellations: a trial ends 14 days after signup `projects/hutch/src/runtime/domain/trial/start-trial.ts:33` and every save is stamped with the time it was made, imports included `projects/hutch/src/runtime/web/pages/import/import.page.ts:364`, so a trialist never holds a 30-day-old save unless an operator extends or re-opens the trial at /admin/extend-trial `projects/hutch/src/runtime/web/pages/admin/extend-trial.page.ts:169`. The trial-ending digest is the only digest a trialist gets.
-> - The readlist digest calls itself 'a one-time reminder' about the articles it lists `projects/hutch/src/runtime/web/queue-digest-email.ts:130` `projects/hutch/src/runtime/web/queue-digest-email.ts:26`, but a save whose emailSentAt stamp fails after the send can be listed again `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:417`, and so can a save the reader deletes and saves again, because deleting removes the stamped row `src/packages/article-store/src/dynamodb-saved-article-store.ts:868`.
-> - Each weekly digest lists at most 10 saves, newest first `projects/hutch/src/runtime/send-user-digest.main.ts:44`, so when more than 10 unlisted saves turn 30 days old in a week, the rest are listed only in a later week when fewer than 10 newer ones qualify; a reader who keeps leaving more than 10 saves a week unread is never reminded about the older ones `src/packages/article-store/src/dynamodb-saved-article-store.ts:653`.
+> - The readlist digest calls itself 'a one-time reminder' about the articles it lists `projects/hutch/src/runtime/web/queue-digest-email.ts:138` `projects/hutch/src/runtime/web/queue-digest-email.ts:28`, but a save whose emailSentAt stamp fails after the send can be listed again `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:442`, and so can a save the reader deletes and saves again, because deleting removes the stamped row `src/packages/article-store/src/dynamodb-saved-article-store.ts:868`.
+> - Each weekly digest lists at most 10 saves, newest first `projects/hutch/src/runtime/send-user-digest.main.ts:50`, so when more than 10 unlisted saves turn 30 days old in a week, the rest are listed only in a later week when fewer than 10 newer ones qualify; a reader who keeps leaving more than 10 saves a week unread is never reminded about the older ones `src/packages/article-store/src/dynamodb-saved-article-store.ts:653`.
 > - Accounts pending deletion keep getting the digest: deleting an account only stamps deletedAt `projects/hutch/src/runtime/web/pages/account/account.page.ts:550` and the contact lookup does not check it `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:468`, so mail continues until the deletion job removes the saves, and longer if that job is stuck in its DLQ.
 > - There is no way to opt back in: the opt-out's clear branch has no caller `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:518`, and the done page says Readplace won't send this email again `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.component.ts:38`.
-> - Unsubscribe tokens (an HMAC of the userId) and Mark all as read tokens (an HMAC of the userId and the listed article ids) are keyed by ANALYTICS_SALT and never expire, so rotating the analytics salt breaks every unsubscribe and Mark all as read link already sent `projects/hutch/src/runtime/send-user-digest.main.ts:194` `projects/hutch/src/runtime/send-user-digest.main.ts:195`.
+> - Unsubscribe tokens (an HMAC of the userId) and Mark all as read tokens (an HMAC of the userId and the listed article ids) are keyed by ANALYTICS_SALT and never expire, so rotating the analytics salt breaks every unsubscribe and Mark all as read link already sent `projects/hutch/src/runtime/send-user-digest.main.ts:222` `projects/hutch/src/runtime/send-user-digest.main.ts:223`.
 > - The Mark all as read link works without signing in: the page is mounted without the sign-in gate `projects/hutch/src/runtime/server.ts:1599` and marks the saves of the userId inside the token, whoever is signed in `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:76`, so anyone the email is forwarded to can mark those articles read, and an old email's button marks them read again after the reader marked them unread.
 > - Articles marked read from the email record no article_read analytics event, unlike marking one read in the readlist `projects/hutch/src/runtime/web/pages/readlist/readlist.page.ts:2867`; the mark-read page has no analytics dependency `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:21`.
 > - A Resend 4xx removes the user's last-digest time along with the claim `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:104`, so an address Resend keeps refusing is retried on every 6h check (3 receives each) and every check ends in the DLQ alarm.
-> - Delivery is at most once: after a 5xx or network error the claim is kept and the retry only stamps the saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:210`, so if Resend never accepted the message that digest is lost and its saves never appear in a later regular digest; the comment at `projects/hutch/src/runtime/send-user-digest.main.ts:34` says this is deliberate.
+> - Delivery is at most once: after a 5xx or network error the claim is kept and the retry only stamps the saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:224`, so if Resend never accepted the message that digest is lost and its saves never appear in a later regular digest; the comment at `projects/hutch/src/runtime/send-user-digest.main.ts:40` says this is deliberate.
 > - Sends dropped for reserved test domains still count in queue_digest_sent analytics `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:37`.
 > - The template's developer HTML comment ships inside every article card of the real email `projects/hutch/src/runtime/web/queue-digest-email.template.html:28`.
 > - The shared reply line 'If you have any questions, please reply to this email' has no closing period in both the HTML and text parts `projects/hutch/src/runtime/web/email-copy.ts:2`.
@@ -2332,15 +2344,16 @@ Not sent when:
 | Reply-To | `fayner@readplace.com` |
 | Subject | Waiting in your readlist |
 | Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
-| Plain-text part | Yes: the same copy as plain text, with each article reduced to its title and reader link (no site name or preview). |
+| Plain-text part | Yes: the same copy as plain text, with each article reduced to its title and reader link (no site name or preview), and the attachment line ending 'How Send to Kindle works: {link}'. |
+| Attachment | One EPUB book, `readplace-readlist-YYYY-MM-DD.epub` (the UTC date of the check), application/epub+zip, titled '{subject} — {UTC date, e.g. Oct 12, 2026}'. It has one chapter per listed article, in email order, each opening with the title, site name, excerpt and 'Summary (TL;DR)' before the article body. Images are packed in article order under one 10 MB budget shared by the whole book; an image that would pass the budget is left out and the text kept. |
 | Idempotency key | none |
 
 Content variants:
 
 | Variant | Shown when |
 |---|---|
-| default | Two or more qualifying saves: the intro paragraph 'These {n} articles are ready and have been in your readlist for some time but are still unread. This is a one-time reminder about them.', an amber Continue reading button (#AD6225) to /queue beside a white Mark all as read button (#FFFFFF with a #E2E5EA edge) to /email/queue-digest/mark-read?t={token signed over the userId and the ids of the listed saves}, no pay block, the footer 'You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for 30 days. Stop these emails.', and every link tagged utm_campaign=regular. |
-| single-article | Exactly one qualifying save: the intro paragraph 'This article is ready and has been in your readlist for some time but is still unread. This is a one-time reminder about it.'; the Mark all as read button still shows and covers that one save. |
+| default | Two or more qualifying saves: the intro paragraph 'These {n} articles are ready and have been in your readlist for some time but are still unread. This is a one-time reminder about them.', an amber Continue reading button (#AD6225) to /queue beside a white Mark all as read button (#FFFFFF with a #E2E5EA edge) to /email/queue-digest/mark-read?t={token signed over the userId and the ids of the listed saves}, no pay block, then 'The {n} articles above are attached as one EPUB book. To read them on a Kindle, forward this email to your Send to Kindle address.' with a How Send to Kindle works link to /blog/read-your-saved-articles-on-a-kindle-or-kobo (utm_content=kindle-guide) before the reply line, the footer 'You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for 30 days. Stop these emails.', and every link tagged utm_campaign=regular. |
+| single-article | Exactly one qualifying save: the intro paragraph 'This article is ready and has been in your readlist for some time but is still unread. This is a one-time reminder about it.' and the attachment line 'The article above is attached as an EPUB. To read it on a Kindle, forward this email to your Send to Kindle address.'; the Mark all as read button still shows and covers that one save. |
 | excerpt-preview | The article's ready summary has an excerpt, as all current summaries do: the card preview is the excerpt with whitespace collapsed and no length cap, so a model excerpt longer than the prompt's 100 characters shows in full. Captured in default. |
 | summary-fallback-preview | The summary predates excerpts: the preview is the summary text with whitespace collapsed, cut at a word boundary to 200 characters with '…' only when longer. Captured in single-article. |
 | no-preview | The template drops the preview line when the preview is empty; unreachable because only ready summaries, which always carry text, are listed. Not captured. |
@@ -2588,16 +2601,21 @@ Exact HTML body: [`html/queue-digest--single-article.html`](html/queue-digest--s
 
 ### Source
 
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:165` — renderer: subject, unsubscribe headers, tracked links, HTML and text parts
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:127` — intro paragraph: one for the readlist digest, one for the trial-ending digest
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:137` — buttons: amber Continue reading and white Mark all as read for the readlist digest, a white Continue reading alone for the trial-ending digest
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:25` — footer reason for each kind
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:179` — renderer: subject, unsubscribe headers, tracked links, HTML and text parts
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:135` — intro paragraph: one for the readlist digest, one for the trial-ending digest
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:151` — buttons: amber Continue reading and white Mark all as read for the readlist digest, a white Continue reading alone for the trial-ending digest
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:27` — footer reason for each kind
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:145` — attachment paragraph, singular and plural; How Send to Kindle works link at :204
+- `projects/hutch/src/runtime/web/queue-digest-book.ts:12` — EPUB attachment: filename, content type, book title
+- `projects/hutch/src/runtime/web/shared/epub/book-epub.ts:16` — book builder: one chapter per article in email order, a missing image fails the build (:30), shared image budget (:31)
+- `projects/hutch/src/runtime/web/shared/epub/article-front-matter.ts:19` — chapter opening: title, site, excerpt, TL;DR
 - `projects/hutch/src/runtime/web/queue-digest-email.template.html:1` — HTML template
 - `projects/hutch/src/runtime/web/digest-preview.ts:17` — card preview (excerpt or summary fallback)
 - `projects/hutch/src/runtime/domain/email/queue-digest-cadence.ts:1` — 7-day gap less 30 minutes and 30-day minimum save age for the sender; the email copy uses only the 30 days, in the readlist digest's footer
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:269` — regular plan: 7-day gap less 30 minutes, 30-day floor, not-emailed filter, slot claim
-- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:200` — sender (sendEmail call)
-- `projects/hutch/src/runtime/send-user-digest.main.ts:175` — composition root: constants, unsubscribe and mark-read token signers, Resend wrapped in the reserved-domain skip
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:283` — regular plan: 7-day gap less 30 minutes, 30-day floor, not-emailed filter, slot claim
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191` — EPUB built before the claim (readable-body filter at :394)
+- `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:213` — sender (sendEmail call with the EPUB attached)
+- `projects/hutch/src/runtime/send-user-digest.main.ts:201` — composition root: constants (10 MB image budget at :54), unsubscribe and mark-read token signers, Resend wrapped in the reserved-domain skip
 - `projects/hutch/src/runtime/domain/email/queue-digest-mark-read-token.ts:18` — Mark all as read token: the userId and the listed article ids, HMAC-signed
 - `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:51` — Mark all as read page: the GET shows a confirm form, the POST marks each listed save read in the readlist that still holds it
 - `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:30` — 6-hourly fan-out to every trialist and member
@@ -3239,7 +3257,7 @@ Exact HTML body: [`html/gmail-newsletter-notice--grouped.html`](html/gmail-newsl
 - `projects/hutch/src/runtime/domain/gmail/gmail-newsletter-notice-cadence.ts:1` — GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS (7) and GMAIL_NEWSLETTER_NOTICE_MAX_NEWSLETTERS (10)
 - `projects/hutch/src/runtime/domain/gmail/gmail-newsletter-notice-selection.ts:1` — picks the 10 eligible notices pending longest (a notice without pendingSince counts as oldest, ties by sender address) and counts the rest left waiting
 - `projects/hutch/src/runtime/gmail-newsletter-notice.main.ts:24` — composition root wiring Resend behind the reserved-domain skip; readlist definitions at :31
-- `projects/hutch/src/runtime/providers/email/resend-email.ts:9` — Resend sender; idempotency key passed at :18
+- `projects/hutch/src/runtime/providers/email/resend-email.ts:9` — Resend sender; idempotency key passed at :25
 - `projects/hutch/src/runtime/domain/gmail/monitor-gmail-newsletters.ts:57` — monitoring decides when a notice is created
 - `projects/hutch/src/runtime/domain/gmail/gmail-newsletter-monitor-handler.ts:53` — one notice command per monitoring page with waiting notices
 - `src/packages/inbox-store/src/dynamodb-gmail-monitoring.ts:104` — notice claim, sent receipt and cancel in DynamoDB; NOTICE_BATCH find, claim and finish at :123-142
@@ -3275,7 +3293,7 @@ Sent only when:
 - Reading the articles, uploading the file and sending all finish inside the 900 s Lambda timeout `projects/hutch/src/infra/index.ts:703`
 - The JSON file uploads to S3 and the download link is signed `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:28`
 - The address is not on a reserved test domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
-- Resend accepts the message `projects/hutch/src/runtime/providers/email/resend-email.ts:19`
+- Resend accepts the message `projects/hutch/src/runtime/providers/email/resend-email.ts:26`
 
 Not sent when:
 
@@ -3660,17 +3678,18 @@ Exact HTML body: [`html/user-data-export--no-articles.html`](html/user-data-expo
 
 ### When it is sent
 
-On the readlist digest's 6-hourly check, Readplace first tries to enroll the reader in the Hacker News starter campaign. An enrolled reader who has been inactive for 72 hours and has fewer than 5 personal saves gets ten fresh Hacker News articles saved into All and into a new "Hacker News picks" readlist. On that check or a later one, if at least one of those picks is still unread and has a ready reader view and summary, and 47.5 hours have passed since the reader's last readlist or trial-ending digest, Readplace emails the unread picks once. It is the same template as the readlist digest, with its own intro, subject and button. Whatever the check decides about the starter email, a check that handles it sends no readlist digest.
+On the readlist digest's 6-hourly check, Readplace first tries to enroll the reader in the Hacker News starter campaign. An enrolled reader who has been inactive for 72 hours and has fewer than 5 personal saves gets ten fresh Hacker News articles saved into All and into a new "Hacker News picks" readlist. On that check or a later one, if at least one of those picks is still unread and has a ready reader view, summary and readable saved body, and 47.5 hours have passed since the reader's last readlist or trial-ending digest, Readplace emails the unread picks once, with one EPUB of them attached. It is the same template as the readlist digest, with its own intro, subject and button. Whatever the check decides about the starter email, a check that handles it sends no readlist digest.
 
 Trigger chain:
 
 1. EventBridge Scheduler `hutch-digest-flush` puts a trigger message on the digest-scan queue every 6 hours `projects/hutch/src/infra/index.ts:941`
 2. digest-scan sends one SendUserDigestCommand per trialist and member to the send-user-digest queue `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:46`
-3. send-user-digest tries to enroll the reader; a failure is logged and the check continues `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:152`
+3. send-user-digest tries to enroll the reader; a failure is logged and the check continues `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:158`
 4. Enrollment saves ten fresh Hacker News picks into All and a new "Hacker News picks" readlist `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:181`
-5. Unless the trial-ending digest is due, the check hands the reader to the starter sender, and stops there when the sender handled them `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:165`
-6. The sender re-checks the reader, the 47.5h gap and the unread picks, and freezes the message on the starter pack row `projects/hutch/src/runtime/domain/engagement/send-starter.ts:202`
-7. It sends the frozen message through Resend and marks the pack sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:215`
+5. Unless the trial-ending digest is due, the check hands the reader to the starter sender, and stops there when the sender handled them `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:171`
+6. The sender re-checks the reader, the 47.5h gap and the unread picks, and builds the EPUB of the listed picks `projects/hutch/src/runtime/domain/engagement/send-starter.ts:253`
+7. It freezes the message and the ordered article URLs on the starter pack row `projects/hutch/src/runtime/domain/engagement/send-starter.ts:259`
+8. It sends the frozen message through Resend with the EPUB attached and marks the pack sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:276`
 
 Sent only when:
 
@@ -3681,23 +3700,24 @@ Sent only when:
 - 72 hours have passed since the later of signup, the start of observation and the reader's last activity `projects/hutch/src/runtime/domain/engagement/starter-policy.ts:48`
 - The reader has fewer than 5 personal saves and room for another readlist `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:95`
 - Ten snapshot picks no more than 24 hours old are available that the reader has not saved `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:105`
-- The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:165`
-- When the message is built, the reader is still verified, subscribed to the digest, not pending deletion, at a deliverable address and on a trial or paid tier `projects/hutch/src/runtime/domain/engagement/send-starter.ts:100`
-- At least 47.5 hours have passed since the later of the last readlist digest and the trial-ending digest, and the trial-ending digest window does not open within those 47.5 hours `projects/hutch/src/runtime/domain/engagement/send-starter.ts:123`
-- At least one pick has a ready reader view and summary, has not been purged, and is still unread in a readlist that holds it as this campaign's suggestion `projects/hutch/src/runtime/domain/engagement/send-starter.ts:133`
+- The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:171`
+- When the message is built, the reader is still verified, subscribed to the digest, not pending deletion, at a deliverable address and on a trial or paid tier `projects/hutch/src/runtime/domain/engagement/send-starter.ts:147`
+- At least 47.5 hours have passed since the later of the last readlist digest and the trial-ending digest, and the trial-ending digest window does not open within those 47.5 hours `projects/hutch/src/runtime/domain/engagement/send-starter.ts:170`
+- At least one pick has a ready reader view and summary, a readable saved body, has not been purged, and is still unread in a readlist that holds it as this campaign's suggestion `projects/hutch/src/runtime/domain/engagement/send-starter.ts:182`
+- The EPUB of the listed picks builds `projects/hutch/src/runtime/domain/engagement/send-starter.ts:253`
 
 Not sent when:
 
-- The pack was already sent, suppressed or set aside for review `projects/hutch/src/runtime/domain/engagement/send-starter.ts:68`
-- The reader became ineligible before the message was built: the email is suppressed for good with reason recipient-ineligible `projects/hutch/src/runtime/domain/engagement/send-starter.ts:107`
-- Every pick was read, filed away from the campaign or dropped: suppressed for good with reason no-unread-picks `projects/hutch/src/runtime/domain/engagement/send-starter.ts:168`
-- Under 47.5 hours since the last digest, or the trial-ending window opens soon: held, and that check sends no readlist digest either `projects/hutch/src/runtime/domain/engagement/send-starter.ts:123`
-- The first attempt is 23 hours 55 minutes old (Resend's idempotency window less 5 minutes): set aside for review with reason provider-window-expired and never sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:80`
+- The pack was already sent, suppressed or set aside for review `projects/hutch/src/runtime/domain/engagement/send-starter.ts:114`
+- The reader became ineligible before the message was built: the email is suppressed for good with reason recipient-ineligible `projects/hutch/src/runtime/domain/engagement/send-starter.ts:154`
+- Every pick was read, filed away from the campaign or dropped: suppressed for good with reason no-unread-picks `projects/hutch/src/runtime/domain/engagement/send-starter.ts:219`
+- Under 47.5 hours since the last digest, or the trial-ending window opens soon: held, and that check sends no readlist digest either `projects/hutch/src/runtime/domain/engagement/send-starter.ts:170`
+- The first attempt is 23 hours 55 minutes old (Resend's idempotency window less 5 minutes): set aside for review with reason provider-window-expired and never sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:127`
 - The reader is in the comparison arm: they get the picks neither in their library nor by email `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:78`
 
 **Timing:** Checked every 6 hours with the readlist digest. The picks are saved on the first check after 72 hours of inactivity, and the email goes out on that check or the first later one that is 47.5 hours after the reader's last digest (`projects/hutch/src/runtime/domain/engagement/starter-policy.ts:12`). Once per account.
 
-**If sending fails:** A Resend error throws, which fails the SQS record of the send-user-digest queue for a retry. The retry resends the message frozen on the starter pack row with the same idempotency key `starter/{sha256 of userId and campaign}` (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:181`), so Resend delivers it once. A failure marking the pack sent after Resend accepted it also throws, and the retry is answered by Resend's idempotency key.
+**If sending fails:** A Resend error throws, which fails the SQS record of the send-user-digest queue for a retry. The retry resends the message frozen on the starter pack row with the same idempotency key `starter/{sha256 of userId and campaign}` (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:232`), so Resend delivers it once. It rebuilds the EPUB from the article URLs stored on the pack, dated by the first attempt, so the attachment bytes match the first attempt (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:101`). The first attempt builds the EPUB before the claim; a build failure on either attempt (a stored pick whose body can no longer be read, an image missing from the content store, or an image read error) fails the record, which SQS retries and then moves to the send-user-digest DLQ, so the email never goes out without the attachment (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:97`, `projects/hutch/src/runtime/web/shared/epub/book-epub.ts:30`). A failure marking the pack sent after Resend accepted it also throws, and the retry is answered by Resend's idempotency key.
 
 ### Message
 
@@ -3709,15 +3729,16 @@ Not sent when:
 | Reply-To | `fayner@readplace.com` |
 | Subject | Your Hacker News picks are ready |
 | Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
-| Plain-text part | Yes: the same copy as plain text, with each pick's title, preview and reader link. |
+| Plain-text part | Yes: the same copy as plain text, with each pick's title, preview and reader link, and the attachment line ending 'How Send to Kindle works: {link}'. |
+| Attachment | One EPUB book, `readplace-readlist-YYYY-MM-DD.epub` (the UTC date of the first attempt), application/epub+zip, titled 'Your Hacker News picks are ready — {UTC date, e.g. Oct 12, 2026}'. It has one chapter per listed article, in email order, each opening with the title, site name, excerpt and 'Summary (TL;DR)' before the article body. Images are packed in article order under one 10 MB budget shared by the whole book; an image that would pass the budget is left out and the text kept. |
 | Idempotency key | `starter/{sha256Hex}` |
 
 Content variants:
 
 | Variant | Shown when |
 |---|---|
-| default | The intro 'Readplace selected ten articles from Hacker News for you once. {n} picks are still unread. They're in All and Hacker News picks; you can read, file, or delete them.', one card per unread pick linking to its reader view inside the Hacker News picks readlist, an amber Read your Hacker News picks button to /queue?queue={readlist}, the footer 'You're getting this because you save articles to Readplace. Stop these emails.', and every link tagged utm_campaign=hn-starter-v1. |
-| single-pick | One unread pick: the intro reads '1 pick is still unread'. Not captured. |
+| default | The intro 'Readplace selected ten articles from Hacker News for you once. {n} picks are still unread. They're in All and Hacker News picks; you can read, file, or delete them.', one card per unread pick linking to its reader view inside the Hacker News picks readlist, an amber Read your Hacker News picks button to /queue?queue={readlist}, the readlist digest's attachment line ('The {n} articles above are attached as one EPUB book...') with its How Send to Kindle works link, the footer 'You're getting this because you save articles to Readplace. Stop these emails.', and every link tagged utm_campaign=hn-starter-v1. |
+| single-pick | One unread pick: the intro reads '1 pick is still unread' and the attachment line reads 'The article above is attached as an EPUB...'. Not captured. |
 
 ### Example
 
@@ -3731,12 +3752,14 @@ Exact HTML body: [`html/hacker-news-starter--default.html`](html/hacker-news-sta
 
 ### Source
 
-- `projects/hutch/src/runtime/domain/engagement/send-starter.ts:65` — sender: eligibility, gap, unread picks, frozen message, Resend call
+- `projects/hutch/src/runtime/domain/engagement/send-starter.ts:87` — sender: eligibility, gap, unread picks, frozen message, Resend call
+- `projects/hutch/src/runtime/domain/engagement/send-starter.ts:101` — EPUB rebuilt on a retry from the pack's stored article URLs (first-attempt build at :253)
+- `src/packages/provider-contracts/src/engagement-starter.ts:74` — articleUrls on the starter pack, written with the claim at `src/packages/article-store/src/dynamodb-engagement-starter.ts:396`
 - `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:55` — enrollment: rollout, eligibility, arm, inactivity, picks saved into the library
 - `projects/hutch/src/runtime/domain/engagement/starter-policy.ts:9` — campaign id, 72h inactivity, 24h snapshot age, 47.5h gap, retry window
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:133` — starter intro paragraph
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:168` — starter subject
-- `projects/hutch/src/runtime/send-user-digest.main.ts:158` — composition root wiring for the starter sender
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:141` — starter intro paragraph
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:182` — starter subject
+- `projects/hutch/src/runtime/send-user-digest.main.ts:182` — composition root wiring for the starter sender
 
 ## Not in this inventory
 

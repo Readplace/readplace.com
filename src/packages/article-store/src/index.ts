@@ -42,6 +42,7 @@ export type { PurgeArticleContent } from "./purge-article-content";
 export { initTombstoneArticle } from "./tombstone-article";
 export type { TombstoneArticle } from "./tombstone-article";
 export { initReadArticleContent } from "./read-article-content";
+export { initReadArticleContentOrThrow } from "./read-article-content-or-throw";
 export type { ContentProvider, ReadArticleContent } from "./read-article-content";
 export { initS3ReadContent } from "./s3-read-content";
 export { initReadContentLocation, type ReadContentLocation } from "./read-content-location";

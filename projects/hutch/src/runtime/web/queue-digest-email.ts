@@ -22,6 +22,8 @@ export const MARK_ALL_READ_LABEL = "Mark all as read";
 const STARTER_CONTINUE_LABEL = "Read your Hacker News picks";
 const KEEP_READPLACE_LABEL = "Keep Readplace";
 export const UNSUBSCRIBE_LABEL = "Stop these emails";
+const KINDLE_GUIDE_LABEL = "How Send to Kindle works";
+const KINDLE_GUIDE_PATH = "/blog/read-your-saved-articles-on-a-kindle-or-kobo";
 const FOOTER_REASON: Record<QueueDigestKind, string> = {
 	regular: `You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for ${QUEUE_DIGEST_MIN_SAVE_AGE_DAYS} days.`,
 	pay: "You're getting this because you save articles to Readplace.",
@@ -59,7 +61,13 @@ type QueueDigestEmailParams = {
 	| { kind: "starter"; starter: { readlist: ReadlistSlug; campaignId: string } }
 );
 
-type QueueDigestLinkContent = "article" | "continue-reading" | "mark-all-read" | "keep-readplace" | "unsubscribe";
+type QueueDigestLinkContent =
+	| "article"
+	| "continue-reading"
+	| "mark-all-read"
+	| "keep-readplace"
+	| "kindle-guide"
+	| "unsubscribe";
 
 type ReadlistButtonContent = Extract<QueueDigestLinkContent, "continue-reading" | "mark-all-read">;
 
@@ -134,6 +142,12 @@ const INTRO_PARAGRAPH: Record<QueueDigestKind, (count: number) => string> = {
 		`Readplace selected ten articles from Hacker News for you once. ${count} ${count === 1 ? "pick is" : "picks are"} still unread. They're in All and Hacker News picks; you can read, file, or delete them.`,
 };
 
+function attachmentLine(count: number): string {
+	return count === 1
+		? "The article above is attached as an EPUB. To read it on a Kindle, forward this email to your Send to Kindle address."
+		: `The ${count} articles above are attached as one EPUB book. To read them on a Kindle, forward this email to your Send to Kindle address.`;
+}
+
 function readlistButtonsFor(input: { params: QueueDigestEmailParams; readlistUrl: URL }): ReadlistButton[] {
 	const { params, readlistUrl } = input;
 	switch (params.kind) {
@@ -186,6 +200,8 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 		),
 	}));
 	const intro = INTRO_PARAGRAPH[kind](cards.length);
+	const attachment = attachmentLine(cards.length);
+	const kindleGuideUrl = link(new URL(KINDLE_GUIDE_PATH, links.appOrigin), "kindle-guide");
 	const footerReason = FOOTER_REASON[kind];
 	const readlistUrl = new URL(READLIST_PATH, links.appOrigin);
 	if (starter !== undefined) readlistUrl.searchParams.set("queue", starter.readlist);
@@ -226,6 +242,9 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 					readlistButtons,
 					payBlocks,
 					keepLabel: KEEP_READPLACE_LABEL,
+					attachment,
+					kindleGuideUrl,
+					kindleGuideLabel: KINDLE_GUIDE_LABEL,
 					replyLine: EMAIL_REPLY_INVITATION,
 					footerReason,
 					unsubscribeUrl: unsubscribeLinkUrl,
@@ -246,6 +265,7 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 				),
 				...readlistButtons.map((button) => `${button.label}: ${button.href}`),
 				...payBlocks.flatMap((block) => [...block.paragraphs, `${KEEP_READPLACE_LABEL}: ${block.keepUrl}`]),
+				`${attachment} ${KINDLE_GUIDE_LABEL}: ${kindleGuideUrl}`,
 				EMAIL_REPLY_INVITATION,
 				`${footerReason} ${UNSUBSCRIBE_LABEL}: ${unsubscribeLinkUrl}`,
 				EMAIL_POSTAL_ADDRESS,

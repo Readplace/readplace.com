@@ -179,7 +179,7 @@ export function initDynamoDbEngagementStarter(deps: {
 		}
 	};
 	const anonymousStarterOutcome = (input: { anonymousId: string; pack: StarterPack }) => {
-		const { message: _message, ...outcome } = input.pack;
+		const { message: _message, articleUrls: _articleUrls, ...outcome } = input.pack;
 		return {
 			Update: {
 				TableName: deps.notificationsTableName,
@@ -382,6 +382,7 @@ export function initDynamoDbEngagementStarter(deps: {
 		at,
 		minGapMs,
 		itemCount,
+		articleUrls,
 	}) => {
 		const pack = await findStarterPack(userId);
 		assert(pack?.insertedAt, "email is only claimed after insertion");
@@ -392,6 +393,7 @@ export function initDynamoDbEngagementStarter(deps: {
 			message,
 			firstAttemptAt: at.toISOString(),
 			itemCount,
+			articleUrls,
 		};
 		try {
 			await notices.update({

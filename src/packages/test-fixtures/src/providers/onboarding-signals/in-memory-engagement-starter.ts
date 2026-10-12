@@ -39,7 +39,7 @@ export function initInMemoryEngagementStarter(deps: {
 			states.set(anonymousId, { ...outcome, activityRevision: 0 });
 			const pack = packs.get(userId);
 			if (pack !== undefined) {
-				const { message: _message, ...withoutMessage } = pack;
+				const { message: _message, articleUrls: _articleUrls, ...withoutMessage } = pack;
 				packs.set(anonymousId, { ...withoutMessage, picks: [] });
 			}
 			states.delete(userId);
@@ -136,7 +136,7 @@ export function initInMemoryEngagementStarter(deps: {
 			}
 			return outcome;
 		},
-		claimStarterEmail: async ({ userId, message, at, itemCount }) => {
+		claimStarterEmail: async ({ userId, message, at, itemCount, articleUrls }) => {
 			const pack = packs.get(userId);
 			if (
 				pack === undefined ||
@@ -151,6 +151,7 @@ export function initInMemoryEngagementStarter(deps: {
 				emailStatus: "sending" as const,
 				firstAttemptAt: at.toISOString(),
 				itemCount,
+				articleUrls,
 			};
 			packs.set(userId, claimed);
 			return claimed;

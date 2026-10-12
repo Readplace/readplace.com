@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { strFromU8, unzipSync } from "fflate";
+import { JSDOM } from "jsdom";
 import { UserIdSchema } from "@packages/domain/user";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
@@ -11,6 +13,9 @@ import type { UserContact } from "@packages/provider-contracts/auth";
 import type { EmailMessage } from "@packages/provider-contracts/email";
 import type { StarterPick } from "@packages/provider-contracts/engagement-starter";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
+import { initReadArticleContentOrThrow } from "@packages/article-store";
+import { initBuildQueueDigestBook } from "../../web/queue-digest-book";
+import { initBuildBookEpub } from "../../web/shared/epub/book-epub";
 import { initEnrollStarter } from "./enroll-starter";
 import { initSendStarter } from "./send-starter";
 import {
@@ -118,6 +123,12 @@ async function subject(
 		listUserSavesForUrl: library.listUserSavesForUrl,
 		findArticleByUrl: library.findArticleByUrl,
 		findGeneratedSummary: summaries.findGeneratedSummary,
+		readArticleContent: initReadArticleContentOrThrow({
+			storageProviderQueryOrder: [library.readContent],
+		}),
+		buildQueueDigestBook: initBuildQueueDigestBook({
+			buildBookEpub: initBuildBookEpub({ readArticleImage: library.readArticleImage, maxImageBytes: 1_000_000 }),
+		}),
 		sendEmail: async (message) => {
 			sent.push(message);
 		},
@@ -837,6 +848,131 @@ describe("starter delivery", () => {
 			change === "expiry" ? "sent" : "sending",
 		);
 		expect(app.events.at(-1)?.reason).toBe("email-attempt-failed");
+	});
+});
+
+function chapterTitlesOf(message: EmailMessage | undefined): (string | null)[] {
+	assert.equal(message?.attachments?.length, 1, "the starter carries exactly one attachment");
+	const nav = unzipSync(message?.attachments?.[0]?.content ?? new Uint8Array())["OEBPS/nav.xhtml"];
+	assert(nav, "the attachment is an EPUB with a table of contents");
+	return [...new JSDOM(strFromU8(nav)).window.document.querySelectorAll("nav li")].map((entry) => entry.textContent);
+}
+
+describe("starter EPUB attachment", () => {
+	it("attaches one EPUB of the unread picks, in the order the email lists them", async () => {
+		const app = await subject();
+		await app.enroll(app.id);
+
+		await app.send(app.id);
+
+		const [message] = app.sent;
+		expect(chapterTitlesOf(message)).toEqual(app.picks.map((pick) => `HN ${pick.rank}`));
+		expect(message?.attachments?.[0]).toMatchObject({
+			filename: "readplace-readlist-2026-10-10.epub",
+			contentType: "application/epub+zip",
+		});
+	});
+
+	it("leaves a pick whose body cannot be read out of both the email and the book", async () => {
+		const app = await subject();
+		await app.enroll(app.id);
+		const unreadable = app.picks[0];
+		assert(unreadable);
+		const read = app.sendDeps.readArticleContent;
+		app.sendDeps.readArticleContent = async (url) => (url === unreadable.url ? undefined : read(url));
+
+		await initSendStarter(app.sendDeps)(app.id);
+
+		const [message] = app.sent;
+		expect(message?.text).toContain("9 picks are still unread");
+		expect(chapterTitlesOf(message)).toEqual(app.picks.slice(1).map((pick) => `HN ${pick.rank}`));
+	});
+
+	it("keeps the starter pending, rather than suppressing it, when reading the picks' bodies fails", async () => {
+		const app = await subject();
+		await app.enroll(app.id);
+		app.sendDeps.readArticleContent = async () => {
+			throw new Error("SlowDown");
+		};
+
+		await expect(initSendStarter(app.sendDeps)(app.id)).rejects.toThrow("SlowDown");
+
+		expect(app.sent).toEqual([]);
+		expect((await app.state.findStarterPack(app.id))?.emailStatus).toBe("pending");
+	});
+
+	it("claims and sends nothing when the book cannot be built, and sends once it can", async () => {
+		const app = await subject();
+		await app.enroll(app.id);
+		const build = app.sendDeps.buildQueueDigestBook;
+		app.sendDeps.buildQueueDigestBook = async () => {
+			throw new Error("image missing");
+		};
+
+		await expect(initSendStarter(app.sendDeps)(app.id)).rejects.toThrow("image missing");
+
+		expect(app.sent).toEqual([]);
+		const unclaimed = await app.state.findStarterPack(app.id);
+		expect({ emailStatus: unclaimed?.emailStatus, message: unclaimed?.message }).toEqual({
+			emailStatus: "pending",
+			message: undefined,
+		});
+		app.sendDeps.buildQueueDigestBook = build;
+		await initSendStarter(app.sendDeps)(app.id);
+		expect(chapterTitlesOf(app.sent[0])).toHaveLength(10);
+		expect((await app.state.findStarterPack(app.id))?.emailStatus).toBe("sent");
+	});
+
+	it("re-sends the identical book from the claimed articles when a timed-out attempt is retried later", async () => {
+		const messages: EmailMessage[] = [];
+		const app = await subject({
+			send: {
+				sendEmail: async (message) => {
+					messages.push(message);
+					if (messages.length === 1) throw new Error("timeout");
+				},
+			},
+		});
+		await app.enroll(app.id);
+		await expect(app.send(app.id)).rejects.toThrow("timeout");
+		const lastPick = app.picks.at(-1);
+		assert(lastPick);
+		await app.library.updateArticleStatusAcrossReadlists({
+			userId: app.id,
+			id: ReaderArticleHashId.from(lastPick.url),
+			addressed: DEFAULT_READLIST_SLUG,
+			status: "read",
+		});
+		app.clock.now = new Date(NOW.getTime() + 60 * 60 * 1000);
+
+		await app.send(app.id);
+
+		expect(messages).toHaveLength(2);
+		expect(messages[1]?.attachments).toEqual(messages[0]?.attachments);
+	});
+
+	it("builds the book from the winning attempt's articles when a concurrent attempt claimed first", async () => {
+		const app = await subject();
+		await app.enroll(app.id);
+		const pending = await app.state.findStarterPack(app.id);
+		assert(pending);
+		const winnerUrls = app.picks.slice(0, 2).map((pick) => pick.url);
+		app.sendDeps.state = {
+			...app.state,
+			claimStarterEmail: async (input) => ({
+				...pending,
+				emailStatus: "sending",
+				message: { ...input.message, html: "<p>winner</p>" },
+				firstAttemptAt: new Date(NOW.getTime() - 1_000).toISOString(),
+				itemCount: 2,
+				articleUrls: winnerUrls,
+			}),
+		};
+
+		await initSendStarter(app.sendDeps)(app.id);
+
+		expect(app.sent[0]?.html).toBe("<p>winner</p>");
+		expect(chapterTitlesOf(app.sent[0])).toEqual(["HN 1", "HN 2"]);
 	});
 });
 

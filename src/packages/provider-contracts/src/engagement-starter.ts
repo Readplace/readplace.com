@@ -71,6 +71,7 @@ export const StarterPackSchema = z.object({
 	firstAttemptAt: z.string().optional(),
 	sentAt: z.string().optional(),
 	itemCount: z.number().optional(),
+	articleUrls: z.array(z.string()).optional(),
 	reason: z.string().optional(),
 });
 export type StarterPack = z.infer<typeof StarterPackSchema>;
@@ -108,6 +109,7 @@ export interface EngagementStarterState {
 		at: Date;
 		minGapMs: number;
 		itemCount: number;
+		articleUrls: string[];
 	}) => Promise<StarterPack | undefined>;
 	markStarterEmailSent: (input: { userId: UserId; at: Date }) => Promise<boolean>;
 	markStarterEmailReview: (input: { userId: UserId; reason: string }) => Promise<boolean>;

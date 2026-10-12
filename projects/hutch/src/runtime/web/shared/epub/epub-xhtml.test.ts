@@ -1,6 +1,6 @@
 import { DOMParser } from "linkedom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { articleEpubXhtml, collectArticleImages, embeddableImageFilename } from "./epub-xhtml";
+import { articleEpubXhtml, chapterEpubXhtml, collectArticleImages, embeddableImageFilename } from "./epub-xhtml";
 
 const ARTICLE_URL = "https://example.com/article";
 const ID = ArticleResourceUniqueId.parse(ARTICLE_URL);
@@ -48,6 +48,16 @@ describe("embeddableImageFilename", () => {
 			filename: "abcdef0123456789.jpg",
 		});
 		expect(embeddableImageFilename({ src: otherSrc, imagePrefix: IMAGE_PREFIX })).toBeUndefined();
+	});
+
+	it.each(["0123456789abcdef.bin", "0123456789abcdef.ico", "0123456789abcdef.bmp", "0123456789abcdef"])("returns undefined for a stored image %s whose format an EPUB cannot carry", (filename) => {
+		expect(embeddableImageFilename({ src: embeddedSrc(filename), imagePrefix: IMAGE_PREFIX })).toBeUndefined();
+	});
+
+	it("returns the filename for an image whose extension is upper case", () => {
+		expect(embeddableImageFilename({ src: embeddedSrc("0123456789abcdef.JPG"), imagePrefix: IMAGE_PREFIX })).toBe(
+			"0123456789abcdef.JPG",
+		);
 	});
 
 	it("returns undefined for a non-absolute URL", () => {
@@ -211,5 +221,18 @@ describe("articleEpubXhtml", () => {
 		expect(xhtml).toContain("href=\"/x?a=1&amp;b=2\"");
 		expect(xhtml).toContain("&quot;hi&quot;");
 		expect(xhtml).toContain("<title>Tom &amp; Jerry &lt;3</title>");
+	});
+});
+
+describe("chapterEpubXhtml", () => {
+	it("points each embedded image at its mapped href and drops the images it has no href for", () => {
+		const xhtml = chapterEpubXhtml({
+			contentHtml: `<p><img src="${embeddedSrc("abcdef0123456789.jpg")}" alt="Kept"><img src="${embeddedSrc("0123456789abcdef.jpg")}" alt="Dropped"></p>`,
+			title: "Chapter",
+			articleUrl: ARTICLE_URL,
+			imageHrefs: new Map([["abcdef0123456789.jpg", "images/03/abcdef0123456789.jpg"]]),
+		});
+
+		expect(xhtml).toContain('<p><img src="images/03/abcdef0123456789.jpg" alt="Kept" /></p>');
 	});
 });

@@ -1,5 +1,5 @@
 import { strFromU8, unzipSync } from "fflate";
-import { buildEpub } from "./epub-package";
+import { buildEpub, packageEpub } from "./epub-package";
 
 const BASE = {
 	title: "The Article",
@@ -64,5 +64,51 @@ describe("buildEpub", () => {
 		expect(() =>
 			buildEpub({ ...BASE, images: [{ filename: "noextension", body: new Uint8Array([1]) }] }),
 		).toThrow(/unsupported epub image extension/);
+	});
+});
+
+describe("packageEpub", () => {
+	const chapters = [
+		{ id: "chapter-01", href: "chapter-01.xhtml", title: "First & foremost", xhtml: "<p>one</p>" },
+		{ id: "chapter-02", href: "chapter-02.xhtml", title: "Second", xhtml: "<p>two</p>" },
+	];
+	const book = {
+		title: "Waiting in your readlist",
+		language: "en",
+		identifier: "urn:readplace:queue-digest:send-1",
+		modifiedAt: "2026-09-02T00:00:00Z",
+		chapters,
+		images: [{ href: "images/02/abcdef0123456789.png", body: new Uint8Array([4, 5]) }],
+	};
+
+	it("lists every chapter in the manifest, spine, nav and ncx, in the given order", () => {
+		const files = unzipSync(packageEpub(book));
+		const opf = strFromU8(files["OEBPS/content.opf"]);
+
+		expect(opf).toContain(
+			'<item id="chapter-01" href="chapter-01.xhtml" media-type="application/xhtml+xml"/>\n<item id="chapter-02" href="chapter-02.xhtml" media-type="application/xhtml+xml"/>',
+		);
+		expect(opf).toContain('<itemref idref="chapter-01"/>\n<itemref idref="chapter-02"/>');
+		expect(strFromU8(files["OEBPS/nav.xhtml"])).toContain(
+			'<li><a href="chapter-01.xhtml">First &amp; foremost</a></li>\n<li><a href="chapter-02.xhtml">Second</a></li>',
+		);
+		const ncx = strFromU8(files["OEBPS/toc.ncx"]);
+		expect(ncx).toContain('<navPoint id="navpoint-1" playOrder="1">\n<navLabel><text>First &amp; foremost</text></navLabel>\n<content src="chapter-01.xhtml" />');
+		expect(ncx).toContain('<navPoint id="navpoint-2" playOrder="2">\n<navLabel><text>Second</text></navLabel>\n<content src="chapter-02.xhtml" />');
+		expect(strFromU8(files["OEBPS/chapter-01.xhtml"])).toBe("<p>one</p>");
+		expect(strFromU8(files["OEBPS/chapter-02.xhtml"])).toBe("<p>two</p>");
+	});
+
+	it("writes each image at its own href with its media type", () => {
+		const files = unzipSync(packageEpub(book));
+
+		expect(files["OEBPS/images/02/abcdef0123456789.png"]).toEqual(new Uint8Array([4, 5]));
+		expect(strFromU8(files["OEBPS/content.opf"])).toContain(
+			'<item id="img1" href="images/02/abcdef0123456789.png" media-type="image/png"/>',
+		);
+	});
+
+	it("produces the same bytes for the same book, whenever it is built", () => {
+		expect(packageEpub(book)).toEqual(packageEpub(book));
 	});
 });

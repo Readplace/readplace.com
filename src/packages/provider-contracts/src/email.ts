@@ -1,3 +1,9 @@
+export interface EmailAttachment {
+	filename: string;
+	contentType: string;
+	content: Uint8Array;
+}
+
 export interface EmailMessage {
 	from: string;
 	to: string;
@@ -8,6 +14,7 @@ export interface EmailMessage {
 	text?: string;
 	headers?: Record<string, string>;
 	idempotencyKey?: string;
+	attachments?: readonly EmailAttachment[];
 }
 
 export type SendEmail = (message: EmailMessage) => Promise<void>;

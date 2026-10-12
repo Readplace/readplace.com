@@ -305,6 +305,7 @@ describe("withdrawal on account deletion", () => {
 			insertionOutcome: "inserted" as const,
 			emailStatus: "sent" as const,
 			message,
+			articleUrls: ["https://example.com/read-by-this-reader"],
 			sentAt: now.toISOString(),
 		};
 		const app = subject([{ Item: { engagement: assignedState } }, { Item: { starterPack: delivered } }, {}]);
@@ -314,7 +315,7 @@ describe("withdrawal on account deletion", () => {
 		const [account, anonymousAccount, anonymousOutcome] = withdrawal
 			.parse(app.commands[2]?.input)
 			.TransactItems.map((item) => item.Update);
-		const { message: _message, ...outcome } = delivered;
+		const { message: _message, articleUrls: _articleUrls, ...outcome } = delivered;
 		expect(account).toEqual({
 			TableName: "onboarding",
 			Key: { userId },
@@ -511,6 +512,7 @@ describe("persistent starter attempts", () => {
 			at: now,
 			minGapMs: 47.5 * 3_600_000,
 			itemCount: 10,
+			articleUrls: ["https://example.com/a", "https://example.com/b"],
 		});
 		expect(claimed).toEqual({
 			...inserted,
@@ -518,6 +520,7 @@ describe("persistent starter attempts", () => {
 			emailStatus: "sending",
 			firstAttemptAt: now.toISOString(),
 			itemCount: 10,
+			articleUrls: ["https://example.com/a", "https://example.com/b"],
 		});
 		expect(app.commands[1]?.input.ConditionExpression).toContain(
 			"lastReaderReadyEmailAt <= :cutoff",
@@ -541,13 +544,14 @@ describe("persistent starter attempts", () => {
 				at: now,
 				minGapMs: 0,
 				itemCount: 9,
+				articleUrls: [],
 			}),
 		).toEqual(claimed);
 		expect(retry.commands).toHaveLength(1);
 	});
 	it("loses a notification claim safely and propagates storage errors", async () => {
 		const prior = { Item: { starterPack: { ...pack, insertedAt: now.toISOString() } } };
-		const input = { userId, message, at: now, minGapMs: 1, itemCount: 10 };
+		const input = { userId, message, at: now, minGapMs: 1, itemCount: 10, articleUrls: [] };
 		expect(await subject([prior, conflict()]).store.claimStarterEmail(input)).toBeUndefined();
 		const error = new Error("offline");
 		await expect(subject([prior, error]).store.claimStarterEmail(input)).rejects.toBe(error);

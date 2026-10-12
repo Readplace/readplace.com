@@ -15,6 +15,13 @@ export function initResendEmail(apiKey: string): { sendEmail: SendEmail } {
 			...(message.bcc && { bcc: message.bcc }),
 			...(message.replyTo && { replyTo: message.replyTo }),
 			...(message.headers && { headers: message.headers }),
+			...(message.attachments && {
+				attachments: message.attachments.map((attachment) => ({
+					filename: attachment.filename,
+					contentType: attachment.contentType,
+					content: Buffer.from(attachment.content).toString("base64"),
+				})),
+			}),
 		}, message.idempotencyKey === undefined ? undefined : { idempotencyKey: message.idempotencyKey });
 		if (result.error) {
 			const message = `Resend ${result.error.name}: ${result.error.message}`;

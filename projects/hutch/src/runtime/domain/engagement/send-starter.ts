@@ -4,6 +4,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	EngagementStarterState,
 	FrozenStarterMessage,
+	StarterPack,
 } from "@packages/provider-contracts/engagement-starter";
 import type { FindUserContactByUserId } from "@packages/provider-contracts/auth";
 import type {
@@ -14,21 +15,40 @@ import type {
 	FindReadlistArticleById,
 	FindArticleById,
 	FindArticleByUrl,
+	GlobalArticleData,
 	ListUserSavesForUrl,
+	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
 import { ReaderArticleHashId } from "@packages/domain/article";
-import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
+import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindReaderReadyEmailState } from "@packages/provider-contracts/reader-ready-state";
-import type { SendEmail } from "@packages/provider-contracts/email";
+import type { EmailAttachment, SendEmail } from "@packages/provider-contracts/email";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
 import { QueueDigestEmail, type QueueDigestEmailItem } from "../../web/queue-digest-email";
 import { buildDigestPreview } from "../../web/digest-preview";
+import type { BuildQueueDigestBook } from "../../web/queue-digest-book";
+import type { BookChapter } from "../../web/shared/epub/book-epub";
 import {
 	PAY_DIGEST_WINDOW_CLOSES_LEAD_MS,
 	PAY_DIGEST_WINDOW_OPENS_LEAD_MS,
 } from "../stripe/stripe-trial-config";
 import { STARTER_EMAIL_GAP_MS, STARTER_RETRY_WINDOW_MS } from "./starter-policy";
 import { reservedDomainOf } from "../../providers/email/skip-reserved-domain";
+
+function toChapter(input: {
+	article: GlobalArticleData;
+	summary: GeneratedSummary | undefined;
+	contentHtml: string;
+}): BookChapter {
+	return {
+		articleUrl: input.article.url,
+		title: input.article.metadata.title,
+		siteName: input.article.metadata.siteName,
+		excerpt: input.article.metadata.excerpt,
+		summary: input.summary,
+		contentHtml: input.contentHtml,
+	};
+}
 
 function holdsForPayment(input: { row: SubscriptionRecord | undefined; now: Date }): boolean {
 	const { row, now } = input;
@@ -51,6 +71,8 @@ export function initSendStarter(deps: {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	findArticleByUrl: FindArticleByUrl;
 	findGeneratedSummary: FindGeneratedSummary;
+	readArticleContent: ReadArticleContent;
+	buildQueueDigestBook: BuildQueueDigestBook;
 	sendEmail: SendEmail;
 	signUnsubscribeToken: (userId: UserId) => string;
 	appOrigin: string;
@@ -63,6 +85,30 @@ export function initSendStarter(deps: {
 		itemCount?: number;
 	}) => void;
 }): (userId: UserId) => Promise<boolean> {
+	const chaptersFor = (urls: readonly string[]): Promise<BookChapter[]> =>
+		Promise.all(
+			urls.map(async (url) => {
+				const [article, summary, contentHtml] = await Promise.all([
+					deps.findArticleByUrl(url),
+					deps.findGeneratedSummary(url),
+					deps.readArticleContent(url),
+				]);
+				assert(article, `a claimed starter pick is a stored article: ${url}`);
+				assert(contentHtml !== undefined, `a claimed starter pick had a readable body: ${url}`);
+				return toChapter({ article, summary, contentHtml });
+			}),
+		);
+	const bookFor = async (input: { pack: StarterPack; message: FrozenStarterMessage }) => {
+		const { articleUrls, firstAttemptAt } = input.pack;
+		assert(articleUrls, "a claimed starter pack records the articles it lists");
+		assert(firstAttemptAt, "a claimed starter pack records its first attempt");
+		return deps.buildQueueDigestBook({
+			subject: input.message.subject,
+			sendId: input.message.idempotencyKey,
+			sentAt: new Date(firstAttemptAt),
+			chapters: await chaptersFor(articleUrls),
+		});
+	};
 	return async (userId) => {
 		const pack = await deps.state.findStarterPack(userId);
 		if (
@@ -76,6 +122,7 @@ export function initSendStarter(deps: {
 		const now = deps.now();
 		let message = pack.message;
 		let itemCount = pack.itemCount;
+		let book: EmailAttachment | undefined;
 		if (
 			pack.firstAttemptAt !== undefined &&
 			now.getTime() - Date.parse(pack.firstAttemptAt) >= STARTER_RETRY_WINDOW_MS
@@ -124,16 +171,19 @@ export function initSendStarter(deps: {
 				return true;
 			}
 			const items: QueueDigestEmailItem[] = [];
+			const chapters: BookChapter[] = [];
 			for (const pick of pack.picks) {
-				const [article, summary, memberships] = await Promise.all([
+				const [article, summary, memberships, contentHtml] = await Promise.all([
 					deps.findArticleByUrl(pick.url),
 					deps.findGeneratedSummary(pick.url),
 					deps.listUserSavesForUrl({ userId, url: pick.url }),
+					deps.readArticleContent(pick.url),
 				]);
 				if (
 					article?.purgedAt !== undefined ||
 					article?.readerAvailableAt === undefined ||
-					summary?.status !== "ready"
+					summary?.status !== "ready" ||
+					contentHtml === undefined
 				) {
 					continue;
 				}
@@ -162,6 +212,7 @@ export function initSendStarter(deps: {
 						siteName: article.metadata.siteName,
 						preview: buildDigestPreview(summary),
 					});
+					chapters.push(toChapter({ article, summary, contentHtml }));
 				}
 			}
 			if (items.length === 0) {
@@ -199,20 +250,30 @@ export function initSendStarter(deps: {
 				headers: email.headers,
 				idempotencyKey,
 			};
+			const freshBook = await deps.buildQueueDigestBook({
+				subject: email.subject,
+				sendId: idempotencyKey,
+				sentAt: now,
+				chapters,
+			});
 			const claim = await deps.state.claimStarterEmail({
 				userId,
 				message: frozen,
 				at: now,
 				minGapMs: STARTER_EMAIL_GAP_MS,
 				itemCount: items.length,
+				articleUrls: chapters.map((chapter) => chapter.articleUrl),
 			});
 			if (claim === undefined) return true;
 			message = claim.message;
 			itemCount = claim.itemCount;
+			assert(message, "a claimed starter pack carries its frozen message");
+			book = claim.message === frozen ? freshBook : await bookFor({ pack: claim, message });
 		}
 		assert(message, "a starter attempt uses the complete frozen message");
+		const attachment = book ?? (await bookFor({ pack, message }));
 		try {
-			await deps.sendEmail(message);
+			await deps.sendEmail({ ...message, attachments: [attachment] });
 		} catch (error) {
 			deps.emit({
 				userId,

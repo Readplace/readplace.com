@@ -12,7 +12,10 @@ import { useTestServer } from "../../../test-app";
 import { buildOwnerReaderPath } from "./owner-reader-link";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { EmailMessage } from "@packages/provider-contracts/email";
+import { initReadArticleContentOrThrow } from "@packages/article-store";
 import { initSendStarter } from "../../../domain/engagement/send-starter";
+import { initBuildQueueDigestBook } from "../../queue-digest-book";
+import { initBuildBookEpub } from "../../shared/epub/book-epub";
 import { initQueueDigestUnsubscribeToken } from "../../../domain/email/queue-digest-unsubscribe-token";
 import { QUEUE_DIGEST_UNSUBSCRIBE_PATH } from "../../queue-digest-email";
 
@@ -466,7 +469,7 @@ describe("starter readlist", () => {
 			new JSDOM(response.text).window.document.querySelector("[data-test-mark-read-form]"),
 		).not.toBeNull();
 	});
-	it("serves every link of the starter email, tracking term included", async () => {
+	it("serves every app link of the starter email, tracking term included, and sends the Kindle guide to the blog", async () => {
 		const summary = createFakeSummaryProvider();
 		const fixture = { ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary };
 		fixture.shared.now = () => NOW;
@@ -496,6 +499,7 @@ describe("starter readlist", () => {
 				savedAt: NOW,
 			});
 			await fixture.articleStore.setReaderAvailableAt({ url: pick.url, at: NOW });
+			await fixture.articleStore.writeContent({ url: pick.url, content: "<p>A pick.</p>" });
 			summary.markSummaryReady({ url: pick.url, summary: "A useful summary.", excerpt: "" });
 		}
 		const pack = {
@@ -536,6 +540,15 @@ describe("starter readlist", () => {
 			listUserSavesForUrl: fixture.articleStore.listUserSavesForUrl,
 			findArticleByUrl: fixture.articleStore.findArticleByUrl,
 			findGeneratedSummary: summary.findGeneratedSummary,
+			readArticleContent: initReadArticleContentOrThrow({
+				storageProviderQueryOrder: [fixture.articleStore.readContent],
+			}),
+			buildQueueDigestBook: initBuildQueueDigestBook({
+				buildBookEpub: initBuildBookEpub({
+					readArticleImage: fixture.articleStore.readArticleImage,
+					maxImageBytes: 1_000_000,
+				}),
+			}),
 			sendEmail: async (message) => {
 				sent.push(message);
 			},
@@ -546,9 +559,13 @@ describe("starter readlist", () => {
 		})(userId);
 		const message = sent[0];
 		assert(message);
-		const links = [...new JSDOM(message.html).window.document.querySelectorAll("a[href]")].map(
+		const allLinks = [...new JSDOM(message.html).window.document.querySelectorAll("a[href]")].map(
 			(link) => new URL(String(link.getAttribute("href"))),
 		);
+		expect(allLinks.filter((link) => link.pathname.startsWith("/blog/")).map((link) => link.pathname)).toEqual([
+			"/blog/read-your-saved-articles-on-a-kindle-or-kobo",
+		]);
+		const links = allLinks.filter((link) => !link.pathname.startsWith("/blog/"));
 		const app = useApp(fixture);
 		const served: { path: string; status: number; location?: string }[] = [];
 		for (const link of links) {

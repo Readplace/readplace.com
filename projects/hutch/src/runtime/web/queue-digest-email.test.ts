@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { QueueDigestEmail, type QueueDigestEmailItem } from "./queue-digest-email";
 
 const ORIGIN = "https://readplace.com";
@@ -352,7 +353,7 @@ describe("QueueDigestEmail", () => {
 				[
 					`Continue reading: https://readplace.com/queue?utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=continue-reading&utm_term=${SEND_ID}`,
 					`Mark all as read: https://readplace.com/email/queue-digest/mark-read?t=${MARK_READ_TOKEN}&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=mark-all-read&utm_term=${SEND_ID}`,
-					"If you have any questions, please reply to this email",
+					"The article above is attached as an EPUB.",
 				].join("\n\n"),
 			);
 		});
@@ -392,6 +393,46 @@ describe("QueueDigestEmail", () => {
 			["pay", payDigest],
 		])("carries no exclamation mark in a %s digest", (_kind, buildDigest) => {
 			expect(buildDigest([item()]).to("text/plain")).not.toContain("!");
+		});
+	});
+
+	describe("EPUB attachment line", () => {
+		const KINDLE_GUIDE_URL = (campaign: string) =>
+			`https://readplace.com/blog/read-your-saved-articles-on-a-kindle-or-kobo?utm_source=queue-digest&utm_medium=email&utm_campaign=${campaign}&utm_content=kindle-guide&utm_term=${SEND_ID}`;
+		const starterDigest = (items: QueueDigestEmailItem[]) =>
+			QueueDigestEmail({
+				kind: "starter",
+				items,
+				links: LINKS,
+				starter: { readlist: ReadlistSlugSchema.parse("hn-picks"), campaignId: "hn-starter-v1" },
+			});
+
+		it.each([
+			["regular", regularDigest, "regular"],
+			["pay", payDigest, "pay"],
+			["starter", starterDigest, "hn-starter-v1"],
+		])("tells a %s digest reader the articles are attached and links the Send to Kindle guide, just before the reply invitation", (_kind, buildDigest, campaign) => {
+			const digest = buildDigest([item(), item({ articleId: SECOND_ARTICLE_ID })]);
+			const line =
+				"The 2 articles above are attached as one EPUB book. To read them on a Kindle, forward this email to your Send to Kindle address.";
+
+			expect(digest.to("text/plain")).toContain(
+				[`${line} How Send to Kindle works: ${KINDLE_GUIDE_URL(campaign)}`, "If you have any questions, please reply to this email"].join("\n\n"),
+			);
+			const paragraphs = [...documentOf(digest.to("text/html")).querySelectorAll("p")];
+			const attachment = paragraphs.find((paragraph) => paragraph.textContent?.startsWith("The 2 articles above"));
+			assert(attachment, "the digest must carry the attachment paragraph");
+			expect(attachment.textContent).toBe(`${line} How Send to Kindle works.`);
+			expect(attachment.querySelector("a")?.getAttribute("href")).toBe(KINDLE_GUIDE_URL(campaign));
+			expect(paragraphs[paragraphs.indexOf(attachment) + 1]?.textContent).toBe(
+				"If you have any questions, please reply to this email",
+			);
+		});
+
+		it("speaks of one article when the digest lists one", () => {
+			expect(regularDigest([item()]).to("text/plain")).toContain(
+				"The article above is attached as an EPUB. To read it on a Kindle, forward this email to your Send to Kindle address. How Send to Kindle works: ",
+			);
 		});
 	});
 });

@@ -464,6 +464,7 @@ describe("initInMemoryEngagementStarter", () => {
 			at: firstAttemptAt,
 			minGapMs: 0,
 			itemCount: 10,
+			articleUrls: ["https://example.com/a"],
 		});
 		const retried = await starter.claimStarterEmail({
 			userId: USER,
@@ -471,6 +472,7 @@ describe("initInMemoryEngagementStarter", () => {
 			at: daysAfterAssignment(1),
 			minGapMs: 0,
 			itemCount: 9,
+			articleUrls: [],
 		});
 
 		const frozen = {
@@ -479,6 +481,7 @@ describe("initInMemoryEngagementStarter", () => {
 			emailStatus: "sending",
 			firstAttemptAt: firstAttemptAt.toISOString(),
 			itemCount: 10,
+			articleUrls: ["https://example.com/a"],
 		};
 		expect(claimed).toEqual(frozen);
 		expect(retried).toEqual(frozen);
@@ -493,6 +496,7 @@ describe("initInMemoryEngagementStarter", () => {
 			at: daysAfterAssignment(0),
 			minGapMs: 0,
 			itemCount: 10,
+			articleUrls: [],
 		});
 		await sent.markStarterEmailSent({ userId: USER, at: daysAfterAssignment(0) });
 
@@ -503,6 +507,7 @@ describe("initInMemoryEngagementStarter", () => {
 				at: daysAfterAssignment(1),
 				minGapMs: 0,
 				itemCount: 10,
+				articleUrls: [],
 			}),
 		).toBeUndefined();
 		expect(
@@ -512,6 +517,7 @@ describe("initInMemoryEngagementStarter", () => {
 				at: daysAfterAssignment(1),
 				minGapMs: 0,
 				itemCount: 10,
+				articleUrls: [],
 			}),
 		).toBeUndefined();
 	});
@@ -541,6 +547,7 @@ describe("initInMemoryEngagementStarter", () => {
 			at: sentAt,
 			minGapMs: 0,
 			itemCount: 10,
+			articleUrls: [],
 		});
 		const afterClaim = await starter.markStarterEmailSent({ userId: USER, at: sentAt });
 		const reviewAfterSend = await starter.markStarterEmailReview({
@@ -563,6 +570,7 @@ describe("initInMemoryEngagementStarter", () => {
 			at: daysAfterAssignment(0),
 			minGapMs: 0,
 			itemCount: 10,
+			articleUrls: [],
 		});
 
 		const held = await starter.markStarterEmailReview({
@@ -585,6 +593,7 @@ describe("initInMemoryEngagementStarter", () => {
 			at: ASSIGNED_AT,
 			minGapMs: 0,
 			itemCount: 1,
+			articleUrls: ["https://example.com/read-by-this-reader"],
 		});
 
 		await starter.withdrawStarterAssignment(USER);

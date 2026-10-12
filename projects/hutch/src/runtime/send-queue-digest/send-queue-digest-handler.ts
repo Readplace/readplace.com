@@ -13,6 +13,7 @@ import type {
 	DigestPageCursor,
 	FindUnreadSavesForDigest,
 	MarkReaderReadyEmailSent,
+	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindUserContactByUserId } from "@packages/provider-contracts/auth";
@@ -39,6 +40,8 @@ import type {
 	QueueDigestSkipReason,
 } from "../observability/queue-digest-events";
 import { buildDigestPreview } from "../web/digest-preview";
+import type { BuildQueueDigestBook } from "../web/queue-digest-book";
+import type { BookChapter } from "../web/shared/epub/book-epub";
 import { CONSENT_SEED_ARTICLE_URL } from "../web/oauth/consent-seed-save";
 import {
 	QueueDigestEmail,
@@ -61,6 +64,8 @@ export interface SendQueueDigestDeps {
 	findReaderReadyEmailState: FindReaderReadyEmailState;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	findGeneratedSummary: FindGeneratedSummary;
+	readArticleContent: ReadArticleContent;
+	buildQueueDigestBook: BuildQueueDigestBook;
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
 	releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot;
 	claimPayDigest: ClaimPayDigest;
@@ -84,6 +89,7 @@ export interface SendQueueDigestDeps {
 interface ReadyItem {
 	candidate: DigestCandidate;
 	summary: GeneratedSummary;
+	contentHtml: string;
 }
 
 interface DigestQuery {
@@ -178,6 +184,17 @@ async function processQueueDigest(params: {
 	const items = await selectReadyItems({ deps, userId, query: plan.query });
 	if (items.length === 0) return skipAndRecord(plan.emptyReason);
 
+	const email = plan.email({
+		items: items.map(toEmailItem),
+		links: { appOrigin: deps.appOrigin, sendId: messageId, unsubscribeToken: deps.signUnsubscribeToken(userId) },
+	});
+	const book = await deps.buildQueueDigestBook({
+		subject: email.subject,
+		sendId: messageId,
+		sentAt: sendInstant,
+		chapters: items.map(toBookChapter),
+	});
+
 	const claim = await plan.claim(items.map((item) => item.candidate.article.url));
 	if (
 		await settleHeldClaim({
@@ -192,10 +209,6 @@ async function processQueueDigest(params: {
 		return;
 	}
 
-	const email = plan.email({
-		items: items.map(toEmailItem),
-		links: { appOrigin: deps.appOrigin, sendId: messageId, unsubscribeToken: deps.signUnsubscribeToken(userId) },
-	});
 	try {
 		await deps.sendEmail({
 			from: EMAIL_FROM,
@@ -205,6 +218,7 @@ async function processQueueDigest(params: {
 			html: email.to("text/html"),
 			text: email.to("text/plain"),
 			headers: email.headers,
+			attachments: [book],
 		});
 	} catch (error) {
 		if (error instanceof EmailRejectedError) await plan.release();
@@ -372,15 +386,15 @@ async function readyItemsOf(params: {
 			candidate.readerAvailableAt !== undefined &&
 			candidate.purgedAt === undefined,
 	);
-	const withSummaries = await Promise.all(
-		loaded.map(async (candidate) => ({
-			candidate,
-			summary: await params.deps.findGeneratedSummary(candidate.article.url),
-		})),
+	const ready = await Promise.all(
+		loaded.map(async (candidate): Promise<ReadyItem[]> => {
+			const summary = await params.deps.findGeneratedSummary(candidate.article.url);
+			if (summary?.status !== "ready") return [];
+			const contentHtml = await params.deps.readArticleContent(candidate.article.url);
+			return contentHtml === undefined ? [] : [{ candidate, summary, contentHtml }];
+		}),
 	);
-	return withSummaries.flatMap(({ candidate, summary }) =>
-		summary?.status === "ready" ? [{ candidate, summary }] : [],
-	);
+	return ready.flat();
 }
 
 function toEmailItem({ candidate, summary }: ReadyItem): QueueDigestEmailItem {
@@ -389,6 +403,17 @@ function toEmailItem({ candidate, summary }: ReadyItem): QueueDigestEmailItem {
 		title: candidate.article.metadata.title,
 		siteName: candidate.article.metadata.siteName,
 		preview: buildDigestPreview(summary),
+	};
+}
+
+function toBookChapter({ candidate, summary, contentHtml }: ReadyItem): BookChapter {
+	return {
+		articleUrl: candidate.article.url,
+		title: candidate.article.metadata.title,
+		siteName: candidate.article.metadata.siteName,
+		excerpt: candidate.article.metadata.excerpt,
+		summary,
+		contentHtml,
 	};
 }
 
