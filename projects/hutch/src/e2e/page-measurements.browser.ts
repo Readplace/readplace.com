@@ -26,6 +26,17 @@ export function measureTextFit(selector: string): TextFit {
 	return { needed: element.scrollWidth, painted: element.clientWidth, height: element.getBoundingClientRect().height };
 }
 
+export function resolveColourTokens(tokens: readonly string[]): string[] {
+	const probe = document.createElement("span");
+	document.body.append(probe);
+	const colours = tokens.map((token) => {
+		probe.style.color = `var(${token})`;
+		return getComputedStyle(probe).color;
+	});
+	probe.remove();
+	return colours;
+}
+
 export function pageOverflowsSideways(): boolean {
 	return document.documentElement.scrollWidth > document.documentElement.clientWidth;
 }

@@ -29,7 +29,7 @@ const VOLATILE_CHROME = [
 	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
-	".crawl-bookmark",
+	".article-history",
 	".view__share-row",
 ];
 
@@ -204,7 +204,7 @@ test.describe("Public view CTA row on a phone", () => {
 test.describe("Public view CTA row above the breakpoint", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("keeps the full labels, with the bar's edges on the card column's", async ({ page }, testInfo) => {
+	test("keeps the full labels, with the bar's edges on the card column's on a page whose rail shows no card", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPublicView(page, {
 			stamp: `desktop-${testInfo.workerIndex}-${Date.now()}`,

@@ -1044,7 +1044,10 @@ describe("View routes", () => {
 			assert(summarySlot, "summary slot must render so its emptiness is meaningful");
 			expect(summarySlot.textContent?.trim()).toBe("");
 
-			expect(doc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
+			const layout = doc.querySelector("main.view > .reading-layout");
+			assert(layout, "the reading layout must render");
+			expect(Array.from(layout.children, (child) => child.className)).toEqual(["reading-layout__main"]);
+			expect(doc.querySelectorAll("[data-test-article-history-version]").length).toBe(0);
 
 			expect(response.text).not.toContain(SEEDED_INBOX_TITLE);
 			expect(response.text).not.toContain(STORED_SUMMARY);

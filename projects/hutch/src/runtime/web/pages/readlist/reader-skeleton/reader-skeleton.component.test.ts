@@ -68,11 +68,12 @@ describe("renderReaderSkeleton", () => {
 		);
 	});
 
-	it("paints the real reader's layout: the toolbar row and the article card in the main track, with no rail", () => {
+	it("paints the real reader's layout: the toolbar row and the article card in the main track, with the rail's track reserved and no rail element", () => {
 		const content = templateContent();
 
 		const layout = content.querySelector(".reading-layout");
 		assert(layout, "the skeleton must paint the reading layout");
+		expect(layout.className).toBe("reading-layout reading-layout--with-rail-card");
 		expect(Array.from(layout.children, (child) => child.className)).toEqual(["reading-layout__main"]);
 		const card = content.querySelector(".reading-layout__main [data-article-body] > article");
 		assert(card, "the skeleton must paint the article card inside the article column");
@@ -169,7 +170,6 @@ describe("renderReaderSkeleton", () => {
 			"/client-dist/share-dialog.client.js",
 			"/client-dist/next-read.client.js",
 			"/client-dist/summary-toggle.client.js",
-			"/client-dist/crawl-bookmark.client.js",
 			"/client-dist/readlist-picker.client.js",
 			"/client-dist/reader-exit-confirm.client.js",
 			"/client-dist/reader-open.client.js",

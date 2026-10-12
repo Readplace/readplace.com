@@ -63,8 +63,8 @@ export async function offlineCopySavedAt(input: { cacheName: string; key: string
 	return copy === undefined ? null : copy.headers.get(input.header);
 }
 
-export function crawlDrawerRows(): string[] {
-	return Array.from(document.querySelectorAll(".crawl-bookmark__tab"), (tab) =>
-		String(tab.getAttribute("data-test-crawl-bookmark-tab")),
+export function articleHistoryRows(): string[] {
+	return Array.from(document.querySelectorAll("[data-test-article-history-version]"), (row) =>
+		String(row.getAttribute("data-test-article-history-version")),
 	);
 }

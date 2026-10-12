@@ -619,9 +619,10 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("[data-test-readlist-tag]")).toBeVisible({ timeout: SETTLE_MS });
-			await expect(page.locator("[data-test-crawl-bookmark-badge]")).toHaveText(["Best", "Me"]);
+			await expect(page.locator("[data-test-article-history-badge]")).toHaveText(["Current"]);
+			await expect(page.locator('[data-test-action="article-version-delete-open"]')).toBeVisible();
 			await auditRoot(page, { root: "#article-header", theme, view: "reader-header" });
-			await auditRoot(page, { root: ".crawl-bookmark", theme, view: "chip/crawl-badges" });
+			await auditRoot(page, { root: "[data-test-article-history]", theme, view: "chip/article-history" });
 		}
 	});
 });

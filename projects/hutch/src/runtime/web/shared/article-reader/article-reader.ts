@@ -23,9 +23,10 @@ import {
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
-import { toAbsoluteShortDateTime, type LocalTime } from "@packages/web-shell/local-time.format";
+import { toAbsoluteDate, toAbsoluteTime, type LocalTime } from "@packages/web-shell/local-time.format";
 import type {
 	ArticleReaderDeps,
+	ArticleVersion,
 	HandlePollParams,
 	PollUrlBuilder,
 	ReaderState,
@@ -199,30 +200,31 @@ function shouldKeepPollingReader(
 }
 
 /**
- * The reader bookmark surfaces only the newest few dated versions. The stored
- * log is intentionally unbounded (see `appendCrawlVersion`), so raising this
+ * The stored log is intentionally unbounded (see `appendCrawlVersion`), so raising this
  * limit — or building a dedicated all-versions view — needs no backfill.
  */
-const MAX_BOOKMARK_CRAWL_VERSIONS = 10;
+const MAX_ARTICLE_HISTORY_VERSIONS = 10;
+
+function toArticleVersion(iso: string): ArticleVersion {
+	return { minuteId: iso, date: toAbsoluteDate({ iso }), time: toAbsoluteTime({ iso }) };
+}
 
 /**
- * Merge the crawl-version log with the legacy `contentFetchedAt` fallback into
- * the bookmark's newest-first tab list, capped at the newest
- * `MAX_BOOKMARK_CRAWL_VERSIONS` for display. Pre-feature articles have no
- * versions but do have a `contentFetchedAt`, so they still surface a single
- * current tab.
+ * Merge the crawl-version log with the legacy `contentFetchedAt` fallback,
+ * capped at the newest `MAX_ARTICLE_HISTORY_VERSIONS` for display. Pre-feature
+ * articles have no versions but do have a `contentFetchedAt`.
  */
 function resolveCrawlVersions(
 	versions: ArticleCrawlVersion[],
 	contentFetchedAt: string | undefined,
-): LocalTime[] {
+): ArticleVersion[] {
 	if (versions.length > 0) {
 		return versions
-			.slice(0, MAX_BOOKMARK_CRAWL_VERSIONS)
-			.map((version) => toAbsoluteShortDateTime({ iso: version.crawledAtMinute }));
+			.slice(0, MAX_ARTICLE_HISTORY_VERSIONS)
+			.map((version) => toArticleVersion(version.crawledAtMinute));
 	}
 	if (contentFetchedAt !== undefined) {
-		return [toAbsoluteShortDateTime({ iso: contentFetchedAt })];
+		return [toArticleVersion(contentFetchedAt)];
 	}
 	return [];
 }

@@ -9,6 +9,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { z } from "zod";
+import { resolveColourTokens } from "./page-measurements.browser";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
@@ -23,18 +24,18 @@ const SEEDED_PARAGRAPH =
 const SECTION = "[data-test-reader-topic-reads]";
 const READY_SECTION = '[data-test-reader-topic-reads][data-topic-reads-status="ready"]';
 const CARD = ".past-reads__card";
-const TOGGLE = ".past-reads__toggle";
+const TOGGLE = ".past-reads__card > .disclosure-card__header";
 const PREVIEW = ".past-reads__preview";
 const PREVIEW_TITLE = ".past-reads__preview-title";
-const MORE = ".past-reads__more";
 const ROW = ".past-reads__row";
 const LINK = ".past-reads__link";
 const TITLE = `${ROW} .past-reads__title`;
 const REASON = ".past-reads__reason";
-const SUMMARY_SLOT = "#article-body-summary-slot";
-const SUMMARY_CARD = ".tldr-disclosure";
-const READER_SLOT = "#article-body-reader-slot";
+const RAIL = "[data-test-reader-rail]";
+const ARTICLE_HISTORY = "[data-test-article-history]";
 const ROW_GAP_PX = 0;
+const RAIL_GAP_PX = 16;
+const PHONE_HOLDING_THE_ARTICLE_AND_BOTH_CARDS = { width: 390, height: 2600 };
 
 const LONG_TITLE =
 	"How the Postgres Query Planner Picks Between Sequential, Index and Bitmap Heap Scans Once Table Statistics Go Stale";
@@ -176,22 +177,23 @@ async function sectionSettled(page: Page): Promise<void> {
 	});
 }
 
-async function sectionBetweenSummaryAndBody(page: Page): Promise<void> {
-	const summary = await measuredBox(page, SUMMARY_SLOT);
+async function sectionInRailBelowArticleHistory(page: Page): Promise<void> {
+	await expect(page.locator(`${RAIL} > ${SECTION}`)).toHaveCount(1);
+	const history = await measuredBox(page, ARTICLE_HISTORY);
 	const section = await measuredBox(page, SECTION);
-	const body = await measuredBox(page, READER_SLOT);
+	const gap = section.y - (history.y + history.height);
 	assert.ok(
-		section.y >= summary.y + summary.height - 0.5,
-		"the past-reads section must start below the summary",
+		Math.abs(gap - RAIL_GAP_PX) <= 0.5,
+		`the past-reads section must sit ${RAIL_GAP_PX}px under Article history, measured ${gap}px`,
 	);
 	assert.ok(
-		section.y + section.height <= body.y + 0.5,
-		"the past-reads section must end above the article body",
+		Math.abs(section.x - history.x) <= 0.5 && Math.abs(section.width - history.width) <= 0.5,
+		`the past-reads section must share Article history's left edge and width, measured ${section.x}/${section.width} against ${history.x}/${history.width}`,
 	);
 }
 
 async function rowsCompactAndPlain(page: Page): Promise<void> {
-	await sectionBetweenSummaryAndBody(page);
+	await sectionInRailBelowArticleHistory(page);
 
 	const rows = page.locator(ROW);
 	await expect(rows).toHaveCount(PAST_READS.length);
@@ -297,17 +299,18 @@ async function betaTagIsBadgeSize(page: Page): Promise<void> {
 }
 
 async function cardCollapsed(page: Page): Promise<void> {
-	await sectionBetweenSummaryAndBody(page);
+	await sectionInRailBelowArticleHistory(page);
 	await betaTagIsBadgeSize(page);
 	assert.equal(await page.locator(CARD).getAttribute("open"), null, "the card starts collapsed");
 
-	const summaryBorderColor = await page
-		.locator(SUMMARY_CARD)
-		.evaluate((el) => window.getComputedStyle(el).borderTopColor);
-
+	const [cardFill, borderInk] = await page.evaluate(resolveColourTokens, ["--card", "--border"]);
+	assert.ok(cardFill && borderInk, "the card and border tokens must resolve to colours");
+	await expect(page.locator(CARD)).toHaveCSS("background-color", cardFill);
 	await expect(page.locator(CARD)).toHaveCSS("border-top-width", "1px");
-	await expect(page.locator(CARD)).toHaveCSS("border-top-color", summaryBorderColor);
+	await expect(page.locator(CARD)).toHaveCSS("border-top-color", borderInk);
 	await expect(page.locator(CARD)).toHaveCSS("border-top-left-radius", "16px");
+	await expect(page.locator(TOGGLE)).toHaveCSS("min-height", "64px");
+	await expect(page.locator(TOGGLE)).toHaveCSS("padding", "20px");
 
 	const previewTitle = await page.locator(PREVIEW_TITLE).evaluate((el) => ({
 		clipped: el.scrollWidth > el.clientWidth,
@@ -318,13 +321,6 @@ async function cardCollapsed(page: Page): Promise<void> {
 	assert.equal(previewTitle.wrapped, true, "a long preview title wraps rather than clipping");
 
 	const cardBox = await measuredBox(page, CARD);
-	const more = await page.locator(MORE).evaluate((el) => {
-		const box = el.getBoundingClientRect();
-		return { clipped: el.scrollWidth > el.clientWidth, width: box.width, right: box.right };
-	});
-	assert.equal(more.clipped, false, "the see-more cue is not clipped");
-	assert.ok(more.width > 0, "the see-more cue is visible");
-	assert.ok(more.right <= cardBox.x + cardBox.width + 0.5, "the see-more cue stays inside the card");
 
 	await expect(page.locator(ROW).first()).toBeHidden();
 
@@ -364,11 +360,22 @@ function collapsedSectionCheckpoint(name: string): VisualCheckpoint {
 	};
 }
 
+async function cardCollapsedInAPageThatFitsTheViewport(page: Page): Promise<void> {
+	await cardCollapsed(page);
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "past-reads checkpoints run with an explicit viewport");
+	const section = await measuredBox(page, SECTION);
+	assert.ok(
+		section.y + section.height <= viewport.height,
+		`the page down to the section must fit the ${viewport.height}px viewport to be captured from the top, measured ${section.y + section.height}`,
+	);
+}
+
 function collapsedInReaderCheckpoint(name: string): VisualCheckpoint {
 	return {
 		name,
 		settled: collapsedSettled,
-		geometry: cardCollapsed,
+		geometry: cardCollapsedInAPageThatFitsTheViewport,
 		target: SECTION,
 		capture: "page-from-top",
 		pinnedText: [{ selector: "[data-test-reader-saved]", text: "6h ago" }],
@@ -389,7 +396,7 @@ function expandedSectionCheckpoint(name: string): VisualCheckpoint {
 test.describe("You've already seen this before (desktop)", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("collapses past reads into a card between the summary and the body (light)", async ({
+	test("collapses past reads into a rail card under Article history (light)", async ({
 		page,
 	}) => {
 		await page.emulateMedia({ colorScheme: "light" });
@@ -414,7 +421,7 @@ test.describe("You've already seen this before (desktop)", () => {
 		await expect(page.locator(LINK).first()).toBeFocused();
 	});
 
-	test("collapses past reads into a card between the summary and the body (dark)", async ({
+	test("collapses past reads into a rail card under Article history (dark)", async ({
 		page,
 	}) => {
 		await page.emulateMedia({ colorScheme: "dark" });
@@ -451,7 +458,11 @@ test.describe("You've already seen this before (mobile)", () => {
 			stamp: `mobile-light-${test.info().workerIndex}-${Date.now()}`,
 			seedPastReads: true,
 		});
+		const phone = page.viewportSize();
+		assert.ok(phone, "the phone checkpoints run with an explicit viewport");
+		await page.setViewportSize(PHONE_HOLDING_THE_ARTICLE_AND_BOTH_CARDS);
 		await captureCheckpoint(page, collapsedInReaderCheckpoint("past-reads-in-reader-mobile-light"));
+		await page.setViewportSize(phone);
 		await captureCheckpoint(page, collapsedSectionCheckpoint("past-reads-section-mobile-light"));
 		await captureCheckpoint(
 			page,

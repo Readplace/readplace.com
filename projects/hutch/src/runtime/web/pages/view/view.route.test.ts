@@ -146,7 +146,7 @@ describe("View routes", () => {
 			expect(doc.body.className).toBe("page-view page-distraction-free");
 		});
 
-		it("renders the Last crawled at bookmark once a crawl timestamp exists", async () => {
+		it("renders Article history in the rail once a crawl timestamp exists, with no way to remove a version", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -183,7 +183,10 @@ describe("View routes", () => {
 				beforeDoc.querySelector("[data-test-reader-title]"),
 				"the reader must render so the absence check below is meaningful",
 			);
-			expect(beforeDoc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
+			const beforeLayout = beforeDoc.querySelector("main.view > .reading-layout");
+			assert(beforeLayout, "the reading layout must render");
+			expect(Array.from(beforeLayout.children, (child) => child.className)).toEqual(["reading-layout__main"]);
+			expect(beforeDoc.querySelectorAll("[data-test-article-history-version]").length).toBe(0);
 
 			await fixture.articleStore.setContentFetchedAt({
 				url: ARTICLE_URL,
@@ -192,19 +195,31 @@ describe("View routes", () => {
 
 			const after = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 			const afterDoc = new JSDOM(after.text).window.document;
-			const tab = afterDoc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
-			assert(tab, "the canonical bookmark tab must render once contentFetchedAt exists");
-			expect(tab.classList.contains("crawl-bookmark__tab--current")).toBe(true);
-			expect(tab.getAttribute("aria-disabled")).toBe("false");
-			expect(tab.querySelector('[data-test-crawl-bookmark-badge="state"]')?.textContent).toBe("Current");
-			const time = tab.querySelector("time");
-			assert(time, "the bookmark tab must carry a <time> for the crawl instant");
-			expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
-			expect(time.getAttribute("data-local-time")).toBe("short-datetime");
-			expect(time.textContent).toBe("26 Mar '26, 14:32");
+			const card = afterDoc.querySelector(
+				'main.view > .reading-layout > aside[data-test-reader-rail][aria-label="Article details"] > details[data-test-article-history]',
+			);
+			assert(card, "Article history must render in the named rail once contentFetchedAt exists");
+			expect(card.hasAttribute("open")).toBe(true);
+			const row = card.querySelector('[data-test-article-history-version="canonical"]');
+			assert(row, "the canonical version row must render once contentFetchedAt exists");
+			expect(row.querySelector(".article-history__marker")?.className).toBe(
+				"article-history__marker article-history__marker--current",
+			);
+			expect(row.querySelector('[data-test-article-history-badge="state"]')?.textContent).toBe("Current");
+			expect(
+				Array.from(row.querySelectorAll("time"), (time) => [
+					time.getAttribute("datetime"),
+					time.getAttribute("data-local-time"),
+					time.textContent,
+				]),
+			).toEqual([
+				["2026-03-26T14:32:00.000Z", "date", "Mar 26, 2026"],
+				["2026-03-26T14:32:00.000Z", "time", "02:32 PM"],
+			]);
+			expect(Array.from(card.querySelectorAll("summary, form, button, [popover]"), (control) => control.tagName)).toEqual([
+				"SUMMARY",
+			]);
 
-			// With a real dated version log, the newest is current and the rest are
-			// rendered but disabled (aria-disabled), not yet selectable.
 			await fixture.articleStore.setCrawlVersions({
 				url: ARTICLE_URL,
 				versions: [
@@ -216,26 +231,32 @@ describe("View routes", () => {
 
 			const versioned = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 			const versionedDoc = new JSDOM(versioned.text).window.document;
-			const keys = Array.from(
-				versionedDoc.querySelectorAll("[data-test-crawl-bookmark-tab]"),
-			).map((el) => el.getAttribute("data-test-crawl-bookmark-tab"));
-			expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
+			const versionedCard = versionedDoc.querySelector("aside[data-test-reader-rail] > details[data-test-article-history]");
+			assert(versionedCard, "Article history must render in the rail");
+			const rows = Array.from(versionedCard.querySelectorAll("[data-test-article-history-version]"));
+			expect(rows.map((el) => el.getAttribute("data-test-article-history-version"))).toEqual([
+				"canonical",
+				"2026-06-28T22:01Z",
+				"2026-03-26T14:32Z",
+			]);
 			expect(
-				Array.from(versionedDoc.querySelectorAll("[data-test-crawl-bookmark-badge]")).map(
-					(badge) => badge.textContent,
+				rows.map((el) =>
+					Array.from(el.querySelectorAll("[data-test-article-history-badge]"), (badge) => badge.textContent),
 				),
-			).toEqual(["Best"]);
+			).toEqual([["Current"], [], []]);
+			expect(rows.map((el) => el.querySelector(".article-history__marker")?.className)).toEqual([
+				"article-history__marker article-history__marker--current",
+				"article-history__marker article-history__marker--earlier",
+				"article-history__marker article-history__marker--earlier",
+			]);
+			expect(rows.map((el) => Array.from(el.querySelectorAll("time"), (time) => time.textContent))).toEqual([
+				["Jul 10, 2026", "09:14 AM"],
+				["Jun 28, 2026", "10:01 PM"],
+				["Mar 26, 2026", "02:32 PM"],
+			]);
 			expect(
-				versionedDoc
-					.querySelector('[data-test-crawl-bookmark-tab="canonical"] [data-test-crawl-bookmark-badge="state"]')
-					?.textContent,
-			).toBe("Best");
-			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
-				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
-				assert(disabled, `version tab ${key} must render`);
-				expect(disabled.getAttribute("aria-disabled")).toBe("true");
-				expect(disabled.classList.contains("crawl-bookmark__tab--disabled")).toBe(true);
-			}
+				Array.from(versionedCard.querySelectorAll("summary, form, button, [popover]"), (control) => control.tagName),
+			).toEqual(["SUMMARY"]);
 		});
 
 		it("unwraps a nested Readplace self-URL and renders the underlying article", async () => {

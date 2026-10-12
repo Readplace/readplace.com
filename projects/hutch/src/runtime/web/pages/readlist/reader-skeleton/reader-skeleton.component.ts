@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { ARTICLE_FRAME_STYLES } from "../../../shared/article-body/article-frame.styles";
-import { CRAWL_BOOKMARK_SCRIPT } from "../../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-actions/reader-actions.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
 import { NEXT_READ_SCRIPT } from "../../../shared/next-read/next-read.component";
@@ -29,7 +28,6 @@ export const READER_PAGE_SCRIPTS =
 	SHARE_DIALOG_SCRIPT +
 	NEXT_READ_SCRIPT +
 	SUMMARY_TOGGLE_SCRIPT +
-	CRAWL_BOOKMARK_SCRIPT +
 	READLIST_PICKER_SCRIPT +
 	READER_EXIT_CONFIRM_SCRIPT +
 	READER_OPEN_SCRIPT +

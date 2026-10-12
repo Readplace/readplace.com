@@ -15,7 +15,7 @@ import type { ReadlistRef, ReadlistSlug } from "@packages/domain/readlist";
 import { render, toRelativeOrDate, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
-import { renderArticleBody } from "../../shared/article-body/article-body.component";
+import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import {
 	type MarkReadAction,
@@ -27,15 +27,19 @@ import {
 	markStatusConfirmPopoverId,
 	renderMarkStatusConfirm,
 } from "../readlist/mark-status-confirm.component";
-import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
+import type { ArticleHistoryRemoval } from "../../shared/article-body/article-history/article-history.component";
+import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../shared/article-body/summary-slot/summary-slot.component";
 import { READER_OPEN_SCRIPT } from "../../shared/reader-open/reader-open-script";
-import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
 	NEXT_READ_SCRIPT,
 	renderNextRead,
 } from "../../shared/next-read/next-read.component";
-import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
+import {
+	type PastReadsSectionInput,
+	hasVisiblePastReads,
+	renderPastReadsSection,
+} from "../../shared/past-reads/past-reads.component";
 import { type IssueLinksSectionInput, renderIssueLinksSection } from "../../shared/issue-links/issue-links.component";
 import {
 	SHARE_DIALOG_POPOVER_ID,
@@ -74,6 +78,11 @@ function markReadPostUrl({
 	utmContent,
 }: { articleId: string; utmContent: string }): string {
 	return withInternalTracking(`/queue/${articleId}/status`, { source: "reader", content: utmContent });
+}
+
+interface RailLandmark {
+	tag: "aside" | "div";
+	attributes: { name: "aria-label"; value: string }[];
 }
 
 function buildExitConfirmHtml(input: {
@@ -116,8 +125,9 @@ export function ReaderPage(
 		backLink: { topHref: string; label: string };
 		renderActions: RenderReaderActions;
 		readlistFiling: ReaderReadlistFiling;
-		crawlVersions?: LocalTime[];
-		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
+		crawlVersions?: ArticleVersion[];
+		articleHistoryRemoval?: ArticleHistoryRemoval;
+		offlineCopyRow?: boolean;
 		exitConfirmScopes?: ExitConfirmScopes;
 		readerPathFor: (articleId: string) => string;
 		markStatusConfirmReadlists?: readonly ReadlistRef[];
@@ -173,17 +183,30 @@ export function ReaderPage(
 			epubDownloadHref: options.epubDownloadHref,
 		},
 	});
-	const previouslyReadHtml =
+	const pastReadsInput: PastReadsSectionInput | undefined =
 		options.readerPathForReadlist === undefined
 			? undefined
-			: renderPastReadsSection({
+			: {
 					pastReads: options.previouslyRead,
 					pollUrl: options.previouslyReadPollUrl,
 					computeUrl: options.previouslyReadComputeUrl,
 					sourceArticleId: articleId,
 					now: options.now,
 					readerPathForReadlist: options.readerPathForReadlist,
-				});
+				};
+	const hasRailCard =
+		(options.crawlVersions ?? []).length > 0 ||
+		(pastReadsInput !== undefined && hasVisiblePastReads(pastReadsInput));
+	const railLandmark: RailLandmark = hasRailCard
+		? { tag: "aside", attributes: [{ name: "aria-label", value: "Article details" }] }
+		: { tag: "div", attributes: [] };
+	const railHtml = renderArticleRail({
+		crawlVersions: options.crawlVersions,
+		articleHistoryRemoval: options.articleHistoryRemoval,
+		offlineCopyRow: options.offlineCopyRow,
+		previouslyReadHtml:
+			pastReadsInput === undefined ? undefined : renderPastReadsSection(pastReadsInput),
+	});
 	const innerContent = renderArticleBody({
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
@@ -203,11 +226,8 @@ export function ReaderPage(
 		appOrigin: options.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
-		crawlVersions: options.crawlVersions,
-		crawlBookmarkRemoval: options.crawlBookmarkRemoval,
 		extensionInstallUrl: options.extensionInstallUrl,
 		readerNotice: options.readerNotice,
-		previouslyReadHtml,
 		issueLinksHtml: renderIssueLinksSection(options.issueLinks),
 	});
 	const shareDialogHtml = isPrivateIssue ? "" : renderShareDialog(share);
@@ -247,6 +267,8 @@ export function ReaderPage(
 			: renderMarkStatusConfirm({ confirm: markStatusConfirm, source: "reader" });
 	const content = render(READER_TEMPLATE, {
 		innerContent,
+		railLandmark,
+		railHtml,
 		nextRead,
 		exitConfirmHtml,
 		markStatusConfirmHtml,
@@ -271,7 +293,6 @@ export function ReaderPage(
 				SHARE_DIALOG_SCRIPT +
 				NEXT_READ_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
-				CRAWL_BOOKMARK_SCRIPT +
 				(picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
 				(readlistCreateHtml === "" ? "" : READLIST_CLIENT_SCRIPT) +
 				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +

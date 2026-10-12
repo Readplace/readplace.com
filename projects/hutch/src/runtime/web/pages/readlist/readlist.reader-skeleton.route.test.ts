@@ -9,7 +9,6 @@ const READER_PAGE_BUNDLES = [
 	"/client-dist/share-dialog.client.js",
 	"/client-dist/next-read.client.js",
 	"/client-dist/summary-toggle.client.js",
-	"/client-dist/crawl-bookmark.client.js",
 	"/client-dist/readlist-picker.client.js",
 	"/client-dist/reader-exit-confirm.client.js",
 	"/client-dist/reader-open.client.js",

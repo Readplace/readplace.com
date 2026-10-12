@@ -150,7 +150,7 @@ describe("initArticleReader", () => {
 			expect(result.summaryPollUrl).toBe("/test/summary?poll=1");
 		});
 
-		it("maps the crawl-version log to newest-first short-datetime LocalTimes", async () => {
+		it("maps the crawl-version log to newest-first versions, each carrying a date and a time", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "ready", summary: "TL;DR" },
@@ -171,13 +171,21 @@ describe("initArticleReader", () => {
 
 			// Provider versions win over the contentFetchedAt fallback.
 			expect(result.crawlVersions).toEqual([
-				{ iso: "2026-07-10T09:14Z", label: "10 Jul '26, 09:14", mode: "short-datetime" },
-				{ iso: "2026-06-28T22:01Z", label: "28 Jun '26, 22:01", mode: "short-datetime" },
+				{
+					minuteId: "2026-07-10T09:14Z",
+					date: { iso: "2026-07-10T09:14Z", label: "Jul 10, 2026", mode: "date" },
+					time: { iso: "2026-07-10T09:14Z", label: "09:14 AM", mode: "time" },
+				},
+				{
+					minuteId: "2026-06-28T22:01Z",
+					date: { iso: "2026-06-28T22:01Z", label: "Jun 28, 2026", mode: "date" },
+					time: { iso: "2026-06-28T22:01Z", label: "10:01 PM", mode: "time" },
+				},
 			]);
 		});
 
-		it("caps the reader bookmark at the newest 10 versions even though the stored log is unbounded", async () => {
-			// 12 newest-first stored versions; the bookmark shows only the newest 10.
+		it("caps Article history at the newest 10 versions even though the stored log is unbounded", async () => {
+			// 12 newest-first stored versions.
 			const stored: ArticleCrawlVersion[] = Array.from({ length: 12 }, (_v, i) => ({
 				crawledAtMinute: `2026-07-${String(12 - i).padStart(2, "0")}T09:14Z`,
 			}));
@@ -197,7 +205,7 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.crawlVersions).toHaveLength(10);
-			expect(result.crawlVersions.map((version) => version.iso)).toEqual([
+			expect(result.crawlVersions.map((version) => version.minuteId)).toEqual([
 				"2026-07-12T09:14Z",
 				"2026-07-11T09:14Z",
 				"2026-07-10T09:14Z",
@@ -227,7 +235,11 @@ describe("initArticleReader", () => {
 			});
 
 			expect(result.crawlVersions).toEqual([
-				{ iso: "2026-03-26T14:32:00.000Z", label: "26 Mar '26, 14:32", mode: "short-datetime" },
+				{
+					minuteId: "2026-03-26T14:32:00.000Z",
+					date: { iso: "2026-03-26T14:32:00.000Z", label: "Mar 26, 2026", mode: "date" },
+					time: { iso: "2026-03-26T14:32:00.000Z", label: "02:32 PM", mode: "time" },
+				},
 			]);
 		});
 

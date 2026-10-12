@@ -231,9 +231,9 @@ function recordCopy(dom: JSDOM, copy: { path: string }): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-function drawerRowKeys(dom: JSDOM): string[] {
-	return Array.from(dom.window.document.querySelectorAll(".crawl-bookmark__tab"), (tab) =>
-		String(tab.getAttribute("data-test-crawl-bookmark-tab")),
+function versionRowKeys(dom: JSDOM): string[] {
+	return Array.from(dom.window.document.querySelectorAll("[data-test-reader-rail] [data-test-article-history-version]"), (row) =>
+		String(row.getAttribute("data-test-article-history-version")),
 	);
 }
 
@@ -250,8 +250,8 @@ function pageNonce(html: string): string | null {
 	return style.getAttribute("nonce");
 }
 
-describe("the stored copy's row in the crawl drawer", () => {
-	it("tops the drawer of a reader page the worker kept once the shell records the copy, under the page's nonce", async () => {
+describe("the stored copy's row in Article history", () => {
+	it("tops Article history on a reader page the worker kept once the shell records the copy, under the page's nonce", async () => {
 		const { agent, readerHref } = await savedReader("https://example.com/offline-row-reader");
 		const html = (await agent.get(readerHref)).text;
 		const readerPath = new URL(readerHref, TEST_APP_ORIGIN).pathname;
@@ -259,12 +259,12 @@ describe("the stored copy's row in the crawl drawer", () => {
 
 		await recordCopy(reader, { path: readerPath });
 
-		expect(drawerRowKeys(reader)[0]).toBe("offline");
+		expect(versionRowKeys(reader)).toEqual(["offline"]);
 		expect(rowScriptNonce(html)).toBe(pageNonce(html));
 		reader.window.close();
 	});
 
-	it("tops the drawer of a reader a boosted open swaps into the readlist, under the readlist's nonce", async () => {
+	it("tops Article history on a reader a boosted open swaps into the readlist, under the readlist's nonce", async () => {
 		const { agent, readerHref } = await savedReader("https://example.com/offline-row-boosted");
 		const listHtml = (await agent.get("/queue")).text;
 		const readerMain = new JSDOM((await agent.get(readerHref)).text).window.document.querySelector("main");
@@ -279,7 +279,7 @@ describe("the stored copy's row in the crawl drawer", () => {
 		document.querySelector("main")?.dispatchEvent(new Event("htmx:afterSwap", { bubbles: true }));
 		await recordCopy(readlist, { path: new URL(readerHref, TEST_APP_ORIGIN).pathname });
 
-		expect(drawerRowKeys(readlist)[0]).toBe("offline");
+		expect(versionRowKeys(readlist)).toEqual(["offline"]);
 		expect(rowScriptNonce(listHtml)).toBe(pageNonce(listHtml));
 		readlist.window.close();
 	});

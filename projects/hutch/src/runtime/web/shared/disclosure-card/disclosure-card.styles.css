@@ -1,0 +1,75 @@
+.disclosure-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.disclosure-card__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  row-gap: 8px;
+  min-height: 64px;
+  padding: 20px;
+  list-style: none;
+  cursor: pointer;
+  border-radius: calc(var(--radius-lg) - 1px);
+  transition: background-color 150ms ease;
+}
+
+.disclosure-card__header::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure-card[open] > .disclosure-card__header {
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+}
+
+.disclosure-card__header:hover {
+  background: var(--muted);
+}
+
+.disclosure-card__header:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.disclosure-card__title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.disclosure-card__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--foreground);
+  transition: transform 150ms ease;
+}
+
+.disclosure-card__chevron svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.disclosure-card[open] > .disclosure-card__header .disclosure-card__chevron {
+  transform: rotate(180deg);
+}
+
+.disclosure-card__body {
+  border-top: 1px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure-card__header,
+  .disclosure-card__chevron {
+    transition: none;
+  }
+}

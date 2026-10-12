@@ -48,7 +48,6 @@ const VOLATILE_CHROME = [
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	"[data-test-reader-related]",
-	".crawl-bookmark",
 	".reader__float-stack",
 ];
 
@@ -427,7 +426,7 @@ test.describe("Reader toolbar in the dark", () => {
 test.describe("Reader toolbar in the read state", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("keeps one row with Back down to its arrow at 620px, and Back's label back in the 1024px column", async ({ page }, testInfo) => {
+	test("keeps one row with Back down to its arrow at 620px and beside the rail's card at 1024px, and Back's label back on the chromeless tablet sheet, which shows no card", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const articleId = await openOwnerReader(page, {
 			stamp: `read-${testInfo.workerIndex}-${Date.now()}`,
@@ -446,7 +445,8 @@ test.describe("Reader toolbar in the read state", () => {
 		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector(DOWNLOAD);
 		await toolbarSettled(page);
-		await labelledBackRowGeometry(page);
+		await expect(page.locator("[data-test-reader-rail] > [data-test-article-history]")).toHaveCount(1);
+		await arrowOnlyRowGeometry(page);
 
 		await page.setViewportSize(TABLET_SHEET);
 		await page.goto(`${BASE_URL}/queue/${articleId}/view?shell=app`, { waitUntil: "domcontentloaded" });

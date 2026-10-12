@@ -5,7 +5,7 @@
  * the same formatter with the browser's resolved zone to localise it.
  */
 
-export type LocalTimeMode = "datetime" | "date" | "short-datetime" | "relative";
+export type LocalTimeMode = "datetime" | "date" | "time" | "relative";
 
 /** The view-model → template contract for a single stored instant. The template
  * renders one uniform `<time datetime="{{iso}}" data-local-time="{{mode}}">` */
@@ -15,7 +15,7 @@ export interface LocalTime {
 	mode: LocalTimeMode;
 }
 
-export type LocalTimeStyle = "datetime" | "date" | "short-datetime";
+export type LocalTimeStyle = "datetime" | "date" | "time";
 
 const LOCALE = "en-US";
 
@@ -41,13 +41,10 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 	year: "numeric",
 };
 
-const SHORT_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
-	day: "numeric",
-	month: "short",
-	year: "2-digit",
+const TIME_OPTIONS: Intl.DateTimeFormatOptions = {
 	hour: "2-digit",
 	minute: "2-digit",
-	hour12: false,
+	hour12: true,
 };
 
 export function formatLocalInstant(input: {
@@ -55,13 +52,13 @@ export function formatLocalInstant(input: {
 	style: LocalTimeStyle;
 	timeZone: string;
 }): string {
-	if (input.style === "short-datetime") {
+	if (input.style === "time") {
 		const parts = new Intl.DateTimeFormat(LOCALE, {
-			...SHORT_DATETIME_OPTIONS,
+			...TIME_OPTIONS,
 			timeZone: input.timeZone,
 		}).formatToParts(new Date(input.iso));
 		const value = new Map(parts.map((part) => [part.type, part.value] as const));
-		return `${value.get("day")} ${value.get("month")} '${value.get("year")}, ${value.get("hour")}:${value.get("minute")}`;
+		return `${value.get("hour")}:${value.get("minute")} ${value.get("dayPeriod")}`;
 	}
 	const base = input.style === "datetime" ? DATETIME_OPTIONS : DATE_OPTIONS;
 	return new Date(input.iso).toLocaleString(LOCALE, { ...base, timeZone: input.timeZone });
@@ -91,15 +88,15 @@ export function toAbsoluteDate(input: { iso: string }): LocalTime {
 	};
 }
 
-export function toAbsoluteShortDateTime(input: { iso: string }): LocalTime {
+export function toAbsoluteTime(input: { iso: string }): LocalTime {
 	return {
 		iso: input.iso,
 		label: formatLocalInstant({
 			iso: input.iso,
-			style: "short-datetime",
+			style: "time",
 			timeZone: SERVER_TIME_ZONE,
 		}),
-		mode: "short-datetime",
+		mode: "time",
 	};
 }
 

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { toAbsoluteShortDateTime } from "@packages/web-shell/local-time.format";
+import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.format";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
-import { renderArticleBody } from "./article-body.component";
+import type { ArticleVersion } from "../article-reader/article-reader.types";
+import { renderArticleBody, renderArticleRail } from "./article-body.component";
 
 const baseInput = {
 	title: "Hello World",
@@ -18,6 +19,10 @@ const baseInput = {
 function parse(html: string) {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window
 		.document;
+}
+
+function versionAt(iso: string): ArticleVersion {
+	return { minuteId: iso, date: toAbsoluteDate({ iso }), time: toAbsoluteTime({ iso }) };
 }
 
 describe("renderArticleBody", () => {
@@ -128,25 +133,14 @@ describe("renderArticleBody", () => {
 		expect(html.indexOf("data-test-bottom-actions")).toBeGreaterThan(html.indexOf("data-test-reader-content"));
 	});
 
-	it("splices the previously-read section below the summary and above the body, and omits it when unset", () => {
-		const withSection = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-			previouslyReadHtml: '<section data-test-reader-topic-reads>past reads</section>',
-		});
-		const doc = parse(withSection);
-		const section = doc.querySelector("[data-test-reader-topic-reads]");
-		assert(section, "the section is spliced into the body");
-		expect(section.parentElement?.hasAttribute("data-test-article-card")).toBe(true);
-		expect(withSection.indexOf("data-test-reader-topic-reads")).toBeGreaterThan(
-			withSection.indexOf('id="article-body-summary-slot"'),
-		);
-		expect(withSection.indexOf("data-test-reader-topic-reads")).toBeLessThan(
-			withSection.indexOf('id="article-body-reader-slot"'),
-		);
+	it("leaves the rail's cards out of the article column, so the summary slot is followed directly by the reader slot", () => {
+		const doc = parse(renderArticleBody({ ...baseInput, content: "<p>Body</p>" }));
 
-		const withoutSection = renderArticleBody({ ...baseInput, content: "<p>Body</p>" });
-		expect(parse(withoutSection).querySelector("[data-test-reader-topic-reads]")).toBeNull();
+		const summarySlot = doc.querySelector("#article-body-summary-slot");
+		assert(summarySlot, "the summary slot must be rendered");
+		expect(summarySlot.nextElementSibling?.id).toBe("article-body-reader-slot");
+		expect(doc.querySelectorAll("[data-test-article-history]")).toHaveLength(0);
+		expect(doc.querySelectorAll("[data-test-reader-topic-reads]")).toHaveLength(0);
 	});
 
 	it("renders the reader-pending slot when content is undefined and no crawl status is provided (read-after-write race)", () => {
@@ -181,29 +175,6 @@ describe("renderArticleBody", () => {
 		const bar = slot.querySelector('[data-test-progress-bar="reader"]');
 		assert(bar, "the reader panel must carry its own progress block");
 		expect(bar.classList.contains("article-body__progress--visible")).toBe(true);
-	});
-
-	it("renders the crawl bookmark tabs when versions are supplied", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-			crawlVersions: [
-				toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" }),
-				toAbsoluteShortDateTime({ iso: "2026-06-28T22:01Z" }),
-			],
-		});
-		const doc = parse(html);
-
-		const keys = Array.from(doc.querySelectorAll("[data-test-crawl-bookmark-tab]")).map((el) =>
-			el.getAttribute("data-test-crawl-bookmark-tab"),
-		);
-		expect(keys).toEqual(["canonical", "2026-06-28T22:01Z"]);
-	});
-
-	it("omits the crawl bookmark when no versions are supplied", () => {
-		const html = renderArticleBody({ ...baseInput, content: "<p>Body</p>" });
-		const doc = parse(html);
-		expect(doc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
 	});
 
 	it("renders the reader-failed slot when crawl status is failed", () => {
@@ -280,5 +251,79 @@ describe("renderArticleBody", () => {
 			"article-body__reader-notice article-body__reader-notice--hidden",
 		]);
 		expect(notice.previousElementSibling?.hasAttribute("data-test-article-card")).toBe(true);
+	});
+});
+
+describe("renderArticleRail", () => {
+	const versions = [versionAt("2026-07-10T09:14Z"), versionAt("2026-06-28T22:01Z")];
+	const pastReads = "<section data-test-reader-topic-reads>past reads</section>";
+
+	function railChildren(html: string): { tag: string; marker: string | undefined }[] {
+		return Array.from(parse(html).body.children, (child) => ({
+			tag: child.tagName,
+			marker: Array.from(child.attributes, (attribute) => attribute.name).find((name) => name.startsWith("data-")),
+		}));
+	}
+
+	it("renders the Article history rows when versions are supplied", () => {
+		const doc = parse(renderArticleRail({ crawlVersions: versions }));
+
+		const keys = Array.from(doc.querySelectorAll("[data-test-article-history-version]"), (row) =>
+			row.getAttribute("data-test-article-history-version"),
+		);
+		expect(keys).toEqual(["canonical", "2026-06-28T22:01Z"]);
+	});
+
+	it("renders an empty rail string when there is neither a version nor a past-reads section", () => {
+		expect([renderArticleRail({}), renderArticleRail({ crawlVersions: [] })]).toEqual(["", ""]);
+	});
+
+	it("stacks Article history ahead of the past-reads section", () => {
+		expect(railChildren(renderArticleRail({ crawlVersions: versions, previouslyReadHtml: pastReads }))).toEqual([
+			{ tag: "DETAILS", marker: "data-test-article-history" },
+			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
+		]);
+	});
+
+	it("renders the past-reads section alone when the article has no version", () => {
+		expect(railChildren(renderArticleRail({ previouslyReadHtml: pastReads }))).toEqual([
+			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
+		]);
+	});
+
+	it("hands the owner's removal controls to the row they authored", () => {
+		const doc = parse(
+			renderArticleRail({
+				crawlVersions: versions,
+				articleHistoryRemoval: {
+					authoredMinuteIds: ["2026-06-28T22:01Z"],
+					removeVersionUrl: "/queue/abc/remove-my-version",
+				},
+			}),
+		);
+
+		const forms = Array.from(doc.querySelectorAll("form[data-test-article-history-remove]"));
+		expect(forms.map((form) => form.getAttribute("action"))).toEqual(["/queue/abc/remove-my-version"]);
+		expect(
+			forms.map((form) =>
+				form.closest("[data-test-article-history-version]")?.getAttribute("data-test-article-history-version"),
+			),
+		).toEqual(["2026-06-28T22:01Z"]);
+	});
+
+	it("places the stored copy's template between the two cards only when the page asks for it", () => {
+		expect(
+			railChildren(renderArticleRail({ crawlVersions: versions, offlineCopyRow: true, previouslyReadHtml: pastReads })),
+		).toEqual([
+			{ tag: "DETAILS", marker: "data-test-article-history" },
+			{ tag: "TEMPLATE", marker: "data-offline-copy-template" },
+			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
+		]);
+		expect(
+			railChildren(renderArticleRail({ crawlVersions: versions, offlineCopyRow: false, previouslyReadHtml: pastReads })),
+		).toEqual([
+			{ tag: "DETAILS", marker: "data-test-article-history" },
+			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
+		]);
 	});
 });

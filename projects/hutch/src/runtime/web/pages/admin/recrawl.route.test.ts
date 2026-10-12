@@ -453,6 +453,65 @@ describe("Admin recrawl routes", () => {
 			);
 		});
 
+		async function openRecrawlOf(versions: { crawledAtMinute: string }[]): Promise<Element> {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: {
+					title: "Versioned Title",
+					siteName: "example.com",
+					excerpt: "Versioned excerpt",
+					wordCount: 10,
+				},
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+			await harness.articleStore.setCrawlVersions({ url: ARTICLE_URL, versions });
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+
+			expect(response.status).toBe(200);
+			const recrawlMain = new JSDOM(response.text).window.document.querySelector("[data-test-admin-recrawl]");
+			assert(recrawlMain, "the recrawl page must render");
+			return recrawlMain;
+		}
+
+		it("stacks Article history in a rail wrapper after the article body, with no way to remove a version", async () => {
+			const recrawlMain = await openRecrawlOf([
+				{ crawledAtMinute: "2026-07-10T09:14Z" },
+				{ crawledAtMinute: "2026-06-28T22:01Z" },
+			]);
+
+			const body = recrawlMain.querySelector(":scope > [data-article-body]");
+			assert(body, "the article body must render");
+			const rail = recrawlMain.lastElementChild;
+			assert(rail, "the recrawl page must have a last child");
+			expect([rail.className, rail.previousElementSibling === body]).toEqual(["admin-recrawl__rail", true]);
+			const card = rail.querySelector(":scope > details[data-test-article-history]");
+			assert(card, "Article history must render in the rail wrapper");
+			expect(
+				Array.from(card.querySelectorAll("[data-test-article-history-version]"), (row) =>
+					row.getAttribute("data-test-article-history-version"),
+				),
+			).toEqual(["canonical", "2026-06-28T22:01Z"]);
+			expect(Array.from(card.querySelectorAll("summary, form, button, [popover]"), (control) => control.tagName)).toEqual([
+				"SUMMARY",
+			]);
+			expect(body.querySelectorAll("[data-test-article-history]").length).toBe(0);
+		});
+
+		it("appends no rail wrapper when the article has no version to list", async () => {
+			const recrawlMain = await openRecrawlOf([]);
+
+			const body = recrawlMain.querySelector(":scope > [data-article-body]");
+			assert(body, "the article body must render");
+			expect(recrawlMain.lastElementChild === body).toBe(true);
+			expect(recrawlMain.querySelectorAll("[data-test-article-history]").length).toBe(0);
+		});
+
 		it("triggers a fresh recrawl on POST and redirects (303) to the started result view rendered in pending state", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

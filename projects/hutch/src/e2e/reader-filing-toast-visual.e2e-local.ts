@@ -28,7 +28,7 @@ const VOLATILE_CHROME = [
 	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
-	".crawl-bookmark",
+	".article-history",
 	".reader__float-stack",
 ];
 

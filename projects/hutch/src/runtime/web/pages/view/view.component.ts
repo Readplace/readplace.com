@@ -20,11 +20,10 @@ import {
 } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
-import { renderArticleBody } from "../../shared/article-body/article-body.component";
+import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
-import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
+import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { articleEpubHref } from "../../shared/epub/epub-link";
-import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
@@ -122,7 +121,7 @@ export interface ViewPageInput {
 	epubDownloadHref?: string;
 	saveTip: SaveTip;
 	extensionInstallUrl?: string;
-	crawlVersions?: LocalTime[];
+	crawlVersions?: ArticleVersion[];
 	readerNotice?: ReaderFailedVariant;
 }
 
@@ -146,9 +145,11 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
-		crawlVersions: input.crawlVersions,
 		readerNotice: input.readerNotice,
 	});
+	const crawlVersions = input.crawlVersions ?? [];
+	const rails =
+		crawlVersions.length > 0 ? [{ html: renderArticleRail({ crawlVersions }) }] : [];
 
 	const viewPath = viewPathFor(input.articleUrl);
 	const shareableViewUrl = `${input.appOrigin}${viewPath}`;
@@ -171,6 +172,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 
 	const content = render(VIEW_TEMPLATE, {
 		innerContent,
+		rails,
 		articleUrl: input.articleUrl,
 		ctaItems,
 		saveTipHtml: input.saveTip.html,
@@ -220,7 +222,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			navHide: NAV_HIDE_DISABLED,
 			page:
 				SHARE_BALLOON_SCRIPT +
-				CRAWL_BOOKMARK_SCRIPT +
 				SAVE_TIP_SCRIPT,
 		}),
 	};

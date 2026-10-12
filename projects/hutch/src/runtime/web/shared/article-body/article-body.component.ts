@@ -6,7 +6,12 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { render } from "@packages/web-shell";
 import { renderArticleHeader, type ReaderReadlistTags } from "./article-header/article-header.component";
-import { renderCrawlBookmark, type CrawlBookmarkRemoval } from "./crawl-bookmark/crawl-bookmark.component";
+import {
+	type ArticleHistoryRemoval,
+	renderArticleHistory,
+	renderOfflineCopyTemplate,
+} from "./article-history/article-history.component";
+import type { ArticleVersion } from "../article-reader/article-reader.types";
 import type { ReaderProvenance } from "./article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
@@ -14,6 +19,11 @@ import { renderSummarySlot } from "./summary-slot/summary-slot.component";
 
 const ARTICLE_BODY_TEMPLATE = readFileSync(
 	join(__dirname, "article-body.template.html"),
+	"utf-8",
+);
+
+const ARTICLE_RAIL_TEMPLATE = readFileSync(
+	join(__dirname, "article-rail.template.html"),
 	"utf-8",
 );
 
@@ -36,21 +46,36 @@ export interface ArticleBodyInput {
 	bottomActionsHtml: string;
 	extensionInstallUrl?: string;
 	appOrigin: string;
-	crawlVersions?: LocalTime[];
-	/** Owner-only removal controls for the crawl bookmark. Present only on the
-	 * authenticated owner reader; omitted on the public `/view` and iOS renders. */
-	crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 	/** Where the owner's save came from. Per-user, so only the owner reader
 	 * passes it; the public `/view` and the admin recrawl omit it. */
 	provenance?: ReaderProvenance;
 	saved: LocalTime | undefined;
 	readlistTags?: ReaderReadlistTags;
 	readerNotice?: ReaderFailedVariant;
-	/** Pre-rendered "Previously read on this topic" section, sitting below the
-	 * summary and above the body. Owner-reader only — the public `/view` and the
-	 * admin recrawl leave it unset, so reading history never appears there. */
-	previouslyReadHtml?: string;
 	issueLinksHtml?: string;
+}
+
+export interface ArticleRailInput {
+	crawlVersions?: ArticleVersion[];
+	/** Owner-only removal controls. Present only on the
+	 * authenticated owner reader; omitted on the public `/view` and iOS renders. */
+	articleHistoryRemoval?: ArticleHistoryRemoval;
+	offlineCopyRow?: boolean;
+	/** Pre-rendered "Previously read on this topic" section. Owner-reader only —
+	 * the public `/view` and the admin recrawl leave it unset, so reading history
+	 * never appears there. */
+	previouslyReadHtml?: string;
+}
+
+export function renderArticleRail(input: ArticleRailInput): string {
+	return render(ARTICLE_RAIL_TEMPLATE, {
+		articleHistoryHtml: renderArticleHistory({
+			versions: input.crawlVersions ?? [],
+			removal: input.articleHistoryRemoval,
+		}),
+		offlineCopyTemplateHtml: input.offlineCopyRow ? renderOfflineCopyTemplate() : "",
+		previouslyReadHtml: input.previouslyReadHtml ?? "",
+	}).trim();
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -75,11 +100,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		content: input.content,
 	});
 
-	const crawlBookmarkHtml = renderCrawlBookmark({
-		versions: input.crawlVersions ?? [],
-		removal: input.crawlBookmarkRemoval,
-	});
-
 	const headerHtml = renderArticleHeader({
 		title: input.title,
 		siteName: input.siteName,
@@ -96,9 +116,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		readerSlotHtml: readerRegions.slot,
 		readerNoticeHtml: readerRegions.notice,
 		summarySlotHtml,
-		previouslyReadHtml: input.previouslyReadHtml ?? "",
 		issueLinksHtml: input.issueLinksHtml ?? "",
-		crawlBookmarkHtml,
 		bottomActionsHtml: input.bottomActionsHtml,
 	});
 }

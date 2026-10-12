@@ -116,7 +116,7 @@ describe("Readlist routes", () => {
 			);
 		});
 
-		it("renders the Last crawled at bookmark only once a crawl timestamp exists", async () => {
+		it("renders Article history in the rail only once a crawl timestamp exists", async () => {
 			const articleHtml = `
 			<html><head><title>Crawled Post</title></head>
 			<body><article>
@@ -174,7 +174,12 @@ describe("Readlist routes", () => {
 				beforeDoc.querySelector("[data-test-reader-title]"),
 				"the reader must render so the absence check below is meaningful",
 			);
-			expect(beforeDoc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
+			const beforeRail = beforeDoc.querySelector("[data-test-reader-rail]");
+			assert(beforeRail, "the reader must render its rail");
+			expect([beforeRail.tagName, beforeRail.querySelectorAll("[data-test-article-history-version]").length]).toEqual([
+				"DIV",
+				0,
+			]);
 
 			await fixture.articleStore.setContentFetchedAt({
 				url: "https://example.com/crawled-post",
@@ -183,16 +188,27 @@ describe("Readlist routes", () => {
 
 			const after = await agent.get(`/queue/${articleId}/view`);
 			const afterDoc = new JSDOM(after.text).window.document;
-			const tab = afterDoc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
-			assert(tab, "the canonical bookmark tab must render once contentFetchedAt exists");
-			expect(tab.classList.contains("crawl-bookmark__tab--current")).toBe(true);
-			expect(tab.getAttribute("aria-disabled")).toBe("false");
-			expect(tab.querySelector('[data-test-crawl-bookmark-badge="state"]')?.textContent).toBe("Current");
-			const time = tab.querySelector("time");
-			assert(time, "the bookmark tab must carry a <time> for the crawl instant");
-			expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
-			expect(time.getAttribute("data-local-time")).toBe("short-datetime");
-			expect(time.textContent).toBe("26 Mar '26, 14:32");
+			const card = afterDoc.querySelector(
+				'aside[data-test-reader-rail][aria-label="Article details"] > details[data-test-article-history]',
+			);
+			assert(card, "Article history must render in the named rail once contentFetchedAt exists");
+			expect(card.hasAttribute("open")).toBe(true);
+			const row = card.querySelector('[data-test-article-history-version="canonical"]');
+			assert(row, "the canonical version row must render once contentFetchedAt exists");
+			expect(row.querySelector(".article-history__marker")?.className).toBe(
+				"article-history__marker article-history__marker--current",
+			);
+			expect(row.querySelector('[data-test-article-history-badge="state"]')?.textContent).toBe("Current");
+			expect(
+				Array.from(row.querySelectorAll("time"), (time) => [
+					time.getAttribute("datetime"),
+					time.getAttribute("data-local-time"),
+					time.textContent,
+				]),
+			).toEqual([
+				["2026-03-26T14:32:00.000Z", "date", "Mar 26, 2026"],
+				["2026-03-26T14:32:00.000Z", "time", "02:32 PM"],
+			]);
 
 			await fixture.articleStore.setCrawlVersions({
 				url: "https://example.com/crawled-post",
@@ -205,26 +221,27 @@ describe("Readlist routes", () => {
 
 			const versioned = await agent.get(`/queue/${articleId}/view`);
 			const versionedDoc = new JSDOM(versioned.text).window.document;
-			const keys = Array.from(
-				versionedDoc.querySelectorAll("[data-test-crawl-bookmark-tab]"),
-			).map((el) => el.getAttribute("data-test-crawl-bookmark-tab"));
-			expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
+			const rows = Array.from(versionedDoc.querySelectorAll("[data-test-article-history-version]"));
+			expect(rows.map((el) => el.getAttribute("data-test-article-history-version"))).toEqual([
+				"canonical",
+				"2026-06-28T22:01Z",
+				"2026-03-26T14:32Z",
+			]);
 			expect(
-				Array.from(versionedDoc.querySelectorAll("[data-test-crawl-bookmark-badge]")).map(
-					(badge) => badge.textContent,
+				rows.map((el) =>
+					Array.from(el.querySelectorAll("[data-test-article-history-badge]"), (badge) => badge.textContent),
 				),
-			).toEqual(["Best"]);
-			expect(
-				versionedDoc
-					.querySelector('[data-test-crawl-bookmark-tab="canonical"] [data-test-crawl-bookmark-badge="state"]')
-					?.textContent,
-			).toBe("Best");
-			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
-				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
-				assert(disabled, `version tab ${key} must render`);
-				expect(disabled.getAttribute("aria-disabled")).toBe("true");
-				expect(disabled.classList.contains("crawl-bookmark__tab--disabled")).toBe(true);
-			}
+			).toEqual([["Current"], [], []]);
+			expect(rows.map((el) => el.querySelector(".article-history__marker")?.className)).toEqual([
+				"article-history__marker article-history__marker--current",
+				"article-history__marker article-history__marker--earlier",
+				"article-history__marker article-history__marker--earlier",
+			]);
+			expect(rows.map((el) => Array.from(el.querySelectorAll("time"), (time) => time.textContent))).toEqual([
+				["Jul 10, 2026", "09:14 AM"],
+				["Jun 28, 2026", "10:01 PM"],
+				["Mar 26, 2026", "02:32 PM"],
+			]);
 		});
 
 		it("should leave the article unread when opening the reader (the user must click the explicit Mark-as-read button)", async () => {
@@ -1615,7 +1632,7 @@ describe("Readlist routes", () => {
 		});
 	});
 
-	describe("GET /queue/:id/view — owner removal controls in the crawl bookmark", () => {
+	describe("GET /queue/:id/view — owner removal controls in Article history", () => {
 		const ARTICLE_URL = "https://example.com/owner-authored-post";
 
 		async function seedOwnerArticle() {
@@ -1647,41 +1664,94 @@ describe("Readlist routes", () => {
 			return { agent, articleId };
 		}
 
-		it("marks the owner's authored snapshot with a 'me' badge and renders its delete form", async () => {
+		function removeUrlFor(articleId: string): string {
+			return `/queue/${articleId}/remove-my-version?utm_source=reader-crawl-bookmark&utm_medium=internal&utm_content=remove-my-version`;
+		}
+
+		function versionKeys(doc: Document): (string | null)[] {
+			return Array.from(doc.querySelectorAll("[data-test-article-history-version]"), (row) =>
+				row.getAttribute("data-test-article-history-version"),
+			);
+		}
+
+		it("gives the owner's authored version its delete controls (the fallback form, the dialog's trigger and its panel) and the other version none", async () => {
 			const { agent, articleId } = await seedOwnerArticle();
 
 			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
 
-			const authoredTab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
-			assert(authoredTab, "the canonical tab must render");
-			const badges = Array.from(authoredTab.querySelectorAll("[data-test-crawl-bookmark-badge]")).map(
-				(badge) => badge.textContent,
-			);
-			// Two seeded versions → the newest tab's state badge reads "Best".
-			expect(badges).toEqual(["Best", "Me"]);
+			const authoredRow = doc.querySelector('[data-test-article-history-version="canonical"]');
+			assert(authoredRow, "the canonical row must render");
+			expect(
+				Array.from(authoredRow.querySelectorAll("[data-test-article-history-badge]"), (badge) => badge.textContent),
+			).toEqual(["Current"]);
 
-			expect(doc.querySelectorAll("form.crawl-bookmark__remove").length).toBe(1);
-			const removeVersionForm = authoredTab.querySelector("form.crawl-bookmark__remove");
-			assert(removeVersionForm, "the authored tab must carry a delete-version form");
-			expect(removeVersionForm.getAttribute("action")).toBe(`/queue/${articleId}/remove-my-version?utm_source=reader-crawl-bookmark&utm_medium=internal&utm_content=remove-my-version`);
+			expect(doc.querySelectorAll("form[data-test-article-history-remove]").length).toBe(1);
+			const removeVersionForm = authoredRow.querySelector("form[data-test-article-history-remove]");
+			assert(removeVersionForm, "the authored row must carry a delete-version form");
+			expect([removeVersionForm.getAttribute("method"), removeVersionForm.getAttribute("action")]).toEqual([
+				"POST",
+				removeUrlFor(articleId),
+			]);
 			expect(
 				removeVersionForm.querySelector('input[name="versionMinuteId"]')?.getAttribute("value"),
 			).toBe("2026-07-10T09:14Z");
-			expect(
-				removeVersionForm.querySelector("button.crawl-bookmark__remove-btn")?.textContent,
-			).toBe("Delete this version");
+			expect(removeVersionForm.querySelector('button[type="submit"] .sr-only')?.textContent).toBe(
+				"Delete this version",
+			);
 
-			const otherTab = doc.querySelector('[data-test-crawl-bookmark-tab="2026-06-28T22:01Z"]');
-			assert(otherTab, "the older version tab must render");
-			expect(
-				Array.from(otherTab.querySelectorAll("[data-test-crawl-bookmark-badge]")).map((badge) =>
-					badge.getAttribute("data-test-crawl-bookmark-badge"),
-				),
-			).toEqual([]);
-			expect(otherTab.querySelector("form.crawl-bookmark__remove")).toBeNull();
+			expect(doc.querySelectorAll('[data-test-action="article-version-delete-open"]').length).toBe(1);
+			const trigger = authoredRow.querySelector('[data-test-action="article-version-delete-open"]');
+			assert(trigger, "the authored row must carry the dialog's trigger");
+			expect(trigger.querySelector(".sr-only")?.textContent).toBe("Delete this version");
+			expect(doc.querySelectorAll('[data-test-confirm-popover="article-version-delete"]').length).toBe(1);
+			const panel = doc.getElementById(trigger.getAttribute("popovertarget") ?? "");
+			assert(panel, "the trigger must point at a panel on the page");
+			expect([
+				panel.getAttribute("data-test-confirm-popover"),
+				panel.getAttribute("data-test-confirm-subject"),
+			]).toEqual(["article-version-delete", "2026-07-10T09:14Z"]);
+			expect(panel.closest("[data-test-article-history-version]")).toBe(authoredRow);
+			const confirmForm = panel.querySelector("form");
+			assert(confirmForm, "the panel must carry its own form");
+			expect([
+				confirmForm.getAttribute("method"),
+				confirmForm.getAttribute("action"),
+				confirmForm.querySelector('input[name="versionMinuteId"]')?.getAttribute("value"),
+			]).toEqual(["POST", removeUrlFor(articleId), "2026-07-10T09:14Z"]);
+
+			const otherRow = doc.querySelector('[data-test-article-history-version="2026-06-28T22:01Z"]');
+			assert(otherRow, "the older version row must render");
+			expect([
+				otherRow.querySelectorAll("[data-test-article-history-badge]").length,
+				otherRow.querySelectorAll("form, button, [popover]").length,
+			]).toEqual([0, 0]);
 		});
 
-		it("renders no removal controls on the iOS chromeless reader (?platform=ios)", async () => {
+		it("lands back on the reader after a delete, with Article history as it was and nothing announced", async () => {
+			const { agent, articleId } = await seedOwnerArticle();
+			const visibleAlerts = (doc: Document) =>
+				Array.from(doc.querySelectorAll(".alert--visible[data-test-alert]"), (alert) =>
+					alert.getAttribute("data-test-alert"),
+				);
+			const before = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+
+			const posted = await agent
+				.post(removeUrlFor(articleId))
+				.type("form")
+				.send({ versionMinuteId: "2026-07-10T09:14Z" });
+
+			expect([posted.status, posted.headers.location]).toEqual([303, `/queue/${articleId}/view`]);
+			const landed = await agent.get(posted.headers.location);
+			expect(landed.status).toBe(200);
+			const after = new JSDOM(landed.text).window.document;
+			expect(versionKeys(after)).toEqual(["canonical", "2026-06-28T22:01Z"]);
+			expect(versionKeys(after)).toEqual(versionKeys(before));
+			expect(after.querySelectorAll("form[data-test-article-history-remove]").length).toBe(1);
+			expect(visibleAlerts(after)).toEqual(visibleAlerts(before));
+			expect(after.querySelectorAll("[data-test-toast]").length).toBe(0);
+		});
+
+		it("renders no Article history and no removal controls on the iOS chromeless reader (?platform=ios)", async () => {
 			const { agent, articleId } = await seedOwnerArticle();
 
 			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
@@ -1690,8 +1760,14 @@ describe("Readlist routes", () => {
 				doc.body.classList.contains("page-reader--chromeless"),
 				"the iOS chromeless reader must render",
 			);
-			expect(doc.querySelectorAll('[data-test-crawl-bookmark-badge="me"]').length).toBe(0);
-			expect(doc.querySelectorAll("form.crawl-bookmark__remove").length).toBe(0);
+			const rail = doc.querySelector("[data-test-reader-rail]");
+			assert(rail, "the chromeless reader keeps its rail");
+			expect([
+				rail.tagName,
+				doc.querySelectorAll("[data-test-article-history]").length,
+				doc.querySelectorAll("[data-test-article-history-remove]").length,
+				doc.querySelectorAll('[data-test-action="article-version-delete-open"]').length,
+			]).toEqual(["DIV", 0, 0, 0]);
 		});
 	});
 
@@ -1890,7 +1966,7 @@ describe("Readlist routes", () => {
 			).toBe(GATED_URL);
 		});
 
-		it("keeps the link shareable while offering no Next read and no crawl bookmark", async () => {
+		it("keeps the link shareable while offering no Next read and no Article history", async () => {
 			const doc = await ownerReaderDoc();
 
 			const share = doc.querySelector('[data-test-share-slot] [data-test-action="share-open"]');
@@ -1905,7 +1981,9 @@ describe("Readlist routes", () => {
 			assert(related, "the related slot is always emitted");
 			expect(related.getAttribute("data-related-status")).toBe("skipped");
 			expect(related.hasAttribute("hx-get")).toBe(false);
-			expect(doc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
+			const rail = doc.querySelector("[data-test-reader-rail]");
+			assert(rail, "the reader must render its rail");
+			expect([rail.tagName, doc.querySelectorAll("[data-test-article-history-version]").length]).toEqual(["DIV", 0]);
 		});
 
 		it("stops the queue card polling for an enrichment that will never arrive", async () => {

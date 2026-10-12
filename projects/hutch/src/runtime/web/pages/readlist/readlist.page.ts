@@ -241,7 +241,7 @@ import { renderPastReadsSection } from "../../shared/past-reads/past-reads.compo
 import { isPrefetchRequest } from "../../shared/prefetch-request";
 import { OFFLINE_READER_SCRIPT } from "../../shared/offline-reader/offline-reader-script";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
-import { offlineCopyRowScript } from "../../shared/article-body/crawl-bookmark/offline-copy-row-script";
+import { offlineCopyRowScript } from "../../shared/article-body/article-history/offline-copy-row-script";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import { GMAIL_ONBOARDING_VERSION, NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingGmailStep, hasOutstandingStep, onboardingVersion } from "../../onboarding/onboarding.steps";
 import { gmailConnectionState, type GmailConnectionStore } from "@packages/domain/gmail";
@@ -1317,16 +1317,15 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const showExtensionSuggestionBanner =
 			state.readerContentUnavailable && canOfferExtensionInstall(req);
 
-		// Owner-only removal controls: which snapshots this owner authored, so the
-		// bookmark can offer to delete their versions. Only the full-shell owner
-		// reader below gets it — never the public /view or the iOS chromeless
-		// branch above.
+		// Owner-only removal controls: which snapshots this owner authored. Only the
+		// full-shell owner reader below gets it — never the public /view or the iOS
+		// chromeless branch above.
 		const authoredVersions =
 			state.notice === undefined ? await deps.findArticleCrawlVersions(ownedArticle.url) : [];
 		const authoredMinuteIds = authoredVersions
 			.filter((version) => version.authorUserId === ownedArticle.userId)
 			.map((version) => version.crawledAtMinute);
-		const crawlBookmarkRemoval = {
+		const articleHistoryRemoval = {
 			authoredMinuteIds,
 			removeVersionUrl: withInternalTracking(
 				`${READLIST_PATH}/${ownedArticle.id.value}/remove-my-version`,
@@ -1356,7 +1355,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					provenance,
 					markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,
 					crawlVersions: state.crawlVersions,
-					crawlBookmarkRemoval,
+					articleHistoryRemoval,
+					offlineCopyRow: true,
 					exitConfirmScopes: [
 						EXIT_CONFIRM_SCOPE.articleBody,
 						EXIT_CONFIRM_SCOPE.nextReadCard,

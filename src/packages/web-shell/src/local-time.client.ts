@@ -27,7 +27,7 @@ function isParseableIso(iso: string | null): iso is string {
  * formatter instead of silently collapsing to the "date" default. */
 function absoluteStyleFor(mode: string | null): LocalTimeStyle {
 	if (mode === "datetime") return "datetime";
-	if (mode === "short-datetime") return "short-datetime";
+	if (mode === "time") return "time";
 	return "date";
 }
 

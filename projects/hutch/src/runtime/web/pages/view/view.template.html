@@ -8,6 +8,11 @@
             {{{shareBalloon}}}
           </div>
         </div>
+        {{#each rails}}
+        <aside class="reading-layout__rail" aria-label="Article details" data-test-reader-rail>
+          {{{html}}}
+        </aside>
+        {{/each}}
       </div>
       {{{saveTipHtml}}}
     </main>

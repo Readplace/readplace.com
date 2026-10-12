@@ -8,6 +8,7 @@ import {
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { generateCspNonce } from "@packages/web-shell";
+import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.format";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { Base } from "../../base.component";
@@ -23,6 +24,7 @@ import {
 	WebReader,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
+import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 
 const NO_QUEUE_FILING: ReaderReadlistFiling = {
 	tags: undefined,
@@ -91,7 +93,125 @@ function renderReaderDocument(
 	return new JSDOM(html).window.document;
 }
 
+function versionAt(iso: string): ArticleVersion {
+	return { minuteId: iso, date: toAbsoluteDate({ iso }), time: toAbsoluteTime({ iso }) };
+}
+
+function renderRail(options: Partial<Parameters<typeof ReaderPage>[1]>): Element {
+	const html = Base(
+		ReaderPage(makeArticle(), {
+			appOrigin: DEFAULT_APP_ORIGIN,
+			backLink: TEST_BACK_LINK,
+			renderActions: WebReader,
+			readlistFiling: NO_QUEUE_FILING,
+			provenance: undefined,
+			now: NOW,
+			currentPath: TEST_CURRENT_PATH,
+			readerPathFor: TEST_READER_PATH,
+			...options,
+		}),
+		{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+	).to("text/html").body;
+	const rail = new JSDOM(html).window.document.querySelector(".reading-layout > [data-test-reader-rail]");
+	assert(rail, "the reader must render its rail beside the main track");
+	return rail;
+}
+
+function railLandmark(rail: Element): { tag: string; label: string | null } {
+	return { tag: rail.tagName, label: rail.getAttribute("aria-label") };
+}
+
+function railChildTags(rail: Element): string[] {
+	return Array.from(rail.children, (child) => child.tagName);
+}
+
+const READER_PATH_FOR_READLIST = (id: string) => `/queue/${id}/view`;
+
+const READY_PAST_READS = {
+	status: "ready" as const,
+	items: [
+		{
+			id: ReaderArticleHashIdSchema.parse("fedcba9876543210fedcba9876543210"),
+			title: "An earlier read on the subject",
+			siteName: siteLabel("Example"),
+			reason: "Same subject",
+		},
+	],
+};
+
 describe("ReaderPage", () => {
+	it("names the rail Article details and lists the versions in it, outside the article column, ahead of the Top link", () => {
+		const rail = renderRail({
+			crawlVersions: [versionAt("2026-07-10T09:14Z"), versionAt("2026-06-28T22:01Z")],
+		});
+
+		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
+		expect(railChildTags(rail)).toEqual(["DETAILS", "A"]);
+		const card = rail.querySelector(":scope > details[data-test-article-history]");
+		assert(card, "Article history must be the rail's own child");
+		expect(
+			Array.from(card.querySelectorAll("[data-test-article-history-version]"), (row) =>
+				row.getAttribute("data-test-article-history-version"),
+			),
+		).toEqual(["canonical", "2026-06-28T22:01Z"]);
+		expect(rail.ownerDocument.querySelectorAll("[data-article-body] [data-test-article-history]")).toHaveLength(0);
+		expect(rail.lastElementChild?.hasAttribute("data-test-reader-top")).toBe(true);
+	});
+
+	it("names the rail Article details when past reads has a card to show and the article has no version", () => {
+		const rail = renderRail({
+			crawlVersions: [],
+			readerPathForReadlist: READER_PATH_FOR_READLIST,
+			previouslyRead: READY_PAST_READS,
+		});
+
+		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
+		expect(railChildTags(rail)).toEqual(["SECTION", "A"]);
+		expect(rail.querySelectorAll(":scope > [data-test-reader-topic-reads] details.past-reads__card")).toHaveLength(1);
+	});
+
+	it("leaves the rail an unnamed div while it has no card to show: no version, and past reads still pending", () => {
+		const rail = renderRail({
+			crawlVersions: [],
+			readerPathForReadlist: READER_PATH_FOR_READLIST,
+			previouslyRead: { status: "pending" },
+			previouslyReadPollUrl: "/queue/abc/topic-reads?poll=1",
+			previouslyReadComputeUrl: "/queue/abc/topic-reads",
+		});
+
+		expect(railLandmark(rail)).toEqual({ tag: "DIV", label: null });
+		expect(railChildTags(rail)).toEqual(["SECTION", "NOSCRIPT", "A"]);
+	});
+
+	it("stacks Article history, the stored copy's template and past reads in the rail when the page reads offline", () => {
+		const cards = {
+			crawlVersions: [versionAt("2026-07-10T09:14Z")],
+			readerPathForReadlist: READER_PATH_FOR_READLIST,
+			previouslyRead: READY_PAST_READS,
+		};
+
+		const offline = renderRail({ ...cards, offlineCopyRow: true });
+		const online = renderRail(cards);
+
+		expect(railChildTags(offline)).toEqual(["DETAILS", "TEMPLATE", "SECTION", "A"]);
+		expect(offline.querySelector(":scope > template")?.hasAttribute("data-offline-copy-template")).toBe(true);
+		expect(railChildTags(online)).toEqual(["DETAILS", "SECTION", "A"]);
+	});
+
+	it("hands the owner's removal controls to the version they authored", () => {
+		const rail = renderRail({
+			crawlVersions: [versionAt("2026-07-10T09:14Z")],
+			articleHistoryRemoval: {
+				authoredMinuteIds: ["2026-07-10T09:14Z"],
+				removeVersionUrl: "/queue/abc/remove-my-version",
+			},
+		});
+
+		expect(
+			Array.from(rail.querySelectorAll("form[data-test-article-history-remove]"), (form) => form.getAttribute("action")),
+		).toEqual(["/queue/abc/remove-my-version"]);
+	});
+
 	it("renders the previously-read section when the owner reader supplies its reading-list link builder", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
@@ -112,9 +232,12 @@ describe("ReaderPage", () => {
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
+		const rail = doc.querySelector("[data-test-reader-rail]");
+		assert(rail, "the rail must be rendered");
 		const section = doc.querySelector("[data-test-reader-topic-reads]");
-		assert(section, "the past-reads section renders inside the article body");
+		assert(section, "the past-reads section renders in the rail");
 		expect(section.getAttribute("data-topic-reads-status")).toBe("pending");
+		expect(section.parentElement).toBe(rail);
 	});
 
 	it("omits the previously-read section when no reading-list link builder is supplied", () => {
@@ -133,7 +256,10 @@ describe("ReaderPage", () => {
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		expect(doc.querySelector("[data-test-reader-topic-reads]")).toBeNull();
+		const rail = doc.querySelector("[data-test-reader-rail]");
+		assert(rail, "the rail must be rendered");
+		expect(railLandmark(rail)).toEqual({ tag: "DIV", label: null });
+		expect(railChildTags(rail)).toEqual(["A"]);
 	});
 
 	it("offers Share from the toolbar and keeps the float stack to Next read alone", () => {

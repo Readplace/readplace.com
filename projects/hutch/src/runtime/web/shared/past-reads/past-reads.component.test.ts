@@ -4,7 +4,7 @@ import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { PastReads } from "@packages/provider-contracts/related-articles";
 import { JSDOM } from "jsdom";
 import { siteLabel } from "../../test-helpers/article-fixtures";
-import { renderPastReadsSection } from "./past-reads.component";
+import { hasVisiblePastReads, renderPastReadsSection } from "./past-reads.component";
 
 function parse(html: string) {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
@@ -147,11 +147,18 @@ describe("renderPastReadsSection", () => {
 		});
 		const card = parse(html).querySelector("details.past-reads__card");
 		assert(card, "a ready result renders a collapsible card");
+		expect(card.className).toBe("disclosure-card past-reads__card");
 		expect(card.hasAttribute("open")).toBe(false);
-		expect(card.querySelector(".past-reads__eyebrow")?.textContent).toBe(
+		const heading = card.querySelector("summary > .past-reads__heading");
+		assert(heading, "the card's toggle opens with its heading row");
+		expect(heading.querySelector(".disclosure-card__title")?.textContent).toBe(
 			"You've already seen this before",
 		);
-		expect(card.querySelector("summary [data-test-past-reads-beta]")?.textContent).toBe("Beta");
+		expect(heading.querySelector("[data-test-past-reads-beta]")?.textContent).toBe("Beta");
+		const list = card.querySelector(":scope > ul.past-reads__list");
+		assert(list, "the rows sit in the card's body");
+		expect(list.className).toBe("disclosure-card__body past-reads__list");
+		expect(list.getAttribute("role")).toBe("list");
 		const rows = Array.from(card.querySelectorAll("[data-test-topic-read-item]"));
 		expect(rows.map((row) => row.getAttribute("data-test-topic-read-item"))).toEqual([
 			IN_WORK.value,
@@ -159,7 +166,7 @@ describe("renderPastReadsSection", () => {
 		]);
 	});
 
-	it("previews the first past read's title and site with a see-more cue inside the toggle", () => {
+	it("previews the first past read's title and site inside the toggle", () => {
 		const html = renderPastReadsSection({
 			pastReads: {
 				status: "ready",
@@ -175,10 +182,11 @@ describe("renderPastReadsSection", () => {
 		});
 		const preview = parse(html).querySelector(".past-reads__preview");
 		assert(preview, "the toggle previews the first past read");
-		expect(preview.closest("summary.past-reads__toggle")).not.toBeNull();
-		expect(preview.querySelector(".past-reads__preview-title")?.textContent).toBe("In a custom list");
-		expect(preview.querySelector(".past-reads__preview-site")?.textContent).toBe("Example");
-		expect(preview.querySelector(".past-reads__more")?.textContent).toBe("See more…");
+		expect(preview.parentElement?.matches("summary.disclosure-card__header")).toBe(true);
+		expect(Array.from(preview.children, (child) => [child.className, child.textContent])).toEqual([
+			["past-reads__preview-title", "In a custom list"],
+			["past-reads__preview-site", "Example"],
+		]);
 	});
 
 	it("hides the preview from assistive technology so the toggle is named by its heading", () => {
@@ -206,10 +214,10 @@ describe("renderPastReadsSection", () => {
 			now: NOW,
 			readerPathForReadlist,
 		});
-		const summary = parse(html).querySelector("summary.past-reads__toggle");
+		const summary = parse(html).querySelector("summary.disclosure-card__header");
 		assert(summary, "the card has a toggle");
 		expect(summary.querySelectorAll("a, button, input, select, textarea, [tabindex]")).toHaveLength(0);
-		expect(summary.querySelector(".past-reads__caret svg")).not.toBeNull();
+		expect(summary.querySelectorAll(".disclosure-card__chevron svg")).toHaveLength(1);
 	});
 
 	it("previews the only past read when a single one qualifies", () => {
@@ -295,5 +303,23 @@ describe("renderPastReadsSection", () => {
 		assert(slot, "the slot renders");
 		expect(slot.querySelector("form.past-reads__request")).toBeNull();
 		expect(html).not.toContain("<noscript>");
+	});
+});
+
+describe("hasVisiblePastReads", () => {
+	const base = { sourceArticleId: SOURCE_ID, now: NOW, readerPathForReadlist };
+
+	it("is true only once a ready selection holds a past read to show", () => {
+		expect([
+			hasVisiblePastReads({ ...base, pastReads: { status: "pending" } }),
+			hasVisiblePastReads({ ...base, pastReads: { status: "ready", items: [] } }),
+			hasVisiblePastReads({
+				...base,
+				pastReads: {
+					status: "ready",
+					items: [{ id: IN_DEFAULT, title: "The lone match", siteName: siteLabel("Solo"), reason: "Same subject" }],
+				},
+			}),
+		]).toEqual([false, false, true]);
 	});
 });

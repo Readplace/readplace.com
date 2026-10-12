@@ -15,8 +15,8 @@ import {
 } from "../runtime/web/shared/offline-reader/offline-cache";
 import { READLIST_PAGE_SIZE } from "../runtime/web/pages/readlist/readlist-page-size";
 import {
+	articleHistoryRows,
 	browserReportsOnline,
-	crawlDrawerRows,
 	nextFailedRequestIsBackground,
 	offlineCacheHolds,
 	offlineCacheNames,
@@ -47,8 +47,8 @@ const DOWNLOAD_PROGRESS = "[data-test-offline-download-progress]";
 const DOWNLOAD_STATUS = "[data-test-offline-download-status]";
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 const UPDATED_BODY_TEXT = "The article changed since the device kept its copy.";
-const OFFLINE_ROW = '[data-test-crawl-bookmark-tab="offline"]';
-const CANONICAL_ROW = '[data-test-crawl-bookmark-tab="canonical"]';
+const OFFLINE_ROW = '[data-test-article-history-version="offline"]';
+const CANONICAL_ROW = '[data-test-article-history-version="canonical"]';
 const NEWER_VERSION_BAR = "[data-test-newer-version-banner]";
 const READER_TIME_ZONE = "Australia/Sydney";
 const FIXTURE_IMAGE_PATH = "/e2e/fixtures/image/";
@@ -143,21 +143,29 @@ async function storedCopySavedAt(page: Page, readerUrl: string): Promise<string>
 	return savedAt;
 }
 
-async function expectDrawerRows(page: Page, keys: string[]): Promise<void> {
-	await expect.poll(() => page.evaluate(crawlDrawerRows)).toEqual(keys);
+async function expectHistoryRows(page: Page, keys: string[]): Promise<void> {
+	await expect.poll(() => page.evaluate(articleHistoryRows)).toEqual(keys);
+}
+
+function stampLabels(input: { iso: string; timeZone: string }): string[] {
+	return [
+		formatLocalInstant({ iso: input.iso, style: "date", timeZone: input.timeZone }),
+		formatLocalInstant({ iso: input.iso, style: "time", timeZone: input.timeZone }),
+	];
 }
 
 async function expectOfflineRow(page: Page, input: { savedAt: string; timeZone: string }): Promise<void> {
-	await expectDrawerRows(page, ["offline", "canonical"]);
-	const time = page.locator(`${OFFLINE_ROW} time`);
-	await expect(time).toHaveAttribute("datetime", input.savedAt);
-	await expect(time).toHaveText(
-		formatLocalInstant({ iso: input.savedAt, style: "short-datetime", timeZone: input.timeZone }),
-	);
+	await expectHistoryRows(page, ["offline", "canonical"]);
+	const stamps = page.locator(`${OFFLINE_ROW} time`);
+	await expect(stamps).toHaveText(stampLabels({ iso: input.savedAt, timeZone: input.timeZone }));
+	expect(await stamps.evaluateAll((times) => times.map((time) => [time.getAttribute("datetime"), time.getAttribute("data-local-time")]))).toEqual([
+		[input.savedAt, "date"],
+		[input.savedAt, "time"],
+	]);
 	await expect(page.locator(`${CANONICAL_ROW} time`)).toHaveText(
-		formatLocalInstant({ iso: CONTENT_FETCHED_AT, style: "short-datetime", timeZone: input.timeZone }),
+		stampLabels({ iso: CONTENT_FETCHED_AT, timeZone: input.timeZone }),
 	);
-	await expect(page.locator(`${OFFLINE_ROW} [data-test-crawl-bookmark-badge="offline"]`)).toHaveText("Offline");
+	await expect(page.locator(`${OFFLINE_ROW} [data-test-article-history-badge="offline"]`)).toHaveText("Offline");
 }
 
 function isStoredPageOrFixtureImage(url: URL): boolean {
@@ -432,7 +440,7 @@ test.describe("Offline reading", () => {
 		network.answer();
 
 		await expect(page.locator(READER_BODY)).toContainText(UPDATED_BODY_TEXT);
-		await expectDrawerRows(page, ["canonical"]);
+		await expectHistoryRows(page, ["canonical"]);
 		await expect(page.locator(".offline-banner")).toHaveAttribute("aria-hidden", "true");
 	});
 
@@ -552,7 +560,7 @@ test.describe("Offline reading", () => {
 		await expect(page.locator("[data-article-body]")).toHaveCount(0);
 	});
 
-	test("shows the device's copy in the crawl drawer, saved time and Offline badge, under the offline banner", async ({
+	test("shows the device's copy in Article history, with its saved date, time and Offline badge, under the offline banner", async ({
 		page,
 		context,
 	}, testInfo) => {
@@ -585,7 +593,7 @@ test.describe("Offline reading", () => {
 		await expect(bar).toHaveAttribute("aria-hidden", "false");
 		await expect(bar.locator("[data-test-newer-version-message]")).toHaveText(NEWER_VERSION_BANNER_TEXT);
 		await expect(page.locator(".offline-banner")).toHaveAttribute("aria-hidden", "true");
-		await expectDrawerRows(page, ["offline", "canonical"]);
+		await expectHistoryRows(page, ["offline", "canonical"]);
 		await expect(page.locator(READER_BODY)).toContainText(BODY_TEXT);
 	});
 
@@ -600,7 +608,7 @@ test.describe("Offline reading", () => {
 		await network.restore();
 
 		await expect(page.locator(".offline-banner")).toHaveText("Back online");
-		await expectDrawerRows(page, ["canonical"]);
+		await expectHistoryRows(page, ["canonical"]);
 		await expect(page.locator(NEWER_VERSION_BAR)).toHaveAttribute("aria-hidden", "true");
 	});
 

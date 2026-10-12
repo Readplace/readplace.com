@@ -441,8 +441,7 @@ server.get('/e2e/sent-emails', (_req, res) => {
 })
 
 // Seed a fully-crawled article with a fixed contentFetchedAt (and optional
-// dated crawlVersions) so the crawl-bookmark visual test renders stable,
-// deterministic date-time tab labels. Because the row already exists, /view
+// dated crawlVersions). Because the row already exists, /view
 // short-circuits its first-visit crawl cascade (see handleViewArticle) and
 // never overwrites the timestamp with wall-clock time — keeping the screenshot
 // deterministic across runs.

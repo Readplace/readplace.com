@@ -1,0 +1,30 @@
+<details class="disclosure-card article-history" open data-test-article-history>
+            <summary class="disclosure-card__header">
+              <span class="disclosure-card__title">Article history</span>
+              <span class="disclosure-card__chevron">{{icon "chevron-down"}}</span>
+            </summary>
+            <ol class="disclosure-card__body article-history__versions" role="list" data-article-history-versions>
+              {{#each rows}}
+              <li class="article-history__version" data-test-article-history-version="{{key}}">
+                <span class="{{markerClass}}" aria-hidden="true">{{icon "check"}}</span>
+                <span class="article-history__when">
+                  <span class="article-history__date-line">
+                    <time id="{{dateId}}" class="article-history__date" datetime="{{date.iso}}" data-local-time="{{date.mode}}">{{date.label}}</time>
+                    {{#each badges}}
+                    <span class="{{className}} article-history__badge" data-test-article-history-badge="{{key}}">{{label}}</span>
+                    {{/each}}
+                  </span>
+                  <time class="article-history__time" datetime="{{time.iso}}" data-local-time="{{time.mode}}">{{time.label}}</time>
+                </span>
+                {{#each removeForms}}
+                <form class="article-history__remove" method="POST" action="{{url}}" data-test-article-history-remove>
+                  <input type="hidden" name="versionMinuteId" value="{{minuteId}}">
+                  <button type="submit" class="article-history__remove-btn" aria-describedby="{{describedBy}}">{{icon "trash"}}<span class="sr-only">Delete this version</span></button>
+                </form>
+                <button type="button" class="article-history__remove-btn article-history__remove-trigger" popovertarget="{{popoverId}}" aria-haspopup="dialog" aria-describedby="{{describedBy}}" data-test-action="article-version-delete-open">{{icon "trash"}}<span class="sr-only">Delete this version</span></button>
+                {{{panelHtml}}}
+                {{/each}}
+              </li>
+              {{/each}}
+            </ol>
+          </details>

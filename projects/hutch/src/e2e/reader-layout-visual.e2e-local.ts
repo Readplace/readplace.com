@@ -10,11 +10,14 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 import { htmxIsLive, readScrollY } from "./readlist-reader-skeleton.browser";
 import { maxScrollY, recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
+const UNFETCHABLE_FIXTURE = `${BASE_URL}/e2e/fixtures/unfetchable/`;
+const NOT_AN_ARTICLE_PATH = "mail.google.com/mail/u/0/";
 const PASSWORD = "password123";
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const ARTICLE_TITLE = "Why Reading Columns Stop Growing Before the Screen Does";
@@ -40,20 +43,32 @@ const PENDING_SLOT = '[data-test-reader-slot][data-reader-status="pending"]';
 const NOT_FOUND_MARKER = '[data-test-reader-slot][data-reader-status="not-found"]';
 const VISIBLE_NOTICE = ".article-body__reader-notice--visible";
 const NOT_FOUND_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader-status="not-found"]`;
+const NOT_AN_ARTICLE_NOTICE = '[data-test-reader-notice][data-reader-status="not-an-article"]';
+const SETTLED_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice]`;
+const ARTICLE_HISTORY = "[data-test-article-history]";
+const RAIL_CARD = `${RAIL} > ${ARTICLE_HISTORY}`;
+const CTA_CONTENT = ".view__cta-content";
+const SAVE_FORM = '[data-test-form="save-article"]';
+const SAVED_CARD = "[data-test-article]";
+const SAVED_CARD_TITLE = "[data-test-article-title]";
 const SUMMARY_READY = '[data-test-reader-summary][data-summary-status="ready"]';
 const TOP = "[data-test-reader-top]";
 const FLOAT_STACK = "[data-test-reader-float-stack]";
 const SCROLL_STAMP = "data-test-scroll-after-swap";
 
 const DESKTOP_MAIN_TRACK = 812;
-const DESIGN_WIDTH_COLUMN = { width: 1440, column: DESKTOP_MAIN_TRACK, gap: 48, gutter: 48 };
-const DESKTOP_COLUMNS = [
-	{ width: 1024, column: 704, gap: 24, gutter: 24 },
-	{ width: 1200, column: 784, gap: 48, gutter: 48 },
-	{ width: 1280, column: DESKTOP_MAIN_TRACK, gap: 48, gutter: 48 },
-	DESIGN_WIDTH_COLUMN,
+const RAIL_TRACK = 340;
+const DESIGN_WIDTH = { width: 1440, besideRailCard: DESKTOP_MAIN_TRACK, centred: DESKTOP_MAIN_TRACK, gap: 48, gutter: 48 };
+const DESIGN_WIDTH_COLUMN_START = 120;
+const DESIGN_WIDTH_RAIL_START = 980;
+const DESKTOP_WIDTHS = [
+	{ width: 1024, besideRailCard: 612, centred: 704, gap: 24, gutter: 24 },
+	{ width: 1200, besideRailCard: 716, centred: 784, gap: 48, gutter: 48 },
+	{ width: 1280, besideRailCard: 796, centred: DESKTOP_MAIN_TRACK, gap: 48, gutter: 48 },
+	DESIGN_WIDTH,
 ];
 const SINGLE_COLUMN_BOTTOM_PADDING = 64;
+const SINGLE_COLUMN_STACK_GAP = 24;
 const TOP_INSET = 32;
 const FLOAT_STACK_INSET = 24;
 
@@ -63,7 +78,6 @@ const VOLATILE_CHROME = [
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	"[data-test-reader-related]",
-	".crawl-bookmark",
 	".reader__float-stack",
 ];
 
@@ -83,9 +97,10 @@ const LONG_ARTICLE = Array.from({ length: 30 }, () => LONG_PARAGRAPH).join("");
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
 
-interface DesktopColumn {
+interface DesktopWidth {
 	width: number;
-	column: number;
+	besideRailCard: number;
+	centred: number;
 	gap: number;
 	gutter: number;
 }
@@ -134,12 +149,16 @@ async function seedCrawlStatus(
 	assert.equal(response.status(), 201, `the crawl-status seed must move the crawl to ${input.status}`);
 }
 
-async function openReader(page: Page, input: { reader: SeededReader; query: string }): Promise<void> {
+async function signIn(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
-	await page.locator("#email").fill(input.reader.email);
+	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
+}
+
+async function openReader(page: Page, input: { reader: SeededReader; query: string }): Promise<void> {
+	await signIn(page, input.reader.email);
 
 	await page.goto(`${BASE_URL}/queue/${input.reader.articleId}/view${input.query}`, {
 		waitUntil: "domcontentloaded",
@@ -152,6 +171,27 @@ async function openSettledReader(page: Page, input: { stamp: string; content: st
 	await openReader(page, { reader, query: input.query });
 	await page.waitForSelector(READY_SLOT);
 	await expect(page.locator(SUMMARY_READY)).toHaveCount(1);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function openReaderWithNoRailCard(page: Page, stamp: string): Promise<void> {
+	const email = `reader-layout-${stamp}@example.com`;
+	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+		data: { email, password: PASSWORD, verified: true },
+	});
+	assert.equal(created.status(), 201, "the e2e user fixture must answer the create request");
+	await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+	await signIn(page, email);
+
+	await page.locator(`${SAVE_FORM} input[name="url"]`).fill(`${UNFETCHABLE_FIXTURE}${stamp}`);
+	await page.locator(`${SAVE_FORM} button[type="submit"]`).click();
+	await expect(page.locator(SAVED_CARD)).toHaveCount(1);
+	const href = await page.locator(SAVED_CARD_TITLE).getAttribute("href");
+	assert.ok(href, "the saved card must link into the reader");
+
+	await page.goto(new URL(href, BASE_URL).href, { waitUntil: "domcontentloaded" });
+	await page.waitForSelector("body.page-reader");
+	await page.waitForSelector(SETTLED_NOTICE);
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
@@ -183,21 +223,71 @@ async function railDisplays(page: Page): Promise<string[]> {
 	return page.locator(RAIL).evaluateAll((rails) => rails.map((rail) => getComputedStyle(rail).display));
 }
 
-async function expectCentredColumn(page: Page, desktop: DesktopColumn): Promise<void> {
+async function pageWidthOf(page: Page): Promise<number> {
+	return page.evaluate(() => document.documentElement.clientWidth);
+}
+
+async function expectCentredColumn(page: Page, desktop: DesktopWidth): Promise<void> {
 	const [main] = await page.evaluate(measureBoxes, [MAIN]);
-	const pageWidth = await page.evaluate(() => document.documentElement.clientWidth);
+	const pageWidth = await pageWidthOf(page);
 	assertNear(
 		{ actual: main.x, expected: pageWidth - (main.x + main.width), tolerance: 0.5 },
 		`at ${desktop.width}px the column's left margin matches its right margin`,
 	);
 	assertNear(
-		{ actual: main.width, expected: desktop.column, tolerance: 1 },
-		`at ${desktop.width}px the column is ${desktop.column}px wide`,
+		{ actual: main.width, expected: desktop.centred, tolerance: 1 },
+		`at ${desktop.width}px the column is ${desktop.centred}px wide`,
 	);
 	assert.equal(await page.evaluate(pageOverflowsSideways), false, `at ${desktop.width}px the reader must not scroll sideways`);
 }
 
-async function expectTopInTheRightMargin(page: Page, desktop: DesktopColumn): Promise<void> {
+async function expectColumnBesideRailCard(page: Page, desktop: DesktopWidth): Promise<void> {
+	const [layout, main, rail, history] = await page.evaluate(measureBoxes, [LAYOUT, MAIN, RAIL, ARTICLE_HISTORY]);
+	assertNear(
+		{ actual: main.x, expected: layout.x + desktop.gutter, tolerance: 0.5 },
+		`at ${desktop.width}px the column starts at the frame's left edge`,
+	);
+	assertNear(
+		{ actual: main.width, expected: desktop.besideRailCard, tolerance: 1 },
+		`at ${desktop.width}px the column is ${desktop.besideRailCard}px wide beside the rail's card`,
+	);
+	assertNear({ actual: rail.width, expected: RAIL_TRACK, tolerance: 0.5 }, `at ${desktop.width}px the rail is 340px wide`);
+	assertNear(
+		{ actual: rail.x, expected: main.x + main.width + desktop.gap, tolerance: 0.5 },
+		`at ${desktop.width}px the rail starts one column gap right of the column`,
+	);
+	assertNear(
+		{ actual: rail.x + rail.width, expected: layout.x + layout.width - desktop.gutter, tolerance: 0.5 },
+		`at ${desktop.width}px the rail ends at the frame's right edge`,
+	);
+	assertNear({ actual: rail.y, expected: main.y, tolerance: 0.5 }, `at ${desktop.width}px the rail starts on the column's first line`);
+	assert.deepEqual(
+		{ x: history.x, y: history.y, width: history.width },
+		{ x: rail.x, y: rail.y, width: rail.width },
+		`at ${desktop.width}px Article history is the rail's first card and fills its track`,
+	);
+	assert.equal(await page.evaluate(pageOverflowsSideways), false, `at ${desktop.width}px the reader must not scroll sideways`);
+}
+
+async function expectTopAtTheRailsStart(page: Page, desktop: DesktopWidth): Promise<void> {
+	const [rail, top] = await page.evaluate(measureBoxes, [RAIL, TOP]);
+	assertNear({ actual: top.x, expected: rail.x, tolerance: 0.5 }, `at ${desktop.width}px Top starts at the rail's left edge`);
+}
+
+async function expectCtaCentredOnThePage(page: Page, desktop: DesktopWidth): Promise<void> {
+	const [content] = await page.evaluate(measureBoxes, [CTA_CONTENT]);
+	const pageWidth = await pageWidthOf(page);
+	assertNear(
+		{ actual: content.x, expected: pageWidth - (content.x + content.width), tolerance: 0.5 },
+		`at ${desktop.width}px the CTA bar's content stays centred on the page`,
+	);
+	assertNear(
+		{ actual: content.width, expected: desktop.centred, tolerance: 1 },
+		`at ${desktop.width}px the CTA bar's content keeps the centred column's ${desktop.centred}px`,
+	);
+}
+
+async function expectTopInTheRightMargin(page: Page, desktop: DesktopWidth): Promise<void> {
 	const [main, top, layout] = await page.evaluate(measureBoxes, [MAIN, TOP, LAYOUT]);
 	assertNear(
 		{ actual: top.x, expected: main.x + main.width + desktop.gap, tolerance: 0.5 },
@@ -209,8 +299,8 @@ async function expectTopInTheRightMargin(page: Page, desktop: DesktopColumn): Pr
 	);
 }
 
-async function expectDesktopColumns(page: Page, check: (page: Page, desktop: DesktopColumn) => Promise<void>): Promise<void> {
-	for (const desktop of DESKTOP_COLUMNS) {
+async function expectDesktopColumns(page: Page, check: (page: Page, desktop: DesktopWidth) => Promise<void>): Promise<void> {
+	for (const desktop of DESKTOP_WIDTHS) {
 		await page.setViewportSize({ width: desktop.width, height: 900 });
 		await check(page, desktop);
 	}
@@ -250,9 +340,25 @@ async function expectArticleTypography(page: Page): Promise<void> {
 
 async function desktopGeometry(page: Page): Promise<void> {
 	await expectLayoutFitsViewport(page);
-	await expectCentredColumn(page, DESIGN_WIDTH_COLUMN);
-	await expectTopInTheRightMargin(page, DESIGN_WIDTH_COLUMN);
-	const [toolbar, card, header, body] = await page.evaluate(measureBoxes, [TOOLBAR, CARD, HEADER, READY_SLOT]);
+	await expectColumnBesideRailCard(page, DESIGN_WIDTH);
+	await expectTopAtTheRailsStart(page, DESIGN_WIDTH);
+	const [main, rail, toolbar, card, header, body] = await page.evaluate(measureBoxes, [
+		MAIN,
+		RAIL,
+		TOOLBAR,
+		CARD,
+		HEADER,
+		READY_SLOT,
+	]);
+	assertNear(
+		{ actual: main.x, expected: DESIGN_WIDTH_COLUMN_START, tolerance: 0.5 },
+		"at the design width the column starts 120px in",
+	);
+	assertNear(
+		{ actual: rail.x, expected: DESIGN_WIDTH_RAIL_START, tolerance: 0.5 },
+		"at the design width the rail starts 980px in",
+	);
+	assertNear({ actual: rail.y, expected: toolbar.y, tolerance: 0.5 }, "the rail's first card starts on the toolbar's line");
 	assertNear({ actual: header.x - card.x, expected: 33, tolerance: 0.5 }, "the card pads its content 32px inside its 1px edge");
 	assertNear({ actual: card.y, expected: toolbar.y + toolbar.height + 32, tolerance: 0.5 }, "the card starts 32px under the toolbar row");
 	assertNear({ actual: body.x, expected: card.x + 1, tolerance: 0.5 }, "the divider starts at the card's inner left edge");
@@ -264,15 +370,11 @@ async function phoneGeometry(page: Page): Promise<void> {
 	await expectLayoutFitsViewport(page);
 	const viewport = page.viewportSize();
 	assert.ok(viewport, "the phone checkpoint must run with an explicit viewport");
-	const [layout, main, card, header] = await page.evaluate(measureBoxes, [LAYOUT, MAIN, CARD, HEADER]);
+	const [main, card, header] = await page.evaluate(measureBoxes, [MAIN, CARD, HEADER]);
 	assertNear({ actual: main.x, expected: 20, tolerance: 0.5 }, "the column starts at the phone gutter");
 	assertNear({ actual: main.width, expected: viewport.width - 40, tolerance: 0.5 }, "the column fills the phone between its gutters");
 	assertNear({ actual: header.x - card.x, expected: 21, tolerance: 0.5 }, "the card pads its content 20px inside its 1px edge on a phone");
-	assert.deepEqual(await railDisplays(page), ["none"], "a phone hides the rail that holds only the Top link");
-	assertNear(
-		{ actual: layout.y + layout.height - SINGLE_COLUMN_BOTTOM_PADDING, expected: main.y + main.height, tolerance: 0.5 },
-		"the page's bottom padding starts at the column's end, with no row gap left by a hidden rail",
-	);
+	await expectRailFollowsColumn(page, "on a phone");
 }
 
 async function layoutSettled(page: Page): Promise<void> {
@@ -289,6 +391,40 @@ function layoutCheckpoint(name: string, geometry: (page: Page) => Promise<void>)
 		capture: "page-from-top",
 		pinnedText: [SAVED_PIN],
 	};
+}
+
+async function expectRailFollowsColumn(page: Page, where: string): Promise<void> {
+	const [layout, main, rail, history] = await page.evaluate(measureBoxes, [LAYOUT, MAIN, RAIL, ARTICLE_HISTORY]);
+	assertNear(
+		{ actual: rail.y, expected: main.y + main.height + SINGLE_COLUMN_STACK_GAP, tolerance: 0.5 },
+		`${where} the rail follows the column one stack gap down`,
+	);
+	assert.deepEqual(
+		{ x: rail.x, width: rail.width },
+		{ x: main.x, width: main.width },
+		`${where} the rail is as wide as the column and shares its left edge`,
+	);
+	assert.deepEqual(
+		{ x: history.x, y: history.y, width: history.width },
+		{ x: rail.x, y: rail.y, width: rail.width },
+		`${where} Article history is the rail's first card and fills it`,
+	);
+	assertNear(
+		{ actual: layout.y + layout.height - SINGLE_COLUMN_BOTTOM_PADDING, expected: rail.y + rail.height, tolerance: 0.5 },
+		`${where} the page's bottom padding starts at the rail's end`,
+	);
+}
+
+async function expectRailUnderOneColumn(page: Page, width: number): Promise<void> {
+	await page.setViewportSize({ width, height: 900 });
+	const [layout, main] = await page.evaluate(measureBoxes, [LAYOUT, MAIN]);
+	assert.ok(main.width <= DESKTOP_MAIN_TRACK, `at ${width}px the one column stays within 812px, measured ${main.width}`);
+	assertNear(
+		{ actual: main.x - layout.x, expected: layout.x + layout.width - (main.x + main.width), tolerance: 0.5 },
+		`at ${width}px the one column is centred in the frame`,
+	);
+	await expectRailFollowsColumn(page, `at ${width}px`);
+	assert.equal(await page.evaluate(pageOverflowsSideways), false, `at ${width}px the reader must not scroll sideways`);
 }
 
 async function expectSingleColumn(page: Page, width: number): Promise<void> {
@@ -335,7 +471,7 @@ test.describe("Reader layout at 1440", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 2200 } });
 
 	for (const scheme of ["light", "dark"] as const) {
-		test(`the article card is centred in the frame, with Top in the right margin (${scheme})`, async ({ page }, testInfo) => {
+		test(`the article card and the rail's card share the frame, with Top at the rail's start (${scheme})`, async ({ page }, testInfo) => {
 			await quietReader(page);
 			await page.emulateMedia({ colorScheme: scheme });
 			await openSettledReader(page, {
@@ -351,28 +487,69 @@ test.describe("Reader layout at 1440", () => {
 test.describe("Reader layout below the design width", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 900 } });
 
-	test("the column stays centred down to 1024 and folds into one centred column below it", async ({ page }, testInfo) => {
+	test("the column and the rail's card share the frame down to 1024, and the rail follows the column below it", async ({ page }, testInfo) => {
 		await quietReader(page);
 		await openSettledReader(page, {
 			stamp: `widths-${testInfo.workerIndex}-${Date.now()}`,
 			content: SHORT_ARTICLE,
 			query: "",
 		});
+		await expect(page.locator(RAIL_CARD)).toHaveCount(1);
+		await expectDesktopColumns(page, async (measured, desktop) => {
+			await expectColumnBesideRailCard(measured, desktop);
+			await expectTopAtTheRailsStart(measured, desktop);
+		});
+		await expectRailUnderOneColumn(page, 1023);
+		await expectRailUnderOneColumn(page, 768);
+	});
+});
+
+test.describe("A reader whose rail shows no card", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 900 } });
+
+	test("keeps the column centred with Top in the right margin, and gives the rail no row below 1024", async ({ page }, testInfo) => {
+		await quietReader(page);
+		await openReaderWithNoRailCard(page, `no-card-${testInfo.workerIndex}-${Date.now()}`);
+		await expect(page.locator(RAIL)).toHaveCount(1);
+		await expect(page.locator(ARTICLE_HISTORY)).toHaveCount(0);
 		await expectDesktopColumns(page, async (measured, desktop) => {
 			await expectCentredColumn(measured, desktop);
 			await expectTopInTheRightMargin(measured, desktop);
 		});
 		await expectSingleColumn(page, 1023);
 		await expectSingleColumn(page, 768);
+		await expectSingleColumn(page, 390);
+
+		const shortViewport = { width: 1280, height: 240 };
+		await page.setViewportSize(shortViewport);
+		assert.deepEqual(await railDisplays(page), ["flex"], "from 1024 the rail keeps its lane for Top");
+		const pageEnd = await page.evaluate(maxScrollY);
+		assert.ok(pageEnd > shortViewport.height, `the page must scroll past one viewport to show Top, it ends at ${pageEnd}`);
+		await scrollToY(page, pageEnd);
+		await expect(page.locator(TOP)).toHaveCSS("visibility", "visible");
 	});
 });
 
 test.describe("Public view layout", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 900 } });
 
-	test("centres the same column as the owner reader at every desktop width, with no rail", async ({ page }, testInfo) => {
+	test("puts the column beside the rail's card at every desktop width, with the CTA bar still centred on the page", async ({ page }, testInfo) => {
 		await quietReader(page);
 		await openSettledPublicView(page, `${testInfo.workerIndex}-${Date.now()}`);
+		await expect(page.locator(RAIL_CARD)).toHaveCount(1);
+		await expectDesktopColumns(page, async (measured, desktop) => {
+			await expectColumnBesideRailCard(measured, desktop);
+			await expectCtaCentredOnThePage(measured, desktop);
+		});
+		await expectRailUnderOneColumn(page, 1023);
+		await expectRailUnderOneColumn(page, 768);
+	});
+
+	test("centres the column at every desktop width, with no rail, when the link is not an article", async ({ page }) => {
+		await quietReader(page);
+		await page.goto(`${BASE_URL}/view/${NOT_AN_ARTICLE_PATH}`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector(NOT_AN_ARTICLE_NOTICE);
+		await waitForBrandFonts(page, ["Inter"]);
 		await expect(page.locator(RAIL)).toHaveCount(0);
 		await expectDesktopColumns(page, expectCentredColumn);
 		await expectSingleColumn(page, 1023);
@@ -399,7 +576,7 @@ test.describe("Chromeless reader beside a capped column", () => {
 test.describe("Reader layout on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 390, height: 1800 } });
 
-	test("one column, the card padded 20px, and no rail", async ({ page }, testInfo) => {
+	test("one column, the card padded 20px, and the rail's card under it", async ({ page }, testInfo) => {
 		await quietReader(page);
 		await page.emulateMedia({ colorScheme: "light" });
 		await openSettledReader(page, {

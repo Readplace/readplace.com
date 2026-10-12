@@ -77,6 +77,12 @@ export interface PollUrlBuilder {
 	reader: (pollCount: number, capturing: boolean) => string;
 }
 
+export interface ArticleVersion {
+	minuteId: string;
+	date: LocalTime;
+	time: LocalTime;
+}
+
 export interface ReaderState {
 	content: string | undefined;
 	crawl: ArticleCrawl | undefined;
@@ -85,11 +91,10 @@ export interface ReaderState {
 	summaryPollUrl: string | undefined;
 	capturePollUrl: string | undefined;
 	/**
-	 * Dated crawl versions for the reader bookmark, newest first; the first entry
-	 * is the canonical/current version. `[]` hides the bookmark (article not yet
-	 * crawled).
+	 * Dated crawl versions, newest first; the first entry
+	 * is the canonical/current version.
 	 */
-	crawlVersions: LocalTime[];
+	crawlVersions: ArticleVersion[];
 	readerViewFailed: boolean;
 	readerContentUnavailable: boolean;
 	notice: ReaderFailedVariant | undefined;

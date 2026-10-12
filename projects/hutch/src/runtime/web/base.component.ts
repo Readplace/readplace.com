@@ -23,8 +23,8 @@ export const Base = initBase({
 
 /** The chromeless shell keeps the local-time rewrite but not WebMCP: these pages
  * render inside the app's WKWebView, where there is no in-page AI agent to
- * discover the tools — but there are still server-rendered dates (the reader's
- * crawl bookmark, the account page's trial/cancellation cutoff) that would
+ * discover the tools — but there are still server-rendered dates (the
+ * account page's trial/cancellation cutoff) that would
  * otherwise freeze at the server's UTC baseline. */
 export const ChromelessPage = initChromelessPage({
 	staticBaseUrl: requireEnv("STATIC_BASE_URL"),

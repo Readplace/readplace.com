@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { generateCspNonce } from "@packages/web-shell";
+import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.format";
 import { JSDOM } from "jsdom";
 import { calculateReadTime } from "@packages/domain/article";
 import { Base } from "../../base.component";
@@ -509,6 +510,37 @@ describe("ViewPage", () => {
 		expect(Array.from(layout.children, (child) => child.className)).toEqual(["reading-layout__main"]);
 		expect(doc.querySelector("[data-test-reader-rail]")).toBeNull();
 		expect(doc.querySelector("[data-test-view-cta] > .reading-frame > .view__cta-content")).not.toBeNull();
+	});
+
+	it("adds the Article details rail beside the main track when the article has versions, with Article history in it and no way to remove one", () => {
+		const doc = render({
+			...baseInput,
+			crawlVersions: ["2026-07-10T09:14Z", "2026-06-28T22:01Z"].map((iso) => ({
+				minuteId: iso,
+				date: toAbsoluteDate({ iso }),
+				time: toAbsoluteTime({ iso }),
+			})),
+		});
+
+		const layout = doc.querySelector("main.view > .reading-layout");
+		assert(layout, "the reading layout must be rendered");
+		expect(Array.from(layout.children, (child) => [child.tagName, child.className])).toEqual([
+			["DIV", "reading-layout__main"],
+			["ASIDE", "reading-layout__rail"],
+		]);
+		const rail = layout.querySelector(":scope > aside[data-test-reader-rail]");
+		assert(rail, "the rail must sit beside the main track");
+		expect(rail.getAttribute("aria-label")).toBe("Article details");
+		expect(Array.from(rail.children, (child) => child.hasAttribute("data-test-article-history"))).toEqual([true]);
+		expect(
+			Array.from(rail.querySelectorAll("[data-test-article-history-version]"), (row) =>
+				row.getAttribute("data-test-article-history-version"),
+			),
+		).toEqual(["canonical", "2026-06-28T22:01Z"]);
+		expect(doc.querySelectorAll("[data-article-body] [data-test-article-history]")).toHaveLength(0);
+		expect(Array.from(rail.querySelectorAll("summary, form, button, [popover]"), (control) => control.tagName)).toEqual([
+			"SUMMARY",
+		]);
 	});
 
 	it("carries one article, the card, with the notice after it rather than inside it", () => {

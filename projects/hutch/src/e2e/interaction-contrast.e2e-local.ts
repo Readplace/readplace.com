@@ -26,6 +26,10 @@ const REVIEW_URLS = [
 ];
 const REVIEW_CHECKBOX_BEFORE = '[data-test-import-checkbox="0"]';
 const REVIEW_CHECKBOX = '[data-test-import-checkbox="1"]';
+const HISTORY_CARD = "[data-test-article-history]";
+const HISTORY_HEADER = `${HISTORY_CARD} > summary`;
+const HISTORY_TITLE = `${HISTORY_HEADER} .disclosure-card__title`;
+const HISTORY_DELETE = `${HISTORY_CARD} [data-test-action="article-version-delete-open"]`;
 const TOOLBAR_CONTROLS = [
 	{ selector: "summary[data-test-readlists-trigger]", auditId: "toolbar-add", ink: "label" },
 	{ selector: '[data-test-mark-read-slot] [data-test-action="mark-read"]', auditId: "toolbar-mark", ink: "label" },
@@ -635,6 +639,85 @@ test.describe("The reader header's Original link holds its WCAG contrast in both
 						`${theme}/reader/original-link/${lensName}: the ${state} label reads ${label.toFixed(2)}:1 < 4.5:1`,
 					);
 				}
+			}
+		}
+	});
+});
+
+test.describe("Article history interaction states hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("the card's header and a version's delete control stay legible on hover and ring at 3:1 on focus", async ({
+		page,
+	}, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `article-history-contrast-${stampId}@example.com`);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/article-history-contrast-${stampId}`,
+				title: "An article with a version its reader captured",
+				content: "<p>Seeded body for the Article history contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				crawlVersions: [
+					{ crawledAtMinute: "2026-07-10T09:14Z", authorUserId: userId },
+					{ crawledAtMinute: "2026-06-28T22:01Z" },
+				],
+				generatedSummary: { summary: "A fixed summary.", excerpt: "A fixed excerpt." },
+			},
+		});
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(HISTORY_DELETE)).toBeVisible({ timeout: SETTLE_MS });
+			const client = await auditContext(page);
+			await stamp(page, { selector: HISTORY_CARD, auditId: "history-card" });
+			await stamp(page, { selector: HISTORY_HEADER, auditId: "history-header" });
+			await stamp(page, { selector: HISTORY_TITLE, auditId: "history-title" });
+			await stamp(page, { selector: HISTORY_DELETE, auditId: "history-delete" });
+
+			const card = await measure(page, client, "history-card", []);
+			const headerAtRest = await measure(page, client, "history-header", []);
+			const headerHovered = await measure(page, client, "history-header", ["hover"]);
+			const titleOnHover = await measure(page, client, "history-title", []);
+			const headerFocused = await measure(page, client, "history-header", FOCUSED);
+			const deleteAtRest = await measure(page, client, "history-delete", []);
+			const deleteHovered = await measure(page, client, "history-delete", ["hover"]);
+			const deleteFocused = await measure(page, client, "history-delete", FOCUSED);
+
+			const reader = `${theme}/reader/article-history`;
+			assert.notDeepEqual(headerHovered.fill, headerAtRest.fill, `${reader}: hovering the header must repaint its fill`);
+			assert.deepEqual(titleOnHover.fill, headerHovered.fill, `${reader}: the title must be measured on the hovered header's fill`);
+			assert.notDeepEqual(deleteHovered.fill, deleteAtRest.fill, `${reader}: hovering the delete control must repaint its fill`);
+			for (const [name, focused] of [["header", headerFocused], ["delete control", deleteFocused]] as const) {
+				assert.equal(focused.outline.width, 2, `${reader}: the ${name}'s focus ring must be 2px wide`);
+				assert.equal(focused.outline.offset, 2, `${reader}: the ${name}'s focus ring must sit 2px outside it`);
+				assert.notEqual(focused.outline.style, "none", `${reader}: the ${name}'s focus ring must be visible`);
+			}
+			const insideTheCard: Neighbour = { name: "card", colour: headerFocused.surface };
+			const behindTheCard: Neighbour = { name: "page behind the card", colour: card.surface };
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				const view = `${reader}/${lensName}`;
+				const title = labelContrast(titleOnHover, lens);
+				assert.ok(title >= 4.5, `${view}: the title reads ${title.toFixed(2)}:1 on the header's hover fill < 4.5:1`);
+				for (const against of [insideTheCard, behindTheCard]) {
+					assert.ok(
+						edgeContrast({ edge: headerFocused.outline.colour, against, lens }) >= NON_TEXT_MINIMUM,
+						edgeShortfall({ edge: headerFocused.outline.colour, against, lens, view: `${view}/header` }),
+					);
+				}
+				const glyph = labelContrast(deleteHovered, lens);
+				assert.ok(
+					glyph >= NON_TEXT_MINIMUM,
+					`${view}: the delete glyph reads ${glyph.toFixed(2)}:1 on its hover fill < ${NON_TEXT_MINIMUM}:1`,
+				);
+				assert.ok(
+					edgeContrast({ edge: deleteFocused.outline.colour, against: insideTheCard, lens }) >= NON_TEXT_MINIMUM,
+					edgeShortfall({ edge: deleteFocused.outline.colour, against: insideTheCard, lens, view: `${view}/delete` }),
+				);
 			}
 		}
 	});

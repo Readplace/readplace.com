@@ -2,7 +2,7 @@ import {
 	formatLocalInstant,
 	toAbsoluteDate,
 	toAbsoluteDateTime,
-	toAbsoluteShortDateTime,
+	toAbsoluteTime,
 	toRelativeOrDate,
 	toRelativePhrase,
 } from "./local-time.format";
@@ -37,16 +37,16 @@ describe("formatLocalInstant", () => {
 		);
 	});
 
-	it("renders the short-datetime form with a 2-digit apostrophe year and no zone suffix", () => {
+	it("renders a time of day on a 12-hour clock with a padded hour and no zone suffix", () => {
 		expect(
-			formatLocalInstant({ iso: "2026-03-26T14:32:00.000Z", style: "short-datetime", timeZone: "UTC" }),
-		).toBe("26 Mar '26, 14:32");
+			formatLocalInstant({ iso: "2026-03-26T14:32:00.000Z", style: "time", timeZone: "UTC" }),
+		).toBe("02:32 PM");
 	});
 
-	it("localises the short-datetime form into the given zone", () => {
+	it("localises the time of day into the given zone", () => {
 		expect(
-			formatLocalInstant({ iso: "2026-03-26T14:32:00.000Z", style: "short-datetime", timeZone: "Australia/Sydney" }),
-		).toBe("27 Mar '26, 01:32");
+			formatLocalInstant({ iso: "2026-03-26T14:32:00.000Z", style: "time", timeZone: "America/New_York" }),
+		).toBe("10:32 AM");
 	});
 });
 
@@ -60,19 +60,36 @@ describe("toAbsoluteDateTime", () => {
 	});
 });
 
-describe("toAbsoluteShortDateTime", () => {
-	it("carries the iso, short-datetime mode, and UTC baseline label", () => {
-		expect(toAbsoluteShortDateTime({ iso: "2026-03-26T14:32:00.000Z" })).toEqual({
-			iso: "2026-03-26T14:32:00.000Z",
-			label: "26 Mar '26, 14:32",
-			mode: "short-datetime",
+describe("toAbsoluteTime", () => {
+	it("carries the iso, time mode, and UTC baseline label with a zero-padded morning hour", () => {
+		expect(toAbsoluteTime({ iso: "2026-07-10T09:14:00.000Z" })).toEqual({
+			iso: "2026-07-10T09:14:00.000Z",
+			label: "09:14 AM",
+			mode: "time",
 		});
 	});
 
-	it("keeps a single-digit day unpadded while zero-padding the hour", () => {
-		expect(toAbsoluteShortDateTime({ iso: "2026-03-06T04:32:00.000Z" }).label).toBe(
-			"6 Mar '26, 04:32",
-		);
+	it("reads an evening instant on the 12-hour clock", () => {
+		expect(toAbsoluteTime({ iso: "2026-06-28T22:01:00.000Z" })).toEqual({
+			iso: "2026-06-28T22:01:00.000Z",
+			label: "10:01 PM",
+			mode: "time",
+		});
+	});
+
+	it("reads the first hour of the day as twelve", () => {
+		expect(toAbsoluteTime({ iso: "2026-07-10T00:05:00.000Z" })).toEqual({
+			iso: "2026-07-10T00:05:00.000Z",
+			label: "12:05 AM",
+			mode: "time",
+		});
+	});
+
+	it("separates the clock from the day period with a plain space, not the U+202F that ICU emits", () => {
+		const { label } = toAbsoluteTime({ iso: "2026-07-10T09:14:00.000Z" });
+
+		expect(label.split(" ")).toEqual(["09:14", "AM"]);
+		expect(label.includes("\u202f")).toBe(false);
 	});
 });
 

@@ -88,10 +88,14 @@ function previewOf(rows: PastReadRow[]): PastReadsPreview | undefined {
 	return first === undefined ? undefined : { title: first.title, siteName: first.siteName };
 }
 
+export function hasVisiblePastReads(input: PastReadsSectionInput): boolean {
+	return rowsOf(input).length > 0;
+}
+
 export function renderPastReadsSection(input: PastReadsSectionInput): string {
 	const rows = rowsOf(input);
 	const status = input.pastReads?.status ?? "pending";
-	const hasRows = rows.length > 0;
+	const hasRows = hasVisiblePastReads(input);
 	return render(PAST_READS_TEMPLATE, {
 		status,
 		stateClass: hasRows ? READY_CLASS : HIDDEN_CLASS,

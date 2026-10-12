@@ -14,7 +14,7 @@ import type { DeviceClass } from "@packages/web-analytics";
 import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OFFLINE_DOWNLOAD_SCRIPT } from "../../shared/offline-reader/offline-download-script";
 import { offlineCardOpenScript } from "../../shared/offline-reader/offline-card-open-script";
-import { offlineCopyRowScript } from "../../shared/article-body/crawl-bookmark/offline-copy-row-script";
+import { offlineCopyRowScript } from "../../shared/article-body/article-history/offline-copy-row-script";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import {
 	ONBOARDING_STYLES,

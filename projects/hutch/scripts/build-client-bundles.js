@@ -248,22 +248,6 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
-      "src/runtime/web/shared/article-body/crawl-bookmark/crawl-bookmark.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "crawl-bookmark.client.js"),
-    globalName: "CrawlBookmark",
-    footer: [
-      "CrawlBookmark.initCrawlBookmark({",
-      "  document: window.document,",
-      "  isNarrow: function () { return window.matchMedia('(max-width: 767px)').matches; },",
-      "  storage: window.localStorage,",
-      "  addSwapListener: function (cb) { window.document.body.addEventListener('htmx:afterSwap', function (e) { cb(e.target); }); window.document.body.addEventListener('readplace:crawl-bookmark', function (e) { cb(e.target); }); }",
-      "}).attach();",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
       "src/runtime/web/shared/article-body/reader-actions/readlist-picker.client.ts",
     ),
     outfile: path.join(OUT_DIR, "readlist-picker.client.js"),

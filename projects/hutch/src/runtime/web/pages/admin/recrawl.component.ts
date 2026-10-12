@@ -8,10 +8,9 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { type CspNonce, DISTRACTION_FREE_BODY_CLASS, type PageBody } from "@packages/web-shell";
 import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
-import { renderArticleBody } from "../../shared/article-body/article-body.component";
+import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
-import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
-import type { LocalTime } from "@packages/web-shell/local-time.format";
+import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 import { displayableReadTime } from "@packages/domain/article";
 
@@ -78,7 +77,7 @@ export interface AdminRecrawlPageInput {
 	appOrigin: string;
 	recrawlFormAction?: string;
 	cspNonce: CspNonce;
-	crawlVersions?: LocalTime[];
+	crawlVersions?: ArticleVersion[];
 }
 
 /**
@@ -112,12 +111,13 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
-		crawlVersions: input.crawlVersions,
 	});
+	const railHtml = renderArticleRail({ crawlVersions: input.crawlVersions });
+	const rail = railHtml === "" ? "" : `<div class="admin-recrawl__rail">${railHtml}</div>`;
 
 	const tierBadge = renderTierBadge(input.contentSourceTier);
 	const recrawlForm = renderRecrawlForm(input.recrawlFormAction);
-	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<div class="admin-recrawl__body" data-article-body>${innerContent}</div></main>`;
+	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<div class="admin-recrawl__body" data-article-body>${innerContent}</div>${rail}</main>`;
 	const triggerScript =
 		input.recrawlFormAction === undefined ? "" : recrawlTriggerScript(input.cspNonce);
 
@@ -133,7 +133,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		content: { html: content },
 		scripts: readerScripts({
 			navHide: NAV_HIDE_DISABLED,
-			page: CRAWL_BOOKMARK_SCRIPT + triggerScript,
+			page: triggerScript,
 		}),
 	};
 }

@@ -8,6 +8,13 @@
   display: block;
 }
 
+.admin-recrawl__rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
 .admin-recrawl__tier-badge {
   display: inline-block;
   margin: 0 0 1rem;

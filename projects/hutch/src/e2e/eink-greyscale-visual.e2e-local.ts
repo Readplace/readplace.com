@@ -52,7 +52,6 @@ const VOLATILE_CHROME = [
 	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
-	".crawl-bookmark",
 	".reader__float-stack",
 ];
 const PINNED_SAVED_TIMES = ["2 days ago", "3 days ago", "4 days ago"];

@@ -168,7 +168,7 @@ export interface ArticleCrawlVersion {
 }
 
 /** Newest first, minute-deduped at write time; the full log is retained (unbounded,
- * kept forever) and [] for pre-feature articles. The reader bookmark shows only the newest few. */
+ * kept forever) and [] for pre-feature articles. */
 export type FindArticleCrawlVersions = (
 	url: string,
 ) => Promise<ArticleCrawlVersion[]>;
