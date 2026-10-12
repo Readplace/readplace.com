@@ -192,7 +192,7 @@ describe("Readlist nav", () => {
 			expect(cardUrls.filter((url) => !url.includes(`queue=${readlist}`))).toEqual([]);
 		});
 
-		it("should point the save bar at the default readlist from every readlist the reader opens", async () => {
+		it("should offer the save bar on the default readlist and not on a readlist the reader made", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const readlist = await createReadlist(agent, "New Readlist");
@@ -200,9 +200,8 @@ describe("Readlist nav", () => {
 			const onDefault = parse((await agent.get("/queue")).text);
 			const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 
-			const expectedSaveAction = "/queue/save?utm_source=queue&utm_medium=internal&utm_content=save";
-			expect(saveFormAction(onDefault)).toBe(expectedSaveAction);
-			expect(saveFormAction(onWork)).toBe(expectedSaveAction);
+			expect(saveFormAction(onDefault)).toBe("/queue/save?utm_source=queue&utm_medium=internal&utm_content=save");
+			expect(onWork.querySelector('[data-test-form="save-article"]')).toBeNull();
 		});
 
 		it("should leave the default readlist unnamed when clamping a page past the end of the listing", async () => {

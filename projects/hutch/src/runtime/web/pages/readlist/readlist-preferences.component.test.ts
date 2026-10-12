@@ -334,12 +334,12 @@ describe("ReadlistPreferencesPage", () => {
 		).toEqual(["What's this readlist for?"]);
 	});
 
-	it("wraps the panel in the readlist chrome: the save card ahead of it and the setup guide beside it", () => {
+	it("wraps the panel in the readlist chrome without the save card, with the setup guide beside it", () => {
 		const doc = documentOf(page({}).content.html);
 		const side = doc.querySelector(".readlist__side");
 		assert(side, "the preferences page must render the side column");
 
-		expect(doc.querySelectorAll(".readlist__lead [data-test-save-card]")).toHaveLength(1);
+		expect(doc.querySelector("[data-test-save-card]")).toBeNull();
 		expect(side.querySelectorAll("[data-test-onboarding]")).toHaveLength(1);
 	});
 

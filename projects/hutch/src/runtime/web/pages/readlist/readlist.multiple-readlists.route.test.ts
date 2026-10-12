@@ -570,7 +570,7 @@ describe("a readlist the reader opened", () => {
 		expect(articleIds(parse((await agent.get(`/queue?queue=${readlist}`)).text))).toEqual([]);
 	});
 
-	it("shows the save bar on a custom readlist and points the empty state at the default readlist", async () => {
+	it("shows the save bar only on the default readlist and points a custom readlist's empty state at it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
@@ -578,7 +578,7 @@ describe("a readlist the reader opened", () => {
 		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 		const onDefault = parse((await agent.get("/queue")).text);
 
-		expect(saveCardIn(onWork).className).toBe("readlist-save");
+		expect(onWork.querySelector("[data-test-save-card]")).toBeNull();
 		expect(saveCardIn(onDefault).className).toBe("readlist-save");
 		const empty = onWork.querySelector("[data-test-empty-readlist]");
 		assert(empty, "an untouched readlist must render its empty state");
@@ -596,21 +596,6 @@ describe("a readlist the reader opened", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?error_code=unsupported_scheme");
-	});
-
-	it("posts the save form on a custom readlist to the default readlist", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const readlist = await createReadlistAndOpen(agent, "New Readlist");
-		const doc = parse((await agent.get(`/queue?queue=${readlist}`)).text);
-		const form = saveCardIn(doc).querySelector('[data-test-form="save-article"]');
-		assert(form, "the custom readlist's save card must render its form");
-		const action = form.getAttribute("action");
-		assert(action, "the save form must post somewhere");
-		const target = new URL(action, TEST_APP_ORIGIN);
-
-		expect(target.pathname).toBe("/queue/save");
-		expect(target.searchParams.has("queue")).toBe(false);
 	});
 
 	it("opens the owner reader for an article only that readlist holds", async () => {

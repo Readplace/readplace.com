@@ -386,23 +386,25 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 							variant: "info",
 							title: { text: "Your Hacker News picks", element: "p" },
 							message: {
-								text: "Readplace added these ten picks once to All and this readlist. Read, file, or delete them as you like. New links you save here go to All.",
+								text: "Readplace added these ten picks once to All and this readlist. Read, file, or delete them as you like. New links you save go to All.",
 							},
 						},
 		}),
 		statusToastHtml: flashToastHtml(vm),
-		saveCardHtml: renderReadlistSave(
-			toReadlistSaveDisplayModel({
-				filters,
-				accessIsReadOnly: vm.accessIsReadOnly,
-				saveTipState: options.saveTip.state,
-				errors: vm.errors,
-				saveErrorCode: vm.saveErrorCode,
-				importFlash: vm.importFlash,
-				importSkipped: vm.importSkipped,
-				saveUrl: options.saveUrl,
-			}),
-		),
+		saveCardHtml: isDefaultReadlist
+			? renderReadlistSave(
+					toReadlistSaveDisplayModel({
+						filters,
+						accessIsReadOnly: vm.accessIsReadOnly,
+						saveTipState: options.saveTip.state,
+						errors: vm.errors,
+						saveErrorCode: vm.saveErrorCode,
+						importFlash: vm.importFlash,
+						importSkipped: vm.importSkipped,
+						saveUrl: options.saveUrl,
+					}),
+				)
+			: "",
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: filters.tab,
