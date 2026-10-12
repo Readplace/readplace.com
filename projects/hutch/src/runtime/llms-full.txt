@@ -330,7 +330,7 @@ Omnivore shut down in November 2024. To migrate to Readplace:
 
 ## About
 
-Readplace was founded by Fayner Brack, its Founder & CEO and the creator of the js-cookie library (22 billion+ annual downloads on jsDelivr CDN). After Pocket was acquired and then abandoned, and Omnivore shut down overnight, he turned his personal reading system — maintained for over 10 years — into a product anyone can use.
+Readplace was founded by Fayner Brack, its Founder & CEO and the creator of the js-cookie library (22 billion+ annual downloads on jsDelivr CDN). After Pocket was acquired and then abandoned, and Omnivore shut down overnight, she turned her personal reading system — maintained for over 10 years — into a product anyone can use.
 
 Operated by Proficient Pty Ltd, Australia. Building in public. No venture capital. Revenue comes from subscriptions.
 
