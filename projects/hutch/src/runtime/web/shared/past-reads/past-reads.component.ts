@@ -22,17 +22,28 @@ export interface PastReadsSectionInput {
 	/** The independent past-reads selection for the current article; `undefined`
 	 * is treated as pending (the owner reader always supplies it). */
 	pastReads?: PastReads;
-	/** Present only while the result is still pending, so the section polls until
-	 * it settles and then stops. */
-	pollUrl?: string;
-	/** POST endpoint that requests (re)computation. Owner reader only. */
-	computeUrl?: string;
 	sourceArticleId: string;
 	/** Anchors the relative "last read" phrase, exactly as Next read anchors its
 	 * saved/read line. */
 	now: Date;
 	readerPathForReadlist: (articleId: string, readlist?: ReadlistSlug) => string;
 }
+
+interface RailPlacement {
+	kind: "rail";
+	/** Present only while the result is still pending, so the section polls until
+	 * it settles and then stops. */
+	pollUrl?: string;
+	/** POST endpoint that requests (re)computation. Owner reader only. */
+	computeUrl?: string;
+}
+
+interface InlinePlacement {
+	kind: "inline";
+	oob: boolean;
+}
+
+type PastReadsPlacement = RailPlacement | InlinePlacement;
 
 interface PastReadRow {
 	id: string;
@@ -92,20 +103,30 @@ export function hasVisiblePastReads(input: PastReadsSectionInput): boolean {
 	return rowsOf(input).length > 0;
 }
 
-export function renderPastReadsSection(input: PastReadsSectionInput): string {
+export function renderPastReadsSection(
+	input: PastReadsSectionInput & { placement: PastReadsPlacement },
+): string {
 	const rows = rowsOf(input);
 	const status = input.pastReads?.status ?? "pending";
 	const hasRows = hasVisiblePastReads(input);
+	const placement = input.placement;
+	const rail =
+		placement.kind === "rail"
+			? {
+					pollUrl: status === "pending" ? placement.pollUrl : undefined,
+					computeUrl: placement.computeUrl,
+					// The no-JS fallback only appears when there is nothing to show, so a
+					// reader with results never sees a stray "find" button beneath them.
+					showNoscriptFallback: placement.computeUrl !== undefined && !hasRows,
+				}
+			: undefined;
 	return render(PAST_READS_TEMPLATE, {
 		status,
 		stateClass: hasRows ? READY_CLASS : HIDDEN_CLASS,
 		preview: previewOf(rows),
 		rows,
-		pollUrl: status === "pending" ? input.pollUrl : undefined,
-		computeUrl: input.computeUrl,
+		rail,
+		oob: placement.kind === "inline" && placement.oob,
 		sourceArticleId: input.sourceArticleId,
-		// The no-JS fallback only appears when there is nothing to show, so a
-		// reader with results never sees a stray "find" button beneath them.
-		showNoscriptFallback: input.computeUrl !== undefined && !hasRows,
 	});
 }

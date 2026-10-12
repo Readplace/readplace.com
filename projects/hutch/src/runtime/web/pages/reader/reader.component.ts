@@ -185,8 +185,6 @@ export function ReaderPage(
 			? undefined
 			: {
 					pastReads: options.previouslyRead,
-					pollUrl: options.previouslyReadPollUrl,
-					computeUrl: options.previouslyReadComputeUrl,
 					sourceArticleId: articleId,
 					now: options.now,
 					readerPathForReadlist: options.readerPathForReadlist,
@@ -210,7 +208,16 @@ export function ReaderPage(
 		articleHistoryRemoval: options.articleHistoryRemoval,
 		offlineCopyRow: options.offlineCopyRow,
 		previouslyReadHtml:
-			pastReadsInput === undefined ? undefined : renderPastReadsSection(pastReadsInput),
+			pastReadsInput === undefined
+				? undefined
+				: renderPastReadsSection({
+						...pastReadsInput,
+						placement: {
+							kind: "rail",
+							pollUrl: options.previouslyReadPollUrl,
+							computeUrl: options.previouslyReadComputeUrl,
+						},
+					}),
 	});
 	const innerContent = renderArticleBody({
 		title: article.metadata.title,
@@ -234,6 +241,13 @@ export function ReaderPage(
 		extensionInstallUrl: options.extensionInstallUrl,
 		readerNotice: options.readerNotice,
 		issueLinksHtml: renderIssueLinksSection(options.issueLinks),
+		previouslyReadHtml:
+			pastReadsInput === undefined
+				? undefined
+				: renderPastReadsSection({
+						...pastReadsInput,
+						placement: { kind: "inline", oob: false },
+					}),
 	});
 	const shareDialogHtml = isPrivateIssue ? "" : renderShareDialog(share);
 	const readlistCreateHtml =

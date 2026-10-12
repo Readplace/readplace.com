@@ -127,7 +127,12 @@
 }
 
 @media (max-width: 1023px) {
-  .reading-layout__rail:not(:has(> :not(.reading-layout__top, .past-reads--hidden, .table-of-contents, noscript, template))) {
+  .reading-layout__rail:not(:has(> :not(.reading-layout__top, .past-reads, .table-of-contents, noscript, template))) {
+    display: none;
+  }
+
+  .reading-layout__rail > .past-reads,
+  .reading-layout__rail .past-reads__fallback {
     display: none;
   }
 

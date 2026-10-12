@@ -6,6 +6,12 @@
   display: none;
 }
 
+@media (min-width: 1024px) {
+  .past-reads--inline {
+    display: none;
+  }
+}
+
 .past-reads__heading {
   grid-column: 1;
   grid-row: 1;

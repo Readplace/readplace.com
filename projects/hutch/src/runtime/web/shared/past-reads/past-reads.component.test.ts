@@ -26,8 +26,7 @@ describe("renderPastReadsSection", () => {
 	it("hides the section and polls while the selection is pending, offering the JS and no-JS compute triggers", () => {
 		const html = renderPastReadsSection({
 			pastReads: { status: "pending" },
-			pollUrl: "/queue/x/topic-reads?poll=2",
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", pollUrl: "/queue/x/topic-reads?poll=2", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -39,6 +38,7 @@ describe("renderPastReadsSection", () => {
 		expect(slot.getAttribute("data-topic-reads-status")).toBe("pending");
 		expect(slot.className).toContain("past-reads--hidden");
 		expect(slot.getAttribute("hx-get")).toBe("/queue/x/topic-reads?poll=2");
+		expect(slot.getAttribute("hx-swap-oob")).toBe(null);
 		expect(slot.querySelectorAll("[data-test-topic-read-item]")).toHaveLength(0);
 		// htmx auto-fire form (hidden) plus a no-JS fallback inside <noscript>.
 		const requestForm = slot.querySelector("form.past-reads__request");
@@ -60,8 +60,7 @@ describe("renderPastReadsSection", () => {
 		};
 		const html = renderPastReadsSection({
 			pastReads,
-			pollUrl: "/queue/x/topic-reads?poll=2",
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", pollUrl: "/queue/x/topic-reads?poll=2", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -108,7 +107,7 @@ describe("renderPastReadsSection", () => {
 					{ id: IN_DEFAULT, title: "In the default list", siteName: siteLabel("Example"), reason: "Also the subject" },
 				],
 			},
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -140,7 +139,7 @@ describe("renderPastReadsSection", () => {
 					{ id: IN_DEFAULT, title: "In the default list", siteName: siteLabel("Example"), reason: "Also the subject" },
 				],
 			},
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -175,7 +174,7 @@ describe("renderPastReadsSection", () => {
 					{ id: IN_DEFAULT, title: "In the default list", siteName: siteLabel("Elsewhere"), reason: "Also the subject" },
 				],
 			},
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -195,7 +194,7 @@ describe("renderPastReadsSection", () => {
 				status: "ready",
 				items: [{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readlist: WORK }],
 			},
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -209,7 +208,7 @@ describe("renderPastReadsSection", () => {
 				status: "ready",
 				items: [{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readlist: WORK }],
 			},
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -226,7 +225,7 @@ describe("renderPastReadsSection", () => {
 				status: "ready",
 				items: [{ id: IN_DEFAULT, title: "The lone match", siteName: siteLabel("Solo"), reason: "Same subject" }],
 			},
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -240,7 +239,7 @@ describe("renderPastReadsSection", () => {
 	it("stays hidden but keeps the section (and its refresh) for a cached empty result", () => {
 		const html = renderPastReadsSection({
 			pastReads: { status: "ready", items: [] },
-			computeUrl: "/queue/x/topic-reads",
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -256,6 +255,7 @@ describe("renderPastReadsSection", () => {
 
 	it("treats a missing selection as pending", () => {
 		const html = renderPastReadsSection({
+			placement: { kind: "rail" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -270,7 +270,7 @@ describe("renderPastReadsSection", () => {
 	it("tags the no-JS fallback as a reader click, leaving the auto-firing request untagged", () => {
 		const html = renderPastReadsSection({
 			pastReads: { status: "pending" },
-			computeUrl: "/queue/x/topic-reads?platform=ios",
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads?platform=ios" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -295,6 +295,7 @@ describe("renderPastReadsSection", () => {
 	it("renders no compute triggers when the caller supplies no compute url", () => {
 		const html = renderPastReadsSection({
 			pastReads: { status: "pending" },
+			placement: { kind: "rail" },
 			sourceArticleId: SOURCE_ID,
 			now: NOW,
 			readerPathForReadlist,
@@ -303,6 +304,94 @@ describe("renderPastReadsSection", () => {
 		assert(slot, "the slot renders");
 		expect(slot.querySelector("form.past-reads__request")).toBeNull();
 		expect(html).not.toContain("<noscript>");
+	});
+});
+
+describe("renderPastReadsSection inline placement", () => {
+	const readyPastReads: PastReads = {
+		status: "ready",
+		items: [
+			{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readAt: READ_THREE_DAYS_AGO, readlist: WORK },
+			{ id: IN_DEFAULT, title: "In the default list", siteName: siteLabel("Example"), reason: "Also the subject" },
+		],
+	};
+
+	it("renders its own slot that neither polls nor requests computation", () => {
+		const html = renderPastReadsSection({
+			pastReads: { status: "pending" },
+			placement: { kind: "inline", oob: false },
+			sourceArticleId: SOURCE_ID,
+			now: NOW,
+			readerPathForReadlist,
+		});
+		const doc = parse(html);
+		const slot = doc.querySelector("[data-test-reader-topic-reads-inline]");
+		assert(slot, "the inline slot always renders");
+
+		expect(slot.id).toBe("article-body-topic-reads-inline-slot");
+		expect(slot.className).toBe("past-reads past-reads--inline past-reads--hidden");
+		expect(slot.getAttribute("data-topic-reads-status")).toBe("pending");
+		expect(slot.getAttribute("hx-get")).toBe(null);
+		expect(slot.getAttribute("hx-trigger")).toBe(null);
+		expect(slot.querySelectorAll("form")).toHaveLength(0);
+		expect(doc.querySelectorAll("noscript")).toHaveLength(0);
+		expect(slot.querySelectorAll("details.past-reads__card")).toHaveLength(0);
+	});
+
+	it("marks itself for an out-of-band swap only when asked", () => {
+		const swapOobFor = (oob: boolean) => {
+			const slot = parse(
+				renderPastReadsSection({
+					pastReads: { status: "pending" },
+					placement: { kind: "inline", oob },
+					sourceArticleId: SOURCE_ID,
+					now: NOW,
+					readerPathForReadlist,
+				}),
+			).querySelector("[data-test-reader-topic-reads-inline]");
+			assert(slot, "the inline slot renders");
+			return slot.getAttribute("hx-swap-oob");
+		};
+
+		expect({ oob: swapOobFor(true), inPlace: swapOobFor(false) }).toEqual({
+			oob: "outerHTML",
+			inPlace: null,
+		});
+	});
+
+	it("stays hidden with no card for a ready result with no past reads", () => {
+		const html = renderPastReadsSection({
+			pastReads: { status: "ready", items: [] },
+			placement: { kind: "inline", oob: true },
+			sourceArticleId: SOURCE_ID,
+			now: NOW,
+			readerPathForReadlist,
+		});
+		const slot = parse(html).querySelector("[data-test-reader-topic-reads-inline]");
+		assert(slot, "the inline slot renders");
+
+		expect(slot.getAttribute("data-topic-reads-status")).toBe("ready");
+		expect(slot.className).toBe("past-reads past-reads--inline past-reads--hidden");
+		expect(slot.querySelectorAll("details.past-reads__card")).toHaveLength(0);
+		expect(slot.querySelectorAll("form")).toHaveLength(0);
+	});
+
+	it("renders the same rows as the rail for a ready result", () => {
+		const rowsOf = (html: string) =>
+			Array.from(parse(html).querySelectorAll("[data-test-topic-read-item]"), (row) => row.outerHTML);
+		const common = { pastReads: readyPastReads, sourceArticleId: SOURCE_ID, now: NOW, readerPathForReadlist };
+		const inlineHtml = renderPastReadsSection({ ...common, placement: { kind: "inline", oob: false } });
+		const railHtml = renderPastReadsSection({
+			...common,
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
+		});
+		const slot = parse(inlineHtml).querySelector("[data-test-reader-topic-reads-inline]");
+		assert(slot, "the inline slot renders");
+
+		expect(slot.className).toBe("past-reads past-reads--inline past-reads--ready");
+		expect(slot.querySelectorAll("details.past-reads__card")).toHaveLength(1);
+		expect(rowsOf(inlineHtml)).toHaveLength(2);
+		expect(rowsOf(inlineHtml)).toEqual(rowsOf(railHtml));
 	});
 });
 

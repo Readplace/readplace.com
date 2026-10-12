@@ -2868,25 +2868,36 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const sourceReadlist = requestReadlistContext(req).state.readlist;
-		const html = renderPastReadsSection({
+		const pastReadsInput = {
 			pastReads: await loadPastReads(
 				deps.findPastReads,
 				article,
 				sourceReadlist,
 				deps.logError,
 			),
-			pollUrl:
-				pollCount < MAX_POLLS
-					? pastReadsPollUrlFor({
-							articleId: article.id.value,
-							pollCount: pollCount + 1,
-							surfaceQuery: nativeSurfaceQuery(req),
-						})
-					: undefined,
 			sourceArticleId: article.id.value,
 			now: deps.now(),
 			readerPathForReadlist: readerPathForReadlist(req),
+		};
+		const railHtml = renderPastReadsSection({
+			...pastReadsInput,
+			placement: {
+				kind: "rail",
+				pollUrl:
+					pollCount < MAX_POLLS
+						? pastReadsPollUrlFor({
+								articleId: article.id.value,
+								pollCount: pollCount + 1,
+								surfaceQuery: nativeSurfaceQuery(req),
+							})
+						: undefined,
+			},
 		});
+		const inlineHtml = renderPastReadsSection({
+			...pastReadsInput,
+			placement: { kind: "inline", oob: true },
+		});
+		const html = `${railHtml}\n${inlineHtml}`;
 		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
 	});
 
