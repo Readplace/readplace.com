@@ -123,7 +123,7 @@ async function openReader(page, origin) {
     await page.click("details.tldr-disclosure > summary");
     await page.waitForSelector("details.tldr-disclosure[open]");
     await page.evaluate(() => {
-      for (const element of document.querySelectorAll("[data-test-reader-float-stack]")) element.remove();
+      for (const element of document.querySelectorAll("[data-test-reader-related]")) element.remove();
     });
     await settle(page);
     return;

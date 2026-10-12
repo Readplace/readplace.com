@@ -48,7 +48,6 @@ const VOLATILE_CHROME = [
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	"[data-test-reader-related]",
-	".reader__float-stack",
 ];
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });

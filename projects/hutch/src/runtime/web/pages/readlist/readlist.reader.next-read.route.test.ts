@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import {
 	TEST_APP_ORIGIN,
@@ -20,11 +18,6 @@ const COMPUTED_AT = new Date("2026-06-05T12:00:00.000Z");
 
 const CARD = "[data-test-reader-related]";
 const READER_SLOT = "#article-body-reader-slot";
-
-const NEXT_READ_BUNDLE = readFileSync(
-	join(__dirname, "..", "..", "client-dist", "next-read.client.js"),
-	"utf-8",
-);
 
 const CRAWLED_BODY =
 	"<p>The crawl worker finally delivered the whole article, which stands many screens taller than the placeholder it replaced.</p>";
@@ -92,70 +85,36 @@ async function buildPendingReaderWithSuggestion() {
 	return { fixture, agent, articleId: source.id.value };
 }
 
-function cardOf(dom: JSDOM): Element {
-	const card = dom.window.document.querySelector(CARD);
-	assert(card, "the reader always renders the next-read slot");
-	return card;
-}
-
-function putArticleEndAt(dom: JSDOM, bottom: number): void {
-	const article = dom.window.document.querySelector("[data-article-body]");
-	assert(article, "the reader always renders an article body");
-	article.getBoundingClientRect = () => ({
-		top: 0,
-		bottom,
-		left: 0,
-		right: 0,
-		width: 0,
-		height: bottom,
-		x: 0,
-		y: 0,
-		toJSON: () => ({}),
-	});
-}
-
-describe("Reader next-read card — the article growing under the reader", () => {
-	it("gets the suggestion out of the way when the crawl poll grows the article body", async () => {
+describe("Reader next-read card — the article growing above it", () => {
+	it("keeps the card after the article column while the crawl is pending and after the poll lands", async () => {
 		const { fixture, agent, articleId } = await buildPendingReaderWithSuggestion();
 
 		const view = await agent.get(`/queue/${articleId}/view`);
 		expect(view.status).toBe(200);
-		const dom = new JSDOM(view.text, {
-			runScripts: "dangerously",
-			beforeParse(window) {
-				Object.assign(window, { htmx: { config: {} } });
-			},
-		});
-		expect(cardOf(dom).classList.contains("next-read--ready")).toBe(true);
-
-		const fold = dom.window.innerHeight;
-		putArticleEndAt(dom, fold * 4);
-		const bundle = dom.window.document.createElement("script");
-		bundle.textContent = NEXT_READ_BUNDLE;
-		dom.window.document.body.appendChild(bundle);
-		expect(cardOf(dom).classList.contains("next-read--open")).toBe(false);
-
-		putArticleEndAt(dom, fold - 20);
-		dom.window.dispatchEvent(new dom.window.Event("scroll"));
-		expect(cardOf(dom).classList.contains("next-read--open")).toBe(true);
+		const doc = new JSDOM(view.text).window.document;
+		const card = doc.querySelector(CARD);
+		assert(card, "the reader always renders the next-read slot");
+		const column = card.previousElementSibling;
+		assert(column, "the next-read slot must follow the article column");
+		const pending = column.querySelector(READER_SLOT);
+		assert(pending, "the article column renders the slot the crawl poll swaps");
+		expect({
+			ready: card.classList.contains("next-read--ready"),
+			column: column.classList.contains("reading-layout__main"),
+			reader: pending.getAttribute("data-reader-status"),
+		}).toEqual({ ready: true, column: true, reader: "pending" });
 
 		await fixture.articleStore.writeContent({ url: PENDING_CRAWL_URL, content: CRAWLED_BODY });
 		await fixture.articleCrawl.markCrawlReady({ url: PENDING_CRAWL_URL });
 		const polled = await agent.get(`/queue/${articleId}/reader?poll=1`);
+
 		expect(polled.status).toBe(200);
-		const slot = dom.window.document.querySelector(READER_SLOT);
-		assert(slot, "the reader renders the slot the crawl poll swaps");
-		slot.outerHTML = polled.text;
-		const grown = dom.window.document.querySelector(READER_SLOT);
-		assert(grown, "the swapped-in fragment keeps the slot the next poll would target");
-		expect(grown.getAttribute("data-reader-status")).toBe("ready");
-
-		putArticleEndAt(dom, fold * 4);
-		dom.window.document.body.dispatchEvent(
-			new dom.window.Event("htmx:afterSwap", { bubbles: true }),
-		);
-
-		expect(cardOf(dom).classList.contains("next-read--open")).toBe(false);
-		dom.window.close();
+		const fragment = new JSDOM(polled.text).window.document;
+		const grown = fragment.querySelector(READER_SLOT);
+		assert(grown, "the poll answer carries the slot the next poll would target");
+		expect({
+			reader: grown.getAttribute("data-reader-status"),
+			cards: fragment.querySelectorAll(CARD).length,
+		}).toEqual({ reader: "ready", cards: 0 });
 	});
 });

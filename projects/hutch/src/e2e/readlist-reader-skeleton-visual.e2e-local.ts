@@ -42,7 +42,6 @@ const VOLATILE_CHROME = [
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	"[data-test-reader-related]",
-	".reader__float-stack",
 ];
 
 interface SkeletonFrame {

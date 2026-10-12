@@ -2055,11 +2055,12 @@ describe("Readlist routes", () => {
 			expect(doc.getElementById(share.getAttribute("popovertarget") ?? "")?.getAttribute("data-test-confirm-popover")).toBe(
 				"share",
 			);
-			const floatStack = doc.querySelector("[data-test-reader-float-stack]");
-			assert(floatStack, "the float stack stays for Next read");
-			expect(Array.from(floatStack.children, (child) => child.getAttribute("data-test-reader-related"))).toEqual([""]);
 			const related = doc.querySelector("[data-test-reader-related]");
 			assert(related, "the related slot is always emitted");
+			expect([
+				related.parentElement?.classList.contains("reading-layout"),
+				related.previousElementSibling?.classList.contains("reading-layout__main"),
+			]).toEqual([true, true]);
 			expect(related.getAttribute("data-related-status")).toBe("skipped");
 			expect(related.hasAttribute("hx-get")).toBe(false);
 			const rail = doc.querySelector("[data-test-reader-rail]");

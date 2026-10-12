@@ -52,7 +52,6 @@ const VOLATILE_CHROME = [
 	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
-	".reader__float-stack",
 ];
 const PINNED_SAVED_TIMES = ["2 days ago", "3 days ago", "4 days ago"];
 
@@ -91,7 +90,10 @@ async function createEinkUser(page: Page, stamp: string): Promise<{ email: strin
 	return { email, userId };
 }
 
-async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email: string; readerUrl: string; articleId: string }> {
+async function seedReaderAndReadlist(
+	page: Page,
+	stamp: string,
+): Promise<{ email: string; userId: string; readerUrl: string; articleId: string }> {
 	const { email, userId } = await createEinkUser(page, stamp);
 
 	for (const article of READLIST_ARTICLES) {
@@ -129,7 +131,7 @@ async function seedReaderAndReadlist(page: Page, stamp: string): Promise<{ email
 	assert.equal(reader.status(), 201, "the seed endpoint must create the reader article");
 	const { articleId } = SeededArticle.parse(await reader.json());
 
-	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view`, articleId };
+	return { email, userId, readerUrl: `${BASE_URL}/queue/${articleId}/view`, articleId };
 }
 
 /** Omitting generatedSummary leaves the row's summary pending. */
@@ -293,14 +295,34 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 		test(`the reader keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
-			const { email, readerUrl } = await seedReaderAndReadlist(
+			const { email, userId, readerUrl } = await seedReaderAndReadlist(
 				page,
 				`reader-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
+			const related = await page.request.post(`${BASE_URL}/e2e/seed-related-articles`, {
+				data: {
+					userId,
+					sourceUrl: "https://example.com/eink-greyscale-reader",
+					related: [
+						{
+							url: "https://example.com/eink-greyscale-second",
+							reason: "Both ask what a page still says once its colour is gone.",
+						},
+					],
+					computedAt: FETCHED_AT,
+				},
+			});
+			assert.equal(related.status(), 201, "the seed endpoint must settle the reader's relation");
 			await loginAs(page, email);
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 			await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+			await page.waitForSelector('[data-test-reader-related][data-related-status="ready"]');
 			await pinReaderSavedTime(page);
+			await page.evaluate(() => {
+				const saved = document.querySelector("[data-test-reader-related] time");
+				if (!saved) throw new Error("the Next Read card must name when its suggestion was saved");
+				saved.textContent = "3d ago";
+			});
 			await settle(page, READER_ROOT);
 
 			await expect(page.locator(READER_ROOT)).toHaveScreenshot(

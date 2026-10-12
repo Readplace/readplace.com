@@ -745,6 +745,59 @@ test.describe("The reader's pipeline panels hold their WCAG contrast in both the
 	});
 });
 
+test.describe("The reader's Next Read card holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the card, its facts and its Start link clear colour and greyscale minimums", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-next-read-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const sourceUrl = `https://example.com/colour-contrast-next-read-source-${run}`;
+		const relatedUrl = `https://example.com/colour-contrast-next-read-related-${run}`;
+		const suggested = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: relatedUrl,
+				title: "The article the reader saved before this one",
+				content: "<p>Seeded body for the suggested article.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+			},
+		});
+		assert.equal(suggested.status(), 201);
+		const source = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: sourceUrl,
+				title: "A long read that ends with one more suggestion",
+				content: "<p>Seeded body above the Next Read card.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(source.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await source.json());
+		const related = await page.request.post(`${BASE_URL}/e2e/seed-related-articles`, {
+			data: {
+				userId,
+				sourceUrl,
+				related: [{ url: relatedUrl, reason: "Both weigh what a reader keeps against what they skim." }],
+				computedAt: "2026-07-10T09:20:00.000Z",
+			},
+		});
+		assert.equal(related.status(), 201);
+		await loginChipReader(page, email);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await expect(
+				page.locator('[data-test-reader-related][data-related-status="ready"] [data-test-related-item]'),
+			).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "[data-test-reader-related]", theme, view: "next-read" });
+		}
+	});
+});
+
 test.describe("Plan choice holds its WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 

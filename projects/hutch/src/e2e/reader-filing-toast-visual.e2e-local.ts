@@ -30,7 +30,7 @@ const VOLATILE_CHROME = [
 	"[data-test-changelog-banner]",
 	".article-history",
 	".table-of-contents",
-	".reader__float-stack",
+	"[data-test-reader-related]",
 ];
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });

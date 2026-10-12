@@ -80,6 +80,12 @@ function slotOf(doc: Document) {
 	return slot;
 }
 
+function cardOf(doc: Document) {
+	const card = doc.querySelector(".next-read__card");
+	assert(card, "a ready slot must render the card");
+	return card;
+}
+
 describe("renderNextRead", () => {
 	it("returns only the slot HTML (no outer page)", () => {
 		const html = renderNextRead({ returnTo: RETURN_TO, readerPathFor: WEB_READER_PATH });
@@ -135,24 +141,24 @@ describe("renderNextRead", () => {
 	});
 
 	it("shows the suggestion's title, site, reason and when it was saved", () => {
-		const doc = parse(readyWith([FIRST]));
+		const card = cardOf(parse(readyWith([FIRST])));
 
-		const link = doc.querySelector("[data-test-related-item]");
+		const link = card.querySelector("[data-test-related-item]");
 		assert(link, "a ready slot must render the suggestion link");
 		expect({
 			href: link.getAttribute("href"),
-			title: link.querySelector(".next-read__title")?.textContent,
-			siteName: link.querySelector(".next-read__site")?.textContent,
-			reason: link.querySelector(".next-read__reason")?.textContent,
-			saved: link.querySelector(".next-read__saved")?.textContent,
-			eyebrow: link.querySelector(".next-read__eyebrow")?.textContent,
+			title: card.querySelector(".next-read__title")?.textContent,
+			siteName: card.querySelector(".next-read__site")?.textContent,
+			reason: card.querySelector(".next-read__reason")?.textContent,
+			saved: card.querySelector(".next-read__saved")?.textContent,
+			heading: card.querySelector(".next-read__heading")?.textContent,
 		}).toEqual({
 			href: `/queue/${firstId.value}/view?utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${sourceId.value}`,
 			title: "First",
 			siteName: siteLabel("Example"),
 			reason: "Same argument",
-			saved: "You saved this 2 months ago",
-			eyebrow: "Next read",
+			saved: "You saved this on Jun 6, 2026",
+			heading: "Next Read",
 		});
 	});
 
@@ -170,136 +176,128 @@ describe("renderNextRead", () => {
 		);
 	});
 
-	it("badges an unread suggestion as unread", () => {
-		const doc = parse(readyWith([FIRST]));
+	it("names the read state in words on the card", () => {
+		const card = cardOf(parse(readyWith([FIRST])));
 
-		const badge = doc.querySelector(".next-read__status");
-		assert(badge, "the suggestion carries its read state");
-		const label = badge.querySelector(".next-read__status-label");
-		assert(label, "a read state names itself in words, not only by its shape");
+		const status = card.querySelector(".next-read__status");
+		assert(status, "the suggestion carries its read state");
 		expect({
-			state: badge.getAttribute("data-test-read-status"),
-			unread: badge.classList.contains("next-read__status--unread"),
-			label: label.textContent,
-		}).toEqual({ state: "unread", unread: true, label: "Unread" });
+			state: status.getAttribute("data-test-read-status"),
+			label: status.textContent,
+			glyph: status.querySelector("svg") !== null,
+		}).toEqual({ state: "unread", label: "Unread", glyph: true });
 	});
 
 	it("offers the unread relation ahead of one the reader has already finished", () => {
-		const doc = parse(readyWith([FINISHED, FIRST]));
+		const card = cardOf(parse(readyWith([FINISHED, FIRST])));
 
-		const link = doc.querySelector("[data-test-related-item]");
+		const link = card.querySelector("[data-test-related-item]");
 		assert(link, "a ready slot must render the suggestion link");
 		expect({
 			id: link.getAttribute("data-test-related-item"),
-			eyebrow: link.querySelector(".next-read__eyebrow")?.textContent,
-		}).toEqual({ id: firstId.value, eyebrow: "Next read" });
+			heading: card.querySelector(".next-read__heading")?.textContent,
+		}).toEqual({ id: firstId.value, heading: "Next Read" });
 	});
 
 	it("falls back to a past read, dated by when the reader read it, once no relation is unread", () => {
-		const doc = parse(readyWith([FINISHED]));
+		const card = cardOf(parse(readyWith([FINISHED])));
 
-		const link = doc.querySelector("[data-test-related-item]");
+		const link = card.querySelector("[data-test-related-item]");
 		assert(link, "a ready slot must render the suggestion link");
-		const badge = link.querySelector(".next-read__status");
-		assert(badge, "the suggestion carries its read state");
-		const time = link.querySelector(".next-read__saved time");
+		const status = card.querySelector(".next-read__status");
+		assert(status, "the suggestion carries its read state");
+		const time = card.querySelector(".next-read__saved time");
 		assert(time, "the fallback line must carry a <time> the enhancer can find");
 		expect({
 			id: link.getAttribute("data-test-related-item"),
-			eyebrow: link.querySelector(".next-read__eyebrow")?.textContent,
-			state: badge.getAttribute("data-test-read-status"),
-			read: badge.classList.contains("next-read__status--read"),
-			label: badge.querySelector(".next-read__status-label")?.textContent,
-			dated: link.querySelector(".next-read__saved")?.textContent,
+			heading: card.querySelector(".next-read__heading")?.textContent,
+			state: status.getAttribute("data-test-read-status"),
+			label: status.textContent,
+			start: link.textContent,
+			dated: card.querySelector(".next-read__saved")?.textContent,
 			datetime: time.getAttribute("datetime"),
 		}).toEqual({
 			id: secondId.value,
-			eyebrow: "Similar past reads",
+			heading: "Similar past reads",
 			state: "read",
-			read: true,
 			label: "Read",
+			start: "Read again: Finished",
 			dated: "You read this 5 days ago",
 			datetime: FINISHED.readAt?.toISOString(),
 		});
 	});
 
-	it("marks a past read with a check and dims its card, where an unread suggestion keeps the dot", () => {
-		const markerOf = (doc: Document) => {
-			const card = doc.querySelector(".next-read__card");
-			assert(card, "a ready slot must render the card");
-			const badge = card.querySelector(".next-read__status");
-			assert(badge, "the suggestion carries its read state");
+	it("gives both states one anatomy; only the heading, status word and button label change", () => {
+		const anatomyOf = (doc: Document) =>
+			Array.from(cardOf(doc).querySelectorAll("*"), (element) => element.getAttribute("class"));
+		const wordsOf = (doc: Document) => {
+			const card = cardOf(doc);
 			return {
-				dimmed: card.classList.contains("next-read__card--read"),
-				check: badge.querySelector("svg") !== null,
+				heading: card.querySelector(".next-read__heading")?.textContent,
+				status: card.querySelector(".next-read__status")?.textContent,
+				start: card.querySelector(".next-read__start")?.firstChild?.textContent,
 			};
 		};
+		const unread = parse(readyWith([FIRST]));
+		const read = parse(readyWith([FINISHED]));
 
-		expect({
-			unread: markerOf(parse(readyWith([FIRST]))),
-			read: markerOf(parse(readyWith([FINISHED]))),
-		}).toEqual({
-			unread: { dimmed: false, check: false },
-			read: { dimmed: true, check: true },
+		expect(anatomyOf(read)).toEqual(anatomyOf(unread));
+		expect({ unread: wordsOf(unread), read: wordsOf(read) }).toEqual({
+			unread: { heading: "Next Read", status: "Unread", start: "Start reading" },
+			read: { heading: "Similar past reads", status: "Read", start: "Read again" },
 		});
 	});
 
 	it("dates a past read by when it was saved when the row never recorded a read time", () => {
 		const { readAt: _readAt, ...undatedRead } = FINISHED;
-		const doc = parse(readyWith([undatedRead]));
+		const card = cardOf(parse(readyWith([undatedRead])));
 
-		const link = doc.querySelector("[data-test-related-item]");
-		assert(link, "a ready slot must render the suggestion link");
 		expect({
-			eyebrow: link.querySelector(".next-read__eyebrow")?.textContent,
-			state: link
+			heading: card.querySelector(".next-read__heading")?.textContent,
+			state: card
 				.querySelector(".next-read__status")
 				?.getAttribute("data-test-read-status"),
-			dated: link.querySelector(".next-read__saved")?.textContent,
+			dated: card.querySelector(".next-read__saved")?.textContent,
 		}).toEqual({
-			eyebrow: "Similar past reads",
+			heading: "Similar past reads",
 			state: "read",
-			dated: "You saved this 2 months ago",
+			dated: "You saved this on Jun 6, 2026",
 		});
 	});
 
-	it("reads the unread badge, the site and the saved time as one metadata row", () => {
+	it("reads the site, the saved time and the read state as one metadata row", () => {
 		const doc = parse(readyWith([FIRST]));
 
 		const meta = doc.querySelector(".next-read__meta");
-		assert(meta, "the badge, the site and the saved time must share a row");
+		assert(meta, "the site, the saved time and the read state must share a row");
 		expect(
 			Array.from(meta.children).map((child) => child.className),
 		).toEqual([
-			"next-read__status next-read__status--unread",
 			"next-read__site",
 			"next-read__saved",
+			"next-read__status",
 		]);
 	});
 
-	it("makes the whole card one link, so every part of it opens the suggestion", () => {
-		const doc = parse(readyWith([FIRST]));
+	it("offers one link, the Start button, which names the suggestion", () => {
+		const card = cardOf(parse(readyWith([FIRST])));
 
-		const card = doc.querySelector(".next-read__card");
-		assert(card, "a ready slot must render the card");
-		const link = card.querySelector("[data-test-related-item]");
-		assert(link, "a ready slot must render the suggestion link");
-		for (const part of [
-			".next-read__eyebrow",
-			".next-read__title",
-			".next-read__site",
-			".next-read__reason",
-			".next-read__meta",
-		]) {
-			assert(link.querySelector(part), `${part} must sit inside the suggestion link`);
-		}
-		expect(
-			Array.from(card.children).map((child) => child.className),
-		).toEqual(["next-read__dismiss-form", "next-read__link"]);
+		const links = Array.from(card.querySelectorAll("a[href]"), (link) => ({
+			start: link.classList.contains("next-read__start"),
+			item: link.getAttribute("data-test-related-item"),
+			text: link.textContent,
+		}));
+		expect(links).toEqual([{ start: true, item: firstId.value, text: "Start reading: First" }]);
+		expect(Array.from(card.children, (child) => child.className)).toEqual([
+			"next-read__header",
+			"next-read__title",
+			"next-read__reason",
+			"next-read__foot",
+		]);
 	});
 
 	it("marks the saved time up so the client enhancer can localise it into a hover title", () => {
-		const doc = parse(readyWith([FIRST]));
+		const doc = parse(readyWith([SECOND]));
 
 		const time = doc.querySelector(".next-read__saved time");
 		assert(time, "the saved line must carry a <time> the enhancer can find");
@@ -310,9 +308,31 @@ describe("renderNextRead", () => {
 			text: time.textContent,
 		}).toEqual({
 			tag: "TIME",
-			datetime: FIRST.savedAt.toISOString(),
+			datetime: SECOND.savedAt.toISOString(),
 			mode: "relative",
-			text: "2 months ago",
+			text: "7d ago",
+		});
+	});
+
+	it("tells a screen reader what a recent saved time dates", () => {
+		const card = cardOf(parse(readyWith([SECOND])));
+
+		expect(card.querySelector(".next-read__saved")?.textContent).toBe("You saved this 7d ago");
+	});
+
+	it("dates a suggestion saved more than 30 days ago by its calendar day", () => {
+		const doc = parse(readyWith([FIRST]));
+
+		const time = doc.querySelector(".next-read__saved time");
+		assert(time, "the saved line must carry a <time> the enhancer can find");
+		expect({
+			datetime: time.getAttribute("datetime"),
+			mode: time.getAttribute("data-local-time"),
+			text: time.textContent,
+		}).toEqual({
+			datetime: FIRST.savedAt.toISOString(),
+			mode: "date",
+			text: "Jun 6, 2026",
 		});
 	});
 
@@ -375,7 +395,7 @@ describe("renderNextRead", () => {
 		});
 	});
 
-	it("swaps only its own slot, so the share balloon floating beside it survives", () => {
+	it("swaps only its own slot, so the article above it is untouched", () => {
 		const doc = parse(readyWith([FIRST]));
 
 		const form = doc.querySelector(".next-read__dismiss-form");

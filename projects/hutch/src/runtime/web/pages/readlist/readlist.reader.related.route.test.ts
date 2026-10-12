@@ -119,12 +119,12 @@ function relatedIdsOf(html: string): (string | null)[] {
 	).map((item) => item.getAttribute("data-test-related-item"));
 }
 
-function eyebrowOf(html: string): string | undefined {
-	const eyebrow = new JSDOM(html).window.document.querySelector(
-		".next-read__eyebrow",
+function headingOf(html: string): string | undefined {
+	const heading = new JSDOM(html).window.document.querySelector(
+		".next-read__heading",
 	);
-	assert(eyebrow, "a floated suggestion always names why it is being offered");
-	return eyebrow.textContent ?? undefined;
+	assert(heading, "a suggestion always names why it is offered");
+	return heading.textContent ?? undefined;
 }
 
 function relatedSlotOf(html: string) {
@@ -136,7 +136,7 @@ function relatedSlotOf(html: string) {
 }
 
 describe("Reader related-articles slot", () => {
-	it("floats the first unread relation", async () => {
+	it("offers the first unread relation", async () => {
 		const { agent, articleId, related, seedRelated } = await buildHarness();
 		await seedRelated();
 
@@ -146,7 +146,9 @@ describe("Reader related-articles slot", () => {
 		const slot = doc.querySelector("[data-test-reader-related]");
 		assert(slot, "the reader always renders the next-read slot");
 		expect(slot.classList.contains("next-read--ready")).toBe(true);
-		const link = doc.querySelector(`[data-test-related-item="${related.id.value}"]`);
+		const card = slot.querySelector(".next-read__card");
+		assert(card, "a ready slot must render the card");
+		const link = card.querySelector(`[data-test-related-item="${related.id.value}"]`);
 		assert(link, "the seeded relation must render a link");
 		const href = link.getAttribute("href");
 		assert(href, "a relation link must navigate somewhere");
@@ -158,24 +160,38 @@ describe("Reader related-articles slot", () => {
 			utm_content: "related",
 			utm_term: articleId,
 		});
-		expect(link.querySelector(".next-read__title")?.textContent).toBe("Earlier read");
-		expect(link.querySelector(".next-read__reason")?.textContent).toBe("Same argument");
-		const saved = link.querySelector(".next-read__saved time");
+		expect(card.querySelector(".next-read__title")?.textContent).toBe("Earlier read");
+		expect(card.querySelector(".next-read__reason")?.textContent).toBe("Same argument");
+		const saved = card.querySelector(".next-read__saved time");
 		assert(saved, "each relation must say when the reader saved it");
 		expect({
 			datetime: saved.getAttribute("datetime"),
 			mode: saved.getAttribute("data-local-time"),
 		}).toEqual({ datetime: related.savedAt.toISOString(), mode: "relative" });
 
-		const badge = link.querySelector(".next-read__status");
-		assert(badge, "the suggestion shows whether the reader has read it");
-		const label = badge.querySelector(".next-read__status-label");
-		assert(label, "a read state names itself in words, not only by its shape");
+		const status = card.querySelector(".next-read__status");
+		assert(status, "the suggestion shows whether the reader has read it");
 		expect({
-			state: badge.getAttribute("data-test-read-status"),
-			unread: badge.classList.contains("next-read__status--unread"),
-			label: label.textContent,
-		}).toEqual({ state: "unread", unread: true, label: "Unread" });
+			state: status.getAttribute("data-test-read-status"),
+			label: status.textContent,
+		}).toEqual({ state: "unread", label: "Unread" });
+	});
+
+	it("renders the slot in the main track right after the article column", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		const slot = relatedSlotOf(response.text);
+		const main = slot.previousElementSibling;
+		assert(main, "the slot must follow the article column");
+		expect({
+			parent: slot.parentElement?.classList.contains("reading-layout"),
+			main: main.classList.contains("reading-layout__main"),
+			column: Array.from(main.children, (child) => child.hasAttribute("data-article-body")),
+			next: slot.nextElementSibling?.hasAttribute("data-test-reader-rail"),
+		}).toEqual({ parent: true, main: true, column: [true], next: true });
 	});
 
 	it("suggests only one article, so the reader is offered a single next read", async () => {
@@ -204,9 +220,9 @@ describe("Reader related-articles slot", () => {
 		const afterUnread = await agent.get(`/queue/${articleId}/view`);
 
 		expect(relatedIdsOf(afterRead.text)).toEqual([followUp.id.value]);
-		expect(eyebrowOf(afterRead.text)).toBe("Next read");
+		expect(headingOf(afterRead.text)).toBe("Next Read");
 		expect(relatedIdsOf(afterUnread.text)).toEqual([related.id.value]);
-		expect(eyebrowOf(afterUnread.text)).toBe("Next read");
+		expect(headingOf(afterUnread.text)).toBe("Next Read");
 	});
 
 	it("falls back to the first past read once the reader has read every relation", async () => {
@@ -224,20 +240,18 @@ describe("Reader related-articles slot", () => {
 		expect(slot.getAttribute("data-related-status")).toBe("ready");
 		expect(slot.classList.contains("next-read--ready")).toBe(true);
 		expect(relatedIdsOf(response.text)).toEqual([related.id.value]);
-		expect(eyebrowOf(response.text)).toBe("Similar past reads");
+		expect(headingOf(response.text)).toBe("Similar past reads");
 		const doc = new JSDOM(response.text).window.document;
-		const badge = doc.querySelector(".next-read__status");
-		assert(badge, "the fallback suggestion still shows its read state");
+		const status = doc.querySelector(".next-read__status");
+		assert(status, "the fallback suggestion still shows its read state");
 		const time = doc.querySelector(".next-read__saved time");
 		assert(time, "the fallback suggestion is dated by when the reader read it");
 		expect({
-			state: badge.getAttribute("data-test-read-status"),
-			read: badge.classList.contains("next-read__status--read"),
-			label: badge.querySelector(".next-read__status-label")?.textContent,
+			state: status.getAttribute("data-test-read-status"),
+			label: status.textContent,
 			datetime: time.getAttribute("datetime"),
 		}).toEqual({
 			state: "read",
-			read: true,
 			label: "Read",
 			datetime: finished.readAt.toISOString(),
 		});
@@ -394,7 +408,9 @@ describe("GET /queue/:id/related", () => {
 		expect(link.getAttribute("href")).toBe(
 			`/queue/${related.id.value}/view?utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${articleId}`,
 		);
-		const saved = link.querySelector(".next-read__saved time");
+		const card = doc.querySelector(".next-read__card");
+		assert(card, "a ready poll response must render the card");
+		const saved = card.querySelector(".next-read__saved time");
 		assert(saved, "a ready poll response must carry the saved time too");
 		expect({
 			datetime: saved.getAttribute("datetime"),
@@ -489,7 +505,7 @@ describe("POST /queue/:id/related-dismiss", () => {
 		const form = new JSDOM(html).window.document.querySelector(
 			".next-read__dismiss-form",
 		);
-		assert(form, "a floated suggestion must offer a way to dismiss it");
+		assert(form, "a suggestion must offer a way to dismiss it");
 		const action = form.getAttribute("action");
 		assert(action, "the dismiss form must post somewhere");
 		return action;

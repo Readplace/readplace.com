@@ -4,10 +4,8 @@
           <div class="reader__article-body" data-article-body>
             {{{innerContent}}}
           </div>
-          <div class="reader__float-stack" data-test-reader-float-stack>
-            {{{nextRead}}}
-          </div>
         </div>
+        {{{nextRead}}}
         <{{railLandmark.tag}} class="reading-layout__rail"{{#each railLandmark.attributes}} {{name}}="{{value}}"{{/each}} data-test-reader-rail>
           {{{railHtml}}}
           <a class="reading-layout__top" href="#top" data-test-reader-top>{{icon "arrow-up"}}<span class="reading-layout__top-label">Top</span></a>

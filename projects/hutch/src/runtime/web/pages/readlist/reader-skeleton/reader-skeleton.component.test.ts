@@ -168,7 +168,6 @@ describe("renderReaderSkeleton", () => {
 		const srcs = Array.from(READER_PAGE_SCRIPTS.matchAll(/src="([^"]+)"/g)).map((match) => match[1]);
 		expect(srcs).toEqual([
 			"/client-dist/share-dialog.client.js",
-			"/client-dist/next-read.client.js",
 			"/client-dist/summary-toggle.client.js",
 			"/client-dist/readlist-picker.client.js",
 			"/client-dist/reader-exit-confirm.client.js",

@@ -6,8 +6,7 @@ import type {
 	RelatedArticleDisplay,
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
-import type { IconName } from "@packages/ui-icons";
-import { render, toRelativePhrase, withInternalTracking } from "@packages/web-shell";
+import { render, toRelativeOrDate, toRelativePhrase, withInternalTracking } from "@packages/web-shell";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { NEXT_READ_TRACKING } from "./next-read.tracking";
 
@@ -21,32 +20,23 @@ const HIDDEN_CLASS = "next-read--hidden";
 
 const STATUS_COPY = {
 	unread: {
-		eyebrow: "Next read",
+		heading: "Next Read",
 		statusLabel: "Unread",
-		statusClass: "next-read__status--unread",
-		statusIcons: [],
-		cardClass: "next-read__card",
+		startLabel: "Start reading",
 	},
 	read: {
-		eyebrow: "Similar past reads",
+		heading: "Similar past reads",
 		statusLabel: "Read",
-		statusClass: "next-read__status--read",
-		statusIcons: ["check"],
-		cardClass: "next-read__card next-read__card--read",
+		startLabel: "Read again",
 	},
 } satisfies Record<
 	ArticleStatus,
 	{
-		eyebrow: string;
+		heading: string;
 		statusLabel: string;
-		statusClass: string;
-		statusIcons: readonly IconName[];
-		cardClass: string;
+		startLabel: string;
 	}
 >;
-
-export const NEXT_READ_SCRIPT =
-	'<script src="/client-dist/next-read.client.js" defer></script>';
 
 export interface NextReadContext {
 	articles: RelatedArticles;
@@ -75,12 +65,10 @@ interface NextReadCard {
 	title: string;
 	siteName: string;
 	reason: string;
-	eyebrow: string;
+	heading: string;
 	readStatus: ArticleStatus;
 	statusLabel: string;
-	statusClass: string;
-	statusIcons: readonly IconName[];
-	cardClass: string;
+	startLabel: string;
 	dated: DatedLine;
 }
 
@@ -105,9 +93,10 @@ function datedOf(item: RelatedArticleDisplay, now: Date): DatedLine {
 			time: toRelativePhrase({ iso: item.readAt.toISOString(), now }),
 		};
 	}
+	const time = toRelativeOrDate({ iso: item.savedAt.toISOString(), now });
 	return {
-		lead: "You saved this",
-		time: toRelativePhrase({ iso: item.savedAt.toISOString(), now }),
+		lead: time.mode === "date" ? "You saved this on" : "You saved this",
+		time,
 	};
 }
 
@@ -143,11 +132,9 @@ function cardsOf(input: NextReadInput): NextReadCard[] {
 			siteName: item.siteName,
 			reason: item.reason,
 			readStatus: item.status,
-			eyebrow: copy.eyebrow,
+			heading: copy.heading,
 			statusLabel: copy.statusLabel,
-			statusClass: copy.statusClass,
-			statusIcons: copy.statusIcons,
-			cardClass: copy.cardClass,
+			startLabel: copy.startLabel,
 			dated: datedOf(item, related.now),
 		},
 	];

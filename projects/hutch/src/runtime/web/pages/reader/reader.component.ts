@@ -36,10 +36,7 @@ import {
 } from "../../shared/article-body/table-of-contents/table-of-contents.component";
 import { railLandmarkFor } from "../../shared/reading-layout/rail-landmark";
 import { READER_OPEN_SCRIPT } from "../../shared/reader-open/reader-open-script";
-import {
-	NEXT_READ_SCRIPT,
-	renderNextRead,
-} from "../../shared/next-read/next-read.component";
+import { renderNextRead } from "../../shared/next-read/next-read.component";
 import {
 	type PastReadsSectionInput,
 	hasVisiblePastReads,
@@ -299,7 +296,6 @@ export function ReaderPage(
 			navHide: NAV_HIDE_DISABLED,
 			page:
 				SHARE_DIALOG_SCRIPT +
-				NEXT_READ_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
 				(picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
 				(readlistCreateHtml === "" ? "" : READLIST_CLIENT_SCRIPT) +

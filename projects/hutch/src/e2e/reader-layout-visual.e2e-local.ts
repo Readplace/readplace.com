@@ -56,7 +56,6 @@ const SAVED_CARD = "[data-test-article]";
 const SAVED_CARD_TITLE = "[data-test-article-title]";
 const SUMMARY_READY = '[data-test-reader-summary][data-summary-status="ready"]';
 const TOP = "[data-test-reader-top]";
-const FLOAT_STACK = "[data-test-reader-float-stack]";
 const SCROLL_STAMP = "data-test-scroll-after-swap";
 
 const DESKTOP_MAIN_TRACK = 812;
@@ -73,7 +72,6 @@ const DESKTOP_WIDTHS = [
 const SINGLE_COLUMN_BOTTOM_PADDING = 64;
 const SINGLE_COLUMN_STACK_GAP = 24;
 const TOP_INSET = 32;
-const FLOAT_STACK_INSET = 24;
 
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -81,7 +79,6 @@ const VOLATILE_CHROME = [
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	"[data-test-reader-related]",
-	".reader__float-stack",
 ];
 
 const SHORT_ARTICLE = [
@@ -611,7 +608,7 @@ test.describe("Reader layout on a phone", () => {
 test.describe("The reader's Top button", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 900 } });
 
-	test("appears past one viewport, rides above the fold, rests above the column's end and returns to the top", async ({
+	test("appears past one viewport, rides above the fold, rests above the article card's end and returns to the top", async ({
 		page,
 	}, testInfo) => {
 		await quietReader(page);
@@ -626,20 +623,16 @@ test.describe("The reader's Top button", () => {
 
 		await scrollToY(page, viewport.height + 200);
 		await expect(page.locator(TOP)).toHaveCSS("visibility", "visible");
-		const [top, icon, stack, card] = await page.evaluate(measureBoxes, [TOP, `${TOP} svg`, FLOAT_STACK, CARD]);
+		const [top, icon, card] = await page.evaluate(measureBoxes, [TOP, `${TOP} svg`, CARD]);
 		assertNear({ actual: top.y + top.height, expected: viewport.height - TOP_INSET, tolerance: 1 }, "Top rides 32px above the fold");
 		assert.deepEqual({ width: icon.width, height: icon.height }, { width: 24, height: 24 }, "Top's arrow is 24px");
 		assert.ok(card.y + card.height > viewport.height, "the fixture must leave the card's end below the fold");
-		assertNear(
-			{ actual: stack.y + stack.height, expected: viewport.height - FLOAT_STACK_INSET, tolerance: 1 },
-			"the float stack still sticks 24px above the fold inside the main track",
-		);
 
 		await scrollToY(page, await page.evaluate(maxScrollY));
-		const [restingTop, main] = await page.evaluate(measureBoxes, [TOP, MAIN]);
+		const [restingTop, restingCard] = await page.evaluate(measureBoxes, [TOP, CARD]);
 		assertNear(
-			{ actual: restingTop.y + restingTop.height, expected: main.y + main.height - TOP_INSET, tolerance: 1 },
-			"at the page's end Top rests 32px above the main track's end",
+			{ actual: restingTop.y + restingTop.height, expected: restingCard.y + restingCard.height - TOP_INSET, tolerance: 1 },
+			"at the page's end Top rests 32px above the article card's end",
 		);
 
 		await page.locator(TOP).click();

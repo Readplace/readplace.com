@@ -1,21 +1,24 @@
-<div id="article-body-related-slot" class="next-read {{stateClass}}" data-next-read data-test-reader-related data-related-status="{{status}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
-  {{#each cards}}
-  <div class="{{cardClass}}">
-    <form class="next-read__dismiss-form" method="POST" action="{{dismissUrl}}" hx-boost="true" hx-target="#article-body-related-slot" hx-select="#article-body-related-slot" hx-swap="outerHTML show:none" hx-push-url="false">
-      <input type="hidden" name="returnTo" value="{{returnTo}}">
-      <input type="hidden" name="suggestionId" value="{{id}}">
-      <button class="next-read__dismiss" type="submit" data-test-action="next-read-dismiss">{{icon "x"}}<span class="sr-only">Dismiss suggestion</span></button>
-    </form>
-    <a class="next-read__link" href="{{href}}" data-test-related-item="{{id}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top">
-      <span class="next-read__eyebrow">{{eyebrow}}</span>
-      <span class="next-read__title">{{title}}</span>
-      <span class="next-read__reason">{{reason}}</span>
-      <span class="next-read__meta">
-        <span class="next-read__status {{statusClass}}" data-test-read-status="{{readStatus}}">{{#each statusIcons}}{{icon this}}{{/each}}<span class="next-read__status-label sr-only">{{statusLabel}}</span></span>
-        <span class="next-read__site" title="{{siteName}}">{{icon "globe"}}<span class="next-read__site-name">{{siteName}}</span></span>
-        <span class="next-read__saved">{{icon "clock"}}<span>{{dated.lead}} <time datetime="{{dated.time.iso}}" data-local-time="{{dated.time.mode}}">{{dated.time.label}}</time></span></span>
-      </span>
-    </a>
-  </div>
-  {{/each}}
-</div>
+<div id="article-body-related-slot" class="next-read {{stateClass}}" data-test-reader-related data-related-status="{{status}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
+          {{#each cards}}
+          <section class="next-read__card">
+            <div class="next-read__header">
+              <h2 class="next-read__heading">{{heading}}</h2>
+              <form class="next-read__dismiss-form" method="POST" action="{{dismissUrl}}" hx-boost="true" hx-target="#article-body-related-slot" hx-select="#article-body-related-slot" hx-swap="outerHTML show:none" hx-push-url="false">
+                <input type="hidden" name="returnTo" value="{{returnTo}}">
+                <input type="hidden" name="suggestionId" value="{{id}}">
+                <button class="next-read__dismiss" type="submit" data-test-action="next-read-dismiss">{{icon "x"}}<span class="sr-only">Dismiss suggestion</span></button>
+              </form>
+            </div>
+            <h3 class="next-read__title">{{title}}</h3>
+            <p class="next-read__reason">{{reason}}</p>
+            <div class="next-read__foot">
+              <p class="next-read__meta">
+                <span class="next-read__site" title="{{siteName}}">{{icon "globe"}}<span class="next-read__site-name">{{siteName}}</span></span>
+                <span class="next-read__saved">{{icon "clock"}}<span><span class="sr-only">{{dated.lead}} </span><time datetime="{{dated.time.iso}}" data-local-time="{{dated.time.mode}}">{{dated.time.label}}</time></span></span>
+                <span class="next-read__status" data-test-read-status="{{readStatus}}">{{icon "eye"}}<span>{{statusLabel}}</span></span>
+              </p>
+              <a class="btn btn--primary btn--m next-read__start" href="{{href}}" data-test-related-item="{{id}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top">{{startLabel}}<span class="sr-only">: {{title}}</span>{{icon "arrow-right"}}</a>
+            </div>
+          </section>
+          {{/each}}
+        </div>

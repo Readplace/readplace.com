@@ -295,7 +295,7 @@ describe("ReaderPage", () => {
 		expect(railChildTags(rail)).toEqual(["DIV", "A"]);
 	});
 
-	it("offers Share from the toolbar and keeps the float stack to Next read alone", () => {
+	it("offers Share from the toolbar, outside the Next Read slot", () => {
 		const doc = renderReaderDocument(WebReader);
 
 		const opener = doc.querySelector('[data-test-share-slot] [data-test-action="share-open"]');
@@ -304,9 +304,13 @@ describe("ReaderPage", () => {
 		assert(dialog, "the share dialog must be rendered for the toolbar to open");
 		expect(dialog.id).toBe(opener.getAttribute("popovertarget"));
 		expect(dialog.closest("main.reader")).not.toBeNull();
-		const floatStack = doc.querySelector("[data-test-reader-float-stack]");
-		assert(floatStack, "the float stack stays for Next read");
-		expect(Array.from(floatStack.children, (child) => child.classList.item(0))).toEqual(["next-read"]);
+		const slot = doc.querySelector("[data-test-reader-related]");
+		assert(slot, "the reader always renders the Next Read slot");
+		expect([
+			slot.parentElement?.classList.contains("reading-layout"),
+			slot.previousElementSibling?.classList.contains("reading-layout__main"),
+			slot.querySelectorAll('[data-test-action="share-open"]').length,
+		]).toEqual([true, true, 0]);
 	});
 
 	it("withholds Share from a private newsletter issue, whose public link would leak it", () => {
@@ -342,6 +346,14 @@ describe("ReaderPage", () => {
 		const scripts = Array.from(doc.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
 		expect(scripts).toContain("/client-dist/share-dialog.client.js");
 		expect(scripts.filter((src) => src === "/client-dist/share-balloon.client.js")).toEqual([]);
+	});
+
+	it("loads no Next Read script, since the card sits in the flow", () => {
+		const doc = renderReaderDocument(WebReader);
+
+		const scripts = Array.from(doc.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
+		expect(scripts).toContain("/client-dist/summary-toggle.client.js");
+		expect(scripts.filter((src) => src === "/client-dist/next-read.client.js")).toEqual([]);
 	});
 
 	it("styles the share and naming dialogs, and no longer the balloon", () => {
@@ -629,22 +641,28 @@ describe("ReaderPage", () => {
 	});
 
 
-	it("lays the article column and the float stack in the main track, beside the rail", () => {
+	it("lays the article column in the main track, then Next Read, then the rail", () => {
 		const doc = renderReaderDocument(WebReader);
 
-		const main = doc.querySelector("main.reader > .reading-layout > .reading-layout__main");
+		const layout = doc.querySelector("main.reader > .reading-layout");
+		assert(layout, "the reader must render its reading layout");
+		const main = layout.querySelector(":scope > .reading-layout__main");
 		assert(main, "the main track must sit inside the reading layout");
-		const mainChildren = Array.from(main.children, (child) => [
-			child.hasAttribute("data-article-body"),
-			child.hasAttribute("data-test-reader-float-stack"),
+		expect(Array.from(main.children, (child) => child.hasAttribute("data-article-body"))).toEqual([true]);
+		expect(
+			Array.from(layout.children, (child) => [
+				child.classList.contains("reading-layout__main"),
+				child.hasAttribute("data-test-reader-related"),
+				child.hasAttribute("data-test-reader-rail"),
+			]),
+		).toEqual([
+			[true, false, false],
+			[false, true, false],
+			[false, false, true],
 		]);
-		expect(mainChildren).toEqual([
-			[true, false],
-			[false, true],
-		]);
-		const rail = doc.querySelector(".reading-layout > [data-test-reader-rail]");
+		const rail = layout.querySelector(":scope > [data-test-reader-rail]");
 		assert(rail, "the rail must sit beside the main track");
-		expect(rail.previousElementSibling).toBe(main);
+		expect(rail.previousElementSibling?.hasAttribute("data-test-reader-related")).toBe(true);
 	});
 
 	it.each([

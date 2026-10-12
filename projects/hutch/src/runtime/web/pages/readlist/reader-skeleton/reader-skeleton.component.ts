@@ -6,7 +6,6 @@ import { ARTICLE_FRAME_STYLES } from "../../../shared/article-body/article-frame
 import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-actions/reader-actions.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../../shared/article-body/table-of-contents/table-of-contents.component";
-import { NEXT_READ_SCRIPT } from "../../../shared/next-read/next-read.component";
 import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
 import { SHARE_DIALOG_SCRIPT } from "../../../shared/share-dialog/share-dialog.component";
 import { OFFLINE_READER_SCRIPT } from "../../../shared/offline-reader/offline-reader-script";
@@ -27,7 +26,6 @@ export const VIEW_BACK_LINK = {
 
 export const READER_PAGE_SCRIPTS =
 	SHARE_DIALOG_SCRIPT +
-	NEXT_READ_SCRIPT +
 	SUMMARY_TOGGLE_SCRIPT +
 	READLIST_PICKER_SCRIPT +
 	READER_EXIT_CONFIRM_SCRIPT +

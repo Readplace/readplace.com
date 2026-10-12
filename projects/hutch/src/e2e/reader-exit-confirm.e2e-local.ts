@@ -16,10 +16,9 @@ const CONTENT_FETCHED_AT = "2026-05-14T11:20:00.000Z";
 const EXIT_LINK = `.article-body__content a[href^="${BASE_URL}/privacy"]`;
 const PANEL = "#reader-exit-confirm";
 const CARD_LINK = "[data-test-related-item]";
-const OPEN_CARD = "[data-test-reader-related].next-read--open";
 const RELATED_COMPUTED_AT = "2026-05-14T11:40:00.000Z";
 const LONG_PARAGRAPH =
-	"<p>Body copy long enough that reaching the end of the article is a real scroll, which is the only thing that floats the suggestion card into view.</p>";
+	"<p>Body copy long enough that reaching the end of the article is a real scroll.</p>";
 
 const CreatedUser = z.union([
 	z.object({ ok: z.literal(true), userId: z.string() }),
@@ -134,7 +133,6 @@ test.describe("Next Read asks before it moves the reader on, inside the app", ()
 		});
 
 		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-		await page.waitForSelector(OPEN_CARD);
 		expect(await page.evaluate(readScrollY)).toBeGreaterThan(0);
 		await page.evaluate(recordScrollAfterMainSwap);
 		await page.locator(CARD_LINK).click();
