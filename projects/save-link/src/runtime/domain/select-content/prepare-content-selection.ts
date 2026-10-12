@@ -24,7 +24,7 @@ export interface PreparedContentSelection {
 	selected: VerifiedTierSource | undefined;
 	outcome: "selected" | "retained" | "no-readable";
 	reason: string;
-	selectionRule: "first-capture" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict";
+	selectionRule: "first-capture" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict";
 	ownCaptureFailed: boolean;
 	readableIds: ReadonlySet<CandidateId>;
 	audit?: SelectionAudit;
@@ -118,8 +118,12 @@ export function initPrepareContentSelection(deps: {
 		const previous = sources.find((source) => source.metadata.id === (canonical?.id ?? legacyCanonicalId) && candidateIsReadable(source));
 		const isFirstContent = article.freshness.canonicalContentHash === undefined;
 		const firstCapture = firstCaptureOf({ isFirstContent, sources });
+		const proseUnchanged = previous !== undefined && sources.length > 1 &&
+			sources.every((source) => computeCanonicalContentHash(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
 		const decision = firstCapture !== undefined
 			? { kind: "winner", candidateId: firstCapture.metadata.id, reason: "the reader's capture is the article's first content", readability: [{ candidateId: firstCapture.metadata.id, readable: true }] } as const
+			: proseUnchanged
+			? { kind: "tie", candidateIds: sources.map((source) => source.metadata.id), reason: "prose unchanged from the canonical", readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })) } as const
 			: await judgeCandidates({ sources, originalUrl, selectMostCompleteContent: deps.selectMostCompleteContent });
 		const audit = "audit" in decision ? decision.audit : undefined;
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
@@ -129,7 +133,7 @@ export function initPrepareContentSelection(deps: {
 			canonicalNeedsRetry: article.summary.kind === "skipped" && article.summary.reason === "content-too-short",
 		});
 		let selected: VerifiedTierSource | undefined;
-		let selectionRule: PreparedContentSelection["selectionRule"] = firstCapture === undefined ? "judge" : "first-capture";
+		let selectionRule: PreparedContentSelection["selectionRule"] = firstCapture !== undefined ? "first-capture" : proseUnchanged ? "unchanged-content" : "judge";
 		if (decision.kind === "winner") selected = sources.find((source) => source.metadata.id === decision.candidateId);
 		if (decision.kind === "tie") selected = chooseAmong(sources.filter((source) => decision.candidateIds.includes(source.metadata.id)));
 		if (audit?.responseStatus === "rejected") {

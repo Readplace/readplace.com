@@ -670,4 +670,62 @@ describe("initLogContentSelection", () => {
 		expect(readCanonicalContent).not.toHaveBeenCalled();
 	});
 
+
+	describe("when every candidate's prose matches the stored canonical", () => {
+		const prose = "<p>Airmanship is the skill and knowledge applied by aviators.</p>";
+		const legacyArticle = (html: string) => article({ contentSelection: { tier: "tier-1" }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(html) } });
+
+		it("keeps the canonical without asking the judge", async () => {
+			const fresh = source("tier-1", "fresh", { html: prose });
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+			const { prepare } = setup({ loadArticle: async () => legacyArticle(prose), listAvailableTierSources: async () => [fresh], readCanonicalContent: async () => ({ content: prose }), selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result).toMatchObject({ outcome: "retained", selectionRule: "unchanged-content", reason: "prose unchanged from the canonical", audit: undefined });
+			expect(result.selected?.metadata.attemptId).toBe("legacy-direct-canonical");
+			expect(result.readableIds).toEqual(new Set(result.sources.map((candidate) => candidate.metadata.id)));
+		});
+
+		it("selects the fresh candidate without asking the judge when its media differ", async () => {
+			const fresh = source("tier-1", "fresh", { html: `${prose}<img src="https://upload.example/new.jpg">` });
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+			const stored = `${prose}<img src="https://upload.example/old.jpg">`;
+			const { prepare } = setup({ loadArticle: async () => legacyArticle(stored), listAvailableTierSources: async () => [fresh], readCanonicalContent: async () => ({ content: stored }), selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "unchanged-content" });
+			expect(result.selected?.metadata.id).toBe("fresh");
+		});
+	});
+
+	it("asks the judge when any candidate's prose differs from the stored canonical", async () => {
+		const fresh = source("tier-1", "fresh", { html: "<p>Airmanship, revised with a new section on crew resource management.</p>" });
+		const stored = "<p>Airmanship is the skill and knowledge applied by aviators.</p>";
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+			.mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Adds a section" });
+		const { prepare } = setup({
+			loadArticle: async () => article({ contentSelection: { tier: "tier-1" }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(stored) } }),
+			listAvailableTierSources: async () => [fresh], readCanonicalContent: async () => ({ content: stored }), selectMostCompleteContent: select,
+		});
+
+		const result = await prepare({ url: URL, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+		expect(select).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge" });
+	});
+
+	it("asks the judge about identical candidates for an article that has no content yet", async () => {
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+			.mockResolvedValue({ kind: "tie", candidateIds: [cid("extension"), cid("live")], reason: "Same article" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-0", "extension"), source("tier-1", "live")], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ id: cid("extension"), tier: "tier-0" }, { id: cid("live"), tier: "tier-1" }] });
+
+		expect(select).toHaveBeenCalledTimes(1);
+		expect(result.selectionRule).toBe("judge");
+	});
 });

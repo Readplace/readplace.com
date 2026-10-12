@@ -148,6 +148,21 @@ describe("initSelectContentWork", () => {
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(refreshContent, expect.objectContaining({ canonicalCommit: commit, input: expect.objectContaining({ freshness }) }));
 	});
 
+	it("advances a refresh's freshness without asking the judge when the fresh copy's prose matches the canonical", async () => {
+		const selectMostCompleteContent = jest.fn<ReturnType<TestDependencies["selectMostCompleteContent"]>, Parameters<TestDependencies["selectMostCompleteContent"]>>();
+		const { work, deps } = setup({
+			loadArticle: async () => article({ freshness: { contentFetchedAt: "2026-10-04T00:00:00.000Z", canonicalContentHash: computeCanonicalContentHash(source().html) }, contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 3 } }),
+			listAvailableTierSources: async () => [source(), source("tier-0")],
+			selectMostCompleteContent,
+		});
+		const freshness = { etag: "etag", bodyHash: "raw-body-hash", contentFetchedAt: NOW };
+
+		await work({ ...laterRequest, mode: "refresh", refresh: freshness, candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
+
+		expect(selectMostCompleteContent).not.toHaveBeenCalled();
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(refreshContent, expect.objectContaining({ input: expect.objectContaining({ freshness }) }));
+	});
+
 	it("keeps the stored canonical through the recrawl tie transition when the judge ties it with a fresh identical copy", async () => {
 		const existing = article({ contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 4 } });
 		const { work, deps, commit } = setup({
