@@ -8,6 +8,11 @@ describe("candidate provenance", () => {
 		expect(candidateProvenance(params)).toEqual(first);
 		for (const change of [{ html: "<p>localized media</p>" }, { attemptId: SaveAttemptIdSchema.parse("second") }, { evaluationHtml: "<p>two</p>" }, { sourceUrl: "https://example.com/b" }]) expect(candidateProvenance({ ...params, ...change }).id).not.toBe(first.id);
 	});
+	it("carries the capture trigger through provenance", () => {
+		const params = { metadata: { title: "Title", siteName: "Site", excerpt: "Excerpt", wordCount: 1, estimatedReadTime: 1 }, html: "<p>one</p>", evaluationHtml: "<p>one</p>", attemptId: SaveAttemptIdSchema.parse("save"), originalUrl: "https://example.com/a", sourceUrl: "https://example.com/a", kind: "extension" as const, fetchedAt: "2026-10-01T00:00:00Z" };
+		expect(candidateProvenance({ ...params, captureTrigger: "automatic" }).captureTrigger).toBe("automatic");
+		expect(candidateProvenance(params).captureTrigger).toBeUndefined();
+	});
 	it("uses adopted identity and accepts ordinary legacy row identity", async () => {
 		const resolveAdopted = initResolveCandidateOriginal({ findIdentityRow: async () => ({ kind: "article", originalUrl: "https://trusted.example/article" }) });
 		expect(await resolveAdopted("https://redirector.example/a")).toBe("https://trusted.example/article");

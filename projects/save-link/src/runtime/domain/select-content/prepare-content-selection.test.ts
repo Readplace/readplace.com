@@ -164,6 +164,21 @@ describe("initPrepareContentSelection", () => {
 		expect(result.audit).toBeUndefined();
 	});
 
+	it.each([
+		{ trigger: "no trigger", captureTrigger: undefined },
+		{ trigger: "a manual trigger", captureTrigger: "manual" },
+	] as const)("a tapped capture with $trigger keeps first-capture", async ({ captureTrigger }) => {
+		const capture = source("tier-0", "capture");
+		capture.metadata.captureTrigger = captureTrigger;
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+		const { prepare } = setup({ listAvailableTierSources: async () => [capture], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+		expect(select).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "first-capture" });
+	});
+
 	it("does not serve a blank first capture", async () => {
 		const blank = source("tier-0", "blank", { html: " " });
 		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
@@ -257,6 +272,21 @@ describe("initPrepareContentSelection", () => {
 		expect(result.outcome).toBe("no-readable");
 		expect(result.selectionRule).toBe("judge");
 		expect(result.ownCaptureFailed).toBe(true);
+	});
+
+	it("an automatic capture never raises ownCaptureFailed", async () => {
+		const capture = source("tier-0", "capture");
+		capture.metadata.captureTrigger = "automatic";
+		const blankLive = source("tier-1", "blank-live", { html: "<div></div>" });
+		blankLive.metadata.wordCount = 0;
+		const { prepare } = setup({
+			listAvailableTierSources: async () => [capture, blankLive],
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("blank-live"), reason: "The live page is the article" }),
+		});
+
+		const result = await prepare({ url: URL });
+
+		expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge", ownCaptureFailed: false });
 	});
 
 	it("retains a verified earlier canonical when all fresh responses are unreadable", async () => {

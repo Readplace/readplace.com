@@ -123,6 +123,7 @@ describe("initSaveEmailIssueCommandHandler", () => {
 					kind: "extension",
 					fetchedAt: NOW.toISOString(),
 					httpStatus: undefined,
+					captureTrigger: undefined,
 				},
 			},
 		]);

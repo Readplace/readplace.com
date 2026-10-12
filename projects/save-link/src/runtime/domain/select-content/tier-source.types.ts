@@ -1,4 +1,4 @@
-import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
+import { CandidateIdSchema, CaptureTriggerSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import { z } from "zod";
 import type { Tier } from "./tier.types";
 
@@ -22,6 +22,7 @@ export const TierSourceMetadataSchema = z.object({
 	kind: z.enum(["live", "wrapper", "extension"]).optional(),
 	fetchedAt: z.string().optional(),
 	httpStatus: z.number().optional(),
+	captureTrigger: CaptureTriggerSchema.optional(),
 	htmlLocation: z.string().optional(),
 	evaluationLocation: z.string().optional(),
 });

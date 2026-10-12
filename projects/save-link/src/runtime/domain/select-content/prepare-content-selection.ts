@@ -41,14 +41,18 @@ function isSuccessStatus(httpStatus: number | undefined): boolean {
 	return httpStatus === undefined || (httpStatus >= 200 && httpStatus < 300);
 }
 
+function isTapCapture(metadata: CandidateProvenance): boolean {
+	return metadata.kind === "extension" && metadata.captureTrigger !== "automatic";
+}
+
 function firstCaptureOf(params: { isFirstContent: boolean; sources: readonly VerifiedTierSource[] }): VerifiedTierSource | undefined {
 	const [only] = params.sources;
-	return only !== undefined && params.sources.length === 1 && params.isFirstContent && only.metadata.kind === "extension" ? only : undefined;
+	return only !== undefined && params.sources.length === 1 && params.isFirstContent && isTapCapture(only.metadata) ? only : undefined;
 }
 
 function isOwnFreshCapture(params: { source: VerifiedTierSource; saveAttemptId: SaveAttemptId }): boolean {
 	const { metadata } = params.source;
-	return metadata.kind === "extension" && metadata.attemptId === params.saveAttemptId && !isWrapperUrl(metadata.sourceUrl) && candidateIsReadable(params.source);
+	return isTapCapture(metadata) && metadata.attemptId === params.saveAttemptId && !isWrapperUrl(metadata.sourceUrl) && candidateIsReadable(params.source);
 }
 
 async function judgeCandidates(params: { sources: readonly VerifiedTierSource[]; originalUrl: string; selectMostCompleteContent: SelectMostCompleteContent }) {
@@ -172,6 +176,7 @@ export function initLogContentSelection(deps: { logger: HutchLogger }): (params:
 			candidates: selection.sources.map((source) => ({
 				id: source.metadata.id,
 				kind: source.metadata.kind,
+				captureTrigger: source.metadata.captureTrigger,
 				originalUrl: source.metadata.originalUrl,
 				sourceUrl: source.metadata.sourceUrl,
 				contentHash: source.metadata.contentHash,

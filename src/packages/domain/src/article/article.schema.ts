@@ -46,3 +46,7 @@ export const newSaveAttemptId = (): SaveAttemptId => SaveAttemptIdSchema.parse(r
 export const CandidateIdSchema = z.string().min(1).brand<"CandidateId">();
 
 export type CandidateId = z.infer<typeof CandidateIdSchema>;
+
+export const CaptureTriggerSchema = z.enum(["automatic", "manual"]);
+
+export type CaptureTrigger = z.infer<typeof CaptureTriggerSchema>;

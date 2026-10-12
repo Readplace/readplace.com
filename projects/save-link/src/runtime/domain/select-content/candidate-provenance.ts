@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import assert from "node:assert";
-import { CandidateIdSchema, type SaveAttemptId, isWrapperUrl, wrapperFamilyOf } from "@packages/domain/article";
+import { CandidateIdSchema, type CaptureTrigger, type SaveAttemptId, isWrapperUrl, wrapperFamilyOf } from "@packages/domain/article";
 import type { FindIdentityRow } from "@packages/provider-contracts/article-store";
 import type { CandidateProvenance, TierSourceMetadata } from "./tier-source.types";
 
@@ -14,6 +14,7 @@ export function candidateProvenance(params: {
 	kind: CandidateProvenance["kind"];
 	fetchedAt: string;
 	httpStatus?: number;
+	captureTrigger?: CaptureTrigger;
 }): CandidateProvenance {
 	const contentHash = createHash("sha256").update(params.evaluationHtml).digest("hex");
 	const id = CandidateIdSchema.parse(createHash("sha256")
@@ -29,6 +30,7 @@ export function candidateProvenance(params: {
 		kind: params.kind,
 		fetchedAt: params.fetchedAt,
 		httpStatus: params.httpStatus,
+		captureTrigger: params.captureTrigger,
 	};
 }
 
