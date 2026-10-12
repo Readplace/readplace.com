@@ -6,6 +6,7 @@ import type { SQSEvent } from "aws-lambda";
 import { type CreateSelectorChatCompletion, initSelectMostCompleteContent } from "./select-content";
 import { initSelectMostCompleteContentHandler } from "./select-most-complete-content-handler";
 import { candidateProvenance } from "./candidate-provenance";
+import { labelForIndex } from "./select-content-prompt";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import type { VerifiedTierSource } from "./tier-source.types";
 
@@ -56,9 +57,9 @@ const COMPANIONS = [
 ];
 
 const JUDGES = [
-	{ verdict: "finds nothing readable", whenJudged: "promoted", createChatCompletion: (ids: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: ids.map((candidateId) => ({ candidateId, readable: false })) }) },
+	{ verdict: "finds nothing readable", whenJudged: "promoted", createChatCompletion: (labels: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((candidate) => ({ candidate, readable: false })) }) },
 	{ verdict: "is refused by its provider", whenJudged: "promoted", createChatCompletion: (): CreateSelectorChatCompletion => async () => { throw Object.assign(new Error("bad request"), { status: 400 }); } },
-	{ verdict: "contradicts itself", whenJudged: "retried", createChatCompletion: (ids: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: ids.map((candidateId) => ({ candidateId, readable: true })) }) },
+	{ verdict: "contradicts itself", whenJudged: "retried", createChatCompletion: (labels: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((candidate) => ({ candidate, readable: true })) }) },
 	{ verdict: "fails with HTTP 500", whenJudged: "retried", createChatCompletion: (): CreateSelectorChatCompletion => async () => { throw Object.assign(new Error("server error"), { status: 500 }); } },
 ];
 
@@ -73,7 +74,7 @@ it.each(ROWS)("a capture from $producer, $companions, when the judge $verdict, i
 	const transitionAndPersist: TransitionAndPersist = async (transition, params) => { persisted.push({ transition, input: params.input }); };
 	const handler = initSelectMostCompleteContentHandler({
 		listAvailableTierSources: async () => sources,
-		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: createChatCompletion(sources.map((source) => source.metadata.id)) }).selectMostCompleteContent,
+		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: createChatCompletion(sources.map((_source, index) => labelForIndex(index))) }).selectMostCompleteContent,
 		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, originalUrl: URL, tier: source.tier }),
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => undefined, loadArticle: async () => FIRST_SAVE, transitionAndPersist,

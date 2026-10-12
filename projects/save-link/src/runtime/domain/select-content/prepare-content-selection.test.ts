@@ -3,6 +3,7 @@ import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCom
 import { noopLogger } from "@packages/hutch-logger";
 import type { Article } from "@packages/domain/article-aggregate";
 import { candidateProvenance } from "./candidate-provenance";
+import { labelForIndex } from "./select-content-prompt";
 import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import { OWN_CAPTURE_FAILED_METRIC } from "./comparison-log";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
@@ -60,6 +61,13 @@ function article(overrides: Partial<Article> = {}): Article {
 	};
 }
 
+function judgeReply(decision: ContentDecision, candidates: Parameters<SelectMostCompleteContent>[0]["candidates"]): string {
+	const label = (id: string) => labelForIndex(candidates.findIndex((candidate) => candidate.id === id));
+	const answer = decision.kind === "winner" ? { kind: decision.kind, candidate: label(decision.candidateId), reason: decision.reason }
+		: decision.kind === "tie" ? { kind: decision.kind, candidates: decision.candidateIds.map(label), reason: decision.reason }
+		: decision;
+	return JSON.stringify({ ...answer, readability: candidates.map((candidate) => ({ candidate: label(candidate.id), readable: decision.kind === "winner" ? candidate.id === decision.candidateId : decision.kind === "tie" && decision.candidateIds.includes(candidate.id) })) });
+}
 type Dependencies = Omit<Parameters<typeof initPrepareContentSelection>[0], "selectMostCompleteContent"> & {
 	selectMostCompleteContent: (params: Parameters<SelectMostCompleteContent>[0]) => Promise<ContentDecision>;
 };
@@ -72,7 +80,7 @@ function setup(overrides: Partial<Dependencies> = {}) {
 	};
 	const selectMostCompleteContent: SelectMostCompleteContent = async (params) => {
 		const decision = await deps.selectMostCompleteContent(params);
-		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ ...decision, readability: params.candidates.map((candidate) => ({ candidateId: candidate.id, readable: decision.kind === "winner" ? candidate.id === decision.candidateId : decision.kind === "tie" && decision.candidateIds.includes(candidate.id) })) }) } }] }), logger: noopLogger }).selectMostCompleteContent(params);
+		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger }).selectMostCompleteContent(params);
 	};
 	const prepare = initPrepareContentSelection({ ...deps, selectMostCompleteContent });
 	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId">) => prepare({ ...params, saveAttemptId: FRESH }), deps };

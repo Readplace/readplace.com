@@ -4,6 +4,7 @@ import { noopLogger } from "@packages/hutch-logger";
 import { type Article, type CanonicalCommit, type TransitionAndPersist, promoteTier, recrawlPromoteTier, recrawlTieKeptCanonical, refreshContent } from "@packages/domain/article-aggregate";
 import { initSelectContentWork, type SelectContentDependencies } from "./select-content-work";
 import { candidateProvenance } from "./candidate-provenance";
+import { labelForIndex } from "./select-content-prompt";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import type { VerifiedTierSource } from "./tier-source.types";
@@ -24,6 +25,13 @@ function source(tier: VerifiedTierSource["tier"] = "tier-1"): VerifiedTierSource
 function article(overrides: Partial<Article> = {}): Article {
 	return { url: URL, metadata, freshness: { contentFetchedAt: NOW }, estimatedReadTime: 3,
 		crawl: { kind: "ready" }, summary: { kind: "ready", summary: "Summary" }, summaryAutoHeal: { attempts: 0 }, ...overrides };
+}
+function judgeReply(decision: ContentDecision, candidates: Parameters<SelectMostCompleteContent>[0]["candidates"]): string {
+	const label = (id: string) => labelForIndex(candidates.findIndex((candidate) => candidate.id === id));
+	const answer = decision.kind === "winner" ? { kind: decision.kind, candidate: label(decision.candidateId), reason: decision.reason }
+		: decision.kind === "tie" ? { kind: decision.kind, candidates: decision.candidateIds.map(label), reason: decision.reason }
+		: decision;
+	return JSON.stringify({ ...answer, readability: candidates.map((candidate) => ({ candidate: label(candidate.id), readable: decision.kind === "winner" ? candidate.id === decision.candidateId : decision.kind === "tie" && decision.candidateIds.includes(candidate.id) })) });
 }
 type TestDependencies = Omit<SelectContentDependencies, "selectMostCompleteContent"> & {
 	selectMostCompleteContent: (params: Parameters<SelectMostCompleteContent>[0]) => Promise<ContentDecision>;
@@ -49,7 +57,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	};
 	const selectMostCompleteContent: SelectMostCompleteContent = async (params) => {
 		const decision = await deps.selectMostCompleteContent(params);
-		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ ...decision, readability: params.candidates.map((candidate) => ({ candidateId: candidate.id, readable: decision.kind === "winner" ? candidate.id === decision.candidateId : decision.kind === "tie" && decision.candidateIds.includes(candidate.id) })) }) } }] }), logger: noopLogger }).selectMostCompleteContent(params);
+		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger }).selectMostCompleteContent(params);
 	};
 	return { work: initSelectContentWork({ ...deps, selectMostCompleteContent }), deps, commit, events };
 }

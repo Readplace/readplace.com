@@ -10,6 +10,7 @@ import type { PutTierSource } from "../../providers/article-store/put-tier-sourc
 import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
+import { labelForIndex } from "../select-content/select-content-prompt";
 import { initLogContentSelection, initPrepareContentSelection } from "../select-content/prepare-content-selection";
 import type { TierSource } from "../select-content/tier-source.types";
 
@@ -52,7 +53,7 @@ describe("archive attempt orchestration", () => {
 		expect(liveSource.metadata.contentHash).toBe(createHash("sha256").update(liveBody).digest("hex"));
 		expect(liveSource.metadata.httpStatus).toBe(403);
 		expect(liveSource.html).toContain("The original has an additional detailed section missing from the archive.");
-		const createChatCompletion = jest.fn(async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidateId: liveSource.metadata.id, reason: "Live includes the additional article section", readability: stored.map((source) => ({ candidateId: source.metadata.id, readable: true })) }) } }] }));
+		const createChatCompletion = jest.fn(async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: labelForIndex(stored.indexOf(liveSource)), reason: "Live includes the additional article section", readability: stored.map((_source, index) => ({ candidate: labelForIndex(index), readable: true })) }) } }] }));
 		const selection = await initPrepareContentSelection({
 			readCanonicalContent: async () => undefined,
 			loadArticle: async () => ({ url, metadata: liveSource.metadata, freshness: { contentFetchedAt: now().toISOString() }, estimatedReadTime: 1, crawl: { kind: "ready" }, summary: { kind: "ready", summary: "Existing summary" }, summaryAutoHeal: { attempts: 0 } }),

@@ -1,26 +1,29 @@
 import assert from "node:assert";
 import { z } from "zod";
-import { type CandidateId, CandidateIdSchema } from "@packages/domain/article";
+import type { CandidateId } from "@packages/domain/article";
 import { createHash } from "node:crypto";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	SELECT_CONTENT_SYSTEM_PROMPT,
 	type SelectorCandidate,
 	buildSelectContentUserMessage,
+	labelForIndex,
 } from "./select-content-prompt";
 import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
 import { DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 
-const DecisionSchema = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("winner"), candidateId: CandidateIdSchema, reason: z.string() }),
-	z.object({ kind: z.literal("tie"), candidateIds: z.array(CandidateIdSchema).min(2), reason: z.string() }),
-	z.object({ kind: z.literal("none"), reason: z.string() }),
-]);
+export type ContentDecision =
+	| { kind: "winner"; candidateId: CandidateId; reason: string }
+	| { kind: "tie"; candidateIds: CandidateId[]; reason: string }
+	| { kind: "none"; reason: string };
+type CandidateReadability = { candidateId: CandidateId; readable: boolean }[];
 
-export type ContentDecision = z.infer<typeof DecisionSchema>;
-const ReadabilitySchema = z.array(z.object({ candidateId: CandidateIdSchema, readable: z.boolean() }));
-const ResponseSchema = DecisionSchema.and(z.object({ readability: ReadabilitySchema }));
-type CandidateReadability = z.infer<typeof ReadabilitySchema>;
+const LabelSchema = z.string().min(1);
+const ResponseSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("winner"), candidate: LabelSchema, reason: z.string() }),
+	z.object({ kind: z.literal("tie"), candidates: z.array(LabelSchema).min(2), reason: z.string() }),
+	z.object({ kind: z.literal("none"), reason: z.string() }),
+]).and(z.object({ readability: z.array(z.object({ candidate: LabelSchema, readable: z.boolean() })) }));
 
 export interface SelectionAudit {
 	judgedCandidates: { id: CandidateId; contentHash: string }[];
@@ -105,27 +108,32 @@ export function initSelectMostCompleteContent(deps: {
 		}
 		const parsed = ResponseSchema.safeParse(json);
 		if (!parsed.success) return invalidResponse("schema mismatch");
-		const decision = parsed.data;
-		const ids = new Set(params.candidates.map((candidate) => candidate.id));
-		if (decision.kind === "winner" && !ids.has(decision.candidateId)) {
-			return invalidResponse("unknown winner candidate");
+		const answer = parsed.data;
+		const idByLabel = new Map(params.candidates.map((candidate, index) => [labelForIndex(index), candidate.id]));
+		const idsOf = (labels: readonly string[]): CandidateId[] => labels.flatMap((label) => idByLabel.get(label.trim().toUpperCase()) ?? []);
+		let decision: ContentDecision = { kind: "none", reason: answer.reason };
+		if (answer.kind === "winner") {
+			const [candidateId] = idsOf([answer.candidate]);
+			if (candidateId === undefined) return invalidResponse("unknown winner candidate");
+			decision = { kind: "winner", candidateId, reason: answer.reason };
 		}
-		if (decision.kind === "tie" && (
-			new Set(decision.candidateIds).size !== decision.candidateIds.length ||
-			decision.candidateIds.some((id) => !ids.has(id))
-		)) {
-			return invalidResponse("invalid tied candidates");
+		if (answer.kind === "tie") {
+			const candidateIds = idsOf(answer.candidates);
+			if (candidateIds.length !== answer.candidates.length || new Set(candidateIds).size !== candidateIds.length) {
+				return invalidResponse("invalid tied candidates");
+			}
+			decision = { kind: "tie", candidateIds, reason: answer.reason };
 		}
-		const assessedIds = new Set(decision.readability.map((assessment) => assessment.candidateId));
-		if (decision.readability.length !== ids.size || assessedIds.size !== ids.size || decision.readability.some((assessment) => !ids.has(assessment.candidateId))) {
+		const readability = answer.readability.flatMap((assessment) => idsOf([assessment.candidate]).map((candidateId) => ({ candidateId, readable: assessment.readable })));
+		if (answer.readability.length !== idByLabel.size || new Set(readability.map((assessment) => assessment.candidateId)).size !== idByLabel.size) {
 			return invalidResponse("incomplete candidate readability");
 		}
-		const readableIds = new Set(decision.readability.filter((assessment) => assessment.readable).map((assessment) => assessment.candidateId));
+		const readableIds = new Set(readability.filter((assessment) => assessment.readable).map((assessment) => assessment.candidateId));
 		const eligibleIds = decision.kind === "winner" ? [decision.candidateId] : decision.kind === "tie" ? decision.candidateIds : [];
 		if (eligibleIds.some((id) => !readableIds.has(id)) || (decision.kind === "none" && readableIds.size > 0)) {
 			return invalidResponse("decision contradicts candidate readability");
 		}
-		return audited(decision, "completed", decision.readability);
+		return audited(decision, "completed", readability);
 	};
 	return { selectMostCompleteContent };
 }

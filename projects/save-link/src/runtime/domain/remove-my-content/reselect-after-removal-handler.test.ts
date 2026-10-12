@@ -23,7 +23,7 @@ function setup(overrides: Partial<Parameters<typeof initReselectAfterRemovalHand
 		if (transition === promoteTier) savedInputs.push(params.input);
 	};
 	const handler = initReselectAfterRemovalHandler({
-		listAvailableTierSources: async () => [source], selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidateId: source.metadata.id, reason: "surviving original", readability: [{ candidateId: source.metadata.id, readable: true }] }) } }] }) }).selectMostCompleteContent,
+		listAvailableTierSources: async () => [source], selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "surviving original", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
 		writeCanonicalContent: async () => ({ contentLocation: "s3://content/survivor.html", candidateId: source.metadata.id, originalUrl: URL, tier: source.tier }),
 		recordCrawlVersion: async () => {}, readCanonicalContent: async () => undefined, loadArticle: async () => article,
 		transitionAndPersist, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined, now: () => NOW, logger: noopLogger, ...overrides,

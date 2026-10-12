@@ -13,11 +13,11 @@ export const SELECT_CONTENT_SYSTEM_PROMPT = [
 	"Prefer complete coherent article prose with the least navigation, repeated chrome, signup text, or gibberish.",
 	"Prefer a slightly shorter body that drops chrome over a longer body that keeps it.",
 	"A tie is only for equally readable article candidates whose prose is identical or differs only cosmetically; media URL changes do not by themselves break a prose tie.",
-	'Every response must include "readability":[{"candidateId":"<id>","readable":true|false}] with exactly one assessment for every supplied candidate.',
+	'Every response must include "readability":[{"candidate":"<label>","readable":true|false}] with exactly one assessment for every supplied candidate.',
 	"Assess readability independently of ranking: a readable article can lose to a more complete readable article. Do not label a candidate unreadable merely because it loses.",
-	'Reply with strict JSON only, including readability alongside {"kind":"winner","candidateId":"<id>","reason":"<short>"},',
-	'{"kind":"tie","candidateIds":["<id>","<id>"],"reason":"<short>"}, or {"kind":"none","reason":"<short>"}.',
-	"Use only exact candidate IDs supplied below. A tie must name at least two readable candidates and exclude all unreadable candidates.",
+	'Reply with strict JSON only, including readability alongside {"kind":"winner","candidate":"<label>","reason":"<short>"},',
+	'{"kind":"tie","candidates":["<label>","<label>"],"reason":"<short>"}, or {"kind":"none","reason":"<short>"}.',
+	"Use only the candidate labels (A, B, …) shown below. A tie must name at least two readable candidates and exclude all unreadable candidates.",
 ].join(" ");
 
 export type SelectorCandidate = {
@@ -61,7 +61,7 @@ export function buildSelectContentUserMessage(params: {
 }): string {
 	const cap = perCandidateHtmlCap(params.candidates.length);
 	const lines: string[] = [`URL: ${params.url}`, ""];
-	params.candidates.forEach((candidate) => {
+	params.candidates.forEach((candidate, index) => {
 		const cleaned = condenseCandidateHtml(candidate.html, MAX_CONDENSE_INPUT_CHARS);
 		let body = cleaned;
 		if (cleaned.length > cap) {
@@ -72,10 +72,18 @@ export function buildSelectContentUserMessage(params: {
 			body = `${cleaned.slice(0, cap)}\n[truncated: showing the first ${cap} of ${cleaned.length} characters]`;
 		}
 		lines.push(
-			`--- candidate (id=${candidate.id}, contentHash=${createHash("sha256").update(candidate.html).digest("hex")}, tier=${candidate.tier}, HTTP=${candidate.httpStatus ?? "unknown"}, title ${JSON.stringify(candidate.title)}, words ${candidate.wordCount}) ---`,
+			`--- candidate ${labelForIndex(index)} (contentHash=${createHash("sha256").update(candidate.html).digest("hex")}, tier=${candidate.tier}, HTTP=${candidate.httpStatus ?? "unknown"}, title ${JSON.stringify(candidate.title)}, words ${candidate.wordCount}) ---`,
 			body,
 			"",
 		);
 	});
 	return lines.join("\n");
+}
+
+export function labelForIndex(index: number): string {
+	let label = "";
+	for (let remaining = index; remaining >= 0; remaining = Math.floor(remaining / 26) - 1) {
+		label = String.fromCharCode("A".charCodeAt(0) + (remaining % 26)) + label;
+	}
+	return label;
 }

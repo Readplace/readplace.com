@@ -5,6 +5,7 @@ import {
 	INPUT_TOKEN_BUDGET,
 	TOTAL_HTML_CHAR_BUDGET,
 	buildSelectContentUserMessage,
+	labelForIndex,
 	perCandidateHtmlCap,
 } from "./select-content-prompt";
 
@@ -119,5 +120,11 @@ describe("buildSelectContentUserMessage", () => {
 
 		const estimatedInputTokens = message.length / CHARS_PER_INPUT_TOKEN;
 		expect(estimatedInputTokens).toBeLessThan(INPUT_TOKEN_BUDGET);
+	});
+});
+
+describe("labelForIndex", () => {
+	it.each([[0, "A"], [1, "B"], [25, "Z"], [26, "AA"], [27, "AB"], [701, "ZZ"], [702, "AAA"]])("labels candidate %i as %s", (index, label) => {
+		expect(labelForIndex(index)).toBe(label);
 	});
 });
