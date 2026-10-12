@@ -16,7 +16,7 @@ const EmailRow = z.object({ from: z.string(), to: z.string(), subject: z.string(
 const NoticeRow = z.object({
 	userId: UserIdSchema, key: z.string(), senderEmail: ForwardableSenderSchema, accountEmail: GmailAccountEmailSchema,
 	gatewayAddress: InboxAddressSchema, mailboxId: z.string(), status: z.enum(["pending", "sending", "sent", "cancelled"]),
-	message: dynamoField(EmailRow), firstAttemptAt: dynamoField(z.number()), claimUntil: dynamoField(z.number()),
+	pendingSince: dynamoField(z.number()), message: dynamoField(EmailRow), firstAttemptAt: dynamoField(z.number()), claimUntil: dynamoField(z.number()),
 });
 const NoticeBatchRow = z.object({
 	userId: UserIdSchema, key: z.string(), status: z.enum(["idle", "sending"]), senders: dynamoField(z.array(ForwardableSenderSchema)),
@@ -77,7 +77,7 @@ export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClie
 				{ Put: { TableName: deps.tableName, Item: { userId: checkpoint.userId, key: `OBS#${checkpoint.mailboxId}#${observation.email}`, ...observation } } },
 				...(createNotice ? [{ Put: {
 					TableName: deps.tableName,
-					Item: { userId: checkpoint.userId, key: `NOTICE#${observation.email}`, senderEmail: observation.email, accountEmail: checkpoint.accountEmail, gatewayAddress: checkpoint.gatewayAddress, mailboxId: checkpoint.mailboxId, status: "pending" },
+					Item: { userId: checkpoint.userId, key: `NOTICE#${observation.email}`, senderEmail: observation.email, accountEmail: checkpoint.accountEmail, gatewayAddress: checkpoint.gatewayAddress, mailboxId: checkpoint.mailboxId, status: "pending", pendingSince: deps.now().getTime() },
 					ConditionExpression: replacePending ? "#status = :pending AND mailboxId = :mailbox AND gatewayAddress = :gateway AND accountEmail = :account" : "attribute_not_exists(userId) OR #status = :cancelled",
 					ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: replacePending ? { ":pending": "pending", ":mailbox": previousNotice.mailboxId, ":gateway": previousNotice.gatewayAddress, ":account": previousNotice.accountEmail } : { ":cancelled": "cancelled" },
 				} }] : []),

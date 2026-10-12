@@ -114,12 +114,12 @@ describe("approved Gmail newsletter notices", () => {
 		assert.deepEqual([await h.status(SENDER), await h.status(SECOND), await h.status(THIRD)], ["sent", "sent", "sent"]);
 		assert.deepEqual(h.published, [sentEvent(SECOND), sentEvent(SENDER), sentEvent(THIRD)]);
 	});
-	it("holds newsletters found within three days of the last notice, then sends them together in one email", async () => {
+	it("holds newsletters found within seven days of the last notice, then sends them together in one email", async () => {
 		const h = await harness();
 		await h.run();
 		await h.observe(SECOND);
 		await h.observe(THIRD);
-		h.advance(3 * DAY_MS - 1);
+		h.advance(7 * DAY_MS - 1);
 		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.equal(h.sent.length, 1);
 		assert.equal(await h.status(SECOND), "pending");
@@ -280,7 +280,7 @@ describe("approved Gmail newsletter notices", () => {
 		assert.equal(h.sent.length, 1);
 		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
 		assert.equal(await h.status(SECOND), "pending");
-		h.advance(3 * DAY_MS);
+		h.advance(7 * DAY_MS);
 		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.equal(h.sent[1]?.subject, "Choose readlists for Another Digest");
 	});
@@ -298,16 +298,48 @@ describe("approved Gmail newsletter notices", () => {
 		assert.equal(await h.status(SENDER), "cancelled");
 		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
 	});
-	it("reads every page of a reader's waiting notices", async () => {
+	it("reads every page of a reader's waiting notices before choosing the ten pending longest", async () => {
 		const h = await harness();
-		const bulk = Array.from({ length: 26 }, (_, index) => ForwardableSenderSchema.parse(`news${String(index).padStart(2, "0")}@bulk.example`));
-		for (const senderEmail of bulk) await h.observe(senderEmail);
+		const bulk = Array.from({ length: 29 }, (_, index) => ForwardableSenderSchema.parse(`news${String(index).padStart(2, "0")}@bulk.example`));
+		for (const senderEmail of bulk) { h.advance(60_000); await h.observe(senderEmail); }
+		for (const senderEmail of bulk.slice(0, 18)) await h.mappings.addSenderToFilter({ userId: USER, accountEmail: ACCOUNT, senderEmail });
 		h.deps.detectNewsletters = recognizing([[SENDER, "Example Letter"], ...bulk.map((senderEmail): [ForwardableSender, string | undefined] => [senderEmail, undefined])]);
 		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.equal(h.sent.length, 1);
-		assert.equal(h.sent[0].subject, "Choose readlists for 27 newsletters");
-		assert.deepEqual(new Set(links(h.sent[0].html).map((link) => link.sender)), new Set([SENDER, ...bulk, null]));
-		assert.deepEqual(await Promise.all([SENDER, ...bulk].map((senderEmail) => h.status(senderEmail))), Array.from({ length: 27 }, () => "sent"));
+		assert.equal(h.sent[0].subject, "Choose readlists for 10 newsletters");
+		assert.deepEqual(new Set(links(h.sent[0].html).map((link) => link.sender)), new Set([SENDER, ...bulk.slice(18, 27), null]));
+		assert.deepEqual(await Promise.all(bulk.slice(0, 18).map((senderEmail) => h.status(senderEmail))), Array.from({ length: 18 }, () => "cancelled"));
+		assert.deepEqual(await Promise.all([SENDER, ...bulk.slice(18, 27)].map((senderEmail) => h.status(senderEmail))), Array.from({ length: 10 }, () => "sent"));
+		assert.deepEqual(await Promise.all(bulk.slice(27).map((senderEmail) => h.status(senderEmail))), ["pending", "pending"]);
+		assert.deepEqual(h.published, [
+			...bulk.slice(0, 18).map((senderEmail) => ({ event: GmailNewsletterNoticeProcessedEvent, detail: { userId: USER, senderEmail, outcome: "suppressed" } })),
+			...[SENDER, ...bulk.slice(18, 27)].map(sentEvent),
+		]);
+	});
+	it("sends the ten newsletters pending longest, keeps the rest pending, and lists them in the next weekly email", async () => {
+		const h = await harness();
+		const bulk = Array.from({ length: 11 }, (_, index) => ForwardableSenderSchema.parse(`news${String(index).padStart(2, "0")}@bulk.example`));
+		for (const senderEmail of bulk) { h.advance(60 * 60 * 1_000); await h.observe(senderEmail); }
+		h.deps.detectNewsletters = recognizing([[SENDER, "Example Letter"], ...bulk.map((senderEmail): [ForwardableSender, string | undefined] => [senderEmail, undefined])]);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 1);
+		assert.equal(h.sent[0].subject, "Choose readlists for 10 newsletters");
+		assert.deepEqual(new Set(links(h.sent[0].html).map((link) => link.sender)), new Set([SENDER, ...bulk.slice(0, 9), null]));
+		assert.match(h.sent[0].text ?? "", /2 more newsletters are waiting and will be in your next email in about 7 days\./);
+		assert.deepEqual(await Promise.all(bulk.slice(9).map((senderEmail) => h.status(senderEmail))), ["pending", "pending"]);
+		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
+		assert.deepEqual(h.published, [SENDER, ...bulk.slice(0, 9)].map(sentEvent));
+		h.advance(7 * DAY_MS - 1);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 1);
+		h.advance(1);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 2);
+		assert.equal(h.sent[1].subject, "Choose readlists for 2 newsletters");
+		assert.deepEqual(links(h.sent[1].html).map((link) => link.sender), [bulk[9], bulk[10], null]);
+		assert.doesNotMatch(h.sent[1].text ?? "", /more newsletter/);
+		assert.deepEqual(await Promise.all([SENDER, ...bulk].map((senderEmail) => h.status(senderEmail))), Array.from({ length: 12 }, () => "sent"));
+		assert.deepEqual(h.published, [SENDER, ...bulk].map(sentEvent));
 	});
 	it("fails malformed records independently of valid tagged EventBridge commands", async () => {
 		const h = await harness();

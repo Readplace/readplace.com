@@ -52,7 +52,7 @@ export function initInMemoryGmailMonitoring(deps: { now: () => Date }): GmailMon
 				receipts.set(observation.email, {
 					userId: checkpoint.userId, senderEmail: observation.email,
 					accountEmail: checkpoint.accountEmail, gatewayAddress: checkpoint.gatewayAddress,
-					mailboxId: checkpoint.mailboxId, status: "pending", message: undefined,
+					mailboxId: checkpoint.mailboxId, status: "pending", pendingSince: deps.now().getTime(), message: undefined,
 					firstAttemptAt: undefined, claimUntil: undefined,
 				});
 				notices.set(checkpoint.userId, receipts);

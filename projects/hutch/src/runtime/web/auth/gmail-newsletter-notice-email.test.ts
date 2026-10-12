@@ -12,8 +12,8 @@ const newsletter = (overrides: Partial<GmailNewsletterNoticeItem> = {}): GmailNe
 	choiceUrl: "https://readplace.com/newsletters/gmail?sender=letter%40example.com",
 	...overrides,
 });
-const notice = (newsletters: GmailNewsletterNoticeItem[]) =>
-	GmailNewsletterNoticeEmail({ founderAvatarUrl: "https://static.readplace.com/fayner-brack.jpg", newsletters, gmailUrl: GMAIL_URL });
+const notice = (newsletters: GmailNewsletterNoticeItem[], waiting = 0) =>
+	GmailNewsletterNoticeEmail({ founderAvatarUrl: "https://static.readplace.com/fayner-brack.jpg", newsletters, gmailUrl: GMAIL_URL, waiting });
 const footerOf = (html: string) => {
 	const paragraphs = [...new JSDOM(html).window.document.querySelectorAll("p")];
 	return paragraphs[paragraphs.length - 1]?.textContent;
@@ -42,7 +42,7 @@ describe("GmailNewsletterNoticeEmail", () => {
 		expect(footerOf(email.to("text/html"))).toBe("You are receiving this email because you haven't mapped this newsletter to a readlist. This is a one-time notification for letter@example.com.");
 	});
 
-	it("lists several newsletters, each linked to its own readlist choice, and points the button at the Gmail page", () => {
+	it("lists several newsletters, each linked to its own readlist choice, points the button at the Gmail page, and says nothing about waiting newsletters when none wait", () => {
 		const email = notice([
 			newsletter(),
 			newsletter({ newsletterName: undefined, senderEmail: "news@wildcard.example", choiceUrl: "https://readplace.com/newsletters/gmail?sender=news%40wildcard.example" }),
@@ -66,6 +66,38 @@ describe("GmailNewsletterNoticeEmail", () => {
 			["news@wildcard.example", "https://readplace.com/newsletters/gmail?sender=news%40wildcard.example"],
 			["Choose readlists", GMAIL_URL],
 		]);
+		expect(new JSDOM(email.to("text/html")).window.document.querySelector("a")?.closest("table")?.nextElementSibling?.textContent).toBe(`Choose readlists for a newsletter and Save to send its future emails to Readplace, which saves every eligible article to All and to any other readlists you choose. ${IMPORT_SENTENCE}`);
+	});
+
+	it.each([
+		[1, "1 more newsletter is waiting and will be in your next email in about 7 days."],
+		[3, "3 more newsletters are waiting and will be in your next email in about 7 days."],
+	])("says %i more newsletters wait for the next email, between the list and the paragraph", (waiting, sentence) => {
+		const email = notice([
+			newsletter(),
+			newsletter({ newsletterName: undefined, senderEmail: "news@wildcard.example", choiceUrl: "https://readplace.com/newsletters/gmail?sender=news%40wildcard.example" }),
+		], waiting);
+
+		expect(email.to("text/plain")).toBe([
+			"Readplace recognizes 2 newsletters in your Gmail that are ready to connect to your readlists:",
+			"Example Letter (letter@example.com): https://readplace.com/newsletters/gmail?sender=letter%40example.com",
+			"news@wildcard.example: https://readplace.com/newsletters/gmail?sender=news%40wildcard.example",
+			sentence,
+			`Choose readlists for a newsletter and Save to send its future emails to Readplace, which saves every eligible article to All and to any other readlists you choose. ${IMPORT_SENTENCE}`,
+			`Choose readlists: ${GMAIL_URL}`,
+			REPLY,
+			SIGNOFF,
+			"You are receiving this email because you haven't mapped these newsletters to a readlist. This is a one-time notification for each of them.",
+		].join("\n\n"));
+		const html = email.to("text/html");
+		const listTable = new JSDOM(html).window.document.querySelector("a")?.closest("table");
+		expect(listTable?.nextElementSibling?.tagName).toBe("P");
+		expect(listTable?.nextElementSibling?.textContent).toBe(sentence);
+		expect(footerOf(html)).toBe("You are receiving this email because you haven't mapped these newsletters to a readlist. This is a one-time notification for each of them.");
+	});
+
+	it("refuses a single-newsletter notice that says more are waiting", () => {
+		expect(() => notice([newsletter()], 1)).toThrow("A single-newsletter Gmail notice never leaves newsletters waiting");
 	});
 
 	it("refuses to build a notice without a newsletter", () => {

@@ -34,6 +34,7 @@ export interface GmailNewsletterNotice {
 	gatewayAddress: InboxAddress;
 	mailboxId: string;
 	status: "pending" | "sending" | "sent" | "cancelled";
+	pendingSince: number | undefined;
 	message: EmailMessage | undefined;
 	firstAttemptAt: number | undefined;
 	claimUntil: number | undefined;

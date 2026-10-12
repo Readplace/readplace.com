@@ -22,7 +22,7 @@ const CHECKPOINT: GmailMonitoringCheckpoint = {
 const MESSAGE: EmailMessage = { from: "Readplace <hello@readplace.com>", to: "reader@example.com", subject: "Choose a readlist", html: "<p>Newsletter</p>", idempotencyKey: "newsletter/key-1" };
 const NOTICE: GmailNewsletterNotice = {
 	userId: USER, senderEmail: SENDER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY,
-	mailboxId: CHECKPOINT.mailboxId, status: "pending", message: undefined,
+	mailboxId: CHECKPOINT.mailboxId, status: "pending", pendingSince: NOW.getTime() - 24 * 60 * 60 * 1_000, message: undefined,
 	firstAttemptAt: undefined, claimUntil: undefined,
 };
 
@@ -65,6 +65,13 @@ describe("initDynamoDbGmailMonitoring", () => {
 			{ TableName: TABLE, Key: { userId: USER, key: `OBS#mailbox-1#${SENDER}` }, ConsistentRead: true },
 			{ TableName: TABLE, Key: { userId: USER, key: `NOTICE#${SENDER}` }, ConsistentRead: true },
 		]);
+	});
+
+	it("reads a notice row written before pendingSince was recorded", async () => {
+		const h = harness([{ Item: { userId: USER, key: `NOTICE#${SENDER}`, senderEmail: SENDER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, mailboxId: CHECKPOINT.mailboxId, status: "pending" } }]);
+		const notice = await h.store.findNotice({ userId: USER, senderEmail: SENDER });
+		assert.equal(notice?.status, "pending");
+		assert.equal(notice?.pendingSince, undefined);
 	});
 
 	it("starts only an absent state and fences replacement runs and page completion on the old generation and page", async () => {
@@ -122,7 +129,7 @@ describe("initDynamoDbGmailMonitoring", () => {
 		const transaction = z.array(z.object({ ConditionCheck: z.unknown().optional(), Put: z.record(z.string(), z.unknown()).optional() })).parse(h.commands[1].TransactItems);
 		assert.equal(transaction.length, 3);
 		expect(transaction[2].Put).toMatchObject({
-			Item: { userId: USER, key: `NOTICE#${SENDER}`, senderEmail: SENDER, mailboxId: "mailbox-1", accountEmail: ACCOUNT, gatewayAddress: GATEWAY, status: "pending" },
+			Item: { userId: USER, key: `NOTICE#${SENDER}`, senderEmail: SENDER, mailboxId: "mailbox-1", accountEmail: ACCOUNT, gatewayAddress: GATEWAY, status: "pending", pendingSince: NOW.getTime() },
 			ConditionExpression: "attribute_not_exists(userId) OR #status = :cancelled",
 			ExpressionAttributeValues: { ":cancelled": "cancelled" },
 		});
@@ -146,7 +153,7 @@ describe("initDynamoDbGmailMonitoring", () => {
 		assert.equal(transaction.length, 3);
 		const noticeWrite = transaction[2].Put;
 		assert(noticeWrite);
-		expect(noticeWrite.Item).toMatchObject({ mailboxId: checkpoint.mailboxId, accountEmail: checkpoint.accountEmail, gatewayAddress: checkpoint.gatewayAddress, status: "pending" });
+		expect(noticeWrite.Item).toMatchObject({ mailboxId: checkpoint.mailboxId, accountEmail: checkpoint.accountEmail, gatewayAddress: checkpoint.gatewayAddress, status: "pending", pendingSince: NOW.getTime() });
 		assert.match(String(noticeWrite.ConditionExpression), /#status = :pending/);
 		assert.match(String(noticeWrite.ConditionExpression), /mailboxId/);
 		assert.match(String(noticeWrite.ConditionExpression), /accountEmail/);

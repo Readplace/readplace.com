@@ -76,6 +76,7 @@ describe("initInMemoryGmailMonitoring", () => {
 		await store.observeSender({ checkpoint: CHECKPOINT, observation: { email: SENDER, name: "Newsletter", approved: true }, notify: true });
 		const pending = await store.findNotice({ userId: USER, senderEmail: SENDER });
 		assert(pending);
+		assert.equal(pending.pendingSince, NOW.getTime());
 		assert.equal(await store.claimNotice({ notice: { ...pending, mailboxId: "old-mailbox" }, message: MESSAGE }), undefined);
 		assert.equal(await store.claimNotice({ notice: { ...pending, senderEmail: ForwardableSenderSchema.parse("missing@example.com") }, message: MESSAGE }), undefined);
 		const first = await store.claimNotice({ notice: pending, message: MESSAGE });
@@ -132,7 +133,7 @@ describe("initInMemoryGmailMonitoring", () => {
 	});
 
 	it("reopens only unsent cancelled notices when a sender qualifies again", async () => {
-		const { store } = fixture();
+		const { store, advance } = fixture();
 		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });
 		const observation = { email: SENDER, name: undefined, approved: true };
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: true });
@@ -147,8 +148,11 @@ describe("initInMemoryGmailMonitoring", () => {
 		assert.equal(await store.claimNotice({ notice: cancelled, message: MESSAGE }), undefined);
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: false });
 		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "cancelled");
+		advance(60_000);
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: true });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "pending");
+		const reopened = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		assert.equal(reopened?.status, "pending");
+		assert.equal(reopened?.pendingSince, NOW.getTime() + 60_000);
 	});
 
 	it("rejects a stale mailbox claim after an unsent notice is replaced by a reconnected mailbox", async () => {
@@ -173,7 +177,7 @@ describe("initInMemoryGmailMonitoring", () => {
 		{ gatewayAddress: InboxAddressSchema.parse("gmail-new123@read.place") },
 		{ accountEmail: GmailAccountEmailSchema.parse("other@gmail.com") },
 	])("replaces an eligible pending notice for a changed connection while rejecting stale claims: %p", async (changed) => {
-		const { store } = fixture();
+		const { store, advance } = fixture();
 		const observation = { email: SENDER, name: undefined, approved: true };
 		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: true });
@@ -183,10 +187,12 @@ describe("initInMemoryGmailMonitoring", () => {
 		await store.startRun({ checkpoint: next, previous: CHECKPOINT });
 		await store.observeSender({ checkpoint: next, observation, notify: false });
 		assert.deepEqual(await store.findNotice({ userId: USER, senderEmail: SENDER }), oldNotice);
+		advance(1_000);
 		await store.observeSender({ checkpoint: next, observation, notify: true });
 		const pending = await store.findNotice({ userId: USER, senderEmail: SENDER });
 		assert(pending);
 		assert.equal(pending.status, "pending");
+		assert.equal(pending.pendingSince, NOW.getTime() + 1_000);
 		assert.equal(pending.mailboxId, next.mailboxId);
 		assert.equal(pending.gatewayAddress, next.gatewayAddress);
 		assert.equal(pending.accountEmail, next.accountEmail);
@@ -246,7 +252,7 @@ describe("initInMemoryGmailMonitoring", () => {
 		assert.deepEqual((await store.listNotices({ userId: USER })).notices, []);
 		assert.equal((await store.listNotices({ userId: OTHER })).notices.length, 25);
 		assert.equal((await store.listObservations({ userId: OTHER, mailboxId: CHECKPOINT.mailboxId })).observations.length, 25);
-		const missing: GmailNewsletterNotice = { userId: USER, senderEmail: SENDER, accountEmail: ACCOUNT, gatewayAddress: CHECKPOINT.gatewayAddress, mailboxId: CHECKPOINT.mailboxId, status: "pending", message: undefined, firstAttemptAt: undefined, claimUntil: undefined };
+		const missing: GmailNewsletterNotice = { userId: USER, senderEmail: SENDER, accountEmail: ACCOUNT, gatewayAddress: CHECKPOINT.gatewayAddress, mailboxId: CHECKPOINT.mailboxId, status: "pending", pendingSince: undefined, message: undefined, firstAttemptAt: undefined, claimUntil: undefined };
 		assert.equal(await store.claimNotice({ notice: missing, message: MESSAGE }), undefined);
 	});
 });

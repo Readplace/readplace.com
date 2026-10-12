@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { GMAIL_HISTORY_IMPORT_WINDOW_DAYS } from "@packages/domain/gmail";
 import { render } from "@packages/web-shell";
+import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS } from "../../domain/gmail/gmail-newsletter-notice-cadence";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { EMAIL_REPLY_INVITATION } from "../email-copy";
 
@@ -41,8 +42,15 @@ function groupCopy(count: number) {
 	};
 }
 
-export function GmailNewsletterNoticeEmail(input: { founderAvatarUrl: string; newsletters: readonly GmailNewsletterNoticeItem[]; gmailUrl: string }) {
+function waitingCopy(waiting: number): { text: string }[] {
+	if (waiting === 0) return [];
+	if (waiting === 1) return [{ text: `1 more newsletter is waiting and will be in your next email in about ${GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS} days.` }];
+	return [{ text: `${waiting} more newsletters are waiting and will be in your next email in about ${GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS} days.` }];
+}
+
+export function GmailNewsletterNoticeEmail(input: { founderAvatarUrl: string; newsletters: readonly GmailNewsletterNoticeItem[]; gmailUrl: string; waiting: number }) {
 	assert(input.newsletters.length > 0, "A Gmail newsletter notice lists at least one newsletter");
+	assert(input.newsletters.length > 1 || input.waiting === 0, "A single-newsletter Gmail notice never leaves newsletters waiting");
 	const [first] = input.newsletters;
 	const shared = { founderAvatarUrl: input.founderAvatarUrl, ctaLabel: CTA_LABEL, replyLine: EMAIL_REPLY_INVITATION, signoff: SIGNOFF, colors: EMAIL_COLORS, fontStack: EMAIL_FONT_STACK };
 	if (input.newsletters.length === 1) {
@@ -56,6 +64,7 @@ export function GmailNewsletterNoticeEmail(input: { founderAvatarUrl: string; ne
 		};
 	}
 	const copy = groupCopy(input.newsletters.length);
+	const notes = waitingCopy(input.waiting);
 	const items = input.newsletters.map((newsletter) => ({
 		url: newsletter.choiceUrl,
 		lines: newsletter.newsletterName === undefined
@@ -68,10 +77,11 @@ export function GmailNewsletterNoticeEmail(input: { founderAvatarUrl: string; ne
 	return {
 		subject: copy.subject,
 		to(mediaType: "text/html" | "text/plain"): string {
-			if (mediaType === "text/html") return render(TEMPLATE, { ...shared, subject: copy.subject, openings: [], lists: [{ introLine: copy.introLine, items }], paragraph: copy.paragraph, ctaUrl: input.gmailUrl, footer: copy.footer });
+			if (mediaType === "text/html") return render(TEMPLATE, { ...shared, subject: copy.subject, openings: [], lists: [{ introLine: copy.introLine, items, notes }], paragraph: copy.paragraph, ctaUrl: input.gmailUrl, footer: copy.footer });
 			return [
 				copy.introLine,
 				...items.map((item) => item.plain),
+				...notes.map((note) => note.text),
 				copy.paragraph,
 				`${CTA_LABEL}: ${input.gmailUrl}`,
 				EMAIL_REPLY_INVITATION,

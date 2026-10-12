@@ -15,12 +15,13 @@ import type { Handler, SQSEvent, SQSBatchResponse, SQSBatchItemFailure } from "a
 import { GMAIL_PATH } from "../../web/pages/integrations/gmail.url";
 import { GmailNewsletterNoticeEmail } from "../../web/auth/gmail-newsletter-notice-email";
 import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS } from "./gmail-newsletter-notice-cadence";
+import { selectGmailNewsletterNotices } from "./gmail-newsletter-notice-selection";
 
 const RETRY_WINDOW_MS = 24 * 60 * 60 * 1_000 - 5 * 60 * 1_000;
 const NOTICE_INTERVAL_MS = GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS * 24 * 60 * 60 * 1_000;
 const Envelope = z.object({ "detail-type": z.literal(SendGmailNewsletterNoticeCommand.detailType).optional(), detail: SendGmailNewsletterNoticeCommand.detailSchema });
 
-type EligibleNewsletter = { senderEmail: ForwardableSender; newsletterName: string | undefined };
+type EligibleNewsletter = { senderEmail: ForwardableSender; newsletterName: string | undefined; pendingSince: number | undefined };
 
 export function initSendGmailNewsletterNoticeHandler(deps: {
 	monitoring: GmailMonitoringStore;
@@ -95,19 +96,20 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 				await deps.monitoring.cancelNotice({ userId, senderEmail: notice.senderEmail });
 				await publish({ userId, senderEmail: notice.senderEmail, outcome: "suppressed" });
 			} else {
-				eligible.push({ senderEmail: notice.senderEmail, newsletterName: recognition.name });
+				eligible.push({ senderEmail: notice.senderEmail, newsletterName: recognition.name, pendingSince: notice.pendingSince });
 			}
 		}
 		return { eligible, email };
 	}
 
-	function noticeMessage(input: { userId: UserId; email: string; eligible: EligibleNewsletter[] }): { senders: ForwardableSender[]; message: EmailMessage } {
+	function noticeMessage(input: { userId: UserId; email: string; eligible: EligibleNewsletter[]; waiting: number }): { senders: ForwardableSender[]; message: EmailMessage } {
 		const ordered = [...input.eligible].sort((a, b) => (a.newsletterName ?? a.senderEmail).localeCompare(b.newsletterName ?? b.senderEmail));
 		const senders = ordered.map((newsletter) => newsletter.senderEmail);
 		const component = GmailNewsletterNoticeEmail({
 			founderAvatarUrl: deps.founderAvatarUrl,
 			newsletters: ordered.map((newsletter) => ({ ...newsletter, choiceUrl: gmailUrl(newsletter.senderEmail) })),
 			gmailUrl: gmailUrl(undefined),
+			waiting: input.waiting,
 		});
 		return {
 			senders,
@@ -144,7 +146,8 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		const { eligible, email } = await eligibleNewsletters(userId, pending);
 		if (eligible.length === 0) return;
 		assert(email !== null, "Eligible Gmail newsletter notices always have an account email");
-		await claimAndDeliver({ userId, ...noticeMessage({ userId, email, eligible }) });
+		const { listed, waiting } = selectGmailNewsletterNotices(eligible);
+		await claimAndDeliver({ userId, ...noticeMessage({ userId, email, eligible: listed, waiting }) });
 	}
 
 	async function resendUngroupedClaim(userId: UserId, notice: GmailNewsletterNotice): Promise<void> {
