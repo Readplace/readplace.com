@@ -22,12 +22,17 @@ import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
+import {
+	TABLE_OF_CONTENTS_SCRIPT,
+	isTableOfContentsVisible,
+} from "../../shared/article-body/table-of-contents/table-of-contents.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
+import { railLandmarkFor } from "../../shared/reading-layout/rail-landmark";
 import { viewPathFor } from "./view-path";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
@@ -148,8 +153,22 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		readerNotice: input.readerNotice,
 	});
 	const crawlVersions = input.crawlVersions ?? [];
-	const rails =
-		crawlVersions.length > 0 ? [{ html: renderArticleRail({ crawlVersions }) }] : [];
+	const railLandmark = railLandmarkFor({
+		hasCard:
+			crawlVersions.length > 0 ||
+			isTableOfContentsVisible({
+				crawl: input.crawl,
+				content: input.content,
+				notice: input.readerNotice,
+			}),
+	});
+	const railHtml = renderArticleRail({
+		crawl: input.crawl,
+		content: input.content,
+		readerNotice: input.readerNotice,
+		appOrigin: input.appOrigin,
+		crawlVersions,
+	});
 
 	const viewPath = viewPathFor(input.articleUrl);
 	const shareableViewUrl = `${input.appOrigin}${viewPath}`;
@@ -172,7 +191,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 
 	const content = render(VIEW_TEMPLATE, {
 		innerContent,
-		rails,
+		railLandmark,
+		railHtml,
 		articleUrl: input.articleUrl,
 		ctaItems,
 		saveTipHtml: input.saveTip.html,
@@ -222,7 +242,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			navHide: NAV_HIDE_DISABLED,
 			page:
 				SHARE_BALLOON_SCRIPT +
-				SAVE_TIP_SCRIPT,
+				SAVE_TIP_SCRIPT +
+				TABLE_OF_CONTENTS_SCRIPT,
 		}),
 	};
 }

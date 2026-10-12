@@ -64,6 +64,16 @@ const PARAGRAPH_CLASSES = [
 
 const RULE_CLASSES = ["ocr-page-break"];
 
+export const ARTICLE_SECTION_ID_PREFIX = "section-";
+
+const keepOnlySectionId: sanitizeHtml.Transformer = (tagName, attribs) => {
+	const { id = "", ...rest } = attribs;
+	return {
+		tagName,
+		attribs: id.startsWith(ARTICLE_SECTION_ID_PREFIX) ? { ...rest, id } : rest,
+	};
+};
+
 const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 	allowedTags: ALLOWED_TAGS,
 	allowedAttributes: {
@@ -71,6 +81,8 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 		img: ["src", "srcset", "sizes", "alt", "width", "height", "loading"],
 		td: ["colspan", "rowspan"],
 		th: ["colspan", "rowspan"],
+		h2: ["id"],
+		h3: ["id"],
 		p: ["class"],
 		hr: ["class"],
 	},
@@ -87,6 +99,8 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 			"href" in attribs
 				? { tagName, attribs }
 				: { tagName: "span", attribs: {} },
+		h2: keepOnlySectionId,
+		h3: keepOnlySectionId,
 	},
 };
 

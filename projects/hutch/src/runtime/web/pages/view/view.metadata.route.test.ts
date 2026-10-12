@@ -882,6 +882,9 @@ describe("View routes", () => {
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("unsupported");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
+			const tableOfContents = doc.querySelector("[data-test-reader-rail] > #table-of-contents");
+			assert(tableOfContents, "the table of contents must render in the rail");
+			expect(tableOfContents.getAttribute("data-test-table-of-contents")).toBe("hidden");
 		});
 
 		it("primes the async crawl pipeline regardless of eventual parse outcome (worker owns failure handling)", async () => {
@@ -1046,7 +1049,16 @@ describe("View routes", () => {
 
 			const layout = doc.querySelector("main.view > .reading-layout");
 			assert(layout, "the reading layout must render");
-			expect(Array.from(layout.children, (child) => child.className)).toEqual(["reading-layout__main"]);
+			expect(Array.from(layout.children, (child) => child.className)).toEqual([
+				"reading-layout__main",
+				"reading-layout__rail",
+			]);
+			const rail = layout.querySelector(":scope > [data-test-reader-rail]");
+			assert(rail, "the rail must render so a poll has a target");
+			expect([
+				rail.tagName,
+				Array.from(rail.children, (child) => child.getAttribute("data-test-table-of-contents")),
+			]).toEqual(["DIV", ["hidden"]]);
 			expect(doc.querySelectorAll("[data-test-article-history-version]").length).toBe(0);
 
 			expect(response.text).not.toContain(SEEDED_INBOX_TITLE);

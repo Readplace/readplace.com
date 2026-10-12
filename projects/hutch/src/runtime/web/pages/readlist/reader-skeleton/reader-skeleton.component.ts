@@ -5,6 +5,7 @@ import type { CspNonce } from "@packages/web-shell";
 import { ARTICLE_FRAME_STYLES } from "../../../shared/article-body/article-frame.styles";
 import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-actions/reader-actions.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
+import { TABLE_OF_CONTENTS_SCRIPT } from "../../../shared/article-body/table-of-contents/table-of-contents.component";
 import { NEXT_READ_SCRIPT } from "../../../shared/next-read/next-read.component";
 import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
 import { SHARE_DIALOG_SCRIPT } from "../../../shared/share-dialog/share-dialog.component";
@@ -32,7 +33,8 @@ export const READER_PAGE_SCRIPTS =
 	READER_EXIT_CONFIRM_SCRIPT +
 	READER_OPEN_SCRIPT +
 	OFFLINE_READER_SCRIPT +
-	READER_TOP_SCRIPT;
+	READER_TOP_SCRIPT +
+	TABLE_OF_CONTENTS_SCRIPT;
 
 export function renderReaderSkeleton(options: { cspNonce: CspNonce }): string {
 	return render(TEMPLATE, {

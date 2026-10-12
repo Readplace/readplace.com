@@ -15,6 +15,16 @@
   margin-top: 16px;
 }
 
+.admin-recrawl__rail:not(:has(> :not(.table-of-contents--hidden))) {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .admin-recrawl__rail:not(:has(> :not(.table-of-contents))) {
+    display: none;
+  }
+}
+
 .admin-recrawl__tier-badge {
   display: inline-block;
   margin: 0 0 1rem;

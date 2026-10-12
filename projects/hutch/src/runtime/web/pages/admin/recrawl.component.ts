@@ -10,6 +10,7 @@ import { type CspNonce, DISTRACTION_FREE_BODY_CLASS, type PageBody } from "@pack
 import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
 import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
+import { TABLE_OF_CONTENTS_SCRIPT } from "../../shared/article-body/table-of-contents/table-of-contents.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 import { displayableReadTime } from "@packages/domain/article";
@@ -112,12 +113,17 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 	});
-	const railHtml = renderArticleRail({ crawlVersions: input.crawlVersions });
-	const rail = railHtml === "" ? "" : `<div class="admin-recrawl__rail">${railHtml}</div>`;
+	const railHtml = renderArticleRail({
+		crawl: input.crawl,
+		content: input.content,
+		readerNotice: undefined,
+		appOrigin: input.appOrigin,
+		crawlVersions: input.crawlVersions,
+	});
 
 	const tierBadge = renderTierBadge(input.contentSourceTier);
 	const recrawlForm = renderRecrawlForm(input.recrawlFormAction);
-	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<div class="admin-recrawl__body" data-article-body>${innerContent}</div>${rail}</main>`;
+	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<div class="admin-recrawl__body" data-article-body>${innerContent}</div><div class="admin-recrawl__rail">${railHtml}</div></main>`;
 	const triggerScript =
 		input.recrawlFormAction === undefined ? "" : recrawlTriggerScript(input.cspNonce);
 
@@ -133,7 +139,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		content: { html: content },
 		scripts: readerScripts({
 			navHide: NAV_HIDE_DISABLED,
-			page: triggerScript,
+			page: triggerScript + TABLE_OF_CONTENTS_SCRIPT,
 		}),
 	};
 }

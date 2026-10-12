@@ -68,7 +68,7 @@
   visibility: visible;
 }
 
-.reading-layout__rail:not(:has(> :not(.reading-layout__top, .past-reads--hidden, noscript, template))) > noscript {
+.reading-layout__rail:not(:has(> :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, noscript, template))) > noscript {
   display: none;
 }
 
@@ -112,22 +112,22 @@
   }
 
   .reading-layout--with-rail-card,
-  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, noscript, template)) {
+  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, noscript, template)) {
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 
   .reading-layout--with-rail-card > :not(.reading-layout__rail),
-  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, noscript, template)) > :not(.reading-layout__rail) {
+  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, noscript, template)) > :not(.reading-layout__rail) {
     grid-column: 1;
   }
 
-  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, noscript, template)) > .reading-layout__rail {
+  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, noscript, template)) > .reading-layout__rail {
     grid-column: 2;
   }
 }
 
 @media (max-width: 1023px) {
-  .reading-layout__rail:not(:has(> :not(.reading-layout__top, .past-reads--hidden, noscript, template))) {
+  .reading-layout__rail:not(:has(> :not(.reading-layout__top, .past-reads--hidden, .table-of-contents, noscript, template))) {
     display: none;
   }
 

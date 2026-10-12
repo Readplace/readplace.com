@@ -30,6 +30,11 @@ import {
 import type { ArticleHistoryRemoval } from "../../shared/article-body/article-history/article-history.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../shared/article-body/summary-slot/summary-slot.component";
+import {
+	TABLE_OF_CONTENTS_SCRIPT,
+	isTableOfContentsVisible,
+} from "../../shared/article-body/table-of-contents/table-of-contents.component";
+import { railLandmarkFor } from "../../shared/reading-layout/rail-landmark";
 import { READER_OPEN_SCRIPT } from "../../shared/reader-open/reader-open-script";
 import {
 	NEXT_READ_SCRIPT,
@@ -78,11 +83,6 @@ function markReadPostUrl({
 	utmContent,
 }: { articleId: string; utmContent: string }): string {
 	return withInternalTracking(`/queue/${articleId}/status`, { source: "reader", content: utmContent });
-}
-
-interface RailLandmark {
-	tag: "aside" | "div";
-	attributes: { name: "aria-label"; value: string }[];
 }
 
 function buildExitConfirmHtml(input: {
@@ -194,13 +194,21 @@ export function ReaderPage(
 					now: options.now,
 					readerPathForReadlist: options.readerPathForReadlist,
 				};
-	const hasRailCard =
-		(options.crawlVersions ?? []).length > 0 ||
-		(pastReadsInput !== undefined && hasVisiblePastReads(pastReadsInput));
-	const railLandmark: RailLandmark = hasRailCard
-		? { tag: "aside", attributes: [{ name: "aria-label", value: "Article details" }] }
-		: { tag: "div", attributes: [] };
+	const railLandmark = railLandmarkFor({
+		hasCard:
+			(options.crawlVersions ?? []).length > 0 ||
+			(pastReadsInput !== undefined && hasVisiblePastReads(pastReadsInput)) ||
+			isTableOfContentsVisible({
+				crawl: options.crawl,
+				content: article.content,
+				notice: options.readerNotice,
+			}),
+	});
 	const railHtml = renderArticleRail({
+		crawl: options.crawl,
+		content: article.content,
+		readerNotice: options.readerNotice,
+		appOrigin: options.appOrigin,
 		crawlVersions: options.crawlVersions,
 		articleHistoryRemoval: options.articleHistoryRemoval,
 		offlineCopyRow: options.offlineCopyRow,
@@ -297,7 +305,8 @@ export function ReaderPage(
 				(readlistCreateHtml === "" ? "" : READLIST_CLIENT_SCRIPT) +
 				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
 				READER_OPEN_SCRIPT +
-				READER_TOP_SCRIPT,
+				READER_TOP_SCRIPT +
+				TABLE_OF_CONTENTS_SCRIPT,
 		}),
 	};
 }

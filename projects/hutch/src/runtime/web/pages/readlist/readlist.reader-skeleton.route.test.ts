@@ -14,6 +14,7 @@ const READER_PAGE_BUNDLES = [
 	"/client-dist/reader-open.client.js",
 	"/client-dist/offline-reader.client.js",
 	"/client-dist/reader-top.client.js",
+	"/client-dist/table-of-contents.client.js",
 ];
 
 function bundleSrcs(doc: Document): string[] {

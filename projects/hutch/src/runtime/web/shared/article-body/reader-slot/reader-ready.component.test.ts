@@ -125,6 +125,45 @@ describe("renderReaderReady", () => {
 		expect(doc.body.textContent).toContain("Lisp Machines");
 	});
 
+	it("gives each section heading the id its table-of-contents row links to", () => {
+		const doc = parse(
+			renderReaderReady({
+				content: "<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>",
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const ids = Array.from(readerContent(doc).querySelectorAll("h2, h3"), (heading) => heading.id);
+		expect(ids).toEqual(["section-why-it-matters", "section-how-to-start"]);
+	});
+
+	it("replaces a publisher id on a heading with the minted id, so captured markup cannot claim a swap target", () => {
+		const doc = parse(
+			renderReaderReady({
+				content: '<h2 id="article-body-reader-slot">Overview</h2><p>Body copy</p>',
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const heading = readerContent(doc).querySelector("h2");
+		assert(heading, "the captured heading must still render");
+		expect(heading.id).toBe("section-overview");
+		expect(doc.querySelectorAll("#article-body-reader-slot")).toHaveLength(1);
+	});
+
+	it("never decodes an entity-encoded href into a live javascript: link while it mints the section ids", () => {
+		const doc = parse(
+			renderReaderReady({
+				content: '<h2>Overview</h2><p><a href="&amp;amp;#106;avascript:alert(1)">Click</a></p>',
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		expect(readerContent(doc).innerHTML.trim()).toBe(
+			'<h2 id="section-overview">Overview</h2><p><span>Click</span></p>',
+		);
+	});
+
 	it("flags the slot with hx-swap-oob when oob is true so HTMX swaps replace the live slot", () => {
 		const doc = parse(
 			renderReaderReady({ content: "<p>x</p>", oob: true, appOrigin: "https://readplace.com" }),

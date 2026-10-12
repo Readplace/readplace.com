@@ -112,6 +112,21 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/article-body/table-of-contents/table-of-contents.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "table-of-contents.client.js"),
+    globalName: "TableOfContents",
+    footer: [
+      "TableOfContents.initTableOfContents({",
+      "  document: window.document,",
+      "  window: window,",
+      "  addSettleListener: function (listener) { window.document.body.addEventListener('htmx:afterSettle', listener); }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/reader/reader-exit-confirm.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-exit-confirm.client.js"),

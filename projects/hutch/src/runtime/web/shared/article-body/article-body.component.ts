@@ -16,6 +16,7 @@ import type { ReaderProvenance } from "./article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
 import { renderSummarySlot } from "./summary-slot/summary-slot.component";
+import { renderTableOfContents } from "./table-of-contents/table-of-contents.component";
 
 const ARTICLE_BODY_TEMPLATE = readFileSync(
 	join(__dirname, "article-body.template.html"),
@@ -56,6 +57,10 @@ export interface ArticleBodyInput {
 }
 
 export interface ArticleRailInput {
+	crawl: ArticleCrawl | undefined;
+	content: string | undefined;
+	readerNotice: ReaderFailedVariant | undefined;
+	appOrigin: string;
 	crawlVersions?: ArticleVersion[];
 	/** Owner-only removal controls. Present only on the
 	 * authenticated owner reader; omitted on the public `/view` and iOS renders. */
@@ -69,6 +74,13 @@ export interface ArticleRailInput {
 
 export function renderArticleRail(input: ArticleRailInput): string {
 	return render(ARTICLE_RAIL_TEMPLATE, {
+		tableOfContentsHtml: renderTableOfContents({
+			crawl: input.crawl,
+			content: input.content,
+			notice: input.readerNotice,
+			appOrigin: input.appOrigin,
+			oob: false,
+		}),
 		articleHistoryHtml: renderArticleHistory({
 			versions: input.crawlVersions ?? [],
 			removal: input.articleHistoryRemoval,

@@ -273,11 +273,6 @@ async function arrowOnlyRowGeometry(page: Page): Promise<void> {
 	);
 }
 
-async function labelledBackRowGeometry(page: Page): Promise<void> {
-	await everyControlOnOneRow(page);
-	assert.ok((await labelWidth(page, BACK)) > 1, "Back reads as text again where the column clears the arrow-only threshold");
-}
-
 async function chromelessSheetGeometry(page: Page): Promise<void> {
 	await everyControlOnOneRow(page);
 	const viewport = page.viewportSize();
@@ -426,7 +421,7 @@ test.describe("Reader toolbar in the dark", () => {
 test.describe("Reader toolbar in the read state", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("keeps one row with Back down to its arrow at 620px and beside the rail's card at 1024px, and Back's label back on the chromeless tablet sheet, which shows no card", async ({ page }, testInfo) => {
+	test("keeps one row with Back down to its arrow at 620px, beside the rail's card at 1024px, and beside the table of contents' empty card on the chromeless tablet sheet", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const articleId = await openOwnerReader(page, {
 			stamp: `read-${testInfo.workerIndex}-${Date.now()}`,
@@ -453,7 +448,8 @@ test.describe("Reader toolbar in the read state", () => {
 		await page.waitForSelector("body.page-reader--chromeless");
 		await page.waitForSelector(DOWNLOAD);
 		await toolbarSettled(page);
-		await labelledBackRowGeometry(page);
+		await expect(page.locator('[data-test-reader-rail] > [data-test-table-of-contents="empty"]')).toHaveCount(1);
+		await arrowOnlyRowGeometry(page);
 	});
 
 	test("switches each row at the width that row needs", async ({ page }, testInfo) => {

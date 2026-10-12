@@ -55,7 +55,7 @@ export {
 	type SuggestionAttribution,
 	type SaveProvenance,
 } from "./save-provenance";
-export { sanitizeArticleHtml } from "./sanitize-article-html";
+export { ARTICLE_SECTION_ID_PREFIX, sanitizeArticleHtml } from "./sanitize-article-html";
 export { isBlockedIpAddress } from "./blocked-address";
 export { isNonArticleHost } from "./non-article-host";
 export {

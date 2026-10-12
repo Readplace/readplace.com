@@ -23,6 +23,7 @@ import {
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
+import { renderTableOfContents } from "../article-body/table-of-contents/table-of-contents.component";
 import { toAbsoluteDate, toAbsoluteTime, type LocalTime } from "@packages/web-shell/local-time.format";
 import type {
 	ArticleReaderDeps,
@@ -89,10 +90,18 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		content: input.content,
 		oob: input.primary !== "summary",
 	});
+	const tableOfContents = renderTableOfContents({
+		crawl: input.crawl,
+		content: input.content,
+		notice: input.readerNotice,
+		appOrigin: input.appOrigin,
+		oob: true,
+	});
 	if (input.primary === "reader") {
 		return (
 			reader.slot +
 			summarySlot +
+			tableOfContents +
 			input.metadataOob +
 			input.readerViewFailedOob +
 			input.downloadsOob +
@@ -103,7 +112,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		input.readerPollUrl === undefined && input.content !== undefined;
 	return (
 		summarySlot +
-		(readerSettledOnArticle ? "" : reader.slot) +
+		(readerSettledOnArticle ? "" : reader.slot + tableOfContents) +
 		input.metadataOob +
 		input.readerViewFailedOob +
 		input.downloadsOob +

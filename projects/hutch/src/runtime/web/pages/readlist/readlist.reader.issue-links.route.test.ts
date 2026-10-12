@@ -177,6 +177,7 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 		const ids = Array.from(parse(response.text).querySelectorAll("[hx-swap-oob]")).map((el) => el.id);
 		assert.deepEqual(ids, [
 			"article-body-summary-slot",
+			"table-of-contents",
 			"article-header",
 			"document-title",
 			"article-body-reader-notice",

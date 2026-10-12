@@ -30,6 +30,7 @@ const VOLATILE_CHROME = [
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
 	".article-history",
+	".table-of-contents",
 	".view__share-row",
 ];
 

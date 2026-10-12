@@ -146,7 +146,7 @@ describe("ReaderPage", () => {
 		});
 
 		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
-		expect(railChildTags(rail)).toEqual(["DETAILS", "A"]);
+		expect(railChildTags(rail)).toEqual(["DIV", "DETAILS", "A"]);
 		const card = rail.querySelector(":scope > details[data-test-article-history]");
 		assert(card, "Article history must be the rail's own child");
 		expect(
@@ -158,20 +158,52 @@ describe("ReaderPage", () => {
 		expect(rail.lastElementChild?.hasAttribute("data-test-reader-top")).toBe(true);
 	});
 
+	it("names the rail Article details when the table of contents is its only card", () => {
+		const html = Base(
+			ReaderPage(makeArticle({ content: "<h2>Why it matters</h2><p>One</p>" }), {
+				crawl: { status: "ready" },
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions: WebReader,
+				readlistFiling: NO_QUEUE_FILING,
+				provenance: undefined,
+				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
+				readerPathFor: TEST_READER_PATH,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const rail = doc.querySelector(".reading-layout > [data-test-reader-rail]");
+		assert(rail, "the reader must render its rail beside the main track");
+		const tableOfContents = rail.firstElementChild;
+		assert(tableOfContents, "the rail must hold the table of contents first");
+		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
+		expect([
+			tableOfContents.id,
+			tableOfContents.getAttribute("data-test-table-of-contents"),
+			tableOfContents.closest("[data-article-body]"),
+		]).toEqual(["table-of-contents", "listed", null]);
+		expect(railChildTags(rail)).toEqual(["DIV", "A"]);
+	});
+
 	it("names the rail Article details when past reads has a card to show and the article has no version", () => {
 		const rail = renderRail({
+			crawl: { status: "pending" },
 			crawlVersions: [],
 			readerPathForReadlist: READER_PATH_FOR_READLIST,
 			previouslyRead: READY_PAST_READS,
 		});
 
 		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
-		expect(railChildTags(rail)).toEqual(["SECTION", "A"]);
+		expect(railChildTags(rail)).toEqual(["DIV", "SECTION", "A"]);
 		expect(rail.querySelectorAll(":scope > [data-test-reader-topic-reads] details.past-reads__card")).toHaveLength(1);
 	});
 
-	it("leaves the rail an unnamed div while it has no card to show: no version, and past reads still pending", () => {
+	it("leaves the rail an unnamed div while it has no card to show: no version, the reader view pending, and past reads still pending", () => {
 		const rail = renderRail({
+			crawl: { status: "pending" },
 			crawlVersions: [],
 			readerPathForReadlist: READER_PATH_FOR_READLIST,
 			previouslyRead: { status: "pending" },
@@ -180,7 +212,7 @@ describe("ReaderPage", () => {
 		});
 
 		expect(railLandmark(rail)).toEqual({ tag: "DIV", label: null });
-		expect(railChildTags(rail)).toEqual(["SECTION", "NOSCRIPT", "A"]);
+		expect(railChildTags(rail)).toEqual(["DIV", "SECTION", "NOSCRIPT", "A"]);
 	});
 
 	it("stacks Article history, the stored copy's template and past reads in the rail when the page reads offline", () => {
@@ -193,9 +225,9 @@ describe("ReaderPage", () => {
 		const offline = renderRail({ ...cards, offlineCopyRow: true });
 		const online = renderRail(cards);
 
-		expect(railChildTags(offline)).toEqual(["DETAILS", "TEMPLATE", "SECTION", "A"]);
+		expect(railChildTags(offline)).toEqual(["DIV", "DETAILS", "TEMPLATE", "SECTION", "A"]);
 		expect(offline.querySelector(":scope > template")?.hasAttribute("data-offline-copy-template")).toBe(true);
-		expect(railChildTags(online)).toEqual(["DETAILS", "SECTION", "A"]);
+		expect(railChildTags(online)).toEqual(["DIV", "DETAILS", "SECTION", "A"]);
 	});
 
 	it("hands the owner's removal controls to the version they authored", () => {
@@ -243,6 +275,7 @@ describe("ReaderPage", () => {
 	it("omits the previously-read section when no reading-list link builder is supplied", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
+				crawl: { status: "pending" },
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
 				renderActions: WebReader,
@@ -259,7 +292,7 @@ describe("ReaderPage", () => {
 		const rail = doc.querySelector("[data-test-reader-rail]");
 		assert(rail, "the rail must be rendered");
 		expect(railLandmark(rail)).toEqual({ tag: "DIV", label: null });
-		expect(railChildTags(rail)).toEqual(["A"]);
+		expect(railChildTags(rail)).toEqual(["DIV", "A"]);
 	});
 
 	it("offers Share from the toolbar and keeps the float stack to Next read alone", () => {
@@ -636,5 +669,18 @@ describe("ReaderPage", () => {
 		const script = doc.querySelector('script[src="/client-dist/reader-top.client.js"]');
 		assert(script, "the reader must load the Top script");
 		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
+	it("loads the table of contents script right after the Top script", () => {
+		const doc = renderReaderDocument(WebReader);
+
+		const bundles = Array.from(doc.querySelectorAll('script[src^="/client-dist/"]'), (script) =>
+			script.getAttribute("src"),
+		);
+		const top = bundles.indexOf("/client-dist/reader-top.client.js");
+		expect(bundles.slice(top, top + 2)).toEqual([
+			"/client-dist/reader-top.client.js",
+			"/client-dist/table-of-contents.client.js",
+		]);
 	});
 });

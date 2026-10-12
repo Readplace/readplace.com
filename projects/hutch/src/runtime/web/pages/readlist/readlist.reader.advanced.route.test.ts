@@ -340,6 +340,12 @@ describe("Readlist routes", () => {
 			const primary = doc.querySelector("[data-test-reader-failed-primary]");
 			assert(primary, "primary source CTA must be rendered when polling caps out");
 			expect(primary.getAttribute("href")).toBe("https://example.com/poll-cap");
+			const tableOfContents = doc.querySelector("#table-of-contents");
+			assert(tableOfContents, "the capped poll must still carry the table of contents");
+			expect([
+				tableOfContents.getAttribute("data-test-table-of-contents"),
+				tableOfContents.getAttribute("hx-swap-oob"),
+			]).toEqual(["hidden", "outerHTML"]);
 		});
 
 		it("GET /queue/:id/reader returns 404 for a missing article", async () => {

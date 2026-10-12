@@ -1,0 +1,7 @@
+<nav class="disclosure-card__body table-of-contents__nav" aria-label="Table of contents">
+              <ol class="table-of-contents__list" role="list">
+                {{#each sections}}
+                <li class="table-of-contents__item"><a class="table-of-contents__link" href="#{{anchorId}}" data-test-toc-section="{{anchorId}}">{{text}}</a></li>
+                {{/each}}
+              </ol>
+            </nav>

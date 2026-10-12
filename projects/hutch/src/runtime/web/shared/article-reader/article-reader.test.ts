@@ -1608,6 +1608,104 @@ describe("initArticleReader", () => {
 		});
 	});
 
+	describe("the table of contents travels with the reader slot", () => {
+		const HEADED_CONTENT = "<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>";
+
+		function pollParams() {
+			return {
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				saved: undefined,
+				readlistTags: undefined,
+				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
+			};
+		}
+
+		function tableOfContentsOf(doc: Document): Element {
+			const wrapper = doc.querySelector("#table-of-contents");
+			assert(wrapper, "the poll must carry the table of contents");
+			return wrapper;
+		}
+
+		it("lands the listed card in the same reader-poll response as the article, linking to the slot's headings", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending" },
+				content: HEADED_CONTENT,
+			});
+			const reader = initArticleReader(deps);
+
+			const doc = parse(toHtml(await reader.handleReaderPoll(pollParams())));
+
+			const wrapper = tableOfContentsOf(doc);
+			const headingIds = Array.from(doc.querySelectorAll("[data-test-reader-content] h2, [data-test-reader-content] h3"), (heading) => `#${heading.id}`);
+			expect([
+				wrapper.getAttribute("data-test-table-of-contents"),
+				wrapper.getAttribute("hx-swap-oob"),
+				Array.from(wrapper.querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href")),
+			]).toEqual(["listed", "outerHTML", headingIds]);
+			expect(headingIds).toEqual(["#section-why-it-matters", "#section-how-to-start"]);
+		});
+
+		it("keeps the card hidden when a pending reader poll lands on a failed crawl", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },
+				summary: { status: "skipped" },
+			});
+			const reader = initArticleReader(deps);
+
+			const doc = parse(toHtml(await reader.handleReaderPoll(pollParams())));
+
+			const wrapper = tableOfContentsOf(doc);
+			expect([wrapper.getAttribute("data-test-table-of-contents"), wrapper.getAttribute("hx-swap-oob")]).toEqual([
+				"hidden",
+				"outerHTML",
+			]);
+		});
+
+		it("carries the card beside the reader slot on a summary poll while the reader is still polling", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending", stage: "crawl-fetching" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const doc = parse(toHtml(await reader.handleSummaryPoll(pollParams())));
+
+			const wrapper = tableOfContentsOf(doc);
+			expect([
+				wrapper.previousElementSibling?.id,
+				wrapper.getAttribute("data-test-table-of-contents"),
+				wrapper.getAttribute("hx-swap-oob"),
+			]).toEqual(["article-body-reader-slot", "hidden", "outerHTML"]);
+		});
+
+		it("leaves the card out of a summary poll once the reader has settled on the article, so its open state and focus survive the tick", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending" },
+				content: HEADED_CONTENT,
+			});
+			const reader = initArticleReader(deps);
+
+			const doc = parse(toHtml(await reader.handleSummaryPoll(pollParams())));
+
+			expect(Array.from(doc.body.children, (piece) => piece.id)).toEqual([
+				"article-body-summary-slot",
+				"article-header",
+				"document-title",
+				"article-body-reader-notice",
+			]);
+		});
+	});
+
 	describe("readerViewFailedOob emission (settled + failed only)", () => {
 		const PROBE: ReaderViewFailedOob = (failure) =>
 			`<div id="reader-view-failed-probe" data-content-unavailable="${failure.readerContentUnavailable}" hx-swap-oob="outerHTML"></div>`;
@@ -1630,11 +1728,13 @@ describe("initArticleReader", () => {
 
 		const READER_POLL_BASELINE = [
 			"article-body-summary-slot",
+			"table-of-contents",
 			"article-header",
 			"document-title",
 		];
 		const SUMMARY_POLL_BASELINE = [
 			"article-body-reader-slot",
+			"table-of-contents",
 			"article-header",
 			"document-title",
 		];
@@ -1888,6 +1988,39 @@ describe("initArticleReader", () => {
 			assert.equal(summarySlot.textContent, "");
 
 			assert.equal(doc.querySelector("#failure-probe"), null);
+		});
+
+		it("keeps the table of contents hidden, since the gated link has no article to list", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				content: "<h2>Inbox</h2><p>Re: your invoice</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const doc = parse(
+				toHtml(
+					await reader.handleReaderPoll({
+						articleUrl: GATED_URL,
+						pollCount: 1,
+						pollUrlBuilder: makePollUrlBuilder(),
+						capturing: false,
+						extensionInstallUrl: undefined,
+						summaryToggleUrl: undefined,
+						provenance: undefined,
+						saved: undefined,
+						readlistTags: undefined,
+						readerViewFailedOob: FAILURE_PROBE,
+						renderDownloadsOob: undefined,
+					}),
+				),
+			);
+
+			const wrapper = doc.querySelector("#table-of-contents");
+			assert(wrapper, "the gated poll must still carry the table of contents target");
+			assert.deepEqual(
+				[wrapper.getAttribute("data-test-table-of-contents"), wrapper.getAttribute("hx-swap-oob")],
+				["hidden", "outerHTML"],
+			);
 		});
 
 		it("answers a summary poll with the same terminal pair", async () => {

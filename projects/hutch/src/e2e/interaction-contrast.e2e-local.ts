@@ -30,6 +30,9 @@ const HISTORY_CARD = "[data-test-article-history]";
 const HISTORY_HEADER = `${HISTORY_CARD} > summary`;
 const HISTORY_TITLE = `${HISTORY_HEADER} .disclosure-card__title`;
 const HISTORY_DELETE = `${HISTORY_CARD} [data-test-action="article-version-delete-open"]`;
+const TOC_CARD = "[data-test-toc-card]";
+const TOC_CURRENT_ROW = `${TOC_CARD} [data-test-toc-section][aria-current="location"]`;
+const TOC_OTHER_ROW = `${TOC_CARD} [data-test-toc-section]:not([aria-current])`;
 const TOOLBAR_CONTROLS = [
 	{ selector: "summary[data-test-readlists-trigger]", auditId: "toolbar-add", ink: "label" },
 	{ selector: '[data-test-mark-read-slot] [data-test-action="mark-read"]', auditId: "toolbar-mark", ink: "label" },
@@ -718,6 +721,79 @@ test.describe("Article history interaction states hold their WCAG contrast in bo
 					edgeContrast({ edge: deleteFocused.outline.colour, against: insideTheCard, lens }) >= NON_TEXT_MINIMUM,
 					edgeShortfall({ edge: deleteFocused.outline.colour, against: insideTheCard, lens, view: `${view}/delete` }),
 				);
+			}
+		}
+	});
+});
+
+test.describe("Table of contents interaction states hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("a row keeps its ink on its hover fill and rings at 3:1 inside itself, and the current row rings at 3:1 outside its tint", async ({
+		page,
+	}, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `table-of-contents-contrast-${stampId}@example.com`);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/table-of-contents-contrast-${stampId}`,
+				title: "An article with sections to jump between",
+				content:
+					"<h2>Why sections matter</h2><p>Seeded body for the table of contents contrast check.</p><h3>Reading in order</h3><p>Seeded body for the table of contents contrast check.</p><h3>Skipping ahead</h3><p>Seeded body for the table of contents contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A fixed summary.", excerpt: "A fixed excerpt." },
+			},
+		});
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(TOC_CURRENT_ROW)).toHaveCount(1, { timeout: SETTLE_MS });
+			const client = await auditContext(page);
+			await stamp(page, { selector: TOC_CARD, auditId: "toc-card" });
+			await stamp(page, { selector: TOC_OTHER_ROW, auditId: "toc-row" });
+			await stamp(page, { selector: TOC_CURRENT_ROW, auditId: "toc-current-row" });
+
+			const card = await measure(page, client, "toc-card", []);
+			const rowAtRest = await measure(page, client, "toc-row", []);
+			const rowHovered = await measure(page, client, "toc-row", ["hover"]);
+			const rowFocused = await measure(page, client, "toc-row", FOCUSED);
+			const currentFocused = await measure(page, client, "toc-current-row", FOCUSED);
+
+			const reader = `${theme}/reader/table-of-contents`;
+			assert.notDeepEqual(rowHovered.fill, rowAtRest.fill, `${reader}: hovering a row must repaint its fill`);
+			for (const [name, focused, offset] of [
+				["row", rowFocused, -2],
+				["current row", currentFocused, 2],
+			] as const) {
+				assert.equal(focused.outline.width, 2, `${reader}: the ${name}'s focus ring must be 2px wide`);
+				assert.equal(focused.outline.offset, offset, `${reader}: the ${name}'s focus ring must sit at ${offset}px`);
+				assert.notEqual(focused.outline.style, "none", `${reader}: the ${name}'s focus ring must be visible`);
+			}
+			const insideTheRow: Neighbour = { name: "row's own fill", colour: rowFocused.fill };
+			const rowsAround: Neighbour = { name: "rows around it", colour: rowAtRest.fill };
+			const behindTheCard: Neighbour = { name: "page behind the card", colour: card.surface };
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				const view = `${reader}/${lensName}`;
+				assert.deepEqual(
+					lens(rowHovered.text),
+					lens(rowAtRest.text),
+					selectedInkShortfall({ rest: rowAtRest, hover: rowHovered, view }),
+				);
+				assert.ok(labelContrast(rowHovered, lens) >= textMinimum(rowHovered), labelShortfall(rowHovered, lens, view));
+				assert.ok(
+					edgeContrast({ edge: rowFocused.outline.colour, against: insideTheRow, lens }) >= NON_TEXT_MINIMUM,
+					edgeShortfall({ edge: rowFocused.outline.colour, against: insideTheRow, lens, view: `${view}/row` }),
+				);
+				for (const against of [rowsAround, behindTheCard]) {
+					assert.ok(
+						edgeContrast({ edge: currentFocused.outline.colour, against, lens }) >= NON_TEXT_MINIMUM,
+						edgeShortfall({ edge: currentFocused.outline.colour, against, lens, view: `${view}/current-row` }),
+					);
+				}
 			}
 		}
 	});

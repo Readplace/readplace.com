@@ -377,6 +377,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		).map((el) => el.id);
 		expect(ids).toEqual([
 			"article-body-summary-slot",
+			"table-of-contents",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",

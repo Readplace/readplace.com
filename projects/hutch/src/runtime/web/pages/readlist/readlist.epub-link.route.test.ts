@@ -166,7 +166,7 @@ describe("GET /queue/:id/view Download", () => {
 	});
 
 	it.each([
-		{ poll: "reader", settledSiblingOob: ["article-body-summary-slot"] },
+		{ poll: "reader", settledSiblingOob: ["article-body-summary-slot", "table-of-contents"] },
 		{ poll: "summary", settledSiblingOob: [] },
 	])("swaps the Download slot alongside the $poll poll on a ready article", async ({ poll, settledSiblingOob }) => {
 		const { harness, sessionCookie, articleId } = await openReaderHarness({ ready: true });

@@ -46,6 +46,9 @@ const NOT_FOUND_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader
 const NOT_AN_ARTICLE_NOTICE = '[data-test-reader-notice][data-reader-status="not-an-article"]';
 const SETTLED_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice]`;
 const ARTICLE_HISTORY = "[data-test-article-history]";
+const TOC_CARD = "[data-test-toc-card]";
+const HIDDEN_TABLE_OF_CONTENTS = '[data-test-table-of-contents="hidden"]';
+const RAIL_CARD_GAP = 16;
 const RAIL_CARD = `${RAIL} > ${ARTICLE_HISTORY}`;
 const CTA_CONTENT = ".view__cta-content";
 const SAVE_FORM = '[data-test-form="save-article"]';
@@ -242,7 +245,13 @@ async function expectCentredColumn(page: Page, desktop: DesktopWidth): Promise<v
 }
 
 async function expectColumnBesideRailCard(page: Page, desktop: DesktopWidth): Promise<void> {
-	const [layout, main, rail, history] = await page.evaluate(measureBoxes, [LAYOUT, MAIN, RAIL, ARTICLE_HISTORY]);
+	const [layout, main, rail, tableOfContents, history] = await page.evaluate(measureBoxes, [
+		LAYOUT,
+		MAIN,
+		RAIL,
+		TOC_CARD,
+		ARTICLE_HISTORY,
+	]);
 	assertNear(
 		{ actual: main.x, expected: layout.x + desktop.gutter, tolerance: 0.5 },
 		`at ${desktop.width}px the column starts at the frame's left edge`,
@@ -262,9 +271,18 @@ async function expectColumnBesideRailCard(page: Page, desktop: DesktopWidth): Pr
 	);
 	assertNear({ actual: rail.y, expected: main.y, tolerance: 0.5 }, `at ${desktop.width}px the rail starts on the column's first line`);
 	assert.deepEqual(
-		{ x: history.x, y: history.y, width: history.width },
+		{ x: tableOfContents.x, y: tableOfContents.y, width: tableOfContents.width },
 		{ x: rail.x, y: rail.y, width: rail.width },
-		`at ${desktop.width}px Article history is the rail's first card and fills its track`,
+		`at ${desktop.width}px the table of contents is the rail's first card and fills its track`,
+	);
+	assert.deepEqual(
+		{ x: history.x, width: history.width },
+		{ x: rail.x, width: rail.width },
+		`at ${desktop.width}px Article history fills the rail's track`,
+	);
+	assertNear(
+		{ actual: history.y, expected: tableOfContents.y + tableOfContents.height + RAIL_CARD_GAP, tolerance: 0.5 },
+		`at ${desktop.width}px Article history sits one card gap under the table of contents`,
 	);
 	assert.equal(await page.evaluate(pageOverflowsSideways), false, `at ${desktop.width}px the reader must not scroll sideways`);
 }
@@ -545,12 +563,14 @@ test.describe("Public view layout", () => {
 		await expectRailUnderOneColumn(page, 768);
 	});
 
-	test("centres the column at every desktop width, with no rail, when the link is not an article", async ({ page }) => {
+	test("centres the column at every desktop width, with an empty rail, when the link is not an article", async ({ page }) => {
 		await quietReader(page);
 		await page.goto(`${BASE_URL}/view/${NOT_AN_ARTICLE_PATH}`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector(NOT_AN_ARTICLE_NOTICE);
 		await waitForBrandFonts(page, ["Inter"]);
-		await expect(page.locator(RAIL)).toHaveCount(0);
+		await expect(page.locator(RAIL)).toHaveCount(1);
+		await expect(page.locator(`${RAIL} > *`)).toHaveCount(1);
+		await expect(page.locator(`${RAIL} > ${HIDDEN_TABLE_OF_CONTENTS}`)).toHaveCount(1);
 		await expectDesktopColumns(page, expectCentredColumn);
 		await expectSingleColumn(page, 1023);
 		await expectSingleColumn(page, 768);

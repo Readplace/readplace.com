@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.format";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { ArticleVersion } from "../article-reader/article-reader.types";
-import { renderArticleBody, renderArticleRail } from "./article-body.component";
+import { type ArticleRailInput, renderArticleBody, renderArticleRail } from "./article-body.component";
 
 const baseInput = {
 	title: "Hello World",
@@ -241,6 +241,19 @@ describe("renderArticleBody", () => {
 		expect(card.nextElementSibling?.id).toBe("article-body-reader-notice");
 	});
 
+	it("leaves the table of contents to the rail, so the body carries only the anchored article", () => {
+		const doc = parse(
+			renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: "<h2>Why it matters</h2><p>One</p>" }),
+		);
+
+		const heading = doc.querySelector("[data-test-reader-content] h2");
+		assert(heading, "the article's heading must be rendered");
+		expect([heading.id, doc.querySelectorAll("[data-test-table-of-contents]").length]).toEqual([
+			"section-why-it-matters",
+			0,
+		]);
+	});
+
 	it("renders the notice region hidden after the card while the reader view is ready", () => {
 		const doc = parse(renderArticleBody({ ...baseInput, content: "<p>Body</p>" }));
 
@@ -257,6 +270,13 @@ describe("renderArticleBody", () => {
 describe("renderArticleRail", () => {
 	const versions = [versionAt("2026-07-10T09:14Z"), versionAt("2026-06-28T22:01Z")];
 	const pastReads = "<section data-test-reader-topic-reads>past reads</section>";
+	const pendingReader: Pick<ArticleRailInput, "crawl" | "content" | "readerNotice" | "appOrigin"> = {
+		crawl: { status: "pending" },
+		content: undefined,
+		readerNotice: undefined,
+		appOrigin: "https://readplace.com",
+	};
+	const hiddenTableOfContents = { tag: "DIV", marker: "data-test-table-of-contents" };
 
 	function railChildren(html: string): { tag: string; marker: string | undefined }[] {
 		return Array.from(parse(html).body.children, (child) => ({
@@ -265,8 +285,14 @@ describe("renderArticleRail", () => {
 		}));
 	}
 
+	function tableOfContentsState(html: string): string | null {
+		const wrapper = parse(html).querySelector("#table-of-contents");
+		assert(wrapper, "the table of contents wrapper must always be rendered");
+		return wrapper.getAttribute("data-test-table-of-contents");
+	}
+
 	it("renders the Article history rows when versions are supplied", () => {
-		const doc = parse(renderArticleRail({ crawlVersions: versions }));
+		const doc = parse(renderArticleRail({ ...pendingReader, crawlVersions: versions }));
 
 		const keys = Array.from(doc.querySelectorAll("[data-test-article-history-version]"), (row) =>
 			row.getAttribute("data-test-article-history-version"),
@@ -274,26 +300,78 @@ describe("renderArticleRail", () => {
 		expect(keys).toEqual(["canonical", "2026-06-28T22:01Z"]);
 	});
 
-	it("renders an empty rail string when there is neither a version nor a past-reads section", () => {
-		expect([renderArticleRail({}), renderArticleRail({ crawlVersions: [] })]).toEqual(["", ""]);
+	it("renders only the hidden table of contents when the reader view is not ready and there is neither a version nor past reads", () => {
+		expect([
+			railChildren(renderArticleRail(pendingReader)),
+			railChildren(renderArticleRail({ ...pendingReader, crawlVersions: [] })),
+		]).toEqual([[hiddenTableOfContents], [hiddenTableOfContents]]);
 	});
 
-	it("stacks Article history ahead of the past-reads section", () => {
-		expect(railChildren(renderArticleRail({ crawlVersions: versions, previouslyReadHtml: pastReads }))).toEqual([
+	it("stacks the table of contents, then Article history, then the past-reads section", () => {
+		expect(
+			railChildren(renderArticleRail({ ...pendingReader, crawlVersions: versions, previouslyReadHtml: pastReads })),
+		).toEqual([
+			hiddenTableOfContents,
 			{ tag: "DETAILS", marker: "data-test-article-history" },
 			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
 		]);
 	});
 
-	it("renders the past-reads section alone when the article has no version", () => {
-		expect(railChildren(renderArticleRail({ previouslyReadHtml: pastReads }))).toEqual([
+	it("renders the past-reads section after the table of contents when the article has no version", () => {
+		expect(railChildren(renderArticleRail({ ...pendingReader, previouslyReadHtml: pastReads }))).toEqual([
+			hiddenTableOfContents,
 			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
 		]);
+	});
+
+	it("lists the ready article's sections in the table of contents above Article history", () => {
+		const html = renderArticleRail({
+			crawl: { status: "ready" },
+			content: "<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>",
+			readerNotice: undefined,
+			appOrigin: "https://readplace.com",
+			crawlVersions: versions,
+		});
+
+		const rows = Array.from(parse(html).querySelectorAll("[data-test-toc-section]"), (row) =>
+			row.getAttribute("href"),
+		);
+		expect([tableOfContentsState(html), rows]).toEqual([
+			"listed",
+			["#section-why-it-matters", "#section-how-to-start"],
+		]);
+		expect(railChildren(html)[0]).toEqual({ tag: "DIV", marker: "data-test-table-of-contents" });
+	});
+
+	it("shows the empty table of contents for a ready article with no h2 or h3", () => {
+		const html = renderArticleRail({
+			crawl: { status: "ready" },
+			content: "<p>One paragraph</p><h4>A minor heading</h4>",
+			readerNotice: undefined,
+			appOrigin: "https://readplace.com",
+		});
+
+		expect(tableOfContentsState(html)).toBe("empty");
+	});
+
+	it("keeps the table of contents hidden while the reader view is pending, after it failed, and for a link that is not an article", () => {
+		const content = "<h2>Why it matters</h2><p>One</p>";
+
+		expect([
+			tableOfContentsState(renderArticleRail({ ...pendingReader, content })),
+			tableOfContentsState(
+				renderArticleRail({ ...pendingReader, crawl: { status: "failed", reason: "fetch-failed" } }),
+			),
+			tableOfContentsState(
+				renderArticleRail({ ...pendingReader, crawl: { status: "ready" }, content, readerNotice: "not-an-article" }),
+			),
+		]).toEqual(["hidden", "hidden", "hidden"]);
 	});
 
 	it("hands the owner's removal controls to the row they authored", () => {
 		const doc = parse(
 			renderArticleRail({
+				...pendingReader,
 				crawlVersions: versions,
 				articleHistoryRemoval: {
 					authoredMinuteIds: ["2026-06-28T22:01Z"],
@@ -313,15 +391,21 @@ describe("renderArticleRail", () => {
 
 	it("places the stored copy's template between the two cards only when the page asks for it", () => {
 		expect(
-			railChildren(renderArticleRail({ crawlVersions: versions, offlineCopyRow: true, previouslyReadHtml: pastReads })),
+			railChildren(
+				renderArticleRail({ ...pendingReader, crawlVersions: versions, offlineCopyRow: true, previouslyReadHtml: pastReads }),
+			),
 		).toEqual([
+			hiddenTableOfContents,
 			{ tag: "DETAILS", marker: "data-test-article-history" },
 			{ tag: "TEMPLATE", marker: "data-offline-copy-template" },
 			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
 		]);
 		expect(
-			railChildren(renderArticleRail({ crawlVersions: versions, offlineCopyRow: false, previouslyReadHtml: pastReads })),
+			railChildren(
+				renderArticleRail({ ...pendingReader, crawlVersions: versions, offlineCopyRow: false, previouslyReadHtml: pastReads }),
+			),
 		).toEqual([
+			hiddenTableOfContents,
 			{ tag: "DETAILS", marker: "data-test-article-history" },
 			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
 		]);

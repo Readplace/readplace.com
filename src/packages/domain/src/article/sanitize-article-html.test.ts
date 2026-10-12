@@ -120,9 +120,22 @@ describe("sanitizeArticleHtml", () => {
 		expect(sanitizeArticleHtml(borrowed)).toBe("<p>Body copy.</p>");
 	});
 
-	it("drops id attributes so captured markup cannot clobber the swap targets around it", () => {
-		const clobbering = '<div id="article-body-reader-slot">Body copy.</div>';
+	it("drops every id outside the section- namespace so captured markup cannot clobber the swap targets around it", () => {
+		const clobbering =
+			'<div id="article-body-reader-slot">Body copy.</div><h2 id="table-of-contents">Heading</h2>';
 
-		expect(sanitizeArticleHtml(clobbering)).toBe("<div>Body copy.</div>");
+		expect(sanitizeArticleHtml(clobbering)).toBe("<div>Body copy.</div><h2>Heading</h2>");
+	});
+
+	it("keeps a section- id on an h2 or h3, where the reader anchors its table of contents", () => {
+		const anchored = '<h2 id="section-why-it-matters">Why it matters</h2><h3 id="section-how-to-start">How to start</h3>';
+
+		expect(sanitizeArticleHtml(anchored)).toBe(anchored);
+	});
+
+	it("drops a section- id from any element other than an h2 or h3", () => {
+		const elsewhere = '<h4 id="section-footnotes">Footnotes</h4><p id="section-body">Body copy.</p>';
+
+		expect(sanitizeArticleHtml(elsewhere)).toBe("<h4>Footnotes</h4><p>Body copy.</p>");
 	});
 });

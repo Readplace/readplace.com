@@ -177,7 +177,7 @@ describe("Readlist routes", () => {
 			const beforeRail = beforeDoc.querySelector("[data-test-reader-rail]");
 			assert(beforeRail, "the reader must render its rail");
 			expect([beforeRail.tagName, beforeRail.querySelectorAll("[data-test-article-history-version]").length]).toEqual([
-				"DIV",
+				"ASIDE",
 				0,
 			]);
 
@@ -1767,7 +1767,88 @@ describe("Readlist routes", () => {
 				doc.querySelectorAll("[data-test-article-history]").length,
 				doc.querySelectorAll("[data-test-article-history-remove]").length,
 				doc.querySelectorAll('[data-test-action="article-version-delete-open"]').length,
-			]).toEqual(["DIV", 0, 0, 0]);
+			]).toEqual(["ASIDE", 0, 0, 0]);
+		});
+	});
+
+	describe("GET /queue/:id/view — the table of contents", () => {
+		const ARTICLE_URL = "https://example.com/sectioned-post";
+
+		async function ownerReader(seed: (fixture: ReturnType<typeof createDefaultTestAppFixture>) => Promise<void>) {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .readlist-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+			await seed(fixture);
+			const response = await agent.get(`/queue/${articleId}/view`);
+			expect(response.status).toBe(200);
+			return new JSDOM(response.text).window.document;
+		}
+
+		function tableOfContentsOf(doc: Document): Element {
+			const wrapper = doc.querySelector("[data-test-reader-rail] > #table-of-contents");
+			assert(wrapper, "the rail must always hold the table of contents");
+			return wrapper;
+		}
+
+		it("lists the article's h2 and h3 sections, each row linking to an id in the reader content", async () => {
+			const doc = await ownerReader(async (fixture) => {
+				await fixture.articleStore.writeContent({
+					url: ARTICLE_URL,
+					content: "<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p><h4>Footnotes</h4>",
+				});
+				await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+			});
+
+			const tableOfContents = tableOfContentsOf(doc);
+			const rows = Array.from(tableOfContents.querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href"));
+			const content = doc.querySelector("[data-test-reader-content]");
+			assert(content, "reader content must be rendered");
+			expect([
+				tableOfContents.getAttribute("data-test-table-of-contents"),
+				Array.from(content.querySelectorAll("h2, h3"), (heading) => `#${heading.id}`),
+			]).toEqual(["listed", rows]);
+			expect(rows).toEqual(["#section-why-it-matters", "#section-how-to-start"]);
+		});
+
+		it("shows the empty table of contents for a ready article with no h2 or h3", async () => {
+			const doc = await ownerReader(async (fixture) => {
+				await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>One paragraph and nothing else.</p>" });
+				await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+			});
+
+			expect(tableOfContentsOf(doc).getAttribute("data-test-table-of-contents")).toBe("empty");
+		});
+
+		it("keeps the table of contents hidden while the reader view is still being prepared", async () => {
+			const doc = await ownerReader(async (fixture) => {
+				await fixture.articleCrawl.forceMarkCrawlPending({ url: ARTICLE_URL });
+			});
+
+			expect([
+				doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status"),
+				tableOfContentsOf(doc).getAttribute("data-test-table-of-contents"),
+			]).toEqual(["pending", "hidden"]);
+		});
+
+		it.each([
+			{ variant: "failed", reason: JSON.stringify({ kind: "exhausted-retries", receiveCount: 3 }) },
+			{ variant: "origin-down", reason: JSON.stringify({ kind: "origin-unreachable", code: "ECONNREFUSED" }) },
+			{ variant: "not-found", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },
+		])("keeps the table of contents hidden beside the $variant notice", async ({ variant, reason }) => {
+			const doc = await ownerReader(async (fixture) => {
+				await fixture.articleCrawl.forceMarkCrawlPending({ url: ARTICLE_URL });
+				await fixture.articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason });
+			});
+
+			expect([
+				doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status"),
+				tableOfContentsOf(doc).getAttribute("data-test-table-of-contents"),
+			]).toEqual([variant, "hidden"]);
 		});
 	});
 
@@ -1984,6 +2065,14 @@ describe("Readlist routes", () => {
 			const rail = doc.querySelector("[data-test-reader-rail]");
 			assert(rail, "the reader must render its rail");
 			expect([rail.tagName, doc.querySelectorAll("[data-test-article-history-version]").length]).toEqual(["DIV", 0]);
+		});
+
+		it("keeps the table of contents hidden, since the link holds no article to list", async () => {
+			const doc = await ownerReaderDoc();
+
+			const tableOfContents = doc.querySelector("[data-test-reader-rail] > #table-of-contents");
+			assert(tableOfContents, "the rail must always hold the table of contents");
+			expect(tableOfContents.getAttribute("data-test-table-of-contents")).toBe("hidden");
 		});
 
 		it("stops the queue card polling for an enrichment that will never arrive", async () => {

@@ -290,6 +290,9 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(capture.getAttribute("data-reader-capture-poll")).toBe(
 			`/queue/${articleId}/reader?poll=1&capturing=1&platform=ios`,
 		);
+		const tableOfContents = doc.querySelector("[data-test-reader-rail] > #table-of-contents");
+		assert(tableOfContents, "the rail must always hold the table of contents");
+		expect(tableOfContents.getAttribute("data-test-table-of-contents")).toBe("hidden");
 	});
 
 	it("fires the reader-slot capture poll immediately when htmx is already loaded at tap time", async () => {
@@ -517,6 +520,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		).map((el) => el.id);
 		expect(ids).toEqual([
 			"article-body-summary-slot",
+			"table-of-contents",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
@@ -572,6 +576,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		).map((el) => el.id);
 		expect(ids).toEqual([
 			"article-body-summary-slot",
+			"table-of-contents",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",

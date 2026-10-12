@@ -492,7 +492,7 @@ describe("ViewPage", () => {
 		assert(link, "cta action must still be rendered without content");
 	});
 
-	it("lays the article column and the share row in the reading layout's only track, with no rail", () => {
+	it("lays the article column and the share row in the main track, beside an Article details rail that opens with the table of contents", () => {
 		const doc = render();
 
 		const main = doc.querySelector("main.view > .reading-layout > .reading-layout__main");
@@ -507,9 +507,42 @@ describe("ViewPage", () => {
 		]);
 		const layout = doc.querySelector("main.view > .reading-layout");
 		assert(layout, "the reading layout must be rendered");
-		expect(Array.from(layout.children, (child) => child.className)).toEqual(["reading-layout__main"]);
-		expect(doc.querySelector("[data-test-reader-rail]")).toBeNull();
+		expect(Array.from(layout.children, (child) => [child.tagName, child.className])).toEqual([
+			["DIV", "reading-layout__main"],
+			["ASIDE", "reading-layout__rail"],
+		]);
+		const rail = layout.querySelector(":scope > [data-test-reader-rail]");
+		assert(rail, "the rail must sit beside the main track");
+		expect([
+			rail.getAttribute("aria-label"),
+			Array.from(rail.children, (child) => [child.id, child.getAttribute("data-test-table-of-contents")]),
+		]).toEqual(["Article details", [["table-of-contents", "empty"]]]);
 		expect(doc.querySelector("[data-test-view-cta] > .reading-frame > .view__cta-content")).not.toBeNull();
+	});
+
+	it("keeps the rail an unnamed div holding only the hidden table of contents while the reader view is pending", () => {
+		const doc = render({ ...baseInput, crawl: { status: "pending" } });
+
+		const rail = doc.querySelector("main.view > .reading-layout > [data-test-reader-rail]");
+		assert(rail, "every view renders its rail, so a poll always has a target for the table of contents");
+		expect([
+			rail.tagName,
+			rail.getAttribute("aria-label"),
+			Array.from(rail.children, (child) => [child.id, child.getAttribute("data-test-table-of-contents")]),
+		]).toEqual(["DIV", null, [["table-of-contents", "hidden"]]]);
+	});
+
+	it("loads the table of contents script right after the save tip's", () => {
+		const doc = render();
+
+		const bundles = Array.from(doc.querySelectorAll('script[src^="/client-dist/"]'), (script) =>
+			script.getAttribute("src"),
+		);
+		const saveTip = bundles.indexOf("/client-dist/save-tip.client.js");
+		expect(bundles.slice(saveTip, saveTip + 2)).toEqual([
+			"/client-dist/save-tip.client.js",
+			"/client-dist/table-of-contents.client.js",
+		]);
 	});
 
 	it("adds the Article details rail beside the main track when the article has versions, with Article history in it and no way to remove one", () => {
@@ -531,14 +564,16 @@ describe("ViewPage", () => {
 		const rail = layout.querySelector(":scope > aside[data-test-reader-rail]");
 		assert(rail, "the rail must sit beside the main track");
 		expect(rail.getAttribute("aria-label")).toBe("Article details");
-		expect(Array.from(rail.children, (child) => child.hasAttribute("data-test-article-history"))).toEqual([true]);
+		expect(Array.from(rail.children, (child) => child.hasAttribute("data-test-article-history"))).toEqual([false, true]);
 		expect(
 			Array.from(rail.querySelectorAll("[data-test-article-history-version]"), (row) =>
 				row.getAttribute("data-test-article-history-version"),
 			),
 		).toEqual(["canonical", "2026-06-28T22:01Z"]);
 		expect(doc.querySelectorAll("[data-article-body] [data-test-article-history]")).toHaveLength(0);
-		expect(Array.from(rail.querySelectorAll("summary, form, button, [popover]"), (control) => control.tagName)).toEqual([
+		const history = rail.querySelector(":scope > [data-test-article-history]");
+		assert(history, "Article history must be the rail's own child");
+		expect(Array.from(history.querySelectorAll("summary, form, button, [popover]"), (control) => control.tagName)).toEqual([
 			"SUMMARY",
 		]);
 	});

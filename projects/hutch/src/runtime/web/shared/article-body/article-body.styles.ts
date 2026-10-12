@@ -7,6 +7,7 @@ import { ARTICLE_FRAME_STYLES } from "./article-frame.styles";
 
 const stylesPath = join(__dirname, "article-body.styles.css");
 const articleHistoryStylesPath = join(__dirname, "article-history", "article-history.styles.css");
+const tableOfContentsStylesPath = join(__dirname, "table-of-contents", "table-of-contents.styles.css");
 const progressBarStylesPath = join(__dirname, "progress-bar.styles.css");
 const pipelinePanelStylesPath = join(__dirname, "pipeline-panel.styles.css");
 
@@ -19,5 +20,6 @@ export const ARTICLE_BODY_STYLES =
 	TLDR_DISCLOSURE_STYLES +
 	readFileSync(stylesPath, "utf-8") +
 	readFileSync(articleHistoryStylesPath, "utf-8") +
+	readFileSync(tableOfContentsStylesPath, "utf-8") +
 	readFileSync(progressBarStylesPath, "utf-8") +
 	readFileSync(pipelinePanelStylesPath, "utf-8");
