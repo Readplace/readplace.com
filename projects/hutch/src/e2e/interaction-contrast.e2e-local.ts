@@ -26,6 +26,8 @@ const REVIEW_URLS = [
 ];
 const REVIEW_CHECKBOX_BEFORE = '[data-test-import-checkbox="0"]';
 const REVIEW_CHECKBOX = '[data-test-import-checkbox="1"]';
+const GMAIL_CHECKLIST_CHECKBOX_BEFORE = '[data-test-gmail-checklist-sender="crew@morningbrew.com"]';
+const GMAIL_CHECKLIST_CHECKBOX = '[data-test-gmail-checklist-sender="dan@tldr.tech"]';
 const HISTORY_CARD = "[data-test-article-history]";
 const HISTORY_HEADER = `${HISTORY_CARD} > summary`;
 const HISTORY_TITLE = `${HISTORY_HEADER} .disclosure-card__title`;
@@ -179,6 +181,60 @@ async function signInAsNewReader(page: Page, email: string): Promise<string> {
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
 	return userId;
+}
+
+async function auditCheckboxFocusRing(page: Page, input: { before: string; checkbox: string; auditId: string; view: string }): Promise<void> {
+	await page.locator(input.before).focus();
+	await page.keyboard.press("Tab");
+	const checkbox = page.locator(input.checkbox);
+	await expect(checkbox).toBeFocused();
+	await expect.poll(() => checkbox.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+	const client = await auditContext(page);
+	await stamp(page, { selector: input.checkbox, auditId: input.auditId });
+
+	for (const theme of THEMES) {
+		await page.emulateMedia({ colorScheme: theme });
+		const ink = await measure(page, client, input.auditId, []);
+		assert.notEqual(ink.outline.style, "none", `${theme}/${input.view}: ${ink.name} draws no focus outline`);
+		assert.ok(ink.outline.width > 0, `${theme}/${input.view}: ${ink.name} draws a zero-width focus outline`);
+		const row: Neighbour = { name: "row", colour: ink.surface };
+		for (const [lensName, lens] of Object.entries(LENSES)) {
+			assert.ok(
+				edgeContrast({ edge: ink.outline.colour, against: row, lens }) >= NON_TEXT_MINIMUM,
+				edgeShortfall({
+					edge: ink.outline.colour,
+					against: row,
+					lens,
+					view: `${theme}/${input.view}/${lensName}`,
+				}),
+			);
+		}
+	}
+}
+
+async function seedGmailChecklist(page: Page, input: { userId: string; namespace: string }): Promise<void> {
+	await page.context().addCookies([{ name: "e2e_catalog_ns", value: input.namespace, url: BASE_URL }]);
+	const catalog = await page.request.post(`${BASE_URL}/e2e/seed-newsletter-catalog`, {
+		data: {
+			namespace: input.namespace,
+			mode: "available",
+			records: [
+				{ from: "dan@tldr.tech", name: "TLDR", status: "approved", evidence: [], createdAt: "2026-09-01T00:00:00.000Z", updatedAt: "2026-09-01T00:00:00.000Z" },
+				{ from: "crew@morningbrew.com", name: "Morning Brew", status: "approved", evidence: [], createdAt: "2026-09-01T00:00:00.000Z", updatedAt: "2026-09-01T00:00:00.000Z" },
+			],
+		},
+	});
+	assert.equal(catalog.status(), 201, "the newsletter catalog namespace must be seeded");
+	const gmail = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, {
+		data: {
+			userId: input.userId,
+			discoveredSenders: [
+				{ email: "dan@tldr.tech", name: "TLDR" },
+				{ email: "crew@morningbrew.com", name: "Morning Brew" },
+			],
+		},
+	});
+	assert.equal(gmail.status(), 201, `the gmail state must be seeded: ${await gmail.text()}`);
 }
 
 async function seedQueuedArticle(page: Page, input: { userId: string; stampId: string }): Promise<void> {
@@ -422,32 +478,21 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 	test("the review checkbox's focus outline clears 3:1", async ({ page }, testInfo) => {
 		await signInAsNewReader(page, `form-choice-${testInfo.workerIndex}-${Date.now()}@example.com`);
 		await openImportReview(page, REVIEW_URLS);
-		await page.locator(REVIEW_CHECKBOX_BEFORE).focus();
-		await page.keyboard.press("Tab");
-		const checkbox = page.locator(REVIEW_CHECKBOX);
-		await expect(checkbox).toBeFocused();
-		await expect.poll(() => checkbox.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
-		const client = await auditContext(page);
-		await stamp(page, { selector: REVIEW_CHECKBOX, auditId: "review-checkbox" });
+		await auditCheckboxFocusRing(page, { before: REVIEW_CHECKBOX_BEFORE, checkbox: REVIEW_CHECKBOX, auditId: "review-checkbox", view: "import/review" });
+	});
 
-		for (const theme of THEMES) {
-			await page.emulateMedia({ colorScheme: theme });
-			const ink = await measure(page, client, "review-checkbox", []);
-			assert.notEqual(ink.outline.style, "none", `${theme}/import/review: ${ink.name} draws no focus outline`);
-			assert.ok(ink.outline.width > 0, `${theme}/import/review: ${ink.name} draws a zero-width focus outline`);
-			const row: Neighbour = { name: "row", colour: ink.surface };
-			for (const [lensName, lens] of Object.entries(LENSES)) {
-				assert.ok(
-					edgeContrast({ edge: ink.outline.colour, against: row, lens }) >= NON_TEXT_MINIMUM,
-					edgeShortfall({
-						edge: ink.outline.colour,
-						against: row,
-						lens,
-						view: `${theme}/import/review/${lensName}`,
-					}),
-				);
-			}
-		}
+	test("the Gmail checklist checkbox's focus outline clears 3:1 against its row", async ({ page }, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `gmail-checklist-focus-${stampId}@example.com`);
+		await seedGmailChecklist(page, { userId, namespace: `gmail-checklist-focus-${stampId}` });
+		await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator("body.page-integrations-gmail")).toHaveCount(1);
+		await auditCheckboxFocusRing(page, {
+			before: GMAIL_CHECKLIST_CHECKBOX_BEFORE,
+			checkbox: GMAIL_CHECKLIST_CHECKBOX,
+			auditId: "gmail-checklist-checkbox",
+			view: "gmail/checklist",
+		});
 	});
 });
 

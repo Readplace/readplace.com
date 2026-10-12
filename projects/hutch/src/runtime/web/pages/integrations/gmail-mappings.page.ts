@@ -6,7 +6,7 @@ import { isLiveAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import { type GmailImportActions, importFollowsMapping, UNFINISHED_IMPORT_STATES } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
-import { buildGmailUrl, type GmailPageError, type GmailPageNotice, type GmailPickerState, parseGmailPickerState, gmailSelectedReadlists } from "./gmail.url";
+import { buildGmailUrl, confirmGmailReadlists, type GmailPageError, type GmailPageNotice, type GmailPickerState, parseGmailPickerState, gmailSelectedReadlists } from "./gmail.url";
 
 const SenderBodySchema = z.object({ sender: ForwardableSenderSchema });
 const JobBodySchema = z.object({ job: GmailHistoryImportJobIdSchema });
@@ -41,12 +41,12 @@ export function registerGmailMappingRoutes(
 		const outcome = await gmail.upsertReadlist({ userId, name: state.readlist_name ?? "" });
 		switch (outcome.status) {
 			case "ok":
-				redirectTo(res, { ...state, readlist_name: undefined, edit: undefined, readlist: [...new Set([...gmailSelectedReadlists(state), outcome.readlist.slug])], readlist_choice_for: state.readlist_choice_for === state.sender ? undefined : state.readlist_choice_for }, {
+				redirectTo(res, confirmGmailReadlists({ ...state, readlist_name: undefined, readlist: [...new Set([...gmailSelectedReadlists(state), outcome.readlist.slug])] }), {
 					notice: outcome.created ? "readlist_created" : "readlist_reused",
 				});
 				return;
 			case "reserved-name":
-				redirectTo(res, { ...state, readlist_name: undefined, edit: undefined, readlist: [...new Set([...gmailSelectedReadlists(state), outcome.readlist.slug])], readlist_choice_for: state.readlist_choice_for === state.sender ? undefined : state.readlist_choice_for }, { notice: "readlist_reused" });
+				redirectTo(res, confirmGmailReadlists({ ...state, readlist_name: undefined, readlist: [...new Set([...gmailSelectedReadlists(state), outcome.readlist.slug])] }), { notice: "readlist_reused" });
 				return;
 			case "invalid-name":
 				redirectTo(res, state, { error: "readlist_name_invalid" });

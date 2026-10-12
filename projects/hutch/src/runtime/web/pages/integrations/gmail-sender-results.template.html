@@ -1,36 +1,12 @@
-{{#if loadButton}}{{{loadButton}}}{{/if}}
-<div id="gmail-sender-results" data-test-gmail-sender-results data-results-state="{{resultsState}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="{{pollTrigger}}" hx-swap="outerHTML" hx-sync="#gmail-sender-search-form:drop" hx-disinherit="hx-sync"{{/if}}>
-  <p class="gmail__discovery-status" role="status" data-test-gmail-discovery-status data-discovery-state="{{discoveryState}}">{{statusLead}}{{#if checkedLabel}}<span data-test-gmail-checked-count>{{checkedLabel}}</span>{{/if}}</p>
-  {{#if discoveryAfter}}<input type="hidden" form="gmail-sender-search-form" name="discovery_after" value="{{discoveryAfter}}">{{/if}}
-  {{#each reconnectActions}}
-  <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-    {{#each fields}}
-    <input type="hidden" name="{{name}}" value="{{value}}">
-    {{/each}}
-    <button class="btn btn--{{variant}}" type="submit" data-test-gmail-discovery-reconnect data-test-gmail-connection-action="{{key}}">{{label}}</button>
-  </form>
-  {{/each}}
-  <ul class="gmail__options gmail__sender-options">
-    {{#each options}}
-    <li>
-      <form method="GET" action="{{../pagePath}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-        {{#each fields}}
-        <input type="hidden" name="{{name}}" value="{{value}}">
-        {{/each}}
-        <button class="gmail__picker-option" type="submit" data-gmail-picker-option data-test-gmail-sender-option="{{email}}">
-          {{#if name}}<span data-test-gmail-sender-option-name>{{name}}</span>{{/if}}<span class="gmail__option-email">{{email}}</span>
-        </button>
-      </form>
-    </li>
-    {{/each}}
-  </ul>
-  <p class="gmail__discovery-status" data-test-gmail-results-message{{#if refineSearch}} data-test-gmail-refine-search{{/if}}>{{resultsMessage}}</p>
-  {{#each actions}}
-  <form class="gmail__results-action" method="GET" action="{{../pagePath}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-    {{#each fields}}
-    <input type="hidden" name="{{name}}" value="{{value}}">
-    {{/each}}
-    <button class="btn btn--neutral btn--s" type="submit" data-test-gmail-{{key}}>{{label}}</button>
-  </form>
-  {{/each}}
-</div>
+<div id="gmail-sender-results" data-test-gmail-sender-results data-results-state="{{resultsState}}">
+                  <ul class="gmail__options gmail__sender-options">
+                    {{#each options}}
+                    <li>
+                      <button class="gmail__picker-option" type="submit" form="gmail-readlist-selection" formmethod="get" formnovalidate name="pick" value="{{email}}" data-gmail-picker-option data-test-gmail-sender-option="{{email}}">
+                        {{#if name}}<span data-test-gmail-sender-option-name>{{name}}</span>{{/if}}<span class="gmail__option-email">{{email}}</span>
+                      </button>
+                    </li>
+                    {{/each}}
+                  </ul>
+                  <p class="gmail__discovery-status" data-test-gmail-results-message{{#if refineSearch}} data-test-gmail-refine-search{{/if}}>{{resultsMessage}}</p>
+                </div>

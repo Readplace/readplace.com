@@ -26,3 +26,34 @@ export function documentHeight(): number {
 export function scrollToTop(): void {
 	window.scrollTo(0, 0);
 }
+
+export interface ScrollBoxMeasure {
+	height: number;
+	maxHeight: number;
+	overflowY: string;
+	scrollHeight: number;
+	clientHeight: number;
+	scrollWidth: number;
+	clientWidth: number;
+}
+
+export function measureScrollBox(selector: string): ScrollBoxMeasure {
+	const element = document.querySelector(selector);
+	if (!(element instanceof HTMLElement)) throw new Error(`"${selector}" must be laid out to be measured`);
+	const style = getComputedStyle(element);
+	return {
+		height: element.getBoundingClientRect().height,
+		maxHeight: Number.parseFloat(style.maxHeight),
+		overflowY: style.overflowY,
+		scrollHeight: element.scrollHeight,
+		clientHeight: element.clientHeight,
+		scrollWidth: element.scrollWidth,
+		clientWidth: element.clientWidth,
+	};
+}
+
+export function scrollBoxTo(input: { selector: string; top: number }): void {
+	const element = document.querySelector(input.selector);
+	if (!element) throw new Error(`"${input.selector}" must exist to be scrolled`);
+	element.scrollTop = input.top;
+}

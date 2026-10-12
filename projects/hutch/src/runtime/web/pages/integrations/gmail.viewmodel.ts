@@ -26,8 +26,8 @@ import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-conne
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, type GmailFormAction, gmailGetFields, trackGmail } from "./gmail-form-fields";
 import { gmailMappingDestination, type GmailMappingsViewModel, toGmailMappingsViewModel } from "./gmail-mappings.viewmodel";
+import { type GmailChecklistCommand, type GmailSenderChecklist, toGmailSenderChecklist } from "./gmail-sender-checklist.viewmodel";
 import {
-	type GmailResultsAction,
 	type GmailSenderOption,
 	type GmailSenderResultsState,
 	gmailSenderCandidates,
@@ -77,31 +77,35 @@ export interface GmailPageInput {
 	detection: NewsletterDetection;
 	imports: readonly GmailHistoryImportJob[];
 	state: GmailPickerState;
+	command: GmailChecklistCommand;
+	listed: number | undefined;
 	discoveryStarted: boolean;
 	discoveryPending: boolean;
 	pollCount: number;
 	importsPollCount: number;
 	error: string | undefined;
 	notice: string | undefined;
+	saved: number | undefined;
 	notification?: boolean;
 }
 
-interface GmailChooserViewModel {
+interface GmailSenderStatusViewModel {
 	discoveryState: string;
 	discoveryAfter: string | undefined;
 	statusLead: string;
 	checkedLabel: string | undefined;
 	loadButtonLabel: string;
+	reconnectActions: GmailFormAction[];
+	refreshActions: { label: string }[];
+	pollUrl: string | undefined;
+	pollTrigger: string | undefined;
+}
+
+interface GmailSenderResultsViewModel {
 	resultsState: GmailSenderResultsState;
 	resultsMessage: string;
 	refineSearch: boolean;
 	options: GmailSenderOption[];
-	hasOptions: boolean;
-	actions: GmailResultsAction[];
-	reconnectActions: GmailFormAction[];
-	pollUrl: string | undefined;
-	pollTrigger: string | undefined;
-	pagePath: string;
 }
 
 interface GmailReadlistOption { slug: string; label: string; selected: boolean; locked: boolean }
@@ -115,7 +119,6 @@ interface GmailReadlistPickerViewModel {
 	createAction: string;
 	fields: FormField[];
 	confirmLabel: string;
-	confirmSender: string;
 	readlistName: string;
 	nameMaxLength: number;
 	limitMessage: string;
@@ -164,14 +167,13 @@ export interface GmailPageViewModel {
 	autoDiscoverAction: string | undefined;
 	search: string;
 	searchFields: FormField[];
-	selectedSender: string | undefined;
 	notificationSender: string | undefined;
-	senderChoiceName: string | undefined;
-	senderChoiceLabel: string;
-	chooser: GmailChooserViewModel;
+	status: GmailSenderStatusViewModel;
+	checklist: GmailSenderChecklist;
+	results: GmailSenderResultsViewModel;
 	readlistPicker: GmailReadlistPickerViewModel;
 	delivery: GmailDeliveryChoiceViewModel;
-	save: GmailSaveViewModel | undefined;
+	save: GmailSaveViewModel;
 	mappings: GmailMappingsViewModel;
 	alerts: GmailBannerViewModel[];
 	notices: GmailNoticeViewModel[];
@@ -198,8 +200,8 @@ export function gmailPollState(state: GmailConnectionState): GmailPollState | un
 }
 
 export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
-	sender_invalid: "Choose a newsletter from your Gmail account.",
-	sender_unknown: "I couldn't find that sender. Load your Gmail senders and try again.",
+	sender_invalid: "Tick at least one newsletter to save.",
+	sender_unknown: "I couldn't find one of those senders. Load your Gmail senders and try again.",
 	metadata_required: "Reconnect Gmail to choose senders from your mailbox.",
 	readlist_invalid: "Choose your readlists. All is always included.",
 	readlist_choice_required: "Confirm the readlists for this newsletter before saving.",
@@ -237,6 +239,11 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, { message: string; awai
 		awaitingConfirmation: "Newsletter updated. Its new issues will be forwarded once Gmail confirms the forwarding address.",
 		variant: "success",
 	},
+	senders_saved: {
+		message: "{count} newsletters saved. Gmail will forward their new issues, and what you chose to save goes to All and any readlists you picked.",
+		awaitingConfirmation: "{count} newsletters saved. Their new issues will be forwarded once Gmail confirms the forwarding address.",
+		variant: "success",
+	},
 	readlist_created: { message: "Readlist created. Save the newsletter to use it.", variant: "success" },
 	readlist_reused: { message: "You already have a readlist with that name, so I chose it.", variant: "info" },
 	import_started: { message: "Importing unread messages from the last 30 days.", variant: "success" },
@@ -255,12 +262,12 @@ function errorBanners(key: string | undefined): GmailBannerViewModel[] {
 		.map(([errorKey, message]) => ({ key: errorKey, message }));
 }
 
-function noticeBanners(key: string | undefined, awaitingConfirmation: boolean): GmailNoticeViewModel[] {
+function noticeBanners(input: { key: string | undefined; awaitingConfirmation: boolean; saved: number | undefined }): GmailNoticeViewModel[] {
 	return Object.entries(GMAIL_PAGE_NOTICES)
-		.filter(([noticeKey]) => noticeKey === key)
+		.filter(([noticeKey, notice]) => noticeKey === input.key && (input.saved !== undefined || !notice.message.includes("{count}")))
 		.map(([noticeKey, notice]) => ({
 			key: noticeKey,
-			message: awaitingConfirmation ? notice.awaitingConfirmation ?? notice.message : notice.message,
+			message: (input.awaitingConfirmation ? notice.awaitingConfirmation ?? notice.message : notice.message).replace("{count}", String(input.saved)),
 			variant: notice.variant,
 		}));
 }
@@ -326,7 +333,7 @@ function readlistPicker(input: {
 	selected: readonly ReadlistRef[];
 	pending: boolean;
 }): GmailReadlistPickerViewModel {
-	const { readlist: _readlist, import: _import, readlist_name: _name, delivery: _delivery, ...fieldsState } = input.state;
+	const { readlist: _readlist, import: _import, readlist_name: _name, delivery: _delivery, sender: _sender, added: _added, search: _search, ...fieldsState } = input.state;
 	return {
 		open: input.state.edit === "1" || (input.page.error !== undefined && READLIST_PICKER_ERRORS.has(input.page.error)),
 		choiceLabel: input.selected.map((readlist) => readlist.label).join(", "),
@@ -341,7 +348,6 @@ function readlistPicker(input: {
 		createAction: trackGmail(GMAIL_READLIST_CREATE_PATH, "create-readlist"),
 		fields: gmailGetFields(fieldsState, "choose-readlists"),
 		confirmLabel: input.pending ? "Confirm readlists" : "Apply readlists",
-		confirmSender: input.state.sender ?? "",
 		readlistName: input.page.state.readlist_name ?? "",
 		nameMaxLength: READLIST_LABEL_MAX_LENGTH,
 		limitMessage: `You can keep up to ${READLIST_MAX_PER_USER} readlists. Choose an existing readlist.`,
@@ -350,15 +356,14 @@ function readlistPicker(input: {
 
 function saveFor(input: {
 	state: GmailPickerState;
-	sender: GmailMapping | undefined;
+	offerImport: boolean;
 	variant: "primary" | "neutral";
 	pending: boolean;
 	invalid: boolean;
 }): GmailSaveViewModel {
-	const offerImport = input.sender?.addedToFilterAt === undefined;
 	return {
 		action: trackGmail(GMAIL_SENDER_ADD_PATH, "save-mapping"),
-		offerImport,
+		offerImport: input.offerImport,
 		importChecked: input.state.import === "1",
 		variant: input.variant,
 		disabled: input.pending || input.invalid,
@@ -391,41 +396,57 @@ function readlistChoice(input: GmailPageInput, sender: GmailMapping | undefined)
 	return [DEFAULT_READLIST];
 }
 
+function refreshActions(input: { listed: number | undefined; knownCount: number }): { label: string }[] {
+	if (input.listed === undefined || input.knownCount <= input.listed) return [];
+	const found = input.knownCount - input.listed;
+	return [{ label: `Show ${found.toLocaleString("en")} newly found ${found === 1 ? "newsletter" : "newsletters"}` }];
+}
+
+const TICK_FIELDS: ReadonlySet<string> = new Set(["sender", "added"]);
+
 export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel {
 	const state = gmailConnectionState(input.connection);
 	const pollState = gmailPollState(state);
 	const revoked = state === "revoked";
 	const candidates = gmailSenderCandidates(input);
-	const selectedCandidate = [...candidates.values()].find((candidate) => candidate.email === input.state.sender);
-	const selectedSenderEntry = input.senders.find((sender) => sender.senderEmail === selectedCandidate?.email);
-	const selectedReadlists = readlistChoice(input, selectedSenderEntry);
-	const choiceFor = input.state.readlist_choice_for ?? (input.notification && selectedSenderEntry?.mappedAddresses === undefined ? selectedCandidate?.email : undefined);
-	const pending = choiceFor === selectedCandidate?.email && choiceFor !== undefined && selectedSenderEntry?.mappedAddresses === undefined && input.readlists.some((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
+	const checklist = toGmailSenderChecklist({
+		state: input.state,
+		candidates,
+		catalogAvailable: input.detection.status === "available",
+		command: input.command,
+	});
+	const ticked = checklist.sender;
+	const entryFor = (email: string) => input.senders.find((sender) => sender.senderEmail === email);
+	const tickedEntries = input.senders.filter((sender) => ticked.includes(sender.senderEmail));
+	const tickedMapped = tickedEntries.filter((sender) => sender.addedToFilterAt !== undefined);
+	const anchor = tickedEntries.length === 1 ? tickedEntries[0] : undefined;
+	const selectedReadlists = readlistChoice(input, anchor);
+	const notified = input.notification ? ticked.at(0) : undefined;
+	const choiceFor = input.state.readlist_choice_for ?? (notified !== undefined && entryFor(notified)?.mappedAddresses === undefined ? notified : undefined);
+	const pending = choiceFor !== undefined && ticked.some((email) => email === choiceFor) && entryFor(choiceFor)?.mappedAddresses === undefined && input.readlists.some((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	const invalid = gmailSelectedReadlists(input.state).some((slug) => !input.readlists.some((readlist) => readlist.slug === slug));
 	const pickerState: GmailPickerState = {
 		...input.state,
-		sender: selectedCandidate?.email,
-		readlist: selectedCandidate === undefined ? input.state.readlist : selectedReadlists.map((readlist) => readlist.slug),
+		sender: ticked,
+		added: checklist.added,
+		readlist: ticked.length === 0 ? input.state.readlist : selectedReadlists.map((readlist) => readlist.slug),
 		readlist_choice_for: choiceFor,
 		readlist_name: undefined,
 	};
-	const results = toGmailSenderResults({
-		state: pickerState,
-		candidates,
-		catalogAvailable: input.detection.status === "available",
-	});
+	const results = toGmailSenderResults({ state: pickerState, candidates });
 	const discovering = input.discoveryPending || input.discovery.state === "running" || (input.discoveryStarted && input.discovery.state === "idle");
 	const polling = discovering && input.pollCount < GMAIL_DISCOVERY_MAX_POLLS;
-	const poll = new URL(buildGmailUrl({ ...pickerState, discovery: "started" }), "https://readplace.com");
+	const { sender: _sender, added: _added, ...pollPicker } = pickerState;
+	const poll = new URL(buildGmailUrl({ ...pollPicker, discovery: "started" }), "https://readplace.com");
 	poll.pathname = GMAIL_SENDERS_PATH;
 	poll.searchParams.set("poll", String(input.pollCount + 1));
 	const status = discoveryStatus(input, discovering);
 	const showStep = pollState !== undefined && input.gatewayLive;
 	const commitVariant = showStep ? "neutral" : "primary";
-	const save = selectedCandidate !== undefined
-		? saveFor({ state: pickerState, sender: selectedSenderEntry, variant: commitVariant, pending, invalid })
-		: undefined;
+	const offerImport = ticked.length === 0 || ticked.some((email) => !tickedMapped.some((sender) => sender.senderEmail === email));
+	const save = saveFor({ state: pickerState, offerImport, variant: commitVariant, pending, invalid });
 	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
+	const searchFields = gmailGetFields(pickerState, "search-senders");
 	return {
 		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state], accountEmail: input.connection.accountEmail, pollState,
 		integrationsPath: trackGmail(INTEGRATIONS_PATH, "back-to-newsletters"),
@@ -449,34 +470,32 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
 		autoDiscoverAction: input.discoveryStarted ? undefined : GMAIL_DISCOVERY_START_PATH,
 		search: pickerState.search ?? "",
-		searchFields: gmailGetFields(pickerState, "search-senders").filter((field) => field.name !== "search" && field.name !== "discovery_after"),
-		selectedSender: selectedCandidate?.email,
-		notificationSender: input.notification ? selectedCandidate?.email : undefined,
-		senderChoiceName: selectedCandidate?.newsletterName,
-		senderChoiceLabel: selectedCandidate?.email ?? "Choose a newsletter",
-		chooser: {
+		searchFields: searchFields.filter((field) => field.name !== "search" && field.name !== "discovery_after" && !TICK_FIELDS.has(field.name)),
+		notificationSender: notified,
+		status: {
 			discoveryState: input.discovery.state,
 			discoveryAfter: pickerState.discovery_after,
 			statusLead: status.lead,
 			checkedLabel: status.checked,
 			loadButtonLabel: polling ? (checkingForNewMessages(input) ? "Checking for new messages…" : "Checking…") : "Load senders",
+			reconnectActions: input.discovery.requiresReconnect ? gmailConnectionPrompt({
+				canConnectGmail: input.canConnectGmail,
+				message: status.lead,
+				content: "reconnect-sender-access", label: "Reconnect Gmail", variant: "neutral", fields: [],
+			}).actions : [],
+			refreshActions: refreshActions({ listed: input.listed, knownCount: checklist.knownCount }),
+			pollUrl: polling ? `${poll.pathname}${poll.search}` : undefined,
+			pollTrigger: polling ? discoveryPollTrigger(input.pollCount + 1) : undefined,
+		},
+		checklist,
+		results: {
 			resultsState: results.resultsState,
 			resultsMessage: results.resultsMessage,
 			refineSearch: results.resultsState === "limited",
 			options: results.options,
-			hasOptions: results.options.length > 0,
-			actions: results.actions,
-			reconnectActions: input.discovery.requiresReconnect ? gmailConnectionPrompt({
-				canConnectGmail: input.canConnectGmail,
-				message: status.lead,
-				content: "reconnect-sender-access", label: "Reconnect Gmail", variant: showStep || save !== undefined ? "neutral" : "primary", fields: [],
-			}).actions : [],
-			pollUrl: polling ? `${poll.pathname}${poll.search}` : undefined,
-			pollTrigger: polling ? discoveryPollTrigger(input.pollCount + 1) : undefined,
-			pagePath: GMAIL_PATH,
 		},
 		readlistPicker: readlistPicker({ page: input, state: pickerState, selected: selectedReadlists, pending }),
-		delivery: deliveryChoice({ state: pickerState, sender: selectedSenderEntry }),
+		delivery: deliveryChoice({ state: pickerState, sender: anchor }),
 		save,
 		mappings: toGmailMappingsViewModel({
 			userId: input.userId,
@@ -497,6 +516,6 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			...errorBanners(input.error),
 			...(input.connection.lastConfirmError === undefined ? [] : [{ key: "confirm_failed", message: GMAIL_CONFIRM_FAILED_MESSAGES[input.connection.lastConfirmError.reason] }]),
 		],
-		notices: noticeBanners(input.notice, pollState !== undefined),
+		notices: noticeBanners({ key: input.notice, awaitingConfirmation: pollState !== undefined, saved: input.saved }),
 	};
 }

@@ -5,6 +5,7 @@ import { expect, type Page } from "@playwright/test";
 import { z } from "zod";
 import { markSenderSearchTriggers, notificationControlStyles } from "./gmail-sender-picker.browser";
 import { measureBoxes } from "./page-measurements.browser";
+import { recordScrollAfterSwap, scrollUnderHeader } from "./readlist-scroll-stability.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -15,7 +16,12 @@ const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SENDER_PICKER = "[data-test-gmail-sender-picker]";
 const READLIST_PICKER = "[data-test-gmail-readlist-picker]";
 const RESULTS = "[data-test-gmail-sender-results]";
-const DISCOVERY_FENCE = `${RESULTS} > input[form="gmail-sender-search-form"][name="discovery_after"]`;
+const STATUS = "#gmail-sender-status";
+const DISCOVERY_FENCE = `${STATUS} > input[form="gmail-sender-search-form"][name="discovery_after"]`;
+const CHECKLIST_ROWS = "[data-test-gmail-checklist-rows]";
+const SELECT_ALL = '[data-test-gmail-checklist-action="select"]';
+const REFRESH_CHECKLIST = "[data-test-gmail-refresh-checklist]";
+const SELECTION_FORM = "#gmail-readlist-selection";
 const SENDER_OPTION = "[data-test-gmail-sender-option]";
 const CREATE_READLIST = "[data-test-gmail-readlist-create]";
 const CUSTOM_READLIST_OPTION = '[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])';
@@ -108,15 +114,32 @@ async function openGmail(page: Page, stamp: string, seed: GmailSeed = {}): Promi
 	}
 }
 
-async function chooseSender(page: Page, input: { email: string; search?: string }): Promise<void> {
+function tick(page: Page, sender: string) {
+	return page.locator(`[data-test-gmail-checklist-sender="${sender}"]`);
+}
+
+function addedTick(page: Page, sender: string) {
+	return page.locator(`[data-test-gmail-checklist-group="added"] [data-test-gmail-checklist-sender="${sender}"]`);
+}
+
+async function pickSender(page: Page, input: { email: string; search: string }): Promise<void> {
 	await page.locator(`${SENDER_PICKER} summary`).click();
-	if (input.search !== undefined) {
-		await page.locator("#gmail-sender-search").fill(input.search);
-		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
-	}
+	await page.locator("#gmail-sender-search").fill(input.search);
+	await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
 	await page.locator(`[data-test-gmail-sender-option="${input.email}"]`).click();
-	await expect(page.locator("#gmail-sender-choice")).toContainText(input.email);
-	await expect(page.locator(READLIST_PICKER)).toBeVisible();
+	await expect(tick(page, input.email)).toBeChecked();
+}
+
+function digestNewsletters(count: number): { email: string; name: string }[] {
+	return Array.from({ length: count }, (_, index) => ({
+		email: `digest-${index}@publisher-${index}.com`,
+		name: `Digest ${String(index).padStart(2, "0")}`,
+	}));
+}
+
+async function scrollAfterSwap(page: Page): Promise<number> {
+	await expect(page.locator("html")).toHaveAttribute("data-test-scroll-after-swap", /^\d/);
+	return Number(await page.locator("html").getAttribute("data-test-scroll-after-swap"));
 }
 
 async function openReadlistPicker(page: Page): Promise<void> {
@@ -201,12 +224,12 @@ test.describe("Gmail sender picker", () => {
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await expect(page.locator("#gmail-sender-search")).toBeFocused();
 		await expect(page.locator(RESULTS)).toHaveAttribute("data-results-state", "listed");
-		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(2);
 		await expect(page.locator(`[data-test-gmail-sender-option="${BREW}"]`)).toHaveCount(0);
 		await page.locator("#gmail-sender-search").fill("kale@");
 		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
 		await page.locator(`[data-test-gmail-sender-option="${KALE}"]`).click();
-		await expect(page.locator("#gmail-sender-choice")).toContainText(KALE);
+		await expect(addedTick(page, KALE)).toBeChecked();
 
 		await openReadlistPicker(page);
 		await expect(page.locator("[data-test-gmail-readlist-option]")).toHaveCount(2);
@@ -218,6 +241,7 @@ test.describe("Gmail sender picker", () => {
 
 		await mappingRow(page, BREW).locator('[data-test-gmail-mapping-action="edit"]').click();
 		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
+		await expect(page.locator(`[data-test-gmail-checklist-group="editing"] [data-test-gmail-checklist-sender="${BREW}"]`)).toBeChecked();
 		await page.locator(CUSTOM_READLIST_OPTION).uncheck();
 		await page.locator("[data-test-gmail-save]").click();
 		await expect(page.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
@@ -257,12 +281,12 @@ test.describe("Gmail sender picker", () => {
 			discoveryStartHeld: true,
 		});
 		await expect(page.locator("#gmail-load-senders-button")).toHaveText("Checking…");
-		await expect(page.locator(RESULTS)).toHaveAttribute("hx-get", /poll=1/);
+		await expect(page.locator(STATUS)).toHaveAttribute("hx-get", /poll=1/);
 		assert(releaseDiscovery);
 		releaseDiscovery();
 		await discoveryResponse;
 		await expect(page.locator("#gmail-load-senders-button")).toHaveText("Load senders");
-		await expect(page.locator(RESULTS)).not.toHaveAttribute("hx-get");
+		await expect(page.locator(STATUS)).not.toHaveAttribute("hx-get");
 	});
 
 	test("keeps a search typed during the automatic discovery start when the start lands first", async ({
@@ -302,10 +326,9 @@ test.describe("Gmail sender picker", () => {
 
 		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
 		await expect(page.locator(`[data-test-gmail-sender-option="${KALE}"]`)).toBeVisible();
-		await expect(page.locator(RESULTS)).toHaveAttribute("hx-get", /[?&]search=hacker&/);
 	});
 
-	test("chooses a sender clicked in the polling results while the automatic discovery start is in flight", async ({
+	test("ticks a sender picked from the search while the automatic discovery start is in flight", async ({
 		page,
 	}, testInfo) => {
 		let releaseDiscovery: (() => void) | undefined;
@@ -329,23 +352,23 @@ test.describe("Gmail sender picker", () => {
 			discoveryStartHeld: true,
 		});
 		await expect(page.locator("[data-test-gmail-load-senders]")).toHaveClass(/htmx-request/);
-		await expect(page.locator(RESULTS)).toHaveAttribute("hx-get", /poll=1/);
+		await expect(page.locator(STATUS)).toHaveAttribute("hx-get", /poll=1/);
 
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await page.locator(`[data-test-gmail-sender-option="${TLDR}"]`).click();
-		await expect(page.locator("#gmail-sender-choice")).toContainText(TLDR);
+		await expect(tick(page, TLDR)).toBeChecked();
 
 		assert(releaseDiscovery);
 		releaseDiscovery();
 		await discoveryResponse;
-		await expect(page.locator("#gmail-sender-choice")).toContainText(TLDR);
+		await expect(tick(page, TLDR)).toBeChecked();
 	});
 
 	test("keeps an invalid readlist name in the reopened picker, then reuses and creates readlists before saving", async ({
 		page,
 	}, testInfo) => {
 		await openGmail(page, `create-${testInfo.workerIndex}-${Date.now()}`, { readlists: ["Tech"] });
-		await chooseSender(page, { email: TLDR });
+		await tick(page, TLDR).check();
 		await openReadlistPicker(page);
 
 		const form = page.locator(CREATE_READLIST);
@@ -362,7 +385,7 @@ test.describe("Gmail sender picker", () => {
 		await submit.click();
 		await expect(page.locator('[data-test-alert="readlist_name_invalid"]')).toBeVisible();
 		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
-		await expect(page.locator("#gmail-sender-choice")).toContainText(TLDR);
+		await expect(tick(page, TLDR)).toBeChecked();
 
 		await openReadlistPicker(page);
 		await page.locator(`${CREATE_READLIST} input[name="readlist_name"]`).fill("Tech");
@@ -387,7 +410,7 @@ test.describe("Gmail sender picker", () => {
 		await openGmail(page, `cap-${testInfo.workerIndex}-${Date.now()}`, {
 			readlists: Array.from({ length: 7 }, (_, index) => `Shelf ${index}`),
 		});
-		await chooseSender(page, { email: KALE, search: "kale@" });
+		await pickSender(page, { email: KALE, search: "kale@" });
 		await openReadlistPicker(page);
 		await expect(page.locator("[data-test-gmail-readlist-limit]")).toBeVisible();
 		await expect(page.locator(CUSTOM_READLIST_OPTION)).toHaveCount(7);
@@ -400,12 +423,171 @@ test.describe("Gmail sender picker", () => {
 		await expect(mappingRow(page, KALE).locator("[data-test-gmail-mapping-destination]")).toContainText(shelfName);
 	});
 
+	test("keeps two ticked newsletters while a searched sender joins them, then saves all three", async ({ page }, testInfo) => {
+		await openGmail(page, `bulk-${testInfo.workerIndex}-${Date.now()}`);
+		await tick(page, TLDR).check();
+		await tick(page, BREW).check();
+		await pickSender(page, { email: KALE, search: "kale@" });
+		await expect(tick(page, TLDR)).toBeChecked();
+		await expect(tick(page, BREW)).toBeChecked();
+		await expect(addedTick(page, KALE)).toBeChecked();
+		await saveMapping(page, KALE);
+		await expect(page.locator('[data-test-alert="senders_saved"]')).toBeVisible();
+		await expect(page.locator("[data-test-gmail-mapping-row]")).toHaveCount(3);
+		await expect(mappingRow(page, TLDR)).toBeVisible();
+		await expect(mappingRow(page, BREW)).toBeVisible();
+	});
+
+	test("runs a clicked search inside the open dropdown instead of reloading the page", async ({ page }, testInfo) => {
+		await openGmail(page, `search-click-${testInfo.workerIndex}-${Date.now()}`);
+		await tick(page, TLDR).check();
+		await page.locator(`${SENDER_PICKER} summary`).click();
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(3);
+		const main = await page.locator("main").elementHandle();
+		assert(main);
+		await page.locator("#gmail-sender-search").evaluate((input) => {
+			input.setAttribute("value", "kale");
+		});
+		await page.locator("#gmail-sender-search-submit").click();
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+		await expect(page.locator(`[data-test-gmail-sender-option="${KALE}"]`)).toBeVisible();
+		await expect(page.locator(SENDER_PICKER)).toHaveAttribute("open", "");
+		assert.equal(await main.evaluate((element) => element.isConnected), true);
+		await expect(tick(page, TLDR)).toBeChecked();
+	});
+
+	test("keeps a row unticked after a search once the page has been swapped in", async ({ page }, testInfo) => {
+		await openGmail(page, `untick-${testInfo.workerIndex}-${Date.now()}`);
+		await tick(page, TLDR).check();
+		await pickSender(page, { email: KALE, search: "kale@" });
+		await tick(page, TLDR).uncheck();
+		await page.locator(`${SENDER_PICKER} summary`).click();
+		await page.locator("#gmail-sender-search").fill("brew");
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+		await expect(page.locator(`[data-test-gmail-sender-option="${BREW}"]`)).toBeVisible();
+		await page.reload({ waitUntil: "domcontentloaded" });
+		await expect(page.locator("#gmail-sender-search")).toHaveValue("brew");
+		await expect(addedTick(page, KALE)).toBeChecked();
+		await expect(tick(page, TLDR)).toBeChecked({ checked: false });
+	});
+
+	test("selects every known newsletter, then saves them together", async ({ page }, testInfo) => {
+		await openGmail(page, `select-all-${testInfo.workerIndex}-${Date.now()}`);
+		await page.locator(SELECT_ALL).click();
+		await expect(tick(page, TLDR)).toBeChecked();
+		await expect(tick(page, BREW)).toBeChecked();
+		await expect(page.locator(SELECT_ALL)).toHaveAttribute("value", "none");
+		await saveMapping(page, TLDR);
+		await expect(page.locator('[data-test-alert="senders_saved"]')).toBeVisible();
+		await expect(page.locator("[data-test-gmail-mapping-row]")).toHaveCount(2);
+		await expect(mappingRow(page, BREW)).toBeVisible();
+	});
+
+	test("adds a newly found newsletter without moving the scrolled checklist, then keeps the ticks on refresh", async ({ page }, testInfo) => {
+		const stamp = `refresh-${testInfo.workerIndex}-${Date.now()}`;
+		const digests = digestNewsletters(30);
+		const approved = digests.map((digest) => ({ from: digest.email, name: digest.name }));
+		await openGmail(page, stamp, {
+			approvedNewsletters: approved,
+			discoveredSenders: [...digests, { email: KALE, name: "Hacker Newsletter" }],
+			discoveryState: "running",
+			discoveryMode: "full",
+			discoveryScannedMessages: 4,
+			discoveryEstimatedTotalMessages: 400,
+		});
+		await expect(page.locator(STATUS)).toHaveAttribute("hx-get", /poll=/);
+		await tick(page, digests[0].email).check();
+		await tick(page, digests[1].email).check();
+		await page.evaluate(scrollUnderHeader, "#gmail-checklist");
+		const rowsScrollTop = await page.locator(CHECKLIST_ROWS).evaluate((rows) => {
+			rows.scrollTop = 200;
+			return rows.scrollTop;
+		});
+		assert.ok(rowsScrollTop > 0, "the checklist rows must overflow their box");
+
+		let releasePoll: (() => void) | undefined;
+		const pollHeld = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
+		let pollIntercepted: (() => void) | undefined;
+		const pollArrived = new Promise<void>((resolve) => {
+			pollIntercepted = resolve;
+		});
+		await page.route(
+			(url) => url.pathname === "/newsletters/gmail/senders" && url.searchParams.has("poll"),
+			async (route) => {
+				assert(pollIntercepted);
+				pollIntercepted();
+				await pollHeld;
+				await route.continue();
+			},
+		);
+		await pollArrived;
+		await seedApprovedNewsletters(page, {
+			namespace: `gmail-picker-${stamp}`,
+			newsletters: [...approved, { from: KALE, name: "Hacker Newsletter" }],
+		});
+		await page.evaluate(recordScrollAfterSwap, STATUS);
+		const scrollYBefore = await page.evaluate(() => window.scrollY);
+		const [statusBefore, checklistBefore] = await page.evaluate(measureBoxes, [STATUS, "#gmail-checklist"]);
+		assert(releasePoll);
+		releasePoll();
+
+		await expect(page.locator(REFRESH_CHECKLIST)).toBeVisible();
+		const scrollYAfter = await scrollAfterSwap(page);
+		const [statusAfter, checklistAfter] = await page.evaluate(measureBoxes, [STATUS, "#gmail-checklist"]);
+		assert.equal(checklistAfter.y, checklistBefore.y, "the checklist must hold its place on screen while the refresh button appears above it");
+		assert.equal(scrollYAfter - scrollYBefore, Math.round(statusAfter.height - statusBefore.height));
+		assert.equal(await page.locator(CHECKLIST_ROWS).evaluate((rows) => rows.scrollTop), rowsScrollTop);
+
+		const focusedRefresh = await page.locator(REFRESH_CHECKLIST).elementHandle();
+		assert(focusedRefresh);
+		await focusedRefresh.focus();
+		await expect.poll(() => focusedRefresh.evaluate((button) => button.isConnected), { timeout: 20_000 }).toBe(false);
+		await expect(page.locator(REFRESH_CHECKLIST)).toBeFocused();
+
+		await page.locator(REFRESH_CHECKLIST).click();
+		await expect(tick(page, KALE)).toHaveCount(1);
+		await expect(tick(page, KALE)).toBeChecked({ checked: false });
+		await expect(tick(page, digests[0].email)).toBeChecked();
+		await expect(tick(page, digests[1].email)).toBeChecked();
+	});
+
+	test("stays put when a pointer selects every newsletter or picks a searched sender", async ({ page }, testInfo) => {
+		const digests = digestNewsletters(30);
+		await openGmail(page, `scroll-${testInfo.workerIndex}-${Date.now()}`, {
+			approvedNewsletters: digests.map((digest) => ({ from: digest.email, name: digest.name })),
+			discoveredSenders: [...digests, { email: KALE, name: "Hacker Newsletter" }],
+		});
+		await waitForBrandFonts(page, ["Inter"]);
+
+		await page.evaluate(scrollUnderHeader, "#gmail-checklist");
+		const selectAllBefore = await page.evaluate(() => window.scrollY);
+		assert.ok(selectAllBefore > 0, "the checklist must sit below the fold for the scroll check to mean anything");
+		await page.evaluate(recordScrollAfterSwap, SELECTION_FORM);
+		const selectAll = await measuredBox(page, SELECT_ALL);
+		await page.mouse.click(selectAll.x + selectAll.width / 2, selectAll.y + selectAll.height / 2);
+		await expect(tick(page, digests[29].email)).toBeChecked();
+		assert.equal(await scrollAfterSwap(page), selectAllBefore);
+
+		await page.evaluate(() => document.documentElement.removeAttribute("data-test-scroll-after-swap"));
+		await page.evaluate(scrollUnderHeader, SENDER_PICKER);
+		const trigger = await measuredBox(page, `${SENDER_PICKER} summary`);
+		await page.mouse.click(trigger.x + trigger.width / 2, trigger.y + trigger.height / 2);
+		await page.locator("#gmail-sender-search").fill("kale@");
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+		const pickBefore = await page.evaluate(() => window.scrollY);
+		await page.evaluate(recordScrollAfterSwap, SELECTION_FORM);
+		const option = await measuredBox(page, `[data-test-gmail-sender-option="${KALE}"]`);
+		await page.mouse.click(option.x + option.width / 2, option.y + option.height / 2);
+		await expect(addedTick(page, KALE)).toBeChecked();
+		assert.equal(await scrollAfterSwap(page), pickBefore);
+		await expect(tick(page, digests[0].email)).toBeChecked();
+	});
+
 	test("keeps sender search pinned while its results scroll on a narrow screen", async ({ page }, testInfo) => {
 		await page.setViewportSize({ width: 375, height: 500 });
-		const digests = Array.from({ length: 30 }, (_, index) => ({
-			email: `digest-${index}@publisher-${index}.com`,
-			name: `Digest ${String(index).padStart(2, "0")}`,
-		}));
+		const digests = digestNewsletters(30);
 		await openGmail(page, `sticky-${testInfo.workerIndex}-${Date.now()}`, {
 			approvedNewsletters: digests.map((digest) => ({ from: digest.email, name: digest.name })),
 			discoveredSenders: digests,
@@ -475,7 +657,7 @@ test.describe("Gmail sender picker without JavaScript", () => {
 	}, testInfo) => {
 		await openGmail(page, `nojs-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false, readlists: ["Tech"] });
 		await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(KALE)}&notification=1&discovery=started`, { waitUntil: "domcontentloaded" });
-		await expect(page.locator("#gmail-sender-choice")).toContainText(KALE);
+		await expect(addedTick(page, KALE)).toBeChecked();
 		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
 		await expect(page.locator("[data-test-gmail-save]")).toBeDisabled();
 		await page.locator(`${READLIST_PICKER} summary`).click();
@@ -485,15 +667,46 @@ test.describe("Gmail sender picker without JavaScript", () => {
 		await page.locator("#gmail-load-senders-button").click();
 		await page.locator(`${SENDER_PICKER} summary`).click();
 		await page.locator("#gmail-sender-search").fill("Hacker");
-		await page.locator('#gmail-sender-search-form button[type="submit"]').click();
-		await page.locator(`${SENDER_PICKER} summary`).click();
+		await page.locator("#gmail-sender-search-submit").click();
 		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+		await page.locator(`${SENDER_PICKER} summary`).click();
 		await page.locator(`[data-test-gmail-sender-option="${KALE}"]`).click();
+		await expect(addedTick(page, KALE)).toBeChecked();
 		await page.locator(`${READLIST_PICKER} summary`).click();
 		await page.locator(`${CREATE_READLIST} input[name="readlist_name"]`).fill("News");
 		await page.locator(`${CREATE_READLIST} button[type="submit"]`).click();
 		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, News");
 		await page.locator("[data-test-gmail-save]").click();
 		await expect(mappingRow(page, KALE).locator("[data-test-gmail-mapping-destination]")).toContainText("News");
+	});
+
+	test("keeps two ticked newsletters while a search reloads the page and a picked sender joins them, then saves all three", async ({ page }, testInfo) => {
+		await openGmail(page, `nojs-bulk-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false });
+		await tick(page, TLDR).check();
+		await tick(page, BREW).check();
+		await page.locator(`${SENDER_PICKER} summary`).click();
+		await page.locator("#gmail-sender-search").fill("kale");
+		await page.locator("#gmail-sender-search-submit").click();
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+		await expect(tick(page, TLDR)).toBeChecked();
+		await expect(tick(page, BREW)).toBeChecked();
+		await page.locator(`${SENDER_PICKER} summary`).click();
+		await page.locator(`[data-test-gmail-sender-option="${KALE}"]`).click();
+		await expect(addedTick(page, KALE)).toBeChecked();
+		await expect(tick(page, TLDR)).toBeChecked();
+		await expect(tick(page, BREW)).toBeChecked();
+		await saveMapping(page, KALE);
+		await expect(page.locator('[data-test-alert="senders_saved"]')).toBeVisible();
+		await expect(page.locator("[data-test-gmail-mapping-row]")).toHaveCount(3);
+	});
+
+	test("selects every known newsletter, then saves them together without JavaScript", async ({ page }, testInfo) => {
+		await openGmail(page, `nojs-select-all-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false });
+		await page.locator(SELECT_ALL).click();
+		await expect(tick(page, TLDR)).toBeChecked();
+		await expect(tick(page, BREW)).toBeChecked();
+		await saveMapping(page, BREW);
+		await expect(page.locator('[data-test-alert="senders_saved"]')).toBeVisible();
+		await expect(page.locator("[data-test-gmail-mapping-row]")).toHaveCount(2);
 	});
 });

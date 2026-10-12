@@ -16,6 +16,8 @@ function template(name: string): string {
 const GMAIL_TEMPLATE = template("gmail.template.html");
 const GMAIL_POLL_TEMPLATE = template("gmail-poll.template.html");
 const GMAIL_SENDER_RESULTS_TEMPLATE = template("gmail-sender-results.template.html");
+const GMAIL_SENDER_STATUS_TEMPLATE = template("gmail-sender-status.template.html");
+const GMAIL_SENDER_CHECKLIST_TEMPLATE = template("gmail-sender-checklist.template.html");
 const GMAIL_LOAD_BUTTON_TEMPLATE = template("gmail-load-button.template.html");
 const GMAIL_READLIST_PICKER_TEMPLATE = template("gmail-readlist-picker.template.html");
 const GMAIL_MAPPING_CHOICE_TEMPLATE = template("gmail-mapping-choice.template.html");
@@ -65,11 +67,19 @@ export function renderGmailPoll(vm: GmailPollViewModel): string {
 }
 
 function renderGmailLoadButton(vm: GmailPageViewModel, outOfBand: boolean): string {
-	return render(GMAIL_LOAD_BUTTON_TEMPLATE, { label: vm.chooser.loadButtonLabel, outOfBand });
+	return render(GMAIL_LOAD_BUTTON_TEMPLATE, { label: vm.status.loadButtonLabel, outOfBand });
+}
+
+export function renderGmailSenderStatus(vm: GmailPageViewModel, options: { outOfBandLoadButton: boolean }): string {
+	const status = render(GMAIL_SENDER_STATUS_TEMPLATE, vm.status);
+	return options.outOfBandLoadButton ? renderGmailLoadButton(vm, true) + status : status;
+}
+
+export function renderGmailSenderChecklist(vm: GmailPageViewModel): string {
+	return render(GMAIL_SENDER_CHECKLIST_TEMPLATE, vm.checklist);
 }
 
 function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string {
-	if (vm.selectedSender === undefined) return "";
 	return render(GMAIL_MAPPING_CHOICE_TEMPLATE, {
 		save: vm.save,
 		readlistPicker: vm.readlistPicker,
@@ -81,14 +91,8 @@ function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string
 	});
 }
 
-export function renderGmailSenderResults(
-	vm: GmailPageViewModel,
-	options: { outOfBandLoadButton: boolean; outOfBandState: boolean } = { outOfBandLoadButton: false, outOfBandState: false },
-): string {
-	const results = render(GMAIL_SENDER_RESULTS_TEMPLATE, {
-		...vm.chooser,
-		loadButton: options.outOfBandLoadButton ? renderGmailLoadButton(vm, true) : undefined,
-	});
+export function renderGmailSenderResults(vm: GmailPageViewModel, options: { outOfBandState: boolean }): string {
+	const results = render(GMAIL_SENDER_RESULTS_TEMPLATE, vm.results);
 	if (!options.outOfBandState) return results;
 	return results + renderMappingChoice(vm, true) + renderMappings(vm.mappings, true);
 }
@@ -138,7 +142,9 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 						? ""
 						: renderGmailPoll(toGmailPollViewModel({ pollCount: 0, state: vm.pollState, picker: vm.pickerState })),
 				loadButton: renderGmailLoadButton(vm, false),
-				senderResults: renderGmailSenderResults(vm),
+				senderStatus: renderGmailSenderStatus(vm, { outOfBandLoadButton: false }),
+				senderChecklist: renderGmailSenderChecklist(vm),
+				senderResults: renderGmailSenderResults(vm, { outOfBandState: false }),
 				mappingChoiceHtml: renderMappingChoice(vm, false),
 				mappingsHtml: renderMappings(vm.mappings, false),
 			}),

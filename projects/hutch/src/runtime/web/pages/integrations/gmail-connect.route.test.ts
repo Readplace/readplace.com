@@ -977,8 +977,8 @@ describe("Gmail read permission for an import", () => {
 	});
 
 	it("returns the reader to the picker state they left from, whatever Google answers", async () => {
-		const pickerState = { search: "dan", advanced: "1", readlist: "default", edit: "1", discovery_after: "none" };
-		const back = "search=dan&advanced=1&readlist=default&discovery_after=none";
+		const pickerState = { search: "dan", readlist: "default", edit: "1", discovery_after: "none" };
+		const back = "search=dan&readlist=default&discovery_after=none";
 		const granted = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
 		const grantedUrl = await granted.askForPermission(pickerState);
 		expect((await granted.agent.get(CALLBACK).query({ code: "auth-code", state: grantedUrl.searchParams.get("state") })).headers.location)

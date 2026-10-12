@@ -239,6 +239,169 @@ form.htmx-request .gmail__submit-loader {
   font-variant-numeric: tabular-nums;
 }
 
+.gmail__sender-status {
+  margin: 0 0 16px;
+}
+
+.gmail__sender-status > form + form,
+.gmail__sender-status > button {
+  margin-top: 8px;
+}
+
+.gmail__checklist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 0 0 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: clip;
+  counter-reset: gmail-checked;
+}
+
+.gmail__checklist-intro {
+  grid-column: 1 / -1;
+  padding: 14px 20px 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  text-wrap: pretty;
+  color: var(--muted-foreground);
+}
+
+.gmail__checklist-toolbar {
+  grid-row: 2;
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.gmail__checklist-summary {
+  grid-row: 2;
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 12px 20px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.gmail__checklist-count {
+  font-weight: 600;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.gmail__checklist-count::before {
+  content: counter(gmail-checked);
+}
+
+.gmail__checklist-message,
+.gmail__checklist-rows {
+  grid-column: 1 / -1;
+}
+
+.gmail__checklist-message {
+  padding: 14px 20px;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  text-wrap: pretty;
+  color: var(--muted-foreground);
+}
+
+.gmail__checklist-message:empty {
+  display: none;
+}
+
+.gmail__checklist-rows {
+  max-height: min(420px, 55vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gmail__checklist-group-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.gmail__checklist-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gmail__checklist-row {
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.15s ease;
+}
+
+.gmail__checklist-group:last-child .gmail__checklist-row:last-child {
+  border-bottom: none;
+}
+
+.gmail__checklist-row:hover {
+  background: var(--muted);
+}
+
+.gmail__checklist-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 12px 20px;
+  cursor: pointer;
+}
+
+.gmail__checklist-checkbox {
+  flex: none;
+}
+
+.gmail__checklist-checkbox:checked {
+  counter-increment: gmail-checked;
+}
+
+.gmail__checklist-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.gmail__checklist-name {
+  font-weight: 500;
+}
+
+.gmail__checklist-email:not(:only-child) {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gmail__checklist-row {
+    transition: none;
+  }
+}
+
 .gmail__mapping-form > :last-child {
   margin-bottom: 0;
 }
@@ -336,10 +499,6 @@ form.htmx-request .gmail__submit-loader {
   padding: 0;
 }
 
-.gmail__options form {
-  margin: 0;
-}
-
 .gmail__create-item {
   margin: 4px -4px 0;
   padding: 4px 4px 0;
@@ -405,6 +564,10 @@ form.htmx-request .gmail__submit-loader {
   margin: 8px 12px;
 }
 
+.gmail__sender-status > .gmail__discovery-status {
+  margin: 0 0 8px;
+}
+
 .gmail__filter {
   margin-bottom: 16px;
 }
@@ -413,30 +576,6 @@ form.htmx-request .gmail__submit-loader {
   display: flex;
   gap: 8px;
   margin-top: 12px;
-}
-
-.gmail__choice {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.gmail__choice-name {
-  font-weight: 600;
-}
-
-.gmail__choice-email {
-  overflow-wrap: anywhere;
-}
-
-.gmail__choice-name + .gmail__choice-email {
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-}
-
-.gmail__results-action {
-  margin: 0 12px 8px;
 }
 
 .gmail__import-option {

@@ -194,15 +194,16 @@ test.describe("GMail Newsletters import states", () => {
 			seed: { readonly: false, mapped: false, imports: [] },
 		});
 
-		await page.locator("[data-test-gmail-sender-picker] summary").click();
-		await page.locator(`[data-test-gmail-sender-option="${TLDR}"]`).click();
-		await expect(page.locator("#gmail-sender-choice")).toContainText(TLDR);
+		const tldrTick = page.locator(`[data-test-gmail-checklist-group="known"] [data-test-gmail-checklist-sender="${TLDR}"]`);
+		await tldrTick.check();
+		await expect(tldrTick).toBeChecked();
 		const readlistPicker = page.locator("[data-test-gmail-readlist-picker]");
 		await expect(readlistPicker).not.toHaveAttribute("open", "");
 		await readlistPicker.locator("summary").click();
 		await expect(readlistPicker).toHaveAttribute("open", "");
 		await page.locator('[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])').click();
 		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
+		await expect(tldrTick).toBeChecked();
 		await expect(page.locator(IMPORT_CHECKBOX)).not.toBeChecked();
 		await page.locator(IMPORT_CHECKBOX).check();
 		await expect(page.locator("[data-test-gmail-sender-picker]")).not.toHaveAttribute("open", "");

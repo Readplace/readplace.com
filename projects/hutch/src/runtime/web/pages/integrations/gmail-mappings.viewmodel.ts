@@ -233,7 +233,7 @@ function rowActions(input: {
 	const jobFields = (job: GmailHistoryImportJob) => [...gmailBodyFields(input.state), { name: "job", value: job.jobId }];
 	const editState: GmailPickerState = {
 		...listState,
-		sender: input.sender.senderEmail,
+		sender: [input.sender.senderEmail],
 		readlist: input.destination.kind === "readlist" ? input.destination.readlists.map((readlist) => readlist.slug) : undefined,
 		delivery: undefined,
 		edit: "1",

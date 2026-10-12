@@ -173,6 +173,26 @@ describe("Gmail custom readlist confirmation", () => {
 	});
 });
 
+describe("Gmail sender search", () => {
+	it("runs the search on Enter in the search box instead of the selection form's default button", () => {
+		const dom = new JSDOM(`<form id="selection"><button id="default" type="submit">Create readlist</button><input id="name" type="text"></form>
+			<input id="search" type="search" form="selection" data-gmail-sender-search>
+			<button id="submit" type="submit" form="selection" data-gmail-sender-search-submit>Search</button>`);
+		initGmailPicker({ document: dom.window.document });
+		let searched = 0;
+		element(dom, "#submit").addEventListener("click", (event) => {
+			event.preventDefault();
+			searched++;
+		});
+		element(dom, "#search").focus();
+		assert.equal(pressFromFocus(dom, "Enter"), true);
+		assert.equal(searched, 1);
+		element(dom, "#name").focus();
+		assert.equal(pressFromFocus(dom, "Enter"), false);
+		assert.equal(searched, 1);
+	});
+});
+
 describe("Gmail delivery choice", () => {
 	it("resubmits the selection form when a delivery option changes, without confirming its readlists", () => {
 		const dom = new JSDOM(`<form data-gmail-readlist-selection><input id="issue" type="radio" name="delivery" value="issue" checked data-gmail-delivery-option><input id="links" type="radio" name="delivery" value="links" data-gmail-delivery-option><button id="confirm" type="submit" name="confirm_readlists" value="dan@tldr.tech" data-gmail-confirm-readlists>Confirm readlists</button></form>`);

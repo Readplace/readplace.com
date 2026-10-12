@@ -64,38 +64,38 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 		detection: recognised([]),
 		imports: [],
 		state: {},
+		command: { pick: undefined, select: undefined },
+		listed: undefined,
 		discoveryStarted: false,
 		discoveryPending: false,
 		pollCount: 0,
 		importsPollCount: 0,
 		error: undefined,
 		notice: undefined,
+		saved: undefined,
 		...overrides,
 	};
 }
 
 describe("GMail Newsletters calls to action", () => {
 	it("keeps Open Gmail the only amber CTA while the forwarding step shows", () => {
-		const awaiting = toGmailPageViewModel(input({ connection: connection({ forwardingConfirmedAt: undefined }), state: { sender: TLDR, readlist: "default" } }));
+		const awaiting = toGmailPageViewModel(input({ connection: connection({ forwardingConfirmedAt: undefined }), state: { sender: [TLDR], readlist: "default" } }));
 		assert.equal(awaiting.showStep, true);
-		assert.equal(awaiting.save?.variant, "neutral");
-		const confirmed = toGmailPageViewModel(input({ state: { sender: TLDR, readlist: "default" } }));
+		assert.equal(awaiting.save.variant, "neutral");
+		const confirmed = toGmailPageViewModel(input({ state: { sender: [TLDR], readlist: "default" } }));
 		assert.equal(confirmed.showStep, false);
-		assert.equal(confirmed.save?.variant, "primary");
+		assert.equal(confirmed.save.variant, "primary");
 	});
 
-	it("keeps the discovery Reconnect amber only when no other amber CTA is on screen", () => {
+	it("keeps the discovery Reconnect neutral beside the Save that is always on the page", () => {
 		const requiresReconnect: GmailPageInput["discovery"] = { state: "failed", mode: "full", checkedMessageCount: 0, requiresReconnect: true };
-		const alone = toGmailPageViewModel(input({ discovery: requiresReconnect }));
-		assert.equal(alone.chooser.reconnectActions[0]?.variant, "primary");
-		assert.equal(alone.chooser.statusLead, "Reconnect Gmail to continue loading senders. The newsletters you set up stay in place.");
-		assert.equal(alone.chooser.checkedLabel, undefined);
-		assert.equal(alone.showMetadataReconnect, true);
-		assert.equal(alone.showSenders, false);
-		const besideOpenGmail = toGmailPageViewModel(input({ discovery: requiresReconnect, connection: connection({ forwardingConfirmedAt: undefined }) }));
-		assert.equal(besideOpenGmail.chooser.reconnectActions[0]?.variant, "neutral");
-		const besideSave = toGmailPageViewModel(input({ discovery: requiresReconnect, state: { sender: TLDR, readlist: "default" } }));
-		assert.equal(besideSave.chooser.reconnectActions[0]?.variant, "neutral");
+		const vm = toGmailPageViewModel(input({ discovery: requiresReconnect }));
+		assert.deepEqual(vm.status.reconnectActions.map((action) => action.variant), ["neutral"]);
+		assert.equal(vm.save.variant, "primary");
+		assert.equal(vm.status.statusLead, "Reconnect Gmail to continue loading senders. The newsletters you set up stay in place.");
+		assert.equal(vm.status.checkedLabel, undefined);
+		assert.equal(vm.showMetadataReconnect, true);
+		assert.equal(vm.showSenders, false);
 	});
 
 	it("opens the connected mailbox for the account that granted access", () => {
@@ -119,33 +119,33 @@ describe("GMail Newsletters connection status", () => {
 describe("GMail Newsletters discovery status", () => {
 	it("asks the reader to load senders before any discovery", () => {
 		const vm = toGmailPageViewModel(input({ discoveredSenders: [], discovery: { state: "idle", mode: "profile", checkedMessageCount: 0 } }));
-		assert.equal(vm.chooser.statusLead, "Load senders from your Gmail account to choose one.");
-		assert.equal(vm.chooser.checkedLabel, undefined);
+		assert.equal(vm.status.statusLead, "Load senders from your Gmail account to choose one.");
+		assert.equal(vm.status.checkedLabel, undefined);
 		assert.equal(vm.autoDiscoverAction, "/newsletters/gmail/discovery/start");
 	});
 
 	it("reports progress from zero while a requested discovery has not started yet", () => {
 		const vm = toGmailPageViewModel(input({ discoveredSenders: [], discovery: { state: "idle", mode: "profile", checkedMessageCount: 0 }, discoveryStarted: true }));
-		assert.equal(`${vm.chooser.statusLead}${vm.chooser.checkedLabel}`, "Checking… Checked 0 messages");
-		assert.equal(vm.chooser.loadButtonLabel, "Checking…");
+		assert.equal(`${vm.status.statusLead}${vm.status.checkedLabel}`, "Checking… Checked 0 messages");
+		assert.equal(vm.status.loadButtonLabel, "Checking…");
 		assert.equal(vm.autoDiscoverAction, undefined);
 	});
 
 	it("keeps cached choices usable when discovery fails", () => {
 		const vm = toGmailPageViewModel(input({ discovery: { state: "failed", mode: "full", checkedMessageCount: 40 } }));
-		assert.equal(vm.chooser.statusLead, "I couldn't finish loading your Gmail senders. Your saved choices are still available. Try Load senders again.");
-		assert.equal(vm.chooser.loadButtonLabel, "Load senders");
-		assert.deepEqual(vm.chooser.options.map((option) => option.email), []);
+		assert.equal(vm.status.statusLead, "I couldn't finish loading your Gmail senders. Your saved choices are still available. Try Load senders again.");
+		assert.equal(vm.status.loadButtonLabel, "Load senders");
+		assert.deepEqual(vm.results.options.map((option) => option.email), [BREW, TLDR]);
 	});
 
 	it("names a finished scan with one sender and one message in the singular", () => {
 		const vm = toGmailPageViewModel(input({ discoveredSenders: [{ email: TLDR, name: undefined }], discovery: { state: "complete", mode: "full", checkedMessageCount: 1 } }));
-		assert.equal(`${vm.chooser.statusLead}${vm.chooser.checkedLabel}`, "1 sender discovered · Checked 1 message");
+		assert.equal(`${vm.status.statusLead}${vm.status.checkedLabel}`, "1 sender discovered · Checked 1 message");
 	});
 
 	it("checks for new messages when a refresh is pending on a finished discovery", () => {
 		const vm = toGmailPageViewModel(input({ discovery: { state: "complete", mode: "full", checkedMessageCount: 1_200 }, discoveryPending: true }));
-		assert.equal(`${vm.chooser.statusLead}${vm.chooser.checkedLabel}`, "Checking for new messages · Checked 1,200 messages");
+		assert.equal(`${vm.status.statusLead}${vm.status.checkedLabel}`, "Checking for new messages · Checked 1,200 messages");
 	});
 });
 
@@ -154,27 +154,28 @@ describe("GMail Newsletters ordering", () => {
 		const vm = toGmailPageViewModel(input({
 			discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: BREW_DAILY, name: undefined }, { email: BREW, name: undefined }],
 			detection: recognised([[BREW_DAILY, "Morning Brew"], [BREW, "Morning Brew"]]),
-			state: { advanced: "1" },
 		}));
-		assert.deepEqual(vm.chooser.options.map((option) => option.email), [BREW, BREW_DAILY, TLDR]);
+		assert.deepEqual(vm.results.options.map((option) => option.email), [BREW, BREW_DAILY, TLDR]);
+		assert.deepEqual(vm.checklist.groups.flatMap((group) => group.rows.map((row) => row.email)), [BREW, BREW_DAILY]);
 		const reversed = toGmailPageViewModel(input({
 			discoveredSenders: [{ email: BREW, name: undefined }, { email: TLDR, name: "TLDR" }],
 			detection: recognised([[BREW, "Morning Brew"]]),
-			state: { advanced: "1" },
 		}));
-		assert.deepEqual(reversed.chooser.options.map((option) => option.email), [BREW, TLDR]);
+		assert.deepEqual(reversed.results.options.map((option) => option.email), [BREW, TLDR]);
 	});
 
-	it("leaves a mapped sender out of the chooser while it stays selectable for editing", () => {
+	it("leaves a mapped sender out of the search and the checklist while it stays tickable for editing", () => {
 		const page = input({
 			senders: [mapped(TLDR)],
 			destinations: new Map([[ALL_ADDRESS, ALL_ENTRY]]),
 			detection: recognised([[TLDR, "TLDR"], [BREW, "Morning Brew"]]),
 		});
-		assert.deepEqual(toGmailPageViewModel(page).chooser.options.map((option) => option.email), [BREW]);
-		const editing = toGmailPageViewModel({ ...page, state: { sender: TLDR, readlist: "default", edit: "1" } });
-		assert.equal(editing.senderChoiceLabel, TLDR);
-		assert.notEqual(editing.save, undefined);
+		const listing = toGmailPageViewModel(page);
+		assert.deepEqual(listing.results.options.map((option) => option.email), [BREW]);
+		assert.deepEqual(listing.checklist.groups.map((group) => [group.key, group.rows.map((row) => row.email)]), [["known", [BREW]]]);
+		const editing = toGmailPageViewModel({ ...page, state: { sender: [TLDR], readlist: "default", edit: "1" } });
+		assert.deepEqual(editing.checklist.groups.map((group) => [group.key, group.rows.map((row) => [row.email, row.checked])]), [["editing", [[TLDR, true]]], ["known", [[BREW, false]]]]);
+		assert.deepEqual(editing.pickerState.sender, [TLDR]);
 	});
 
 	it("orders mapped newsletters by name then address and counts a single forwarded sender", () => {
@@ -192,38 +193,39 @@ describe("GMail Newsletters ordering", () => {
 describe("GMail Newsletters readlist choice", () => {
 	it("selects only a readlist the reader holds and shows its label", () => {
 		const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
-		const chosen = toGmailPageViewModel(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR, readlist: "tech" } }));
+		const chosen = toGmailPageViewModel(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: [TLDR], readlist: "tech" } }));
 		assert.equal(chosen.readlistPicker.choiceLabel, "All, Tech");
 		assert.deepEqual(chosen.readlistPicker.options.map((option) => [option.slug, option.selected]), [["default", true], ["tech", true]]);
-		const unknown = toGmailPageViewModel(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR, readlist: "gone" } }));
+		const unknown = toGmailPageViewModel(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: [TLDR], readlist: "gone" } }));
 		assert.equal(unknown.readlistPicker.choiceLabel, "All");
-		assert.equal(unknown.save?.disabled, true);
+		assert.equal(unknown.save.disabled, true);
 	});
 
 	it("selects All for ordinary entries and asks notification recipients to confirm when custom lists exist", () => {
-		const onlyAll = toGmailPageViewModel(input({ state: { sender: TLDR }, notification: true }));
+		const onlyAll = toGmailPageViewModel(input({ state: { sender: [TLDR] }, notification: true }));
 		assert.equal(onlyAll.readlistPicker.choiceLabel, "All");
-		assert.equal(onlyAll.save?.disabled, false);
+		assert.equal(onlyAll.save.disabled, false);
 		assert.equal(onlyAll.notificationSender, TLDR);
-		const choice = toGmailPageViewModel(input({ state: { sender: TLDR }, readlists: [DEFAULT_READLIST, { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" }] }));
+		const choice = toGmailPageViewModel(input({ state: { sender: [TLDR] }, readlists: [DEFAULT_READLIST, { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" }] }));
 		assert.equal(choice.readlistPicker.choiceLabel, "All");
-		assert.equal(choice.save?.disabled, false);
+		assert.equal(choice.save.disabled, false);
 		assert.equal(choice.notificationSender, undefined);
-		const missing = toGmailPageViewModel(input({ state: { sender: "other@example.com" }, notification: true }));
+		const missing = toGmailPageViewModel(input({ state: { sender: [ForwardableSenderSchema.parse("other@example.com")] }, notification: true }));
 		assert.equal(missing.notificationSender, undefined);
-		assert.equal(missing.save, undefined);
+		assert.deepEqual(missing.pickerState.sender, []);
+		assert.equal(missing.save.disabled, false);
 	});
 
 	it("opens an already mapped newsletter with its current destination", () => {
 		const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
-		const page = input({ senders: [mapped(TLDR)], destinations: new Map([[ALL_ADDRESS, { ...ALL_ENTRY, readlist: TECH.slug }]]), readlists: [DEFAULT_READLIST, TECH], state: { sender: TLDR }, notification: true });
+		const page = input({ senders: [mapped(TLDR)], destinations: new Map([[ALL_ADDRESS, { ...ALL_ENTRY, readlist: TECH.slug }]]), readlists: [DEFAULT_READLIST, TECH], state: { sender: [TLDR] }, notification: true });
 		const current = toGmailPageViewModel(page);
 		assert.equal(current.readlistPicker.choiceLabel, "All, Tech");
-		assert.equal(current.save?.disabled, false);
-		assert.equal(current.save?.offerImport, false);
+		assert.equal(current.save.disabled, false);
+		assert.equal(current.save.offerImport, false);
 		const missing = toGmailPageViewModel({ ...page, destinations: new Map() });
 		assert.equal(missing.readlistPicker.choiceLabel, "All");
-		assert.equal(missing.save?.disabled, false);
+		assert.equal(missing.save.disabled, false);
 	});
 
 	it("requires notification confirmation for a legacy filtered sender without destinations", () => {
@@ -231,14 +233,14 @@ describe("GMail Newsletters readlist choice", () => {
 		const vm = toGmailPageViewModel(input({
 			senders: [{ ...mapped(TLDR), mappedAddresses: undefined, mappedAt: undefined }],
 			readlists: [DEFAULT_READLIST, TECH],
-			state: { sender: TLDR },
+			state: { sender: [TLDR] },
 			notification: true,
 		}));
 		assert.equal(vm.readlistPicker.choiceLabel, "All");
 		assert.equal(vm.readlistPicker.confirmLabel, "Confirm readlists");
 		assert.equal(vm.pickerState.readlist_choice_for, TLDR);
-		assert.equal(vm.save?.disabled, true);
-		assert.equal(vm.save?.offerImport, false);
+		assert.equal(vm.save.disabled, true);
+		assert.equal(vm.save.offerImport, false);
 	});
 
 	it("preselects every saved destination before its filter timestamp is written", () => {
@@ -249,24 +251,24 @@ describe("GMail Newsletters readlist choice", () => {
 			senders: [{ ...mapped(TLDR), addedToFilterAt: undefined, mappedAddresses: [ALL_ADDRESS, workAddress] }],
 			destinations: new Map([[ALL_ADDRESS, { ...ALL_ENTRY, readlist: TECH.slug }], [workAddress, { ...ALL_ENTRY, address: workAddress, readlist: WORK.slug }]]),
 			readlists: [DEFAULT_READLIST, TECH, WORK],
-			state: { sender: TLDR },
+			state: { sender: [TLDR] },
 			notification: true,
 		});
 		const vm = toGmailPageViewModel(page);
 		assert.equal(vm.readlistPicker.choiceLabel, "All, Tech, Work");
 		assert.deepEqual(vm.readlistPicker.options.map((option) => option.selected), [true, true, true]);
 		assert.equal(vm.pickerState.readlist_choice_for, undefined);
-		assert.equal(vm.save?.disabled, false);
-		assert.equal(vm.save?.offerImport, true);
-		assert.equal(toGmailPageViewModel({ ...page, state: { sender: TLDR, readlist_choice_for: TLDR } }).save?.disabled, false);
+		assert.equal(vm.save.disabled, false);
+		assert.equal(vm.save.offerImport, true);
+		assert.equal(toGmailPageViewModel({ ...page, state: { sender: [TLDR], readlist_choice_for: TLDR } }).save.disabled, false);
 	});
 
 	it.each(["readlist_invalid", "readlist_name_invalid", "readlist_limit"])("opens the readlist picker for %s", (error) => {
-		assert.equal(toGmailPageViewModel(input({ state: { sender: TLDR }, error })).readlistPicker.open, true);
+		assert.equal(toGmailPageViewModel(input({ state: { sender: [TLDR] }, error })).readlistPicker.open, true);
 	});
 
 	it("keeps the picker closed for other errors and ignores unknown banner keys", () => {
-		const vm = toGmailPageViewModel(input({ state: { sender: TLDR }, error: "sender_unknown", notice: "nonsense" }));
+		const vm = toGmailPageViewModel(input({ state: { sender: [TLDR] }, error: "sender_unknown", notice: "nonsense" }));
 		assert.equal(vm.readlistPicker.open, false);
 		assert.deepEqual(vm.alerts.map((alert) => alert.key), ["sender_unknown"]);
 		assert.deepEqual(vm.notices, []);
@@ -275,6 +277,79 @@ describe("GMail Newsletters readlist choice", () => {
 	it("keeps a notice's ordinary copy during Step 2 when it has no confirmation variant", () => {
 		const vm = toGmailPageViewModel(input({ connection: connection({ forwardingConfirmedAt: undefined }), notice: "readlist_created" }));
 		assert.deepEqual(vm.notices, [{ key: "readlist_created", message: "Readlist created. Save the newsletter to use it.", variant: "success" }]);
+	});
+});
+
+describe("GMail Newsletters shared choice for ticked senders", () => {
+	const TECH = { slug: ReadlistSlugSchema.parse("tech"), label: "Tech" };
+
+	it("takes readlists and delivery from the one ticked sender that is already saved", () => {
+		const vm = toGmailPageViewModel(input({
+			senders: [{ ...mapped(TLDR), deliveryMode: "issue" }],
+			destinations: new Map([[ALL_ADDRESS, { ...ALL_ENTRY, readlist: TECH.slug }]]),
+			readlists: [DEFAULT_READLIST, TECH],
+			state: { sender: [TLDR, BREW] },
+		}));
+		assert.equal(vm.readlistPicker.choiceLabel, "All, Tech");
+		assert.deepEqual(vm.delivery.options.map((option) => [option.value, option.checked]), [["issue", true], ["links", false], ["both", false]]);
+		assert.deepEqual(vm.pickerState.readlist, ["default", "tech"]);
+		assert.equal(vm.save.offerImport, true);
+	});
+
+	it("falls back to All when more than one ticked sender is saved and offers no import for them", () => {
+		const vm = toGmailPageViewModel(input({
+			senders: [mapped(TLDR), mapped(BREW)],
+			destinations: new Map([[ALL_ADDRESS, { ...ALL_ENTRY, readlist: TECH.slug }]]),
+			readlists: [DEFAULT_READLIST, TECH],
+			state: { sender: [TLDR, BREW] },
+		}));
+		assert.equal(vm.readlistPicker.choiceLabel, "All");
+		assert.equal(vm.save.offerImport, false);
+	});
+
+	it("keeps the readlist choice as given while nothing is ticked", () => {
+		assert.deepEqual(toGmailPageViewModel(input({ readlists: [DEFAULT_READLIST, TECH], state: { readlist: ["tech"] } })).pickerState.readlist, ["tech"]);
+		assert.equal(toGmailPageViewModel(input()).pickerState.readlist, undefined);
+	});
+
+	it("leaves the ticks and the typed search out of the scripted search and the mapping form fields, and the ticks out of the poll", () => {
+		const vm = toGmailPageViewModel(input({
+			discovery: { state: "running", mode: "full", checkedMessageCount: 10 },
+			detection: recognised([[TLDR, "TLDR"]]),
+			state: { sender: [TLDR], added: [BREW], search: "tl" },
+		}));
+		assert.deepEqual(vm.readlistPicker.fields.map((field) => field.name), ["discovery", "utm_source", "utm_medium", "utm_content"]);
+		assert.deepEqual(vm.searchFields.map((field) => field.name), ["readlist", "discovery", "utm_source", "utm_medium", "utm_content"]);
+		assert.equal(vm.status.pollUrl, "/newsletters/gmail/senders?search=tl&readlist=default&discovery=started&poll=1");
+	});
+});
+
+describe("GMail Newsletters newly found newsletters", () => {
+	const knownMailbox = { discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: BREW, name: undefined }], detection: recognised([[TLDR, "TLDR"], [BREW, "Morning Brew"]]) };
+
+	it.each([
+		[undefined, []],
+		[2, []],
+		[3, []],
+		[1, ["Show 1 newly found newsletter"]],
+		[0, ["Show 2 newly found newsletters"]],
+	])("offers a refresh for a poll that listed %s rows", (listed, labels) => {
+		const vm = toGmailPageViewModel(input({ ...knownMailbox, listed }));
+		assert.deepEqual(vm.status.refreshActions.map((action) => action.label), labels);
+	});
+});
+
+describe("GMail Newsletters saved notice", () => {
+	it("counts the saved newsletters, with the confirmation variant during Step 2", () => {
+		assert.deepEqual(toGmailPageViewModel(input({ notice: "senders_saved", saved: 3 })).notices.map((notice) => notice.message), [
+			"3 newsletters saved. Gmail will forward their new issues, and what you chose to save goes to All and any readlists you picked.",
+		]);
+		const awaiting = toGmailPageViewModel(input({ notice: "senders_saved", saved: 2, connection: connection({ forwardingConfirmedAt: undefined }) }));
+		assert.deepEqual(awaiting.notices.map((notice) => notice.message), ["2 newsletters saved. Their new issues will be forwarded once Gmail confirms the forwarding address."]);
+	});
+
+	it("shows no count notice without a count", () => {
+		assert.deepEqual(toGmailPageViewModel(input({ notice: "senders_saved" })).notices, []);
 	});
 });
 

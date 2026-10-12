@@ -19,8 +19,6 @@ const THEMES = ["light", "dark"] as const;
 const VOLATILE_CHROME = [".offline-banner", ".newer-version-banner", "[data-test-extension-suggestion-banner]", "[data-test-changelog-banner]"];
 
 const MAIN = "main.gmail";
-const SENDER_PICKER = "[data-test-gmail-sender-picker]";
-const SENDER_CHOICE = "#gmail-sender-choice";
 const READLIST_PICKER = "[data-test-gmail-readlist-picker]";
 const READLIST_MENU = `${READLIST_PICKER} .gmail__picker-menu`;
 const READLIST_OPTION = "[data-test-gmail-readlist-option]";
@@ -102,11 +100,13 @@ async function createReadlistsInOrder(page: Page, names: readonly string[]): Pro
 	}
 }
 
-async function chooseSender(page: Page, email: string): Promise<void> {
-	await page.locator(`${SENDER_PICKER} summary`).click();
-	await expect(page.locator(SENDER_PICKER)).toHaveAttribute("open", "");
-	await page.locator(`[data-test-gmail-sender-option="${email}"]`).click();
-	await expect(page.locator(SENDER_CHOICE)).toContainText(email);
+function tick(page: Page, input: { group: "known" | "editing"; email: string }) {
+	return page.locator(`[data-test-gmail-checklist-group="${input.group}"] [data-test-gmail-checklist-sender="${input.email}"]`);
+}
+
+async function tickSender(page: Page, email: string): Promise<void> {
+	await tick(page, { group: "known", email }).check();
+	await expect(tick(page, { group: "known", email })).toBeChecked();
 	await expect(page.locator(READLIST_PICKER)).toBeVisible();
 }
 
@@ -204,7 +204,7 @@ test.describe("GMail Newsletters mapping", () => {
 			stamp: `confirmation-race-${testInfo.workerIndex}-${Date.now()}`,
 			seed: { readlists: ["Tech"], mappings: [] },
 		});
-		await chooseSender(page, TLDR.email);
+		await tickSender(page, TLDR.email);
 		await openReadlistPicker(page);
 		await createReadlist(page, { name: "Tech", alert: "readlist_reused" });
 		await openReadlistPicker(page);
@@ -280,7 +280,7 @@ test.describe("GMail Newsletters mapping", () => {
 			stamp: `save-${testInfo.workerIndex}-${Date.now()}`,
 			seed: { readlists: ["Tech"], mappings: [] },
 		});
-		await chooseSender(page, TLDR.email);
+		await tickSender(page, TLDR.email);
 		await openReadlistPicker(page);
 		await expect(page.locator(CREATE_NAME)).toBeFocused();
 		await captureMatrix(page, {
@@ -295,7 +295,7 @@ test.describe("GMail Newsletters mapping", () => {
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
 				await expect(settling.locator('[data-test-alert="readlist_name_invalid"]')).toBeVisible();
-				await expect(settling.locator(SENDER_CHOICE)).toContainText(TLDR.email);
+				await expect(tick(settling, { group: "known", email: TLDR.email })).toBeChecked();
 			},
 			geometry: readlistMenuFitsInsidePage,
 		});
@@ -378,7 +378,8 @@ test.describe("GMail Newsletters mapping", () => {
 				await expect(
 					mappingRow(settling, TLDR.email).locator("[data-test-gmail-mapping-destination]"),
 				).toHaveAttribute("data-destination-kind", "readlist");
-				await expect(settling.locator(READLIST_PICKER)).toHaveCount(0);
+				await expect(settling.locator('[data-test-gmail-checklist-group="known"] [data-test-gmail-checklist-row]')).toHaveCount(1);
+				await expect(tick(settling, { group: "known", email: BREW.email })).not.toBeChecked();
 			},
 			geometry: mappingRowsStayInsideTheirList,
 		});
@@ -394,7 +395,7 @@ test.describe("GMail Newsletters mapping", () => {
 		});
 		await createReadlistsInOrder(page, shelves);
 		await gotoGmail(page);
-		await chooseSender(page, BREW.email);
+		await tickSender(page, BREW.email);
 		await openReadlistPicker(page);
 		await captureMatrix(page, {
 			state: "readlist-cap",
@@ -434,7 +435,7 @@ test.describe("GMail Newsletters mapping", () => {
 			state: "remap",
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
-				await expect(settling.locator(SENDER_CHOICE)).toContainText(TLDR.email);
+				await expect(tick(settling, { group: "editing", email: TLDR.email })).toBeChecked();
 				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(2);
 				await expect(settling.locator(IMPORT_CHECKBOX)).toHaveCount(0);
 			},

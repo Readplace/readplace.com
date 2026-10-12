@@ -47,6 +47,7 @@ export type GmailPageNotice =
 	| "sender_removed"
 	| "sender_mapped"
 	| "sender_remapped"
+	| "senders_saved"
 	| "readlist_created"
 	| "readlist_reused"
 	| "import_started"
@@ -58,8 +59,8 @@ export type GmailPageNotice =
 
 export interface GmailPickerState {
 	search?: string;
-	advanced?: "1";
-	sender?: string;
+	sender?: readonly string[];
+	added?: readonly string[];
 	readlist?: string | readonly string[];
 	readlist_choice_for?: string;
 	readlist_name?: string;
@@ -72,15 +73,17 @@ export interface GmailPickerState {
 export interface GmailUrlParams extends GmailPickerState {
 	error?: GmailPageError;
 	notice?: GmailPageNotice;
+	saved?: number;
 	discovery?: "started";
 }
 
 const GMAIL_URL_PARAM_ORDER = [
 	"error",
 	"notice",
+	"saved",
 	"search",
-	"advanced",
 	"sender",
+	"added",
 	"readlist",
 	"readlist_choice_for",
 	"readlist_name",
@@ -96,8 +99,8 @@ export function buildGmailUrl(params: GmailUrlParams = {}): string {
 	for (const key of GMAIL_URL_PARAM_ORDER) {
 		const value = params[key];
 		if (value === undefined) continue;
-		if (typeof value === "string") query.set(key, value);
-		else for (const readlist of new Set(value)) query.append(key, readlist);
+		if (typeof value === "string" || typeof value === "number") query.set(key, String(value));
+		else for (const entry of new Set(value)) query.append(key, entry);
 	}
 	const suffix = query.toString();
 	return suffix === "" ? GMAIL_PATH : `${GMAIL_PATH}?${suffix}`;
@@ -105,11 +108,13 @@ export function buildGmailUrl(params: GmailUrlParams = {}): string {
 
 const optionalText = z.string().optional().catch(undefined);
 
+const optionalTextList = z.union([z.string(), z.array(z.string())]).transform((value) => [...new Set(typeof value === "string" ? [value] : value)]).optional().catch(undefined);
+
 export const GmailPickerStateSchema = z.object({
 	search: optionalText,
-	advanced: z.literal("1").optional().catch(undefined),
-	sender: optionalText,
-	readlist: z.union([z.string(), z.array(z.string())]).transform((value) => [...new Set(typeof value === "string" ? [value] : value)]).optional().catch(undefined),
+	sender: optionalTextList,
+	added: optionalTextList,
+	readlist: optionalTextList,
 	readlist_choice_for: optionalText,
 	readlist_name: optionalText,
 	delivery: GmailDeliveryModeSchema.optional().catch(undefined),
@@ -125,6 +130,14 @@ export function gmailSelectedReadlists(state: GmailPickerState): readonly string
 
 export function parseGmailPickerState(source: unknown): GmailPickerState {
 	return GmailPickerStateSchema.catch({}).parse(source);
+}
+
+export const GMAIL_COMMAND_PARAMS = ["confirm_readlists", "pick", "select"] as const;
+
+export function confirmGmailReadlists(state: GmailPickerState): GmailPickerState {
+	const choiceFor = state.readlist_choice_for;
+	const confirmed = choiceFor !== undefined && (state.sender ?? []).includes(choiceFor);
+	return { ...state, edit: undefined, readlist_choice_for: confirmed ? undefined : choiceFor };
 }
 
 export const GMAIL_POLL_STATES = ["awaiting-confirmation", "confirm-failed"] as const;

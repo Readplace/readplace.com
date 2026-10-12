@@ -53,6 +53,13 @@ export function initGmailPicker({ document }: GmailPickerDeps): void {
 			items[Math.min(Math.max(current + step, 0), items.length - 1)]?.focus();
 		}
 	});
+	document.addEventListener("keydown", (event) => {
+		if (event.key !== "Enter") return;
+		const search = [...document.querySelectorAll<HTMLInputElement>("[data-gmail-sender-search]")].find((input) => input === event.target);
+		if (search === undefined) return;
+		event.preventDefault();
+		for (const submit of document.querySelectorAll<HTMLButtonElement>("[data-gmail-sender-search-submit]")) submit.click();
+	});
 	document.addEventListener("change", (event) => {
 		const target = [...document.querySelectorAll<HTMLInputElement>("[data-gmail-readlist-checkbox]")].find((checkbox) => checkbox === event.target);
 		if (target === undefined || target.disabled) return;

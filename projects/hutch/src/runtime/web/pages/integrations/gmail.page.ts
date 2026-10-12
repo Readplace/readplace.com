@@ -7,11 +7,10 @@ import {
 	GMAIL_HISTORY_IMPORT_MAX_POLLS,
 	gmailConnectionState,
 	hasGmailScope,
-	pickerDeliveryMode,
 } from "@packages/domain/gmail";
-import type { DiscoveredGmailSender, ForwardableSender, GmailConnection, GmailDiscovery, GmailMapping } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailConnection } from "@packages/domain/gmail";
 import { type InboxAddress, InboxAddressSchema, isLiveAddress } from "@packages/domain/inbox";
-import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, readerReadlists } from "@packages/domain/readlist";
+import { READLIST_MAX_PER_USER, readerReadlists } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import { GMAIL_METADATA_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
@@ -20,15 +19,14 @@ import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
-import { GmailPage, renderGmailPoll, renderGmailSenderResults } from "./gmail.component";
+import { GmailPage, renderGmailPoll, renderGmailSenderResults, renderGmailSenderStatus } from "./gmail.component";
 import {
 	buildGmailUrl,
+	confirmGmailReadlists,
+	GMAIL_COMMAND_PARAMS,
 	GMAIL_CONFIRM_MAX_POLLS,
 	GMAIL_DISCOVERY_MAX_POLLS,
-	type GmailPageError,
-	type GmailPageNotice,
 	GmailPollStateSchema,
-	gmailSelectedReadlists,
 	parseGmailPickerState,
 } from "./gmail.url";
 import { gmailPollState, toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
@@ -37,9 +35,11 @@ import { canConnectGmail } from "./gmail-connection-access";
 import { initGmailImportActions } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import { registerGmailMappingRoutes } from "./gmail-mappings.page";
+import { discoveryMatchesConnection, initSaveGmailSenders } from "./gmail-save-senders";
 
-const SenderBodySchema = z.object({ sender: ForwardableSenderSchema });
-const SaveBodySchema = z.object({ readlist: z.union([z.string(), z.array(z.string())]).optional(), import: z.literal("1").optional().catch(undefined) });
+const SelectCommandSchema = z.enum(["all", "none"]);
+const ListedSchema = z.coerce.number().int().nonnegative();
+const SavedSchema = z.coerce.number().int().positive();
 
 export interface GmailPageContext {
 	buildBannerState: BuildBannerState;
@@ -53,10 +53,6 @@ export interface GmailPageContext {
 function queryValue(req: Request, key: string): string | undefined {
 	const value = req.query[key];
 	return typeof value === "string" ? value : undefined;
-}
-
-function discoveryMatchesConnection(discovery: GmailDiscovery | undefined, connection: GmailConnection): boolean {
-	return discovery?.accountEmail.trim().toLowerCase() === connection.accountEmail?.trim().toLowerCase() && discovery?.gatewayAddress === connection.gatewayAddress;
 }
 
 function destinationLookups(input: { connection: GmailConnection; mapped: readonly InboxAddress[] }): InboxAddress[] {
@@ -89,6 +85,7 @@ export function registerGmailPageRoutes(
 		getOrCreateReadlistAddress: gmail.getOrCreateReadlistAddress,
 		cancelGmailHistoryImports: gmail.cancelGmailHistoryImports,
 	});
+	const saveGmailSenders = initSaveGmailSenders({ gmail, imports, mapSenderToReadlist });
 	const ownerOf = (req: Request): UserId => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		return UserIdSchema.parse(req.userId);
@@ -133,6 +130,10 @@ export function registerGmailPageRoutes(
 			gmail.detectNewsletters([...new Set(candidates)]),
 			Promise.all(destinationLookups({ connection, mapped: senders.flatMap((sender) => sender.mappedAddresses ?? []) }).map((address) => gmail.findInboxAddress(address))),
 		]);
+		const pick = ForwardableSenderSchema.safeParse(req.query.pick);
+		const select = SelectCommandSchema.safeParse(req.query.select);
+		const listed = ListedSchema.safeParse(req.query.listed);
+		const saved = SavedSchema.safeParse(req.query.saved);
 		return toGmailPageViewModel({
 			userId,
 			canConnectGmail: canConnectGmail(access),
@@ -150,24 +151,31 @@ export function registerGmailPageRoutes(
 				: discovery,
 			detection,
 			imports: jobs,
-			state: queryValue(req, "confirm_readlists") === queryValue(req, "sender") && queryValue(req, "confirm_readlists") !== undefined
-				? { ...parseGmailPickerState(req.query), edit: undefined, readlist_choice_for: queryValue(req, "readlist_choice_for") === queryValue(req, "sender") ? undefined : queryValue(req, "readlist_choice_for") }
+			state: queryValue(req, "confirm_readlists") === "1"
+				? confirmGmailReadlists(parseGmailPickerState(req.query))
 				: parseGmailPickerState(req.query),
+			command: {
+				pick: pick.success ? pick.data : undefined,
+				select: select.success ? select.data : undefined,
+			},
+			listed: listed.success ? listed.data : undefined,
 			discoveryStarted: queryValue(req, "discovery") === "started",
 			discoveryPending: queryValue(req, "discovery_after") === (discovery?.updatedAt ?? "none"),
 			pollCount: parsePollParam(req.query.poll, GMAIL_DISCOVERY_MAX_POLLS),
 			importsPollCount: parsePollParam(req.query.imports_poll, GMAIL_HISTORY_IMPORT_MAX_POLLS),
 			error: queryValue(req, "error"),
 			notice: queryValue(req, "notice"),
+			saved: saved.success ? saved.data : undefined,
 			notification: queryValue(req, "notification") === "1",
 		});
 	};
 
 	router.get("/gmail", requireGmailAuth, connected, async (req: Request, res: Response) => {
 		const vm = await readPage(req);
+		const boosted = req.get("HX-Request") === "true";
 		res.set("Cache-Control", "private, no-store");
-		if (queryValue(req, "confirm_readlists") !== undefined) {
-			if (req.get("HX-Request") !== "true") {
+		if (GMAIL_COMMAND_PARAMS.some((param) => req.query[param] !== undefined)) {
+			if (!boosted) {
 				res.redirect(303, vm.pageUrl);
 				return;
 			}
@@ -183,9 +191,12 @@ export function registerGmailPageRoutes(
 			sendComponent(req, res, Base(GmailPage(vm), await context.buildBannerState(req)));
 			return;
 		}
-		const searching = queryValue(req, "poll") === undefined;
-		if (searching) res.set("HX-Push-Url", vm.pageUrl);
-		res.type("html").send(renderGmailSenderResults(vm, { outOfBandLoadButton: true, outOfBandState: searching }));
+		if (queryValue(req, "poll") !== undefined) {
+			res.type("html").send(renderGmailSenderStatus(vm, { outOfBandLoadButton: true }));
+			return;
+		}
+		res.set("HX-Push-Url", vm.pageUrl);
+		res.type("html").send(renderGmailSenderResults(vm, { outOfBandState: true }));
 	});
 
 	router.post("/gmail/discovery/start", write, connected, async (req: Request, res: Response) => {
@@ -223,78 +234,7 @@ export function registerGmailPageRoutes(
 	});
 
 	router.post("/gmail/senders/add", write, connected, async (req: Request, res: Response) => {
-		const userId = ownerOf(req);
-		const state = parseGmailPickerState(req.body);
-		const parsedSave = SaveBodySchema.safeParse(req.body);
-		const saved = parsedSave.success ? parsedSave.data : { import: undefined };
-		const invalid = (error: GmailPageError): void => {
-			res.redirect(303, buildGmailUrl({
-				...state,
-				import: saved.import,
-				error,
-				discovery: "started",
-			}));
-		};
-		if (!parsedSave.success) {
-			invalid("readlist_invalid");
-			return;
-		}
-		const sender = SenderBodySchema.safeParse(req.body);
-		if (!sender.success) {
-			invalid("sender_invalid");
-			return;
-		}
-		const senderEmail = sender.data.sender;
-		const [discovered, discovery, connection, definitions] = await Promise.all([
-			gmail.gmailDiscoveryStore.listSendersByUserId(userId),
-			gmail.gmailDiscoveryStore.findDiscoveryByUserId(userId),
-			gmail.gmailConnectionStore.findConnectionByUserId(userId),
-			gmail.listReadlistDefinitions(userId),
-		]);
-		assert(connection, "the connected middleware requires a Gmail connection");
-		const accountEmail = connection.accountEmail;
-		const [existing, observed]: [GmailMapping | undefined, DiscoveredGmailSender[]] = accountEmail === undefined ? [undefined, []] : await Promise.all([
-			gmail.gmailMappingStore.findMapping({ userId, accountEmail, senderEmail }),
-			gmail.gmailMonitoringStore.listObservedSenders({ userId, accountEmail }),
-		]);
-		const senderDiscovered = discoveryMatchesConnection(discovery, connection) && discovered.some((entry) => entry.email === senderEmail);
-		if (existing?.addedToFilterAt === undefined && !senderDiscovered && !observed.some((entry) => entry.email === senderEmail)) {
-			invalid("sender_unknown");
-			return;
-		}
-		assert(accountEmail, "a sender this connection knows implies its Gmail account is recorded");
-		const choices = [...new Set(gmailSelectedReadlists(state))];
-		const readlists = readerReadlists(definitions);
-		if (choices.some((slug) => !readlists.some((entry) => entry.slug === slug))) {
-			invalid("readlist_invalid");
-			return;
-		}
-		if (state.readlist_choice_for === senderEmail && existing?.mappedAddresses === undefined && definitions.length > 0) {
-			invalid("readlist_choice_required");
-			return;
-		}
-		const selected = readlists.filter((entry) => entry.slug !== DEFAULT_READLIST_SLUG && choices.includes(entry.slug));
-		const { destinations } = await mapSenderToReadlist({
-			userId,
-			accountEmail,
-			sender: senderEmail,
-			readlists: selected.map((entry) => entry.slug),
-			deliveryMode: state.delivery ?? pickerDeliveryMode(existing),
-		});
-		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
-		const detection = await gmail.detectNewsletters([senderEmail]);
-		if (detection.status === "unavailable" || detection.recognized.get(senderEmail)?.match !== "exact") {
-			await gmail.publishSubmitNewsletterSender({ senderEmail });
-		}
-		const kept = { search: state.search, advanced: state.advanced, discovery: "started" as const };
-		const newMapping = existing?.addedToFilterAt === undefined;
-		if (!newMapping || saved.import !== "1") {
-			const notice: GmailPageNotice = newMapping ? "sender_mapped" : "sender_remapped";
-			res.redirect(303, buildGmailUrl({ ...kept, notice }));
-			return;
-		}
-		const outcome = await imports.start({ userId, sender: senderEmail, destinations, connection: { ...connection, accountEmail } });
-		res.redirect(303, buildGmailUrl({ ...kept, ...(outcome.ok ? { notice: outcome.notice } : { notice: "sender_mapped", error: outcome.error }) }));
+		res.redirect(303, await saveGmailSenders({ userId: ownerOf(req), body: req.body }));
 	});
 
 	router.post("/gmail/filter/retry", write, connected, async (req: Request, res: Response) => {

@@ -861,6 +861,7 @@ test.describe("Readlist preferences colour roles hold their WCAG contrast in bot
 });
 
 const GMAIL_ROOT = "main.gmail";
+const GMAIL_CHECKLIST_ROOT = "#gmail-checklist";
 const ADMIN_INDEX_ROOT = "main.admin-index";
 const ADMIN_NEWSLETTERS_ROOT = "main.admin-newsletters";
 const CATALOG_COOKIE = "e2e_catalog_ns";
@@ -904,7 +905,7 @@ async function auditRoot(page: Page, input: { root: string; theme: string; view:
 test.describe("GMail Newsletters colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 
-	test("the open pickers and every mapping row clear their contrast minimum", async ({ page }, testInfo) => {
+	test("the checklist, the open pickers and every mapping row clear their contrast minimum", async ({ page }, testInfo) => {
 		const run = `${testInfo.workerIndex}-${Date.now()}`;
 		await seedNewsletterCatalog(page, {
 			namespace: `colour-contrast-gmail-${run}`,
@@ -959,6 +960,19 @@ test.describe("GMail Newsletters colour roles hold their WCAG contrast in both t
 			});
 			await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 			await expect(page.locator("[data-test-gmail-import-consent]").first()).toBeVisible({ timeout: SETTLE_MS });
+			await expect(page.locator('[data-test-gmail-checklist-sender="dan@tldr.tech"]')).toBeChecked();
+			await expect(page.locator('[data-test-gmail-checklist-sender="crew@morningbrew.com"]')).not.toBeChecked();
+			await auditRoot(page, { root: GMAIL_ROOT, theme, view: "gmail/checklist" });
+
+			const hoveredRow = page.locator('[data-test-gmail-checklist-row="crew@morningbrew.com"]');
+			await hoveredRow.hover();
+			await expect.poll(() => hoveredRow.evaluate((row) => row.matches(":hover"))).toBe(true);
+			await expect
+				.poll(() => hoveredRow.evaluate((row) => row.getAnimations().filter((animation) => animation.playState !== "finished").length))
+				.toBe(0);
+			const hovered = await stableMeasurements(page, GMAIL_CHECKLIST_ROOT);
+			assert.ok(hovered.length > 0, `${theme}/gmail/checklist-row-hover: the audit measured nothing inside ${GMAIL_CHECKLIST_ROOT}`);
+			assertContrast(hovered, { theme, view: "gmail/checklist-row-hover" });
 
 			await page.locator("[data-test-gmail-sender-picker] summary").click();
 			await expect(page.locator('[data-test-gmail-sender-results][data-results-state="listed"]')).toBeVisible({
