@@ -9,7 +9,7 @@ import {
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
 import { render } from "@packages/web-shell";
-import { failedCrawlNotice } from "./failed-crawl-notice";
+import { type FailedCrawlNotice, failedCrawlNotice } from "./failed-crawl-notice";
 import {
 	type ReaderFailedVariant,
 	type ReaderRegions,
@@ -79,7 +79,7 @@ function resolveLoadingHint(url: string): string | undefined {
 
 function noticeOrCapture(
 	input: ReaderSlotInput,
-	variant: ReaderFailedVariant,
+	notice: FailedCrawlNotice,
 	oob: boolean,
 ): ReaderRegions {
 	if (input.capturing === true && input.readerPollUrl !== undefined) {
@@ -94,9 +94,10 @@ function noticeOrCapture(
 	}
 	return renderReaderFailed({
 		url: input.url,
-		variant,
+		variant: notice.variant,
 		extensionInstallUrl: input.extensionInstallUrl,
 		capturePollUrl: input.capturePollUrl,
+		captureRescue: notice.captureRescue,
 		oob,
 		noticeOob: input.noticeOob,
 	});
@@ -123,6 +124,7 @@ function pollOrSlow(input: ReaderSlotInput, oob: boolean, pct: number): ReaderRe
 				url: input.url,
 				variant: "slow",
 				extensionInstallUrl: input.extensionInstallUrl,
+				captureRescue: "withheld",
 				oob,
 				noticeOob: input.noticeOob,
 			});
@@ -141,6 +143,7 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 		return renderReaderFailed({
 			url: input.url,
 			variant: input.notice,
+			captureRescue: "withheld",
 			oob,
 			noticeOob: input.noticeOob,
 		});
@@ -167,8 +170,8 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 				}),
 			);
 		case "failed":
-			return noticeOrCapture(input, failedCrawlNotice(input.crawl.reason).variant, oob);
+			return noticeOrCapture(input, failedCrawlNotice(input.crawl.reason), oob);
 		case "unsupported":
-			return noticeOrCapture(input, "unsupported", oob);
+			return noticeOrCapture(input, { variant: "unsupported", captureRescue: "withheld" }, oob);
 	}
 }

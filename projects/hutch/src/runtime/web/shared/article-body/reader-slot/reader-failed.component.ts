@@ -4,6 +4,7 @@ import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleDestinationUrl } from "@packages/domain/article";
 import { render, renderAlert, renderIllustration, withInternalTracking } from "@packages/web-shell";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../client-surface-phrases";
+import type { CaptureRescue } from "./failed-crawl-notice";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "reader-failed.template.html"),
@@ -24,8 +25,7 @@ export interface ReaderFailedInput {
 	 * saved, open it on the source" page:
 	 *   - `unsupported`: terminal — PDFs, images, archives, anything reader view can't render.
 	 *   - `failed`: transient — the fetch errored.
-	 *   - `blocked`: an origin edge refused our servers; a browser on the user's
-	 *     own connection is the only thing that can still fetch it.
+	 *   - `blocked`: an origin edge refused our servers.
 	 *   - `slow`: pending past the poll cap — worker still might land but the user shouldn't wait.
 	 *   - `not-found`: the origin answered 404/410 — nothing can fetch what is gone.
 	 */
@@ -33,6 +33,7 @@ export interface ReaderFailedInput {
 	/** Install URL for the browser extension; omit when the user already has it installed. */
 	extensionInstallUrl?: string;
 	capturePollUrl?: string;
+	captureRescue: CaptureRescue;
 	oob?: boolean;
 	noticeOob: boolean;
 }
@@ -61,6 +62,11 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	"not-found": "This page no longer appears to exist, so Readplace couldn't retrieve the article content.",
 	"not-an-article": "This link isn't an article, so it can't be shown in reader view.",
 };
+
+const CAPTURE_RESCUE_CLASS = {
+	offered: "article-body__reader-notice-capture--offered",
+	withheld: "article-body__reader-notice-capture--withheld",
+} satisfies Record<CaptureRescue, string>;
 
 const CTA_LABELS: Record<ReaderFailedVariant, string> = {
 	unsupported: "Read original article",
@@ -137,7 +143,7 @@ export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 			title: TITLES[input.variant],
 			explanation: EXPLANATIONS[input.variant],
 			ctaLabel: CTA_LABELS[input.variant],
-			showCapture: input.variant === "blocked",
+			captureClass: CAPTURE_RESCUE_CLASS[input.captureRescue],
 			capturePollUrl: input.capturePollUrl,
 			...renderCapturePitch(input),
 		}),

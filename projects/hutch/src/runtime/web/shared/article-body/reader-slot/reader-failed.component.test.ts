@@ -27,6 +27,7 @@ function noticeFor(input: { variant: ReaderFailedVariant; extensionInstallUrl?: 
 			url: destinationUrl("https://example.com/some-article"),
 			variant: input.variant,
 			extensionInstallUrl: input.extensionInstallUrl,
+			captureRescue: "withheld",
 			noticeOob: false,
 		}).notice,
 	);
@@ -118,6 +119,7 @@ describe("renderReaderFailed", () => {
 			const { slot, notice } = renderReaderFailed({
 				url: destinationUrl("https://example.com/post"),
 				variant,
+				captureRescue: "withheld",
 				noticeOob: false,
 			});
 			const marker = parse(slot).querySelector("[data-test-reader-slot]");
@@ -134,6 +136,7 @@ describe("renderReaderFailed", () => {
 		const { slot, notice } = renderReaderFailed({
 			url: destinationUrl("https://example.com/post"),
 			variant: "failed",
+			captureRescue: "offered",
 			noticeOob: false,
 		});
 
@@ -162,6 +165,7 @@ describe("renderReaderFailed", () => {
 			const { slot, notice } = renderReaderFailed({
 				url: destinationUrl("https://example.com/post"),
 				variant: "failed",
+				captureRescue: "offered",
 				oob,
 				noticeOob,
 			});
@@ -203,22 +207,6 @@ describe("renderReaderFailed", () => {
 		}
 	});
 
-	it("offers the capture control only on the blocked variant — the one failure the reader's own host can still fix", () => {
-		function actionsFor(variant: ReaderFailedVariant): (string | null)[] {
-			const doc = parse(
-				renderReaderFailed({ url: destinationUrl("https://example.com/post"), variant, noticeOob: false }).notice,
-			);
-			return Array.from(doc.querySelectorAll("[data-test-reader-action]")).map(
-				(el) => el.getAttribute("data-test-reader-action"),
-			);
-		}
-
-		assert.deepEqual(actionsFor("blocked"), ["open", "capture"]);
-		for (const variant of ["failed", "unsupported", "slow", "origin-down", "not-found", "not-an-article"] as const) {
-			assert.deepEqual(actionsFor(variant), ["open"], `actions for variant=${variant}`);
-		}
-	});
-
 	it("withholds the capture pitch where no capture can help — a deleted page, a dead origin, a link that is not an article — and when the extension is installed", () => {
 		const cases: Array<{ variant: ReaderFailedVariant; extensionInstallUrl: string | undefined }> = [
 			{ variant: "not-found", extensionInstallUrl: "/install?client=chrome" },
@@ -238,27 +226,48 @@ describe("renderReaderFailed", () => {
 		}
 	});
 
-	it("ships the capture control hidden and keeps the source link primary, so a plain browser still sees only the affordance it can honour", () => {
+	it("renders the capture control on every variant and marks it with the state it is told", () => {
+		for (const variant of ALL_VARIANTS) {
+			for (const captureRescue of ["offered", "withheld"] as const) {
+				const doc = parse(
+					renderReaderFailed({
+						url: destinationUrl("https://example.com/some-article"),
+						variant,
+						captureRescue,
+						noticeOob: false,
+					}).notice,
+				);
+
+				const capture = doc.querySelector('[data-test-reader-notice] [data-test-reader-action="capture"]');
+				assert(capture, `capture control must be rendered for variant=${variant} captureRescue=${captureRescue}`);
+				assert.equal(capture.getAttribute("type"), "button");
+				assert.equal(capture.textContent, "Capture it here");
+				assert.equal(capture.children.length, 0, "the capture control carries no icon");
+				assert.deepEqual(
+					{
+						offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
+						withheld: capture.classList.contains("article-body__reader-notice-capture--withheld"),
+					},
+					{ offered: captureRescue === "offered", withheld: captureRescue === "withheld" },
+					`capture state for variant=${variant} captureRescue=${captureRescue}`,
+				);
+			}
+		}
+	});
+
+	it("stamps the capture kick-off URL on the control whatever the variant", () => {
 		const doc = parse(
 			renderReaderFailed({
 				url: destinationUrl("https://example.com/some-article"),
-				variant: "blocked",
+				variant: "failed",
+				captureRescue: "offered",
+				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
 				noticeOob: false,
 			}).notice,
 		);
 
-		const capture = doc.querySelector("[data-reader-capture]");
-		assert(capture, "the blocked variant must render a capture control");
-		assert.equal(capture.getAttribute("type"), "button");
-		assert.equal(
-			capture.className,
-			"btn btn--secondary article-body__reader-notice-capture",
-		);
-		assert.equal(capture.textContent, "Capture it here");
-		assert.equal(capture.children.length, 0, "the capture control carries no icon");
-		assert.equal(
-			doc.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
-			"https://example.com/some-article",
-		);
+		const capture = doc.querySelector('[data-test-reader-notice] [data-test-reader-action="capture"]');
+		assert(capture, "the failed notice must render a capture control");
+		assert.equal(capture.getAttribute("data-reader-capture-poll"), "/queue/abc/reader?poll=1&capturing=1");
 	});
 });

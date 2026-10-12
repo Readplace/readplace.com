@@ -11,7 +11,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
-import { MAX_POLLS } from "@packages/web-shell";
+import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 import { ReaderArticleHashId, calculateReadTime } from "@packages/domain/article";
 
 import request from "supertest";
@@ -1902,9 +1902,11 @@ describe("Readlist routes", () => {
 				(el) => el.getAttribute("data-test-reader-action"),
 			);
 			expect(actions).toEqual(["open", "capture"]);
-			expect(notice.querySelector("[data-reader-capture]")?.className).toBe(
-				"btn btn--secondary article-body__reader-notice-capture",
-			);
+			expect(
+				notice
+					.querySelector("[data-reader-capture]")
+					?.classList.contains("article-body__reader-notice-capture--offered"),
+			).toBe(true);
 			expect(
 				notice.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
 			).toBe(ARTICLE_URL);
@@ -1957,6 +1959,123 @@ describe("Readlist routes", () => {
 			expect(capturingSlot.getAttribute("hx-get")).toBe(
 				`/queue/${articleId}/reader?poll=2&capturing=1`,
 			);
+
+			await fixture.articleStore.writeContent({ url, content: "<p>Captured body</p>" });
+			await fixture.articleCrawl.markCrawlReady({ url });
+
+			const healed = await agent.get(`/queue/${articleId}/reader?poll=2&capturing=1`);
+			const healedSlot = new JSDOM(healed.text).window.document.querySelector(
+				"[data-test-reader-slot]",
+			);
+			assert(healedSlot, "reader slot must be rendered once the row heals");
+			expect(healedSlot.getAttribute("data-reader-status")).toBe("ready");
+			expect(healedSlot.hasAttribute("hx-get")).toBe(false);
+		});
+	});
+
+	describe("GET /queue/:id/view — a crawl that failed on every leg", () => {
+		const PARSE_ERROR = JSON.stringify({
+			kind: "parse-error",
+			detail: "no readable article candidate: judge answered none",
+		});
+
+		function failedCrawlHarness() {
+			const crawlArticle = async () => ({
+				status: "fetched" as const,
+				html: "<html><body><article><p>x</p></article></body></html>",
+				bodyHash: "a".repeat(64),
+			});
+			const parseArticle = async () => ({ ok: false as const, reason: PARSE_ERROR });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					...fixture.events,
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+				},
+			});
+			return { fixture, harness };
+		}
+
+		it("offers the capture the reader's own device can still perform, beside the link to the original", async () => {
+			const { harness } = failedCrawlHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const url = "https://example.com/unparseable-post";
+			await agent.post("/queue/save").type("form").send({ url });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .readlist-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+
+			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, "the failed notice must be rendered");
+			const capture = notice.querySelector('[data-test-reader-action="capture"]');
+			assert(capture, "the failed notice must render its capture control");
+
+			expect({
+				status: slot.getAttribute("data-reader-status"),
+				explanation: notice.querySelector(".article-body__reader-notice-text")?.textContent?.trim(),
+				offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
+				pollUrl: capture.getAttribute("data-reader-capture-poll"),
+				primaryHref: notice.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
+			}).toEqual({
+				status: "failed",
+				explanation:
+					"Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using the browser extension or the iPhone app.",
+				offered: true,
+				pollUrl: `/queue/${articleId}/reader?poll=1&capturing=1`,
+				primaryHref: url,
+			});
+		});
+
+		it("keeps the reader poll loop armed through an in-app capture of a failed crawl, then lets the healed row stop it", async () => {
+			const { fixture, harness } = failedCrawlHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const url = "https://example.com/unparseable-capture";
+			await agent.post("/queue/save").type("form").send({ url });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .readlist-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+
+			const capturing = await agent.get(`/queue/${articleId}/reader?poll=1&capturing=1`);
+			const capturingSlot = new JSDOM(capturing.text).window.document.querySelector(
+				"[data-test-reader-slot]",
+			);
+			assert(capturingSlot, "reader slot must be rendered while the capture is in flight");
+			expect({
+				status: capturingSlot.getAttribute("data-reader-status"),
+				title: capturingSlot.querySelector("[data-test-reader-pending-title]")?.textContent,
+				hxGet: capturingSlot.getAttribute("hx-get"),
+			}).toEqual({
+				status: "pending",
+				title: "Copying the page from your device",
+				hxGet: `/queue/${articleId}/reader?poll=2&capturing=1`,
+			});
+
+			const spent = new JSDOM(
+				(await agent.get(`/queue/${articleId}/reader?poll=${MAX_CAPTURE_POLLS}&capturing=1`)).text,
+			).window.document;
+			const spentNotice = spent.querySelector("#article-body-reader-notice");
+			assert(spentNotice, "the notice must return once the capture budget is spent");
+			const spentCapture = spentNotice.querySelector('[data-test-reader-action="capture"]');
+			assert(spentCapture, "the returned notice must render its capture control");
+			expect({
+				noticeSwap: spentNotice.getAttribute("hx-swap-oob"),
+				status: spentNotice.getAttribute("data-reader-status"),
+				offered: spentCapture.classList.contains("article-body__reader-notice-capture--offered"),
+			}).toEqual({ noticeSwap: "outerHTML", status: "failed", offered: true });
 
 			await fixture.articleStore.writeContent({ url, content: "<p>Captured body</p>" });
 			await fixture.articleCrawl.markCrawlReady({ url });
