@@ -26,6 +26,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.07)",
 	"--shadow-menu": "0 0 8px rgb(0 0 0 / 0.15)",
 	"--shadow-toast": "0 4px 16px rgba(0,0,0,0.12)",
+	"--shadow-bar": "0 -2px 12px rgba(0,0,0,0.2)",
 	"--text-xs": "0.75rem",
 	"--text-sm": "0.875rem",
 	"--text-md": "1rem",
@@ -138,6 +139,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.4)",
 	"--shadow-menu": "0 0 8px rgb(0 0 0 / 0.5)",
 	"--shadow-toast": "0 4px 16px rgba(0,0,0,0.5)",
+	"--shadow-bar": "0 -2px 12px rgba(0,0,0,0.5)",
 	"--primary-text": "hsl(27 65% 58%)",
 	"--primary-text-on-tint": "#EAA162",
 	"--color-secondary-text": "#8FA3C8",
@@ -357,6 +359,12 @@ export const BUTTON_STYLES = `
 		width: 1.25rem;
 		height: 1.25rem;
 		flex: none;
+	}
+
+	.btn--xl {
+		min-height: 56px;
+		padding: 16px 24px;
+		border-radius: var(--radius-md);
 	}
 
 	.btn--m {

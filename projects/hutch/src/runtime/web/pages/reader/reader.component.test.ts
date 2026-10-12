@@ -15,7 +15,6 @@ import { Base } from "../../base.component";
 import { ReaderPage } from "./reader.component";
 import { READER_STYLES } from "./reader.styles";
 import { SHARE_DIALOG_STYLES } from "../../shared/share-dialog/share-dialog.styles";
-import { SHARE_BALLOON_STYLES } from "../../shared/share-balloon/share-balloon.styles";
 import { READLIST_NAME_FORM_STYLES } from "../readlist/readlist-name-form.styles";
 import { EXIT_CONFIRM_SCOPE } from "./reader-exit-confirm.component";
 import {
@@ -430,12 +429,11 @@ describe("ReaderPage", () => {
 		expect(scripts.filter((src) => src === "/client-dist/next-read.client.js")).toEqual([]);
 	});
 
-	it("styles the share and naming dialogs, and no longer the balloon", () => {
+	it("styles the share and naming dialogs", () => {
 		expect([
 			READER_STYLES.includes(SHARE_DIALOG_STYLES),
 			READER_STYLES.includes(READLIST_NAME_FORM_STYLES),
-			READER_STYLES.includes(SHARE_BALLOON_STYLES),
-		]).toEqual([true, true, false]);
+		]).toEqual([true, true]);
 	});
 
 	it("opts the reader <main> out of htmx history snapshots so a boosted open never restores it", () => {

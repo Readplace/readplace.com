@@ -29,7 +29,7 @@ function harnessFor(overrides: {
 
 function saveCta(html: string): Element {
 	const cta = new JSDOM(html).window.document.querySelector(
-		"[data-test-view-cta-action]",
+		"#view-cta-save",
 	);
 	assert(cta, "the save call to action must be rendered");
 	return cta;

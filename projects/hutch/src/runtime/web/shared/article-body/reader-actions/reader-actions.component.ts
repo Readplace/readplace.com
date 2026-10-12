@@ -82,11 +82,14 @@ function markReadFields(action: MarkReadAction | undefined) {
 	};
 }
 
+export function renderReaderDownloadsSlotOob(downloadHref: string): string {
+	return render(DOWNLOADS_TEMPLATE, { downloadHref, oob: true });
+}
+
 export function renderReaderDownloadsOob(params: { articleUrl: string; appClient: SaveClient | undefined }): string {
-	return render(DOWNLOADS_TEMPLATE, {
-		downloadHref: articleEpubHref({ articleUrl: params.articleUrl, utmSource: "reader", appClient: params.appClient }),
-		oob: true,
-	});
+	return renderReaderDownloadsSlotOob(
+		articleEpubHref({ articleUrl: params.articleUrl, utmSource: "reader", appClient: params.appClient }),
+	);
 }
 
 function topBar(actionBtns: ActionButtons): string {

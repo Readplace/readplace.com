@@ -4,15 +4,13 @@
           <div class="view__body" data-article-body>
             {{{innerContent}}}
           </div>
-          <div class="view__share-row">
-            {{{shareBalloon}}}
-          </div>
         </div>
         <{{railLandmark.tag}} class="reading-layout__rail"{{#each railLandmark.attributes}} {{name}}="{{value}}"{{/each}} data-test-reader-rail>
           {{{railHtml}}}
         </{{railLandmark.tag}}>
       </div>
       {{{saveTipHtml}}}
+      {{{shareDialogHtml}}}
     </main>
     <aside class="view__cta" data-test-view-cta>
       <div class="reading-frame">

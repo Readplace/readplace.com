@@ -798,6 +798,31 @@ test.describe("The reader's Next Read card holds its WCAG contrast in both theme
 	});
 });
 
+test.describe("Public reader colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the toolbar and the sticky action bar clear colour and greyscale minimums", async ({ page }, testInfo) => {
+		const slug = `colour-contrast-public-reader-${testInfo.workerIndex}-${Date.now()}`;
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/${slug}`,
+				title: "A shared article a guest opens",
+				content: "<p>Seeded body above the public reader's action bar.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+			},
+		});
+		assert.equal(seeded.status(), 201);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/view/example.com/${slug}`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-download="epub"]')).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: ".article-body__toolbar", theme, view: "public-reader/toolbar" });
+			await auditRoot(page, { root: "[data-test-view-cta]", theme, view: "public-reader/action-bar" });
+		}
+	});
+});
+
 test.describe("Plan choice holds its WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 

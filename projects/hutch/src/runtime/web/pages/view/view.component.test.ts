@@ -36,6 +36,7 @@ const baseInput: ViewPageInput = {
 			variant: "primary",
 		},
 	],
+	backLink: undefined,
 };
 
 const CSP_NONCE = generateCspNonce();
@@ -95,14 +96,29 @@ describe("ViewPage", () => {
 		);
 	});
 
-	it("marks the bottom back slot as hidden on the view page", () => {
+	it("renders the toolbar only, with no bottom bar", () => {
 		const doc = render();
 
-		const slot = doc.querySelector("[data-test-back-bottom-slot]");
-		assert(slot, "bottom back slot must be rendered");
-		expect(
-			slot.classList.contains("article-body__back-bottom-slot--hidden"),
-		).toBe(true);
+		expect(Array.from(doc.querySelectorAll(".article-body__actions"), (bar) => bar.className)).toEqual([
+			"article-body__actions article-body__actions--top",
+		]);
+	});
+
+	it("gives a signed-in viewer a Back to readlist link", () => {
+		const doc = render({
+			...baseInput,
+			backLink: { topHref: "/queue?utm_source=view-article&utm_content=back-to-queue", label: "Back to readlist" },
+		});
+
+		const slot = doc.querySelector("[data-test-back-slot]");
+		assert(slot, "back slot must be rendered");
+		expect(slot.classList.contains("article-body__back-slot--visible")).toBe(true);
+		const link = slot.querySelector("[data-test-back-link]");
+		assert(link, "a signed-in viewer's back slot must hold the back link");
+		expect([link.getAttribute("href"), link.textContent?.trim()]).toEqual([
+			"/queue?utm_source=view-article&utm_content=back-to-queue",
+			"Back to readlist",
+		]);
 	});
 
 	it("renders each action as an anchor with name and href from the model", () => {
@@ -120,6 +136,7 @@ describe("ViewPage", () => {
 		expect(link.tagName).toBe("A");
 		expect(link.getAttribute("href")).toBe("/save?url=x");
 		expect(link.querySelector(".view__cta-label")?.textContent).toBe("Save to My Readlist");
+		expect([link.classList.contains("btn--primary"), link.classList.contains("btn--xl")]).toEqual([true, true]);
 	});
 
 	it("gives each action a stable id derived from its key so an OOB swap can target it", () => {
@@ -135,76 +152,58 @@ describe("ViewPage", () => {
 		expect(link.id).toBe("view-cta-save");
 	});
 
-	it("renders multiple actions when the model has more than one", () => {
+	it("renders multiple actions when the model has more than one, and nothing else in the bar", () => {
 		const doc = render({
 			...baseInput,
 			actions: [
+				{
+					key: "paste-another-link",
+					name: "Paste another link",
+					shortName: "Paste",
+					href: "/?utm_source=view-article",
+					variant: "neutral",
+				},
 				{
 					key: "save",
 					name: "Save to My Readlist",
 					shortName: "Save",
 					href: "/save?url=x",
 					variant: "primary",
-				},
-				{
-					key: "paste-another-link",
-					name: "Paste another link",
-					shortName: "Paste",
-					href: "/?utm_source=view-article",
-					variant: "secondary",
-				},
-			],
-		});
-
-		const links = doc.querySelectorAll("[data-test-view-cta-action]");
-		expect(links.length).toBe(2);
-		expect(links[0]?.getAttribute("href")).toBe("/save?url=x");
-		expect(links[1]?.getAttribute("href")).toBe("/?utm_source=view-article");
-	});
-
-	it("renders Download after the actions as one direct EPUB link", () => {
-		const doc = render({
-			...baseInput,
-			actions: [
-				{
-					key: "save",
-					name: "Save to My Readlist",
-					shortName: "Save",
-					href: "/save?url=x",
-					variant: "primary",
-				},
-				{
-					key: "paste-another-link",
-					name: "Paste another link",
-					shortName: "Paste",
-					href: "/?utm_source=view-article",
-					variant: "secondary",
 				},
 			],
 			epubDownloadHref: "/view/example.com/a?format=epub",
 		});
 
-		const download = doc.querySelector("[data-test-view-download]");
-		assert(download, "the public Download link must render");
-		expect(download.tagName).toBe("A");
-		expect(download.getAttribute("data-test-view-download")).toBe("epub");
-		expect(download.getAttribute("href")).toBe("/view/example.com/a?format=epub");
-		expect(download.querySelector(".view__download-label")?.textContent).toBe("Download EPUB");
-		expect(doc.querySelectorAll("[data-test-view-download]")).toHaveLength(1);
 		expect(
-			Array.from(doc.querySelectorAll(".view__cta-item"), (item) => {
-				const action = item.querySelector("[data-test-view-cta-action]");
-				return action?.id ?? item.id;
-			}),
-		).toEqual(["view-cta-save", "view-cta-paste-another-link", "view-cta-downloads-slot"]);
+			Array.from(doc.querySelectorAll("[data-test-view-cta] .view__cta-content > *"), (item) =>
+				Array.from(item.children, (action) => [action.id, action.getAttribute("href")]),
+			),
+		).toEqual([
+			[["view-cta-paste-another-link", "/?utm_source=view-article"]],
+			[["view-cta-save", "/save?url=x"]],
+		]);
 	});
 
-	it("keeps the Download slot hidden when downloads are unavailable", () => {
-		const doc = render();
+	it("offers Download in the toolbar as one direct EPUB link once the article has text", () => {
+		const doc = render({ ...baseInput, epubDownloadHref: "/view/example.com/a?format=epub" });
 
-		const slot = doc.querySelector("[data-test-view-downloads-slot]");
-		assert(slot, "the public Download slot must render");
-		expect(slot.classList.contains("view__downloads-slot--hidden")).toBe(true);
+		const slot = doc.querySelector(".article-body__toolbar [data-test-downloads-slot]");
+		assert(slot, "the toolbar's Download slot must render");
+		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		expect(
+			Array.from(slot.querySelectorAll("[data-test-download]"), (link) => [
+				link.getAttribute("data-test-download"),
+				link.getAttribute("href"),
+			]),
+		).toEqual([["epub", "/view/example.com/a?format=epub"]]);
+	});
+
+	it("keeps the toolbar's Download slot hidden and empty while the article has no text", () => {
+		const doc = render({ ...baseInput, epubDownloadHref: undefined });
+
+		const slot = doc.querySelector(".article-body__toolbar [data-test-downloads-slot]");
+		assert(slot, "the toolbar's Download slot must render");
+		expect([slot.classList.contains("article-body__downloads-slot--hidden"), slot.children.length]).toEqual([true, 0]);
 	});
 
 	describe("save-tip gating attribute", () => {
@@ -252,6 +251,7 @@ describe("ViewPage", () => {
 			expect(link.id).toBe("view-cta-save");
 			expect(link.getAttribute("hx-swap-oob")).toBe("outerHTML");
 			expect(link.getAttribute("data-save-tip")).toBe("due");
+			expect([link.classList.contains("btn--primary"), link.classList.contains("btn--xl")]).toEqual([true, true]);
 		});
 	});
 
@@ -492,18 +492,17 @@ describe("ViewPage", () => {
 		assert(link, "cta action must still be rendered without content");
 	});
 
-	it("lays the article column and the share row in the main track, beside an Article details rail that opens with the table of contents", () => {
+	it("lays the article column alone in the main track, beside an Article details rail that opens with the table of contents", () => {
 		const doc = render();
 
 		const main = doc.querySelector("main.view > .reading-layout > .reading-layout__main");
 		assert(main, "the main track must sit inside the reading layout");
-		const mainChildren = Array.from(main.children, (child) => [
-			child.hasAttribute("data-article-body"),
-			child.classList.contains("view__share-row"),
-		]);
-		expect(mainChildren).toEqual([
-			[true, false],
-			[false, true],
+		expect(Array.from(main.children, (child) => child.hasAttribute("data-article-body"))).toEqual([true]);
+		expect(
+			Array.from(doc.querySelectorAll("main.view > :not(style)"), (child) => [child.className, child.id, child.getAttribute("data-test-confirm-popover")]),
+		).toEqual([
+			["reading-layout", "", null],
+			["confirm-popover", "reader-share", "share"],
 		]);
 		const layout = doc.querySelector("main.view > .reading-layout");
 		assert(layout, "the reading layout must be rendered");
@@ -589,21 +588,37 @@ describe("ViewPage", () => {
 	});
 
 	describe("share URLs and SEO", () => {
-		it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
+		it("renders the share dialog and the toolbar's fallback panel against the supplied appOrigin", () => {
 			const doc = render({
 				...baseInput,
 				appOrigin: "https://staging.readplace.com",
 			});
 
-			const shareBtn = doc.querySelector("[data-test-share-balloon]");
-			assert(shareBtn, "share button must be rendered");
-			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
-			assert.equal(shareUrl.origin, "https://staging.readplace.com");
-
-			const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-			assert(copyBtn, "copy button must be rendered");
-			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
-			assert.equal(copyUrl.origin, "https://staging.readplace.com");
+			const slot = doc.querySelector(".article-body__toolbar [data-test-share-slot]");
+			assert(slot, "the toolbar must offer Share");
+			const opener = slot.querySelector('[data-test-action="share-open"]');
+			assert(opener, "the share slot must hold the dialog's opener");
+			expect(opener.getAttribute("popovertarget")).toBe("reader-share");
+			const fallback = slot.querySelector("[data-test-share-fallback]");
+			assert(fallback, "the share slot must keep its disclosure for engines without popover");
+			const dialog = doc.querySelector('[data-test-confirm-popover="share"]');
+			assert(dialog, "the share dialog must render");
+			expect(
+				[dialog, fallback].map((surface) => {
+					const field = surface.querySelector("[data-test-share-url]");
+					assert(field, "every share surface carries the link to copy");
+					const url = new URL(field.getAttribute("value") ?? "");
+					return [
+						`${url.origin}${url.pathname}`,
+						url.searchParams.get("utm_source"),
+						url.searchParams.get("utm_medium"),
+						url.searchParams.get("utm_campaign"),
+					];
+				}),
+			).toEqual([
+				["https://staging.readplace.com/view/example.com/post", "share-dialog", "copy", "reader-public"],
+				["https://staging.readplace.com/view/example.com/post", "share-dialog", "copy", "reader-public"],
+			]);
 		});
 
 		it("pegs the SEO canonical and JSON-LD url to the original source regardless of appOrigin (we disclaim the wrapper for attribution), and normalizes the readplace wrapper into og:url so the OG object identity always lives on the prod readplace host", () => {

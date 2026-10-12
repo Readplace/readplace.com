@@ -173,8 +173,17 @@ const PASTE_ANOTHER_ACTION: ViewAction = {
 		content: "paste-another-link",
 		term: CLICK_SURFACES.readerPublic,
 	}),
-	variant: "secondary",
+	variant: "neutral",
 };
+
+const PUBLIC_VIEW_BACK_LINK = {
+	topHref: withInternalTracking("/queue", {
+		source: "view-article",
+		content: "back-to-queue",
+		term: CLICK_SURFACES.readerPublic,
+	}),
+	label: "Back to readlist",
+} as const;
 
 function readerPublicInstallUrl(req: Request): string | undefined {
 	const url = extensionInstallUrlIfMissing(req);
@@ -451,12 +460,12 @@ function handleViewArticle(
 			clickSurface: CLICK_SURFACES.readerPublic,
 		});
 		const actions: ViewAction[] = [
+			PASTE_ANOTHER_ACTION,
 			saveAction({
 				articleUrl,
 				utmParams,
 				saveTipState: state.readerViewFailed ? saveTip.state : undefined,
 			}),
-			PASTE_ANOTHER_ACTION,
 		];
 
 		const showExtensionSuggestionBanner =
@@ -485,6 +494,7 @@ function handleViewArticle(
 					extensionInstallUrl: readerPublicInstallUrl(req),
 					crawlVersions: state.crawlVersions,
 					readerNotice: state.notice,
+					backLink: req.userId === undefined ? undefined : PUBLIC_VIEW_BACK_LINK,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),

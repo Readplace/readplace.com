@@ -130,7 +130,6 @@ async function readerContentSettled(page: Page): Promise<void> {
 	await page.evaluate(() => {
 		document.querySelector(".offline-banner")?.remove();
 		document.querySelector(".newer-version-banner")?.remove();
-		document.querySelector(".view__share-row")?.remove();
 		document.querySelector("[data-test-view-cta]")?.remove();
 	});
 	await page.waitForFunction((selector) => {

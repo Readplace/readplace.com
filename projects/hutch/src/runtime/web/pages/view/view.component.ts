@@ -21,7 +21,10 @@ import {
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
-import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
+import {
+	WebReader,
+	renderReaderDownloadsSlotOob,
+} from "../../shared/article-body/reader-actions/reader-actions.component";
 import {
 	TABLE_OF_CONTENTS_SCRIPT,
 	isTableOfContentsVisible,
@@ -29,9 +32,12 @@ import {
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import {
-	SHARE_BALLOON_SCRIPT,
-	renderShareBalloon,
-} from "../../shared/share-balloon/share-balloon.component";
+	SHARE_DIALOG_POPOVER_ID,
+	SHARE_DIALOG_SCRIPT,
+	renderShareDialog,
+	renderSharePanel,
+} from "../../shared/share-dialog/share-dialog.component";
+import { SHARE_DIALOG_STYLES } from "../../shared/share-dialog/share-dialog.styles";
 import { railLandmarkFor } from "../../shared/reading-layout/rail-landmark";
 import { viewPathFor } from "./view-path";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
@@ -65,11 +71,6 @@ const VIEW_CTA_ACTION_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-const VIEW_DOWNLOADS_TEMPLATE = readFileSync(
-	join(__dirname, "view-downloads.template.html"),
-	"utf-8",
-);
-
 export type ViewActionKey = "save" | "paste-another-link";
 
 export interface ViewAction {
@@ -77,7 +78,7 @@ export interface ViewAction {
 	name: string;
 	shortName: string;
 	href: string;
-	variant: "primary" | "secondary";
+	variant: "primary" | "neutral";
 	/** Present on the action the save-tip panel holds back, so the client script
 	 * can tell it apart from the actions it must leave alone. */
 	saveTipState?: SaveTipState;
@@ -99,14 +100,9 @@ export function renderViewCtaActionOob(action: ViewAction): string {
 	return renderViewCtaAction(action, true);
 }
 
-function renderViewDownloads(downloadHref: string | undefined, oob: boolean): string {
-	return render(VIEW_DOWNLOADS_TEMPLATE, { oob, downloadHref });
-}
-
 export function renderViewDownloadsOob(articleUrl: string): string {
-	return renderViewDownloads(
+	return renderReaderDownloadsSlotOob(
 		withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article", appClient: undefined }), CLICK_SURFACES.readerPublic),
-		true,
 	);
 }
 
@@ -128,15 +124,27 @@ export interface ViewPageInput {
 	extensionInstallUrl?: string;
 	crawlVersions?: ArticleVersion[];
 	readerNotice?: ReaderFailedVariant;
+	backLink: { topHref: string; label: string } | undefined;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
-	const actions = RegularReader({ actionBtns: { readlistPicker: undefined } });
+	const viewPath = viewPathFor(input.articleUrl);
+	const shareableViewUrl = `${input.appOrigin}${viewPath}`;
+	const share = { shareUrl: shareableViewUrl, title: input.metadata.title, campaign: "reader-public" } as const;
+	const actions = WebReader({
+		actionBtns: {
+			backLink: input.backLink,
+			readlistPicker: undefined,
+			markReadActions: undefined,
+			share: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
+			epubDownloadHref: input.epubDownloadHref,
+		},
+	});
 	const innerContent = renderArticleBody({
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
 		readTime: displayableReadTime(input),
-		// Header only; the share path, save action and SEO below
+		// Header only; the share path, save action and SEO
 		// keep `articleUrl` (the identity).
 		url: input.destinationUrl,
 		saved: undefined,
@@ -170,24 +178,9 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		crawlVersions,
 	});
 
-	const viewPath = viewPathFor(input.articleUrl);
-	const shareableViewUrl = `${input.appOrigin}${viewPath}`;
-
-	const shareBalloon = renderShareBalloon({
-		shareUrl: shareableViewUrl,
-		shareTitle: input.metadata.title,
-		shareHint: "Click here to share this view!",
-		shareSource: "reader-public",
-	});
-
-	const ctaItems = [
-		...input.actions.map((action) => ({
-			html: `<div class="view__cta-item">${renderViewCtaAction(action, false)}</div>`,
-		})),
-		{
-			html: renderViewDownloads(input.epubDownloadHref, false),
-		},
-	];
+	const ctaItems = input.actions.map((action) => ({
+		html: `<div class="view__cta-item">${renderViewCtaAction(action, false)}</div>`,
+	}));
 
 	const content = render(VIEW_TEMPLATE, {
 		innerContent,
@@ -196,7 +189,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		articleUrl: input.articleUrl,
 		ctaItems,
 		saveTipHtml: input.saveTip.html,
-		shareBalloon,
+		shareDialogHtml: renderShareDialog(share),
 	});
 
 	const ogImage = input.metadata.imageUrl ?? DEFAULT_OG_IMAGE;
@@ -233,7 +226,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			twitterImage,
 			structuredData: input.readerNotice === undefined ? [structuredData] : [],
 		},
-		styles: `${VIEW_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
+		styles: `${VIEW_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${SHARE_DIALOG_STYLES}`,
 		bodyClass: `page-view ${DISTRACTION_FREE_BODY_CLASS}`,
 		clickSurface: CLICK_SURFACES.readerPublic,
 		followsSystemTheme: true,
@@ -241,7 +234,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		scripts: readerScripts({
 			navHide: NAV_HIDE_DISABLED,
 			page:
-				SHARE_BALLOON_SCRIPT +
+				SHARE_DIALOG_SCRIPT +
 				SAVE_TIP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT,
 		}),

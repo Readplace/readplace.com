@@ -7,6 +7,8 @@ import {
 	ChromelessReader,
 	RegularReader,
 	WebReader,
+	renderReaderDownloadsOob,
+	renderReaderDownloadsSlotOob,
 } from "./reader-actions.component";
 
 const BACK = {
@@ -231,6 +233,34 @@ describe("downloads", () => {
 		const slot = doc.querySelector("[data-test-downloads-slot]");
 		assert(slot, "the downloads slot must render");
 		expect(slot.classList.contains("article-body__downloads-slot--hidden")).toBe(true);
+	});
+
+	it("swaps the toolbar's slot out of band with the link a page hands it", () => {
+		const doc = parse(renderReaderDownloadsSlotOob("/view/example.com/a?format=epub&utm_source=view-article"));
+
+		const slot = doc.querySelector("[data-test-downloads-slot]");
+		assert(slot, "the out-of-band downloads slot must render");
+		expect([slot.id, slot.classList.contains("article-body__downloads-slot--visible"), slot.getAttribute("hx-swap-oob")]).toEqual([
+			"reader-downloads-slot",
+			true,
+			"outerHTML",
+		]);
+		const download = slot.querySelector('[data-test-download="epub"]');
+		assert(download, "the out-of-band slot must carry the EPUB link");
+		expect(download.getAttribute("href")).toBe("/view/example.com/a?format=epub&utm_source=view-article");
+	});
+
+	it("links the owner reader's out-of-band download from the reader's own section", () => {
+		const doc = parse(renderReaderDownloadsOob({ articleUrl: "https://example.com/a", appClient: undefined }));
+
+		const download = doc.querySelector('#reader-downloads-slot [data-test-download="epub"]');
+		assert(download, "the owner reader's out-of-band slot must carry the EPUB link");
+		const href = new URL(download.getAttribute("href") ?? "", "http://localhost");
+		expect([href.pathname, href.searchParams.get("format"), href.searchParams.get("utm_source")]).toEqual([
+			"/view/example.com/a",
+			"epub",
+			"reader",
+		]);
 	});
 });
 

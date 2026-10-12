@@ -101,6 +101,12 @@ describe("BASE_CSS_VARIABLES", () => {
 		expect(lightRootDeclarations()).toContain("--fact-provenance: var(--color-secondary-text);");
 	});
 
+	it("lifts the public reader's action bar on an upward shadow that deepens in dark, pinned or not", () => {
+		expect(lightRootDeclarations()).toContain("--shadow-bar: 0 -2px 12px rgba(0,0,0,0.2);");
+		expect(darkRootDeclarations()).toContain("--shadow-bar: 0 -2px 12px rgba(0,0,0,0.5);");
+		expect(pinnedThemeDeclarations(DARK_ONLY_BODY_CLASS)).toContain("--shadow-bar: 0 -2px 12px rgba(0,0,0,0.5);");
+	});
+
 	it("opens with the system theme tokens every surface shares", () => {
 		expect(BASE_CSS_VARIABLES.startsWith(SYSTEM_THEME_VARIABLES)).toBe(true);
 	});
@@ -327,6 +333,15 @@ describe("BUTTON_STYLES", () => {
 		expect(declaredValue(hover, "color")).toBe("var(--error-foreground)");
 		expect(declaredValue(pressed, "background")).toBe("var(--error-fill-hover)");
 		expect(declaredValue(pressed, "color")).toBe("var(--error-foreground)");
+	});
+
+	it("sizes the XL tier at 56px with 24px inline padding and the 12px corner", () => {
+		const rule = ruleBody(BUTTON_STYLES, ".btn--xl");
+		expect([
+			declaredValue(rule, "min-height"),
+			declaredValue(rule, "padding"),
+			declaredValue(rule, "border-radius"),
+		]).toEqual(["56px", "16px 24px", "var(--radius-md)"]);
 	});
 
 	it.each([".btn--m", ".btn--s"])("extends the %s tier's hit area to the 44px tap-target floor", (tier) => {
