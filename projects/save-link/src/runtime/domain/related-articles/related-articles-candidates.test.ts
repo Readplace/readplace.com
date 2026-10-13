@@ -1,3 +1,4 @@
+import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
 import { initGatherRelatedCandidatePools } from "./related-articles-candidates";
@@ -8,6 +9,7 @@ const TARGET_URL = "https://example.com/target";
 
 function pool(prefix: string, count: number): RelatedCandidate[] {
 	return Array.from({ length: count }, (_unused, index) => ({
+		destinationUrl: articleDestinationUrl({ url: `https://example.com/${prefix}-${index}`, displayUrl: undefined }),
 		url: `https://example.com/${prefix}-${index}`,
 		title: `${prefix} ${index}`,
 		siteName: "Example",

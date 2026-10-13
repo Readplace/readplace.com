@@ -1,3 +1,4 @@
+import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -52,6 +53,8 @@ const queueEntryEvent = createSqsEvent(
 
 function crawledTarget(overrides: Partial<RelatedTargetArticle> = {}): RelatedTargetArticle {
 	return {
+		destinationUrl: articleDestinationUrl({ url: "https://example.com/target", displayUrl: undefined }),
+		hasSummary: false,
 		crawlStatus: "ready",
 		title: "The target",
 		siteName: "Example",
@@ -63,6 +66,7 @@ function crawledTarget(overrides: Partial<RelatedTargetArticle> = {}): RelatedTa
 
 function candidates(prefix: string, count: number): RelatedCandidate[] {
 	return Array.from({ length: count }, (_unused, index) => ({
+		destinationUrl: articleDestinationUrl({ url: `https://example.com/${prefix}-${index}`, displayUrl: undefined }),
 		url: `https://example.com/${prefix}-${index}`,
 		title: `${prefix} ${index}`,
 		siteName: "Example",
@@ -128,6 +132,27 @@ function createHandler(overrides: HandlerOverrides = {}) {
 }
 
 describe("initComputeRelatedArticlesHandler", () => {
+	it.each([true, false])("marks a floor skip terminal with zero tokens and logs summary availability %s", async (hasSummary) => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const article = { ...crawledTarget(), hasSummary };
+		const { handler, skipped, ready, published } = createHandler({
+			logger,
+			targetLookup: { state: "found", article },
+			selectRelatedArticles: async () => ({ kind: "no-shared-words", bestScore: 7.4, candidateCount: 150 }),
+		});
+		expect(await handler(queueEntryEvent, buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+		expect(ready).toEqual([]);
+		expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "skipped", relatedCount: 0, inputTokens: 0, outputTokens: 0 }]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			url: TARGET_URL,
+			reason: "no earlier save shares the saved article's words",
+			bestScore: 7.4,
+			candidateCount: 150,
+			hasSummary,
+		});
+	});
+
 	it("stores the selected relations and announces the outcome", async () => {
 		const { handler, ready, published } = createHandler();
 

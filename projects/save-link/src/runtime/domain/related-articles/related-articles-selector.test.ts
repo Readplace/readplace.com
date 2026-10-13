@@ -1,3 +1,4 @@
+import { articleDestinationUrl } from "@packages/domain/article";
 import type { CreateAiMessage } from "@packages/ai-message";
 import { noopLogger } from "@packages/hutch-logger";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
@@ -8,6 +9,7 @@ import {
 import { initSelectRelatedArticles } from "./related-articles-selector";
 
 const target = {
+	destinationUrl: articleDestinationUrl({ url: "https://example.com/target", displayUrl: undefined }),
 	title: "How queues decay",
 	siteName: "Example",
 	description: "What happens to a reading list nobody prunes.",
@@ -15,6 +17,7 @@ const target = {
 
 function candidates(count: number): RelatedCandidate[] {
 	return Array.from({ length: count }, (_unused, index) => ({
+		destinationUrl: articleDestinationUrl({ url: `https://example.com/earlier-${index}`, displayUrl: undefined }),
 		url: `https://example.com/earlier-${index}`,
 		title: `Earlier ${index}`,
 		siteName: "Example",
@@ -69,7 +72,7 @@ describe("initSelectRelatedArticles", () => {
 		const result = await selectRelatedArticles({
 			target,
 			unreadCandidates: [
-				{ url: "https://example.com/astronomy", title: "Astronomy", description: "Stellar spectra", siteName: "Example" },
+				{ destinationUrl: articleDestinationUrl({ url: "https://example.com/astronomy", displayUrl: undefined }), url: "https://example.com/astronomy", title: "Astronomy", description: "Stellar spectra", siteName: "Example" },
 				...groundedCandidates(3),
 			],
 			readCandidates: [],
@@ -92,7 +95,7 @@ describe("initSelectRelatedArticles", () => {
 		const { selectRelatedArticles } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: "Astronomy" }] }));
 		expect(await selectRelatedArticles({
 			target: { ...target, siteName: "Astronomy" },
-			unreadCandidates: [{ url: "https://example.com/astronomy", title: "Astronomy", description: "Stellar spectra", siteName: "Astronomy" }],
+			unreadCandidates: [{ destinationUrl: articleDestinationUrl({ url: "https://example.com/astronomy", displayUrl: undefined }), url: "https://example.com/astronomy", title: "Astronomy", description: "Stellar spectra", siteName: "Astronomy" }],
 			readCandidates: [],
 		})).toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 1, droppedReasonNotAboutPick: 0 });
 	});
@@ -104,7 +107,7 @@ describe("initSelectRelatedArticles", () => {
 		const { selectRelatedArticles: clipped } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: "Queues" }] }));
 		expect(await clipped({
 			target,
-			unreadCandidates: [{ url: "https://example.com/astronomy", title: `${"Astronomy ".repeat(40)}queues`, description: `${"Stars ".repeat(60)}queues`, siteName: "Example" }],
+			unreadCandidates: [{ destinationUrl: articleDestinationUrl({ url: "https://example.com/astronomy", displayUrl: undefined }), url: "https://example.com/astronomy", title: `${"Astronomy ".repeat(40)}queues`, description: `${"Stars ".repeat(60)}queues`, siteName: "Example" }],
 			readCandidates: [],
 		})).toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 1, droppedReasonNotAboutPick: 0 });
 	});
@@ -178,6 +181,7 @@ describe("initSelectRelatedArticles", () => {
 			unreadCandidates: candidates(2),
 			readCandidates: [
 				{
+					destinationUrl: articleDestinationUrl({ url: "https://example.com/finished-0", displayUrl: undefined }),
 					url: "https://example.com/finished-0",
 					title: "Finished 0",
 					siteName: "Example",
@@ -237,6 +241,7 @@ describe("initSelectRelatedArticles", () => {
 			unreadCandidates: groundedCandidates(2),
 			readCandidates: [
 				{
+					destinationUrl: articleDestinationUrl({ url: "https://example.com/finished-0", displayUrl: undefined }),
 					url: "https://example.com/finished-0",
 					title: "Finished queues 0",
 					siteName: "Example",

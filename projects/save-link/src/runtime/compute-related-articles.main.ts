@@ -5,6 +5,7 @@ import type {
 	SQSRecord,
 } from "aws-lambda";
 import { initCreateDeepseekMessage } from "@packages/ai-message";
+import { isSameArticle } from "@packages/domain/article";
 import {
 	initDynamoDbPastReads,
 	initDynamoDbRelatedArticles,
@@ -24,7 +25,7 @@ import OpenAI from "openai";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
 import { initComputeRelatedPastReadsHandler } from "./domain/related-articles/compute-related-past-reads-handler";
 import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
-import { PAST_READS_SHARED_WORDS_FLOOR } from "./domain/related-articles/related-articles-limits";
+import { NEXT_READ_SHARED_WORDS_FLOOR, PAST_READS_SHARED_WORDS_FLOOR } from "./domain/related-articles/related-articles-limits";
 import { initSelectRelatedArticles } from "./domain/related-articles/related-articles-selector";
 import { PAST_READS_PROMPT } from "./domain/related-articles/related-past-reads-prompt";
 import { initSelectRelatedArticlesWithoutSharedBoilerplate } from "./domain/related-articles/shared-boilerplate";
@@ -49,9 +50,16 @@ const createMessage = initCreateDeepseekMessage({
 });
 
 const { selectRelatedArticles } = initSelectRelatedArticlesWithoutSharedBoilerplate(
-	initSelectRelatedArticles({
-		createMessage,
-		logger: consoleLogger,
+	initSelectRelatedArticlesAboveSharedWordsFloor({
+		...initSelectRelatedArticles({
+			createMessage,
+			logger: consoleLogger,
+		}),
+		floor: NEXT_READ_SHARED_WORDS_FLOOR,
+		countsTowardFloor: ({ target, candidate }) => !isSameArticle({
+			article: { url: target.destinationUrl, title: target.title },
+			other: { url: candidate.destinationUrl, title: candidate.title },
+		}),
 	}),
 );
 
@@ -64,6 +72,7 @@ const { selectRelatedArticles: selectPastReads } =
 				system: PAST_READS_PROMPT,
 			}),
 			floor: PAST_READS_SHARED_WORDS_FLOOR,
+			countsTowardFloor: () => true,
 		}),
 	);
 

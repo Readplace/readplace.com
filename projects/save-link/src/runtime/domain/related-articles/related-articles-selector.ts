@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CreateAiMessage } from "@packages/ai-message";
+import type { ArticleDestinationUrl } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	RelatedArticleLink,
@@ -32,6 +33,7 @@ const RelatedPayload = z.object({
 });
 
 export interface RelatedArticleTarget {
+	destinationUrl: ArticleDestinationUrl;
 	title: string;
 	siteName: string;
 	description: string;

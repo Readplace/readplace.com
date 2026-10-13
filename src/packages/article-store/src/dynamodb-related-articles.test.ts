@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
@@ -200,10 +201,12 @@ describe("initDynamoDbRelatedArticles", () => {
 				state: "found",
 				article: {
 					crawlStatus: "ready",
+					destinationUrl: articleDestinationUrl({ url: TARGET_URL, displayUrl: undefined }),
 					title: "A real title",
 					siteName: "Example",
 					description: "The full TLDR of the piece.",
 					hasStubMetadata: false,
+					hasSummary: true,
 				},
 			});
 		});
@@ -235,9 +238,27 @@ describe("initDynamoDbRelatedArticles", () => {
 			const target = await store.findRelatedTargetArticle(TARGET_URL);
 			assert(target.state === "found", "a crawled row resolves to a found target");
 			expect(target.article.description).toBe("A TLDR");
+			expect(target.article.hasSummary).toBe(false);
 			const fallback = await withExcerptOnly.store.findRelatedTargetArticle(TARGET_URL);
 			assert(fallback.state === "found", "a crawled row resolves to a found target");
 			expect(fallback.article.description).toBe("An excerpt");
+			expect(fallback.article.hasSummary).toBe(false);
+		});
+
+		it.each([
+			{ originalUrl: "https://origin.example/target", displayUrl: "https://display.example/target", expected: "https://display.example/target" },
+			{ originalUrl: "https://origin.example/target", displayUrl: undefined, expected: "https://origin.example/target" },
+			{ originalUrl: undefined, displayUrl: undefined, expected: "example.com/target" },
+		])("hydrates the target destination as $expected from the existing projection", async ({ originalUrl, displayUrl, expected }) => {
+			const { store, sent } = build(() => ({ Item: {
+				url: "example.com/target", originalUrl, displayUrl,
+				title: "A real title", siteName: "Example", excerpt: "An excerpt", crawlStatus: "ready",
+			} }));
+			const lookup = await store.findRelatedTargetArticle(TARGET_URL);
+			assert(lookup.state === "found");
+			expect(lookup.article.destinationUrl).toBe(expected);
+			expect(lookup.article.hasSummary).toBe(false);
+			expect(sent).toHaveLength(1);
 		});
 
 		it("flags the placeholder title a fresh save starts with as stub metadata", async () => {
@@ -342,6 +363,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(candidates).toEqual([
 				{
 					url: "example.com/earlier",
+					destinationUrl: articleDestinationUrl({ url: "example.com/earlier", displayUrl: undefined }),
 					title: "Earlier",
 					siteName: "Example",
 					description: "Earlier full summary.",
@@ -357,6 +379,20 @@ describe("initDynamoDbRelatedArticles", () => {
 				":userId": USER_ID,
 				":status": "unread",
 			});
+		});
+
+		it.each([
+			{ originalUrl: "https://origin.example/earlier", displayUrl: "https://display.example/earlier", expected: "https://display.example/earlier" },
+			{ originalUrl: "https://origin.example/earlier", displayUrl: undefined, expected: "https://origin.example/earlier" },
+			{ originalUrl: undefined, displayUrl: undefined, expected: "example.com/earlier" },
+		])("hydrates the candidate destination as $expected without another read", async ({ originalUrl, displayUrl, expected }) => {
+			const { store, sent } = candidateClient({
+				pages: [{ urls: ["example.com/earlier"] }],
+				articles: [{ url: "example.com/earlier", originalUrl, displayUrl, title: "Earlier", siteName: "Example", excerpt: "An excerpt" }],
+			});
+			const result = await store.findRelatedCandidateArticles({ userId: USER_ID, excludeUrl: TARGET_URL, limit: 10 });
+			expect(result.candidates.map((candidate) => candidate.destinationUrl)).toEqual([expected]);
+			expect(sent).toHaveLength(2);
 		});
 
 		it("stops paging once the limit is filled", async () => {
@@ -557,6 +593,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(candidates).toEqual([
 				{
 					url: "example.com/finished",
+					destinationUrl: articleDestinationUrl({ url: "example.com/finished", displayUrl: undefined }),
 					title: "Finished",
 					siteName: "Example",
 					description: "Finished full summary.",

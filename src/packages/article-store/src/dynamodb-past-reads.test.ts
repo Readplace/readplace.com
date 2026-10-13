@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { articleDestinationUrl } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
@@ -202,7 +203,7 @@ describe("initDynamoDbPastReads", () => {
 			});
 
 			expect(result.candidates).toEqual([
-				{ url: "example.com/read", title: "Read", siteName: "Example", description: "An excerpt" },
+				{ url: "example.com/read", destinationUrl: articleDestinationUrl({ url: "example.com/read", displayUrl: undefined }), title: "Read", siteName: "Example", description: "An excerpt" },
 			]);
 		});
 
@@ -228,6 +229,7 @@ describe("initDynamoDbPastReads", () => {
 			expect(result.candidates).toEqual([
 				{
 					url: "example.com/shared",
+					destinationUrl: articleDestinationUrl({ url: "example.com/shared", displayUrl: undefined }),
 					title: "Shared",
 					siteName: "Example",
 					description: "Shared excerpt",
@@ -256,7 +258,7 @@ describe("initDynamoDbPastReads", () => {
 			});
 
 			expect(result.candidates).toEqual([
-				{ url: "example.com/shared", title: "Shared", siteName: "Example", description: "Shared excerpt" },
+				{ url: "example.com/shared", destinationUrl: articleDestinationUrl({ url: "example.com/shared", displayUrl: undefined }), title: "Shared", siteName: "Example", description: "Shared excerpt" },
 			]);
 		});
 

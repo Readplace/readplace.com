@@ -150,9 +150,11 @@ export function initDynamoDbRelatedArticles(deps: {
 			state: "found",
 			article: {
 				crawlStatus: article.crawlStatus,
+				destinationUrl: articleDestinationUrl({ url: article.originalUrl ?? article.url, displayUrl: article.displayUrl }),
 				title: article.title,
 				siteName: article.siteName,
 				description: descriptionOf(article),
+				hasSummary: article.summary !== undefined,
 				// Recognised off the stored siteName so the url never has to be re-parsed.
 				hasStubMetadata: article.title === stubMetadataFor(article.siteName).title,
 			},

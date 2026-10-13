@@ -1,3 +1,4 @@
+import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
@@ -49,6 +50,8 @@ const command = sqsEvent({ url: TARGET_URL, userId: USER_ID, readlist: "work" })
 
 function crawledTarget(overrides: Partial<RelatedTargetArticle> = {}): RelatedTargetArticle {
 	return {
+		destinationUrl: articleDestinationUrl({ url: "https://example.com/target", displayUrl: undefined }),
+		hasSummary: false,
 		crawlStatus: "ready",
 		title: "The target",
 		siteName: "Example",
@@ -59,13 +62,13 @@ function crawledTarget(overrides: Partial<RelatedTargetArticle> = {}): RelatedTa
 }
 
 const CANDIDATES: ReadlistReadCandidate[] = [
-	{ url: "example.com/a", title: "A", siteName: "Example", description: "About A", readlist: WORK },
-	{ url: "example.com/b", title: "B", siteName: "Example", description: "About B" },
+	{ destinationUrl: articleDestinationUrl({ url: "example.com/a", displayUrl: undefined }), url: "example.com/a", title: "A", siteName: "Example", description: "About A", readlist: WORK },
+	{ destinationUrl: articleDestinationUrl({ url: "example.com/b", displayUrl: undefined }), url: "example.com/b", title: "B", siteName: "Example", description: "About B" },
 ];
 
 function fingerprintFor(candidateUrls: readonly string[]): string {
 	return computePastReadsFingerprint({
-		target: { url: TARGET_URL, title: "The target", siteName: "Example", description: "An excerpt" },
+		target: { destinationUrl: articleDestinationUrl({ url: TARGET_URL, displayUrl: undefined }), url: TARGET_URL, title: "The target", siteName: "Example", description: "An excerpt" },
 		candidateUrls,
 	});
 }

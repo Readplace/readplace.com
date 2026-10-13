@@ -72,7 +72,11 @@ export function initComputeRelatedArticlesHandler(
 					continue;
 				}
 
-				const skip = async (reason: string): Promise<void> => {
+				const skip = async (reason: string, details?: {
+					bestScore: number;
+					candidateCount: number;
+					hasSummary: boolean;
+				}): Promise<void> => {
 					const outcome = await markRelatedArticlesSkipped({
 						userId,
 						url: entry.url,
@@ -93,6 +97,7 @@ export function initComputeRelatedArticlesHandler(
 					logger.info("[ComputeRelatedArticles] skipped", {
 						url: entry.url,
 						reason,
+						...details,
 					});
 				};
 
@@ -131,9 +136,17 @@ export function initComputeRelatedArticlesHandler(
 					await skip("the saved text is a block page shared across sites");
 					continue;
 				}
+				if (result.kind === "no-shared-words") {
+					await skip("no earlier save shares the saved article's words", {
+						bestScore: result.bestScore,
+						candidateCount: result.candidateCount,
+						hasSummary: target.hasSummary,
+					});
+					continue;
+				}
 				if (result.kind !== "ready") {
 					throw new Error(
-						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block" | "no-shared-words"} for ${entry.url}`,
+						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block"} for ${entry.url}`,
 					);
 				}
 
