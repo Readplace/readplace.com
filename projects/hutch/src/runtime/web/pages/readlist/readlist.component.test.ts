@@ -154,6 +154,16 @@ function saveInput(doc: Document): HTMLInputElement {
 	return input;
 }
 
+function emptyActionSubmission(action: Element): { method: string | null; url: URL } {
+	const form = action.closest("form");
+	assert(form, "an empty-state action must submit a form");
+	const url = new URL(form.getAttribute("action") ?? "", "https://internal.invalid");
+	for (const field of form.querySelectorAll('input[type="hidden"]')) {
+		url.searchParams.append(field.getAttribute("name") ?? "", field.getAttribute("value") ?? "");
+	}
+	return { method: form.getAttribute("method"), url };
+}
+
 function emptyActionKeys(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-empty-action]"), (action) =>
 		action.getAttribute("data-test-empty-action"),
@@ -368,7 +378,8 @@ describe("ReadlistPage", () => {
 		const install = doc.querySelector('[data-test-empty-action="install"]');
 		assert(install, "the install CTA must be offered");
 		expect(install.textContent).toBe(label);
-		const href = new URL(install.getAttribute("href") ?? "", "https://internal.invalid");
+		const { method, url: href } = emptyActionSubmission(install);
+		expect(method).toBe("GET");
 		expect(href.pathname).toBe("/install");
 		expect(href.searchParams.get("client")).toBe(client);
 		expect(href.searchParams.get("utm_source")).toBe("queue-empty");
@@ -417,7 +428,12 @@ describe("ReadlistPage", () => {
 		expect(emptyActionKeys(doc)).toEqual(["view-unread"]);
 		const action = doc.querySelector('[data-test-empty-action="view-unread"]');
 		assert(action, "the View Unread Articles CTA must be offered");
-		expect(urlParams(action.getAttribute("href")).get("utm_content")).toBe("view-unread");
+		const submission = emptyActionSubmission(action);
+		expect([submission.method, submission.url.pathname, submission.url.searchParams.get("utm_content")]).toEqual([
+			"GET",
+			"/queue",
+			"view-unread",
+		]);
 	});
 
 	it("offers no action to a caught-up reader of a custom readlist", () => {
@@ -434,21 +450,24 @@ describe("ReadlistPage", () => {
 			active: "a search",
 			discovery: { q: "focus", time: [], saved: [] },
 			text: "Nothing in To Read matches your search.",
+			named: [],
 			label: "Clear search",
 		},
 		{
 			active: "filters",
 			discovery: { time: ["5-10" as const], saved: ["month" as const] },
-			text: "Nothing in To Read matches your filters.",
+			text: "Nothing in To Read matches your filters: 5–10 min, This month. Your filters stay on as you browse until you clear them.",
+			named: ["5–10 min", "This month"],
 			label: "Clear filters",
 		},
 		{
 			active: "a search and filters",
 			discovery: { q: "focus", time: ["5-10" as const], saved: [] },
-			text: "Nothing in To Read matches your search and filters.",
+			text: "Nothing in To Read matches your search and filters: 5–10 min. Your filters stay on as you browse until you clear them.",
+			named: ["5–10 min"],
 			label: "Clear search and filters",
 		},
-	])("tells a reader whose tab holds rows that nothing matches $active, with one action that clears it", ({ discovery, text, label }) => {
+	])("tells a reader whose tab holds rows that nothing matches $active, naming the filters, with one action that clears it", ({ discovery, text, named, label }) => {
 		const doc = pageDoc(
 			{ filters: { ...DEFAULT_FILTERS, discovery } },
 			{ readlistHoldsArticles: true, tabHoldsRows: true },
@@ -456,6 +475,7 @@ describe("ReadlistPage", () => {
 
 		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("No matching articles");
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(text);
+		expect(Array.from(doc.querySelectorAll(".readlist-empty__filter"), (name) => name.textContent)).toEqual(named);
 		expect(emptyActionKeys(doc)).toEqual(["clear-discovery"]);
 		const action = doc.querySelector('[data-test-empty-action="clear-discovery"]');
 		assert(action, "the clear action must be offered");
@@ -471,7 +491,7 @@ describe("ReadlistPage", () => {
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe("Nothing in Read matches your search.");
 	});
 
-	it("points the clear action at the same readlist, tab and order with no search or filters", () => {
+	it("posts the clear action to the filters route for the same readlist, tab and order with no search or filters", () => {
 		const doc = pageDoc(
 			{
 				filters: {
@@ -487,8 +507,8 @@ describe("ReadlistPage", () => {
 
 		const action = doc.querySelector('[data-test-empty-action="clear-discovery"]');
 		assert(action, "the clear action must be offered");
-		const url = new URL(action.getAttribute("href") ?? "", "https://internal.invalid");
-		expect(url.pathname).toBe("/queue");
+		const { method, url } = emptyActionSubmission(action);
+		expect([method, url.pathname]).toEqual(["POST", "/queue/filters"]);
 		expect([...url.searchParams]).toEqual([
 			["queue", WORK.slug],
 			["tab", "done"],

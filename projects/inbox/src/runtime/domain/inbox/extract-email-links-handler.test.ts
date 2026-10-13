@@ -1381,7 +1381,12 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 			{ url: "https://a.test/x", status: "pending" },
 			{ url: "https://b.test/y", status: "pending" },
 		]);
-		expect(meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined });
+		expect(meta).toEqual({
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: false },
+		});
 	});
 
 	it("saves both the issue and its articles when the reader asked for both", async () => {
@@ -1397,6 +1402,59 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
 		]);
 		expect(harness.triaged.map(({ readlist }) => readlist)).toEqual([WORK]);
+	});
+
+	it("records where the issue went beside the article snapshot when the reader asked for both", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+		});
+
+		await harness.run(eventBody({ routing: issueRouting("both") }));
+
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta).toEqual({
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+			eligibleArticleCount: 1,
+			savesHeld: false,
+			readlistOutcomes: [],
+			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: false },
+		});
+	});
+
+	it("records that the issue was held for a read-only reader", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+			subscription: READ_ONLY_SUBSCRIPTION,
+		});
+
+		await harness.run(eventBody({ routing: issueRouting("issue") }));
+
+		expect(harness.issues).toEqual([]);
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta).toEqual({
+			truncated: false,
+			extractionFailed: false,
+			readlistDecision: undefined,
+			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: true },
+		});
+	});
+
+	it("keeps the first record of where the issue went when the event is redelivered", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+		});
+
+		await harness.run(eventBody({ routing: issueRouting("issue") }));
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		await harness.run(eventBody({ routing: issueRouting("issue") }));
+
+		expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual(meta);
 	});
 
 	it("holds the issue for a read-only reader and tells them once", async () => {
@@ -1419,6 +1477,8 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 		await harness.run(eventBody({ origin: "backfill", routing: issueRouting("issue") }));
 
 		expect([harness.issues, harness.heldNotices, harness.firstInboxNotices]).toEqual([[], [], []]);
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined });
 	});
 });
 

@@ -15,7 +15,6 @@ import { Base } from "../../base.component";
 import { ReaderPage } from "./reader.component";
 import { READER_STYLES } from "./reader.styles";
 import { SHARE_DIALOG_STYLES } from "../../shared/share-dialog/share-dialog.styles";
-import { SHARE_BALLOON_STYLES } from "../../shared/share-balloon/share-balloon.styles";
 import { READLIST_NAME_FORM_STYLES } from "../readlist/readlist-name-form.styles";
 import { EXIT_CONFIRM_SCOPE } from "./reader-exit-confirm.component";
 import {
@@ -97,7 +96,7 @@ function versionAt(iso: string): ArticleVersion {
 	return { minuteId: iso, date: toAbsoluteDate({ iso }), time: toAbsoluteTime({ iso }) };
 }
 
-function renderRail(options: Partial<Parameters<typeof ReaderPage>[1]>): Element {
+function renderReaderPageDocument(options: Partial<Parameters<typeof ReaderPage>[1]>): Document {
 	const html = Base(
 		ReaderPage(makeArticle(), {
 			appOrigin: DEFAULT_APP_ORIGIN,
@@ -112,7 +111,11 @@ function renderRail(options: Partial<Parameters<typeof ReaderPage>[1]>): Element
 		}),
 		{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 	).to("text/html").body;
-	const rail = new JSDOM(html).window.document.querySelector(".reading-layout > [data-test-reader-rail]");
+	return new JSDOM(html).window.document;
+}
+
+function renderRail(options: Partial<Parameters<typeof ReaderPage>[1]>): Element {
+	const rail = renderReaderPageDocument(options).querySelector(".reading-layout > [data-test-reader-rail]");
 	assert(rail, "the reader must render its rail beside the main track");
 	return rail;
 }
@@ -295,6 +298,76 @@ describe("ReaderPage", () => {
 		expect(railChildTags(rail)).toEqual(["DIV", "A"]);
 	});
 
+	it("repeats ready past reads inside the article card, right after the summary, while the rail keeps its own copy", () => {
+		const doc = renderReaderPageDocument({
+			readerPathForReadlist: READER_PATH_FOR_READLIST,
+			previouslyRead: READY_PAST_READS,
+		});
+
+		const card = doc.querySelector("[data-test-article-card]");
+		assert(card, "the article card must be rendered");
+		const summary = card.querySelector(":scope > [data-test-reader-summary]");
+		assert(summary, "the summary slot must sit in the article card");
+		const inline = summary.nextElementSibling;
+		assert(inline, "the summary must be followed by the inline past reads");
+		assert.equal(inline.hasAttribute("data-test-reader-topic-reads-inline"), true);
+		expect(Array.from(inline.attributes, (attribute) => attribute.name)).toEqual([
+			"id",
+			"class",
+			"data-test-reader-topic-reads-inline",
+			"data-topic-reads-status",
+		]);
+		expect(
+			Array.from(inline.querySelectorAll("[data-test-topic-read-item]"), (row) =>
+				row.getAttribute("data-test-topic-read-item"),
+			),
+		).toEqual(["fedcba9876543210fedcba9876543210"]);
+		const railCopy = doc.querySelector("[data-test-reader-rail] > [data-test-reader-topic-reads]");
+		assert(railCopy, "the rail must keep its past-reads copy");
+		expect(
+			Array.from(railCopy.querySelectorAll("[data-test-topic-read-item]"), (row) =>
+				row.getAttribute("data-test-topic-read-item"),
+			),
+		).toEqual(["fedcba9876543210fedcba9876543210"]);
+	});
+
+	it("keeps the polling and the compute request on the rail copy alone while past reads is pending", () => {
+		const doc = renderReaderPageDocument({
+			readerPathForReadlist: READER_PATH_FOR_READLIST,
+			previouslyRead: { status: "pending" },
+			previouslyReadPollUrl: "/queue/abc/topic-reads?poll=1",
+			previouslyReadComputeUrl: "/queue/abc/topic-reads",
+		});
+
+		const railCopy = doc.querySelector("[data-test-reader-rail] > [data-test-reader-topic-reads]");
+		assert(railCopy, "the rail must keep its past-reads copy");
+		expect(railCopy.getAttribute("hx-get")).toBe("/queue/abc/topic-reads?poll=1");
+		expect(
+			Array.from(railCopy.children, (child) => [child.tagName, child.getAttribute("hx-trigger")]),
+		).toEqual([["FORM", "load"]]);
+		const inline = doc.querySelector("[data-test-article-card] > [data-test-reader-topic-reads-inline]");
+		assert(inline, "the inline copy must sit in the article card");
+		expect(Array.from(inline.attributes, (attribute) => attribute.name)).toEqual([
+			"id",
+			"class",
+			"data-test-reader-topic-reads-inline",
+			"data-topic-reads-status",
+		]);
+		expect(inline.children).toHaveLength(0);
+	});
+
+	it("renders neither past-reads copy for a reader without the reading-list link builder", () => {
+		const bothCopies = "[data-test-reader-topic-reads], [data-test-reader-topic-reads-inline]";
+		const owner = renderReaderPageDocument({
+			readerPathForReadlist: READER_PATH_FOR_READLIST,
+			previouslyRead: READY_PAST_READS,
+		});
+		const other = renderReaderPageDocument({ previouslyRead: READY_PAST_READS });
+
+		assert(other.querySelector("[data-test-article-card] > [data-test-reader-summary]"), "the summary slot must render");
+		expect([owner.querySelectorAll(bothCopies).length, other.querySelectorAll(bothCopies).length]).toEqual([2, 0]);
+	});
+
 	it("offers Share from the toolbar, outside the Next Read slot", () => {
 		const doc = renderReaderDocument(WebReader);
 
@@ -356,12 +429,11 @@ describe("ReaderPage", () => {
 		expect(scripts.filter((src) => src === "/client-dist/next-read.client.js")).toEqual([]);
 	});
 
-	it("styles the share and naming dialogs, and no longer the balloon", () => {
+	it("styles the share and naming dialogs", () => {
 		expect([
 			READER_STYLES.includes(SHARE_DIALOG_STYLES),
 			READER_STYLES.includes(READLIST_NAME_FORM_STYLES),
-			READER_STYLES.includes(SHARE_BALLOON_STYLES),
-		]).toEqual([true, true, false]);
+		]).toEqual([true, true]);
 	});
 
 	it("opts the reader <main> out of htmx history snapshots so a boosted open never restores it", () => {

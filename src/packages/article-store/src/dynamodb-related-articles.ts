@@ -3,8 +3,10 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	ArticleStatusSchema,
 	ReaderArticleHashIdSchema,
+	type ComparableArticle,
 	articleDestinationUrl,
 	articleLinkedDisplay,
+	isSameArticle,
 	stubMetadataFor,
 } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
@@ -148,9 +150,11 @@ export function initDynamoDbRelatedArticles(deps: {
 			state: "found",
 			article: {
 				crawlStatus: article.crawlStatus,
+				destinationUrl: articleDestinationUrl({ url: article.originalUrl ?? article.url, displayUrl: article.displayUrl }),
 				title: article.title,
 				siteName: article.siteName,
 				description: descriptionOf(article),
+				hasSummary: article.summary !== undefined,
 				// Recognised off the stored siteName so the url never has to be re-parsed.
 				hasStubMetadata: article.title === stubMetadataFor(article.siteName).title,
 			},
@@ -252,15 +256,24 @@ export function initDynamoDbRelatedArticles(deps: {
 		const savedByKey = new Map(
 			stillSaved.map((saved) => [saved.url, saved] as const),
 		);
+		if (savedByKey.size === 0) return { status: "ready", items: [] };
 
-		const byUrl = await readArticles([...savedByKey.keys()], ARTICLE_FIELDS);
+		const byUrl = await readArticles(
+			[...new Set([...savedByKey.keys(), articleResourceUniqueId.value])],
+			ARTICLE_FIELDS,
+		);
+		const target = usable(ArticleRelatedRow, byUrl.get(articleResourceUniqueId.value));
 
+		const kept: ComparableArticle[] = [];
 		const items: RelatedArticleDisplay[] = [];
 		for (const link of keyed) {
 			const saved = savedByKey.get(link.key);
 			if (!saved) continue;
 			const article = usable(LinkableArticle, byUrl.get(link.key));
 			if (!article) continue;
+			if (target && isSameArticle({ article, other: target })) continue;
+			if (kept.some((earlier) => isSameArticle({ article, other: earlier }))) continue;
+			kept.push(article);
 			const display = articleLinkedDisplay({
 				url: article.originalUrl,
 				destinationUrl: articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl }),

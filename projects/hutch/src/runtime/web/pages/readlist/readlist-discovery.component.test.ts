@@ -237,7 +237,7 @@ describe("buildReadlistDiscovery", () => {
 		expect(checkedOptions(doc, "fallback")).toEqual(ticked);
 	});
 
-	it("carries the place and the search into Apply, in both copies of the drawer", () => {
+	it("posts Apply to the filters route with the place and the search in the action, in both copies of the drawer", () => {
 		const doc = discoveryDoc({
 			filters: {
 				readlist: WORK,
@@ -249,21 +249,24 @@ describe("buildReadlistDiscovery", () => {
 			preferencesEnabled: true,
 		});
 
-		const fields = [
-			["queue", "work"],
-			["tab", "done"],
-			["order", "asc"],
-			["q", "focus"],
-			["feature", "pref"],
-			["utm_source", "queue-filter-drawer"],
-			["utm_medium", "internal"],
-			["utm_content", "apply"],
+		const action: [string, [string, string][]] = [
+			"/queue/filters",
+			[
+				["queue", "work"],
+				["tab", "done"],
+				["order", "asc"],
+				["q", "focus"],
+				["feature", "pref"],
+				["utm_source", "queue-filter-drawer"],
+				["utm_medium", "internal"],
+				["utm_content", "apply"],
+			],
 		];
-		expect(hiddenFields(element(doc, '[data-test-discovery-form="popover"]'))).toEqual(fields);
-		expect(hiddenFields(element(doc, '[data-test-discovery-form="fallback"]'))).toEqual(fields);
+		expect(hrefParts(element(doc, '[data-test-discovery-form="popover"]').getAttribute("action"))).toEqual(action);
+		expect(hrefParts(element(doc, '[data-test-discovery-form="fallback"]').getAttribute("action"))).toEqual(action);
 	});
 
-	it("clears the ticked options but keeps the search, the place and the preferences flag", () => {
+	it("clears through a form of its own that posts no option but keeps the search, the place and the preferences flag", () => {
 		const doc = discoveryDoc({
 			filters: {
 				readlist: WORK,
@@ -277,8 +280,10 @@ describe("buildReadlistDiscovery", () => {
 
 		for (const scope of ["popover", "fallback"]) {
 			const clearAll = element(doc, `[data-test-discovery-form="${scope}"] [data-test-action="clear-discovery-filters"]`);
-			expect(hrefParts(clearAll.getAttribute("href"))).toEqual([
-				"/queue",
+			const clearForm = element(doc, `form[id="${clearAll.getAttribute("form")}"]`);
+			expect([clearForm.getAttribute("method"), clearForm.querySelectorAll("input").length]).toEqual(["POST", 0]);
+			expect(hrefParts(clearForm.getAttribute("action"))).toEqual([
+				"/queue/filters",
 				[
 					["queue", "work"],
 					["tab", "done"],
@@ -305,35 +310,37 @@ describe("buildReadlistDiscovery", () => {
 		expect(closes).toEqual([["popover", "readlist-filters", "hide", "Close"]]);
 	});
 
-	it("submits both copies of the drawer as boosted GET forms that paint their own in-flight state", () => {
+	it("submits both copies of the drawer as boosted POST forms that paint their own in-flight state on Apply", () => {
 		const doc = discoveryDoc();
 
 		const forms = Array.from(doc.querySelectorAll('[data-test-form="readlist-filters"]'), (form) => [
 			form.getAttribute("data-test-discovery-form"),
 			form.getAttribute("method"),
-			form.getAttribute("action"),
 			form.getAttribute("hx-boost"),
 			form.getAttribute("hx-swap"),
 			form.getAttribute("hx-indicator"),
-			form.getAttribute("hx-disabled-elt"),
+			form.querySelector(form.getAttribute("hx-disabled-elt")?.replace("find ", "") ?? "")?.getAttribute("data-test-action"),
 		]);
 		expect(forms).toEqual([
-			["fallback", "GET", "/queue", "true", "outerHTML show:none", "closest form, .readlist-listing", "find button[type=submit]"],
-			["popover", "GET", "/queue", "true", "outerHTML show:none", "closest form, .readlist-listing", "find button[type=submit]"],
+			["fallback", "POST", "true", "outerHTML show:none", "closest form, .readlist-listing", "apply-discovery-filters"],
+			["popover", "POST", "true", "outerHTML show:none", "closest form, .readlist-listing", "apply-discovery-filters"],
 		]);
 	});
 
-	it("keeps each drawer form's Apply-disabling selector off its boosted Clear all link, which holds no button to find", () => {
+	it("boosts each Clear all form into the page's main region without moving the page", () => {
 		const doc = discoveryDoc();
 
-		const forms = Array.from(doc.querySelectorAll('[data-test-form="readlist-filters"]'), (form) => [
-			form.getAttribute("data-test-discovery-form"),
-			form.getAttribute("hx-disinherit"),
-			form.querySelector('[data-test-action="clear-discovery-filters"]')?.tagName,
+		const forms = Array.from(doc.querySelectorAll('[data-test-form="readlist-filters-clear"]'), (form) => [
+			form.getAttribute("id"),
+			form.getAttribute("hx-boost"),
+			form.getAttribute("hx-target"),
+			form.getAttribute("hx-select"),
+			form.getAttribute("hx-swap"),
+			form.getAttribute("hx-indicator"),
 		]);
 		expect(forms).toEqual([
-			["fallback", "hx-disabled-elt", "A"],
-			["popover", "hx-disabled-elt", "A"],
+			["readlist-filters-fallback-clear", "true", "main", "main", "outerHTML show:none", ".readlist-listing"],
+			["readlist-filters-clear", "true", "main", "main", "outerHTML show:none", ".readlist-listing"],
 		]);
 	});
 

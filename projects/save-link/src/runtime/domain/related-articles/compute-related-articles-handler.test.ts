@@ -1,3 +1,4 @@
+import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -52,6 +53,8 @@ const queueEntryEvent = createSqsEvent(
 
 function crawledTarget(overrides: Partial<RelatedTargetArticle> = {}): RelatedTargetArticle {
 	return {
+		destinationUrl: articleDestinationUrl({ url: "https://example.com/target", displayUrl: undefined }),
+		hasSummary: false,
 		crawlStatus: "ready",
 		title: "The target",
 		siteName: "Example",
@@ -63,6 +66,7 @@ function crawledTarget(overrides: Partial<RelatedTargetArticle> = {}): RelatedTa
 
 function candidates(prefix: string, count: number): RelatedCandidate[] {
 	return Array.from({ length: count }, (_unused, index) => ({
+		destinationUrl: articleDestinationUrl({ url: `https://example.com/${prefix}-${index}`, displayUrl: undefined }),
 		url: `https://example.com/${prefix}-${index}`,
 		title: `${prefix} ${index}`,
 		siteName: "Example",
@@ -103,7 +107,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 			return overrides.selectRelatedArticles
 				? overrides.selectRelatedArticles(params)
 				: {
-						kind: "ready",
+						kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 						related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
 						inputTokens: 120,
 						outputTokens: 30,
@@ -128,6 +132,27 @@ function createHandler(overrides: HandlerOverrides = {}) {
 }
 
 describe("initComputeRelatedArticlesHandler", () => {
+	it.each([true, false])("marks a floor skip terminal with zero tokens and logs summary availability %s", async (hasSummary) => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const article = { ...crawledTarget(), hasSummary };
+		const { handler, skipped, ready, published } = createHandler({
+			logger,
+			targetLookup: { state: "found", article },
+			selectRelatedArticles: async () => ({ kind: "no-shared-words", bestScore: 7.4, candidateCount: 150 }),
+		});
+		expect(await handler(queueEntryEvent, buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+		expect(ready).toEqual([]);
+		expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "skipped", relatedCount: 0, inputTokens: 0, outputTokens: 0 }]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			url: TARGET_URL,
+			reason: "no earlier save shares the saved article's words",
+			bestScore: 7.4,
+			candidateCount: 150,
+			hasSummary,
+		});
+	});
+
 	it("stores the selected relations and announces the outcome", async () => {
 		const { handler, ready, published } = createHandler();
 
@@ -159,6 +184,8 @@ describe("initComputeRelatedArticlesHandler", () => {
 		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", {
+			droppedNoSharedWord: 0,
+			droppedReasonNotAboutPick: 0,
 			url: TARGET_URL,
 			relatedCount: 1,
 			inputTokens: 120,
@@ -173,7 +200,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		const { handler, published } = createHandler({
 			logger,
 			selectRelatedArticles: async () => ({
-				kind: "ready",
+				kind: "ready", droppedNoSharedWord: 1, droppedReasonNotAboutPick: 2,
 				related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
 				inputTokens: 120,
 				outputTokens: 30,
@@ -185,6 +212,8 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(published[0]?.relatedCount).toBe(1);
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", {
+			droppedNoSharedWord: 1,
+			droppedReasonNotAboutPick: 2,
 			url: TARGET_URL,
 			relatedCount: 1,
 			inputTokens: 120,
@@ -223,7 +252,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 	it("stores an empty result as a completed computation", async () => {
 		const { handler, ready, published } = createHandler({
 			selectRelatedArticles: async () => ({
-				kind: "ready",
+				kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 				related: [],
 				inputTokens: 90,
 				outputTokens: 5,

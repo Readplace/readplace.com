@@ -42,7 +42,7 @@ function buildParseResult(
 }
 
 function ctaAction(doc: Document): Element {
-	const link = doc.querySelector("[data-test-view-cta-action]");
+	const link = doc.querySelector("#view-cta-save");
 	assert(link, "cta action must be rendered");
 	return link;
 }

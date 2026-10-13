@@ -90,10 +90,10 @@ it("downloads the original from rendered owner, public and poll links even with 
 	const broken = await throughEdge(harness.app, href, { preservation: false });
 	expect(broken.statusCode).toBe(200);
 	expect(strFromU8(unzipSync(Buffer.from(broken.body, "base64"))["OEBPS/content.xhtml"])).toContain("SIBLING BODY");
-	await download(await link(viewPathFor(ORIGINAL), '[data-test-view-download="epub"]'));
+	await download(await link(viewPathFor(ORIGINAL), '[data-test-download="epub"]'));
 	expect(harness.analytics.events).toContainEqual(expect.objectContaining({ event: "view_opened", path: viewPathFor(ORIGINAL) }));
 	for (const poll of ["reader", "summary"]) {
-		await download(await link(`/view/${poll}?url=${encodeURIComponent(ORIGINAL)}&poll=1`, '[data-test-view-download="epub"]'));
+		await download(await link(`/view/${poll}?url=${encodeURIComponent(ORIGINAL)}&poll=1`, '[data-test-download="epub"]'));
 		await download(await link(`/queue/${id}/${poll}?poll=1`, '[data-test-download="epub"]'));
 	}
 	const missingUrl = `${ORIGINAL}-missing`;

@@ -735,6 +735,11 @@
   text-wrap: pretty;
 }
 
+.readlist-empty__filter {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
 .readlist-empty__cta {
   margin-top: 16px;
 }

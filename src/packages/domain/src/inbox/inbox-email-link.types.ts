@@ -48,6 +48,7 @@ export interface InboxEmailLinksMeta {
 	selectedReadlists?: { readlist: ReadlistSlug; label: string }[];
 	eligibleArticleCount?: number;
 	savesHeld?: boolean;
+	issueSave?: { readlists: { readlist: ReadlistSlug; label: string }[]; held: boolean };
 	readlistOutcomes?: InboxReadlistOutcome[];
 }
 
@@ -96,6 +97,7 @@ export interface InboxEmailLinkStore {
 			selectedReadlists?: { readlist: ReadlistSlug; label: string }[];
 			eligibleArticleCount?: number;
 			savesHeld?: boolean;
+			issueSave?: { readlists: { readlist: ReadlistSlug; label: string }[]; held: boolean };
 		};
 	}) => Promise<void>;
 	/** Record that extraction gave up, as the barrier itself. Conditional on the

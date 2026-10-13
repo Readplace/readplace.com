@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { articleDestinationUrl } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
@@ -202,7 +203,7 @@ describe("initDynamoDbPastReads", () => {
 			});
 
 			expect(result.candidates).toEqual([
-				{ url: "example.com/read", title: "Read", siteName: "Example", description: "An excerpt" },
+				{ url: "example.com/read", destinationUrl: articleDestinationUrl({ url: "example.com/read", displayUrl: undefined }), title: "Read", siteName: "Example", description: "An excerpt" },
 			]);
 		});
 
@@ -228,6 +229,7 @@ describe("initDynamoDbPastReads", () => {
 			expect(result.candidates).toEqual([
 				{
 					url: "example.com/shared",
+					destinationUrl: articleDestinationUrl({ url: "example.com/shared", displayUrl: undefined }),
 					title: "Shared",
 					siteName: "Example",
 					description: "Shared excerpt",
@@ -256,7 +258,7 @@ describe("initDynamoDbPastReads", () => {
 			});
 
 			expect(result.candidates).toEqual([
-				{ url: "example.com/shared", title: "Shared", siteName: "Example", description: "Shared excerpt" },
+				{ url: "example.com/shared", destinationUrl: articleDestinationUrl({ url: "example.com/shared", displayUrl: undefined }), title: "Shared", siteName: "Example", description: "Shared excerpt" },
 			]);
 		});
 
@@ -875,6 +877,144 @@ describe("initDynamoDbPastReads", () => {
 				status: "ready",
 				items: [],
 			});
+		});
+
+		it("lists a repeated past read once, at its first copy, and keeps a copy of the open article", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [
+								{ url: "nodeweekly.com/link/2002/web", reason: "The open article, read before" },
+								{ url: "medium.com/@writer/open-source-risks", reason: "First copy" },
+								{ url: "example.com/open-source-risks", reason: "Second copy" },
+							],
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") return { Items: [] };
+				if (tableOf(command) === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ userId: USER_ID, url: "nodeweekly.com/link/2002/web", status: "read" },
+								{ userId: USER_ID, url: "medium.com/@writer/open-source-risks", status: "read" },
+								{ userId: USER_ID, url: "example.com/open-source-risks", status: "read" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "nodeweekly.com/link/2002/web",
+								originalUrl: "https://nodeweekly.com/link/2002/web",
+								displayUrl: "https://example.com/target",
+								routeId: "11111111111111111111111111111111",
+								title: "Postmortem: a package compromise",
+								siteName: "nodeweekly.com",
+								excerpt: "",
+							},
+							{
+								url: "medium.com/@writer/open-source-risks",
+								originalUrl: "https://medium.com/@writer/open-source-risks",
+								routeId: "22222222222222222222222222222222",
+								title: "The Risks of Open Source",
+								siteName: "Medium",
+								excerpt: "",
+							},
+							{
+								url: "example.com/open-source-risks",
+								originalUrl: "https://example.com/open-source-risks",
+								routeId: "33333333333333333333333333333333",
+								title: "the risks of open source",
+								siteName: "Example",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => item.reason)).toEqual(["The open article, read before", "First copy"]);
+		});
+
+		it("lets a copy no longer read, or whose article was purged, leave its later read copy in place", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [
+								{ url: "example.com/unread-copy", reason: "Unread copy" },
+								{ url: "example.com/purged-copy", reason: "Purged copy" },
+								{ url: "medium.com/@writer/open-source-risks", reason: "Read copy" },
+							],
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") return { Items: [] };
+				if (tableOf(command) === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ userId: USER_ID, url: "example.com/unread-copy", status: "unread" },
+								{ userId: USER_ID, url: "example.com/purged-copy", status: "read" },
+								{ userId: USER_ID, url: "medium.com/@writer/open-source-risks", status: "read" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "example.com/unread-copy",
+								originalUrl: "https://example.com/unread-copy",
+								routeId: "11111111111111111111111111111111",
+								title: "The Risks of Open Source",
+								siteName: "Example",
+								excerpt: "",
+							},
+							{
+								url: "example.com/purged-copy",
+								originalUrl: "https://example.com/purged-copy",
+								routeId: "22222222222222222222222222222222",
+								title: "The Risks of Open Source",
+								siteName: "Example",
+								excerpt: "",
+								purgedAt: AT.toISOString(),
+							},
+							{
+								url: "medium.com/@writer/open-source-risks",
+								originalUrl: "https://medium.com/@writer/open-source-risks",
+								routeId: "33333333333333333333333333333333",
+								title: "The Risks of Open Source",
+								siteName: "Medium",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => item.reason)).toEqual(["Read copy"]);
 		});
 	});
 });

@@ -2,6 +2,7 @@ import { CHEAPEST_MONTHLY_DISPLAY, withInternalTracking } from "@packages/web-sh
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { READLIST_SHOT, EARLY_USER_QUOTE, TRIAL_TERMS, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
+import { IMPORT_LIMITS } from "../import/import.limits";
 
 export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	lastModified: "2026-10-01",
@@ -53,13 +54,13 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	mechanismParagraphs: [
 		"Readplace scans the file for URLs. That is the whole mechanism — it is not a Pocket-specific parser, which is why bookmark exports and newsletter issues work through the same code path.",
 		"Your URLs come across. Tags and read state do not, because Pocket's export file never contained them.",
-		'Each import takes up to 2,000 links from a file up to 4.5 MB. Past 2,000, Readplace imports the first 2,000 and tells you how many it found in total. If the file itself is over 4.5 MB, split it into smaller files and import them one at a time.',
+		`Each import takes up to ${IMPORT_LIMITS.maxLinks} links from a file up to ${IMPORT_LIMITS.maxFileSize}. Past ${IMPORT_LIMITS.maxLinks}, Readplace imports the first ${IMPORT_LIMITS.maxLinks} and tells you how many it found in total. If the file itself is over ${IMPORT_LIMITS.maxFileSize}, split it into smaller files and import them one at a time.`,
 	],
 	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		"Tags, folders and read state do not transfer. Pocket's export file does not contain them.",
-		"One import takes up to 2,000 links. A file with more is imported up to that point, and the review tells you the total it found.",
+		`One import takes up to ${IMPORT_LIMITS.maxLinks} links. A file with more is imported up to that point, and the review tells you the total it found.`,
 		"Review sessions expire 24 hours after upload. After that, upload the file again.",
 		"A review link works for anyone holding it, so treat it as an unlisted URL rather than a private page.",
 		"Committing a large import takes a while and holds the page open while it runs. Keep the tab open until it finishes.",
@@ -83,7 +84,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		{
 			question: "How many links can I import at once?",
 			answer:
-				"Up to 2,000 per import, from a file up to 4.5 MB. Split a larger file into smaller ones and import them one at a time.",
+				`Up to ${IMPORT_LIMITS.maxLinks} per import, from a file up to ${IMPORT_LIMITS.maxFileSize}. Split a larger file into smaller ones and import them one at a time.`,
 		},
 		{
 			question: "What happens to my selections if I sign up halfway?",

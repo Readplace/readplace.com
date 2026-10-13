@@ -84,7 +84,7 @@ export interface AdminRecrawlPageInput {
 /**
  * Admin recrawl page. Renders the same article-body used by /view (title,
  * meta, summary slot, reader slot, poll-based reveal), but intentionally
- * drops the /view clutter — share balloon, CTA actions. Admin pages are
+ * drops the /view clutter — CTA actions. Admin pages are
  * noindex/nofollow and served Cache-Control: no-store by the handler.
  *
  * The tier badge surfaces which tier won the most recent selector contest

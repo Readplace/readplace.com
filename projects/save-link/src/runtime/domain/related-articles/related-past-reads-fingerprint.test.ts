@@ -1,9 +1,12 @@
+import { articleDestinationUrl } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import {
 	computePastReadsFingerprint,
+	PAST_READS_SELECTOR_VERSION,
 } from "./related-past-reads-fingerprint";
 
 const TARGET = {
+	destinationUrl: articleDestinationUrl({ url: "example.com/target", displayUrl: undefined }),
 	url: "example.com/target",
 	title: "A title",
 	siteName: "Example",
@@ -11,6 +14,16 @@ const TARGET = {
 };
 
 describe("computePastReadsFingerprint", () => {
+	it("preserves the cache signature when only destination and summary availability metadata changes", () => {
+		const before = { ...TARGET, hasSummary: false };
+		const after = { ...TARGET, destinationUrl: articleDestinationUrl({ url: "https://redirect.example/target", displayUrl: undefined }), hasSummary: true };
+		expect(computePastReadsFingerprint({ target: before, candidateUrls: ["a", "b"] }))
+			.toBe(computePastReadsFingerprint({ target: after, candidateUrls: ["a", "b"] }));
+	});
+
+	it("invalidates stored version-one selections with the shared version-two release", () => {
+		expect(PAST_READS_SELECTOR_VERSION).toBe(2);
+	});
 	it("is a stable sha256 hex digest for the same inputs", () => {
 		const a = computePastReadsFingerprint({ target: TARGET, candidateUrls: ["a", "b"] });
 		const b = computePastReadsFingerprint({ target: TARGET, candidateUrls: ["a", "b"] });

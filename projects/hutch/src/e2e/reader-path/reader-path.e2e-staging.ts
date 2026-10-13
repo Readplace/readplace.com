@@ -104,7 +104,7 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 		for (const share of shares) {
 			expect(new URL(share.getAttribute("data-share-url") ?? "").pathname).toBe(pathFor(original));
 		}
-		const publicEpub = publicDoc.querySelector('[data-test-view-download="epub"]')?.getAttribute("href");
+		const publicEpub = publicDoc.querySelector('[data-test-download="epub"]')?.getAttribute("href");
 		assert(publicEpub);
 		await download(publicEpub, originalTitle, marker, other);
 		const missing = await publicReader.get(`${pathFor(original)}-missing?format=epub`);

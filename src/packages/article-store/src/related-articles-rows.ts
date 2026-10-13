@@ -1,5 +1,5 @@
 import { CrawlStatusSchema } from "@packages/article-state-types";
-import { stubMetadataFor } from "@packages/domain/article";
+import { articleDestinationUrl, stubMetadataFor } from "@packages/domain/article";
 import {
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
@@ -108,6 +108,7 @@ export function initArticleReads(deps: {
 			}
 			candidates.push({
 				url,
+				destinationUrl: articleDestinationUrl({ url: article.originalUrl ?? article.url, displayUrl: article.displayUrl }),
 				title: article.title,
 				siteName: article.siteName,
 				description: descriptionOf(article),

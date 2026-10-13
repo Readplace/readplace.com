@@ -1128,3 +1128,19 @@ it("preserves Gmail eligibility and held-save state on the extraction barrier", 
 	const { client } = createPaginatedClient([{ rows: [{ userLinkGroup: GROUP, ordinal: "meta", userId: USER, receivedAtMessageId: RAM, truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: true }] }]);
 	expect((await initDynamoDbInboxEmailLink({ client, tableName: TABLE }).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: true, readlistOutcomes: [] });
 });
+
+it("writes where a Gmail issue went once, so a redelivery cannot rewrite it", async () => {
+	let captured: CapturedCommand | undefined;
+	const issueSave = { readlists: [{ readlist: WORK, label: "Work" }], held: false };
+	await store((command) => { captured = command as CapturedCommand; return {}; }).putLinksMeta({ userId: USER, receivedAtMessageId: RAM, meta: { truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave } });
+	expect(captured?.input.UpdateExpression).toBe(
+		"SET userId = :userId, receivedAtMessageId = :receivedAtMessageId, truncated = :truncated, extractionFailed = :extractionFailed, issueSave = if_not_exists(issueSave, :issueSave)",
+	);
+	expect(captured?.input.ExpressionAttributeValues?.[":issueSave"]).toEqual(issueSave);
+});
+
+it("loads where a Gmail issue went from the extraction barrier", async () => {
+	const issueSave = { readlists: [{ readlist: WORK, label: "Work" }], held: true };
+	const { client } = createPaginatedClient([{ rows: [{ userLinkGroup: GROUP, ordinal: "meta", userId: USER, receivedAtMessageId: RAM, truncated: false, extractionFailed: false, issueSave }] }]);
+	expect((await initDynamoDbInboxEmailLink({ client, tableName: TABLE }).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave });
+});

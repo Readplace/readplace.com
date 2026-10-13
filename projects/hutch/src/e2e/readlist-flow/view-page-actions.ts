@@ -116,34 +116,6 @@ export function createAnonymousViewPageActions(
 					{ timeout: 180_000 },
 				)
 
-				// Share balloon: scroll past the threshold, wait for it to animate in,
-				// dismiss it, and confirm localStorage persists the dismiss so the
-				// balloon stays closed across the reload below.
-				//
-				// Summary polls OOB-swap the reader slot. Scrolling before the
-				// article body is in the page measures a short document and
-				// scrollTo falls short of the 50 % threshold.
-				await expect(page.locator('[data-test-reader-slot]')).toHaveAttribute(
-					'data-reader-status', 'ready', { timeout: 5000 },
-				)
-				const shareWrap = page.locator('[data-test-share-balloon-wrap]')
-				await expect(shareWrap).toHaveCount(1)
-				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
-				await expect(async () => {
-					await page.evaluate(() => {
-						const article = document.querySelector<HTMLElement>('[data-article-body]')
-						const height = article ? article.offsetHeight : 0
-						window.scrollTo(0, Math.ceil(height * 0.5) + 1)
-					})
-					await expect(shareWrap).toHaveClass(/share-balloon__wrap--open/, { timeout: 2000 })
-				}).toPass({ timeout: 10000 })
-				await page.locator('[data-test-share-balloon-close]').click()
-				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
-				const dismissed = await page.evaluate(() =>
-					window.localStorage.getItem('readplace.share-dismissed'),
-				)
-				expect(dismissed).toBe('1')
-
 				// Reload the /view/<encoded-url> permalink. First visit primes the
 				// global article cache via saveArticleGlobally; refresh then re-reads
 				// it through findArticleByUrl. Regression guard for the ZodError that
@@ -153,19 +125,6 @@ export function createAnonymousViewPageActions(
 				await page.reload({ waitUntil: 'domcontentloaded' })
 				await expect(page.locator('body.page-view')).toHaveCount(1)
 				await expect(page.locator('[data-test-reader-title]')).toBeVisible()
-				await expect(saveAction).toBeVisible()
-
-				// Share dismiss persists across reload: scrolling past the threshold
-				// again must NOT re-open the balloon. Wait past the 1s OPEN_DELAY_MS
-				// so a would-be setTimeout has had its chance to fire.
-				await page.evaluate(() => {
-					const article = document.querySelector<HTMLElement>('[data-article-body]')
-					const height = article ? article.offsetHeight : 0
-					window.scrollTo(0, Math.ceil(height * 0.5) + 1)
-				})
-				await page.waitForTimeout(1500)
-				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
-
 				await expect(saveAction).toBeVisible()
 				await expect(saveAction).not.toHaveAttribute('data-save-tip', 'due')
 				await clickAndWaitForPageReload(page, saveAction)

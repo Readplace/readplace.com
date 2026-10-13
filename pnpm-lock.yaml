@@ -529,9 +529,6 @@ importers:
       '@pulumi/pulumi':
         specifier: 3.244.0
         version: 3.244.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
-      '@testing-library/dom':
-        specifier: '10'
-        version: 10.4.1
       '@types/aws-lambda':
         specifier: 8.10.161
         version: 8.10.161

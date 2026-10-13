@@ -1399,6 +1399,62 @@ it("shows held Gmail selections without claiming saves or waiting for custom out
 	expect(vm.articles.panelPollUrl).toBeUndefined();
 });
 
+describe("a Gmail newsletter kept as an issue", () => {
+	it("says the issue went to All when its mapping has no custom readlist", () => {
+		const vm = build({
+			links: [link({ status: "crawled" })],
+			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave: { readlists: [], held: false } },
+		});
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved this issue to All."]);
+		expect(vm.articles.panelPollUrl).toBeUndefined();
+		expect(vm.articles.cards.map((card) => card.actions.map((action) => action.key))).toEqual([["save"]]);
+	});
+
+	it("names every readlist the issue was filed into", () => {
+		const science = ReadlistSlugSchema.parse("science");
+		const vm = build({
+			links: [link({ status: "crawled" })],
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+				issueSave: { readlists: [{ readlist: WORK, label: "Work" }, { readlist: science, label: "Science" }], held: false },
+			},
+		});
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved this issue to All, Work, and Science."]);
+	});
+
+	it("says the issue was held for a read-only reader", () => {
+		const vm = build({
+			links: [link({ status: "crawled" })],
+			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: true } },
+		});
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["This issue wasn't saved because this account is read-only."]);
+		expect(vm.articles.panelPollUrl).toBeUndefined();
+	});
+
+	it("reports the issue before its articles when the reader asked for both", () => {
+		const vm = build({
+			links: [link({ status: "crawled" })],
+			linksMeta: {
+				truncated: false,
+				extractionFailed: false,
+				readlistDecision: undefined,
+				selectedReadlists: [{ readlist: WORK, label: "Work" }],
+				eligibleArticleCount: 1,
+				savesHeld: false,
+				readlistOutcomes: [{ readlist: WORK, decision: { state: "decided", readlist: WORK, readlistLabel: "Work" }, dropped: [] }],
+				issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: false },
+			},
+		});
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual([
+			"Saved this issue to All and Work.",
+			"Saved to All.",
+			"1 article saved to Work; 0 didn't fit.",
+		]);
+	});
+});
+
 it("confirms eligible Gmail articles retained in All when no custom readlists were selected", () => {
 	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] } });
 	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved to All."]);

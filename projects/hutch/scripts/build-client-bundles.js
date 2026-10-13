@@ -26,7 +26,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 const OUT_DIR = path.join(PROJECT_ROOT, "src", "runtime", "web", "client-dist");
 
 /**
- * 1. `globalName` exposes the module exports on `window.ShareBalloon` inside the IIFE.
+ * 1. `globalName` exposes the module exports inside the IIFE.
  * 2. the appended footer runs *after* the IIFE body, calling the exported factory with
  *    the real browser globals. The wiring stays out of the source TS so the
  *    client module remains pure and unit-testable.
@@ -40,30 +40,6 @@ const BUNDLES = [
     outfile: path.join(OUT_DIR, "gmail-picker.client.js"),
     globalName: "GmailPicker",
     footer: "GmailPicker.initGmailPicker({ document: window.document });",
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
-      "src/runtime/web/shared/share-balloon/share-balloon.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "share-balloon.client.js"),
-    globalName: "ShareBalloon",
-    footer: [
-      "ShareBalloon.initShareBalloon({",
-      "  window: window,",
-      "  document: window.document,",
-      "  storage: window.localStorage,",
-      "  navigator: window.navigator,",
-      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
-      "  addSwapListener: function (cb) {",
-      "    window.document.body.addEventListener('htmx:afterSwap', cb);",
-      "  },",
-      "  removeSwapListener: function (cb) {",
-      "    window.document.body.removeEventListener('htmx:afterSwap', cb);",
-      "  }",
-      "}).attach();",
-    ].join("\n"),
   },
   {
     entry: path.join(

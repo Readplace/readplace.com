@@ -18,6 +18,12 @@ function readerProgressTrack(doc: Document): Element {
 	return track;
 }
 
+function noticeCaptureControl(doc: Document): Element {
+	const capture = doc.querySelector('[data-test-reader-notice] [data-test-reader-action="capture"]');
+	assert(capture, "the notice must render its capture control");
+	return capture;
+}
+
 function pendingDescriptions(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-reader-pending-text]")).map(
 		(el) => el.textContent,
@@ -183,172 +189,6 @@ describe("renderReaderSlot", () => {
 				.querySelector("[data-test-reader-failed-primary]")
 				?.getAttribute("href"),
 		).toBe(URL);
-	});
-
-	it("routes a rate-limited crawl to the same blocked variant — the stored cause differs, what the reader sees does not", () => {
-		const doc = parse(
-			renderReaderSlot({
-				crawl: {
-					status: "failed",
-					reason: JSON.stringify({ kind: "blocked", cause: "rate-limited" }),
-				},
-				url: URL,
-				appOrigin: APP_ORIGIN,
-				noticeOob: false,
-			}),
-		);
-
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "reader slot must be rendered");
-		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
-		const actions = Array.from(
-			doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
-		).map((el) => el.getAttribute("data-test-reader-action"));
-		expect(actions).toEqual(["open", "capture"]);
-	});
-
-	it("leaves a robots-blocked crawl on the generic failed variant, so the reader is never offered a capture that routes around robots.txt", () => {
-		const doc = parse(
-			renderReaderSlot({
-				crawl: {
-					status: "failed",
-					reason: JSON.stringify({ kind: "blocked", cause: "robots" }),
-				},
-				url: URL,
-				appOrigin: APP_ORIGIN,
-				noticeOob: false,
-			}),
-		);
-
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "reader slot must be rendered");
-		expect(slot.getAttribute("data-reader-status")).toBe("failed");
-		const actions = Array.from(
-			doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
-		).map((el) => el.getAttribute("data-test-reader-action"));
-		expect(actions).toEqual(["open"]);
-	});
-
-	it("routes a failed crawl whose reason records an edge block to the blocked variant, which offers the capture", () => {
-		const doc = parse(
-			renderReaderSlot({
-				crawl: {
-					status: "failed",
-					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
-				},
-				url: URL,
-				appOrigin: APP_ORIGIN,
-				noticeOob: false,
-			}),
-		);
-
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "reader slot must be rendered");
-		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
-		const actions = Array.from(
-			doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
-		).map((el) => el.getAttribute("data-test-reader-action"));
-		expect(actions).toEqual(["open", "capture"]);
-	});
-
-	it("keeps every other failure reason on the generic failed variant — a reason we cannot read must not invite a capture", () => {
-		const reasons = [
-			JSON.stringify({ kind: "parse-error", detail: "Readability null" }),
-			JSON.stringify({ kind: "exhausted-retries", receiveCount: 4 }),
-			JSON.stringify({ kind: "blocked", cause: "robots" }),
-			JSON.stringify({ kind: "blocked", cause: "cloudflare" }),
-			"exceeded SQS maxReceiveCount",
-		];
-
-		for (const reason of reasons) {
-			const doc = parse(
-				renderReaderSlot({
-					crawl: { status: "failed", reason },
-					url: URL,
-					appOrigin: APP_ORIGIN,
-					noticeOob: false,
-				}),
-			);
-			const slot = doc.querySelector("[data-test-reader-slot]");
-			assert(slot, `reader slot must be rendered for reason=${reason}`);
-			const actions = Array.from(
-				doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
-			).map((el) => el.getAttribute("data-test-reader-action"));
-			expect([reason, slot.getAttribute("data-reader-status"), actions]).toEqual([
-				reason,
-				"failed",
-				["open"],
-			]);
-		}
-	});
-
-	it.each([404, 410])(
-		"routes a crawl the origin answered %s to the not-found variant, which offers no capture",
-		(httpStatus) => {
-			const doc = parse(
-				renderReaderSlot({
-					crawl: {
-						status: "failed",
-						reason: JSON.stringify({ kind: "not-found", httpStatus }),
-					},
-					url: URL,
-					appOrigin: APP_ORIGIN,
-					noticeOob: false,
-				}),
-			);
-
-			const slot = doc.querySelector("[data-test-reader-slot]");
-			assert(slot, "reader slot must be rendered");
-			expect(slot.getAttribute("data-reader-status")).toBe("not-found");
-			const actions = Array.from(
-				doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
-			).map((el) => el.getAttribute("data-test-reader-action"));
-			expect(actions).toEqual(["open"]);
-		},
-	);
-
-	it.each([
-		JSON.stringify({ kind: "origin-unreachable", httpStatus: 522 }),
-		JSON.stringify({ kind: "origin-unreachable", httpStatus: 503 }),
-		JSON.stringify({ kind: "origin-unreachable", code: "ETIMEDOUT" }),
-	])(
-		"routes an origin-unreachable crawl (%s) to the origin-down variant, which offers no capture",
-		(reason) => {
-			const doc = parse(
-				renderReaderSlot({
-					crawl: { status: "failed", reason },
-					url: URL,
-					appOrigin: APP_ORIGIN,
-					noticeOob: false,
-				}),
-			);
-
-			const slot = doc.querySelector("[data-test-reader-slot]");
-			assert(slot, "reader slot must be rendered");
-			expect(slot.getAttribute("data-reader-status")).toBe("origin-down");
-			const actions = Array.from(
-				doc.querySelectorAll("[data-test-reader-notice] [data-test-reader-action]"),
-			).map((el) => el.getAttribute("data-test-reader-action"));
-			expect(actions).toEqual(["open"]);
-		},
-	);
-
-	it("leaves a fetch-failed 5xx on the generic failed variant — only the minted origin-unreachable kind may claim the origin was down", () => {
-		const doc = parse(
-			renderReaderSlot({
-				crawl: {
-					status: "failed",
-					reason: JSON.stringify({ kind: "fetch-failed", httpStatus: 503 }),
-				},
-				url: URL,
-				appOrigin: APP_ORIGIN,
-				noticeOob: false,
-			}),
-		);
-
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "reader slot must be rendered");
-		expect(slot.getAttribute("data-reader-status")).toBe("failed");
 	});
 
 	it("tells a reader of a deleted page that it is gone, and pitches no capture that could not bring it back", () => {
@@ -575,6 +415,111 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("ready");
 		expect(slot.getAttribute("hx-get")).toBeNull();
+	});
+
+	it("offers the capture on a crawl that failed to parse, stamped with the kick-off URL", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
+				url: URL,
+				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("failed");
+		const capture = noticeCaptureControl(doc);
+		expect({
+			offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
+			pollUrl: capture.getAttribute("data-reader-capture-poll"),
+		}).toEqual({ offered: true, pollUrl: "/queue/abc/reader?poll=1&capturing=1" });
+	});
+
+	it.each<{ state: string; input: Omit<ReaderSlotInput, "url" | "appOrigin" | "noticeOob">; status: string }>([
+		{
+			state: "a deleted page",
+			input: { crawl: { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) } },
+			status: "not-found",
+		},
+		{
+			state: "an unreachable origin",
+			input: { crawl: { status: "failed", reason: JSON.stringify({ kind: "origin-unreachable", httpStatus: 522 }) } },
+			status: "origin-down",
+		},
+		{
+			state: "an unsupported page",
+			input: { crawl: { status: "unsupported", reason: "non-html content type: application/pdf" } },
+			status: "unsupported",
+		},
+		{
+			state: "a link that is not an article",
+			input: { notice: "not-an-article", crawl: { status: "ready" }, content: "<p>x</p>" },
+			status: "not-an-article",
+		},
+		{
+			state: "a crawl past the poll cap",
+			input: { crawl: { status: "pending" } },
+			status: "slow",
+		},
+	])("renders the capture control withheld on $state, which no device can rescue", ({ input, status }) => {
+		const doc = parse(renderReaderSlot({ ...input, url: URL, appOrigin: APP_ORIGIN, noticeOob: false }));
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect({
+			status: slot.getAttribute("data-reader-status"),
+			withheld: noticeCaptureControl(doc).classList.contains("article-body__reader-notice-capture--withheld"),
+		}).toEqual({ status, withheld: true });
+	});
+
+	it("swaps a failed notice for the capturing pending state while an on-device capture is in flight", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
+				url: URL,
+				readerPollUrl: "/queue/abc/reader?poll=2&capturing=1",
+				capturing: true,
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect({
+			status: slot.getAttribute("data-reader-status"),
+			hxGet: slot.getAttribute("hx-get"),
+			title: slot.querySelector("[data-test-reader-pending-title]")?.textContent,
+		}).toEqual({
+			status: "pending",
+			hxGet: "/queue/abc/reader?poll=2&capturing=1",
+			title: "Copying the page from your device",
+		});
+	});
+
+	it("returns the failed notice with the capture offered again once a capture outlives its budget", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
+				url: URL,
+				capturing: true,
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		const capture = noticeCaptureControl(doc);
+		expect({
+			status: slot.getAttribute("data-reader-status"),
+			hxGet: slot.getAttribute("hx-get"),
+			offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
+			disabled: capture.hasAttribute("disabled"),
+		}).toEqual({ status: "failed", hxGet: null, offered: true, disabled: false });
 	});
 
 	it("renders the notice in place of stored content, so a ready crawl on a gated host still shows it", () => {

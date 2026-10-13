@@ -1,7 +1,4 @@
-<form class="readlist-filters__form" method="GET" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-indicator="closest form, .readlist-listing" hx-disabled-elt="find button[type=submit]" hx-disinherit="hx-disabled-elt" data-test-form="readlist-filters" data-test-discovery-form="{{scope}}">
-  {{#each drawerFields}}
-  <input type="hidden" name="{{name}}" value="{{value}}">
-  {{/each}}
+<form class="readlist-filters__form" method="POST" action="{{applyAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-indicator="closest form, .readlist-listing" hx-disabled-elt="find .readlist-filters__apply" data-test-form="readlist-filters" data-test-discovery-form="{{scope}}">
   <header class="readlist-filters__header">
     <h2 class="readlist-filters__title" id="{{idPrefix}}-title">Filters</h2>
     {{#each closeControls}}
@@ -24,7 +21,8 @@
     {{/each}}
   </div>
   <footer class="readlist-filters__footer">
-    <a class="btn btn--neutral" href="{{clearAllHref}}" data-test-action="clear-discovery-filters">Clear all</a>
+    <button class="btn btn--neutral" type="submit" form="{{idPrefix}}-clear" data-test-action="clear-discovery-filters">Clear all</button>
     <button class="btn btn--primary readlist-filters__apply" type="submit" data-test-action="apply-discovery-filters"><span class="readlist-filters__apply-label">Apply filters</span>{{{applyLoaderHtml}}}</button>
   </footer>
 </form>
+<form class="readlist-filters__clear" id="{{idPrefix}}-clear" method="POST" action="{{clearAllAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-indicator=".readlist-listing" data-test-form="readlist-filters-clear"></form>

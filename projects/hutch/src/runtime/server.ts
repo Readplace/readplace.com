@@ -27,6 +27,8 @@ import type {
 	RenewSession,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
+	FindSessionReadlistFilter,
+	SetSessionReadlistFilter,
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
 	SetUserAppearance,
@@ -353,6 +355,8 @@ interface AppDependencies {
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
+	setSessionReadlistFilter: SetSessionReadlistFilter;
+	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
@@ -881,7 +885,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-10-01" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-09-11" },
-			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-09-29" },
+			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-10-13" },
 			{ loc: "/mcp", priority: "0.8", changefreq: "monthly", lastmod: "2026-09-12" },
 			...LANDING_PAGE_SLUGS.map((slug) => ({
 				loc: `/${slug}`,
@@ -1369,6 +1373,8 @@ export function createApp(dependencies: AppDependencies): Express {
 	const readerProvenanceNewsletters = initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog });
 
 	const queueRouter = initReadlistRoutes({
+		setSessionReadlistFilter: deps.setSessionReadlistFilter,
+		findSessionReadlistFilter: deps.findSessionReadlistFilter,
 		validateSaveableUrl: deps.validateSaveableUrl,
 		validateNewSaveUrl,
 		appOrigin,

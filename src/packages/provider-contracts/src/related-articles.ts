@@ -1,4 +1,4 @@
-import type { ArticleStatus, ReaderArticleHashId, SiteLabel } from "@packages/domain/article";
+import type { ArticleDestinationUrl, ArticleStatus, ReaderArticleHashId, SiteLabel } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 
@@ -46,6 +46,7 @@ export type FindRelatedArticles = (params: {
 
 export interface RelatedCandidate {
 	url: string;
+	destinationUrl: ArticleDestinationUrl;
 	title: string;
 	siteName: string;
 	description: string;
@@ -70,10 +71,12 @@ export type FindRelatedReadCandidateArticles = (params: {
 
 export interface RelatedTargetArticle {
 	crawlStatus: "pending" | "ready" | "failed" | "unsupported" | undefined;
+	destinationUrl: ArticleDestinationUrl;
 	title: string;
 	siteName: string;
 	description: string;
 	hasStubMetadata: boolean;
+	hasSummary: boolean;
 }
 
 export type RelatedTargetLookup =

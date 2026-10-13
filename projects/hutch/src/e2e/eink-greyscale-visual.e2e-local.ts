@@ -45,6 +45,7 @@ const SETUP_GUIDE = "[data-test-setup-guide]";
 const READLIST_LAYOUT = ".readlist__layout";
 const READLIST_PREFERENCES = "[data-test-readlist-preferences]";
 const OPEN_FILTER_DRAWER = "[data-test-discovery-drawer]:popover-open";
+const PUBLIC_READER_ACTION_BAR = "[data-test-view-cta]";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
 const VOLATILE_CHROME = [
@@ -417,6 +418,11 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await page.goto(`${BASE_URL}/queue?time=5-10&saved=today`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("[data-test-article]")).toHaveCount(1);
+			await settle(page, "[data-test-discovery]");
+			await expect(page.locator("[data-test-discovery]")).toHaveScreenshot(
+				`eink-readlist-filter-active-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
 			await page.locator('[data-test-action="open-discovery-filters"]').click();
 			const drawer = page.locator(OPEN_FILTER_DRAWER);
 			await expect(drawer).toBeVisible();
@@ -750,6 +756,39 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				`eink-reader-readlist-tag-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
+		});
+
+		test(`the public reader's action bar keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const slug = `eink-view-cta-${theme}-${testInfo.workerIndex}-${Date.now()}`;
+			const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+				data: {
+					url: `https://example.com/${slug}`,
+					title: "A shared article on an e-ink panel",
+					content: "<p>An article a guest opens from a shared link.</p>",
+					contentFetchedAt: FETCHED_AT,
+				},
+			});
+			assert.equal(seeded.status(), 201);
+			await page.goto(`${BASE_URL}/view/example.com/${slug}`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("#view-cta-save")).toBeVisible();
+			await settle(page, PUBLIC_READER_ACTION_BAR);
+
+			await expect(page.locator(PUBLIC_READER_ACTION_BAR)).toHaveScreenshot(
+				`eink-view-cta-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the import page keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await createEinkUser(page, `import-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await loginAs(page, email);
+			await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-import-intro]")).toBeVisible();
+			await settle(page, "main.import");
+
+			await expect(page.locator("main.import")).toHaveScreenshot(`eink-import-${theme}.png`, CONTRAST_SENSITIVE);
 		});
 	}
 

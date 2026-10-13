@@ -136,6 +136,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			mode,
 			url,
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
+			isSignedIn: Boolean(req.userId),
 		});
 		sendComponent(req, res, Base(ImportAcquirePage(vm, { cspNonce: requireCspNonce(req), saveTip: buildSaveTip(req, { kind: "import", mode: "advisory" }) }), await deps.buildBannerState(req)));
 	});

@@ -38,7 +38,7 @@ const ROUTING_ACTIONS: Record<
 	}
 > = {
 	here: {
-		submitLabel: `Send to ${DEFAULT_READLIST_LABEL}`,
+		submitLabel: `Send to ${DEFAULT_READLIST_LABEL} only`,
 		trackingContent: "unroute-inbox",
 		destination: () => DEFAULT_READLIST_SLUG,
 	},
@@ -51,9 +51,9 @@ const ROUTING_ACTIONS: Record<
 
 const DESCRIPTIONS: Record<"unset" | "set", (label: string) => string> = {
 	unset: (label) =>
-		`Articles from newsletters sent to these inboxes are saved to ${DEFAULT_READLIST_LABEL} and ${label}.`,
+		`Send a custom email here and the articles each issue links to are saved to ${DEFAULT_READLIST_LABEL} and ${label}.`,
 	set: (label) =>
-		`Articles from newsletters sent to these inboxes are saved to ${DEFAULT_READLIST_LABEL} and ${label}, keeping only the links that fit its purpose.`,
+		`Send a custom email here and the articles each issue links to are saved to ${DEFAULT_READLIST_LABEL} and ${label}, keeping only the links that fit its purpose.`,
 };
 
 export interface ReadlistInboxRow {
@@ -95,14 +95,15 @@ export function buildReadlistInboxes(input: {
 		.map((inbox, index): ReadlistInboxRow => {
 			const routing: InboxRouting = inbox.readlist === input.readlist.slug ? "here" : "elsewhere";
 			const routingAction = ROUTING_ACTIONS[routing];
-			const destinationLabel =
-				input.readlists.find((readlist) => readlist.slug === inbox.readlist)?.label ??
-				DEFAULT_READLIST_LABEL;
+			const routedTo = input.readlists.find((readlist) => readlist.slug === inbox.readlist);
 			return {
 				nameId: `readlist-inbox-${index}-name`,
 				name: inbox.name,
 				address: inbox.address,
-				destinationText: `Goes to ${destinationLabel}`,
+				destinationText:
+					routedTo === undefined
+						? `Saves to ${DEFAULT_READLIST_LABEL}`
+						: `Saves to ${DEFAULT_READLIST_LABEL} and ${routedTo.label}`,
 				routing,
 				action: withInternalTracking(action, {
 					source: INBOXES_SOURCE,

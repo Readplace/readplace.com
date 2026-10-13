@@ -8,7 +8,7 @@ import type {
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { useTestServer, BROWSER_REQUEST_HEADERS } from "../../../test-app";
+import { useTestServer, BROWSER_REQUEST_HEADERS, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	type TestAppFixture,
@@ -53,7 +53,7 @@ function buildParseResult(
 }
 
 function ctaAction(doc: Document): Element {
-	const link = doc.querySelector("[data-test-view-cta-action]");
+	const link = doc.querySelector("#view-cta-save");
 	assert(link, "cta action must be rendered");
 	return link;
 }
@@ -726,7 +726,7 @@ describe("View routes", () => {
 			expect(action.getAttribute("href")?.startsWith("/save?")).toBe(true);
 		});
 
-		it("renders a 'Paste another link' action pointing to /view", async () => {
+		it("renders a 'Paste another link' action pointing to the homepage", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -765,10 +765,10 @@ describe("View routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const actions = doc.querySelectorAll("[data-test-view-cta-action]");
 			expect(actions.length).toBe(2);
-			const second = actions[1];
-			assert(second, "second cta action must be rendered");
-			expect(second.querySelector(".view__cta-label")?.textContent).toBe("Paste another link");
-			const href = second.getAttribute("href");
+			const first = actions[0];
+			assert(first, "first cta action must be rendered");
+			expect(first.querySelector(".view__cta-label")?.textContent).toBe("Paste another link");
+			const href = first.getAttribute("href");
 			assert(href, "paste-another-link href must be set");
 			const parsed = new URL(href, "http://localhost");
 			expect(parsed.pathname).toBe("/");
@@ -776,6 +776,53 @@ describe("View routes", () => {
 			expect(parsed.searchParams.get("utm_medium")).toBe("internal");
 			expect(parsed.searchParams.get("utm_content")).toBe("paste-another-link");
 			expect(parsed.searchParams.get("utm_term")).toBe("reader-public");
+		});
+
+		it("orders the bar Paste then Save", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(
+				Array.from(doc.querySelectorAll("[data-test-view-cta-action]"), (action) => [
+					action.id,
+					["btn--neutral", "btn--primary", "btn--xl"].filter((name) => action.classList.contains(name)),
+				]),
+			).toEqual([
+				["view-cta-paste-another-link", ["btn--neutral", "btn--xl"]],
+				["view-cta-save", ["btn--primary", "btn--xl"]],
+			]);
+		});
+
+		it("takes a signed-in viewer back to their readlist from the toolbar, tracked as the public reader's", async () => {
+			const harness = buildReaderHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const back = doc.querySelector("[data-test-back-slot] [data-test-back-link]");
+			assert(back, "a signed-in viewer's toolbar must lead back to the readlist");
+			const href = new URL(back.getAttribute("href") ?? "", "http://localhost");
+			expect([
+				href.pathname,
+				href.searchParams.get("utm_source"),
+				href.searchParams.get("utm_medium"),
+				href.searchParams.get("utm_content"),
+				href.searchParams.get("utm_term"),
+			]).toEqual(["/queue", "view-article", "internal", "back-to-queue", "reader-public"]);
+		});
+
+		it("hides the back slot from a guest, who has no readlist to go back to", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const slot = doc.querySelector("[data-test-back-slot]");
+			assert(slot, "the toolbar must render its back slot");
+			expect([slot.classList.contains("article-body__back-slot--hidden"), slot.children.length]).toEqual([true, 0]);
 		});
 	});
 
@@ -813,7 +860,7 @@ describe("View routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			assertEveryInternalLinkOnReaderPublic(doc);
 
-			const download = doc.querySelector('[data-test-view-download="epub"]');
+			const download = doc.querySelector('[data-test-download="epub"]');
 			assert(download, "a ready article must offer the EPUB download");
 			expect(new URL(download.getAttribute("href") ?? "", "http://localhost").searchParams.get("utm_term")).toBe(
 				"reader-public",
@@ -1126,422 +1173,24 @@ describe("View routes", () => {
 		});
 	});
 
-	describe("Share balloon", () => {
-		it("renders a share button with the canonical view URL, UTM tracking params, and article title", async () => {
-			const parseArticle: ParseArticle = async () => buildParseResult();
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
+	describe("Share dialog", () => {
+		it("shares the canonical /view link on the app origin under the public reader's campaign, through the dialog's own script", async () => {
+			const harness = buildReaderHarness();
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
-			const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-			assert(wrap, "share balloon wrapper must be rendered");
-			expect(wrap.hasAttribute("hidden")).toBe(true);
-			const btn = doc.querySelector("[data-test-share-balloon]");
-			assert(btn, "share button must be rendered");
-			expect(btn.getAttribute("aria-label")).toBe("Share this article");
-			const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
-			expect(`${shareUrl.origin}${shareUrl.pathname}`).toBe(
+			const field = doc.querySelector('[data-test-confirm-popover="share"] [data-test-share-url]');
+			assert(field, "the share dialog must carry the link to copy");
+			const shareUrl = new URL(field.getAttribute("value") ?? "");
+			expect([`${shareUrl.origin}${shareUrl.pathname}`, shareUrl.searchParams.get("utm_campaign")]).toEqual([
 				`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`,
+				"reader-public",
+			]);
+			const bundles = Array.from(doc.querySelectorAll('script[src^="/client-dist/share-"]'), (script) =>
+				script.getAttribute("src"),
 			);
-			expect(shareUrl.searchParams.get("utm_source")).toBe("share-balloon");
-			expect(shareUrl.searchParams.get("utm_medium")).toBe("share");
-			expect(shareUrl.searchParams.get("utm_campaign")).toBe("reader-public");
-			expect(btn.getAttribute("data-share-title")).toBe("Hello World");
-
-			const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-			assert(copyBtn, "copy button must be rendered");
-			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
-			expect(`${copyUrl.origin}${copyUrl.pathname}`).toBe(
-				`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`,
-			);
-			expect(copyUrl.searchParams.get("utm_source")).toBe("share-balloon");
-			expect(copyUrl.searchParams.get("utm_medium")).toBe("copy");
-			expect(copyUrl.searchParams.get("utm_campaign")).toBe("reader-public");
-		});
-
-		it("renders share URLs against the appOrigin configured at the composition root (not a hardcoded host)", async () => {
-			const parseArticle: ParseArticle = async () => buildParseResult();
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-				shared: { ...fixture.shared, appOrigin: "https://staging.readplace.com" },
-			});
-
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const btn = doc.querySelector("[data-test-share-balloon]");
-			assert(btn, "share button must be rendered");
-			const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
-			expect(shareUrl.origin).toBe("https://staging.readplace.com");
-
-			const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-			assert(copyBtn, "copy button must be rendered");
-			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
-			expect(copyUrl.origin).toBe("https://staging.readplace.com");
-
-			expect(
-				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
-			).toBe(ARTICLE_URL);
-		});
-
-		it("renders a dismiss button with an accessible label", async () => {
-			const parseArticle: ParseArticle = async () => buildParseResult();
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
-
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const closeBtn = doc.querySelector("[data-test-share-balloon-close]");
-			assert(closeBtn, "share balloon close button must be rendered");
-			expect(closeBtn.getAttribute("aria-label")).toBe("Dismiss message");
-		});
-
-		it("boots the share balloon client via the external script bundle", async () => {
-			const parseArticle: ParseArticle = async () => buildParseResult();
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
-
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const script = doc.querySelector(
-				'script[src$="/client-dist/share-balloon.client.js"]',
-			);
-			assert(script, "share balloon client script must be rendered");
-			expect(script.hasAttribute("defer")).toBe(true);
-		});
-
-		it("renders an aria-live status region for share feedback", async () => {
-			const parseArticle: ParseArticle = async () => buildParseResult();
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
-
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const status = doc.querySelector("[data-share-balloon-status]");
-			assert(status, "share status region must be rendered");
-			expect(status.getAttribute("role")).toBe("status");
-			expect(status.getAttribute("aria-live")).toBe("polite");
-		});
-
-		it("renders the 'Link copied!' feedback label", async () => {
-			const parseArticle: ParseArticle = async () => buildParseResult();
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
-
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const label = doc.querySelector("[data-test-share-balloon-copied]");
-			assert(label, "copied feedback label must be rendered");
-			expect(label.textContent?.trim()).toBe("Link copied!");
-		});
-
-		it("escapes special characters in the share title attribute", async () => {
-			const parseArticle: ParseArticle = async () =>
-				buildParseResult({ title: `Ampersand & "Quotes"` });
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
-
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const btn = doc.querySelector("[data-test-share-balloon]");
-			assert(btn, "share button must be rendered");
-			expect(btn.getAttribute("data-share-title")).toBe(`Ampersand & "Quotes"`);
-		});
-
-		it("includes the founder avatar inside the balloon", async () => {
-			const parseArticle: ParseArticle = async () => buildParseResult();
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
-
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const avatar = doc.querySelector("[data-test-share-balloon-avatar]");
-			assert(avatar, "share balloon avatar must be rendered");
-			assert.match(avatar.getAttribute("src") ?? "", /\/fayner-brack\.jpg$/);
-		});
-
-		it("renders the founder greeting and share hint inside the balloon", async () => {
-			const parseArticle: ParseArticle = async () => buildParseResult();
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const applyParseResult = createFakeApplyParseResult({
-				articleStore: fixture.articleStore,
-				articleCrawl: fixture.articleCrawl,
-				parseArticle,
-			});
-			const harness = useApp({
-				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
-				events: {
-					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-					publishLinkQueued: fixture.events.publishLinkQueued,
-					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
-					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
-					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-				},
-			});
-
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			expect(
-				doc
-					.querySelector("[data-test-share-balloon-greeting]")
-					?.textContent?.trim(),
-			).toBe("Hi, I'm Fayner Brack.");
-			const hints = Array.from(
-				doc.querySelectorAll("[data-test-share-balloon-hint]"),
-			).map((el) => el.textContent?.trim());
-			expect(hints).toContain("Click here to share this view!");
+			expect(bundles).toEqual(["/client-dist/share-dialog.client.js"]);
 		});
 	});
 
@@ -2201,7 +1850,7 @@ describe("View routes", () => {
 				"article-header",
 				"document-title",
 				"view-cta-save",
-				"view-cta-downloads-slot",
+				"reader-downloads-slot",
 				"article-body-reader-notice",
 			]);
 			const cta = new JSDOM(response.text).window.document.querySelector("#view-cta-save");

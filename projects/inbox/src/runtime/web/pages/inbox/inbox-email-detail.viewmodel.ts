@@ -223,6 +223,23 @@ function readlistSaveNotices(input: {
 	return notices;
 }
 
+const ISSUE_DESTINATIONS = new Intl.ListFormat("en", { type: "conjunction" });
+
+function issueSaveNotice(
+	issueSave: NonNullable<InboxEmailLinksMeta["issueSave"]>,
+): PanelNotice {
+	return {
+		key: "decided",
+		text: issueSave.held
+			? "This issue wasn't saved because this account is read-only."
+			: `Saved this issue to ${ISSUE_DESTINATIONS.format([
+					DEFAULT_READLIST_LABEL,
+					...issueSave.readlists.map(({ label }) => label),
+				])}.`,
+		iconName: undefined,
+	};
+}
+
 const UNAVAILABLE_ALERT: AlertCopy = {
 	title: "Couldn't display this email",
 	body: "The original email is preserved.",
@@ -528,6 +545,9 @@ export function toInboxEmailDetailViewModel(input: {
 		anyDropped: firstDrop !== undefined,
 		anyKept: totalCards > 0,
 	});
+	if (linksMeta?.issueSave !== undefined) {
+		decisionRegions.notices.push(issueSaveNotice(linksMeta.issueSave));
+	}
 	if (linksMeta?.selectedReadlists !== undefined) {
 		decisionRegions.notices.push(
 			...readlistSaveNotices({

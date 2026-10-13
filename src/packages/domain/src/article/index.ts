@@ -33,6 +33,8 @@ export {
 	type SaveAttemptId,
 	CandidateIdSchema,
 	type CandidateId,
+	CaptureTriggerSchema,
+	type CaptureTrigger,
 } from "./article.schema";
 export {
 	MAX_SAVEABLE_URL_LENGTH,
@@ -67,7 +69,7 @@ export {
 	type UnwrappedUrl,
 	type WrapperFamily,
 } from "./wrapper-url";
-export { calculateReadTime, WORDS_PER_MINUTE } from "./estimated-read-time";
+export { calculateReadTime } from "./estimated-read-time";
 export {
 	displayableReadTime,
 	type DisplayableReadTime,
@@ -86,6 +88,8 @@ export {
 	type SiteLabel,
 	type ArticleDestinationUrl,
 	type ArticleLocation,
+	isSameArticle,
+	type ComparableArticle,
 } from "./article-site";
 export {
 	ReaderArticleHashId,
@@ -104,11 +108,14 @@ export {
 } from "./next-read-minimum";
 export {
 	READ_TIME_BUCKETS,
+	ReadlistFilterSchema,
 	SAVED_WINDOWS,
 	discoveryCandidateOf,
 	matchesArticleDiscovery,
+	readlistFilterOf,
 	resolveArticleDiscovery,
 	type ArticleDiscoveryQuery,
+	type ReadlistFilter,
 	type ReadTimeBucketId,
 	type SavedWindowId,
 } from "./article-discovery";

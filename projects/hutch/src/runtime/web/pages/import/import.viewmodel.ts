@@ -22,16 +22,22 @@ export interface ImportAcquireViewModel {
 	 * `/import?url=…` lands ready to auto-submit. Empty unless the
 	 * visitor arrived with a `url` query param on the from-url tab. */
 	readonly prefillUrl: string;
+	readonly intro: string;
 }
 
 const IMPORT_TABS_SOURCE = "import-tabs";
 const IMPORT_ACQUIRE_SOURCE = "import-acquire";
 const IMPORT_REVIEW_SOURCE = "import-review";
 
+const IMPORT_INTRO =
+	"Paste a page link or upload a bookmarks file. Readplace finds the links and lets you review them before saving.";
+const GUEST_IMPORT_INTRO = `${IMPORT_INTRO} No account needed until you save.`;
+
 export function toImportAcquireViewModel(input: {
 	mode?: string;
 	url?: string;
 	errors?: readonly ComponentError[];
+	isSignedIn: boolean;
 }): ImportAcquireViewModel {
 	const mode: ImportMode = input.mode === "upload" ? "upload" : "from-url";
 	const tabs: readonly ImportTabViewModel[] = [
@@ -64,6 +70,7 @@ export function toImportAcquireViewModel(input: {
 		}),
 		tabs,
 		prefillUrl: mode === "from-url" ? (input.url?.trim() ?? "") : "",
+		intro: input.isSignedIn ? IMPORT_INTRO : GUEST_IMPORT_INTRO,
 	};
 }
 

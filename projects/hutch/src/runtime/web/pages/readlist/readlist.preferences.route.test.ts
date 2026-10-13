@@ -840,13 +840,13 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		await mintInbox(fixture, { userId: await readerId(harness), name: "news", readlist: slug });
 		await savePurpose(agent, slug, PURPOSE);
 		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
-			"Articles from newsletters sent to these inboxes are saved to All and New Readlist, keeping only the links that fit its purpose.",
+			"Send a custom email here and the articles each issue links to are saved to All and New Readlist, keeping only the links that fit its purpose.",
 		);
 
 		await deletePurpose(agent, slug);
 
 		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
-			"Articles from newsletters sent to these inboxes are saved to All and New Readlist.",
+			"Send a custom email here and the articles each issue links to are saved to All and New Readlist.",
 		);
 	});
 });
@@ -867,10 +867,10 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(inboxRows(doc)).toEqual([
-			{ name: "deals", destination: "Goes to All", button: "Send here" },
-			{ name: "news", destination: "Goes to New Readlist", button: "Send to All" },
-			{ name: "old", destination: "Goes to All", button: "Send here" },
-			{ name: "tech", destination: "Goes to New Readlist 2", button: "Send here" },
+			{ name: "deals", destination: "Saves to All", button: "Send here" },
+			{ name: "news", destination: "Saves to All and New Readlist", button: "Send to All only" },
+			{ name: "old", destination: "Saves to All", button: "Send here" },
+			{ name: "tech", destination: "Saves to All and New Readlist 2", button: "Send here" },
 		]);
 	});
 
@@ -913,7 +913,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Articles from newsletters sent to these inboxes are saved to All and New Readlist, keeping only the links that fit its purpose.",
+			"Send a custom email here and the articles each issue links to are saved to All and New Readlist, keeping only the links that fit its purpose.",
 		);
 	});
 
@@ -947,7 +947,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		expect(response.headers.location).toBe(preferencesPath(slug));
 		expect(await routingOf(fixture, address)).toBe(slug);
 		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
-			{ name: "news", destination: "Goes to New Readlist", button: "Send to All" },
+			{ name: "news", destination: "Saves to All and New Readlist", button: "Send to All only" },
 		]);
 	});
 
@@ -984,7 +984,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		expect(response.headers.location).toBe(preferencesPath(slug));
 		expect(await routingOf(fixture, address)).toBeUndefined();
 		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
-			{ name: "news", destination: "Goes to All", button: "Send here" },
+			{ name: "news", destination: "Saves to All", button: "Send here" },
 		]);
 	});
 
@@ -1055,8 +1055,8 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		);
 		expect(alertOf(parse((await agent.get(response.headers.location)).text))).toEqual({
 			visible: true,
-			title: "That inbox isn't available",
-			body: "It may have been turned off. Pick another inbox.",
+			title: "That custom email isn't available",
+			body: "It may have been disabled. Pick another custom email.",
 		});
 	});
 

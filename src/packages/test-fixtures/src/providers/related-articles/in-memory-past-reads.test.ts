@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
@@ -146,5 +147,36 @@ describe("initInMemoryPastReads", () => {
 			status: "ready",
 			items: [],
 		});
+	});
+
+	it("lists a repeated past read once at its first copy, keeps a copy of the open article, and lets an unread copy leave a later read one in place", async () => {
+		const { articleStore, store, save } = build();
+		await save({ url: URL, title: "Postmortem: a package compromise" });
+		const openCopy = await save({ url: "https://nodeweekly.com/link/2002/web", title: "Postmortem: a package compromise" });
+		await save({ url: "https://example.com/unread-copy", title: "The Risks of Open Source" });
+		const firstCopy = await save({ url: "https://medium.com/@writer/open-source-risks", title: "The Risks of Open Source" });
+		const secondCopy = await save({ url: "https://example.com/open-source-risks", title: "the risks of  open source" });
+		for (const read of [openCopy, firstCopy, secondCopy]) {
+			await articleStore.updateArticleStatus(read.id, USER_ID, "read");
+		}
+		await store.markPastReadsReady({
+			userId: USER_ID,
+			url: URL,
+			pastReads: [
+				{ url: "https://nodeweekly.com/link/2002/web", reason: "The open article, read before" },
+				{ url: "https://example.com/unread-copy", reason: "Unread copy" },
+				{ url: "https://medium.com/@writer/open-source-risks", reason: "First read copy" },
+				{ url: "https://example.com/open-source-risks", reason: "Second read copy" },
+			],
+			fingerprint: "fp",
+			inputTokens: 1,
+			outputTokens: 1,
+			at: AT,
+		});
+
+		const result = await store.findPastReads({ userId: USER_ID, url: URL });
+
+		assert(result.status === "ready", "the computation is settled");
+		expect(result.items.map((item) => item.reason)).toEqual(["The open article, read before", "First read copy"]);
 	});
 });

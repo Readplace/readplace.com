@@ -4,6 +4,7 @@ import {
 	EmailLinkOrdinalSchema,
 	type InboxEmailEntry,
 	type InboxEmailLinkEntry,
+	type InboxEmailLinksMeta,
 	type InboxEmailStatus,
 	type InboxReadlistDecision,
 	InboxAddressSchema,
@@ -135,6 +136,19 @@ async function seedReadlistDecision(
 	if (decision.state !== "deciding") {
 		await fixture.inboxEmail.inboxEmailLinkStore.settleReadlistDecision({ ...email, decision });
 	}
+}
+
+async function seedIssueSave(
+	fixture: ReturnType<typeof createDefaultTestAppFixture>,
+	issueSave: NonNullable<InboxEmailLinksMeta["issueSave"]>,
+): Promise<void> {
+	const user = await fixture.auth.findUserByEmail("test@example.com");
+	assert(user, "logged-in user must exist before seeding");
+	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
+		userId: user.userId,
+		receivedAtMessageId: SK,
+		meta: { truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave },
+	});
 }
 
 const WORK = ReadlistSlugSchema.parse("work");
@@ -1248,6 +1262,51 @@ describe("Inbox Skipped panel poll route", () => {
 		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
 		expect(doc.querySelectorAll("[data-test-inbox-excluded-link]")).toHaveLength(1);
+	});
+});
+
+describe("Inbox email detail for a Gmail newsletter kept as an issue", () => {
+	const ISSUE_LINKS: Partial<InboxEmailLinkEntry>[] = [ROUTED_LINKS[0], { ...ROUTED_LINKS[1], droppedFor: undefined }];
+
+	it("says where the issue was saved and keeps its articles saveable by hand", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, ISSUE_LINKS);
+		await seedIssueSave(fixture, { readlists: [{ readlist: WORK, label: "Work" }], held: false });
+
+		const doc = parseDoc((await agent.get(articlesTabPath)).text);
+
+		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
+		assert(panel, "the Articles panel must render");
+		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
+		expect(panelNotices(doc)).toEqual(["decided"]);
+		expect(doc.querySelector('[data-test-panel-notice="decided"]')?.textContent).toBe(
+			"Saved this issue to All and Work.",
+		);
+		expect(panelCount(doc)).toBe("2 Extracted Articles");
+		expect(
+			Array.from(doc.querySelectorAll('[data-test-card-action="save"]')).map((button) =>
+				button.getAttribute("data-test-save-state"),
+			),
+		).toEqual(["unsaved", "unsaved"]);
+	});
+
+	it("says the issue was held for a read-only reader", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, ISSUE_LINKS);
+		await seedIssueSave(fixture, { readlists: [{ readlist: WORK, label: "Work" }], held: true });
+
+		const doc = parseDoc((await agent.get(articlesTabPath)).text);
+
+		expect(panelNotices(doc)).toEqual(["decided"]);
+		expect(doc.querySelector('[data-test-panel-notice="decided"]')?.textContent).toBe(
+			"This issue wasn't saved because this account is read-only.",
+		);
 	});
 });
 

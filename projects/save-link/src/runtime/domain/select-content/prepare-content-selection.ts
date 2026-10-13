@@ -32,6 +32,7 @@ export interface PreparedContentSelection {
 }
 
 const KIND_BY_TIER: Record<Tier, CandidateProvenance["kind"]> = { "tier-0": "extension", "tier-1": "live", "tier-2": "wrapper" };
+const EMPTY_TEXT_HASH = computeCanonicalContentHash("");
 
 function candidateIsReadable(source: VerifiedTierSource): boolean {
 	return source.html.trim().length > 0 && (source.metadata.wordCount > 0 || /<(?:img|video|audio|iframe)\b/i.test(source.html));
@@ -41,14 +42,18 @@ function isSuccessStatus(httpStatus: number | undefined): boolean {
 	return httpStatus === undefined || (httpStatus >= 200 && httpStatus < 300);
 }
 
+function isTapCapture(metadata: CandidateProvenance): boolean {
+	return metadata.kind === "extension" && metadata.captureTrigger !== "automatic";
+}
+
 function firstCaptureOf(params: { isFirstContent: boolean; sources: readonly VerifiedTierSource[] }): VerifiedTierSource | undefined {
 	const [only] = params.sources;
-	return only !== undefined && params.sources.length === 1 && params.isFirstContent && only.metadata.kind === "extension" ? only : undefined;
+	return only !== undefined && params.sources.length === 1 && params.isFirstContent && isTapCapture(only.metadata) ? only : undefined;
 }
 
 function isOwnFreshCapture(params: { source: VerifiedTierSource; saveAttemptId: SaveAttemptId }): boolean {
 	const { metadata } = params.source;
-	return metadata.kind === "extension" && metadata.attemptId === params.saveAttemptId && !isWrapperUrl(metadata.sourceUrl) && candidateIsReadable(params.source);
+	return isTapCapture(metadata) && metadata.attemptId === params.saveAttemptId && !isWrapperUrl(metadata.sourceUrl) && candidateIsReadable(params.source);
 }
 
 async function judgeCandidates(params: { sources: readonly VerifiedTierSource[]; originalUrl: string; selectMostCompleteContent: SelectMostCompleteContent }) {
@@ -116,7 +121,8 @@ export function initPrepareContentSelection(deps: {
 			}
 		}
 		const previous = sources.find((source) => source.metadata.id === (canonical?.id ?? legacyCanonicalId) && candidateIsReadable(source));
-		const isFirstContent = article.freshness.canonicalContentHash === undefined;
+		const isFirstContent = article.freshness.canonicalContentHash === undefined ||
+			(article.freshness.canonicalContentHash === EMPTY_TEXT_HASH && previous === undefined);
 		const firstCapture = firstCaptureOf({ isFirstContent, sources });
 		const proseUnchanged = previous !== undefined && sources.length > 1 &&
 			sources.every((source) => computeCanonicalContentHash(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
@@ -172,6 +178,7 @@ export function initLogContentSelection(deps: { logger: HutchLogger }): (params:
 			candidates: selection.sources.map((source) => ({
 				id: source.metadata.id,
 				kind: source.metadata.kind,
+				captureTrigger: source.metadata.captureTrigger,
 				originalUrl: source.metadata.originalUrl,
 				sourceUrl: source.metadata.sourceUrl,
 				contentHash: source.metadata.contentHash,

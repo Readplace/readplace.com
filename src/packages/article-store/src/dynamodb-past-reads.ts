@@ -3,8 +3,10 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	ArticleStatusSchema,
 	ReaderArticleHashIdSchema,
+	type ComparableArticle,
 	articleDestinationUrl,
 	articleLinkedDisplay,
+	isSameArticle,
 } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -311,10 +313,13 @@ export function initDynamoDbPastReads(deps: {
 			ARTICLE_FIELDS,
 		);
 
+		const kept: ComparableArticle[] = [];
 		const items: PastReadDisplay[] = [];
 		for (const link of stillLinked) {
 			const article = usable(LinkableArticle, byUrl.get(link.url));
 			if (!article) continue;
+			if (kept.some((earlier) => isSameArticle({ article, other: earlier }))) continue;
+			kept.push(article);
 			// A match read somewhere is owned somewhere, and every list it is owned
 			// in is one of allReadlists, which the priority order spans — so both the
 			// lookup and the destination search are total by construction.

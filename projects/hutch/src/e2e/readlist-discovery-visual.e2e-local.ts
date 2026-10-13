@@ -26,6 +26,7 @@ const SEEDED_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const SEARCH_WORD = "deep";
 const NO_MATCH_QUERY = "?q=no-such-words-anywhere";
 const FILTERED_QUERY = "?time=5-10&saved=month";
+const FILTERED_NO_MATCH_QUERY = "?time=10-20&saved=month";
 const PINNED_SAVED_TIMES = ["2h ago", "3h ago", "4h ago"];
 
 const MAIN = "main.readlist";
@@ -40,6 +41,9 @@ const SEARCH_INPUT = "#readlist-search-input";
 const SEARCH_GLYPH = `${SEARCH_FORM} .readlist-search__icon svg`;
 const FILTER_TRIGGER = '[data-test-action="open-discovery-filters"]';
 const FILTER_GLYPH = `${FILTER_TRIGGER} svg`;
+const ACTIVE_FILTER_TRIGGER = `${FILTER_TRIGGER}.readlist-discovery__filter--active`;
+const IDLE_FILTER_TRIGGER = `${FILTER_TRIGGER}.readlist-discovery__filter--idle`;
+const NAMED_FILTER = "[data-test-empty-readlist] .readlist-empty__filter";
 const DRAWER = "[data-test-discovery-drawer]";
 const OPEN_DRAWER = `${DRAWER}:popover-open`;
 const DRAWER_HEADER = `${DRAWER} .readlist-filters__header`;
@@ -277,6 +281,19 @@ async function noResultsSettled(page: Page): Promise<void> {
 	await page.mouse.move(0, 0);
 }
 
+async function activeFilterSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(ACTIVE_FILTER_TRIGGER)).toBeVisible();
+	await expect(page.locator(ARTICLE)).toHaveCount(1);
+	await page.mouse.move(0, 0);
+}
+
+async function filteredNoResultsSettled(page: Page): Promise<void> {
+	await noResultsSettled(page);
+	await expect(page.locator(NAMED_FILTER)).toHaveText(["10–20 min", "This month"]);
+}
+
 async function drawerOpenSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
@@ -311,6 +328,26 @@ const SEARCH_NO_RESULTS: VisualCheckpoint = {
 	target: LISTING,
 	capture: "element",
 	pinnedText: [],
+};
+
+const FILTER_ACTIVE: VisualCheckpoint = {
+	name: "readlist-filter-active",
+	settled: activeFilterSettled,
+	geometry: discoveryRowGeometry,
+	target: DISCOVERY,
+	capture: "element",
+	pinnedText: [],
+};
+
+const FILTER_ACTIVE_PHONE: VisualCheckpoint = {
+	...FILTER_ACTIVE,
+	name: "readlist-filter-active-phone",
+};
+
+const FILTER_NO_RESULTS: VisualCheckpoint = {
+	...SEARCH_NO_RESULTS,
+	name: "readlist-filter-no-results",
+	settled: filteredNoResultsSettled,
 };
 
 const FILTER_DRAWER: VisualCheckpoint = {
@@ -377,6 +414,50 @@ test.describe("Readlist filter drawer", () => {
 		});
 	}
 
+	for (const theme of THEMES) {
+		test(`draws the filter button with a heavy edge and a dot while a filter is on (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await seedReader(page, `active-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await gotoReadlistQueue(page, FILTERED_QUERY);
+
+			await captureCheckpoint(page, withTheme(FILTER_ACTIVE, theme));
+		});
+
+		test(`names the filters that hide every article (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await seedReader(page, `filter-no-results-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await gotoReadlistQueue(page, FILTERED_NO_MATCH_QUERY);
+
+			await captureCheckpoint(page, withTheme(FILTER_NO_RESULTS, theme));
+		});
+	}
+
+	test("remembers an applied filter on the bare readlist until Clear all", async ({ page }, testInfo) => {
+		await seedReader(page, `remembered-${testInfo.workerIndex}-${Date.now()}`);
+		await gotoReadlistQueue(page, "");
+		await expect(page.locator(ARTICLE)).toHaveCount(SEEDED_ARTICLES.length);
+
+		await openDrawer(page);
+		await page.locator(`${DRAWER} [data-test-discovery-option="time:5-10"]`).click();
+		await page.locator(`${DRAWER} [data-test-discovery-option="saved:month"]`).click();
+		await page.locator(DRAWER_APPLY).click();
+		await expect(page.locator(ARTICLE)).toHaveCount(1);
+		await expect.poll(() => new URL(page.url()).searchParams.getAll("time")).toEqual(["5-10"]);
+
+		await gotoReadlistQueue(page, "");
+		await expect(page.locator(ACTIVE_FILTER_TRIGGER)).toBeVisible();
+		await expect(page.locator(ARTICLE)).toHaveCount(1);
+
+		await openDrawer(page);
+		await page.locator(DRAWER_CLEAR).click();
+		await expect(page.locator(ARTICLE)).toHaveCount(SEEDED_ARTICLES.length);
+		await expect(page.locator(IDLE_FILTER_TRIGGER)).toBeVisible();
+
+		await gotoReadlistQueue(page, "");
+		await expect(page.locator(IDLE_FILTER_TRIGGER)).toBeVisible();
+		await expect(page.locator(ARTICLE)).toHaveCount(SEEDED_ARTICLES.length);
+	});
+
 	test("never scrolls the page sideways from 320px up to desktop", async ({ page }, testInfo) => {
 		await seedReader(page, `drawer-widths-${testInfo.workerIndex}-${Date.now()}`);
 		await gotoReadlistQueue(page, FILTERED_QUERY);
@@ -417,6 +498,13 @@ test.describe("Readlist filter drawer (phone)", () => {
 		await gotoReadlistQueue(page, FILTERED_QUERY);
 
 		await captureCheckpoint(page, FILTER_DRAWER_PHONE);
+	});
+
+	test("keeps the active filter button's edge and dot inside the one-line search row", async ({ page }, testInfo) => {
+		await seedReader(page, `active-phone-${testInfo.workerIndex}-${Date.now()}`);
+		await gotoReadlistQueue(page, FILTERED_QUERY);
+
+		await captureCheckpoint(page, FILTER_ACTIVE_PHONE);
 	});
 });
 

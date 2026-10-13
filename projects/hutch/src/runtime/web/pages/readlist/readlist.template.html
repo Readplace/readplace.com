@@ -28,9 +28,14 @@
                 <div class="readlist-empty" data-test-empty-readlist>
                   <div class="readlist-empty__illustration">{{{emptyIllustrationHtml}}}</div>
                   <h2 class="readlist-empty__title" data-test-empty-title>{{emptyTitle}}</h2>
-                  <p class="readlist-empty__text">{{emptyText}}</p>
+                  <p class="readlist-empty__text">{{emptyText}}{{#each emptyFilterNames}}<strong class="readlist-empty__filter">{{label}}</strong>{{separator}}{{/each}}{{emptyTail}}</p>
                   {{#each emptyActions}}
-                  <a class="btn btn--neutral readlist-empty__cta" href="{{href}}" data-test-empty-action="{{key}}">{{label}}</a>
+                  <form class="readlist-empty__cta" method="{{method}}" action="{{action}}">
+                    {{#each fields}}
+                    <input type="hidden" name="{{name}}" value="{{value}}">
+                    {{/each}}
+                    <button class="btn btn--neutral" type="submit" data-test-empty-action="{{key}}">{{label}}</button>
+                  </form>
                   {{/each}}
                 </div>
                 {{/if}}

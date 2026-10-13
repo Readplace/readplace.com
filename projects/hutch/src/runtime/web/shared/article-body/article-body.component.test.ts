@@ -215,6 +215,25 @@ describe("renderArticleBody", () => {
 		]);
 	});
 
+	it("places the supplied past reads in the article card between the summary slot and the reader slot", () => {
+		const doc = parse(
+			renderArticleBody({
+				...baseInput,
+				content: "<p>Body</p>",
+				previouslyReadHtml: '<section id="article-body-topic-reads-inline-slot">past reads</section>',
+			}),
+		);
+
+		const card = doc.querySelector("[data-test-article-card]");
+		assert(card, "the article card must be rendered");
+		expect(Array.from(card.children, (child) => child.id)).toEqual([
+			"article-header",
+			"article-body-summary-slot",
+			"article-body-topic-reads-inline-slot",
+			"article-body-reader-slot",
+		]);
+	});
+
 	it("orders the toolbar, the card, the notice, the issue links and the bottom bar, keeping the notice the card's next sibling", () => {
 		const html = renderArticleBody({
 			...baseInput,

@@ -21,13 +21,17 @@ const FIXED_NOW = new Date("2026-04-25T12:00:00.000Z");
 
 const OFFLINE_READER_BUNDLE = "/client-dist/offline-reader.client.js";
 
-const ARTICLE_HTML = `
-<html><head><title>Offline Post</title></head>
+const OFFLINE_VERSION_RELATED_URL = "https://example.com/offline-version-related";
+
+function articleHtml(title: string): string {
+	return `
+<html><head><title>${title}</title></head>
 <body><article>
-	<h1>Offline Post</h1>
+	<h1>${title}</h1>
 	<p>Long enough body text for the readability parser to extract a clean article from.</p>
 	<p>A second paragraph so the parser has more than the minimum word count to work with.</p>
 </article></body></html>`;
+}
 
 const BOOSTED_HEADERS = {
 	"HX-Request": "true",
@@ -36,9 +40,9 @@ const BOOSTED_HEADERS = {
 };
 
 function buildFixture(now: () => Date): TestAppFixture {
-	const crawlArticle = async () => ({
+	const crawlArticle = async ({ url }: { url: string }) => ({
 		status: "fetched" as const,
-		html: ARTICLE_HTML,
+		html: articleHtml(url === OFFLINE_VERSION_RELATED_URL ? "Offline Follow-up" : "Offline Post"),
 		bodyHash: "sha256-stub",
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -146,7 +150,7 @@ describe("the article version the offline reader worker compares (GET /queue/:id
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const sourceUrl = "https://example.com/offline-version-source";
-		const relatedUrl = "https://example.com/offline-version-related";
+		const relatedUrl = OFFLINE_VERSION_RELATED_URL;
 		await agent.post("/queue/save").type("form").send({ url: relatedUrl });
 		await agent.post("/queue/save").type("form").send({ url: sourceUrl });
 		const user = await harness.auth.findUserByEmail("test@example.com");

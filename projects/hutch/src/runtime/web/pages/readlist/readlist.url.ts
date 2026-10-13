@@ -1,11 +1,9 @@
 import { z } from "zod";
 import {
-	READ_TIME_BUCKETS,
-	SAVED_WINDOWS,
+	readlistFilterOf,
 	resolveArticleDiscovery,
 	type ArticleDiscoveryQuery,
-	type ReadTimeBucketId,
-	type SavedWindowId,
+	type ReadlistFilter,
 } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
@@ -19,10 +17,8 @@ export const READLIST_PATH = "/queue";
 
 export type LinkParams = readonly (readonly [string, string])[];
 
-export interface ReadlistDiscovery {
+export interface ReadlistDiscovery extends ReadlistFilter {
 	q?: string;
-	time: ReadTimeBucketId[];
-	saved: SavedWindowId[];
 }
 
 export interface ReadlistUrlState {
@@ -60,12 +56,9 @@ function searchQueryOf(raw: string | undefined): string | undefined {
 }
 
 function discoveryOf(parsed: z.infer<typeof ReadlistQuerySchema>): ReadlistDiscovery | undefined {
-	const time = listOf(parsed.time);
-	const saved = listOf(parsed.saved);
 	const discovery: ReadlistDiscovery = {
 		q: searchQueryOf(parsed.q),
-		time: READ_TIME_BUCKETS.map((bucket) => bucket.id).filter((id) => time.includes(id)),
-		saved: SAVED_WINDOWS.map((window) => window.id).filter((id) => saved.includes(id)),
+		...readlistFilterOf({ time: listOf(parsed.time), saved: listOf(parsed.saved) }),
 	};
 	const active = discovery.q !== undefined || discovery.time.length > 0 || discovery.saved.length > 0;
 	return active ? discovery : undefined;
@@ -137,6 +130,8 @@ export const READLIST_COUNTS_PATH = `${READLIST_PATH}/counts`;
 
 export const READLIST_SAVE_PATH = `${READLIST_PATH}/save`;
 
+const READLIST_FILTERS_PATH = `${READLIST_PATH}/filters`;
+
 export const READLIST_CREATE_PATH = `${READLIST_PATH}/queues`;
 
 export const READLIST_DISMISS_ONBOARDING_PATH = `${READLIST_PATH}/dismiss-onboarding`;
@@ -168,6 +163,11 @@ export function readlistDeletePath(readlist: ReadlistSlug): string {
 export function buildReadlistCountsUrl(state: Partial<ReadlistUrlState>): string {
 	const qs = readlistQueryString(state);
 	return qs ? `${READLIST_COUNTS_PATH}?${qs}` : READLIST_COUNTS_PATH;
+}
+
+export function buildReadlistFiltersUrl(state: Partial<ReadlistUrlState>, extraParams: LinkParams = []): string {
+	const qs = readlistQueryString(state, extraParams);
+	return qs ? `${READLIST_FILTERS_PATH}?${qs}` : READLIST_FILTERS_PATH;
 }
 
 export function canonicalReadlistPageRedirect(input: {

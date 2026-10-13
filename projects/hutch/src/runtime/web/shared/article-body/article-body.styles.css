@@ -72,11 +72,15 @@
   gap: 0.75rem;
 }
 
-.article-body__reader-notice-capture {
+.article-body__reader-notice-capture--withheld {
+  display: none;
+}
+
+.article-body__reader-notice-capture--offered {
   display: none; /* 1 */
 }
 
-[data-reader-capture-host] .article-body__reader-notice-capture {
+[data-reader-capture-host] .article-body__reader-notice-capture--offered {
   display: inline-flex; /* 1 */
 }
 

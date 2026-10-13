@@ -88,6 +88,30 @@ function buildBlockedHarness(): ReturnType<typeof useApp> {
 	});
 }
 
+function buildFailedHarness(): ReturnType<typeof useApp> {
+	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
+	const parseArticle = async () => ({
+		ok: false as const,
+		reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }),
+	});
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const applyParseResult = createFakeApplyParseResult({
+		articleStore: fixture.articleStore,
+		articleCrawl: fixture.articleCrawl,
+		parseArticle,
+	});
+	return useApp({
+		...fixture,
+		parser: { parseArticle, crawlArticle },
+		events: {
+			...fixture.events,
+			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+		},
+	});
+}
+
 async function saveAndGetArticleId(
 	agent: Awaited<ReturnType<typeof loginAgent>>,
 	url: string,
@@ -293,6 +317,64 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const tableOfContents = doc.querySelector("[data-test-reader-rail] > #table-of-contents");
 		assert(tableOfContents, "the rail must always hold the table of contents");
 		expect(tableOfContents.getAttribute("data-test-table-of-contents")).toBe("hidden");
+	});
+
+	it("stamps the failed notice's capture control with the reader-poll URL that arms the capturing state", async () => {
+		const harness = buildFailedHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-failed-capture-kickoff");
+
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		const capture = doc.querySelector('[data-test-reader-notice] [data-test-reader-action="capture"]');
+		assert(capture, "the failed notice must render the in-app capture control");
+		expect({
+			status: slot.getAttribute("data-reader-status"),
+			offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
+			pollUrl: capture.getAttribute("data-reader-capture-poll"),
+		}).toEqual({
+			status: "failed",
+			offered: true,
+			pollUrl: `/queue/${articleId}/reader?poll=1&capturing=1&platform=ios`,
+		});
+	});
+
+	it("posts captureBlocked and fires the capture poll from a failed notice exactly as from a blocked one", async () => {
+		const harness = buildFailedHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-failed-capture-tap");
+
+		const posted: unknown[] = [];
+		const ajaxCalls: Array<{ verb: string; url: string; opts: unknown }> = [];
+		const dom = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text, {
+			runScripts: "dangerously",
+			beforeParse(window) {
+				Object.assign(window, {
+					webkit: { messageHandlers: { readplaceReader: { postMessage: (message: unknown) => posted.push(message) } } },
+					htmx: {
+						ajax: (verb: string, url: string, opts: unknown) => ajaxCalls.push({ verb, url, opts }),
+					},
+				});
+			},
+		});
+
+		const button = dom.window.document.querySelector<HTMLButtonElement>(
+			'[data-test-reader-notice] [data-test-reader-action="capture"]',
+		);
+		assert(button, "the failed notice must render the capture control");
+		const pollUrl = button.getAttribute("data-reader-capture-poll");
+
+		button.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+
+		expect({ disabled: button.disabled, posted, ajaxCalls }).toEqual({
+			disabled: true,
+			posted: [{ type: "captureBlocked" }],
+			ajaxCalls: [{ verb: "GET", url: pollUrl, opts: { target: "#article-body-reader-slot", swap: "outerHTML" } }],
+		});
+
+		dom.window.close();
 	});
 
 	it("fires the reader-slot capture poll immediately when htmx is already loaded at tap time", async () => {

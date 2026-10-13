@@ -7,6 +7,7 @@ import { initRefreshArticleContentHandler } from "../save-link/refresh-article-c
 import type { LoadArticle, TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/hutch-logger";
 import type {
+	ArticleCrawl,
 	FindArticleCrawlStatus,
 } from "@packages/test-fixtures/providers/article-crawl";
 import type {
@@ -144,6 +145,63 @@ describe("initStaleCheckHandler", () => {
 		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
+	});
+
+	it.each<ArticleCrawl>([
+		{ status: "pending" },
+		{ status: "pending", stage: "comprehensive-fetching" },
+	])("leaves a pending row that was never fetched to its first save, before reading its identity: %j", async (crawl) => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: undefined,
+			bodyHash: undefined,
+		});
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => crawl;
+		const prepareArticleIdentity = jest.fn<
+			ReturnType<HandlerDeps["prepareArticleIdentity"]>,
+			Parameters<HandlerDeps["prepareArticleIdentity"]>
+		>(async (url) => ({ status: "resolved", url, originalUrl: url }));
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "fetched",
+			article: {
+				html: "<p>The article</p>",
+				metadata: { title: "Article", siteName: "example.com", excerpt: "Article", wordCount: 2, estimatedReadTime: 1 },
+			},
+			evaluationHtml: "<html><body><p>The article</p></body></html>",
+			bodyHash: "a".repeat(64),
+		});
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+
+		const handler = createHandler({ findArticleFreshness, findArticleCrawlStatus, prepareArticleIdentity, crawlAndFinalizeArticle, logger });
+
+		const result = await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(logger.info).toHaveBeenCalledWith("[StaleCheckRequested] no-op", { url: URL_UNDER_TEST, action: "first-save-in-flight" });
+		expect(prepareArticleIdentity).toHaveBeenCalledTimes(0);
+	});
+
+	it("still refreshes a pending row that was fetched before once its contentFetchedAt is past the TTL", async () => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({ etag: undefined, lastModified: undefined, contentFetchedAt: "2026-04-01T00:00:00.000Z" });
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({ status: "pending" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "fetched",
+			article: {
+				html: "<p>The article</p>",
+				metadata: { title: "Article", siteName: "example.com", excerpt: "Article", wordCount: 2, estimatedReadTime: 1 },
+			},
+			evaluationHtml: "<html><body><p>The article</p></body></html>",
+			bodyHash: "a".repeat(64),
+		});
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+
+		const handler = createHandler({ findArticleFreshness, findArticleCrawlStatus, crawlAndFinalizeArticle, logger });
+
+		const result = await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(logger.info).toHaveBeenCalledWith("[StaleCheckRequested] no-op", { url: URL_UNDER_TEST, action: "refreshed" });
 	});
 
 	it("publishes UpdateFetchTimestamp on 304 Not Modified, carrying forward the row's existing bodyHash", async () => {

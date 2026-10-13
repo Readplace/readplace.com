@@ -103,7 +103,6 @@
     "@playwright/test": "1.60.0",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
-    "@testing-library/dom": "10",
     "@types/aws-lambda": "8.10.161",
     "@types/compression": "1.8.1",
     "@types/cookie-parser": "1.4.10",

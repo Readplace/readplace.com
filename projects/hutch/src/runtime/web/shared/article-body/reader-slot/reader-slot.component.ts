@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseCrawlFailureReason } from "@packages/article-state-types";
 import {
 	type ArticleDestinationUrl,
 	DEFAULT_CRAWL_STAGE,
@@ -10,6 +9,7 @@ import {
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
 import { render } from "@packages/web-shell";
+import { type FailedCrawlNotice, failedCrawlNotice } from "./failed-crawl-notice";
 import {
 	type ReaderFailedVariant,
 	type ReaderRegions,
@@ -77,21 +77,9 @@ function resolveLoadingHint(url: string): string | undefined {
 	return undefined;
 }
 
-function failedVariant(reason: string): ReaderFailedVariant {
-	const parsed = parseCrawlFailureReason(reason);
-	/* A 404/410 is the one failure the reader can do nothing about: the generic
-	 * `failed` copy sends the user to install a client,
-	 * advice that cannot resurrect a deleted page. */
-	if (parsed?.kind === "not-found") return "not-found";
-	if (parsed?.kind === "origin-unreachable") return "origin-down";
-	if (parsed?.kind !== "blocked") return "failed";
-	if (parsed.cause === "edge-block" || parsed.cause === "rate-limited") return "blocked";
-	return "failed";
-}
-
 function noticeOrCapture(
 	input: ReaderSlotInput,
-	variant: ReaderFailedVariant,
+	notice: FailedCrawlNotice,
 	oob: boolean,
 ): ReaderRegions {
 	if (input.capturing === true && input.readerPollUrl !== undefined) {
@@ -106,9 +94,10 @@ function noticeOrCapture(
 	}
 	return renderReaderFailed({
 		url: input.url,
-		variant,
+		variant: notice.variant,
 		extensionInstallUrl: input.extensionInstallUrl,
 		capturePollUrl: input.capturePollUrl,
+		captureRescue: notice.captureRescue,
 		oob,
 		noticeOob: input.noticeOob,
 	});
@@ -135,6 +124,7 @@ function pollOrSlow(input: ReaderSlotInput, oob: boolean, pct: number): ReaderRe
 				url: input.url,
 				variant: "slow",
 				extensionInstallUrl: input.extensionInstallUrl,
+				captureRescue: "withheld",
 				oob,
 				noticeOob: input.noticeOob,
 			});
@@ -153,6 +143,7 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 		return renderReaderFailed({
 			url: input.url,
 			variant: input.notice,
+			captureRescue: "withheld",
 			oob,
 			noticeOob: input.noticeOob,
 		});
@@ -179,8 +170,8 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 				}),
 			);
 		case "failed":
-			return noticeOrCapture(input, failedVariant(input.crawl.reason), oob);
+			return noticeOrCapture(input, failedCrawlNotice(input.crawl.reason), oob);
 		case "unsupported":
-			return noticeOrCapture(input, "unsupported", oob);
+			return noticeOrCapture(input, { variant: "unsupported", captureRescue: "withheld" }, oob);
 	}
 }

@@ -253,7 +253,9 @@ describe("Readlist routes", () => {
 					},
 					{ surface: "readlist-search", targets: ".readlist-listing" },
 					{ surface: "readlist-filters", targets: "closest form, .readlist-listing" },
+					{ surface: "readlist-filters-clear", targets: ".readlist-listing" },
 					{ surface: "readlist-filters", targets: "closest form, .readlist-listing" },
+					{ surface: "readlist-filters-clear", targets: ".readlist-listing" },
 				]);
 			}
 		});

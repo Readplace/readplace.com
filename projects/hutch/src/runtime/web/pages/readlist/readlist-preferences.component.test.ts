@@ -415,7 +415,7 @@ describe("ReadlistPreferencesPage", () => {
 			doc.querySelector(
 				'[data-test-preferences-inbox="news-a7b2c9@read.place"] [data-test-inbox-destination]',
 			)?.textContent,
-		).toBe("Goes to Later");
+		).toBe("Saves to All and Later");
 	});
 
 	it("raises a refused inbox routing as the page's alert, ahead of any other", () => {
@@ -430,10 +430,10 @@ describe("ReadlistPreferencesPage", () => {
 
 		expect(alert.classList.contains("alert--visible")).toBe(true);
 		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
-			"That inbox isn't available",
+			"That custom email isn't available",
 		);
 		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
-			"It may have been turned off. Pick another inbox.",
+			"It may have been disabled. Pick another custom email.",
 		);
 	});
 

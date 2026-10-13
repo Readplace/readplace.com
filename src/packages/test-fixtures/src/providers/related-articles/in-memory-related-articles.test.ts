@@ -235,4 +235,79 @@ describe("initInMemoryRelatedArticles", () => {
 			await store.findRelatedArticles({ userId: USER_ID, url: `${URL}?utm_source=news` }),
 		).toEqual({ status: "skipped" });
 	});
+
+	it("hides every copy of the saved article, by title or by destination, and lists a repeated pick once at its first copy", async () => {
+		const { store, save } = build();
+		await save({ userId: USER_ID, url: URL, title: "Widgets 4.0 Is Out" });
+		await save({ userId: USER_ID, url: "https://nodeweekly.com/link/2002/web", title: " widgets 4.0  is out" });
+		await save({ userId: USER_ID, url: "https://www.example.com/post/#intro", title: "Announcing the widgets release" });
+		await save({ userId: USER_ID, url: "https://javascriptweekly.com/link/1001/web", title: "Publishing packages safely" });
+		await save({ userId: USER_ID, url: "https://example.com/publishing-packages", title: "Publishing Packages Safely" });
+		await save({ userId: USER_ID, url: RELATED_URL, title: "Widgets 4.1 release notes" });
+		await store.markRelatedArticlesReady({
+			userId: USER_ID,
+			url: URL,
+			relatedArticles: [
+				{ url: "https://nodeweekly.com/link/2002/web", reason: "The same release" },
+				{ url: "https://www.example.com/post/#intro", reason: "The same post again" },
+				{ url: "https://javascriptweekly.com/link/1001/web", reason: "First copy" },
+				{ url: "https://example.com/publishing-packages", reason: "Second copy" },
+				{ url: RELATED_URL, reason: "Next version" },
+			],
+			inputTokens: 10,
+			outputTokens: 2,
+			at: AT,
+		});
+
+		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+
+		assert(result.status === "ready", "the relation list is computed");
+		expect(result.items.map((item) => item.reason)).toEqual(["First copy", "Next version"]);
+	});
+
+	it("lists a repeated pick once even when the saved article itself was never stored", async () => {
+		const { store, save } = build();
+		await save({ userId: USER_ID, url: "https://javascriptweekly.com/link/1001/web", title: "Publishing packages safely" });
+		await save({ userId: USER_ID, url: "https://example.com/publishing-packages", title: "Publishing Packages Safely" });
+		await store.markRelatedArticlesReady({
+			userId: USER_ID,
+			url: URL,
+			relatedArticles: [
+				{ url: "https://javascriptweekly.com/link/1001/web", reason: "First copy" },
+				{ url: "https://example.com/publishing-packages", reason: "Second copy" },
+			],
+			inputTokens: 10,
+			outputTokens: 2,
+			at: AT,
+		});
+
+		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+
+		assert(result.status === "ready", "the relation list is computed");
+		expect(result.items.map((item) => item.reason)).toEqual(["First copy"]);
+	});
+
+	it("lets a pick the reader deleted leave its later copy in place", async () => {
+		const { articleStore, store, save } = build();
+		await save({ userId: USER_ID, url: URL, title: "Target" });
+		const deleted = await save({ userId: USER_ID, url: "https://javascriptweekly.com/link/1001/web", title: "Publishing packages safely" });
+		await save({ userId: USER_ID, url: "https://example.com/publishing-packages", title: "Publishing packages safely" });
+		await store.markRelatedArticlesReady({
+			userId: USER_ID,
+			url: URL,
+			relatedArticles: [
+				{ url: "https://javascriptweekly.com/link/1001/web", reason: "Deleted copy" },
+				{ url: "https://example.com/publishing-packages", reason: "Live copy" },
+			],
+			inputTokens: 10,
+			outputTokens: 2,
+			at: AT,
+		});
+		await articleStore.deleteArticle(deleted.id, USER_ID);
+
+		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+
+		assert(result.status === "ready", "the relation list is computed");
+		expect(result.items.map((item) => item.reason)).toEqual(["Live copy"]);
+	});
 });

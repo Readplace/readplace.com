@@ -30,6 +30,14 @@
   background: var(--muted);
 }
 
+.disclosure-card__header--static {
+  cursor: auto;
+}
+
+.disclosure-card__header--static:hover {
+  background-color: transparent;
+}
+
 .disclosure-card__header:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
@@ -37,6 +45,7 @@
 
 .disclosure-card__title {
   margin: 0;
+  font-family: var(--font-sans);
   font-size: var(--text-md);
   font-weight: 600;
   line-height: 1.5;

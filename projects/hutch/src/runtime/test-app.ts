@@ -170,6 +170,8 @@ function flattenFixtureToAppDependencies(
 		countUsers: fixture.auth.countUsers,
 		markEmailVerified: fixture.auth.markEmailVerified,
 		markSessionEmailVerified: fixture.auth.markSessionEmailVerified,
+		setSessionReadlistFilter: fixture.auth.setSessionReadlistFilter,
+		findSessionReadlistFilter: fixture.auth.findSessionReadlistFilter,
 		findUserById: fixture.auth.findUserById,
 		setUserAppearance: fixture.auth.setUserAppearance,
 		setQueueDigestOptOut: fixture.auth.setQueueDigestOptOut,

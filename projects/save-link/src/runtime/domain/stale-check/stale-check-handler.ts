@@ -40,6 +40,9 @@ import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-rea
  *   - `"new"`             — row missing; re-published SaveAnonymousLinkCommand.
  *   - `"skip"`            — within TTL, terminal state, or parse failure. No
  *                           downstream effect.
+ *   - `"first-save-in-flight"` — the article's first save is still crawling
+ *                           and may yet move its identity, so a refresh now
+ *                           would race it. No downstream effect.
  *   - `"backoff"`         — reset the freshness clock so the next
  *                           attempt waits a full TTL instead of re-firing on
  *                           every /view.
@@ -53,6 +56,7 @@ import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-rea
 export type StaleCheckAction =
 	| "new"
 	| "skip"
+	| "first-save-in-flight"
 	| "backoff"
 	| "unchanged"
 	| "refreshed"
@@ -101,6 +105,7 @@ export function initStaleCheckHandler(deps: {
 
 		const crawl = await findArticleCrawlStatus(url);
 		if (decideTerminalAction(crawl) === "skip") return "skip";
+		if (crawl?.status === "pending" && !freshness.contentFetchedAt) return "first-save-in-flight";
 
 		if (freshness.contentFetchedAt) {
 			const fetchedAt = new Date(freshness.contentFetchedAt).getTime();

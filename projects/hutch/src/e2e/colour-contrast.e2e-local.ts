@@ -295,6 +295,13 @@ async function auditReadlistDiscovery(page: Page, where: { theme: string }): Pro
 
 	await page.keyboard.press("Escape");
 	await expect(openDrawer).toBeHidden({ timeout: SETTLE_MS });
+	await auditRoot(page, { root: READLIST_ROOT, theme: where.theme, view: "filter-active" });
+
+	await page.goto(`${BASE_URL}/queue?saved=older`, { waitUntil: "domcontentloaded" });
+	await expect(page.locator("[data-test-empty-readlist] .readlist-empty__filter")).toHaveText(["Older"], {
+		timeout: SETTLE_MS,
+	});
+	await auditRoot(page, { root: READLIST_ROOT, theme: where.theme, view: "filter-no-results" });
 }
 
 async function auditAnnouncementBars(
@@ -524,6 +531,63 @@ test.describe("Alert variants hold their WCAG contrast in both themes", () => {
 			assert.ok(measurements.length > 0);
 			assertContrast(measurements, { theme, view: "warning" });
 		}
+	});
+});
+
+test.describe("Import colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("both tabs, a fetch error and the review clear their contrast minimum", async ({ page }, testInfo) => {
+		await signUpFreshUser(page, `import-contrast-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		const uploaded = await page.request.post(`${BASE_URL}/import`, {
+			multipart: {
+				file: {
+					name: "links.txt",
+					mimeType: "text/plain",
+					buffer: Buffer.from(
+						[
+							"https://example.com/essays/import-contrast-first",
+							"https://example.com/essays/import-contrast-second",
+							"https://example.com/essays/import-contrast-third",
+						].join("\n"),
+					),
+				},
+			},
+			maxRedirects: 0,
+		});
+		assert.equal(uploaded.status(), 303, "the import upload must redirect to its review page");
+		const location = uploaded.headers().location;
+		assert(location, "the import upload must redirect to its review page");
+		const reviewUrl = new URL(location, BASE_URL).href;
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+
+			await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+			const firstQuestion = page.locator("details.import__faq-item").first();
+			await firstQuestion.locator("summary").click();
+			await expect(firstQuestion).toHaveAttribute("open", "");
+			await auditRoot(page, { root: "main.import", theme, view: "import/paste" });
+
+			await page.goto(`${BASE_URL}/import?mode=upload`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-import-dropzone]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "main.import", theme, view: "import/upload" });
+
+			await page.goto(`${BASE_URL}/import?error_code=import_url_fetch_failed`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-alert="import"]')).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "main.import", theme, view: "import/fetch-error" });
+
+			await page.goto(reviewUrl, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-import-list]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "main.import", theme, view: "import/review" });
+		}
+	});
+
+	test("the logged-out import page clears its contrast minimum", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-import-intro]")).toBeVisible({ timeout: SETTLE_MS });
+		await auditRoot(page, { root: "main.import", theme: "light", view: "import/guest" });
 	});
 });
 
@@ -794,6 +858,31 @@ test.describe("The reader's Next Read card holds its WCAG contrast in both theme
 				page.locator('[data-test-reader-related][data-related-status="ready"] [data-test-related-item]'),
 			).toBeVisible({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: "[data-test-reader-related]", theme, view: "next-read" });
+		}
+	});
+});
+
+test.describe("Public reader colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the toolbar and the sticky action bar clear colour and greyscale minimums", async ({ page }, testInfo) => {
+		const slug = `colour-contrast-public-reader-${testInfo.workerIndex}-${Date.now()}`;
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/${slug}`,
+				title: "A shared article a guest opens",
+				content: "<p>Seeded body above the public reader's action bar.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+			},
+		});
+		assert.equal(seeded.status(), 201);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/view/example.com/${slug}`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-download="epub"]')).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: ".article-body__toolbar", theme, view: "public-reader/toolbar" });
+			await auditRoot(page, { root: "[data-test-view-cta]", theme, view: "public-reader/action-bar" });
 		}
 	});
 });

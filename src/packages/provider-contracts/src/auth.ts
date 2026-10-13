@@ -1,3 +1,4 @@
+import type { ReadlistFilter } from "@packages/domain/article";
 import type { AppearancePreference, AuthenticatedUserId, UserId } from "@packages/domain/user";
 
 export type CreateUserResult =
@@ -66,6 +67,10 @@ export type CountUsers = () => Promise<number>;
 export type MarkEmailVerified = (email: string) => Promise<void>;
 
 export type MarkSessionEmailVerified = (sessionId: string) => Promise<void>;
+
+export type SetSessionReadlistFilter = (input: { sessionId: string; filter: ReadlistFilter }) => Promise<void>;
+
+export type FindSessionReadlistFilter = (sessionId: string) => Promise<ReadlistFilter | undefined>;
 
 export type UserExistsByEmail = (email: string) => Promise<boolean>;
 

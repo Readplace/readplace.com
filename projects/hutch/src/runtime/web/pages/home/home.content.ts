@@ -201,13 +201,13 @@ export const HOME_CONTENT = {
 		quote:
 			"The app works really well. It has really made it easier to save articles, and I haven't experienced any issues at all — it just works.",
 		quoteAttribution: "Matthew Motz, early user",
-		founderLead: "Fayner Brack is the Founder & CEO of Readplace. He wrote",
+		founderLead: "Fayner Brack is the Founder & CEO of Readplace. She wrote",
 		founderJsCookieLink: {
 			label: "js-cookie",
 			href: "https://www.jsdelivr.com/package/npm/js-cookie",
 		},
 		founderMid:
-			"which browsers download about 1.5 billion times a month, and ran his own reading on Gmail filters and Reddit automations for ten years before turning it into Readplace. That decade showed the bottleneck was never saving. It was",
+			"which browsers download about 1.5 billion times a month, and ran her own reading on Gmail filters and Reddit automations for ten years before turning it into Readplace. That decade showed the bottleneck was never saving. It was",
 		founderLink: {
 			label: "deciding what NOT to read",
 			href: "/view?url=https://fagnerbrack.com/whats-the-point-to-save-articles-youll-never-read-22d07f6609ad",

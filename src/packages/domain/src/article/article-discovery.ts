@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { articleDestinationHost } from "./article-site";
 import type { SavedArticle } from "./article.types";
 import { displayableReadTime } from "./displayable-read-time";
@@ -21,6 +22,22 @@ export const SAVED_WINDOWS = [
 ] as const;
 
 export type SavedWindowId = (typeof SAVED_WINDOWS)[number]["id"];
+
+export interface ReadlistFilter {
+	time: ReadTimeBucketId[];
+	saved: SavedWindowId[];
+}
+
+export function readlistFilterOf(input: { time: readonly string[]; saved: readonly string[] }): ReadlistFilter {
+	return {
+		time: READ_TIME_BUCKETS.map((bucket) => bucket.id).filter((id) => input.time.includes(id)),
+		saved: SAVED_WINDOWS.map((window) => window.id).filter((id) => input.saved.includes(id)),
+	};
+}
+
+export const ReadlistFilterSchema = z
+	.object({ time: z.array(z.string()), saved: z.array(z.string()) })
+	.transform(readlistFilterOf);
 
 interface MinutesRange {
 	minMinutes?: number;

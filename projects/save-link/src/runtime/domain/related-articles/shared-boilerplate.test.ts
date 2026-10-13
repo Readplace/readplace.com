@@ -1,3 +1,4 @@
+import { articleDestinationUrl } from "@packages/domain/article";
 import type {
 	SelectRelatedArticlesParams,
 	SelectRelatedResult,
@@ -15,6 +16,7 @@ function article(input: {
 	description?: string;
 }) {
 	return {
+		destinationUrl: articleDestinationUrl({ url: "https://example.com/target", displayUrl: undefined }),
 		title: input.title,
 		siteName: input.siteName,
 		description: input.description ?? `All about ${input.title}.`,
@@ -35,7 +37,7 @@ function candidate(input: {
 function build() {
 	const calls: SelectRelatedArticlesParams[] = [];
 	const answer: SelectRelatedResult = {
-		kind: "ready",
+		kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 		related: [],
 		inputTokens: 7,
 		outputTokens: 3,

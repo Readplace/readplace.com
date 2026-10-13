@@ -429,7 +429,7 @@ describe("GET / proof", () => {
 });
 
 describe("GET / principle", () => {
-	it("should make the promise in the founder's own name, with his face beside it", async () => {
+	it("should make the promise in the founder's own name, with her face beside it", async () => {
 		const { doc } = await loadHomepage();
 
 		const heading = doc.querySelector(".home-principle__title");

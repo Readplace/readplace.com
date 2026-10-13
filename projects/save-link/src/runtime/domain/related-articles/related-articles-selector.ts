@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CreateAiMessage } from "@packages/ai-message";
+import type { ArticleDestinationUrl } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	RelatedArticleLink,
@@ -13,6 +14,7 @@ import {
 	RELATED_REASON_MAX_CHARS,
 	RELATED_RESULTS_MAX,
 } from "./related-articles-limits";
+import { contentWords } from "./shared-subject-words";
 
 const RELATED_ARTICLES_PROMPT = readFileSync(
 	join(__dirname, "related-articles-prompt.md"),
@@ -31,6 +33,7 @@ const RelatedPayload = z.object({
 });
 
 export interface RelatedArticleTarget {
+	destinationUrl: ArticleDestinationUrl;
 	title: string;
 	siteName: string;
 	description: string;
@@ -42,11 +45,14 @@ export type SelectRelatedResult =
 			related: RelatedArticleLink[];
 			inputTokens: number;
 			outputTokens: number;
+			droppedNoSharedWord: number;
+			droppedReasonNotAboutPick: number;
 			cacheHitInputTokens?: number;
 			cacheMissInputTokens?: number;
 		}
 	| { kind: "no-text-block" }
-	| { kind: "shared-boilerplate" };
+	| { kind: "shared-boilerplate" }
+	| { kind: "no-shared-words"; bestScore: number; candidateCount: number };
 
 export interface SelectRelatedArticlesParams {
 	target: RelatedArticleTarget;
@@ -105,21 +111,45 @@ function buildRelatedArticlesMessage(params: SelectRelatedArticlesParams): strin
 function selectValidRelations(params: {
 	entries: readonly { index: number; reason: string }[];
 	candidates: readonly RelatedCandidate[];
-}): RelatedArticleLink[] {
+	target: RelatedArticleTarget;
+}): {
+	related: RelatedArticleLink[];
+	droppedNoSharedWord: number;
+	droppedReasonNotAboutPick: number;
+} {
 	const seen = new Set<number>();
-	const related: RelatedArticleLink[] = [];
+	const selected: { candidate: RelatedCandidate; reason: string }[] = [];
 	for (const entry of params.entries) {
-		if (related.length >= RELATED_RESULTS_MAX) break;
+		if (selected.length >= RELATED_RESULTS_MAX) break;
 		const candidate = params.candidates[entry.index];
 		if (!candidate) continue;
 		if (seen.has(entry.index)) continue;
 		seen.add(entry.index);
-		related.push({
-			url: candidate.url,
+		selected.push({
+			candidate,
 			reason: clip(entry.reason, RELATED_REASON_MAX_CHARS),
 		});
 	}
-	return related;
+	const wordsOf = (article: RelatedArticleTarget) => contentWords(
+		`${clip(article.title, RELATED_CANDIDATE_TEXT_MAX_CHARS)} ${clip(article.description, RELATED_CANDIDATE_TEXT_MAX_CHARS)}`,
+	);
+	const targetWords = wordsOf(params.target);
+	let droppedNoSharedWord = 0;
+	let droppedReasonNotAboutPick = 0;
+	const related: RelatedArticleLink[] = [];
+	for (const { candidate, reason } of selected) {
+		const candidateWords = wordsOf(candidate);
+		if (![...targetWords].some((word) => candidateWords.has(word))) {
+			droppedNoSharedWord += 1;
+			continue;
+		}
+		if (![...contentWords(reason)].some((word) => candidateWords.has(word))) {
+			droppedReasonNotAboutPick += 1;
+			continue;
+		}
+		related.push({ url: candidate.url, reason });
+	}
+	return { related, droppedNoSharedWord, droppedReasonNotAboutPick };
 }
 
 export function initSelectRelatedArticles(deps: {
@@ -194,9 +224,10 @@ export function initSelectRelatedArticles(deps: {
 		const parsed = RelatedPayload.parse(JSON.parse(textBlock.text));
 		return {
 			kind: "ready",
-			related: selectValidRelations({
+			...selectValidRelations({
 				entries: parsed.related,
 				candidates: orderedCandidates(params),
+				target: params.target,
 			}),
 			inputTokens: response.usage.input_tokens,
 			outputTokens: response.usage.output_tokens,

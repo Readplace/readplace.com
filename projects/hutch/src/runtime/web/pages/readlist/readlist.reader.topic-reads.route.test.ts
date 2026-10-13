@@ -128,6 +128,18 @@ function slotOf(html: string) {
 	return slot;
 }
 
+function inlineSlotOf(html: string) {
+	const slot = new JSDOM(html).window.document.querySelector("[data-test-reader-topic-reads-inline]");
+	assert(slot, "the response renders the inline topic-reads slot");
+	return slot;
+}
+
+function rowIdsOf(slot: Element): string[] {
+	return Array.from(slot.querySelectorAll("[data-test-topic-read-item]")).map(
+		(row) => row.getAttribute("data-test-topic-read-item") ?? "",
+	);
+}
+
 describe("Reader previously-read-on-this-topic slot", () => {
 	it("renders a hidden, polling slot with a compute trigger while nothing is computed", async () => {
 		const { agent, articleId } = await buildHarness();
@@ -197,6 +209,63 @@ describe("Reader previously-read-on-this-topic slot", () => {
 
 		const last = await agent.get(`/queue/${articleId}/topic-reads?poll=${MAX_POLLS}`);
 		expect(slotOf(last.text).getAttribute("hx-get")).toBe(null);
+	});
+
+	it("answers a pending poll with the polling rail section and an out-of-band inline section", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
+
+		const rail = slotOf(response.text);
+		expect(rail.getAttribute("data-topic-reads-status")).toBe("pending");
+		expect(rail.getAttribute("hx-get")).toBe(`/queue/${articleId}/topic-reads?poll=2`);
+		expect(rail.getAttribute("hx-swap-oob")).toBe(null);
+		const inline = inlineSlotOf(response.text);
+		expect(inline.getAttribute("data-topic-reads-status")).toBe("pending");
+		expect(inline.classList.contains("past-reads--hidden")).toBe(true);
+		expect(inline.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(inline.getAttribute("hx-get")).toBe(null);
+	});
+
+	it("answers a ready poll with the same matches in the rail section and the out-of-band inline section", async () => {
+		const { agent, articleId, past, seedPastReads } = await buildHarness();
+		await seedPastReads("work");
+
+		const response = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
+
+		const rail = slotOf(response.text);
+		expect(rail.getAttribute("data-topic-reads-status")).toBe("ready");
+		expect(rail.getAttribute("hx-get")).toBe(null);
+		expect(rail.getAttribute("hx-swap-oob")).toBe(null);
+		expect(rowIdsOf(rail)).toEqual([past.id.value]);
+		const inline = inlineSlotOf(response.text);
+		expect(inline.getAttribute("data-topic-reads-status")).toBe("ready");
+		expect(inline.classList.contains("past-reads--ready")).toBe(true);
+		expect(inline.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(inline.getAttribute("hx-get")).toBe(null);
+		expect(rowIdsOf(inline)).toEqual([past.id.value]);
+	});
+
+	it("renders the computed matches inline in the article card after the summary", async () => {
+		const { agent, articleId, past, seedPastReads } = await buildHarness();
+		await seedPastReads("work");
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		const doc = new JSDOM(response.text).window.document;
+		const card = doc.querySelector("[data-test-article-card]");
+		assert(card, "the reader renders the article card");
+		const inline = card.querySelector("[data-test-reader-topic-reads-inline]");
+		assert(inline, "the article card holds the inline past-reads copy");
+		const summary = card.querySelector("[data-test-reader-summary]");
+		assert(summary, "the article card holds the summary slot");
+		expect(summary.nextElementSibling).toBe(inline);
+		expect(inline.classList.contains("past-reads--ready")).toBe(true);
+		expect(inline.getAttribute("hx-swap-oob")).toBe(null);
+		expect(inline.getAttribute("hx-get")).toBe(null);
+		expect(inline.querySelectorAll("form.past-reads__request")).toHaveLength(0);
+		expect(rowIdsOf(inline)).toEqual([past.id.value]);
+		expect(rowIdsOf(slotOf(response.text))).toEqual([past.id.value]);
 	});
 
 	it("stops the poll for an article the reader has not saved", async () => {

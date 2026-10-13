@@ -251,9 +251,9 @@ describe("GET /view/<url>?format=<download>", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 		const doc = new JSDOM(response.text).window.document;
-		const slot = doc.querySelector("[data-test-view-downloads-slot]");
+		const slot = doc.querySelector("[data-test-downloads-slot]");
 		assert(slot, "the Download slot must render");
-		expect(slot.classList.contains("view__downloads-slot--visible")).toBe(true);
+		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
 	});
 
 	it("shows the EPUB download to everyone when the article is ready", async () => {
@@ -264,12 +264,12 @@ describe("GET /view/<url>?format=<download>", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		const slot = doc.querySelector("[data-test-view-downloads-slot]");
+		const slot = doc.querySelector("[data-test-downloads-slot]");
 		assert(slot, "the Download slot must render");
-		expect(slot.classList.contains("view__downloads-slot--visible")).toBe(true);
+		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
 		expect(
-			Array.from(doc.querySelectorAll("[data-test-view-download]"), (link) => ({
-				format: link.getAttribute("data-test-view-download"),
+			Array.from(doc.querySelectorAll("[data-test-download]"), (link) => ({
+				format: link.getAttribute("data-test-download"),
 				href: link.getAttribute("href"),
 			})),
 		).toEqual([
@@ -287,20 +287,20 @@ describe("GET /view/<url>?format=<download>", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		const slot = doc.querySelector("[data-test-view-downloads-slot]");
+		const slot = doc.querySelector("[data-test-downloads-slot]");
 		assert(slot, "the Download slot must render");
-		expect(slot.classList.contains("view__downloads-slot--hidden")).toBe(true);
+		expect(slot.classList.contains("article-body__downloads-slot--hidden")).toBe(true);
 	});
 
 	it.each(["reader", "summary"])("reveals Download when the %s poll receives ready content", async (poll) => {
 		const { harness, fixture } = buildDownloadHarness();
 		const initial = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 		const initialDocument = new JSDOM(initial.text).window.document;
-		const initialSlot = initialDocument.querySelector("[data-test-view-downloads-slot]");
+		const initialSlot = initialDocument.querySelector("[data-test-downloads-slot]");
 		assert(initialSlot, "the pending page must render a Download slot");
-		const initialTarget = initialSlot.closest("#view-cta-downloads-slot");
+		const initialTarget = initialSlot.closest("#reader-downloads-slot");
 		assert(initialTarget, "the pending Download slot must have a stable swap target");
-		expect(initialSlot.classList.contains("view__downloads-slot--hidden")).toBe(true);
+		expect(initialSlot.classList.contains("article-body__downloads-slot--hidden")).toBe(true);
 		await seedReadyArticle(fixture);
 		await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 		const response = await request(harness.server).get(
@@ -309,15 +309,15 @@ describe("GET /view/<url>?format=<download>", () => {
 
 		expect(response.status).toBe(200);
 		const document = new JSDOM(response.text).window.document;
-		const slot = document.querySelector("[data-test-view-downloads-slot]");
+		const slot = document.querySelector("[data-test-downloads-slot]");
 		assert(slot, "a ready poll must update the Download slot");
-		const target = slot.closest("#view-cta-downloads-slot");
+		const target = slot.closest("#reader-downloads-slot");
 		assert(target, "a ready poll must target the pending Download wrapper");
 		expect(target.id).toBe(initialTarget.id);
 		expect(target.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(slot.classList.contains("view__downloads-slot--visible")).toBe(true);
-		expect(Array.from(slot.querySelectorAll("[data-test-view-download]"), (link) => ({
-			format: link.getAttribute("data-test-view-download"),
+		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		expect(Array.from(slot.querySelectorAll("[data-test-download]"), (link) => ({
+			format: link.getAttribute("data-test-download"),
 			href: link.getAttribute("href"),
 		}))).toEqual([
 			{
@@ -341,7 +341,7 @@ describe("GET /view/<url>?format=<download>", () => {
 			...settledSiblingOob,
 			"article-header",
 			"document-title",
-			"view-cta-downloads-slot",
+			"reader-downloads-slot",
 			"article-body-reader-notice",
 		]);
 	});

@@ -208,6 +208,19 @@ describe("the alert box", () => {
 });
 
 describe("empty states", () => {
+	function submittedUrl(action: Element): string {
+		const form = action.closest("form");
+		assert(form, "an empty-state action must submit a form");
+		expect(form.getAttribute("method")).toBe("GET");
+		const query = new URLSearchParams(
+			Array.from(form.querySelectorAll('input[type="hidden"]'), (field) => [
+				field.getAttribute("name") ?? "",
+				field.getAttribute("value") ?? "",
+			]),
+		);
+		return `${form.getAttribute("action")}?${query}`;
+	}
+
 	function emptyActionKeys(empty: Element): (string | null)[] {
 		return Array.from(empty.querySelectorAll("[data-test-empty-action]"), (action) =>
 			action.getAttribute("data-test-empty-action"),
@@ -234,7 +247,7 @@ describe("empty states", () => {
 		const install = empty.querySelector('[data-test-empty-action="install"]');
 		assert(install, "the install empty action must be rendered");
 		expect(install.textContent).toBe("Set up one-tap saving");
-		expect(install.getAttribute("href")).toBe(
+		expect(submittedUrl(install)).toBe(
 			"/install?utm_source=queue-empty&utm_medium=internal&utm_content=install",
 		);
 	});
@@ -251,7 +264,7 @@ describe("empty states", () => {
 		const install = empty.querySelector('[data-test-empty-action="install"]');
 		assert(install, "the install empty action must be rendered");
 		expect(install.textContent).toBe("Install Chrome extension");
-		const href = new URL(install.getAttribute("href") ?? "", TEST_APP_ORIGIN);
+		const href = new URL(submittedUrl(install), TEST_APP_ORIGIN);
 		expect(href.pathname).toBe("/install");
 		expect(href.searchParams.get("client")).toBe("chrome");
 		expect(href.searchParams.get("utm_source")).toBe("queue-empty");
@@ -273,7 +286,7 @@ describe("empty states", () => {
 		const install = empty.querySelector('[data-test-empty-action="install"]');
 		assert(install, "the install empty action must be rendered");
 		expect(install.textContent).toBe("Install Chrome extension");
-		const href = new URL(install.getAttribute("href") ?? "", TEST_APP_ORIGIN);
+		const href = new URL(submittedUrl(install), TEST_APP_ORIGIN);
 		expect(href.pathname).toBe("/install");
 		expect(href.searchParams.get("client")).toBe("chrome");
 		expect(href.searchParams.get("utm_source")).toBe("queue-empty");
@@ -329,7 +342,7 @@ describe("empty states", () => {
 		expect(title.textContent).toBe("No finished articles yet");
 		const viewUnread = doc.querySelector('[data-test-empty-action="view-unread"]');
 		assert(viewUnread, "the view-unread action must be rendered");
-		expect(viewUnread.getAttribute("href")).toBe(
+		expect(submittedUrl(viewUnread)).toBe(
 			"/queue?utm_source=queue-empty&utm_medium=internal&utm_content=view-unread",
 		);
 		expect(emptyActionKeys(empty)).toEqual(["view-unread"]);
