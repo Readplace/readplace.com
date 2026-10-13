@@ -126,7 +126,7 @@ export const TLDR_DISCLOSURE_STYLES = `
 	}
 
 	.tldr-disclosure__body code {
-		font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+		font-family: var(--font-mono);
 		font-size: 0.875em;
 		padding: 0.15em 0.3em;
 		background: var(--card);

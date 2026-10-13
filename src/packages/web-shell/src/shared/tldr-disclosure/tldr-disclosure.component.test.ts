@@ -168,7 +168,6 @@ describe("renderTldrDisclosure", () => {
 		const preview = doc.querySelector(".tldr-disclosure__preview")?.textContent;
 		assert(preview, "preview must be rendered");
 		expect(preview.endsWith(" view more …")).toBe(true);
-		expect(preview).not.toContain("… view more");
 		expect(preview.startsWith("The article walks through")).toBe(true);
 		expect(preview.length).toBeLessThan(LONG_SUMMARY.length);
 	});

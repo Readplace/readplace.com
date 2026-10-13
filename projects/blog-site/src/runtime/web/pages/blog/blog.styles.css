@@ -87,7 +87,7 @@
 }
 
 .blog-post__container {
-  max-width: calc(812px + 2 * var(--page-gutter));
+  max-width: calc(var(--reading-main-max) + 2 * var(--page-gutter));
   margin: 0 auto;
   padding: 48px var(--page-gutter);
 }
@@ -108,10 +108,6 @@
 
 .blog-post__card > * + * {
   margin-top: 24px;
-}
-
-.blog-post__header {
-  margin-bottom: 0;
 }
 
 .blog-post__title {
