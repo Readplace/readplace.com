@@ -18,6 +18,7 @@
     "@packages/domain": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
+    "@packages/provider-contracts": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/supported-clients": "workspace:*",
     "@packages/viewer-identity": "workspace:*",

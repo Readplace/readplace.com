@@ -1,6 +1,7 @@
 ---
 title: "The reader brings back what you already read on a subject"
 description: "A closed card near the top of the reader lists up to 3 articles you already finished on the same subject as the one you're reading, why each one connects, and how long ago you read it. It appears only when a genuine match exists, so a familiar argument comes back with its source and its date instead of staying a vague feeling."
+excerpt: "A familiar argument in a new article can now come back with its source and the day it was read."
 tldr: "Halfway into a new article, the sense of having read this before now comes with receipts. A closed card near the top of the reader in Readplace lists up to 3 pieces you already finished on the same subject, the reason each one connects, and the day you read it. The card appears only when a real match exists, so opening it means there's something worth remembering."
 slug: "the-reader-brings-back-what-you-already-read"
 date: "2026-09-19"

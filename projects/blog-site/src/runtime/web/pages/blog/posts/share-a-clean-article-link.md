@@ -1,6 +1,7 @@
 ---
 title: "Share a Saved Article and the Link Preview Comes Out Clean"
 description: "Save an article in Readplace, tap share, and send the link. The preview shows Readplace's clean reader copy with the saved thumbnail, and a tap lands your friend in the quiet version. Search engines still credit the original publisher."
+excerpt: "A pasted article link drags the cookie banner along, and a Readplace share link opens a clean copy."
 tldr: "Save an article in Readplace and share the link. The preview shows Readplace's clean reader copy: the title with a Reader View label, a short excerpt, and the thumbnail Readplace already downloaded. The link points back to Readplace, so whoever taps it lands in the quiet reader instead of a page full of pop-ups. Search engines still credit the original publisher, so readers see the right source."
 slug: "share-a-clean-article-link"
 date: "2026-06-13"

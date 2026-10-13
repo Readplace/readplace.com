@@ -1,6 +1,7 @@
 ---
 title: "How Readplace Keeps Your Saved Links Safe From Hostile Pages"
 description: "Readplace fetches every link you save on its own servers. Two guards stop a hostile page from reaching Readplace's network or slipping code into your reader, and your login now rides https only."
+excerpt: "Some links are built to turn the fetch against the service doing the fetching."
 tldr: "Readplace fetches every link you save on its own servers, including links from sites it has not seen, which means those servers open pages I did not write and a few of those pages try something. Two guards keep them harmless. The first refuses any link pointing at a private or internal address, rechecked on every connection and every redirect, so DNS rebinding fails. The second escapes crawled page titles so a hidden script stays plain text in your reader. Sessions now ride https-only cookies. You do nothing differently, because the guards run on Readplace's side, on every save."
 slug: "save-any-link-safely"
 date: "2026-06-13"

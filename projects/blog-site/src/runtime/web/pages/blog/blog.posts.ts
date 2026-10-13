@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { z } from "zod";
+import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import {
 	CHANGELOG_VERSION_LENGTH,
 	type ChangelogBanner,
@@ -25,6 +26,7 @@ const BlogFrontmatter = z
 		title: z.string(),
 		description: z.string(),
 		tldr: z.string().min(1),
+		excerpt: z.string().min(1).max(MAX_EXCERPT_LENGTH),
 		slug: z.string(),
 		date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 		/** Set only on a post whose text has actually been revised since

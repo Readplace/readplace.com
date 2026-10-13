@@ -1,6 +1,7 @@
 ---
 title: "Most of a Newsletter Isn't the Article"
 description: "Give each newsletter its own Readplace address and the article links inside it land in your readlist, crawled and summarized. The unsubscribe footers, ads, and menus get dropped, so only the few links worth reading survive, and you can switch off any one address without unsubscribing."
+excerpt: "Of 14 links in one newsletter issue, 3 were articles and the rest was packaging."
 tldr: "A newsletter issue arrives as one email, but only a few of its links are the articles you subscribed for. The rest is packaging: an unsubscribe line, a \"view in browser\" link, sponsor slots, a jobs board, section menus. Sorting that has always been yours to do by hand, until now. Readplace now gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, that you name after the source and point the newsletter at. When an issue lands, it pulls out the links, sets aside the ones that would unsubscribe or confirm on your behalf, and runs a pass that keeps only the articles. Those save to your readlist like any other link, crawled and summarized, while the packaging is dropped. Each address is disposable, so a list that gets sold or noisy is one switch to cut off, and your real inbox is never in the loop. You can hold up to 25, one per newsletter."
 slug: "save-newsletter-links-to-your-readlist"
 date: "2026-07-20"

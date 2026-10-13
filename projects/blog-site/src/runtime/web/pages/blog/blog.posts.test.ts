@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import { drawFigure } from "./blog-figure";
 import { labelTableCells } from "./blog-table-labels";
 import { deriveChangelogBanner, initBlogPosts, parseBlogFrontmatter } from "./blog.posts";
@@ -10,6 +11,7 @@ const VALID_FRONTMATTER = {
 	title: "A Post",
 	description: "About something",
 	tldr: "The short version.",
+	excerpt: "One line to open the short version.",
 	slug: "a-post",
 	date: "2026-01-02",
 	author: "Fagner",
@@ -118,6 +120,20 @@ describe("parseBlogFrontmatter", () => {
 		);
 		expect(parsed.tags).toEqual(["changelog"]);
 		expect(parsed.banner).toBe("I shipped a thing");
+	});
+
+	it("rejects a post with no excerpt", () => {
+		const { excerpt: _excerpt, ...withoutExcerpt } = VALID_FRONTMATTER;
+		expect(() => parseBlogFrontmatter(withoutExcerpt, "a-post.md")).toThrow(/excerpt/);
+		expect(() => parseBlogFrontmatter({ ...withoutExcerpt, excerpt: "" }, "a-post.md")).toThrow(/excerpt/);
+	});
+
+	it("rejects an excerpt longer than the reader's excerpt budget", () => {
+		const atBudget = "a".repeat(MAX_EXCERPT_LENGTH);
+		expect(parseBlogFrontmatter({ ...VALID_FRONTMATTER, excerpt: atBudget }, "a-post.md").excerpt).toBe(atBudget);
+		expect(() =>
+			parseBlogFrontmatter({ ...VALID_FRONTMATTER, excerpt: `${atBudget}a` }, "a-post.md"),
+		).toThrow(/excerpt/);
 	});
 
 	it("rejects a post with no tldr", () => {

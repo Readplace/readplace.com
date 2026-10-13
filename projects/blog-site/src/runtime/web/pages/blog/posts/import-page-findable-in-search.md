@@ -1,6 +1,7 @@
 ---
 title: "An Import Page Has to Be Found to Work"
 description: "Readplace's import page worked, and a noindex tag kept search engines and AI assistants from ever seeing it. It's indexable now, it answers the questions people ask before they start, and it opens on a paste box."
+excerpt: "A noindex tag hid a working import page from search engines and AI assistants."
 tldr: "The page that imports your old reading list used to carry a noindex tag, so search engines and AI assistants could not see it. It worked for anyone who reached it: upload a file or paste a link, review the addresses it finds, and sign in only at the end to save them. But the page told crawlers to skip it, so the person searching for a way off Pocket, or asking an assistant, did not land there. It returns index, follow now, with one canonical address and a spot in the sitemap. It also grew a short how-it-works, the file types it reads, and five plain questions with answers, written both as text you can read and as FAQPage structured data a search engine or an assistant can quote. The tabs flipped too, so the page opens on paste-a-link instead of file upload, because most people arriving cold have a link, not an export file."
 slug: "import-page-findable-in-search"
 date: "2026-07-08"

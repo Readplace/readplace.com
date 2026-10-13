@@ -1,6 +1,7 @@
 ---
 title: "How Readplace Measures Its Site Without Third-Party Trackers"
 description: "Readplace runs no Google Analytics, no ad pixels, and no tracking scripts. It measures traffic with a salted IP hash and two anonymous first-party cookies that stay on its own servers."
+excerpt: "A salted IP hash and 2 anonymous first-party cookies stand in for Google Analytics and ad pixels."
 tldr: "Readplace runs no third-party analytics. No Google Analytics, no ad pixels, no tracking scripts from other companies. It measures traffic two ways. A salted one-way hash of your IP counts visitors in the server logs. Two anonymous first-party cookies connect a first visit to a first saved article. Both stay on Readplace's own servers. A read-it-later app holds a private record of what you read, so the measurement matches that promise."
 slug: "no-third-party-trackers"
 date: "2026-06-04"

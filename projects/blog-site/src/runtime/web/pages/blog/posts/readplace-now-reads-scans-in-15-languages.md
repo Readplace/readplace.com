@@ -1,6 +1,7 @@
 ---
 title: "Readplace Now Reads Scans in 15 Languages"
 description: "Save a scanned page in Hindi, Chinese or Arabic and Readplace used to return gibberish and call it a successful save. It now reads 15 languages from a scan, each one measured against a real page. A post here in May claimed 100+ and nobody had checked."
+excerpt: "Scanned Chinese text once came back as gibberish, and Readplace still filed it as saved."
 tldr: "Save a scanned page in Hindi, Chinese, Arabic or 11 other languages and Readplace used to hand back gibberish, then record the save as successful. It now reads 15 languages from a scan, each one checked against a real degraded page. A post here in May said 100+ languages worked. That was 3 months of a claim nobody had tested."
 slug: "readplace-now-reads-scans-in-15-languages"
 date: "2026-08-23"

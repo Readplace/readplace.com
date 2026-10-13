@@ -1,6 +1,7 @@
 ---
 title: "Read your saved articles on a Kindle or Kobo"
 description: "Every saved article now has a Download EPUB button, for everyone, with no setting to turn on. The file carries the article's text, its images, and its TL;DR as the opening page, so what lands on your e-reader is the same thing the web reader shows. Public /view pages have the button too, so a shared link needs no account."
+excerpt: "A Download EPUB button turns a saved article into an e-reader file, with its images and summary."
 tldr: "Tap Download EPUB in the reader and a file lands on your device. It carries the article's text, its images, and its TL;DR as the opening page, so an e-reader shows the same thing the web reader does. The button is on a public /view page too, which means a link someone sent you downloads without an account. Readplace used to keep a saved article inside Readplace. The article can leave now."
 slug: "read-your-saved-articles-on-a-kindle-or-kobo"
 date: "2026-09-12"

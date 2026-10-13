@@ -1,6 +1,7 @@
 ---
 title: "The Save Button Was Wrong Before You Opened the Newsletter"
 description: "Readplace saves the article links out of your newsletters as they arrive, so most are in your readlist before you open the email. The Save button read Save to readlist for all of them anyway. It now marks a saved link as saved, from a fact every save publishes rather than a look into your readlist."
+excerpt: "Newsletter links saved the moment an issue arrived still showed a Save button, as if they were not."
 tldr: "Newsletter links you had already saved used to show a Save button as if you hadn't. Readplace pulls the article links out of a newsletter and saves them the moment the issue arrives, so by the time you open it in the inbox, most of those links are already in your readlist. The button read Save to readlist for all of them, because a saved link and an unsaved one rendered as the same button. The inbox has no permission to read your readlist, and that is on purpose, so the saved state now travels to it as a fact. Every save, from any part of Readplace, publishes one small event, and a list owned by the inbox records it one row per reader. The Articles tab reads that list in a single request and marks each link. A saved link shows a check and the word Saved, still clickable, still the same save. It matches on the link's address and does not follow redirects, so the same article reached through a different wrapper reads as unsaved, which costs you one extra click that saves the same thing."
 slug: "newsletter-links-show-when-already-saved"
 date: "2026-07-26"

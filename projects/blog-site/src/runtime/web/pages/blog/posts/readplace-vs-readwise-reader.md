@@ -1,6 +1,7 @@
 ---
 title: "Readplace vs Readwise Reader: Which Read-It-Later App Is Right for You?"
 description: "A fair look at two read-it-later apps with AI. Where Readwise wins, where Readplace wins, and how to pick the right one for you."
+excerpt: "Readwise Reader costs $119.88 a year and does more, so the question is which extras get used."
 tldr: "Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, or anything beyond reading text. Pick Readplace if you want AI summaries and privacy at a lower price."
 slug: "readplace-vs-readwise-reader"
 date: "2026-04-06"

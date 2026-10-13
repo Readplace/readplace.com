@@ -1,6 +1,7 @@
 ---
 title: "An Empty Readlist Is a Bad First Impression"
 description: "A brand-new reading account used to open on nothing, the article that talked the reader into signing up already gone. Readplace now holds that article on the logged-out reader for two hours and, if you sign up in that window, saves it into the new readlist before you add a thing."
+excerpt: "Sign up with Google or Apple within 2 hours of a logged-out read, and that article is already saved."
 tldr: "An empty readlist is the least convincing thing a new reading account can show, and it's the first thing most apps hand a new reader. The article that talked them into signing up is already gone from it. Readplace carries that article across instead. Read a piece in the logged-out reader and Readplace holds its address in a short-lived cookie, good for two hours. Sign up inside that window with Google or Apple and the signup routes you through a save, so the article lands in your new readlist before you add a single thing yourself. The cookie is read and cleared in one step, so it saves exactly once, and a later signup on the same browser can't inherit an earlier reader's article. The held address is re-validated with the same check every save runs, so a tampered cookie saves nothing. An explicit save you began before signing up still wins, so the piece you meant to keep never doubles. A new account opens on the thing that brought you, not a blank page."
 slug: "your-first-article-is-already-saved"
 date: "2026-07-19"

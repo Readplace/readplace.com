@@ -82,13 +82,36 @@
 /* Blog post */
 
 .blog-post {
-  max-width: calc(var(--reader-max-width) + 2 * var(--page-gutter));
+  background: var(--muted);
+  flex: 1 1 auto;
+}
+
+.blog-post__container {
+  max-width: calc(812px + 2 * var(--page-gutter));
   margin: 0 auto;
   padding: 48px var(--page-gutter);
 }
 
+.blog-post__card {
+  --blog-card-padding: 32px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--blog-card-padding);
+}
+
+@media (max-width: 600px) {
+  .blog-post__card {
+    --blog-card-padding: 20px;
+  }
+}
+
+.blog-post__card > * + * {
+  margin-top: 24px;
+}
+
 .blog-post__header {
-  margin-bottom: 40px;
+  margin-bottom: 0;
 }
 
 .blog-post__title {
@@ -113,9 +136,12 @@
 /* Rendered markdown content */
 
 .blog-post__content {
+  margin: 32px calc(-1 * var(--blog-card-padding)) 0;
+  padding: 32px var(--blog-card-padding) 0;
+  border-top: 1px solid var(--border);
   color: var(--foreground);
-  line-height: 1.7;
-  font-size: 1.05rem;
+  line-height: 1.5;
+  font-size: var(--text-md);
   text-wrap: pretty;
 }
 
@@ -270,10 +296,6 @@
 
 .blog-post__content tbody tr:last-child td {
   border-bottom: none;
-}
-
-.blog-post__tldr {
-  margin: 0 0 32px;
 }
 
 /* Blog conversion CTA — classes used as raw HTML inside blog post .md files */

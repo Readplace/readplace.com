@@ -1,6 +1,7 @@
 ---
 title: "Readplace: An AI Reading Assistant That Helps You Read More, Not Less"
 description: "Most AI reading tools replace reading with summaries and auto-curation. Readplace uses AI to help you read more of the right things."
+excerpt: "The AI writes a summary for triage and leaves the order of the list to the reader."
 tldr: "Most \"AI reading assistants\" replace reading with summaries and algorithmic curation. Readplace works the other way. It generates a TL;DR for every saved article so you can triage your list faster, then read the real thing. The AI does not curate, hide, or reorder your content. You save what you want, scan summaries to prioritise, and read in a clean reader view. The workflow is save, summarise, triage, read."
 slug: "ai-reading-assistant"
 date: "2026-05-06"

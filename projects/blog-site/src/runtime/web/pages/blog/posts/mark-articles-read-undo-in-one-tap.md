@@ -1,6 +1,7 @@
 ---
 title: "Mark Articles Read, Undo in One Tap"
 description: "Your Readplace readlist now shows a clear Read or Unread label on every article. Mark an item read or unread with one tap, and undo a mis-tap with a single click."
+excerpt: "Thumb a few pixels off, and an Undo button puts the article back where it was."
 tldr: "Your readlist now shows a plain Read or Unread label on every article. Mark an item read or unread with one tap, and a short confirmation slides in with an Undo button, so a mis-tap takes one click to fix. The filter tab reads \"Read\" instead of \"Done\", and the status buttons stay disabled until an article finishes saving."
 slug: "mark-articles-read-undo-in-one-tap"
 date: "2026-06-02"

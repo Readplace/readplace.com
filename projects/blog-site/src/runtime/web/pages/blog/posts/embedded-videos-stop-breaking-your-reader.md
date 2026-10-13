@@ -1,6 +1,7 @@
 ---
 title: "Embedded Videos Stop Breaking Your Reader"
 description: "Readplace's reader used to leave a dead video box mid-article. Now each embedded video becomes a short link to the source, so you read the text clean and tap through to the video only if you want it."
+excerpt: "A black rectangle in a saved tutorial pushed the next paragraph off the screen."
 tldr: "Readplace's reader used to leave a dead box where a native video tag sat in an article. Now each one becomes a short line of text with a link to the original page. This applies to video tags in the HTML, not to YouTube or Vimeo embeds. You read the article clean, and if you want the video, one tap takes you to it on the source site. The fix works for articles in your readlist and for any link you paste into the box on the readplace.com homepage."
 slug: "embedded-videos-stop-breaking-your-reader"
 date: "2026-06-07"

@@ -1,6 +1,7 @@
 ---
 title: "Your AI Assistant Can Read Your Saved Articles and Mark Them Read"
 description: "Connect an AI assistant to Readplace and it can read your saved articles: the cleaned reader text and the AI summary, looked up by id. It can also mark one read or unread, the same write the app makes and just as easy to undo. Deleting is the one thing that stays with you."
+excerpt: "A connected assistant can now read a saved article and mark it read, but it still can't delete it."
 tldr: "An assistant connected to Readplace used to do two things: save a page to your readlist and list back what you saved. It can now open a saved article and read it, the cleaned reader text and the AI summary, looked up by the id from your list. It can also mark that article read, or unread again. Marking read shipped as a tool that refused, and I changed my mind: it is an ordinary write you ask for, and one call to `mark_as_unread` puts it back where it was. Deleting is the one tool that still only hands the assistant a note pointing you at the app, and every lookup, read or write, is tied to your account. The per-client setup is the same one page as before, at [readplace.com/mcp](https://readplace.com/mcp)."
 slug: "ai-assistant-reads-your-saved-articles"
 date: "2026-06-22"

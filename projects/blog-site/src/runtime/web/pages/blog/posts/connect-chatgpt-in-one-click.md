@@ -1,6 +1,7 @@
 ---
 title: "Connect ChatGPT to Your Reading List in One Click"
 description: "ChatGPT can save a page to your Readplace readlist, read back a saved article's clean copy and its TL;DR, surface related saves, and mark one read. Connecting it used to mean turning on Developer Mode and hand-building a custom connector. Readplace is an official ChatGPT plugin now, so the setup is an Add button and one sign-in."
+excerpt: "Connecting ChatGPT once started with a switch called Developer Mode, and now it's an Add button."
 tldr: "ChatGPT's plugin directory now carries an official Readplace listing. Adding it is an Add button and one sign-in, and a connected chat can then save a page to your readlist, list what is waiting in it, read back a saved article's clean copy and its TL;DR, hand you other saves that relate to it, and mark one read or unread. Deleting stays in the app: the tool for it removes nothing and points you back to Readplace. The route this replaces was a walkthrough that opened on a toggle called Developer Mode, then asked you to build a custom connector by hand, paste in a server URL, and pick the authentication method yourself. That walkthrough still works if you want it, and Claude and the Gemini CLI connect to the same server exactly as they did before."
 slug: "connect-chatgpt-in-one-click"
 date: "2026-08-18"

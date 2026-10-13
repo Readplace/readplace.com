@@ -1,6 +1,7 @@
 ---
 title: "Sign in with Apple Without Handing Over Your Inbox"
 description: "Readplace takes a Sign in with Apple login now, Hide My Email and all. Apple hands the site a forwarding address at privaterelay.appleid.com and keeps your real inbox private. That mask only works if Readplace's mail clears Apple's relay check, so the apex now carries the SPF and DKIM records a human reply needs to reach you."
+excerpt: "Apple's relay was dropping replies sent to hidden addresses until readplace.com signed its own mail."
 tldr: "There is now a second way into a Readplace account, and it asks for no password. Tap Sign in with Apple on the login or signup page, approve on Apple's screen, and the account is made. On that screen you can hide your real email, and Apple hands Readplace a forwarding address at privaterelay.appleid.com in place of it. Forwarding only holds if mail sent to the mask clears Apple's relay check, which reads the sending domain's SPF and DKIM signatures. Readplace's automatic article-ready mail already cleared it, sent on its own signed subdomain. A reply typed by a person from a readplace.com address did not, because the apex carried no SPF record and no Workspace DKIM key, so Apple dropped those replies before they reached the hidden inbox. Readplace now publishes both on the apex, so every kind of mail it sends reaches you, masked address or not."
 slug: "sign-in-with-apple-hide-your-email"
 date: "2026-07-06"

@@ -1,6 +1,7 @@
 ---
 title: "How Readplace Saves a Page Without Getting Blocked"
 description: "Some apps fail to save a link. They fetch the page twice and trip its bot protection. Readplace now fetches each page once, then routes HTML, PDFs, and tweets from that single download. Faster saves, fewer blocks."
+excerpt: "A PDF that opened fine in a browser failed to save because the crawler fetched it twice."
 tldr: "Readplace now fetches each saved page one time. The crawler downloads the body once, checks the content type, and sends HTML, PDFs, and tweets down the right path from that single download. The old design fetched some pages twice, which raised the load on the origin site and the odds of getting blocked. One request per save means faster saves and a higher success rate on sites that guard against bots."
 slug: "save-pages-without-getting-blocked"
 date: "2026-05-30"

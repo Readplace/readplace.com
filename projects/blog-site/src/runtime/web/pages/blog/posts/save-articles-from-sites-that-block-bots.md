@@ -1,6 +1,7 @@
 ---
 title: "The 403 That Only the Crawler Got"
 description: "A saved link from a normally reliable site came back empty while the same page opened in a browser. Readplace's crawler impersonated Chrome 116, whose TLS fingerprint had aged off the list of current browsers that anti-bot edges allow, so it read as a bot. Switching the persona to Chrome 131 turned those sites from 403 back to 200."
+excerpt: "StackOverflow sent a browser the page and the crawler a 403, from the same machine, seconds apart."
 tldr: "Some sites hand a full page to a browser and a 403 to a crawler, even when both run from the same machine. That is what started happening to saved links Readplace pulled from The Hill, StackOverflow, and other sites behind anti-bot edges. The crawler impersonated Chrome 116, and that browser's TLS fingerprint had aged off the allowlist those edges check, so the fetch read as a bot instead of a browser. Bumping the crawler to pose as Chrome 131 turned those sites from 403 back to 200, checked against every source in the crawler's health canary with no regressions. One site, The Hill, still blocks the datacenter address itself, which no fingerprint change reaches."
 slug: "save-articles-from-sites-that-block-bots"
 date: "2026-07-02"

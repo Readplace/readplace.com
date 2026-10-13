@@ -1,6 +1,7 @@
 ---
 title: "Instapaper vs Readplace in 2026: Which One to Pick"
 description: "Instapaper has run since 2008 with a free tier, Android apps and Kobo sync. Readplace is a newer, paid app that writes an AI summary on its own when you save."
+excerpt: "Instapaper has a free tier and Kobo sync, while Readplace is paid and writes a summary on its own."
 tldr: "Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, paid plans and no free tier, an iPhone app that also runs on Mac but nothing on Android, and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development."
 slug: "readplace-vs-instapaper"
 date: "2026-05-01"

@@ -1,6 +1,7 @@
 ---
 title: "A Suggestion With No Warehouse Behind It"
 description: "Most suggestion engines point at stock somebody wants moved. The card at the end of a finished article in Readplace picks from one pile only, the reader's own saves, and it picks when the link is saved rather than while anyone reads. When nothing in that pile genuinely relates, it answers with nothing."
+excerpt: "One shelf feeds the card at the end of an article, and it holds only the reader's own saves."
 tldr: "Nothing sits behind the card at the end of a finished article except the same account's own saves. Readplace picks it when a link arrives rather than while anyone reads: the new article goes to a small language model along with up to 1,000 earlier saves from that account, and at most 3 come back, each carrying one line of 120 characters or fewer naming the subject the pair shares. The card shows one of them at a time, the first still unread, and it waits for the bottom of the article body before it appears at all. Read all 3 and it relabels itself Similar past reads rather than reaching for anything new, because there is nowhere else to reach. An empty list is a correct answer too, and the prompt calls it \"a correct and common answer\" in those words. The whole thing needs 50 saves in the account before it will run."
 slug: "a-suggestion-with-no-warehouse-behind-it"
 date: "2026-08-18"

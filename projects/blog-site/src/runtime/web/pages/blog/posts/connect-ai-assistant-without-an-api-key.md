@@ -1,6 +1,7 @@
 ---
 title: "Connect Your AI Assistant to Readplace With No API Key to Copy"
 description: "Connecting your AI assistant to Readplace needs no API key. The MCP client registers itself, you approve one OAuth sign-in, and you can revoke that access anytime. Then your assistant can save pages to your readlist and list them back."
+excerpt: "Point an assistant at readplace.com/mcp and it registers itself, with no secret to paste."
 tldr: "Connecting a tool to your AI assistant usually starts with an API key, a secret you generate once and keep somewhere safe. Readplace's MCP server skips it. You point Claude, ChatGPT, Perplexity, or a developer client at `readplace.com/mcp`, the assistant registers itself, and Readplace sends you to a sign-in to approve the connection. You don't create a credential or hand one over, and you can revoke the assistant's access whenever you want. Once connected, the assistant can save a page to your readlist and read your list back."
 slug: "connect-ai-assistant-without-an-api-key"
 date: "2026-06-21"

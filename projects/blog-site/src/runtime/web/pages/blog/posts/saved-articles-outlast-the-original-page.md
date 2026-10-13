@@ -1,6 +1,7 @@
 ---
 title: "Read It Later, Even After the Original Page Is Gone"
 description: "Save a link to Readplace and it builds a clean copy on its own servers. The source page can change, hide behind a paywall, or go offline, and your saved article stays readable, with no expiry on your copy."
+excerpt: "Between the save and the read, a page has time to change, hide behind a paywall, or go offline."
 tldr: "Save a link to Readplace and it opens the page on its own servers, then stores a clean copy of the text and images. The source can edit the article, drop a paywall in front of it, or go offline, and your saved copy stays readable. That copy carries no expiry, so an article you keep today opens the same way next month. You read on your own schedule, off your own copy."
 slug: "saved-articles-outlast-the-original-page"
 date: "2026-06-17"

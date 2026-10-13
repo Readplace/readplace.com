@@ -1,6 +1,7 @@
 ---
 title: "Forty Reads to Draw Twenty Cards"
 description: "A full page of the Readplace readlist is 20 cards. Drawing it used to fire 40 separate database reads, each hauling back the whole article row. Two batched, projected reads now do it, and the archive and delete buttons dropped a read of their own, which closed a race that could leave a broken half-row behind."
+excerpt: "Drawing 20 cards on one screen used to cost 40 database reads before the first could paint."
 tldr: "A full page of the readlist shows 20 cards, and drawing it used to fire 40 separate reads at the database, one for each card's summary and one for its crawl status. Each read hauled back the whole article row, including the old inline copy of the text the card never shows. Readplace now collects those into two batched reads that ask only for the fields a card renders, so 40 round trips become 2 and the heavy column stays on disk. The readlist's archive and delete buttons dropped a read too. They used to look the row up to check it existed, then write. Now the write carries its own condition, so it is one round trip instead of two, and that change also closed a race where a delete landing mid-write could leave a broken half-row behind."
 slug: "forty-reads-to-draw-twenty-cards"
 date: "2026-07-28"

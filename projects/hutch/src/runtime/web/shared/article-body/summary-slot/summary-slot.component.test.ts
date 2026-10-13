@@ -48,7 +48,7 @@ describe("renderSummarySlot", () => {
 			}),
 		);
 
-		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe("The teaser.");
+		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe("The teaser. view more …");
 	});
 
 	it("routes status=pending to the pending component with the poll URL once the reader view is ready", () => {

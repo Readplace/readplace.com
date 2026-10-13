@@ -85,7 +85,7 @@ export function BlogPostPage(params: { post: BlogPost; staticBaseUrl: string }):
 				date: post.date,
 				formattedDate: post.formattedDate,
 				author: post.author,
-				tldrHtml: renderTldrDisclosure({ body: post.tldr, excerpt: post.description, open: false }),
+				tldrHtml: renderTldrDisclosure({ body: post.tldr, excerpt: post.excerpt, open: false }),
 				htmlContent: post.htmlContent,
 			}),
 			markdown: post.markdownContent,
