@@ -103,7 +103,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 			return overrides.selectRelatedArticles
 				? overrides.selectRelatedArticles(params)
 				: {
-						kind: "ready",
+						kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 						related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
 						inputTokens: 120,
 						outputTokens: 30,
@@ -159,6 +159,8 @@ describe("initComputeRelatedArticlesHandler", () => {
 		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", {
+			droppedNoSharedWord: 0,
+			droppedReasonNotAboutPick: 0,
 			url: TARGET_URL,
 			relatedCount: 1,
 			inputTokens: 120,
@@ -173,7 +175,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		const { handler, published } = createHandler({
 			logger,
 			selectRelatedArticles: async () => ({
-				kind: "ready",
+				kind: "ready", droppedNoSharedWord: 1, droppedReasonNotAboutPick: 2,
 				related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
 				inputTokens: 120,
 				outputTokens: 30,
@@ -185,6 +187,8 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(published[0]?.relatedCount).toBe(1);
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", {
+			droppedNoSharedWord: 1,
+			droppedReasonNotAboutPick: 2,
 			url: TARGET_URL,
 			relatedCount: 1,
 			inputTokens: 120,
@@ -223,7 +227,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 	it("stores an empty result as a completed computation", async () => {
 		const { handler, ready, published } = createHandler({
 			selectRelatedArticles: async () => ({
-				kind: "ready",
+				kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 				related: [],
 				inputTokens: 90,
 				outputTokens: 5,

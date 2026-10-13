@@ -131,9 +131,9 @@ export function initComputeRelatedArticlesHandler(
 					await skip("the saved text is a block page shared across sites");
 					continue;
 				}
-				if (result.kind === "no-text-block") {
+				if (result.kind !== "ready") {
 					throw new Error(
-						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block"} for ${entry.url}`,
+						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block" | "no-shared-words"} for ${entry.url}`,
 					);
 				}
 
@@ -160,6 +160,8 @@ export function initComputeRelatedArticlesHandler(
 				logger.info("[ComputeRelatedArticles] completed", {
 					url: entry.url,
 					relatedCount: result.related.length,
+					droppedNoSharedWord: result.droppedNoSharedWord,
+					droppedReasonNotAboutPick: result.droppedReasonNotAboutPick,
 					inputTokens: result.inputTokens,
 					outputTokens: result.outputTokens,
 					cacheHitInputTokens: result.cacheHitInputTokens ?? "unknown",

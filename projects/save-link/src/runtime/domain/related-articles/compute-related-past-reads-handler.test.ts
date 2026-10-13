@@ -80,6 +80,7 @@ interface Overrides {
 }
 
 function createHandler(overrides: Overrides = {}) {
+	const storedTokens: Array<{ inputTokens: number; outputTokens: number }> = [];
 	const marked: Array<{
 		url: string;
 		pastReads: readonly { url: string; reason: string; readlist?: string }[];
@@ -102,7 +103,7 @@ function createHandler(overrides: Overrides = {}) {
 		selectPastReads:
 			overrides.selectPastReads ??
 			(async () => ({
-				kind: "ready",
+				kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 				related: [
 					{ url: "example.com/a", reason: "Same subject from work" },
 					{ url: "example.com/b", reason: "Same subject again" },
@@ -111,6 +112,7 @@ function createHandler(overrides: Overrides = {}) {
 				outputTokens: 40,
 			})),
 		markPastReadsReady: async (params) => {
+			storedTokens.push({ inputTokens: params.inputTokens, outputTokens: params.outputTokens });
 			marked.push({ url: params.url, pastReads: params.pastReads, fingerprint: params.fingerprint });
 			return overrides.markOutcome ?? "stored";
 		},
@@ -119,10 +121,42 @@ function createHandler(overrides: Overrides = {}) {
 		logger: overrides.logger ?? noopLogger,
 	});
 
-	return { handler, marked, published };
+	return { handler, marked, published, storedTokens };
 }
 
 describe("initComputeRelatedPastReadsHandler", () => {
+	it("stores the lexical skip with its fingerprint, zero tokens, ready event and zero drop counts", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, marked, published, storedTokens } = createHandler({
+			logger,
+			selectPastReads: async () => ({ kind: "no-shared-words", bestScore: 7.98, candidateCount: 2 }),
+		});
+		expect(await handler(command, buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		expect(marked).toEqual([{ url: TARGET_URL, pastReads: [], fingerprint: fingerprintFor(["example.com/a", "example.com/b"]) }]);
+		expect(storedTokens).toEqual([{ inputTokens: 0, outputTokens: 0 }]);
+		expect(published).toEqual([{ outcome: "ready", relatedCount: 0 }]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] no earlier read shares the article's words", { url: TARGET_URL, bestScore: 7.98, candidateCount: 2 });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+	});
+
+	it("logs the selector's disjoint drop counts on completion", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler } = createHandler({ logger, selectPastReads: async () => ({ kind: "ready", related: [], inputTokens: 200, outputTokens: 40, droppedNoSharedWord: 2, droppedReasonNotAboutPick: 1 }) });
+		await handler(command, buildLambdaContext(), () => {});
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 2, droppedReasonNotAboutPick: 1 });
+	});
+
+	it.each(["stub", "shared-boilerplate"])("logs zero drops when %s makes no model call", async (kind) => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, storedTokens } = createHandler({
+			logger,
+			targetLookup: { state: "found", article: crawledTarget({ hasStubMetadata: kind === "stub" }) },
+			selectPastReads: async () => ({ kind: "shared-boilerplate" }),
+		});
+		await handler(command, buildLambdaContext(), () => {});
+		expect(storedTokens).toEqual([{ inputTokens: 0, outputTokens: 0 }]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+	});
 	it("stores the selected past reads with their reading-list context and announces the outcome", async () => {
 		const { handler, marked, published } = createHandler();
 
@@ -170,7 +204,7 @@ describe("initComputeRelatedPastReadsHandler", () => {
 			targetLookup: { state: "found", article: crawledTarget({ hasStubMetadata: true }) },
 			selectPastReads: async () => {
 				modelCalled = true;
-				return { kind: "ready", related: [], inputTokens: 0, outputTokens: 0 };
+				return { kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0, related: [], inputTokens: 0, outputTokens: 0 };
 			},
 		});
 

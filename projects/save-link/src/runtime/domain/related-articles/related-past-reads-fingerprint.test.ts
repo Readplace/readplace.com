@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
 	computePastReadsFingerprint,
+	PAST_READS_SELECTOR_VERSION,
 } from "./related-past-reads-fingerprint";
 
 const TARGET = {
@@ -11,6 +12,9 @@ const TARGET = {
 };
 
 describe("computePastReadsFingerprint", () => {
+	it("invalidates stored version-one selections with the shared version-two release", () => {
+		expect(PAST_READS_SELECTOR_VERSION).toBe(2);
+	});
 	it("is a stable sha256 hex digest for the same inputs", () => {
 		const a = computePastReadsFingerprint({ target: TARGET, candidateUrls: ["a", "b"] });
 		const b = computePastReadsFingerprint({ target: TARGET, candidateUrls: ["a", "b"] });

@@ -24,9 +24,11 @@ import OpenAI from "openai";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
 import { initComputeRelatedPastReadsHandler } from "./domain/related-articles/compute-related-past-reads-handler";
 import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
+import { PAST_READS_SHARED_WORDS_FLOOR } from "./domain/related-articles/related-articles-limits";
 import { initSelectRelatedArticles } from "./domain/related-articles/related-articles-selector";
 import { PAST_READS_PROMPT } from "./domain/related-articles/related-past-reads-prompt";
 import { initSelectRelatedArticlesWithoutSharedBoilerplate } from "./domain/related-articles/shared-boilerplate";
+import { initSelectRelatedArticlesAboveSharedWordsFloor } from "./domain/related-articles/shared-words-floor";
 import { RELATED_ARTICLES_TIMEOUTS } from "./domain/related-articles/timeouts";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -55,10 +57,13 @@ const { selectRelatedArticles } = initSelectRelatedArticlesWithoutSharedBoilerpl
 
 const { selectRelatedArticles: selectPastReads } =
 	initSelectRelatedArticlesWithoutSharedBoilerplate(
-		initSelectRelatedArticles({
-			createMessage,
-			logger: consoleLogger,
-			system: PAST_READS_PROMPT,
+		initSelectRelatedArticlesAboveSharedWordsFloor({
+			...initSelectRelatedArticles({
+				createMessage,
+				logger: consoleLogger,
+				system: PAST_READS_PROMPT,
+			}),
+			floor: PAST_READS_SHARED_WORDS_FLOOR,
 		}),
 	);
 

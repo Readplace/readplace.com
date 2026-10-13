@@ -22,6 +22,14 @@ function candidates(count: number): RelatedCandidate[] {
 	}));
 }
 
+function groundedCandidates(count: number): RelatedCandidate[] {
+	return candidates(count).map((candidate) => ({
+		...candidate,
+		title: `${candidate.title} queues`,
+		description: "Queues decay words xxxxxx",
+	}));
+}
+
 interface Captured {
 	prompts: string[];
 	systems: string[];
@@ -49,6 +57,57 @@ function selectorReturning(text: string, captured: Captured = { prompts: [], sys
 }
 
 describe("initSelectRelatedArticles", () => {
+	it("counts the two grounding failures separately and never refills beyond the first three valid picks", async () => {
+		const { selectRelatedArticles } = selectorReturning(JSON.stringify({ related: [
+			{ index: 99, reason: "Invented" },
+			{ index: 0, reason: "Invented biology" },
+			{ index: 0, reason: "Repeated" },
+			{ index: 1, reason: "Astronomy" },
+			{ index: 2, reason: "Queue maintenance" },
+			{ index: 3, reason: "Queue maintenance" },
+		] }));
+		const result = await selectRelatedArticles({
+			target,
+			unreadCandidates: [
+				{ url: "https://example.com/astronomy", title: "Astronomy", description: "Stellar spectra", siteName: "Example" },
+				...groundedCandidates(3),
+			],
+			readCandidates: [],
+		});
+		expect(result).toMatchObject({
+			kind: "ready",
+			related: [{ url: "https://example.com/earlier-1", reason: "Queue maintenance" }],
+			droppedNoSharedWord: 1,
+			droppedReasonNotAboutPick: 1,
+		});
+	});
+
+	it("drops a pick with an empty reason under the reason check", async () => {
+		const { selectRelatedArticles } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: "" }] }));
+		expect(await selectRelatedArticles({ target, unreadCandidates: groundedCandidates(1), readCandidates: [] }))
+			.toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 1 });
+	});
+
+	it("does not count shared site names or the message labels as content", async () => {
+		const { selectRelatedArticles } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: "Astronomy" }] }));
+		expect(await selectRelatedArticles({
+			target: { ...target, siteName: "Astronomy" },
+			unreadCandidates: [{ url: "https://example.com/astronomy", title: "Astronomy", description: "Stellar spectra", siteName: "Astronomy" }],
+			readCandidates: [],
+		})).toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 1, droppedReasonNotAboutPick: 0 });
+	});
+
+	it("grounds only the separately clipped title, description and stored reason", async () => {
+		const { selectRelatedArticles } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: `${"Astronomy ".repeat(20)}queues` }] }));
+		expect(await selectRelatedArticles({ target, unreadCandidates: groundedCandidates(1), readCandidates: [] }))
+			.toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 1 });
+		const { selectRelatedArticles: clipped } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: "Queues" }] }));
+		expect(await clipped({
+			target,
+			unreadCandidates: [{ url: "https://example.com/astronomy", title: `${"Astronomy ".repeat(40)}queues`, description: `${"Stars ".repeat(60)}queues`, siteName: "Example" }],
+			readCandidates: [],
+		})).toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 1, droppedReasonNotAboutPick: 0 });
+	});
 	it("numbers each candidate so the model answers with positions rather than urls", async () => {
 		const { selectRelatedArticles, captured } = selectorReturning(
 			JSON.stringify({ related: [] }),
@@ -170,25 +229,27 @@ describe("initSelectRelatedArticles", () => {
 
 	it("resolves a position past the unread pool back to the past read it numbered", async () => {
 		const { selectRelatedArticles } = selectorReturning(
-			JSON.stringify({ related: [{ index: 2, reason: "Same craft" }] }),
+			JSON.stringify({ related: [{ index: 2, reason: "Queues craft" }] }),
 		);
 
 		const result = await selectRelatedArticles({
 			target,
-			unreadCandidates: candidates(2),
+			unreadCandidates: groundedCandidates(2),
 			readCandidates: [
 				{
 					url: "https://example.com/finished-0",
-					title: "Finished 0",
+					title: "Finished queues 0",
 					siteName: "Example",
-					description: "Summary finished",
+					description: "Queues decay",
 				},
 			],
 		});
 
 		expect(result).toEqual({
 			kind: "ready",
-			related: [{ url: "https://example.com/finished-0", reason: "Same craft" }],
+			droppedNoSharedWord: 0,
+			droppedReasonNotAboutPick: 0,
+			related: [{ url: "https://example.com/finished-0", reason: "Queues craft" }],
 			inputTokens: 140,
 			outputTokens: 25,
 			cacheHitInputTokens: 96,
@@ -231,23 +292,25 @@ describe("initSelectRelatedArticles", () => {
 		const { selectRelatedArticles } = selectorReturning(
 			JSON.stringify({
 				related: [
-					{ index: 2, reason: "Follow-up" },
-					{ index: 0, reason: "Same argument" },
+					{ index: 2, reason: "Queues follow-up" },
+					{ index: 0, reason: "Queues argument" },
 				],
 			}),
 		);
 
 		const result = await selectRelatedArticles({
 			target,
-			unreadCandidates: candidates(5),
+			unreadCandidates: groundedCandidates(5),
 			readCandidates: [],
 		});
 
 		expect(result).toEqual({
 			kind: "ready",
+			droppedNoSharedWord: 0,
+			droppedReasonNotAboutPick: 0,
 			related: [
-				{ url: "https://example.com/earlier-2", reason: "Follow-up" },
-				{ url: "https://example.com/earlier-0", reason: "Same argument" },
+				{ url: "https://example.com/earlier-2", reason: "Queues follow-up" },
+				{ url: "https://example.com/earlier-0", reason: "Queues argument" },
 			],
 			inputTokens: 140,
 			outputTokens: 25,
@@ -262,20 +325,22 @@ describe("initSelectRelatedArticles", () => {
 				related: [
 					{ index: 99, reason: "Hallucinated" },
 					{ index: -1, reason: "Also hallucinated" },
-					{ index: 1, reason: "Real" },
+					{ index: 1, reason: "Real queues" },
 				],
 			}),
 		);
 
 		const result = await selectRelatedArticles({
 			target,
-			unreadCandidates: candidates(3),
+			unreadCandidates: groundedCandidates(3),
 			readCandidates: [],
 		});
 
 		expect(result).toEqual({
 			kind: "ready",
-			related: [{ url: "https://example.com/earlier-1", reason: "Real" }],
+			droppedNoSharedWord: 0,
+			droppedReasonNotAboutPick: 0,
+			related: [{ url: "https://example.com/earlier-1", reason: "Real queues" }],
 			inputTokens: 140,
 			outputTokens: 25,
 			cacheHitInputTokens: 96,
@@ -287,21 +352,23 @@ describe("initSelectRelatedArticles", () => {
 		const { selectRelatedArticles } = selectorReturning(
 			JSON.stringify({
 				related: [
-					{ index: 1, reason: "First reason" },
-					{ index: 1, reason: "Second reason" },
+					{ index: 1, reason: "First queues reason" },
+					{ index: 1, reason: "Second queues reason" },
 				],
 			}),
 		);
 
 		const result = await selectRelatedArticles({
 			target,
-			unreadCandidates: candidates(3),
+			unreadCandidates: groundedCandidates(3),
 			readCandidates: [],
 		});
 
 		expect(result).toEqual({
 			kind: "ready",
-			related: [{ url: "https://example.com/earlier-1", reason: "First reason" }],
+			droppedNoSharedWord: 0,
+			droppedReasonNotAboutPick: 0,
+			related: [{ url: "https://example.com/earlier-1", reason: "First queues reason" }],
 			inputTokens: 140,
 			outputTokens: 25,
 			cacheHitInputTokens: 96,
@@ -312,7 +379,7 @@ describe("initSelectRelatedArticles", () => {
 	it("caps how many relations one article can carry", async () => {
 		const overLimit = Array.from({ length: RELATED_RESULTS_MAX + 2 }, (_unused, index) => ({
 			index,
-			reason: `Reason ${index}`,
+			reason: `Queues reason ${index}`,
 		}));
 		const { selectRelatedArticles } = selectorReturning(
 			JSON.stringify({ related: overLimit }),
@@ -320,7 +387,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
-			unreadCandidates: candidates(RELATED_RESULTS_MAX + 5),
+			unreadCandidates: groundedCandidates(RELATED_RESULTS_MAX + 5),
 			readCandidates: [],
 		});
 
@@ -335,7 +402,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
-			unreadCandidates: candidates(1),
+			unreadCandidates: groundedCandidates(1),
 			readCandidates: [],
 		});
 
@@ -355,7 +422,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
-			unreadCandidates: candidates(1),
+			unreadCandidates: groundedCandidates(1),
 			readCandidates: [],
 		});
 

@@ -4,7 +4,7 @@ import type { RelatedArticleTarget } from "./related-articles-selector";
 /** Bump when the past-reads prompt or selection logic changes, so a settled
  * result recomputes on the next visit rather than serving a stale answer that
  * a fresh candidate set alone would not have invalidated. */
-export const PAST_READS_SELECTOR_VERSION = 1;
+export const PAST_READS_SELECTOR_VERSION = 2;
 
 /** A deterministic signature of everything a past-reads computation depends on:
  * the selector version, the article being read, and the exact set of past-read

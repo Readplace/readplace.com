@@ -70,7 +70,12 @@ export function initComputeRelatedPastReadsHandler(
 				const store = async (
 					pastReads: readonly PastReadLink[],
 					fingerprint: string,
-					tokens: { inputTokens: number; outputTokens: number },
+					tokens: {
+						inputTokens: number;
+						outputTokens: number;
+						droppedNoSharedWord: number;
+						droppedReasonNotAboutPick: number;
+					},
 				): Promise<void> => {
 					const outcome = await markPastReadsReady({
 						userId,
@@ -96,6 +101,8 @@ export function initComputeRelatedPastReadsHandler(
 					logger.info("[ComputeRelatedPastReads] completed", {
 						url: entry.url,
 						relatedCount: pastReads.length,
+						droppedNoSharedWord: tokens.droppedNoSharedWord,
+						droppedReasonNotAboutPick: tokens.droppedReasonNotAboutPick,
 					});
 				};
 
@@ -138,7 +145,7 @@ export function initComputeRelatedPastReadsHandler(
 				}
 
 				if (target.hasStubMetadata) {
-					await store([], fingerprint, { inputTokens: 0, outputTokens: 0 });
+					await store([], fingerprint, { inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
 					continue;
 				}
 
@@ -148,7 +155,16 @@ export function initComputeRelatedPastReadsHandler(
 					readCandidates: candidates,
 				});
 				if (result.kind === "shared-boilerplate") {
-					await store([], fingerprint, { inputTokens: 0, outputTokens: 0 });
+					await store([], fingerprint, { inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+					continue;
+				}
+				if (result.kind === "no-shared-words") {
+					logger.info("[ComputeRelatedPastReads] no earlier read shares the article's words", {
+						url: entry.url,
+						bestScore: result.bestScore,
+						candidateCount: result.candidateCount,
+					});
+					await store([], fingerprint, { inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
 					continue;
 				}
 				if (result.kind === "no-text-block") {
@@ -169,6 +185,8 @@ export function initComputeRelatedPastReadsHandler(
 				await store(pastReads, fingerprint, {
 					inputTokens: result.inputTokens,
 					outputTokens: result.outputTokens,
+					droppedNoSharedWord: result.droppedNoSharedWord,
+					droppedReasonNotAboutPick: result.droppedReasonNotAboutPick,
 				});
 			} catch (error) {
 				if (error instanceof MetadataNotReadyError) {
