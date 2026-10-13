@@ -35,7 +35,7 @@
   min-width: 0;
 }
 
-.readlist__lead:not(:has(> *)) {
+.readlist__lead:not(:has(> :not(.alert--hidden))) {
   display: none;
 }
 

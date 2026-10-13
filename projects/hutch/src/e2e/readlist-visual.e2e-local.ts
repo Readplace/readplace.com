@@ -519,6 +519,16 @@ async function phonePageGeometry(page: Page): Promise<void> {
 	await pageFitsTheClip(page);
 }
 
+async function customReadlistPhoneGeometry(page: Page): Promise<void> {
+	await railStacksAboveTheListing(page);
+	const rail = await measuredBox(page, RAIL);
+	const guide = await measuredBox(page, SETUP_GUIDE);
+	const tabs = await measuredBox(page, FILTER_TABS);
+	assert.ok(rail.y + rail.height <= guide.y, "the setup guide must follow the readlist rail on a phone");
+	assert.ok(guide.y + guide.height <= tabs.y, "the setup guide must lead the tabs and list on a phone");
+	await pageFitsTheClip(page);
+}
+
 async function guideSitsAboveTheTabs(page: Page): Promise<void> {
 	const guide = await measuredBox(page, SETUP_GUIDE);
 	const save = await measuredBox(page, SAVE_CARD);
@@ -1664,7 +1674,7 @@ const PAGE_CAUGHT_UP_PHONE: VisualCheckpoint = {
 const PAGE_CUSTOM_READLIST_PHONE: VisualCheckpoint = {
 	...PAGE_CUSTOM_READLIST,
 	name: "readlist-page-custom-readlist-phone",
-	geometry: phonePageGeometry,
+	geometry: customReadlistPhoneGeometry,
 };
 
 const SUBSCRIPTION_TRIAL_PHONE: VisualCheckpoint = {
@@ -2578,15 +2588,18 @@ test.describe("Readlist page on a phone", () => {
 		await captureCheckpoint(page, SUBSCRIPTION_TRIAL_PHONE);
 	});
 
-	test("shows the save card on a custom readlist and asks for an article from All", async ({ page }, testInfo) => {
+	test("asks for an article from All on a custom readlist without a save card", async ({ page }, testInfo) => {
 		const email = `readlist-phone-custom-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
-		await expect(page.locator(SAVE_CARD)).toBeVisible();
+		await expect(page.locator(SAVE_CARD)).toBeHidden();
 		await expect(page.locator(EMPTY_TEXT)).toHaveText(
 			"Choose an article from All and add it here to start organising this readlist.",
 		);
 
 		await captureCheckpoint(page, PAGE_CUSTOM_READLIST_PHONE);
+		await openReadlistSwitcher(page);
+		await clickAndWaitForPageReload(page, page.locator('[data-test-readlist="default"]'));
+		await expect(page.locator(SAVE_CARD)).toBeVisible();
 	});
 
 	test("stacks the caught-up state under the rail with no action", async ({ page }, testInfo) => {
