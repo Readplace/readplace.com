@@ -32,6 +32,7 @@ export const READLIST_PREFERENCES_STEPS: WizardSteps<ReadlistPreferencesWizardVi
 				fieldId: `${field.idPrefix}-purpose`,
 				errorId: field.errorId,
 				invalid: field.invalid,
+				autofocus: field.autofocus,
 				maxLength: READLIST_PURPOSE_MAX_LENGTH,
 			}),
 	}),

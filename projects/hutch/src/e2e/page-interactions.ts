@@ -67,6 +67,7 @@ export async function markReadWithConfirmation(page: Page, control: Locator): Pr
 	// an unactionable trigger would hang to the whole test's budget.
 	await control.click({ timeout: 15000 })
 	await expect(confirm).toBeVisible()
+	await expect(confirm).toBeFocused()
 	await clickAndWaitForPageReload(page, confirm)
 }
 
@@ -88,6 +89,7 @@ export async function deleteArticleWithConfirmation(page: Page, trigger: Locator
 	// an unactionable trigger would hang to the whole test's budget.
 	await trigger.click({ timeout: 15000 })
 	await expect(confirm).toBeVisible()
+	await expect(confirm).toBeFocused()
 	await clickAndWaitForPageReload(page, confirm)
 	await expect(page.locator(`[id="${popoverId}"]`)).toHaveCount(0, { timeout: 15000 })
 }
@@ -103,6 +105,7 @@ export async function nameNewReadlist(page: Page, name: string): Promise<Locator
 	const dialog = page.locator('[data-test-confirm-popover="readlist-create"]')
 	await page.click('[data-test-action="new-readlist"]')
 	await page.waitForSelector('[data-test-confirm-popover="readlist-create"]:popover-open')
+	await expect(dialog.locator('input[name="label"]')).toBeFocused()
 	await dialog.locator('input[name="label"]').fill(name)
 	return dialog.locator('[data-test-action="readlist-create-save"]')
 }
@@ -114,6 +117,7 @@ export async function fileArticleIntoReadlist(
 	await page.goto(new URL(`/queue/${input.articleId}/view`, page.url()).href, { waitUntil: 'domcontentloaded' })
 	await page.waitForSelector('body.page-reader')
 	await page.click('summary[data-test-readlists-trigger]', { timeout: 15000 })
+	await expect(page.locator('button[data-test-assign-readlist]').first()).toBeFocused()
 	await page.click(`button[data-test-assign-readlist="${input.readlistSlug}"]`, { timeout: 15000 })
 	await page.waitForSelector(`#article-header [data-test-readlist-tag="${input.readlistSlug}"]`)
 }

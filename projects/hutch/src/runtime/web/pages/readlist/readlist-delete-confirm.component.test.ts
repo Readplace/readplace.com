@@ -165,3 +165,14 @@ describe("renderReadlistDeleteConfirm", () => {
 		expect(doc.querySelectorAll(".confirm-popover__illustration svg[data-test-trash-illustration]")).toHaveLength(1);
 	});
 });
+
+function focusTargets(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[autofocus]"), (target) => target.getAttribute("data-test-action"));
+}
+
+describe("renderReadlistDeleteConfirm opening focus", () => {
+	it("opens on Delete readlist whether or not the readlist holds articles to move", () => {
+		expect(focusTargets(movableArticles())).toEqual(["readlist-delete-confirm"]);
+		expect(focusTargets(panelFor({ holdsArticles: false, destinations: [] }))).toEqual(["readlist-delete-confirm"]);
+	});
+});

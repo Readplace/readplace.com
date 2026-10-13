@@ -28,9 +28,18 @@ const FILTER_STATE_CLASSES = {
 	idle: "readlist-discovery__filter--idle",
 } as const;
 
+interface FilterChipPosition {
+	group: number;
+	option: number;
+}
+
 const FILTERS_SCOPES = {
-	popover: { idPrefix: FILTERS_POPOVER_ID, closeControls: [{ popoverId: FILTERS_POPOVER_ID }] },
-	fallback: { idPrefix: `${FILTERS_POPOVER_ID}-fallback`, closeControls: [] },
+	popover: {
+		idPrefix: FILTERS_POPOVER_ID,
+		closeControls: [{ popoverId: FILTERS_POPOVER_ID }],
+		opensFocused: (at: FilterChipPosition) => at.group === 0 && at.option === 0,
+	},
+	fallback: { idPrefix: `${FILTERS_POPOVER_ID}-fallback`, closeControls: [], opensFocused: () => false },
 } as const;
 
 type FiltersScope = keyof typeof FILTERS_SCOPES;
@@ -116,10 +125,18 @@ export function buildReadlistDiscovery(input: {
 }
 
 function renderReadlistFilters(model: ReadlistDiscoveryDisplayModel, scope: FiltersScope): string {
+	const { opensFocused, ...controls } = FILTERS_SCOPES[scope];
 	return render(FILTERS_TEMPLATE, {
 		...model,
-		...FILTERS_SCOPES[scope],
+		...controls,
 		scope,
+		groups: model.groups.map((group, groupIndex) => ({
+			...group,
+			options: group.options.map((option, optionIndex) => ({
+				...option,
+				autofocus: opensFocused({ group: groupIndex, option: optionIndex }),
+			})),
+		})),
 		applyLoaderHtml: APPLY_LOADER_HTML,
 	});
 }

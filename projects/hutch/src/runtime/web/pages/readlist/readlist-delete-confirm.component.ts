@@ -20,7 +20,7 @@ interface ReadlistDeleteQuestion {
 
 const PLAIN_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
 	<button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="readlist-delete-cancel">Cancel</button>
-	<button class="btn btn--primary" type="submit" data-test-action="readlist-delete-confirm">Delete readlist</button>
+	<button class="btn btn--primary" type="submit" data-test-action="readlist-delete-confirm" autofocus>Delete readlist</button>
 </form>`;
 
 const MOVE_OR_DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions readlist-migrate" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
@@ -38,7 +38,7 @@ const MOVE_OR_DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions r
 	</div>
 	<div class="confirm-popover__buttons">
 		<button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="readlist-delete-cancel">Cancel</button>
-		<button class="btn btn--primary" type="submit" data-test-action="readlist-delete-confirm">Delete readlist</button>
+		<button class="btn btn--primary" type="submit" data-test-action="readlist-delete-confirm" autofocus>Delete readlist</button>
 	</div>
 </form>`;
 

@@ -19,7 +19,7 @@ function panelWithScopes(scopes: string | null): string {
 	<form class="confirm-popover__actions confirm-popover__buttons" method="POST" data-exit-confirm-form${attr} action="${STATUS_PATH}">
 		<input type="hidden" name="status" value="read">
 		<button class="btn btn--neutral" id="exit-no" type="button" data-exit-confirm-decline>No, keep unread</button>
-		<button class="btn btn--primary" id="exit-yes" type="submit">Yes, mark as read</button>
+		<button class="btn btn--primary" id="exit-yes" type="submit" autofocus>Yes, mark as read</button>
 	</form>
 </div>`;
 }

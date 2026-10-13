@@ -43,7 +43,7 @@ const STATUS_COPY = {
 const MARK_STATUS_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
 	<input type="hidden" name="status" value="{{status}}">
 	<button class="btn btn--neutral" type="submit" name="ack" value="{{ackNever}}" data-test-action="mark-status-confirm-never">{{never}}</button>
-	<button class="btn btn--primary" type="submit" data-test-action="mark-status-confirm">{{confirm}}</button>
+	<button class="btn btn--primary" type="submit" data-test-action="mark-status-confirm" autofocus>{{confirm}}</button>
 </form>`;
 
 export function renderMarkStatusConfirm(input: {

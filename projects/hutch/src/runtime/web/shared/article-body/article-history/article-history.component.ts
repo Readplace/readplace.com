@@ -57,7 +57,7 @@ const OFFLINE_BADGE: ArticleHistoryBadge = {
 const DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}">
 	<input type="hidden" name="versionMinuteId" value="{{minuteId}}">
 	<button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="article-version-delete-cancel">Cancel</button>
-	<button class="btn btn--primary" type="submit" data-test-action="article-version-delete-confirm">Delete version</button>
+	<button class="btn btn--primary" type="submit" data-test-action="article-version-delete-confirm" autofocus>Delete version</button>
 </form>`;
 
 function removeFormFor(input: {

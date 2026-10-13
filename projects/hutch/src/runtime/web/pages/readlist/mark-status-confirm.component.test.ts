@@ -179,3 +179,13 @@ describe("renderMarkStatusConfirm", () => {
 		expect([...panel.querySelectorAll(".confirm-popover__header [data-test-action]")].map((action) => action.getAttribute("data-test-action"))).toEqual(["mark-status-dismiss"]);
 	});
 });
+
+function focusTargets(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[autofocus]"), (target) => target.getAttribute("data-test-action"));
+}
+
+describe("renderMarkStatusConfirm opening focus", () => {
+	it("opens on the confirm, so the never-ask submit stays a deliberate choice", () => {
+		expect(focusTargets(panelFor())).toEqual(["mark-status-confirm"]);
+	});
+});

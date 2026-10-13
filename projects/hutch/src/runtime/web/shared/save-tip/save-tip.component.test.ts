@@ -299,3 +299,15 @@ describe("buildSaveTip", () => {
 		});
 	});
 });
+
+function focusTargets(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[autofocus]"), (target) => target.getAttribute("data-test-action"));
+}
+
+describe("buildSaveTip opening focus", () => {
+	it("opens on the control that carries on with the link, never on the install link", () => {
+		expect(focusTargets(panelFor(request({}), ADVISORY_ARTICLE))).toEqual(["save-tip-continue"]);
+		expect(focusTargets(panelFor(request({}), ADVISORY_IMPORT))).toEqual(["save-tip-continue"]);
+		expect(focusTargets(panelFor(request({}), GATING_ARTICLE))).toEqual(["save-tip-proceed"]);
+	});
+});

@@ -110,6 +110,7 @@ describe("GET /newsletters", () => {
 		assert(ok, "the disclaimer offers OK");
 		expect(ok.getAttribute("type")).toBe("submit");
 		expect(ok.textContent).toBe("OK");
+		expect(ok.hasAttribute("autofocus")).toBe(true);
 		const form = ok.closest("form");
 		assert(form, "OK submits a form");
 		expect(form.getAttribute("method")).toBe("POST");

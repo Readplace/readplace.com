@@ -109,8 +109,10 @@ test.describe("Add-to-readlist picker light dismiss", () => {
 		await openOwnerReaderWithPicker(page, `create-${testInfo.workerIndex}-${Date.now()}`);
 
 		await page.click(TRIGGER);
+		await expect(page.locator("[data-test-assign-readlist]").first()).toBeFocused();
 		await page.locator(CREATE_OPEN).click();
 		await expect(page.locator(`${CREATE_DIALOG}:popover-open`)).toHaveCount(1);
+		await expect(page.locator(`${CREATE_DIALOG} input[name="label"]`)).toBeFocused();
 		await expect
 			.poll(() => pickerIsOpen(page))
 			.toBe(false);

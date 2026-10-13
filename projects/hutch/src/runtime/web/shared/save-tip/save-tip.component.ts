@@ -103,8 +103,8 @@ const CONTINUE_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.continued);
 /** The advisory control needs no script of its own: a popover target hides the
  * panel and hands focus back to the box the reader was already typing into. */
 const CONTINUE_CONTROL = {
-	advisory: `<button class="btn {{tierClass}}" type="button" popovertarget="${SAVE_TIP_PANEL_ID}" popovertargetaction="hide" data-beacon-url="{{continueBeaconUrl}}" data-test-action="save-tip-continue">Continue with URL</button>`,
-	gating: `<button class="btn {{tierClass}}" type="button" data-save-tip-proceed data-test-action="save-tip-proceed">Save the link anyway</button>`,
+	advisory: `<button class="btn {{tierClass}}" type="button" popovertarget="${SAVE_TIP_PANEL_ID}" popovertargetaction="hide" data-beacon-url="{{continueBeaconUrl}}" data-test-action="save-tip-continue" autofocus>Continue with URL</button>`,
+	gating: `<button class="btn {{tierClass}}" type="button" data-save-tip-proceed data-test-action="save-tip-proceed" autofocus>Save the link anyway</button>`,
 } satisfies Record<SaveTipMode, string>;
 
 const INSTALL_CONTROL = `<a class="btn btn--primary" href="{{installUrl}}" data-test-action="save-tip-install">Explore saving options</a>`;

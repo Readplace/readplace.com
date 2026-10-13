@@ -36,7 +36,7 @@ export function PlansPage(vm: PlansPageViewModel): PageBody {
 				plansFormHtml: renderSubscribePlansForm({
 					source: "plans-page",
 					labelledBy: PLANS_PAGE_TITLE_ID,
-					dismissControls: [],
+					surface: "inline",
 					checkedPlan: vm.checkedPlan,
 				}),
 			}),

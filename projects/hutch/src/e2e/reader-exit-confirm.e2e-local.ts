@@ -138,6 +138,7 @@ test.describe("Next Read asks before it moves the reader on, inside the app", ()
 		await page.locator(CARD_LINK).click();
 
 		await expect(page.locator(PANEL)).toBeVisible();
+		await expect(page.locator('[data-test-action="exit-confirm-yes"]')).toBeFocused();
 		await page.locator('[data-test-action="exit-confirm-yes"]').click();
 
 		await expect(page.locator(".article-body__title")).toHaveText("The Suggested Article");
@@ -191,6 +192,7 @@ test.describe("Leaving the reader through an article link asks to mark it read",
 		// is still the live document behind it.
 		await expect(page.locator(PANEL)).toBeVisible();
 		await expect(page.locator(".article-body__title")).toHaveText("Reader Exit Confirm");
+		await expect(page.locator('[data-test-action="exit-confirm-yes"]')).toBeFocused();
 
 		await page.locator('[data-test-action="exit-confirm-yes"]').click();
 		// page-privacy, not page-readlist: only the intercepted path follows the

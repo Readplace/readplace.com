@@ -171,3 +171,14 @@ describe("renderSharePanel", () => {
 		expect(panel.querySelectorAll("[data-test-share-avatar], [data-test-action='share-cancel']").length).toBe(0);
 	});
 });
+
+describe("renderSharePanel opening focus", () => {
+	it("opens on Copy, which stays hidden until the script knows the clipboard is writable", () => {
+		const targets = Array.from(parse(renderSharePanel(ARTICLE)).querySelectorAll("[autofocus]"), (target) => ({
+			copy: target.hasAttribute("data-share-copy"),
+			hidden: target.hasAttribute("hidden"),
+		}));
+
+		expect(targets).toEqual([{ copy: true, hidden: true }]);
+	});
+});

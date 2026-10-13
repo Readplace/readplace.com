@@ -85,6 +85,7 @@ async function openShareDialog(page: Page): Promise<void> {
 	await page.locator(SHARE).click();
 	await page.waitForSelector(`${DIALOG}:popover-open`);
 	await expect(page.locator(COPY)).toBeVisible();
+	await expect(page.locator(COPY)).toBeFocused();
 	await expect
 		.poll(() =>
 			page.locator(AVATAR).evaluate((avatar: HTMLImageElement) => avatar.complete && avatar.naturalWidth > 0),

@@ -17,7 +17,7 @@ export type ExitConfirmScopes = readonly [ExitConfirmScope, ...ExitConfirmScope[
 const EXIT_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{postUrl}}" data-exit-confirm-form data-exit-confirm-scopes="{{scopes}}">
 	<input type="hidden" name="status" value="read">
 	<button class="btn btn--neutral" type="button" data-exit-confirm-decline data-test-action="exit-confirm-no">No, keep unread</button>
-	<button class="btn btn--primary" type="submit" data-test-action="exit-confirm-yes">Yes, mark as read</button>
+	<button class="btn btn--primary" type="submit" data-test-action="exit-confirm-yes" autofocus>Yes, mark as read</button>
 </form>`;
 
 export function renderExitConfirm(input: {

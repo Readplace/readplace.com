@@ -6,6 +6,7 @@ export interface WizardField {
 	idPrefix: string;
 	errorId: string;
 	invalid: boolean;
+	autofocus: boolean;
 }
 
 export interface WizardStep<VM extends object, K extends keyof VM = keyof VM> {

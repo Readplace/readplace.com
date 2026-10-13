@@ -417,6 +417,7 @@ test("warns that Gmail is experimental before a first connect hands the reader t
 
 	await page.locator(CONNECT_GMAIL).click();
 	await expect(disclaimer).toBeVisible();
+	await expect(page.locator(CONNECT_DISCLAIMER_OK)).toBeFocused();
 	await page.keyboard.press("Escape");
 	await expect(disclaimer).toBeHidden();
 	expect(consentLocations).toEqual([]);

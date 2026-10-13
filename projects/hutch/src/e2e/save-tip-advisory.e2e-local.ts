@@ -34,6 +34,7 @@ test.describe("The save tip meets a reader at the URL box", () => {
 
 		const saveTip = page.locator("[data-test-confirm-popover='save-tip']");
 		await expect(saveTip).toBeVisible();
+		await expect(saveTip.locator("[data-test-action='save-tip-continue']")).toBeFocused();
 
 		await saveTip.locator("[data-test-action='save-tip-continue']").click();
 		await expect(saveTip).toBeHidden();
@@ -58,8 +59,14 @@ test.describe("The save tip meets a reader at the URL box", () => {
 			"due",
 		);
 
-		await page.locator("[data-test-import-from-url-input]").focus();
+		await page.locator('[data-test-action="import-from-url-submit"]').focus();
+		await page.keyboard.press("Shift+Tab");
 
-		await expect(page.locator("[data-test-confirm-popover='save-tip']")).toBeVisible();
+		const saveTip = page.locator("[data-test-confirm-popover='save-tip']");
+		await expect(saveTip).toBeVisible();
+		await expect(saveTip.locator("[data-test-action='save-tip-continue']")).toBeFocused();
+		await page.keyboard.press("Enter");
+		await expect(saveTip).toBeHidden();
+		await expect(page.locator("[data-test-import-from-url-input]")).toBeFocused();
 	});
 });

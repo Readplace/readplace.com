@@ -422,3 +422,18 @@ describe("renderMoveMenuItems", () => {
 		expect(textOf(items, "[data-test-action='move-fallback']")).toBe("Add");
 	});
 });
+
+function focusTargets(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[autofocus]"), (target) => target.getAttribute("data-test-action"));
+}
+
+describe("renderMoveDialogs opening focus", () => {
+	it("opens on the first destination, since no readlist is chosen for the reader", () => {
+		const radios = Array.from(moveDialogOf(dialogsFor(moveFromIdeas())).querySelectorAll("input[type='radio']"), (radio) =>
+			radio.hasAttribute("autofocus"),
+		);
+
+		expect(radios).toEqual([true, false]);
+		expect(focusTargets(moveDialogOf(dialogsFor(moveFromIdeas())))).toHaveLength(1);
+	});
+});

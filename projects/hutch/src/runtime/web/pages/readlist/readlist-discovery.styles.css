@@ -136,11 +136,6 @@
   }
 }
 
-.readlist-filters:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
 .readlist-filters > .readlist-filters__form {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;

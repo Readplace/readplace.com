@@ -80,6 +80,7 @@ async function openPlansDialog(page: Page, input: { path: string; bodyClass: str
 	await page.waitForSelector(`body.${input.bodyClass}`);
 	await page.click(OPEN_TRIGGER);
 	await page.waitForSelector(`${PANEL}:popover-open`);
+	await expect(page.locator(`${PANEL} [data-test-action="subscribe-plans-submit"]`)).toBeFocused();
 }
 
 async function dialogOpen(page: Page): Promise<void> {
@@ -306,6 +307,10 @@ test.describe("Subscribe plans dialog", () => {
 		await expect(panel).toBeVisible();
 		await page.keyboard.press("Escape");
 		await expect(panel).toBeHidden();
+
+		await page.goto(`${BASE_URL}/account/plans`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-plans");
+		expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
 	});
 });
 

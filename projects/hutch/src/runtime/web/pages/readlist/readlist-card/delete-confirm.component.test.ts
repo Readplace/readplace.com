@@ -122,3 +122,13 @@ describe("renderDeleteConfirm", () => {
 		expect(panel.classList.contains("confirm-popover--illustrated")).toBe(false);
 	});
 });
+
+function focusTargets(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[autofocus]"), (target) => target.getAttribute("data-test-action"));
+}
+
+describe("renderDeleteConfirm opening focus", () => {
+	it("opens on Delete article, so Enter confirms and the never-ask submit stays a deliberate choice", () => {
+		expect(focusTargets(panelFor("/queue/abc123/delete"))).toEqual(["delete-confirm"]);
+	});
+});

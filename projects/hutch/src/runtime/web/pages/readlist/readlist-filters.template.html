@@ -15,7 +15,7 @@
       <div class="readlist-filters__chips">
         {{#each options}}
         <label class="readlist-filters__option" data-test-discovery-option="{{../name}}:{{value}}">
-          <input class="chip__input sr-only" type="checkbox" name="{{../name}}" value="{{value}}"{{#if checked}} checked{{/if}}>
+          <input class="chip__input sr-only" type="checkbox" name="{{../name}}" value="{{value}}"{{#if checked}} checked{{/if}}{{#if autofocus}} autofocus{{/if}}>
           <span class="chip chip--filter">{{label}}</span>
         </label>
         {{/each}}

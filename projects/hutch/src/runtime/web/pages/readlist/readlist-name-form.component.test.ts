@@ -57,14 +57,14 @@ describe("renderReadlistNameForm", () => {
 		expect(form.getAttribute("hx-sync")).toBe("closest [popover]:drop");
 	});
 
-	it("opens with a field that is neither invalid nor focused, over an empty error line", () => {
+	it("opens with a focused field that is not yet invalid, over an empty error line", () => {
 		const doc = nameForm();
 		const input = inputOf(doc);
 
 		const error = doc.querySelector("[data-readlist-name-error]");
 		assert(error, "the partial must carry its error line");
 		expect(input.hasAttribute("aria-invalid")).toBe(false);
-		expect(input.hasAttribute("autofocus")).toBe(false);
+		expect(input.hasAttribute("autofocus")).toBe(true);
 		expect(error.innerHTML).toBe("");
 	});
 
