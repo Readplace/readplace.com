@@ -4,6 +4,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 } from "@packages/hutch-storage-client";
+import { z } from "zod";
 import { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";
 
 type SendFn = DynamoDBDocumentClient["send"];
@@ -1084,6 +1085,224 @@ describe("initDynamoDbRelatedArticles", () => {
 					savedAt: new Date("2026-05-20T00:00:00.000Z"),
 				},
 			]);
+		});
+
+		describe("copies of the saved article and repeated picks", () => {
+			const BatchGetInput = z.object({
+				RequestItems: z.record(z.string(), z.object({ Keys: z.array(z.object({ url: z.string() })) })),
+			});
+
+			function pickClient(params: {
+				links: { url: string; reason: string }[];
+				saved: Record<string, unknown>[];
+				articles: Record<string, unknown>[];
+			}) {
+				const articleKeys: string[][] = [];
+				const built = build((command) => {
+					if (command.constructorName === "GetCommand") {
+						return {
+							Item: {
+								userId: USER_ID,
+								url: "example.com/target",
+								relatedStatus: "ready",
+								relatedArticles: params.links,
+							},
+						};
+					}
+					const requestItems = BatchGetInput.parse(command.input).RequestItems;
+					const userArticleKeys = requestItems[USER_ARTICLES_TABLE];
+					if (userArticleKeys) {
+						return { Responses: { [USER_ARTICLES_TABLE]: params.saved }, UnprocessedKeys: {} };
+					}
+					const keys = requestItems[ARTICLES_TABLE];
+					assert(keys, "the only other batch read is the articles table");
+					articleKeys.push(keys.Keys.map((key) => key.url));
+					return { Responses: { [ARTICLES_TABLE]: params.articles }, UnprocessedKeys: {} };
+				});
+				return { ...built, articleKeys };
+			}
+
+			function unreadSave(url: string) {
+				return { url, status: "unread", savedAt: "2026-06-01T00:00:00.000Z" };
+			}
+
+			it("reads the saved article in the same batch as its picks and hides every copy of it, by title or by destination", async () => {
+				const { store, articleKeys } = pickClient({
+					links: [
+						{ url: "javascriptweekly.com/link/1001/web", reason: "The same release" },
+						{ url: "nodeweekly.com/link/2002/web", reason: "The same post again" },
+						{ url: "example.com/release-notes", reason: "Covers the next version" },
+					],
+					saved: [
+						unreadSave("javascriptweekly.com/link/1001/web"),
+						unreadSave("nodeweekly.com/link/2002/web"),
+						unreadSave("example.com/release-notes"),
+					],
+					articles: [
+						{ url: "example.com/target", title: "Widgets 4.0 Is Out", siteName: "Example", excerpt: "" },
+						{
+							url: "javascriptweekly.com/link/1001/web",
+							originalUrl: "https://javascriptweekly.com/link/1001/web",
+							routeId: "11111111111111111111111111111111",
+							title: "  widgets 4.0   is out ",
+							siteName: "javascriptweekly.com",
+							excerpt: "",
+						},
+						{
+							url: "nodeweekly.com/link/2002/web",
+							originalUrl: "https://nodeweekly.com/link/2002/web",
+							displayUrl: "https://www.example.com/target/#changelog",
+							routeId: "22222222222222222222222222222222",
+							title: "Announcing the widgets release",
+							siteName: "nodeweekly.com",
+							excerpt: "",
+						},
+						{
+							url: "example.com/release-notes",
+							originalUrl: "https://example.com/release-notes",
+							routeId: "33333333333333333333333333333333",
+							title: "Widgets 4.1 release notes",
+							siteName: "Example",
+							excerpt: "",
+						},
+					],
+				});
+
+				const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+
+				assert(result.status === "ready", "a computed row reports ready");
+				expect(result.items.map((item) => item.title)).toEqual(["Widgets 4.1 release notes"]);
+				expect(articleKeys).toEqual([
+					[
+						"javascriptweekly.com/link/1001/web",
+						"nodeweekly.com/link/2002/web",
+						"example.com/release-notes",
+						"example.com/target",
+					],
+				]);
+			});
+
+			it("reports ready with no items when every pick is a copy of the saved article", async () => {
+				const { store } = pickClient({
+					links: [{ url: "nodeweekly.com/link/2002/web", reason: "The same post" }],
+					saved: [unreadSave("nodeweekly.com/link/2002/web")],
+					articles: [
+						{
+							url: "example.com/target",
+							originalUrl: "https://example.com/target",
+							routeId: "00000000000000000000000000000000",
+							title: "Widgets 4.0 is out",
+							siteName: "Example",
+							excerpt: "",
+						},
+						{
+							url: "nodeweekly.com/link/2002/web",
+							originalUrl: "https://nodeweekly.com/link/2002/web",
+							routeId: "22222222222222222222222222222222",
+							title: "Widgets 4.0 is out",
+							siteName: "nodeweekly.com",
+							excerpt: "",
+						},
+					],
+				});
+
+				expect(await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL })).toEqual({
+					status: "ready",
+					items: [],
+				});
+			});
+
+			it("keeps the first copy of a repeated pick in rank order, even when the saved article's row is gone", async () => {
+				const { store } = pickClient({
+					links: [
+						{ url: "nodeweekly.com/link/2002/web", reason: "First copy" },
+						{ url: "javascriptweekly.com/link/1001/web", reason: "Second copy" },
+						{ url: "example.com/release-notes", reason: "Next version" },
+					],
+					saved: [
+						unreadSave("nodeweekly.com/link/2002/web"),
+						unreadSave("javascriptweekly.com/link/1001/web"),
+						unreadSave("example.com/release-notes"),
+					],
+					articles: [
+						{
+							url: "nodeweekly.com/link/2002/web",
+							originalUrl: "https://nodeweekly.com/link/2002/web",
+							routeId: "22222222222222222222222222222222",
+							title: "Publishing packages safely",
+							siteName: "nodeweekly.com",
+							excerpt: "",
+						},
+						{
+							url: "javascriptweekly.com/link/1001/web",
+							originalUrl: "https://javascriptweekly.com/link/1001/web",
+							routeId: "11111111111111111111111111111111",
+							title: "Publishing Packages Safely",
+							siteName: "javascriptweekly.com",
+							excerpt: "",
+						},
+						{
+							url: "example.com/release-notes",
+							originalUrl: "https://example.com/release-notes",
+							routeId: "33333333333333333333333333333333",
+							title: "Widgets 4.1 release notes",
+							siteName: "Example",
+							excerpt: "",
+						},
+					],
+				});
+
+				const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+
+				assert(result.status === "ready", "a computed row reports ready");
+				expect(result.items.map((item) => ({ title: item.title, reason: item.reason }))).toEqual([
+					{ title: "Publishing packages safely", reason: "First copy" },
+					{ title: "Widgets 4.1 release notes", reason: "Next version" },
+				]);
+			});
+
+			it("lets a pick the reader deleted or whose article was purged leave its later copy in place", async () => {
+				const { store } = pickClient({
+					links: [
+						{ url: "example.com/deleted-copy", reason: "Deleted copy" },
+						{ url: "example.com/purged-copy", reason: "Purged copy" },
+						{ url: "nodeweekly.com/link/2002/web", reason: "Live copy" },
+					],
+					saved: [unreadSave("example.com/purged-copy"), unreadSave("nodeweekly.com/link/2002/web")],
+					articles: [
+						{
+							url: "example.com/deleted-copy",
+							originalUrl: "https://example.com/deleted-copy",
+							routeId: "00000000000000000000000000000000",
+							title: "Publishing packages safely",
+							siteName: "Example",
+							excerpt: "",
+						},
+						{
+							url: "example.com/purged-copy",
+							originalUrl: "https://example.com/purged-copy",
+							routeId: "11111111111111111111111111111111",
+							title: "Publishing packages safely",
+							siteName: "Example",
+							excerpt: "",
+							purgedAt: AT.toISOString(),
+						},
+						{
+							url: "nodeweekly.com/link/2002/web",
+							originalUrl: "https://nodeweekly.com/link/2002/web",
+							routeId: "22222222222222222222222222222222",
+							title: "Publishing packages safely",
+							siteName: "nodeweekly.com",
+							excerpt: "",
+						},
+					],
+				});
+
+				const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+
+				assert(result.status === "ready", "a computed row reports ready");
+				expect(result.items.map((item) => item.reason)).toEqual(["Live copy"]);
+			});
 		});
 	});
 });

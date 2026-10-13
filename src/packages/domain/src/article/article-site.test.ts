@@ -7,6 +7,7 @@ import {
 	contentSavedFromHostExcerpt,
 	hostStubMetadata,
 	imageSavedFromHostExcerpt,
+	isSameArticle,
 	savedFromHostExcerpt,
 	type ArticleDestinationUrl,
 } from "./article-site";
@@ -158,5 +159,91 @@ describe("host templates", () => {
 			siteName: "memcached.org",
 			excerpt: savedFromHostExcerpt("memcached.org"),
 		});
+	});
+});
+
+describe("isSameArticle", () => {
+	it("matches two saves whose titles differ only in case and whitespace", () => {
+		expect(
+			isSameArticle({
+				article: {
+					url: "javascriptweekly.com/link/1001/web",
+					originalUrl: "https://javascriptweekly.com/link/1001/web",
+					title: "Shipping  Faster Builds\n",
+				},
+				other: {
+					url: "nodeweekly.com/link/2002/web",
+					originalUrl: "https://nodeweekly.com/link/2002/web",
+					title: " shipping faster BUILDS",
+				},
+			}),
+		).toBe(true);
+	});
+
+	it("never matches on an empty title", () => {
+		expect(
+			isSameArticle({
+				article: { url: "example.com/first-note", originalUrl: "https://example.com/first-note", title: "  " },
+				other: { url: "example.com/second-note", originalUrl: "https://example.com/second-note", title: "" },
+			}),
+		).toBe(false);
+	});
+
+	it("never matches an untitled article on its missing title", () => {
+		expect(
+			isSameArticle({
+				article: { url: "example.com/first-note" },
+				other: { url: "example.com/second-note" },
+			}),
+		).toBe(false);
+	});
+
+	it("matches two saves whose destinations differ only in scheme, www., fragment and trailing slash", () => {
+		expect(
+			isSameArticle({
+				article: {
+					url: "nodeweekly.com/link/2002/web",
+					originalUrl: "https://nodeweekly.com/link/2002/web",
+					displayUrl: "https://www.example.com/posts/faster-builds/#comments",
+					title: "Faster builds, explained",
+				},
+				other: {
+					url: "example.com/posts/faster-builds",
+					originalUrl: "http://example.com/posts/faster-builds",
+					title: "Build speed notes",
+				},
+			}),
+		).toBe(true);
+	});
+
+	it("compares an article without an original url through its table key", () => {
+		expect(
+			isSameArticle({
+				article: { url: "example.com/posts/faster-builds", title: "Build speed notes" },
+				other: {
+					url: "nodeweekly.com/link/2002/web",
+					originalUrl: "https://nodeweekly.com/link/2002/web",
+					displayUrl: "https://example.com/posts/faster-builds",
+					title: "Faster builds, explained",
+				},
+			}),
+		).toBe(true);
+	});
+
+	it("tells apart different pages with different titles", () => {
+		expect(
+			isSameArticle({
+				article: {
+					url: "example.com/posts/faster-builds",
+					originalUrl: "https://example.com/posts/faster-builds",
+					title: "Faster builds, explained",
+				},
+				other: {
+					url: "example.com/posts/slower-tests",
+					originalUrl: "https://example.com/posts/slower-tests",
+					title: "Why the tests got slower",
+				},
+			}),
+		).toBe(false);
 	});
 });

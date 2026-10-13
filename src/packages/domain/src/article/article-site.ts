@@ -27,6 +27,31 @@ export function articleDestinationUrl(article: ArticleLocation): ArticleDestinat
 	return ArticleDestinationUrlSchema.parse(article.displayUrl ?? article.url);
 }
 
+export interface ComparableArticle {
+	url: string;
+	originalUrl?: string | undefined;
+	displayUrl?: string | undefined;
+	title?: string | undefined;
+}
+
+function comparableTitle(title: string | undefined): string {
+	return (title ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function comparableDestination(article: ComparableArticle): string {
+	return (article.displayUrl ?? article.originalUrl ?? article.url)
+		.replace(/^[a-z][a-z\d+.-]*:\/\//i, "")
+		.replace(/^www\./i, "")
+		.replace(/#.*$/, "")
+		.replace(/\/$/, "");
+}
+
+export function isSameArticle(pair: { article: ComparableArticle; other: ComparableArticle }): boolean {
+	const title = comparableTitle(pair.article.title);
+	if (title !== "" && title === comparableTitle(pair.other.title)) return true;
+	return comparableDestination(pair.article) === comparableDestination(pair.other);
+}
+
 export function articleDestinationHost(destinationUrl: ArticleDestinationUrl): string {
 	return new URL(destinationUrl).hostname;
 }

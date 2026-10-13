@@ -88,6 +88,8 @@ export {
 	type SiteLabel,
 	type ArticleDestinationUrl,
 	type ArticleLocation,
+	isSameArticle,
+	type ComparableArticle,
 } from "./article-site";
 export {
 	ReaderArticleHashId,

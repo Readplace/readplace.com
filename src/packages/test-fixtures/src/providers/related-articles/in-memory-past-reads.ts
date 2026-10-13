@@ -1,4 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { type ComparableArticle, isSameArticle } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
@@ -31,12 +32,16 @@ export function initInMemoryPastReads(deps: {
 		const links = settled.get(keyOf(userId, url));
 		if (links === undefined) return { status: "pending" };
 
+		const kept: ComparableArticle[] = [];
 		const items: PastReadDisplay[] = [];
 		for (const link of links) {
 			const article = await deps.findArticleByUrl(link.url);
 			if (!article) continue;
 			const saved = await deps.findArticleById(article.id, userId);
 			if (saved?.status !== "read") continue;
+			const comparable = { url: article.url, displayUrl: article.destinationUrl, title: article.metadata.title };
+			if (kept.some((earlier) => isSameArticle({ article: comparable, other: earlier }))) continue;
+			kept.push(comparable);
 			items.push({
 				id: saved.id,
 				title: saved.metadata.title,
