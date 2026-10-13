@@ -64,7 +64,7 @@ describe("Save tip — the readlist save bar", () => {
 		).toEqual(["save-tip-continue", "save-tip-install"]);
 	});
 
-	it("renders the panel only on All, the one readlist with a save bar to open it", async () => {
+	it("renders the panel only on All, the one readlist with an Add link dialog to open it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const created = await agent.post("/queue/queues").type("form").send({ label: "New Readlist" });
@@ -74,8 +74,8 @@ describe("Save tip — the readlist save bar", () => {
 		const onAll = confirmPopoverKeys((await agent.get("/queue")).text);
 		const onCustom = confirmPopoverKeys((await agent.get(`/queue?queue=${slug}`)).text);
 
-		expect(onAll).toContain("save-tip");
-		expect(onCustom).toEqual(onAll.filter((key) => key !== "save-tip"));
+		expect(onAll).toEqual(expect.arrayContaining(["add-link", "save-tip"]));
+		expect(onCustom).toEqual(onAll.filter((key) => key !== "save-tip" && key !== "add-link"));
 	});
 
 	it("stops offering the tip once a save has been through the warning", async () => {

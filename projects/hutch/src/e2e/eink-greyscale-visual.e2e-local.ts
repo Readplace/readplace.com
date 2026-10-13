@@ -12,11 +12,13 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import {
 	clickAndWaitForPageReload,
 	createReadlistFromReader,
 	fileArticleIntoReadlist,
 	nameNewReadlist,
+	openAddLink,
 	openReadlistSwitcher,
 	renameableSlugs,
 } from "./page-interactions";
@@ -40,7 +42,8 @@ const PINNED_SHARE_URL =
 const READLIST_LIST = "[data-test-article-list]";
 const READLIST_TABS = "[data-test-filters]";
 const READLIST_RAIL = ".readlist__rail";
-const READLIST_SAVE_CARD = "[data-test-save-card]";
+const READLIST_SAVE_FEEDBACK = ".readlist__lead";
+const ADD_LINK_DIALOG = "#add-link:popover-open";
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const READLIST_LAYOUT = ".readlist__layout";
 const READLIST_PREFERENCES = "[data-test-readlist-preferences]";
@@ -453,11 +456,11 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 		});
 
-		test(`the save card keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+		test(`the save feedback keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email } = await createEinkUser(
 				page,
-				`readlist-save-card-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+				`readlist-save-feedback-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
 			await loginAs(page, email);
 			await page.context().addCookies([{
@@ -477,10 +480,27 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await counts;
 			await expect(page.locator("[data-test-import-flash]")).toHaveText("42 of 50 links imported. 3 couldn't be imported.");
 			await expect(page.locator("[data-test-import-skipped-row]")).toHaveCount(3);
-			await settle(page, READLIST_SAVE_CARD);
+			await settle(page, READLIST_SAVE_FEEDBACK);
 
-			await expect(page.locator(READLIST_SAVE_CARD)).toHaveScreenshot(
-				`eink-readlist-save-card-${theme}.png`,
+			await expect(page.locator(READLIST_SAVE_FEEDBACK)).toHaveScreenshot(
+				`eink-readlist-save-feedback-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
+		});
+
+		test(`the Add link dialog keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await createEinkUser(
+				page,
+				`readlist-add-link-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+			await loginAs(page, email);
+			await openAddLink(page);
+			await settle(page, ADD_LINK_DIALOG);
+
+			await expect(page.locator(ADD_LINK_DIALOG)).toHaveScreenshot(
+				`eink-readlist-add-link-${theme}.png`,
 				CONTRAST_SENSITIVE,
 			);
 		});
@@ -537,7 +557,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
 			await page.waitForLoadState("domcontentloaded");
-			await page.locator('[data-test-form="save-article"] input[name="url"]').focus();
+			await page.locator('[data-test-action="add-link"]').click();
 			const panel = page.locator('#save-tip:popover-open');
 			await expect(panel).toBeVisible();
 			await settle(page, '#save-tip:popover-open');

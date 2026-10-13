@@ -223,14 +223,15 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		);
 	});
 
-	it("wraps the panel in the readlist chrome without the save card, with the setup guide beside it", async () => {
+	it("wraps the panel in the readlist chrome without Add link, with the setup guide beside it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		expect(doc.querySelector("[data-test-save-card]")).toBeNull();
+		expect(doc.querySelector('[data-test-action="add-link"]')).toBeNull();
+		expect(doc.querySelector("#add-link")).toBeNull();
 		const side = doc.querySelector(".readlist__side");
 		assert(side, "the preferences page must render the side column");
 		expect(side.querySelectorAll("[data-test-setup-guide]")).toHaveLength(1);

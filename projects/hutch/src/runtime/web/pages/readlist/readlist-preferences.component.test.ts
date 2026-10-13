@@ -333,7 +333,7 @@ describe("ReadlistPreferencesPage", () => {
 		).toEqual(["What's this readlist for?"]);
 	});
 
-	it("wraps the panel in the readlist chrome without the save card, with the setup guide beside it", () => {
+	it("wraps the panel in the readlist chrome without Add link, with the setup guide beside it", () => {
 		const doc = documentOf(page({}).content.html);
 		const side = doc.querySelector(".readlist__side");
 		assert(side, "the preferences page must render the side column");

@@ -222,12 +222,18 @@ describe("ReadlistPage", () => {
 		expect(alert.classList.contains("alert--hidden")).toBe(true);
 	});
 
-	it("leaves the save card out of a custom readlist and keeps it on All", () => {
+	it("leaves Add link and its dialog out of a custom readlist and keeps them on All", () => {
 		const onWork = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } });
 		const onAll = pageDoc();
 
-		expect(onWork.querySelectorAll("[data-test-save-card]")).toHaveLength(0);
-		expect(onAll.querySelectorAll("[data-test-save-card]")).toHaveLength(1);
+		expect(onWork.querySelectorAll('[data-test-action="add-link"]')).toHaveLength(0);
+		expect(onWork.querySelectorAll("#add-link")).toHaveLength(0);
+		expect(onAll.querySelectorAll('.readlist__tabs-bar [data-test-action="add-link"]')).toHaveLength(1);
+		const form = onAll.querySelector('#add-link [data-test-form="save-article"]');
+		assert(form, "the Add link dialog must submit through a form");
+		const action = form.getAttribute("action");
+		assert(action, "the save form must have a destination");
+		expect(new URL(action, "https://internal.invalid").pathname).toBe("/queue/save");
 	});
 
 	it("points every filter tab at its own listing", () => {
@@ -343,28 +349,28 @@ describe("ReadlistPage", () => {
 		{
 			device: "a device with no installable client",
 			context: { hasInstallableClient: false } as const,
-			text: "Save your first article by pasting a link above, or set up one-tap saving from your browser, phone, or AI assistant.",
+			text: "Save your first article with Add link, or set up one-tap saving from your browser, phone, or AI assistant.",
 			label: "Set up one-tap saving",
 			client: null,
 		},
 		{
 			device: "Chrome",
 			context: installableClient({ platform: "chrome" }),
-			text: "Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+			text: "Save your first article with Add link, or use the Readplace browser extension to save it in one click.",
 			label: "Install Chrome extension",
 			client: "chrome",
 		},
 		{
 			device: "Firefox",
 			context: installableClient({ platform: "firefox" }),
-			text: "Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+			text: "Save your first article with Add link, or use the Readplace browser extension to save it in one click.",
 			label: "Install Firefox extension",
 			client: "firefox",
 		},
 		{
 			device: "iPhone",
 			context: installableClient({ platform: "iphone" }),
-			text: "Save your first article by pasting a link above, or use the Readplace iPhone app to save it from the share sheet.",
+			text: "Save your first article with Add link, or use the Readplace iPhone app to save it from the share sheet.",
 			label: "Install iPhone app",
 			client: "iphone",
 		},
@@ -399,7 +405,7 @@ describe("ReadlistPage", () => {
 		);
 
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+			"Save your first article with Add link, or use the Readplace browser extension to save it in one click.",
 		);
 		expect(emptyActionKeys(doc)).toEqual([]);
 	});

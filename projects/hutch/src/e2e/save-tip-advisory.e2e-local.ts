@@ -17,37 +17,74 @@ async function signUpFreshUser(page: Page, email: string): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
-test.describe("The save tip meets a reader at the URL box", () => {
-	test("opens on a click into the bar, survives its own release, and never holds the save back", async ({
+test.describe("The save tip meets a reader at the Add link field", () => {
+	test("opens with the dialog, hands the field back on every dismissal, and never holds the save back", async ({
 		page,
 	}, testInfo) => {
 		const run = `${testInfo.workerIndex}-${Date.now()}`;
 		await signUpFreshUser(page, `save-tip-advisory-${run}@example.com`);
 
-		const form = page.locator('[data-test-form="save-article"]');
+		const addLink = page.locator('[data-test-action="add-link"]');
+		const dialog = page.locator("#add-link");
+		const form = dialog.locator('[data-test-form="save-article"]');
+		const field = form.locator('input[name="url"]');
+		const saveTip = page.locator("[data-test-confirm-popover='save-tip']");
 		await expect(form).toHaveAttribute("data-save-tip", "due");
 		await page.waitForLoadState("domcontentloaded");
 
-		// A real press-release-click: a panel opened before the release would be
-		// light-dismissed by this very click, so a visible panel proves it waited.
-		await form.locator('input[name="url"]').click();
+		await addLink.click();
 
-		const saveTip = page.locator("[data-test-confirm-popover='save-tip']");
+		await expect(dialog).toBeVisible();
 		await expect(saveTip).toBeVisible();
 		await expect(saveTip.locator("[data-test-action='save-tip-continue']")).toBeFocused();
+		expect(await page.evaluate(() => document.cookie)).toContain("rp_save_tip=seen");
 
 		await saveTip.locator("[data-test-action='save-tip-continue']").click();
 		await expect(saveTip).toBeHidden();
-		await expect(form.locator('input[name="url"]')).toBeFocused();
+		await expect(dialog).toBeVisible();
+		await expect(field).toBeFocused();
+
+		const draft = `${BASE_URL}/privacy?save-tip=${run}`;
+		await field.fill(draft);
+		await page.keyboard.press("Escape");
+		await expect(dialog).toBeHidden();
+		await expect(addLink).toBeFocused();
+
+		await addLink.click();
+		await expect(dialog).toBeVisible();
+		await expect(field).toBeFocused();
+		await expect(field).toHaveValue(draft);
+		await expect(saveTip).toBeHidden();
+
+		await dialog.locator('[data-test-action="add-link-cancel"]').click();
+		await expect(dialog).toBeHidden();
+		await expect(addLink).toBeFocused();
 
 		// Nothing has been saved yet, so only the panel's own record can have
 		// spent the session's one warning.
 		await page.reload({ waitUntil: "domcontentloaded" });
 		await expect(form).toHaveAttribute("data-save-tip", "seen");
 
-		await form.locator('input[name="url"]').fill(`${BASE_URL}/privacy?save-tip=${run}`);
+		await addLink.click();
+		await expect(saveTip).toBeHidden();
+		await field.fill(draft);
 		await form.locator('button[type="submit"]').click();
 		await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
+		await expect(dialog).toBeHidden();
+	});
+
+	test("hands the field back when the reader presses Escape on the advice", async ({ page }, testInfo) => {
+		await signUpFreshUser(page, `save-tip-escape-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		const dialog = page.locator("#add-link");
+		const saveTip = page.locator("[data-test-confirm-popover='save-tip']");
+
+		await page.locator('[data-test-action="add-link"]').click();
+		await expect(saveTip).toBeVisible();
+		await page.keyboard.press("Escape");
+
+		await expect(saveTip).toBeHidden();
+		await expect(dialog).toBeVisible();
+		await expect(dialog.locator('input[name="url"]')).toBeFocused();
 	});
 
 	// The import box is the cheapest URL field a reader reaches logged out, and

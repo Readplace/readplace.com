@@ -147,6 +147,7 @@ describe("every popup opens on its first decision", () => {
 		expect(drawerSeen).toBe(true);
 		expect([...keys].sort()).toEqual([
 			"account-profile",
+			"add-link",
 			"article-version-delete",
 			"delete",
 			"delete-account",

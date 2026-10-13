@@ -11,6 +11,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { openAddLink } from "./page-interactions";
 import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 import { htmxIsLive, readScrollY } from "./readlist-reader-skeleton.browser";
 import { maxScrollY, recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
@@ -54,7 +55,6 @@ const HIDDEN_TABLE_OF_CONTENTS = '[data-test-table-of-contents="hidden"]';
 const RAIL_CARD_GAP = 16;
 const RAIL_CARD = `${RAIL} > ${ARTICLE_HISTORY}`;
 const CTA_CONTENT = ".view__cta-content";
-const SAVE_FORM = '[data-test-form="save-article"]';
 const SAVED_CARD = "[data-test-article]";
 const SAVED_CARD_TITLE = "[data-test-article-title]";
 const SUMMARY_READY = '[data-test-reader-summary][data-summary-status="ready"]';
@@ -190,8 +190,9 @@ async function openReaderWithNoRailCard(page: Page, stamp: string): Promise<void
 	await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
 	await signIn(page, email);
 
-	await page.locator(`${SAVE_FORM} input[name="url"]`).fill(`${UNFETCHABLE_FIXTURE}${stamp}`);
-	await page.locator(`${SAVE_FORM} button[type="submit"]`).click();
+	const saveForm = await openAddLink(page);
+	await saveForm.locator('input[name="url"]').fill(`${UNFETCHABLE_FIXTURE}${stamp}`);
+	await saveForm.locator('button[type="submit"]').click();
 	await expect(page.locator(SAVED_CARD)).toHaveCount(1);
 	const href = await page.locator(SAVED_CARD_TITLE).getAttribute("href");
 	assert.ok(href, "the saved card must link into the reader");

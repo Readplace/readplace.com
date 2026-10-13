@@ -3,6 +3,7 @@ import type { CDPSession, Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, test } from "@packages/e2e-harness";
 import { type InteractionInk, collectInteractionInk, countUnfinishedAnimations } from "./interaction-ink.browser";
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { createReadlistFromReader } from "./page-interactions";
 import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.browser";
 import { LENSES, NON_TEXT_MINIMUM, type Rgb, contrastRatio, textMinimum } from "./wcag-contrast";
@@ -16,7 +17,8 @@ const PASSWORD = "password123";
 const THEMES = ["light", "dark"] as const;
 const FOCUSED = ["focus", "focus-visible"];
 const LOGIN_EMAIL_FIELD = '[data-test-form="login"] input.form-input[name="email"]';
-const SAVE_FIELD = '[data-test-form="save-article"] input.form-input[name="url"]';
+const SAVE_FIELD = '#add-link [data-test-form="save-article"] input.form-input[name="url"]';
+const ADD_LINK = '[data-test-action="add-link"]';
 const FROM_URL_FIELD = '[data-test-form="import-from-url"] input.form-input[name="url"]';
 const SEARCH_FIELD = "#readlist-search-input";
 const REVIEW_URLS = [
@@ -54,6 +56,14 @@ interface AuditedField {
 	path: string;
 	selector: string;
 	view: string;
+	opener?: string;
+}
+
+async function revealField(page: Page, field: AuditedField): Promise<void> {
+	await page.goto(`${BASE_URL}${field.path}`, { waitUntil: "domcontentloaded" });
+	if (field.opener === undefined) return;
+	await page.locator(field.opener).click();
+	await expect(page.locator(field.selector)).toBeVisible();
 }
 
 interface Neighbour {
@@ -269,7 +279,7 @@ async function openImportReview(page: Page, urls: readonly string[]): Promise<vo
 async function auditFocusRing(page: Page, field: AuditedField): Promise<void> {
 	for (const theme of THEMES) {
 		await page.emulateMedia({ colorScheme: theme });
-		await page.goto(`${BASE_URL}${field.path}`, { waitUntil: "domcontentloaded" });
+		await revealField(page, field);
 		const client = await auditContext(page);
 		await stamp(page, { selector: field.selector, auditId: "focused-field" });
 
@@ -296,7 +306,7 @@ async function auditFocusRing(page: Page, field: AuditedField): Promise<void> {
 async function auditPlaceholder(page: Page, field: AuditedField): Promise<void> {
 	for (const theme of THEMES) {
 		await page.emulateMedia({ colorScheme: theme });
-		await page.goto(`${BASE_URL}${field.path}`, { waitUntil: "domcontentloaded" });
+		await revealField(page, field);
 		await stamp(page, { selector: field.selector, auditId: "placeholder-field" });
 
 		const ink = await page.evaluate(collectPlaceholderInk, "placeholder-field");
@@ -450,7 +460,8 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
 		const userId = await signInAsNewReader(page, `form-ring-${stampId}@example.com`);
 		await seedQueuedArticle(page, { userId, stampId });
-		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save" });
+		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", opener: ADD_LINK });
 		await auditFocusRing(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 	});
 
@@ -458,7 +469,8 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
 		const userId = await signInAsNewReader(page, `form-placeholder-${stampId}@example.com`);
 		await seedQueuedArticle(page, { userId, stampId });
-		await auditPlaceholder(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save" });
+		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+		await auditPlaceholder(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", opener: ADD_LINK });
 		await auditPlaceholder(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 		await auditPlaceholder(page, { path: "/import", selector: FROM_URL_FIELD, view: "import/from-url" });
 	});

@@ -17,8 +17,10 @@ import {
 import type { Request } from "express";
 import { z } from "zod";
 
+export const SAVE_FAILED_MESSAGE = "Couldn't save this article. Try again.";
+
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
-	save_failed: "Couldn't save this article. Try again.",
+	save_failed: SAVE_FAILED_MESSAGE,
 };
 
 const SAVEABLE_URL_REJECTION_COPY: Record<

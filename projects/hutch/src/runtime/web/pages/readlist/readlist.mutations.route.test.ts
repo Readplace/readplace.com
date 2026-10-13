@@ -61,7 +61,7 @@ describe("Readlist routes", () => {
 			]);
 		});
 
-		describe("invalid URLs redirect so htmx swaps the error pill in (canary-historical inputs)", () => {
+		describe("invalid URLs redirect to an error the page shows (canary-historical inputs)", () => {
 			const cases: Array<{ url: string; code: SaveableUrlErrorCode; message: string }> = [
 				{ url: "not-a-url", code: "malformed_url", message: "Enter a valid article link." },
 				{ url: "chrome://extensions/", code: "unsupported_scheme", message: "Only http:// and https:// links are supported." },
@@ -90,10 +90,10 @@ describe("Readlist routes", () => {
 
 					const landing = await agent.get(response.headers.location);
 					expect(landing.status).toBe(200);
-					const pill = new JSDOM(landing.text).window.document.querySelector("[data-test-save-error]");
-					assert.ok(pill, "the page the redirect lands on must render the error pill");
-					expect(pill.textContent).toBe(message);
-					expect(pill.getAttribute("data-test-saveable-url-code")).toBe(code);
+					const feedback = new JSDOM(landing.text).window.document.querySelector("[data-test-save-error]");
+					assert.ok(feedback, "the page the redirect lands on must show the error");
+					expect(feedback.querySelector("[data-test-alert-message]")?.textContent).toBe(message);
+					expect(feedback.getAttribute("data-test-saveable-url-code")).toBe(code);
 
 					const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
 					assert.ok(userId);
@@ -129,9 +129,87 @@ describe("Readlist routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const error = doc.querySelector("[data-test-save-error]");
+			const error = doc.querySelector("[data-test-save-error] [data-test-alert-message]");
 			assert(error, "the failed save must render its error message");
 			expect(error.textContent).toBe("Couldn't save this article. Try again.");
+		});
+
+		describe("from the Add link dialog", () => {
+			function dialogPost(agent: Awaited<ReturnType<typeof loginAgent>>, url: string) {
+				return agent
+					.post("/queue/save?utm_source=queue&utm_content=save")
+					.set("HX-Request", "true")
+					.type("form")
+					.send({ url });
+			}
+
+			function refusedForm(html: string): HTMLFormElement {
+				const doc = new JSDOM(html).window.document;
+				const form = doc.querySelector<HTMLFormElement>("body > form#add-link-form");
+				assert(form, "a refusal answers with the dialog's form alone");
+				return form;
+			}
+
+			it("sends the dialog to the listing's newest row once the link is saved", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const agent = await loginAgent(harness.server, harness.auth);
+
+				const response = await dialogPost(agent, "https://example.com/from-dialog");
+
+				expect(response.status).toBe(204);
+				expect(response.headers["x-readplace-save-attempt-id"]).toEqual(expect.any(String));
+				expect(JSON.parse(response.headers["hx-location"])).toEqual({
+					path: "/queue",
+					source: "#add-link",
+					target: "main",
+					select: "main",
+					swap: "outerHTML show:#latest-saved:top",
+				});
+				const listing = new JSDOM((await agent.get("/queue")).text).window.document;
+				expect(listing.querySelector("#latest-saved")?.getAttribute("data-test-article")).toEqual(expect.any(String));
+			});
+
+			it("answers a refused link with the form, keeping what was typed and naming the reason under the field", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const agent = await loginAgent(harness.server, harness.auth);
+
+				const response = await dialogPost(agent, "chrome://extensions/");
+
+				expect(response.status).toBe(422);
+				expect(response.headers["hx-location"]).toBeUndefined();
+				const form = refusedForm(response.text);
+				expect(form.getAttribute("action")).toBe("/queue/save?utm_source=queue&utm_content=save");
+				expect(form.getAttribute("data-save-tip")).toBe("seen");
+				const input = form.querySelector<HTMLInputElement>('input[name="url"]');
+				assert(input, "the refused form keeps its link field");
+				expect(input.value).toBe("chrome://extensions/");
+				expect(input.getAttribute("aria-invalid")).toBe("true");
+				expect(input.hasAttribute("autofocus")).toBe(true);
+				const error = form.querySelector("[data-test-save-error]");
+				assert(error, "the refused form names its reason");
+				expect(input.getAttribute("aria-describedby")).toBe(error.id);
+				expect(error.getAttribute("role")).toBe("alert");
+				expect(error.textContent).toBe("Only http:// and https:// links are supported.");
+				expect(error.getAttribute("data-test-saveable-url-code")).toBe("unsupported_scheme");
+			});
+
+			it("answers a failed save with the form and the failure under the field", async () => {
+				const harness = useApp({
+					...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+					freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
+				});
+				const agent = await loginAgent(harness.server, harness.auth);
+
+				const response = await dialogPost(agent, "https://example.com/boom");
+
+				expect(response.status).toBe(422);
+				const form = refusedForm(response.text);
+				expect(form.querySelector<HTMLInputElement>('input[name="url"]')?.value).toBe("https://example.com/boom");
+				const error = form.querySelector("[data-test-save-error]");
+				assert(error, "the failed save names its failure");
+				expect(error.textContent).toBe("Couldn't save this article. Try again.");
+				expect(error.hasAttribute("data-test-saveable-url-code")).toBe(false);
+			});
 		});
 
 		it("does NOT re-prime via /queue/save when refreshArticleIfStale returns 'skip' for a previously-failed crawl (auto-heal removed; operator owns recovery)", async () => {

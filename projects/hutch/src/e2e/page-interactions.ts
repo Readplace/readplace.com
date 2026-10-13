@@ -94,6 +94,19 @@ export async function deleteArticleWithConfirmation(page: Page, trigger: Locator
 	await expect(page.locator(`[id="${popoverId}"]`)).toHaveCount(0, { timeout: 15000 })
 }
 
+export async function openAddLink(page: Page): Promise<Locator> {
+	await page.click('[data-test-action="add-link"]', { timeout: 15000 })
+	await page.waitForSelector('#add-link:popover-open')
+	return page.locator('#add-link [data-test-form="save-article"]')
+}
+
+export async function saveWithAddLink(page: Page, url: string): Promise<void> {
+	const form = await openAddLink(page)
+	await form.locator('input[name="url"]').fill(url)
+	await clickAndWaitForPageReload(page, form.locator('button[type="submit"]'))
+	await expect(page.locator('#add-link:popover-open')).toHaveCount(0, { timeout: 15000 })
+}
+
 export async function openReadlistSwitcher(page: Page): Promise<void> {
 	await page.click('[data-test-action="readlist-switcher"]')
 	await expect(page.locator('[data-test-readlist-switcher]')).toHaveAttribute('open', '')

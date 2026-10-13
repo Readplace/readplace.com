@@ -225,11 +225,12 @@ import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, MoveFlash, StatusFlash } from "./readlist.error";
-import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
+import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, SAVE_FAILED_MESSAGE, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
 import { READLIST_CREATE_POPOVER_ID, renderReadlistCreateForm } from "./readlist-create.component";
+import { ADD_LINK_POPOVER_ID, type AddLinkFormError, renderAddLinkForm } from "./readlist-add-link.component";
 import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-rename.component";
 import { moveCreatePopoverId, renderMoveCreateForm } from "./readlist-card/move-dialog.component";
-import type { HxLocationScroll } from "../../hx-location";
+import { type HxLocationScroll, hxLocationToMain } from "../../hx-location";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
@@ -1883,7 +1884,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const saveError = saveErrorCode
 			? saveFormRejectionMessage(saveErrorCode)
 			: deps.httpErrorMessageMapping(req.query);
-		if (saveError) res.set("HX-Reswap", "outerHTML show:none");
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
 		const moveFlash = moveFlashMapping(req.query, context.readlists);
@@ -2537,10 +2537,39 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateNewSaveUrl(submittedUrl);
 		const saveState = parseReadlistUrl({});
+		const fromDialog = req.get("HX-Request") === "true";
+		const land = (path: string, scroll: HxLocationScroll): void => {
+			if (!fromDialog) {
+				res.redirect(303, scroll === "latest-saved" ? `${path}#latest-saved` : path);
+				return;
+			}
+			res.set("HX-Location", hxLocationToMain({ path, source: `#${ADD_LINK_POPOVER_ID}`, scroll }));
+			res.status(204).end();
+		};
+		const refuse = (error: AddLinkFormError, errorCode: string): void => {
+			if (!fromDialog) {
+				res.redirect(303, buildReadlistUrl(saveState, [["error_code", errorCode]]));
+				return;
+			}
+			res.status(422).type("html").send(
+				renderAddLinkForm({
+					action: req.originalUrl,
+					value: submittedUrl,
+					error,
+					saveTipState: "seen",
+					accessIsReadOnly: false,
+					autoSubmit: false,
+					autofocus: true,
+				}),
+			);
+		};
 
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, buildReadlistUrl(saveState, [["error_code", validation.error.code]]));
+			refuse(
+				{ message: saveFormRejectionMessage(validation.error.code), code: validation.error.code },
+				validation.error.code,
+			);
 			return;
 		}
 
@@ -2551,7 +2580,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, saveAttemptId });
 				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
 				res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
-				res.redirect(303, buildReadlistUrl(saveState, [["queue_error", READLIST_NOTICE_SAVE_QUEUED]]));
+				land(buildReadlistUrl(saveState, [["queue_error", READLIST_NOTICE_SAVE_QUEUED]]), "top");
 				return;
 			}
 			await saveArticleAtReadlistTop({
@@ -2563,11 +2592,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
 			res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
-			res.redirect(303, `${buildReadlistUrl(saveState)}#latest-saved`);
+			land(buildReadlistUrl(saveState), "latest-saved");
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, buildReadlistUrl(saveState, [["error_code", "save_failed"]]));
+			refuse({ message: SAVE_FAILED_MESSAGE }, "save_failed");
 		}
 	});
 

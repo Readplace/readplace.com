@@ -245,7 +245,6 @@ describe("Readlist routes", () => {
 					targets: el.getAttribute("hx-indicator"),
 				}));
 				expect(carriers).toEqual([
-					{ surface: "save-article", targets: "closest form, .readlist-save-skeleton" },
 					{
 						surface: "Article filters",
 						targets:
@@ -256,6 +255,7 @@ describe("Readlist routes", () => {
 					{ surface: "readlist-filters-clear", targets: ".readlist-listing" },
 					{ surface: "readlist-filters", targets: "closest form, .readlist-listing" },
 					{ surface: "readlist-filters-clear", targets: ".readlist-listing" },
+					{ surface: "save-article", targets: "closest form, .readlist-save-skeleton" },
 				]);
 			}
 		});
@@ -314,6 +314,23 @@ describe("Readlist routes", () => {
 			expect(form?.hasAttribute("data-auto-submit")).toBe(true);
 			const input = form?.querySelector('input[name="url"]');
 			expect(input?.getAttribute("value")).toBe("https://example.com/article");
+		});
+
+		it("renders the pending link as one visible form outside any dialog, saveable with its own button", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/queue?url=https%3A%2F%2Fexample.com%2Farticle");
+
+			const doc = new JSDOM(response.text).window.document;
+			const forms = Array.from(doc.querySelectorAll('form input[name="url"]'), (input) => input.closest("form"));
+			expect(forms).toHaveLength(1);
+			const pending = forms[0]?.closest("#add-link");
+			assert(pending, "the pending form must sit in the Add link section the dialog's answers return to");
+			expect(pending.hasAttribute("popover")).toBe(false);
+			expect(pending.parentElement?.className).toBe("readlist__lead");
+			expect(doc.querySelectorAll('[data-test-action="add-link"]')).toHaveLength(0);
+			expect(forms[0]?.querySelector('button[type="submit"]')?.hasAttribute("disabled")).toBe(false);
 		});
 
 		it("should include auto-submit script", async () => {

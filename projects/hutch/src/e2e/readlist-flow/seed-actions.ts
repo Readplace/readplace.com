@@ -3,7 +3,7 @@ import { expect } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { SeedActionKey } from './action-catalog'
 import { SEED_ARTICLE_COUNT } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload } from '../page-interactions'
+import { isOnPage, saveWithAddLink } from '../page-interactions'
 import type { AuthProgress } from './auth-actions'
 
 export type SeedProgress = {
@@ -30,14 +30,8 @@ export function createSeedActions(
 				return isOnPage(page, 'page-readlist')
 			},
 			execute: async (page) => {
-				const form = page.locator('[data-test-form="save-article"]')
-				await expect(form).toHaveAttribute('data-save-tip', 'seen')
-				const input = form.locator('input[name="url"]')
-				await input.fill(seedUrls[i])
-				await clickAndWaitForPageReload(
-					page,
-					page.locator('[data-test-form="save-article"] button[type="submit"]'),
-				)
+				await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute('data-save-tip', 'seen')
+				await saveWithAddLink(page, seedUrls[i])
 				articlesSeeded = i + 1
 				if (articlesSeeded === seedUrls.length) {
 					seedProgress.articlesSeeded = true

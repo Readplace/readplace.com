@@ -50,7 +50,7 @@ import {
 	renderReadlistSaveSkeleton,
 	toReadlistSaveSkeletonDisplayModel,
 } from "./readlist-save-skeleton.component";
-import { renderReadlistSave, toReadlistSaveDisplayModel } from "./readlist-save.component";
+import { NO_ADD_LINK, renderReadlistAddLink, renderReadlistSaveFeedback } from "./readlist-add-link.component";
 import { READER_PAGE_SCRIPTS, renderReaderSkeleton } from "./reader-skeleton/reader-skeleton.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
 import { DEFAULT_READLIST } from "./readlist.nav";
@@ -172,17 +172,17 @@ interface DeviceClient {
 const NOTHING_SAVED_TITLE = "Nothing saved yet";
 
 const EXTENSION_INVITE_TEXT =
-	"Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.";
+	"Save your first article with Add link, or use the Readplace browser extension to save it in one click.";
 
 const NOTHING_SAVED_INVITES: Record<PitchablePlatform, { text: string; label: string }> = {
 	chrome: { text: EXTENSION_INVITE_TEXT, label: "Install Chrome extension" },
 	firefox: { text: EXTENSION_INVITE_TEXT, label: "Install Firefox extension" },
 	iphone: {
-		text: "Save your first article by pasting a link above, or use the Readplace iPhone app to save it from the share sheet.",
+		text: "Save your first article with Add link, or use the Readplace iPhone app to save it from the share sheet.",
 		label: "Install iPhone app",
 	},
 	other: {
-		text: `Save your first article by pasting a link above, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
+		text: `Save your first article with Add link, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
 		label: "Set up one-tap saving",
 	},
 };
@@ -430,6 +430,15 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		client: installClientOf(options.onboarding.context),
 	});
 
+	const addLink = isDefaultReadlist
+		? renderReadlistAddLink({
+				filters,
+				accessIsReadOnly: vm.accessIsReadOnly,
+				saveTip: options.saveTip,
+				saveUrl: options.saveUrl,
+			})
+		: NO_ADD_LINK;
+
 	const content = render(TEMPLATE, {
 		readlistNavHtml: renderReadlistNav(
 			buildReadlistNav({
@@ -454,20 +463,15 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 						},
 		}),
 		statusToastHtml: flashToastHtml(vm),
-		saveCardHtml: isDefaultReadlist
-			? renderReadlistSave(
-					toReadlistSaveDisplayModel({
-						filters,
-						accessIsReadOnly: vm.accessIsReadOnly,
-						saveTipState: options.saveTip.state,
-						errors: vm.errors,
-						saveErrorCode: vm.saveErrorCode,
-						importFlash: vm.importFlash,
-						importSkipped: vm.importSkipped,
-						saveUrl: options.saveUrl,
-					}),
-				)
-			: "",
+		saveFeedbackHtml: renderReadlistSaveFeedback({
+			errors: vm.errors,
+			saveErrorCode: vm.saveErrorCode,
+			importFlash: vm.importFlash,
+			importSkipped: vm.importSkipped,
+		}),
+		addLinkPendingHtml: addLink.pendingHtml,
+		addLinkControlHtml: addLink.controlHtml,
+		addLinkDialogHtml: addLink.dialogHtml,
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: filters.tab,
@@ -561,7 +565,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			.join("\n"),
 		subscribePlansHtml: side.subscribePlansHtml,
 		filtersDrawerHtml: renderReadlistFiltersDrawer(discovery),
-		saveTipHtml: isDefaultReadlist ? options.saveTip.html : "",
 		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
 	});
 

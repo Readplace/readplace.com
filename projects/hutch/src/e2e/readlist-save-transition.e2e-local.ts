@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { openAddLink } from "./page-interactions";
 import { captureTransitionFrames } from "./transition-frames";
 
 const BASE_URL = `http://localhost:${requireEnv("E2E_PORT")}`;
@@ -10,7 +11,6 @@ const VIEWPORT = { width: 1280, height: 900 };
 const SETTLE_MS = 45000;
 
 async function signUpFreshUser(page: Page, email: string): Promise<void> {
-	// Focusing the save bar opens the save tip, which would land in the frames.
 	await page
 		.context()
 		.addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
@@ -30,10 +30,9 @@ test.describe("Saving on the readlist leaves a reviewable transition frame trail
 	test("the save transition is captured while the article lands", async ({ page }, testInfo) => {
 		const run = `${testInfo.workerIndex}-${Date.now()}`;
 		await signUpFreshUser(page, `readlist-save-transition-${run}@example.com`);
-		await page
-			.locator('[data-test-form="save-article"] input[name="url"]')
-			.fill(`${BASE_URL}/privacy?t=${run}`);
-		await page.locator('[data-test-form="save-article"] button[type="submit"]').click();
+		const form = await openAddLink(page);
+		await form.locator('input[name="url"]').fill(`${BASE_URL}/privacy?t=${run}`);
+		await form.locator('button[type="submit"]').click();
 		await captureTransitionFrames({ page, flow: "readlist-save" });
 		await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
 	});

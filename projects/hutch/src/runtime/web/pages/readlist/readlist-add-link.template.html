@@ -1,0 +1,11 @@
+<div class="readlist-add-link" data-test-add-link>
+              <button class="btn btn--neutral btn--s readlist-add-link__trigger" type="button" popovertarget="add-link" aria-haspopup="dialog" data-test-action="add-link">{{icon "plus"}}<span>Add link</span></button>
+              <details class="readlist-add-link__fallback" data-test-add-link-fallback>
+                <summary class="btn btn--neutral btn--s readlist-add-link__summary">{{icon "plus"}}<span>Add link</span></summary>
+                <form class="readlist-add-link__fallback-form" method="POST" action="{{action}}" hx-boost="false" data-test-form="save-article-fallback">
+                  <label class="form-field__label" for="add-link-fallback-url">Article link</label>
+                  <input class="form-input" id="add-link-fallback-url" type="url" name="url" placeholder="https://" required autocomplete="off"{{#if accessIsReadOnly}} disabled{{/if}}>
+                  <button class="btn btn--primary" type="submit" data-test-action="add-link-fallback-save"{{#if accessIsReadOnly}} disabled{{/if}}>Save</button>
+                </form>
+              </details>
+            </div>
