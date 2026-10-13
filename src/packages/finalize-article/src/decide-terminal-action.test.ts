@@ -6,7 +6,7 @@ describe("decideTerminalAction", () => {
 		assert.equal(decideTerminalAction(undefined), "refresh-eligible");
 	});
 
-	it("treats pending crawl as refresh-eligible (in-flight; TTL gate decides)", () => {
+	it("treats pending crawl as refresh-eligible", () => {
 		assert.equal(
 			decideTerminalAction({ status: "pending" }),
 			"refresh-eligible",

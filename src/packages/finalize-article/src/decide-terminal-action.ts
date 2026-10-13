@@ -1,11 +1,5 @@
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 
-/**
- * The stale-check has three possible decisions when a row exists. Encoded as
- * a typed action so a new ArticleCrawl variant breaks the build here — the
- * single owner of "should the stale-check reprime this row?". Operator-only
- * recovery (via /admin/recrawl) is encoded as "skip" on terminal states.
- */
 type TerminalAction = "refresh-eligible" | "skip";
 
 const TERMINAL_ACTIONS = {
