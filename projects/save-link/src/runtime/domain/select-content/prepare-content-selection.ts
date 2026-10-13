@@ -32,6 +32,7 @@ export interface PreparedContentSelection {
 }
 
 const KIND_BY_TIER: Record<Tier, CandidateProvenance["kind"]> = { "tier-0": "extension", "tier-1": "live", "tier-2": "wrapper" };
+const EMPTY_TEXT_HASH = computeCanonicalContentHash("");
 
 function candidateIsReadable(source: VerifiedTierSource): boolean {
 	return source.html.trim().length > 0 && (source.metadata.wordCount > 0 || /<(?:img|video|audio|iframe)\b/i.test(source.html));
@@ -120,7 +121,8 @@ export function initPrepareContentSelection(deps: {
 			}
 		}
 		const previous = sources.find((source) => source.metadata.id === (canonical?.id ?? legacyCanonicalId) && candidateIsReadable(source));
-		const isFirstContent = article.freshness.canonicalContentHash === undefined;
+		const isFirstContent = article.freshness.canonicalContentHash === undefined ||
+			(article.freshness.canonicalContentHash === EMPTY_TEXT_HASH && previous === undefined);
 		const firstCapture = firstCaptureOf({ isFirstContent, sources });
 		const proseUnchanged = previous !== undefined && sources.length > 1 &&
 			sources.every((source) => computeCanonicalContentHash(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));

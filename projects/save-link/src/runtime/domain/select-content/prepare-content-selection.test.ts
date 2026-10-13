@@ -225,6 +225,138 @@ describe("initPrepareContentSelection", () => {
 		expect(result.ownCaptureFailed).toBe(false);
 	});
 
+	describe("an article whose committed canonical holds nothing readable", () => {
+		const blankCanonical = () => article({
+			contentSelection: { revision: 2, tier: "tier-1", candidateId: cid("blank-canonical") },
+			freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash("") },
+		});
+		const blankCanonicalSource = () => {
+			const blank = source("tier-1", "blank-canonical", { html: "", evaluationHtml: "<html><head><title></title></head><body></body></html>" });
+			blank.metadata.wordCount = 0;
+			blank.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+			return blank;
+		};
+
+		it("serves the reader's lone capture as the article's first content without consulting the judge", async () => {
+			const capture = source("tier-0", "capture");
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+			const { prepare } = setup({ loadArticle: async () => blankCanonical(), listAvailableTierSources: async () => [capture], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result.selected?.metadata.id).toBe("capture");
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "first-capture" });
+		});
+
+		it("selects the reader's fresh capture over a none verdict", async () => {
+			const capture = source("tier-0", "capture");
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+				.mockResolvedValue({ kind: "none", reason: "Both are error pages" });
+			const { prepare } = setup({ loadArticle: async () => blankCanonical(), listAvailableTierSources: async () => [capture, notFoundLive()], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }, { tier: "tier-1", id: cid("not-found") }] });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selected?.metadata.id).toBe("capture");
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "own-capture-over-verdict" });
+		});
+
+		it("selects the reader's fresh capture over a none verdict when the blank canonical is still listed beside it", async () => {
+			const capture = source("tier-0", "capture");
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+				.mockResolvedValue({ kind: "none", reason: "Neither page carries an article" });
+			const { prepare } = setup({ loadArticle: async () => blankCanonical(), listAvailableTierSources: async () => [blankCanonicalSource(), capture], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(select.mock.calls[0]?.[0].candidates.map((candidate) => candidate.id)).toEqual([cid("blank-canonical"), cid("capture")]);
+			expect(result.selected?.metadata.id).toBe("capture");
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "own-capture-over-verdict" });
+		});
+
+		it("selects the reader's fresh capture over a none verdict on a legacy row whose stored body is the blank canonical", async () => {
+			const capture = source("tier-0", "capture");
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+				.mockResolvedValue({ kind: "none", reason: "Neither page carries an article" });
+			const { prepare } = setup({
+				loadArticle: async () => article({ contentSelection: { tier: "tier-1" }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash("") } }),
+				readCanonicalContent: async () => ({ content: "" }),
+				listAvailableTierSources: async () => [capture],
+				selectMostCompleteContent: select,
+			});
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(select.mock.calls[0]?.[0].candidates.map((candidate) => candidate.html)).toEqual(["<p>Complete article</p>", ""]);
+			expect(result.selected?.metadata.id).toBe("capture");
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "own-capture-over-verdict" });
+		});
+
+		it("serves the reader's lone capture as first content on a legacy row whose blank stored capture is withheld", async () => {
+			const capture = source("tier-0", "capture");
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+			const { prepare } = setup({
+				loadArticle: async () => article({ contentSelection: { tier: "tier-0" }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash("") } }),
+				readCanonicalContent: async () => ({ content: "" }),
+				listAvailableTierSources: async () => [capture],
+				selectMostCompleteContent: select,
+			});
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result.selected?.metadata.id).toBe("capture");
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "first-capture", legacyCanonicalWithheld: true });
+		});
+	});
+
+	describe("an article whose committed canonical is media-only, so its text hashes like a blank one", () => {
+		const mediaOnly = '<figure><img src="https://cdn.example/a.jpg"></figure>';
+		const mediaOnlyCanonical = (params: { tier: "tier-0" | "tier-1"; id: string }) => {
+			const canonical = source(params.tier, params.id, { html: mediaOnly });
+			canonical.metadata.wordCount = 0;
+			canonical.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+			return canonical;
+		};
+		const holding = (canonical: VerifiedTierSource) => article({
+			contentSelection: { revision: 2, tier: canonical.tier, candidateId: canonical.metadata.id },
+			freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(mediaOnly) },
+		});
+
+		it("hashes like a blank canonical", () => {
+			expect(computeCanonicalContentHash(mediaOnly)).toBe(computeCanonicalContentHash(""));
+		});
+
+		it("still judges the reader's capture against the canonical", async () => {
+			const canonical = mediaOnlyCanonical({ tier: "tier-1", id: "photo-essay" });
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+				.mockResolvedValue({ kind: "winner", candidateId: cid("photo-essay"), reason: "The photo essay is the article" });
+			const { prepare } = setup({ loadArticle: async () => holding(canonical), listAvailableTierSources: async () => [canonical, source("tier-0", "capture")], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: cid("capture") }] });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selected?.metadata.id).toBe("photo-essay");
+			expect(result).toMatchObject({ outcome: "retained", selectionRule: "judge" });
+		});
+
+		it("still judges a lone media-only canonical from an earlier save instead of re-serving it as first content", async () => {
+			const canonical = mediaOnlyCanonical({ tier: "tier-0", id: "photo-capture" });
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+				.mockResolvedValue({ kind: "winner", candidateId: cid("photo-capture"), reason: "The photo is the article" });
+			const { prepare } = setup({ loadArticle: async () => holding(canonical), listAvailableTierSources: async () => [canonical], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selected?.metadata.id).toBe("photo-capture");
+			expect(result).toMatchObject({ outcome: "retained", selectionRule: "judge" });
+		});
+	});
+
 	it.each([
 		{ label: "a live-only bot check", sources: () => [source("tier-1", "bot-check", { html: "<p>Verify you are human</p>" })], loaded: article() },
 		{ label: "a blank capture", sources: () => [blankCapture(), notFoundLive()], loaded: article() },

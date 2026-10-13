@@ -45,7 +45,7 @@ Content selection enforces this with two rules (grep the save-link select-conten
 
 **Tapped, not automatic:** both rules trust a capture because the reader chose it. A capture a client took without the reader's tap carries `captureTrigger: automatic` on its tier-0 manifest. Nobody chose it, so it competes like a crawl copy: neither rule applies, a `none` verdict fails it, and it never raises `ownCaptureFailed`. A manifest whose `captureTrigger` is `manual` or absent holds a tapped capture.
 
-**Boundary:** once an article holds committed content, a capture is still judged, so a co-saver's unreadable capture cannot replace a readable canonical. A tapped capture may end `no-readable` only when the deterministic readability check rejects it (a blank body, or no words and no media) or when it falls outside the boundary above.
+**Boundary:** once an article holds committed content, a capture is still judged, so a co-saver's unreadable capture cannot replace a readable canonical. A committed body with no words and no media is not committed content, so both rules apply as on a first save: 166 rows held one on 2026-10-13, left by the lone-source shortcut that selection dropped on 2026-10-07. A tapped capture may end `no-readable` only when the deterministic readability check rejects it (a blank body, or no words and no media) or when it falls outside the boundary above.
 
 **Guards:**
 - An invariant test in the select-content module runs every tier-0 producer against every judge outcome. The test file is named for this rule.
