@@ -139,6 +139,8 @@ import type {
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	MarkSessionEmailVerified,
+	SetSessionReadlistFilter,
+	FindSessionReadlistFilter,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
@@ -247,6 +249,8 @@ export interface AuthBundle {
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
+	setSessionReadlistFilter: SetSessionReadlistFilter;
+	findSessionReadlistFilter: FindSessionReadlistFilter;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;

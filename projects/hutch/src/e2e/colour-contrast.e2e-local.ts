@@ -295,6 +295,13 @@ async function auditReadlistDiscovery(page: Page, where: { theme: string }): Pro
 
 	await page.keyboard.press("Escape");
 	await expect(openDrawer).toBeHidden({ timeout: SETTLE_MS });
+	await auditRoot(page, { root: READLIST_ROOT, theme: where.theme, view: "filter-active" });
+
+	await page.goto(`${BASE_URL}/queue?saved=older`, { waitUntil: "domcontentloaded" });
+	await expect(page.locator("[data-test-empty-readlist] .readlist-empty__filter")).toHaveText(["Older"], {
+		timeout: SETTLE_MS,
+	});
+	await auditRoot(page, { root: READLIST_ROOT, theme: where.theme, view: "filter-no-results" });
 }
 
 async function auditAnnouncementBars(

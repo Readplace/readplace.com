@@ -4,7 +4,13 @@ import { READ_TIME_BUCKETS, SAVED_WINDOWS } from "@packages/domain/article";
 import { render, renderInFlightDots, withInternalTracking } from "@packages/web-shell";
 
 import { preferencesFeatureParams } from "./readlist-preferences-feature";
-import { READLIST_PATH, buildReadlistUrl, type ReadlistDiscovery, type ReadlistUrlState } from "./readlist.url";
+import {
+	READLIST_PATH,
+	buildReadlistFiltersUrl,
+	buildReadlistUrl,
+	type ReadlistDiscovery,
+	type ReadlistUrlState,
+} from "./readlist.url";
 
 const ROW_TEMPLATE = readFileSync(join(__dirname, "readlist-discovery.template.html"), "utf-8");
 const FILTERS_TEMPLATE = readFileSync(join(__dirname, "readlist-filters.template.html"), "utf-8");
@@ -60,8 +66,8 @@ export interface ReadlistDiscoveryDisplayModel {
 	filterLabel: string;
 	filterStateClass: string;
 	groups: DiscoveryGroup[];
-	drawerFields: HiddenField[];
-	clearAllHref: string;
+	applyAction: string;
+	clearAllAction: string;
 }
 
 export function tickedFacetCount(discovery: ReadlistDiscovery): number {
@@ -81,7 +87,7 @@ export function buildReadlistDiscovery(input: {
 	const place = { readlist: input.filters.readlist, tab: input.filters.tab, order: input.filters.order };
 	const featureParams = preferencesFeatureParams(input.preferencesEnabled);
 	const searchUrl = buildReadlistUrl({ ...place, discovery: { ...discovery, q: undefined } }, featureParams);
-	const drawerUrl = buildReadlistUrl({ ...place, discovery: { ...NO_DISCOVERY, q: discovery.q } }, featureParams);
+	const filtersUrl = buildReadlistFiltersUrl({ ...place, discovery: { ...NO_DISCOVERY, q: discovery.q } }, featureParams);
 	const ticked = tickedFacetCount(discovery);
 	return {
 		stateClass: input.tabHoldsRows ? ROW_STATE_CLASSES.visible : ROW_STATE_CLASSES.hidden,
@@ -110,8 +116,8 @@ export function buildReadlistDiscovery(input: {
 				})),
 			},
 		],
-		drawerFields: hiddenFieldsOf(withInternalTracking(drawerUrl, { source: "queue-filter-drawer", content: "apply" })),
-		clearAllHref: withInternalTracking(drawerUrl, { source: "queue-filter-drawer", content: "clear-all" }),
+		applyAction: withInternalTracking(filtersUrl, { source: "queue-filter-drawer", content: "apply" }),
+		clearAllAction: withInternalTracking(filtersUrl, { source: "queue-filter-drawer", content: "clear-all" }),
 	};
 }
 

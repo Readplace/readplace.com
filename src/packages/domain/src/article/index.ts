@@ -108,11 +108,14 @@ export {
 } from "./next-read-minimum";
 export {
 	READ_TIME_BUCKETS,
+	ReadlistFilterSchema,
 	SAVED_WINDOWS,
 	discoveryCandidateOf,
 	matchesArticleDiscovery,
+	readlistFilterOf,
 	resolveArticleDiscovery,
 	type ArticleDiscoveryQuery,
+	type ReadlistFilter,
 	type ReadTimeBucketId,
 	type SavedWindowId,
 } from "./article-discovery";

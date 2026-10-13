@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
+import type { ReadlistFilter } from "@packages/domain/article";
 import type { AppearancePreference, UserId } from "@packages/domain/user";
 import {
 	UserIdSchema,
@@ -19,6 +20,7 @@ import type {
 	DestroyUserSessions,
 	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
+	FindSessionReadlistFilter,
 	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
@@ -29,6 +31,7 @@ import type {
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
+	SetSessionReadlistFilter,
 	SetUserAppearance,
 	UpdatePassword,
 	UserAcquisitionAttribution,
@@ -54,6 +57,7 @@ interface StoredSession {
 	userId: UserId;
 	emailVerified: boolean;
 	expiresAt: number;
+	readlistFilter?: ReadlistFilter;
 }
 
 function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | undefined {
@@ -83,6 +87,8 @@ export function initInMemoryAuth(opts: {
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
+	setSessionReadlistFilter: SetSessionReadlistFilter;
+	findSessionReadlistFilter: FindSessionReadlistFilter;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
@@ -311,6 +317,17 @@ export function initInMemoryAuth(opts: {
 		}
 	};
 
+	const setSessionReadlistFilter: SetSessionReadlistFilter = async ({ sessionId, filter }) => {
+		const session = liveSession(sessionId);
+		if (session) {
+			session.readlistFilter =
+				filter.time.length === 0 && filter.saved.length === 0 ? undefined : filter;
+		}
+	};
+
+	const findSessionReadlistFilter: FindSessionReadlistFilter = async (sessionId) =>
+		liveSession(sessionId)?.readlistFilter;
+
 	const userExistsByEmail: UserExistsByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
 		return users.has(normalizedEmail);
@@ -410,6 +427,8 @@ export function initInMemoryAuth(opts: {
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,
+		setSessionReadlistFilter,
+		findSessionReadlistFilter,
 		userExistsByEmail,
 		updatePassword,
 		findEmailByUserId,

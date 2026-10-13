@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+	ReadlistFilterSchema,
 	discoveryCandidateOf,
 	matchesArticleDiscovery,
 	resolveArticleDiscovery,
@@ -154,5 +155,16 @@ describe("discoveryCandidateOf", () => {
 		);
 
 		assert.equal(candidate.destinationHost, "www.example.com");
+	});
+});
+
+describe("ReadlistFilterSchema", () => {
+	it("keeps only known chip ids, in the order the drawer lists them", () => {
+		const filter = ReadlistFilterSchema.parse({
+			time: ["20-plus", "unknown", "under-5"],
+			saved: ["older", "today", "today"],
+		});
+
+		assert.deepEqual(filter, { time: ["under-5", "20-plus"], saved: ["today", "older"] });
 	});
 });

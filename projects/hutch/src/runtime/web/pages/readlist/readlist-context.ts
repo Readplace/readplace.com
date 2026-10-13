@@ -3,8 +3,11 @@ import {
 	readerReadlists,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
+import type { ReadlistFilter } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
+import type { FindSessionReadlistFilter } from "@packages/provider-contracts/auth";
+import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 
@@ -31,12 +34,38 @@ export function mainlineReadlistContext(query: Record<string, unknown>): Readlis
 	};
 }
 
+interface ReadlistRequest {
+	query: Record<string, unknown>;
+	headers: { cookie?: string; authorization?: string };
+}
+
+export function sessionIdOf(req: ReadlistRequest): string | undefined {
+	if (req.headers.authorization !== undefined) return undefined;
+	return readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
+}
+
+function withRememberedFilter(state: ReadlistUrlState, remembered: ReadlistFilter | undefined): ReadlistUrlState {
+	if (remembered === undefined) return state;
+	const urlTicksChips = state.discovery !== undefined && state.discovery.time.length + state.discovery.saved.length > 0;
+	if (urlTicksChips) return state;
+	return { ...state, discovery: { q: state.discovery?.q, ...remembered } };
+}
+
 export function initResolveReadlistContext(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
-}): (req: { query: Record<string, unknown> }, userId: UserId) => Promise<ReadlistContext> {
+	findSessionReadlistFilter: FindSessionReadlistFilter;
+}): (req: ReadlistRequest, userId: UserId) => Promise<ReadlistContext> {
+	const rememberedFilterOf = async (req: ReadlistRequest): Promise<ReadlistFilter | undefined> => {
+		const sessionId = sessionIdOf(req);
+		return sessionId === undefined ? undefined : deps.findSessionReadlistFilter(sessionId);
+	};
 	return async (req, userId) => {
-		const readlists = readerReadlists(await deps.listReadlistDefinitions(userId));
-		const requested = parseReadlistUrl(req.query);
+		const [definitions, remembered] = await Promise.all([
+			deps.listReadlistDefinitions(userId),
+			rememberedFilterOf(req),
+		]);
+		const readlists = readerReadlists(definitions);
+		const requested = withRememberedFilter(parseReadlistUrl(req.query), remembered);
 		const activeReadlist = readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
 		return {
 			state: { ...requested, readlist: activeReadlist.slug },

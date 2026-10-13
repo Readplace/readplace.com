@@ -89,7 +89,11 @@ import { UPLOAD_COMPLETION_MAX_AGE_SECONDS } from "./upload-slot-ttl";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
 import { initSaveArticlesLimitHandler } from "./save-articles-limit-handler";
 import type { PinContentSource, ReadArticleContent } from "@packages/provider-contracts/article-store";
-import type { FindUserById } from "@packages/provider-contracts/auth";
+import type {
+	FindSessionReadlistFilter,
+	FindUserById,
+	SetSessionReadlistFilter,
+} from "@packages/provider-contracts/auth";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
@@ -179,7 +183,9 @@ import {
 	mainlineReadlistContext,
 	readerReadlists,
 	readlistToFileInto,
+	sessionIdOf,
 } from "./readlist-context";
+import { preferencesFeatureParams, readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import { readlistScopedStore } from "./readlist-scoped-store";
 import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
@@ -497,6 +503,8 @@ interface ReadlistDependencies {
 	secureCookies: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
 	findUserById: FindUserById;
+	setSessionReadlistFilter: SetSessionReadlistFilter;
+	findSessionReadlistFilter: FindSessionReadlistFilter;
 	buildBannerState: BuildBannerState;
 	logError: (message: string, error?: Error) => void;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
@@ -505,7 +513,7 @@ interface ReadlistDependencies {
 	now: () => Date;
 }
 
-import type { ArticleDiscoveryQuery, SavedArticle } from "@packages/domain/article";
+import type { ArticleDiscoveryQuery, ReadlistFilter, SavedArticle } from "@packages/domain/article";
 
 async function loadSummaries(
 	findGeneratedSummaries: FindGeneratedSummaries,
@@ -608,6 +616,8 @@ async function loadPastReads(
 }
 
 const READLIST_PURGE_PAGE_SIZE = 25;
+
+const NO_READLIST_FILTER: ReadlistFilter = { time: [], saved: [] };
 
 const SAVE_ROUTE = {
 	saveArticle: "/",
@@ -756,6 +766,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	const resolveReadlistContext = initResolveReadlistContext({
 		listReadlistDefinitions: deps.listReadlistDefinitions,
+		findSessionReadlistFilter: deps.findSessionReadlistFilter,
 	});
 
 	/** Mutation and redirect handlers read the addressed readlist from the URL alone.
@@ -777,6 +788,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * handler below runs today's code path byte for byte unless a reader addressed
 	 * one of their own readlists. */
 	const storeFor = (readlist: ReadlistSlug) => readlistScopedStore(deps, readlist);
+
+	const rememberReadlistFilter = async (req: Request, filter: ReadlistFilter): Promise<void> => {
+		const sessionId = sessionIdOf(req);
+		if (sessionId === undefined) return;
+		await deps.setSessionReadlistFilter({ sessionId, filter });
+	};
 
 	const storeDiscoveryOf = (state: ReadlistUrlState): ArticleDiscoveryQuery | undefined =>
 		state.discovery === undefined ? undefined : toArticleDiscoveryQuery(state.discovery, deps.now());
@@ -1890,6 +1907,20 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		res.type("html").send(renderReadlistCounts(toReadlistCountsDisplayModel(counts)));
 	});
 
+	router.post("/filters", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const place = parseReadlistUrl(req.query);
+		const filter = parseReadlistUrl(req.body ?? {}).discovery ?? NO_READLIST_FILTER;
+		await rememberReadlistFilter(req, { time: filter.time, saved: filter.saved });
+		res.redirect(
+			303,
+			buildReadlistUrl(
+				{ ...place, discovery: { q: place.discovery?.q, time: filter.time, saved: filter.saved }, page: 1 },
+				preferencesFeatureParams(readlistPreferencesEnabled(req.query)),
+			),
+		);
+	});
+
 	router.post("/dismiss-onboarding", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const hasClient = hasInstallableClient(req);
@@ -2484,6 +2515,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
+		await rememberReadlistFilter(req, NO_READLIST_FILTER);
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateNewSaveUrl(submittedUrl);
 		const saveState = parseReadlistUrl({});

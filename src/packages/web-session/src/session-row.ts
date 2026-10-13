@@ -1,4 +1,5 @@
 import { dynamoField } from "@packages/hutch-storage-client";
+import { ReadlistFilterSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { z } from "zod";
 
@@ -18,4 +19,5 @@ export const SessionRow = z.object({
 	userId: UserIdSchema,
 	expiresAt: z.number(),
 	emailVerified: dynamoField(z.boolean()),
+	readlistFilter: dynamoField(ReadlistFilterSchema),
 });

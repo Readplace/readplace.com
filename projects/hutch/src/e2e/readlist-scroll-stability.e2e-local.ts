@@ -167,6 +167,21 @@ for (const viewport of VIEWPORTS) {
 			});
 		});
 
+		test("applying a filter from the drawer keeps the page where it was", async ({ page }, testInfo) => {
+			await openToReadListing(page, `${testInfo.workerIndex}-${Date.now()}`);
+			const drawer = "[data-test-discovery-drawer]";
+			await page.click('[data-test-action="open-discovery-filters"]');
+			await page.click(`${drawer} [data-test-discovery-option="saved:month"]`);
+			await expectSwapKeepsScroll(page, {
+				scrollTarget: "[data-test-sort]",
+				control: `${drawer} [data-test-action="apply-discovery-filters"]`,
+				arrived: () =>
+					expect(
+						page.locator('[data-test-action="open-discovery-filters"].readlist-discovery__filter--active'),
+					).toBeVisible(),
+			});
+		});
+
 		test("marking a card read keeps the page where it was instead of scrolling to the toast", async ({
 			page,
 		}, testInfo) => {

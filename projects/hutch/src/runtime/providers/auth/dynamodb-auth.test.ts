@@ -671,4 +671,89 @@ describe("initDynamoDbAuth", () => {
 			await expect(auth.renewSession({ sessionId: "sid" })).rejects.toThrow("dynamo unavailable");
 		});
 	});
+
+	describe("setSessionReadlistFilter", () => {
+		it("stores the chips on the session row, only while the row exists", async () => {
+			const { client, commands } = createWriteFakeClient();
+			const auth = initAuth(client);
+
+			await auth.setSessionReadlistFilter({ sessionId: "sid", filter: { time: ["5-10"], saved: ["week"] } });
+
+			expect(commands).toEqual([
+				{
+					name: "UpdateCommand",
+					input: expect.objectContaining({
+						Key: { sessionId: "sid" },
+						UpdateExpression: "SET readlistFilter = :filter",
+						ConditionExpression: "attribute_exists(sessionId)",
+						ExpressionAttributeValues: { ":filter": { time: ["5-10"], saved: ["week"] } },
+					}),
+				},
+			]);
+		});
+
+		it("removes the attribute when no chip is ticked", async () => {
+			const { client, commands } = createWriteFakeClient();
+			const auth = initAuth(client);
+
+			await auth.setSessionReadlistFilter({ sessionId: "sid", filter: { time: [], saved: [] } });
+
+			expect(commands[0]?.input).toMatchObject({
+				UpdateExpression: "REMOVE readlistFilter",
+				ConditionExpression: "attribute_exists(sessionId)",
+			});
+		});
+
+		it("does nothing when the session was already destroyed", async () => {
+			const { client } = createWriteFakeClient({
+				fail: new ConditionalCheckFailedException({ $metadata: {}, message: "condition failed" }),
+			});
+			const auth = initAuth(client);
+
+			await auth.setSessionReadlistFilter({ sessionId: "sid", filter: { time: ["5-10"], saved: [] } });
+		});
+
+		it("rethrows any other write failure", async () => {
+			const { client } = createWriteFakeClient({ fail: new Error("dynamo unavailable") });
+			const auth = initAuth(client);
+
+			await expect(
+				auth.setSessionReadlistFilter({ sessionId: "sid", filter: { time: ["5-10"], saved: [] } }),
+			).rejects.toThrow("dynamo unavailable");
+		});
+	});
+
+	describe("findSessionReadlistFilter", () => {
+		function sessionRowClient(item: Record<string, unknown> | undefined): DynamoDBDocumentClient {
+			const client = {
+				send: (async () => ({ Item: item })) as DynamoDBDocumentClient["send"],
+			};
+			return client as typeof client & DynamoDBDocumentClient;
+		}
+
+		it("reads the chips stored on the session row", async () => {
+			const auth = initAuth(
+				sessionRowClient({
+					sessionId: "sid",
+					userId: "abc123",
+					expiresAt: 1,
+					readlistFilter: { time: ["5-10"], saved: [] },
+				}),
+			);
+
+			expect(await auth.findSessionReadlistFilter("sid")).toEqual({ time: ["5-10"], saved: [] });
+		});
+
+		it("reads no filter from a session row that holds none", async () => {
+			const auth = initAuth(sessionRowClient({ sessionId: "sid", userId: "abc123", expiresAt: 1 }));
+
+			expect(await auth.findSessionReadlistFilter("sid")).toBe(undefined);
+		});
+
+		it("reads no filter for a missing session", async () => {
+			const auth = initAuth(sessionRowClient(undefined));
+
+			expect(await auth.findSessionReadlistFilter("sid")).toBe(undefined);
+		});
+	});
 });

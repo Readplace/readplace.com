@@ -345,7 +345,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(switcher).toHaveJSProperty("open", false);
 	});
 
-	test("the search and the filter drawer work as plain GET forms with no script", async ({ page }, testInfo) => {
+	test("the search and the filter drawer work as plain forms with no script", async ({ page }, testInfo) => {
 		const stamp = `${testInfo.workerIndex}-${Date.now()}-discovery`;
 		const email = `readlist-no-js-${stamp}@example.com`;
 		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
@@ -400,5 +400,21 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		expect(applied.getAll("time")).toEqual(["5-10"]);
 		expect(await listedUrls()).toEqual([articles.longerRead.url]);
 		await expect(drawer).toBeHidden();
+
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator('[data-test-action="open-discovery-filters"]')).toHaveClass(
+			/\breadlist-discovery__filter--active\b/,
+		);
+		expect(await listedUrls()).toEqual([articles.longerRead.url, articles.unrelated.url].sort());
+
+		await page.locator('[data-test-action="open-discovery-filters"]').click();
+		await expect(drawer).toBeVisible();
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			drawer.locator('[data-test-action="clear-discovery-filters"]').click(),
+		]);
+		await expect(page.locator("body.page-readlist")).toBeVisible({ timeout: SETTLE_MS });
+		expect(new URL(page.url()).searchParams.getAll("time")).toEqual([]);
+		expect(await listedUrls()).toEqual(Object.values(articles).map((article) => article.url).sort());
 	});
 });

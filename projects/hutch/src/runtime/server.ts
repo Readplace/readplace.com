@@ -27,6 +27,8 @@ import type {
 	RenewSession,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
+	FindSessionReadlistFilter,
+	SetSessionReadlistFilter,
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
 	SetUserAppearance,
@@ -353,6 +355,8 @@ interface AppDependencies {
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
+	setSessionReadlistFilter: SetSessionReadlistFilter;
+	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
@@ -1369,6 +1373,8 @@ export function createApp(dependencies: AppDependencies): Express {
 	const readerProvenanceNewsletters = initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog });
 
 	const queueRouter = initReadlistRoutes({
+		setSessionReadlistFilter: deps.setSessionReadlistFilter,
+		findSessionReadlistFilter: deps.findSessionReadlistFilter,
 		validateSaveableUrl: deps.validateSaveableUrl,
 		validateNewSaveUrl,
 		appOrigin,

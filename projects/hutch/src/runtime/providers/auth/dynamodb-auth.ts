@@ -35,6 +35,7 @@ import type {
 	DestroyUserSessions,
 	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
+	FindSessionReadlistFilter,
 	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
@@ -45,6 +46,7 @@ import type {
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
+	SetSessionReadlistFilter,
 	SetUserAppearance,
 	UpdatePassword,
 	UserAcquisitionAttribution,
@@ -112,6 +114,8 @@ export function initDynamoDbAuth(deps: {
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
+	setSessionReadlistFilter: SetSessionReadlistFilter;
+	findSessionReadlistFilter: FindSessionReadlistFilter;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
@@ -410,6 +414,26 @@ export function initDynamoDbAuth(deps: {
 		});
 	};
 
+	const setSessionReadlistFilter: SetSessionReadlistFilter = async ({ sessionId, filter }) => {
+		const empty = filter.time.length === 0 && filter.saved.length === 0;
+		try {
+			await sessions.update({
+				Key: { sessionId },
+				UpdateExpression: empty ? "REMOVE readlistFilter" : "SET readlistFilter = :filter",
+				ConditionExpression: "attribute_exists(sessionId)",
+				...(empty ? {} : { ExpressionAttributeValues: { ":filter": filter } }),
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
+	};
+
+	const findSessionReadlistFilter: FindSessionReadlistFilter = async (sessionId) => {
+		const row = await sessions.get({ sessionId });
+		return row?.readlistFilter;
+	};
+
 	const userExistsByEmail: UserExistsByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
 		const { count } = await users.query({
@@ -561,6 +585,8 @@ export function initDynamoDbAuth(deps: {
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,
+		setSessionReadlistFilter,
+		findSessionReadlistFilter,
 		userExistsByEmail,
 		updatePassword,
 		findEmailByUserId,

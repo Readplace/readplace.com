@@ -8,6 +8,9 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture, createFakeSummaryProvider
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { JSDOM } from "jsdom";
+import request from "supertest";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { createAccessToken } from "../../test-helpers/oauth-token";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -143,14 +146,31 @@ function searchSubmission(doc: Document, q: string): string {
 	return `/queue?${query}`;
 }
 
-function drawerSubmission(doc: Document, tick: string[]): string {
+function actionOf(form: Element): string {
+	const action = form.getAttribute("action");
+	assert(action, "the form must name where it submits");
+	return action;
+}
+
+async function applyFilters(agent: TestAgent, doc: Document, tick: string[]): Promise<string> {
 	const form = element(doc, '[data-test-discovery-form="popover"]');
-	const query = new URLSearchParams(hiddenFields(form).map(([name, value]) => [name ?? "", value ?? ""]));
-	for (const option of tick) {
-		const [name, value] = option.split(":");
-		query.append(name, value);
-	}
-	return `/queue?${query}`;
+	expect(form.getAttribute("method")).toBe("POST");
+	const body = new URLSearchParams(tick.map((option) => option.split(":")).map(([name, value]) => [name, value]));
+	const response = await agent.post(actionOf(form)).type("form").send(body.toString());
+	expect(response.status).toBe(303);
+	return response.headers.location;
+}
+
+async function clearAllFilters(agent: TestAgent, doc: Document): Promise<string> {
+	const clearAll = element(doc, '[data-test-discovery-form="popover"] [data-test-action="clear-discovery-filters"]');
+	const response = await agent.post(actionOf(element(doc, `form[id="${clearAll.getAttribute("form")}"]`))).type("form").send("");
+	expect(response.status).toBe(303);
+	return response.headers.location;
+}
+
+function filterButton(doc: Document): [string | null, boolean] {
+	const button = element(doc, '[data-test-action="open-discovery-filters"]');
+	return [button.textContent, button.classList.contains("readlist-discovery__filter--active")];
 }
 
 function cardOf(doc: Document, url: string): Element {
@@ -353,13 +373,10 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 				{ url: "https://example.com/other", title: "Budget medium", minutes: 8, savedAt: new Date(NOW.getTime() - 3 * HOUR) },
 			]);
 
-			const submitted = drawerSubmission(await page(agent, "/queue?q=focus&saved=month"), ["time:5-10"]);
+			const landed = await applyFilters(agent, await page(agent, "/queue?q=focus&saved=month"), ["time:5-10"]);
 
-			expect([...params(submitted)].filter(([name]) => !name.startsWith("utm_"))).toEqual([
-				["q", "focus"],
-				["time", "5-10"],
-			]);
-			expect(await listedOn(agent, submitted)).toEqual(["https://example.com/medium"]);
+			expect(landed).toBe("/queue?q=focus&time=5-10");
+			expect(await listedOn(agent, landed)).toEqual(["https://example.com/medium"]);
 		});
 	});
 
@@ -673,13 +690,18 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 
 			expect(element(doc, "[data-test-empty-title]").textContent).toBe("No matching articles");
 			expect(element(doc, ".readlist-empty__text").textContent).toBe(
-				"Nothing in To Read matches your search and filters.",
+				"Nothing in To Read matches your search and filters: 5–10 min. Your filters stay on as you browse until you clear them.",
 			);
 			const action = element(doc, '[data-test-empty-action="clear-discovery"]');
-			expect([action.textContent, action.getAttribute("href")]).toEqual([
+			const form = element(doc, ".readlist-empty__cta");
+			expect([action.textContent, form.getAttribute("method"), form.getAttribute("action")]).toEqual([
 				"Clear search and filters",
-				"/queue?utm_source=queue-empty&utm_medium=internal&utm_content=clear-discovery",
+				"POST",
+				"/queue/filters?utm_source=queue-empty&utm_medium=internal&utm_content=clear-discovery",
 			]);
+			const cleared = await agent.post(actionOf(form)).type("form").send("");
+			expect([cleared.status, cleared.headers.location]).toEqual([303, "/queue"]);
+			expect(await listedOn(agent, "/queue")).toEqual(["https://example.com/focus"]);
 		});
 
 		it("reflects the URL in both copies of the drawer", async () => {
@@ -693,7 +715,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 
 			for (const scope of ["popover", "fallback"]) {
 				expect(checkedOptions(doc, scope)).toEqual(["time:5-10", "saved:month"]);
-				expect(hiddenFields(element(doc, `[data-test-discovery-form="${scope}"]`))).toEqual([
+				expect([...params(actionOf(element(doc, `[data-test-discovery-form="${scope}"]`)))]).toEqual([
 					["queue", work],
 					["tab", "done"],
 					["order", "asc"],
@@ -703,7 +725,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 					["utm_content", "apply"],
 				]);
 				const clearAll = element(doc, `[data-test-discovery-form="${scope}"] [data-test-action="clear-discovery-filters"]`);
-				expect(discoveryParamsOf(clearAll.getAttribute("href"))).toEqual([["q", "focus"]]);
+				expect(discoveryParamsOf(actionOf(element(doc, `form[id="${clearAll.getAttribute("form")}"]`)))).toEqual([["q", "focus"]]);
 			}
 			const closes = Array.from(doc.querySelectorAll('[data-test-action="close-discovery-filters"]'), (close) =>
 				close.closest("[data-test-discovery-form]")?.getAttribute("data-test-discovery-form"),
@@ -722,9 +744,9 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 
 			const featureOf = (doc: Document) => [
 				hiddenFields(element(doc, '[data-test-form="readlist-search"]')).find(([name]) => name === "feature")?.[1] ?? null,
-				hiddenFields(element(doc, '[data-test-discovery-form="popover"]')).find(([name]) => name === "feature")?.[1] ?? null,
-				params(element(doc, '[data-test-discovery-form="popover"] [data-test-action="clear-discovery-filters"]').getAttribute("href")).get("feature"),
-				params(element(doc, '[data-test-empty-action="clear-discovery"]').getAttribute("href")).get("feature"),
+				params(actionOf(element(doc, '[data-test-discovery-form="popover"]'))).get("feature"),
+				params(actionOf(element(doc, "#readlist-filters-clear"))).get("feature"),
+				params(actionOf(element(doc, ".readlist-empty__cta"))).get("feature"),
 			];
 			expect(featureOf(flagged)).toEqual(["pref", "pref", "pref", "pref"]);
 			expect(featureOf(plain)).toEqual([null, null, null, null]);
@@ -741,6 +763,162 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 			expect(element(doc, "[data-test-discovery]").classList.contains("readlist-discovery--visible")).toBe(true);
 			expect(element(doc, "[data-test-discovery-drawer]").getAttribute("popover")).toBe("auto");
 			expect(listedUrls(doc)).toEqual(["https://example.com/focus"]);
+		});
+	});
+
+	describe("the remembered filter", () => {
+		const SHORT = { url: "https://example.com/short", title: "Short", minutes: 3 };
+		const MEDIUM = { url: "https://example.com/medium", title: "Medium", minutes: 8, savedAt: new Date(NOW.getTime() - 2 * HOUR) };
+
+		it("keeps the applied filter on a bare readlist link and across a reload", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+			const first = await page(agent, "/queue");
+			const reloaded = await page(agent, "/queue");
+
+			for (const doc of [first, reloaded]) {
+				expect(listedUrls(doc)).toEqual([MEDIUM.url]);
+				expect(filterButton(doc)).toEqual(["Filters (1)", true]);
+				expect(checkedOptions(doc, "popover")).toEqual(["time:5-10"]);
+			}
+		});
+
+		it("carries the remembered filter onto the page's own links", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+
+			const doc = await page(agent, "/queue");
+
+			expect(discoveryParamsOf(element(doc, "[data-test-sort]").getAttribute("href"))).toEqual([["time", "5-10"]]);
+		});
+
+		it("keeps the filter when the reader moves to another readlist and to the Read tab", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			const work = await createReadlist(agent, "Work");
+			await seedAll(harness, [
+				{ ...SHORT, readlist: work },
+				{ ...MEDIUM, readlist: work },
+			]);
+			await applyFilters(agent, await page(agent, `/queue?queue=${work}`), ["time:5-10"]);
+
+			const custom = await page(agent, `/queue?queue=${work}`);
+			const readTab = await page(agent, "/queue?tab=done");
+
+			expect(listedUrls(custom)).toEqual([MEDIUM.url]);
+			expect(filterButton(custom)).toEqual(["Filters (1)", true]);
+			expect(filterButton(readTab)).toEqual(["Filters (1)", true]);
+		});
+
+		it("keeps the remembered filter beside a new search, without remembering the search", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue?q=medium"), ["time:5-10"]);
+
+			const searched = await page(agent, "/queue?q=short");
+			const bare = await page(agent, "/queue");
+
+			expect(element(searched, "[data-test-empty-title]").textContent).toBe("No matching articles");
+			expect(element(bare, "[data-test-discovery-search]").getAttribute("value")).toBe("");
+			expect(listedUrls(bare)).toEqual([MEDIUM.url]);
+		});
+
+		it("lets a link that names its own filters win for that page, without replacing the remembered filter", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+
+			const linked = await listedOn(agent, "/queue?time=under-5");
+			const bare = await listedOn(agent, "/queue");
+
+			expect(linked).toEqual([SHORT.url]);
+			expect(bare).toEqual([MEDIUM.url]);
+		});
+
+		it("forgets the filter on Clear all, keeping the search and the place", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+
+			const landed = await clearAllFilters(agent, await page(agent, "/queue?tab=done&order=asc&q=medium"));
+			const bare = await page(agent, "/queue");
+
+			expect(landed).toBe("/queue?tab=done&order=asc&q=medium");
+			expect(listedUrls(bare)).toEqual([SHORT.url, MEDIUM.url]);
+			expect(filterButton(bare)).toEqual(["Filters", false]);
+		});
+
+		it("forgets the filter when a form posts no body at all", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+
+			const response = await agent.post("/queue/filters");
+
+			expect([response.status, response.headers.location]).toEqual([303, "/queue"]);
+			expect(await listedOn(agent, "/queue")).toEqual([SHORT.url, MEDIUM.url]);
+		});
+
+		it("drops the filter when the reader logs out and back in", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+
+			await agent.post("/logout");
+			await agent.post("/login").type("form").send({ email: "test@example.com", password: "password123" });
+			const doc = await page(agent, "/queue");
+
+			expect(listedUrls(doc)).toEqual([SHORT.url, MEDIUM.url]);
+			expect(filterButton(doc)).toEqual(["Filters", false]);
+		});
+
+		it("keeps the filter to the session that applied it, so a second login starts unfiltered", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+
+			const otherDevice = await loginAgent(harness.server, harness.auth);
+
+			expect(await listedOn(otherDevice, "/queue")).toEqual([SHORT.url, MEDIUM.url]);
+			expect(await listedOn(agent, "/queue")).toEqual([MEDIUM.url]);
+		});
+
+		it("forgets the filter when the reader saves a link, so the new card lands in view", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/new-save" });
+			const doc = await page(agent, "/queue");
+
+			expect(filterButton(doc)).toEqual(["Filters", false]);
+			expect(checkedOptions(doc, "popover")).toEqual([]);
+		});
+
+		it("answers a client with no session by landing it on the filtered link, remembering nothing", async () => {
+			const harness = useApp(pinnedFixture());
+			const token = await createAccessToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/filters?tab=done")
+				.set("Authorization", `Bearer ${token}`)
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.type("form")
+				.send("time=5-10&saved=week");
+
+			expect([response.status, response.headers.location]).toEqual([303, "/queue?tab=done&time=5-10&saved=week"]);
 		});
 	});
 });

@@ -327,6 +327,47 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("session readlist filter", () => {
+		const userId = UserIdSchema.parse("user-filter");
+
+		it("remembers the filter set on a session", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true });
+
+			await auth.setSessionReadlistFilter({ sessionId, filter: { time: ["5-10"], saved: ["week"] } });
+
+			expect(await auth.findSessionReadlistFilter(sessionId)).toEqual({ time: ["5-10"], saved: ["week"] });
+		});
+
+		it("forgets the filter when it is set to no chips", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true });
+			await auth.setSessionReadlistFilter({ sessionId, filter: { time: ["5-10"], saved: [] } });
+
+			await auth.setSessionReadlistFilter({ sessionId, filter: { time: [], saved: [] } });
+
+			expect(await auth.findSessionReadlistFilter(sessionId)).toBe(undefined);
+		});
+
+		it("starts every new session without a filter", async () => {
+			const auth = makeAuth();
+			const first = await auth.createSession({ userId, emailVerified: true });
+			await auth.setSessionReadlistFilter({ sessionId: first, filter: { time: ["5-10"], saved: [] } });
+
+			const second = await auth.createSession({ userId, emailVerified: true });
+
+			expect(await auth.findSessionReadlistFilter(second)).toBe(undefined);
+		});
+
+		it("ignores a filter set on a session that no longer exists", async () => {
+			const auth = makeAuth();
+
+			await auth.setSessionReadlistFilter({ sessionId: "gone", filter: { time: ["5-10"], saved: [] } });
+
+			expect(await auth.findSessionReadlistFilter("gone")).toBe(undefined);
+		});
+	});
+
 	describe("findUserByEmail", () => {
 		it("should return null for unknown email", async () => {
 			const auth = makeAuth();

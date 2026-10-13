@@ -191,7 +191,9 @@ The URL query string represents the complete page state. All user interactions t
 
 Not every query parameter is state. Some only pick a representation — a feature toggle, a `swap=card` marker, a poll counter — and those are read where they are used, never parsed into the page's state type and never added to a shared link builder. A parameter in the builder rides every link the page emits, so it spreads across the codebase on the way in and has to be unpicked from every caller on the way out.
 
-A GET form that edits one part of the state — a search box, a filter drawer — carries the rest of the URL state as hidden inputs, because its submit replaces the action's query; the state stays in the URL, never in hidden server state. Unlike a representation parameter such as `swap=card`, what such a form edits is state, so its parameters belong in the page's shared link builder and every sort, tab and page link keeps them.
+A GET form that edits one part of the state — a search box — carries the rest of the URL state as hidden inputs, because its submit replaces the action's query; the state stays in the URL, never in hidden server state. Unlike a representation parameter such as `swap=card`, what such a form edits is state, so its parameters belong in the page's shared link builder and every sort, tab and page link keeps them.
+
+State the reader expects to outlive the link — the readlist's filter chips, which stay on for the signed-in session — is still named in the URL, and is also remembered server-side. Remembering is a write, so the form that edits it is a POST that answers 303 to the link naming the new state (see [No Side Effects on GET](#no-side-effects-on-get)); a GET only reads the remembered value, and only for a link that names none of its own. Such a form carries the rest of the URL state in its action's query, where a POST keeps it.
 
 ### View Model Pattern
 

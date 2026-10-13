@@ -418,6 +418,11 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await page.goto(`${BASE_URL}/queue?time=5-10&saved=today`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("[data-test-article]")).toHaveCount(1);
+			await settle(page, "[data-test-discovery]");
+			await expect(page.locator("[data-test-discovery]")).toHaveScreenshot(
+				`eink-readlist-filter-active-${theme}.png`,
+				CONTRAST_SENSITIVE,
+			);
 			await page.locator('[data-test-action="open-discovery-filters"]').click();
 			const drawer = page.locator(OPEN_FILTER_DRAWER);
 			await expect(drawer).toBeVisible();

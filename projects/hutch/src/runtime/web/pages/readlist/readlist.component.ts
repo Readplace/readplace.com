@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { READ_TIME_BUCKETS, SAVED_WINDOWS } from "@packages/domain/article";
 import type { IconName } from "@packages/ui-icons";
 import {
 	CONFIRM_POPOVER_STYLES,
@@ -57,6 +58,7 @@ import { type TabId, tabLabel, tabQuery } from "./readlist.tabs";
 import {
 	type ReadlistDiscovery,
 	type ReadlistUrlState,
+	buildReadlistFiltersUrl,
 	buildReadlistUrl,
 	readlistDeletePath,
 	readlistReturnQuery,
@@ -119,16 +121,47 @@ export interface ReadlistPageOptions {
 	query: Record<string, unknown>;
 }
 
+interface EmptyActionField {
+	name: string;
+	value: string;
+}
+
 interface EmptyAction {
 	key: string;
-	href: string;
+	method: "GET" | "POST";
+	action: string;
+	fields: EmptyActionField[];
 	label: string;
+}
+
+interface EmptyFilterName {
+	label: string;
+	separator: string;
 }
 
 interface EmptyState {
 	title: string;
 	text: string;
+	filterNames: EmptyFilterName[];
+	tail: string;
 	actions: EmptyAction[];
+}
+
+type EmptyCopy = Omit<EmptyState, "actions" | "filterNames" | "tail">;
+
+const PLAIN_COPY: Pick<EmptyState, "filterNames" | "tail"> = { filterNames: [], tail: "" };
+
+const LINK_PARSE_ORIGIN = "https://internal.invalid";
+
+function navigateAction(input: { key: string; href: string; label: string }): EmptyAction {
+	const url = new URL(input.href, LINK_PARSE_ORIGIN);
+	return {
+		key: input.key,
+		method: "GET",
+		action: url.pathname,
+		fields: Array.from(url.searchParams, ([name, value]) => ({ name, value })),
+		label: input.label,
+	};
 }
 
 interface DeviceClient {
@@ -154,17 +187,17 @@ const NOTHING_SAVED_INVITES: Record<PitchablePlatform, { text: string; label: st
 	},
 };
 
-const CAUGHT_UP: Omit<EmptyState, "actions"> = {
+const CAUGHT_UP: EmptyCopy = {
 	title: "You're all caught up",
 	text: "There are no articles left in your To Read list. Save something new to keep your reading list going.",
 };
 
-const NOTHING_READ: Omit<EmptyState, "actions"> = {
+const NOTHING_READ: EmptyCopy = {
 	title: "No finished articles yet",
 	text: "Once you finish an article and mark it as read, you'll find it here.",
 };
 
-const CUSTOM_READLIST_EMPTY: Omit<EmptyState, "actions"> = {
+const CUSTOM_READLIST_EMPTY: EmptyCopy = {
 	title: "No articles in this readlist yet",
 	text: `Choose an article from ${DEFAULT_READLIST.label} and add it here to start organising this readlist.`,
 };
@@ -179,33 +212,62 @@ const NO_MATCHES_SCOPES: Record<NoMatchesScope, { phrase: string; label: string 
 	"search-and-filters": { phrase: "your search and filters", label: "Clear search and filters" },
 };
 
+const REMEMBERED_FILTERS_TAIL = ". Your filters stay on as you browse until you clear them.";
+
+function tickedFilterLabels(discovery: ReadlistDiscovery): string[] {
+	return [
+		...READ_TIME_BUCKETS.filter((bucket) => discovery.time.includes(bucket.id)),
+		...SAVED_WINDOWS.filter((window) => discovery.saved.includes(window.id)),
+	].map((option) => option.label);
+}
+
 function noMatchesScopeOf(discovery: ReadlistDiscovery): NoMatchesScope {
 	if (tickedFacetCount(discovery) === 0) return "search";
 	return discovery.q === undefined ? "filters" : "search-and-filters";
 }
 
 function noMatches(input: { tab: TabId; discovery: ReadlistDiscovery; clearDiscoveryUrl: string }): EmptyState {
-	const scope = NO_MATCHES_SCOPES[noMatchesScopeOf(input.discovery)];
+	const scopeKey = noMatchesScopeOf(input.discovery);
+	const scope = NO_MATCHES_SCOPES[scopeKey];
+	const clear: EmptyAction = {
+		key: "clear-discovery",
+		method: "POST",
+		action: input.clearDiscoveryUrl,
+		fields: [],
+		label: scope.label,
+	};
+	if (scopeKey === "search") {
+		return {
+			title: NO_MATCHES_TITLE,
+			text: `Nothing in ${tabLabel(input.tab)} matches ${scope.phrase}.`,
+			...PLAIN_COPY,
+			actions: [clear],
+		};
+	}
+	const labels = tickedFilterLabels(input.discovery);
 	return {
 		title: NO_MATCHES_TITLE,
-		text: `Nothing in ${tabLabel(input.tab)} matches ${scope.phrase}.`,
-		actions: [{ key: "clear-discovery", href: input.clearDiscoveryUrl, label: scope.label }],
+		text: `Nothing in ${tabLabel(input.tab)} matches ${scope.phrase}: `,
+		filterNames: labels.map((label, index) => ({ label, separator: index < labels.length - 1 ? ", " : "" })),
+		tail: REMEMBERED_FILTERS_TAIL,
+		actions: [clear],
 	};
 }
 
 function nothingSaved(client: DeviceClient): EmptyState {
 	const invite = NOTHING_SAVED_INVITES[client.platform];
-	const install: EmptyAction = {
+	const install = navigateAction({
 		key: "install",
 		href: withInternalTracking(buildExtensionInstallUrl(client.platform), {
 			source: "queue-empty",
 			content: "install",
 		}),
 		label: invite.label,
-	};
+	});
 	return {
 		title: NOTHING_SAVED_TITLE,
 		text: invite.text,
+		...PLAIN_COPY,
 		actions: client.installed ? [] : [install],
 	};
 }
@@ -223,16 +285,17 @@ function emptyState(input: {
 	if (!input.readlistHoldsArticles) {
 		return input.isDefaultReadlist
 			? nothingSaved(input.client)
-			: { ...CUSTOM_READLIST_EMPTY, actions: [] };
+			: { ...CUSTOM_READLIST_EMPTY, ...PLAIN_COPY, actions: [] };
 	}
 	if (input.tabHoldsRows && input.discovery !== undefined) {
 		return noMatches({ tab: input.tab, discovery: input.discovery, clearDiscoveryUrl: input.clearDiscoveryUrl });
 	}
 	return input.tab === "queue"
-		? { ...CAUGHT_UP, actions: [] }
+		? { ...CAUGHT_UP, ...PLAIN_COPY, actions: [] }
 		: {
 				...NOTHING_READ,
-				actions: [{ key: "view-unread", href: input.unreadUrl, label: "View Unread Articles" }],
+				...PLAIN_COPY,
+				actions: [navigateAction({ key: "view-unread", href: input.unreadUrl, label: "View Unread Articles" })],
 			};
 }
 
@@ -358,7 +421,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			{ source: "queue-empty", content: "view-unread" },
 		),
 		clearDiscoveryUrl: withInternalTracking(
-			buildReadlistUrl(
+			buildReadlistFiltersUrl(
 				{ readlist: filters.readlist, tab: filters.tab, order: filters.order },
 				preferencesFeatureParams(preferencesEnabled),
 			),
@@ -429,6 +492,8 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		emptyIllustrationHtml: renderIllustration("book-lightbulb"),
 		emptyTitle: empty.title,
 		emptyText: empty.text,
+		emptyFilterNames: empty.filterNames,
+		emptyTail: empty.tail,
 		emptyActions: empty.actions,
 		hasArticles: !vm.isEmpty,
 		articleHtmls: articles.map((article, index) =>
