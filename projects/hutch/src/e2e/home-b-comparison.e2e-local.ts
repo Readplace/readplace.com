@@ -48,7 +48,7 @@ for (const viewport of VIEWPORTS) {
 							: style.backgroundColor,
 					};
 				}), SECTION_ORDER);
-			const [muted, background] = await page.evaluate(resolveColourTokens, ["--muted", "--background"]);
+			const [muted, background, primaryText] = await page.evaluate(resolveColourTokens, ["--muted", "--background", "--primary-text"]);
 			assert.deepEqual(bands, [
 				{ key: "principle", background: muted },
 				{ key: "compare", background },
@@ -72,6 +72,11 @@ for (const viewport of VIEWPORTS) {
 			await expect(table.getByRole("cell")).toHaveCount(rowCount * 3);
 			await expect(table.locator("tbody > tr")).toHaveCount(rowCount);
 			await expect(table.locator("tbody > tr > th[scope='row']")).toHaveCount(rowCount);
+			const readplaceInks = await table.locator(".home-compare__head--readplace, .home-compare__cell--readplace")
+				.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).color));
+			assert.equal(readplaceInks.length, rowCount + 1);
+			assert.deepEqual(new Set(readplaceInks), new Set([primaryText]),
+				"the Readplace column must stand out in the primary ink");
 			const tableBox = await table.boundingBox();
 			assert(tableBox, "the comparison must have a measurable table");
 			const layout = {
@@ -105,20 +110,17 @@ for (const viewport of VIEWPORTS) {
 				});
 				assert.deepEqual(header, { position: "absolute", clip: "rect(0px, 0px, 0px, 0px)", width: 1, height: 1 });
 				for (const row of rows) {
-					assert.equal(row.display, "grid", "each mobile row must form a card with its 3 answers side by side");
+					assert.equal(row.display, "block", "each mobile row must form a stacked card");
 					for (const cell of row.cells) assert.equal(cell.display, "block");
-					const [heading, ...answers] = row.cells;
-					assert(heading, "each mobile card must lead with its row heading");
-					for (const [index, cell] of answers.entries()) {
-						assert.ok(cell.y >= heading.y + heading.height - 1,
-							"the answers must sit below the row heading without obscuring it");
-						assert.ok(Math.abs(cell.y - heading.y - heading.height) <= 5,
-							"the answers must sit on one line under the row heading");
-						const previous = answers[index - 1];
-						if (previous) assert.ok(cell.x >= previous.x + previous.width - 1,
-							"the answers must sit side by side without overlapping");
+					for (const [index, cell] of row.cells.slice(1).entries()) {
+						const previous = row.cells[index];
+						assert(previous, "a stacked cell must follow the cell above it");
+						assert.ok(cell.y >= previous.y + previous.height - 1,
+							"mobile columns must stack without obscuring the comparison above");
+					}
+					for (const cell of row.cells.slice(1)) {
 						assert(cell.label, "every mobile data cell must name its column");
-						assert.equal(cell.prefix, JSON.stringify(cell.label));
+						assert.equal(cell.prefix, JSON.stringify(`${cell.label}: `));
 					}
 				}
 			} else {

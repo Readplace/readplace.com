@@ -30,14 +30,14 @@ export const HOME_COMPARE_FEATURES: readonly HomeCompareFeature[] = [
 ];
 
 export const HOME_COMPARE_CONTENT = {
-	ariaLabel: "Readplace compared with Claude and ChatGPT",
+	ariaLabel: "Readplace versus Claude and ChatGPT",
 	titleLead: "Your reading list for ",
 	titleHighlight: PRICING_PLANS.yearly.monthlyDisplay,
 	titleTail: `/month, not ${AI_PLAN_MONTHLY}/month.`,
 	lede: `Claude's and ChatGPT's ${AI_PLAN_MONTHLY}/month plans cost ${AI_PLAN_YEARLY}/year each, and neither has a reading list. Readplace gives you one for ${PRICING_PLANS.yearly.totalDisplay}/year.`,
 	caption: "Price and reading features of Readplace, Claude Max 20x and ChatGPT Pro 200",
 	columns: {
-		feature: "What you get",
+		feature: "Price and features",
 		readplace: "Readplace",
 		claude: "Claude Max 20x",
 		chatgpt: "ChatGPT Pro 200",
