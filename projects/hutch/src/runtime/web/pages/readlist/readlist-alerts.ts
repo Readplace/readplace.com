@@ -48,8 +48,8 @@ const ALERTS: Record<string, AlertContent> = {
 
 export const INBOX_UNAVAILABLE_ALERT: AlertContent = {
 	variant: "error",
-	title: { text: "That inbox isn't available", element: "p" },
-	message: { text: "It may have been turned off. Pick another inbox." },
+	title: { text: "That custom email isn't available", element: "p" },
+	message: { text: "It may have been disabled. Pick another custom email." },
 };
 
 export function readlistAlertFor(query: Record<string, unknown>): AlertContent | undefined {

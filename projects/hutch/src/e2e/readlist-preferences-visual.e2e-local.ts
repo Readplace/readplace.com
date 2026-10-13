@@ -699,7 +699,7 @@ function inboxesListedCheckpoint(input: {
 
 async function inboxUnavailableAlertShown(page: Page): Promise<void> {
 	await expect(page.locator(ALERT)).toBeVisible();
-	await expect(page.locator(ALERT_TITLE)).toHaveText("That inbox isn't available");
+	await expect(page.locator(ALERT_TITLE)).toHaveText("That custom email isn't available");
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
@@ -872,9 +872,9 @@ test.describe("Readlist preferences inboxes", () => {
 			`inboxes-listed-light-${testInfo.workerIndex}-${Date.now()}`,
 		);
 		await expect(page.locator(`${INBOX_ROWS} [data-test-inbox-destination]`)).toHaveText([
-			"Goes to All",
-			"Goes to New Readlist",
-			"Goes to New Readlist 2",
+			"Saves to All",
+			"Saves to All and New Readlist",
+			"Saves to All and New Readlist 2",
 		]);
 		await captureCheckpoint(
 			page,

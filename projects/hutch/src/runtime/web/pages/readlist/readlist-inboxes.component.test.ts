@@ -101,25 +101,25 @@ describe("buildReadlistInboxes", () => {
 			{
 				name: "deals",
 				address: "deals-c9d4e1@read.place",
-				destination: "Goes to All",
+				destination: "Saves to All",
 				button: "Send here",
 			},
 			{
 				name: "news",
 				address: "news-a7b2c9@read.place",
-				destination: "Goes to Work Reading",
-				button: "Send to All",
+				destination: "Saves to All and Work Reading",
+				button: "Send to All only",
 			},
 			{
 				name: "old",
 				address: "old-d0e5f2@read.place",
-				destination: "Goes to All",
+				destination: "Saves to All",
 				button: "Send here",
 			},
 			{
 				name: "tech",
 				address: "tech-b8c3d0@read.place",
-				destination: "Goes to Later",
+				destination: "Saves to All and Later",
 				button: "Send here",
 			},
 		]);
@@ -222,11 +222,11 @@ describe("buildReadlistInboxes", () => {
 		expect(described).toEqual(["news", "tech"]);
 	});
 
-	it("says articles from newsletters sent to the inboxes are saved to All and here", () => {
+	it("says a custom email sent here saves the articles its issues link to into All and here", () => {
 		const doc = renderInboxes({ inboxes: [] });
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Articles from newsletters sent to these inboxes are saved to All and Work Reading.",
+			"Send a custom email here and the articles each issue links to are saved to All and Work Reading.",
 		);
 	});
 
@@ -234,7 +234,7 @@ describe("buildReadlistInboxes", () => {
 		const doc = renderInboxes({ inboxes: [], purpose: "Essays on how teams ship." });
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Articles from newsletters sent to these inboxes are saved to All and Work Reading, keeping only the links that fit its purpose.",
+			"Send a custom email here and the articles each issue links to are saved to All and Work Reading, keeping only the links that fit its purpose.",
 		);
 	});
 
@@ -245,7 +245,7 @@ describe("buildReadlistInboxes", () => {
 
 		expect(section(doc).getAttribute("data-test-inboxes-state")).toBe("empty");
 		expect(section(doc).classList.contains("readlist-inboxes--empty")).toBe(true);
-		expect(create.textContent).toBe("Create an inbox");
+		expect(create.textContent).toBe("Create a custom email");
 		expect(create.getAttribute("href")).toBe(
 			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
 		);
