@@ -6,10 +6,12 @@
         <div class="readlist__main readlist__main--interleaved">
           <div class="readlist__lead">
             {{{alertHtml}}}
-            {{{saveCardHtml}}}
           </div>
           <div class="readlist__browse">
-            {{{tabsHtml}}}
+            <div class="readlist__tabs-bar">
+              {{{tabsHtml}}}
+              {{{addLinkControlHtml}}}
+            </div>
             <section class="readlist-listing {{panelClass}}" aria-labelledby="readlist-preferences-title" data-test-readlist-preferences data-test-preferences-state="{{state}}">
               <h2 class="sr-only" id="readlist-preferences-title">Preferences for {{readlistLabel}}</h2>
               <div class="readlist-preferences__unset">
@@ -60,5 +62,5 @@
       {{{wizardPopoverHtml}}}
       {{{purposeDeleteConfirmHtml}}}
       {{{subscribePlansHtml}}}
-      {{{saveTipHtml}}}
+      {{{addLinkDialogHtml}}}
     </main>

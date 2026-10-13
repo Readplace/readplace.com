@@ -110,9 +110,9 @@ describe("GET /queue save skeleton", () => {
 		const skeleton = doc.querySelector("[data-test-save-skeleton]");
 		assert(skeleton, "the skeleton renders on every readlist");
 		expect(skeleton.classList.contains("readlist-save-skeleton--inert")).toBe(true);
-		const card = doc.querySelector("[data-test-save-card]");
-		assert(card, "the save card renders on a reader-made readlist");
-		expect(card.className).toBe("readlist-save");
+		const trigger = doc.querySelector('[data-test-action="add-link"]');
+		assert(trigger, "Add link renders on a reader-made readlist");
+		expect(trigger.getAttribute("popovertarget")).toBe("add-link");
 	});
 
 	it("stays inert when access is read-only", async () => {
@@ -146,27 +146,18 @@ describe("GET /queue save error surfaced from the save redirect", () => {
 	] as const;
 
 	for (const { code, message } of cases) {
-		it(`renders the pill with code ${code} and asks htmx not to scroll it away`, async () => {
+		it(`renders the error with code ${code} in the page's feedback area`, async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get(`/queue?error_code=${code}`);
 
 			expect(response.status).toBe(200);
-			expect(response.headers["hx-reswap"]).toBe("outerHTML show:none");
-			const pill = documentOf(response.text).querySelector("[data-test-save-error]");
-			assert(pill, "the page the redirect lands on must render the error pill");
-			expect(pill.textContent).toBe(message);
-			expect(pill.getAttribute("data-test-saveable-url-code")).toBe(code);
+			const doc = documentOf(response.text);
+			const feedback = doc.querySelector(".readlist__lead [data-test-save-error]");
+			assert(feedback, "the page the redirect lands on must show the error where it can be seen");
+			expect(feedback.querySelector("[data-test-alert-message]")?.textContent).toBe(message);
+			expect(feedback.getAttribute("data-test-saveable-url-code")).toBe(code);
 		});
 	}
-
-	it("sends no HX-Reswap header on a plain listing", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get("/queue");
-
-		expect(response.headers["hx-reswap"]).toBeUndefined();
-	});
 });

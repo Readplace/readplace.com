@@ -33,4 +33,16 @@ describe("hxLocationToMain", () => {
 			swap: "outerHTML show:none",
 		});
 	});
+
+	it("tells htmx to land the listing a save went to on the row it just added", () => {
+		const header = hxLocationToMain({ path: "/queue", source: "#add-link", scroll: "latest-saved" });
+
+		assert.deepEqual(JSON.parse(header), {
+			path: "/queue",
+			source: "#add-link",
+			target: "main",
+			select: "main",
+			swap: "outerHTML show:#latest-saved:top",
+		});
+	});
 });

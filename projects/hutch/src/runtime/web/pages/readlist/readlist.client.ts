@@ -4,10 +4,12 @@ export interface ReadlistDeps {
 
 const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu, .readlist-preferences__menu";
 const NAME_FORM_SELECTOR = "form[data-readlist-name-form]";
-const NAME_ERROR_ATTR = "data-readlist-name-error";
-const NAME_FAILURE_ATTR = "data-readlist-name-failure";
+const NAME_FORM = { errorAttr: "data-readlist-name-error", failureAttr: "data-readlist-name-failure" };
+const SAVE_LINK_FORM_SELECTOR = "form[data-save-link-form]";
+const SAVE_LINK_FORM = { errorAttr: "data-save-link-error", failureAttr: "data-save-link-failure" };
+const LANDING_SWAP = "outerHTML show:none scroll:html:top";
 const LIVE_REGION_SELECTOR = "#toast-live-region";
-const REFUSED_NAME_STATUS = 422;
+const REFUSED_STATUS = 422;
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -24,9 +26,13 @@ function closeOpenMenus(document: Document, except: Element | null): void {
 	}
 }
 
-function nameFormOf(event: Event): Element | null {
+function formOf(event: Event, selector: string): Element | null {
 	const target = event.target;
-	return isElement(target) && target.matches(NAME_FORM_SELECTOR) ? target : null;
+	return isElement(target) && target.matches(selector) ? target : null;
+}
+
+function nameFormOf(event: Event): Element | null {
+	return formOf(event, NAME_FORM_SELECTOR);
 }
 
 function answerOf(event: Event): { status: unknown; body: unknown; location: unknown } {
@@ -40,15 +46,23 @@ function answerOf(event: Event): { status: unknown; body: unknown; location: unk
 	};
 }
 
-function showFailure(form: Element): void {
-	const error = form.querySelector(`[${NAME_ERROR_ATTR}]`);
-	assert(error, "a name form always carries its error line");
+function showFailure(form: Element, attributes: { errorAttr: string; failureAttr: string }): void {
+	const error = form.querySelector(`[${attributes.errorAttr}]`);
+	assert(error, "a dialog form always carries its error line");
 	const field = form.querySelector('input[name]:not([type="hidden"]), textarea[name]');
-	assert(field, "a name form always carries its named field");
-	const failure = form.getAttribute(NAME_FAILURE_ATTR);
-	assert(failure, "a name form always carries its failure message");
+	assert(field, "a dialog form always carries its named field");
+	const failure = form.getAttribute(attributes.failureAttr);
+	assert(failure, "a dialog form always carries its failure message");
 	error.textContent = failure;
 	field.setAttribute("aria-invalid", "true");
+}
+
+function hostDialogFieldOf(dialog: Element): HTMLElement | null {
+	if (!dialog.matches("[popover]")) return null;
+	const parent = dialog.parentElement;
+	assert(parent, "a dialog always sits inside the page");
+	const host = parent.closest("[popover]");
+	return host === null ? null : host.querySelector<HTMLElement>("[autofocus]");
 }
 
 function announce(document: Document, message: string): void {
@@ -74,6 +88,11 @@ export function initReadlist(deps: ReadlistDeps): void {
 			if (event.newState !== "closed" || !isElement(dialog)) return;
 			const focused = deps.document.activeElement;
 			if (focused !== deps.document.body && !dialog.contains(focused)) return;
+			const hostField = hostDialogFieldOf(dialog);
+			if (hostField !== null) {
+				hostField.focus({ preventScroll: true });
+				return;
+			}
 			const menus = deps.document.querySelectorAll(MENU_SELECTOR);
 			for (let i = 0; i < menus.length; i++) {
 				if (menus[i].querySelector(`[popovertarget="${dialog.id}"]`) === null) continue;
@@ -90,14 +109,31 @@ export function initReadlist(deps: ReadlistDeps): void {
 
 	deps.document.addEventListener("htmx:beforeSwap", (event) => {
 		const form = nameFormOf(event);
-		if (form === null || answerOf(event).status === REFUSED_NAME_STATUS) return;
+		if (form === null || answerOf(event).status === REFUSED_STATUS) return;
 		Reflect.set(Object(Reflect.get(event, "detail")), "shouldSwap", false);
-		showFailure(form);
+		showFailure(form, NAME_FORM);
+	});
+
+	deps.document.addEventListener("htmx:beforeSwap", (event) => {
+		const form = formOf(event, SAVE_LINK_FORM_SELECTOR);
+		if (form === null || answerOf(event).status === REFUSED_STATUS) return;
+		const detail = Object(Reflect.get(event, "detail"));
+		if (Reflect.get(detail, "shouldSwap") !== true) {
+			showFailure(form, SAVE_LINK_FORM);
+			return;
+		}
+		const main = deps.document.querySelector("main");
+		assert(main, "every page that offers Add link renders a <main>");
+		Reflect.set(detail, "target", main);
+		Reflect.set(detail, "selectOverride", "main");
+		Reflect.set(detail, "swapOverride", LANDING_SWAP);
 	});
 
 	deps.document.addEventListener("htmx:sendError", (event) => {
-		const form = nameFormOf(event);
-		if (form !== null) showFailure(form);
+		const nameForm = nameFormOf(event);
+		if (nameForm !== null) showFailure(nameForm, NAME_FORM);
+		const saveLinkForm = formOf(event, SAVE_LINK_FORM_SELECTOR);
+		if (saveLinkForm !== null) showFailure(saveLinkForm, SAVE_LINK_FORM);
 	});
 
 	deps.document.addEventListener("htmx:afterRequest", (event) => {

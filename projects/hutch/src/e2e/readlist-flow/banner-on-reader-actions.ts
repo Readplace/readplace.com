@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { expect } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { BannerOnReaderActionKey } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation } from '../page-interactions'
+import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation, saveWithAddLink } from '../page-interactions'
 import type { AuthProgress } from './auth-actions'
 import type { CleanupProgress } from './cleanup-actions'
 
@@ -95,12 +95,7 @@ export function createBannerOnReaderActions(
 				}
 			},
 			execute: async (page) => {
-				const input = page.locator('[data-test-form="save-article"] input[name="url"]')
-				await input.fill(config.privateReaderTestUrl)
-				await clickAndWaitForPageReload(
-					page,
-					page.locator('[data-test-form="save-article"] button[type="submit"]'),
-				)
+				await saveWithAddLink(page, config.privateReaderTestUrl)
 
 				const card = page.locator('[data-test-article]').first()
 				await expect(card).toBeVisible()

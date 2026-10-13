@@ -28,7 +28,7 @@ const BODY = `${PANEL} .confirm-popover__body`;
 const CONTINUE = `${PANEL} [data-test-action="save-tip-continue"]`;
 const PROCEED = `${PANEL} [data-test-action="save-tip-proceed"]`;
 const INSTALL = `${PANEL} [data-test-action="save-tip-install"]`;
-const SAVE_INPUT = '[data-test-form="save-article"] input[name="url"]';
+const ADD_LINK = '[data-test-action="add-link"]';
 const IMPORT_INPUT = "[data-test-import-from-url-input]";
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
@@ -51,7 +51,7 @@ async function openReadlistTip(page: Page, stamp: string): Promise<void> {
 	await loginAs(page, stamp);
 	await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
 	await page.waitForLoadState("domcontentloaded");
-	await page.locator(SAVE_INPUT).focus();
+	await page.locator(ADD_LINK).click();
 	await expect(page.locator(`${PANEL}:popover-open`)).toBeVisible();
 }
 
@@ -187,7 +187,7 @@ test.describe("Save tip advisory", () => {
 		}]);
 		await page.reload({ waitUntil: "domcontentloaded" });
 		await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
-		await page.locator(SAVE_INPUT).focus();
+		await page.locator(ADD_LINK).click();
 		await captureCheckpoint(
 			page,
 			checkpoint("save-tip-advisory-extension-light", singleControlGeometry),

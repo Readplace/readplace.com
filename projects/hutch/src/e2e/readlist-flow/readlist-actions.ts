@@ -3,7 +3,7 @@ import { expect, type Page } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { ReadlistActionKey, SaveArticleKey, PaginationArticleKey } from './action-catalog'
 import { TEST_ARTICLE_COUNT, PAGINATION_ARTICLE_COUNT } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation, markReadWithConfirmation } from '../page-interactions'
+import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation, markReadWithConfirmation, saveWithAddLink } from '../page-interactions'
 import { measuredBox } from '@packages/e2e-harness'
 import { retriable } from '@packages/retriable'
 import type { AuthProgress } from './auth-actions'
@@ -89,12 +89,7 @@ export function createReadlistActions(
 	let articlesAdded = 0
 	const submitAndVerifySave = retriable(
 		async (page: Page, url: string, identifier: string): Promise<boolean> => {
-			const input = page.locator('[data-test-form="save-article"] input[name="url"]')
-			await input.fill(url)
-			await clickAndWaitForPageReload(
-				page,
-				page.locator('[data-test-form="save-article"] button[type="submit"]'),
-			)
+			await saveWithAddLink(page, url)
 			const latestHref = await page
 				.locator('#latest-saved [data-test-article-url]')
 				.first()
@@ -116,8 +111,8 @@ export function createReadlistActions(
 			if (articlesAdded !== i) return false
 			const onReadlist = await isOnPage(page, 'page-readlist')
 			if (!onReadlist) return false
-			const saveForm = page.locator('[data-test-form="save-article"]')
-			return saveForm.isVisible().catch(() => false)
+			const addLink = page.locator('[data-test-action="add-link"]')
+			return addLink.isVisible().catch(() => false)
 		},
 		execute: async (page) => {
 			const url = TEST_URLS[i]
@@ -147,8 +142,8 @@ export function createReadlistActions(
 			if (paginationArticlesAdded !== i) return false
 			const onReadlist = await isOnPage(page, 'page-readlist')
 			if (!onReadlist) return false
-			const saveForm = page.locator('[data-test-form="save-article"]')
-			return saveForm.isVisible().catch(() => false)
+			const addLink = page.locator('[data-test-action="add-link"]')
+			return addLink.isVisible().catch(() => false)
 		},
 		execute: async (page) => {
 			const url = testData.paginationUrls[i]
@@ -284,8 +279,8 @@ export function createReadlistActions(
 				if (!progress.verifiedBackOnPage1) return false
 				if (progress.refreshedExistingArticle) return false
 				if (!(await isOnPage(page, 'page-readlist'))) return false
-				const saveForm = page.locator('[data-test-form="save-article"]')
-				return saveForm.isVisible().catch(() => false)
+				const addLink = page.locator('[data-test-action="add-link"]')
+				return addLink.isVisible().catch(() => false)
 			},
 			execute: async (page) => {
 				const cardsBefore = await page.locator('[data-test-article]').count()
@@ -293,12 +288,7 @@ export function createReadlistActions(
 				// Re-save an already-saved URL so refreshArticleIfStale takes the
 				// handleFullFetch branch and publishes publishRefreshArticleContent.
 				// Pagination URLs point to the local server, so the fetch is deterministic.
-				const input = page.locator('[data-test-form="save-article"] input[name="url"]')
-				await input.fill(testData.paginationUrls[0])
-				await clickAndWaitForPageReload(
-					page,
-					page.locator('[data-test-form="save-article"] button[type="submit"]'),
-				)
+				await saveWithAddLink(page, testData.paginationUrls[0])
 
 				const cardsAfter = await page.locator('[data-test-article]').count()
 				assert.equal(cardsAfter, cardsBefore, 'Re-saving an existing URL must not duplicate the article')

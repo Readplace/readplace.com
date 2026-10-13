@@ -50,6 +50,14 @@ function purposeMenuMarkup(): string {
 	`;
 }
 
+function addLinkMarkup(): string {
+	return `<main><button type="button" popovertarget="add-link" data-test-add-link-trigger>Add link</button><div id="add-link" popover data-test-dialog="add-link"><form method="POST" action="/queue/save" hx-post="/queue/save" hx-target="this" data-save-link-form data-save-link-failure="Couldn't save the link." data-test-form="save-article"><input name="url" type="url" autofocus value="https://example.com/a"><p data-save-link-error></p><button type="button" popovertarget="add-link">Cancel</button><button type="submit">Save</button></form><div id="save-tip" popover data-test-dialog="save-tip" tabindex="-1" autofocus><button type="button" popovertarget="save-tip">Continue with URL</button></div></div></main>`;
+}
+
+function fieldlessHostMarkup(): string {
+	return `<div id="host" popover data-test-dialog="host"><button type="button">Close</button><div id="nested" popover data-test-dialog="nested"><button type="button">Close</button></div></div>`;
+}
+
 function unrelatedMarkup(): string {
 	return `${LIVE_REGION}<form data-test-form="unrelated" action="/somewhere" hx-post="/somewhere"><input name="x" value="y"><button type="submit">Go</button></form><a href="/queue/abc/view" data-test-card-link>Read</a>`;
 }
@@ -165,6 +173,15 @@ function init(bodyHtml: string) {
 		failToSend: (target: Element) => htmxEvent(target, "htmx:sendError", { xhr: answered({ status: 0 }) }),
 		failToSendWithoutDetail: (target: Element) => htmxEvent(target, "htmx:sendError"),
 		nameForm: () => element("form[data-readlist-name-form]", "the name form must be in the document"),
+		saveLinkForm: () => element("form[data-save-link-form]", "the Add link form must be in the document"),
+		saveLinkError: () =>
+			element("[data-save-link-error]", "the Add link form must carry its error line").textContent,
+		saveLinkInvalid: () =>
+			element("form[data-save-link-form] input[name='url']", "the Add link form must carry its link field").getAttribute(
+				"aria-invalid",
+			),
+		saveLinkField: () => element<HTMLInputElement>("form[data-save-link-form] input[name='url']", "the Add link form must carry its link field"),
+		main: () => element("main", "the page must render a <main>"),
 		unrelatedForm: () => element("form[data-test-form='unrelated']", "the unrelated form must be in the document"),
 		cardLink: () => element("[data-test-card-link]", "the card link must be in the document"),
 		errorText: () =>
@@ -395,7 +412,7 @@ describe("initReadlist", () => {
 
 		app.failToSend(app.nameForm());
 
-		expect(app.listenerErrors()).toEqual(["Uncaught [Error: a name form always carries its failure message]"]);
+		expect(app.listenerErrors()).toEqual(["Uncaught [Error: a dialog form always carries its failure message]"]);
 	});
 
 	it("returns focus to the launching menu's summary when its dialog closes with focus on the body", () => {
@@ -470,5 +487,77 @@ describe("initReadlist", () => {
 		app.toggleOnDocument();
 
 		expect(app.activeElement()).toBe(app.document.body);
+	});
+
+	describe("the Add link dialog", () => {
+		it("lets htmx swap a refused link's form into the dialog", () => {
+			const app = init(addLinkMarkup());
+
+			const detail = app.answerBeforeSwap(app.saveLinkForm(), answered({ status: 422, body: "<form data-save-link-form></form>" }));
+
+			expect(detail.shouldSwap).toBe(true);
+			expect(detail.target).toBe(undefined);
+			expect(app.saveLinkError()).toBe("");
+		});
+
+		it("lands any other page it is answered with in <main>, outside the dialog, at the top", () => {
+			const app = init(addLinkMarkup());
+
+			const detail = app.answerBeforeSwap(
+				app.saveLinkForm(),
+				answered({ status: 200, body: "<!DOCTYPE html><html><body><main>Log in</main></body></html>" }),
+			);
+
+			expect(detail.shouldSwap).toBe(true);
+			expect(detail.target).toBe(app.main());
+			expect(detail.selectOverride).toBe("main");
+			expect(detail.swapOverride).toBe("outerHTML show:none scroll:html:top");
+			expect(app.saveLinkError()).toBe("");
+		});
+
+		it("says the save failed when the server answers with an error", () => {
+			const app = init(addLinkMarkup());
+
+			const detail = app.answerBeforeSwap(app.saveLinkForm(), answered({ status: 500, body: "Server error" }));
+
+			expect(detail.shouldSwap).toBe(false);
+			expect(detail.target).toBe(undefined);
+			expect(app.saveLinkError()).toBe("Couldn't save the link.");
+			expect(app.saveLinkInvalid()).toBe("true");
+		});
+
+		it("says the save failed when the request never reaches the server", () => {
+			const app = init(addLinkMarkup());
+
+			app.failToSend(app.saveLinkForm());
+
+			expect(app.saveLinkError()).toBe("Couldn't save the link.");
+			expect(app.saveLinkInvalid()).toBe("true");
+		});
+
+		it("returns focus to the link field, keeping its value, when the advice nested in the dialog is dismissed", () => {
+			const app = init(addLinkMarkup());
+
+			app.closeDialog("save-tip");
+
+			expect(app.activeElement()).toBe(app.saveLinkField());
+			expect(app.saveLinkField().value).toBe("https://example.com/a");
+		});
+
+		it("returns focus to Add link when the dialog itself closes", () => {
+			const app = init(addLinkMarkup());
+
+			app.closeDialog("add-link");
+
+			expect(app.activeElement()).toBe(app.document.querySelector("[data-test-add-link-trigger]"));
+		});
+
+		it("leaves focus alone when the dialog around a nested one has no field to return to", () => {
+			const app = init(fieldlessHostMarkup());
+
+			app.closeDialog("nested");
+
+			expect(app.activeElement()).toBe(app.document.body);
+		});
 	});
 });

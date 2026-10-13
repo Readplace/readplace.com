@@ -12,7 +12,7 @@ import {
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
-import { createReadlistFromReader, markReadWithConfirmation } from "./page-interactions";
+import { createReadlistFromReader, markReadWithConfirmation, openAddLink } from "./page-interactions";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 import { LENSES, NON_TEXT_MINIMUM, contrastRatio, textMinimum } from "./wcag-contrast";
 
@@ -69,8 +69,9 @@ async function signUpFreshUser(page: Page, email: string): Promise<void> {
 }
 
 async function saveArticle(page: Page, url: string, expectedCards: number): Promise<void> {
-	await page.locator('[data-test-form="save-article"] input[name="url"]').fill(url);
-	await page.locator('[data-test-form="save-article"] button[type="submit"]').click();
+	const form = await openAddLink(page);
+	await form.locator('input[name="url"]').fill(url);
+	await form.locator('button[type="submit"]').click();
 	await expect(page.locator("[data-test-article]")).toHaveCount(expectedCards, {
 		timeout: SETTLE_MS,
 	});
@@ -262,6 +263,21 @@ async function auditCreateReadlistDialog(
 	});
 }
 
+async function auditAddLinkDialog(page: Page, where: { theme: string; view: string }): Promise<void> {
+	const form = await openAddLink(page);
+	await page.mouse.move(0, 0);
+	assertContrast(await stableMeasurements(page, READLIST_ROOT), { ...where, view: `${where.view}/add-link-dialog` });
+
+	await form.locator('input[name="url"]').fill("chrome://extensions/");
+	await form.locator('button[type="submit"]').click();
+	await expect(page.locator('#add-link [data-test-save-error]')).not.toBeEmpty({ timeout: SETTLE_MS });
+	await page.mouse.move(0, 0);
+	assertContrast(await stableMeasurements(page, READLIST_ROOT), { ...where, view: `${where.view}/add-link-dialog-error` });
+
+	await page.keyboard.press("Escape");
+	await expect(page.locator("#add-link:popover-open")).toBeHidden({ timeout: SETTLE_MS });
+}
+
 async function auditReadlistQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
@@ -422,6 +438,7 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 				await auditReadlistQueue(page, { theme, view });
 			}
 			await auditCreateReadlistDialog(page, { theme, view: "create-readlist" });
+			await auditAddLinkDialog(page, { theme, view: "add-link" });
 			await auditReadlistDiscovery(page, { theme });
 			await page.route("**/client-dist/toast.client.js", (route) => route.abort());
 			await page.goto(

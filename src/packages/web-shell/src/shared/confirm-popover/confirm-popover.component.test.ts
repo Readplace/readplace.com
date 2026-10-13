@@ -35,6 +35,27 @@ describe("renderConfirmPopover", () => {
 		expect(panel.getAttribute("role")).toBe("dialog");
 	});
 
+	it("opens with focus on the panel itself by default", () => {
+		const panel = renderPanel().querySelector(".confirm-popover");
+
+		assert(panel, "panel must be rendered");
+		expect(panel.hasAttribute("autofocus")).toBe(true);
+		expect(panel.getAttribute("tabindex")).toBe("-1");
+	});
+
+	it("leaves focus to the field the actions mark autofocus when the panel focuses a field", () => {
+		const doc = renderPanel({
+			focusesField: true,
+			actionsHtml: `<form class="confirm-popover__actions"><input name="url" autofocus></form>`,
+		});
+
+		const panel = doc.querySelector(".confirm-popover");
+		assert(panel, "panel must be rendered");
+		expect(panel.hasAttribute("autofocus")).toBe(false);
+		expect(panel.hasAttribute("tabindex")).toBe(false);
+		expect(Array.from(doc.querySelectorAll("[autofocus]")).map((element) => element.getAttribute("name"))).toEqual(["url"]);
+	});
+
 	it("labels the panel by its own title so a screen reader announces the decision", () => {
 		const doc = renderPanel();
 

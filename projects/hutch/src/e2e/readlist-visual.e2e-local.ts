@@ -70,11 +70,15 @@ const READLIST_CREATE_POPOVER = '[data-test-confirm-popover="readlist-create"]';
 const READLIST_CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
 const READLIST_CREATE_SAVE = '[data-test-action="readlist-create-save"]';
 const READLIST_CREATE_ERROR = "[data-test-readlist-create-error]";
-const SAVE_CARD = "[data-test-save-card]";
+const ADD_LINK = '[data-test-action="add-link"]';
+const ADD_LINK_DIALOG = "#add-link";
+const OPEN_ADD_LINK_DIALOG = "#add-link:popover-open";
+const TABS_BAR = ".readlist__tabs-bar";
+const SAVE_FEEDBACK = ".readlist__lead";
 const SAVE_ERROR = "[data-test-save-error]";
-const SAVE_INPUT = `${SAVE_CARD} input[name="url"]`;
-const SAVE_BUTTON = `${SAVE_CARD} button[type="submit"]`;
-const SAVE_FIELD = `${SAVE_CARD} .readlist-save__field`;
+const SAVE_INPUT = `${ADD_LINK_DIALOG} input[name="url"]`;
+const SAVE_BUTTON = `${ADD_LINK_DIALOG} [data-test-action="add-link-save"]`;
+const SAVE_CANCEL = `${ADD_LINK_DIALOG} [data-test-action="add-link-cancel"]`;
 const IMPORT_FLASH = "[data-test-import-flash]";
 const IMPORT_SKIPPED = "[data-test-import-skipped]";
 const SAVE_TIP_POPOVER = '[data-test-confirm-popover="save-tip"]';
@@ -383,14 +387,12 @@ async function pageFromTopGeometry(page: Page): Promise<void> {
 
 async function columnTopsAlign(page: Page): Promise<void> {
 	await pageFromTopGeometry(page);
-	await saveCardRowGeometry(page);
-	const save = await measuredBox(page, SAVE_CARD);
+	await addLinkSitsBesideTheTabs(page);
+	const bar = await measuredBox(page, TABS_BAR);
 	const rail = await measuredBox(page, RAIL);
 	const side = await measuredBox(page, SIDE);
-	const tabs = await measuredBox(page, FILTER_TABS);
-	assert.ok(near(save.y, rail.y), `the save card and rail must start together, measured ${save.y}px and ${rail.y}px`);
-	assert.ok(near(save.y, side.y), `the save card and side column must start together, measured ${save.y}px and ${side.y}px`);
-	assert.ok(near(tabs.y - (save.y + save.height), 32), "the tabs must sit 32px below the save card");
+	assert.ok(near(bar.y, rail.y), `the tabs and rail must start together, measured ${bar.y}px and ${rail.y}px`);
+	assert.ok(near(bar.y, side.y), `the tabs and side column must start together, measured ${bar.y}px and ${side.y}px`);
 }
 
 async function emptyColumnGeometry(page: Page): Promise<void> {
@@ -431,45 +433,50 @@ async function listTakesTheEmptySideTrack(page: Page): Promise<void> {
 async function alertLimitGeometry(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	const alert = await measuredBox(page, ALERT);
-	const save = await measuredBox(page, SAVE_CARD);
-	assert.ok(near(save.y - (alert.y + alert.height), 16), "the save card must sit 16px below the readlist alert");
+	const bar = await measuredBox(page, TABS_BAR);
+	assert.ok(near(bar.y - (alert.y + alert.height), 32), "the tabs must sit 32px below the readlist alert");
 }
 
-async function saveCardRowGeometry(page: Page): Promise<void> {
-	const input = await measuredBox(page, SAVE_INPUT);
-	const button = await measuredBox(page, SAVE_BUTTON);
-	assert.ok(near(button.x - (input.x + input.width), 8), "Save must sit 8px beside the field above the phone breakpoint");
-	assert.ok(near(button.y, input.y), "Save must align with the field's top edge");
-	assert.ok(near(input.height, 48), "the save field must stay 48px high");
-	assert.ok(near(button.height, 48), "Save must keep its 48px height");
+async function addLinkSitsBesideTheTabs(page: Page): Promise<void> {
+	const addLink = await measuredBox(page, ADD_LINK);
+	const tabs = await measuredBox(page, FILTER_TABS);
+	const bar = await measuredBox(page, TABS_BAR);
+	assert.ok(addLink.x >= tabs.x + tabs.width, "Add link must sit after the tabs");
+	assert.ok(addLink.y < tabs.y + tabs.height, "Add link must share the tabs' row");
+	assert.ok(near(addLink.x + addLink.width, bar.x + bar.width), "Add link must sit at the tabs' trailing edge");
+	assert.ok(near(tabs.y + tabs.height, bar.y + bar.height), "Add link must not stretch the tabs' row");
 }
 
-async function saveCardPhoneGeometry(page: Page): Promise<void> {
+async function addLinkDialogGeometry(page: Page): Promise<void> {
+	const panel = await measuredBox(page, OPEN_ADD_LINK_DIALOG);
 	const input = await measuredBox(page, SAVE_INPUT);
-	const button = await measuredBox(page, SAVE_BUTTON);
-	const content = await page.locator(SAVE_CARD).evaluate((card) => {
-		const styles = getComputedStyle(card);
-		return {
-			x: card.getBoundingClientRect().x + Number.parseFloat(styles.borderLeftWidth) + Number.parseFloat(styles.paddingLeft),
-			width: card.clientWidth - Number.parseFloat(styles.paddingLeft) - Number.parseFloat(styles.paddingRight),
-		};
-	});
-	assert.ok(near(input.width, content.width), "the save field must fill the card's content width on a phone");
-	assert.ok(near(input.height, 48), "the save field must stay 48px high on a phone");
-	assert.ok(near(button.y - (input.y + input.height), 16), "Save must sit 16px below the field on a phone");
-	assert.ok(near(button.height, 48), "Save must keep its 48px height on a phone");
-	assert.ok(button.width < content.width, "Save must hold its own width on a phone");
-	assert.ok(near(button.x, content.x), "Save must align with the field's leading edge on a phone");
+	const cancel = await measuredBox(page, SAVE_CANCEL);
+	const save = await measuredBox(page, SAVE_BUTTON);
+	assert.ok(near(panel.width, 600), `the dialog must be 600px wide, measured ${panel.width}px`);
+	assert.ok(near(input.height, 48), "the link field must stay 48px high");
+	assert.ok(near(input.x - panel.x, 33), "the link field must start inside the dialog's padding");
+	assert.ok(near(panel.x + panel.width - (input.x + input.width), 33), "the link field must span the dialog");
+	assert.ok(cancel.y >= input.y + input.height, "Cancel and Save must sit below the field");
+	assert.ok(near(cancel.y, save.y), "Cancel and Save must share a row");
+	assert.ok(near(save.x, cancel.x + cancel.width + 8), "Save must sit 8px after Cancel");
+	assert.ok(near(save.x + save.width, panel.x + panel.width - 33), "Save must end at the dialog's padding");
+}
+
+async function addLinkPhoneGeometry(page: Page): Promise<void> {
+	await neverScrollsSideways(page);
+	const addLink = await measuredBox(page, ADD_LINK);
+	const tabs = await measuredBox(page, FILTER_TABS);
+	assert.ok(addLink.y + addLink.height <= tabs.y, "Add link must wrap above the tabs on a phone");
+	assert.ok(near(addLink.x + addLink.width, tabs.x + tabs.width), "Add link must keep the tabs' trailing edge on a phone");
 }
 
 async function saveErrorPhoneGeometry(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
-	const input = await measuredBox(page, SAVE_INPUT);
 	const message = await measuredBox(page, SAVE_ERROR);
-	const field = await measuredBox(page, SAVE_FIELD);
-	const button = await measuredBox(page, SAVE_BUTTON);
-	assert.ok(near(message.y - (input.y + input.height), 8), "the save error must sit 8px below the phone field");
-	assert.ok(near(button.y - (field.y + field.height), 16), "Save must sit 16px below the field and its error");
+	const addLink = await measuredBox(page, ADD_LINK);
+	const listing = await measuredBox(page, LISTING);
+	assert.ok(message.y + message.height <= addLink.y, "the save error must sit above Add link on a phone");
+	assert.ok(near(message.width, listing.width), "the save error must span the column on a phone");
 }
 
 async function emptyActionFitsEveryViewport(page: Page, key: "install" | "view-unread"): Promise<void> {
@@ -514,16 +521,16 @@ async function railFoldsToOneRow(page: Page): Promise<void> {
 
 async function phonePageGeometry(page: Page): Promise<void> {
 	await railStacksAboveTheListing(page);
-	await saveCardPhoneGeometry(page);
+	await addLinkPhoneGeometry(page);
 	await guideSitsAboveTheTabs(page);
 	await pageFitsTheClip(page);
 }
 
 async function guideSitsAboveTheTabs(page: Page): Promise<void> {
 	const guide = await measuredBox(page, SETUP_GUIDE);
-	const save = await measuredBox(page, SAVE_CARD);
+	const addLink = await measuredBox(page, ADD_LINK);
 	const tabs = await measuredBox(page, FILTER_TABS);
-	assert.ok(save.y + save.height <= guide.y, "the setup guide must follow the save card on a phone");
+	assert.ok(guide.y + guide.height <= addLink.y, "the setup guide must lead Add link on a phone");
 	assert.ok(guide.y + guide.height <= tabs.y, "the setup guide must lead the tabs and list on a phone");
 }
 
@@ -1234,7 +1241,7 @@ async function alertGoneSettled(page: Page): Promise<void> {
 async function saveErrorSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
-	await expect(page.locator(SAVE_CARD)).toBeVisible();
+	await expect(page.locator(SAVE_FEEDBACK)).toBeVisible();
 	await expect(page.locator(SAVE_ERROR)).toHaveAttribute("data-test-saveable-url-code", "malformed_url");
 }
 
@@ -1245,14 +1252,25 @@ async function importResultSettled(page: Page): Promise<void> {
 	await expect(page.locator(`${IMPORT_SKIPPED} [data-test-alert="import-skipped"]`)).toHaveAttribute("data-test-alert-variant", "error");
 }
 
-async function saveFieldFocusSettled(page: Page): Promise<void> {
+async function addLinkDialogSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
+	await page.locator(ADD_LINK).click();
 	const input = page.locator(SAVE_INPUT);
-	await input.focus();
+	await expect(page.locator(OPEN_ADD_LINK_DIALOG)).toBeVisible();
 	await expect(input).toBeFocused();
 	await expect(input).toHaveValue("");
 	await expect(page.locator(SAVE_TIP_POPOVER)).toBeHidden();
+	await page.mouse.move(0, 0);
+}
+
+async function addLinkDialogErrorSettled(page: Page): Promise<void> {
+	await addLinkDialogSettled(page);
+	await page.locator(SAVE_INPUT).fill("https://server");
+	await page.locator(SAVE_BUTTON).click();
+	await expect(page.locator(`${ADD_LINK_DIALOG} ${SAVE_ERROR}`)).toHaveText("Enter a valid article link.");
+	await expect(page.locator(SAVE_INPUT)).toBeFocused();
+	await page.mouse.move(0, 0);
 }
 
 async function subscriptionTrialSettled(page: Page): Promise<void> {
@@ -1537,7 +1555,7 @@ const SAVE_ERROR_CHECKPOINT: VisualCheckpoint = {
 	name: "readlist-save-error",
 	settled: saveErrorSettled,
 	geometry: railBesideMainBesideSide,
-	target: SAVE_CARD,
+	target: SAVE_FEEDBACK,
 	capture: "element",
 	pinnedText: [],
 };
@@ -1552,7 +1570,7 @@ const IMPORT_RESULT: VisualCheckpoint = {
 	name: "readlist-import-result",
 	settled: importResultSettled,
 	geometry: railBesideMainBesideSide,
-	target: SAVE_CARD,
+	target: SAVE_FEEDBACK,
 	capture: "element",
 	pinnedText: [],
 };
@@ -1562,13 +1580,19 @@ const IMPORT_RESULT_MORE: VisualCheckpoint = {
 	name: "readlist-import-result-more",
 };
 
-const SAVE_FIELD_FOCUS: VisualCheckpoint = {
-	name: "readlist-save-field-focus",
-	settled: saveFieldFocusSettled,
-	geometry: railBesideMainBesideSide,
-	target: SAVE_CARD,
+const ADD_LINK_DIALOG_CHECKPOINT: VisualCheckpoint = {
+	name: "readlist-add-link-dialog",
+	settled: addLinkDialogSettled,
+	geometry: addLinkDialogGeometry,
+	target: OPEN_ADD_LINK_DIALOG,
 	capture: "element",
 	pinnedText: [],
+};
+
+const ADD_LINK_DIALOG_ERROR: VisualCheckpoint = {
+	...ADD_LINK_DIALOG_CHECKPOINT,
+	name: "readlist-add-link-dialog-error",
+	settled: addLinkDialogErrorSettled,
 };
 
 const SUBSCRIPTION_TRIAL: VisualCheckpoint = {
@@ -2246,11 +2270,11 @@ test.describe("Readlist alerts", () => {
 	}
 });
 
-test.describe("Readlist save field", () => {
+test.describe("Readlist Add link", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
 	for (const theme of THEMES) {
-		test(`keeps the field and Save in one row at tablet widths (${theme})`, async ({ page }, testInfo) => {
+		test(`keeps Add link beside the tabs at tablet widths (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-save-tablet-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			await createVerifiedUser(page, email);
@@ -2261,18 +2285,28 @@ test.describe("Readlist save field", () => {
 			for (const viewport of [{ width: 601, height: 900 }, { width: 768, height: 900 }, { width: 1023, height: 900 }]) {
 				await page.setViewportSize(viewport);
 				await neverScrollsSideways(page);
-				await saveCardRowGeometry(page);
+				await addLinkSitsBesideTheTabs(page);
 			}
 		});
 
-		test(`shows the empty save field focused (${theme})`, async ({ page }, testInfo) => {
+		test(`opens the dialog on its empty, focused link field (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
-			const email = `readlist-save-field-focus-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const email = `readlist-add-link-dialog-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			await createVerifiedUser(page, email);
 			await loginAs(page, email);
 			await gotoReadlistQueueWithCookies(page, [{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN }]);
 
-			await captureCheckpoint(page, withTheme(SAVE_FIELD_FOCUS, theme));
+			await captureCheckpoint(page, withTheme(ADD_LINK_DIALOG_CHECKPOINT, theme));
+		});
+
+		test(`names a refused link under the dialog's field (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-add-link-error-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			await createVerifiedUser(page, email);
+			await loginAs(page, email);
+			await gotoReadlistQueueWithCookies(page, [{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN }]);
+
+			await captureCheckpoint(page, withTheme(ADD_LINK_DIALOG_ERROR, theme));
 		});
 	}
 });
@@ -2332,10 +2366,10 @@ test.describe("Readlist import results", () => {
 	}
 });
 
-test.describe("Readlist save card on a phone", () => {
+test.describe("Readlist Add link on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE });
 
-	test("keeps the field full width and Save at its own width down to 320px", async ({ page }, testInfo) => {
+	test("wraps Add link above the tabs down to 320px", async ({ page }, testInfo) => {
 		const email = `readlist-save-stack-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUser(page, email);
 		await loginAs(page, email);
@@ -2345,11 +2379,11 @@ test.describe("Readlist save card on a phone", () => {
 		for (const viewport of [PHONE, WCAG_REFLOW_MINIMUM]) {
 			await page.setViewportSize(viewport);
 			await neverScrollsSideways(page);
-			await saveCardPhoneGeometry(page);
+			await addLinkPhoneGeometry(page);
 		}
 	});
 
-	test("keeps the error between the field and Save", async ({ page }, testInfo) => {
+	test("shows a save error the redirect lands on above Add link", async ({ page }, testInfo) => {
 		const email = `readlist-save-error-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUser(page, email);
 		await loginAs(page, email);
@@ -2578,10 +2612,10 @@ test.describe("Readlist page on a phone", () => {
 		await captureCheckpoint(page, SUBSCRIPTION_TRIAL_PHONE);
 	});
 
-	test("shows the save card on a custom readlist and asks for an article from All", async ({ page }, testInfo) => {
+	test("offers Add link on a custom readlist and asks for an article from All", async ({ page }, testInfo) => {
 		const email = `readlist-phone-custom-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
-		await expect(page.locator(SAVE_CARD)).toBeVisible();
+		await expect(page.locator(ADD_LINK)).toBeVisible();
 		await expect(page.locator(EMPTY_TEXT)).toHaveText(
 			"Choose an article from All and add it here to start organising this readlist.",
 		);

@@ -48,7 +48,7 @@ import {
 	renderPurposeDeleteConfirm,
 } from "./readlist-purpose-delete-confirm.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
-import { renderReadlistSave, toReadlistSaveDisplayModel } from "./readlist-save.component";
+import { renderReadlistAddLink } from "./readlist-add-link.component";
 import { readlistReturnQuery } from "./readlist.url";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
@@ -242,6 +242,12 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		subscribeSource: "queue-preferences-banner",
 	});
 
+	const addLink = renderReadlistAddLink({
+		filters: { readlist: vm.readlist.slug, tab: "queue", page: 1 },
+		accessIsReadOnly: vm.accessIsReadOnly,
+		saveTip: vm.saveTip,
+	});
+
 	const content = render(TEMPLATE, {
 		readlistNavHtml: renderReadlistNav(
 			buildReadlistNav({
@@ -252,13 +258,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: vm.inboxAlert ?? readlistAlertFor(vm.query) }),
-		saveCardHtml: renderReadlistSave(
-			toReadlistSaveDisplayModel({
-				filters: { readlist: vm.readlist.slug, tab: "queue", page: 1 },
-				accessIsReadOnly: vm.accessIsReadOnly,
-				saveTipState: vm.saveTip.state,
-			}),
-		),
+		addLinkControlHtml: addLink.controlHtml,
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",
@@ -290,7 +290,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		wizardPopoverHtml: controls.wizardPopoverHtml,
 		purposeDeleteConfirmHtml: controls.purposeDeleteConfirmHtml,
 		subscribePlansHtml: side.subscribePlansHtml,
-		saveTipHtml: vm.saveTip.html,
+		addLinkDialogHtml: addLink.dialogHtml,
 	});
 
 	return {

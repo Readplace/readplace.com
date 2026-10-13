@@ -4,7 +4,8 @@ import { z } from "zod";
 import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { nameNewReadlist, openReadlistSwitcher } from "./page-interactions";
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { nameNewReadlist, openAddLink, openReadlistSwitcher } from "./page-interactions";
 import { readScrollY } from "./readlist-reader-skeleton.browser";
 import { maxScrollY, recordScrollAfterSwap, scrollUnderHeader } from "./readlist-scroll-stability.browser";
 
@@ -23,6 +24,7 @@ const CREATE_ERROR = "[data-test-readlist-create-error]";
 const ALERT_TITLE = '[data-test-alert="readlist"] [data-test-alert-title]';
 const READER_CREATE = '[data-test-confirm-popover="readlist-create"]';
 const READER_SCROLL_PX = 40;
+const ADD_LINK_SAVE = '#add-link [data-test-action="add-link-save"]';
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
@@ -243,6 +245,50 @@ for (const viewport of VIEWPORTS) {
 			await expect(page.locator("html")).toHaveAttribute(
 				"data-test-scroll-after-swap",
 				String(READER_SCROLL_PX),
+			);
+		});
+
+		test("refusing a link in Add link keeps the page where it was", async ({ page }, testInfo) => {
+			await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+			const ids = await openToReadListing(page, `${testInfo.workerIndex}-${Date.now()}`);
+			const form = await openAddLink(page);
+			await form.locator('input[name="url"]').fill("https://server");
+
+			await expectSwapKeepsScroll(page, {
+				scrollTarget: `[data-test-article="${ids[Math.floor(ids.length / 2)]}"]`,
+				control: ADD_LINK_SAVE,
+				arrived: () => expect(page.locator("#add-link [data-test-save-error]")).toHaveText("Enter a valid article link."),
+			});
+			await expect(form.locator('input[name="url"]')).toHaveValue("https://server");
+		});
+
+		test("saving through Add link lands the page on the newest row", async ({ page }, testInfo) => {
+			const stamp = `${testInfo.workerIndex}-${Date.now()}`;
+			await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+			const ids = await openToReadListing(page, stamp);
+			const form = await openAddLink(page);
+			await form.locator('input[name="url"]').fill(`${BASE_URL}/privacy?add-link-scroll=${stamp}`);
+
+			await pressFromMidPage(page, {
+				scrollTarget: `[data-test-article="${ids[Math.floor(ids.length / 2)]}"]`,
+				control: ADD_LINK_SAVE,
+			});
+
+			await expect(page.locator("article.readlist-article")).toHaveCount(ids.length + 1);
+			await expect(page.locator("#add-link:popover-open")).toHaveCount(0);
+			await expect(page.locator("html")).toHaveAttribute("data-test-scroll-after-swap", /^\d+$/);
+			const landed = await page.evaluate(() => {
+				const card = document.querySelector("#latest-saved");
+				if (!card) throw new Error("the save must land a #latest-saved row");
+				return {
+					top: card.getBoundingClientRect().top,
+					padding: Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0,
+					atBottom: window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 1,
+				};
+			});
+			assert.ok(
+				landed.atBottom || Math.abs(landed.top - landed.padding) <= 1,
+				`the newest row must land at the top of the viewport, measured ${JSON.stringify(landed)}`,
 			);
 		});
 

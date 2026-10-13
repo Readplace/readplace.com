@@ -76,7 +76,7 @@ describe("GET /queue", () => {
 		expect(doc.body.classList.contains("theme-dark")).toBe(true);
 	});
 
-	it("keeps toast and counts mounts outside the main column and groups the save card and results", async () => {
+	it("keeps toast and counts mounts outside the main column and puts Add link beside the tabs", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const doc = parse((await agent.get("/queue")).text);
@@ -90,12 +90,16 @@ describe("GET /queue", () => {
 		expect(toast.parentElement).toBe(main);
 		expect(counts.parentElement).toBe(main);
 
-		const card = main.querySelector("[data-test-save-card]");
+		const addLink = main.querySelector("[data-test-add-link]");
 		const listing = main.querySelector("[data-test-listing]");
-		assert(card, "the save card must render");
+		assert(addLink, "Add link must render");
 		assert(listing, "the listing must render");
-		expect(card.parentElement?.className).toBe("readlist__lead");
+		expect(addLink.parentElement?.className).toBe("readlist__tabs-bar");
+		expect(addLink.previousElementSibling?.hasAttribute("data-test-filters")).toBe(true);
 		expect(listing.parentElement?.className).toBe("readlist__results");
+		const dialog = main.querySelector("#add-link");
+		assert(dialog, "the Add link dialog must render");
+		expect(dialog.parentElement).toBe(main);
 	});
 });
 
@@ -241,7 +245,7 @@ describe("empty states", () => {
 		const text = empty.querySelector(".readlist-empty__text");
 		assert(text, "the empty state text must be rendered");
 		expect(text.textContent).toBe(
-			"Save your first article by pasting a link above, or set up one-tap saving from your browser, phone, or AI assistant.",
+			"Save your first article with Add link, or set up one-tap saving from your browser, phone, or AI assistant.",
 		);
 		expect(emptyActionKeys(empty)).toEqual(["install"]);
 		const install = empty.querySelector('[data-test-empty-action="install"]');
@@ -306,7 +310,7 @@ describe("empty states", () => {
 		const text = empty.querySelector(".readlist-empty__text");
 		assert(text, "the empty state text must be rendered");
 		expect(text.textContent).toBe(
-			"Save your first article by pasting a link above, or use the Readplace browser extension to save it in one click.",
+			"Save your first article with Add link, or use the Readplace browser extension to save it in one click.",
 		);
 		expect(emptyActionKeys(empty)).toEqual([]);
 	});
@@ -531,7 +535,7 @@ describe("custom readlist chrome", () => {
 });
 
 describe("the save error", () => {
-	it("renders the save error and marks the input invalid", async () => {
+	it("renders the save error as an alert in the page's feedback area, leaving the dialog's field fresh", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -539,13 +543,13 @@ describe("the save error", () => {
 			(await agent.get("/queue?error_code=malformed_url")).text,
 		);
 
-		const error = doc.querySelector("[data-test-save-error]");
+		const error = doc.querySelector(".readlist__lead [data-test-save-error] [data-test-alert]");
 		assert(error, "the save error must be rendered");
-		expect(error.textContent).toBe("Enter a valid article link.");
+		expect(error.getAttribute("role")).toBe("alert");
+		expect(error.querySelector("[data-test-alert-message]")?.textContent).toBe("Enter a valid article link.");
 
 		const input = doc.querySelector('[data-test-form="save-article"] input[name="url"]');
 		assert(input, "the save input must always be rendered");
-		expect(input.getAttribute("aria-invalid")).toBe("true");
-		expect(input.getAttribute("aria-describedby")).toBe(error.getAttribute("id"));
+		expect(input.hasAttribute("aria-invalid")).toBe(false);
 	});
 });

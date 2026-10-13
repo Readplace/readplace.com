@@ -1,6 +1,7 @@
 const SWAP_FOR_SCROLL = {
 	top: "outerHTML show:none scroll:html:top",
 	"stay-put": "outerHTML show:none",
+	"latest-saved": "outerHTML show:#latest-saved:top",
 } as const;
 
 export type HxLocationScroll = keyof typeof SWAP_FOR_SCROLL;

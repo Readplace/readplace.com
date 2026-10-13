@@ -122,6 +122,21 @@ describe("Saving an archive capture", () => {
 });
 
 
+it("lands the Add link dialog on the queued notice for an unresolved wrapper", async () => {
+	const { fixture, harness } = createHarness();
+	const agent = await loginAgent(harness.server, harness.auth);
+	const response = await agent.post("/queue/save").set("HX-Request", "true").type("form").send({ url: "https://archive.ph/abc" });
+	expect(response.status).toBe(204);
+	expect(JSON.parse(response.headers["hx-location"])).toEqual({
+		path: "/queue?queue_error=save_queued",
+		source: "#add-link",
+		target: "main",
+		select: "main",
+		swap: "outerHTML show:none scroll:html:top",
+	});
+	expect(response.headers["x-readplace-save-attempt-id"]).toBe(fixture.submitLink.submitLinks[0].saveAttemptId);
+});
+
 it.each(["https://archive.ph/abc", "https://web.archive.org/about", "https://apple.news/story"])("queues an unresolved wrapper without creating article state: %s", async (url) => {
 	const { fixture, harness, linkSaves, linkQueued } = createHarness();
 	const agent = await loginAgent(harness.server, harness.auth);

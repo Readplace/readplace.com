@@ -9,6 +9,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { openAddLink } from "./page-interactions";
 import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 import { measureDocumentBoxes, pinSaveBarValue } from "./readlist-save-skeleton.browser";
 
@@ -22,7 +23,7 @@ const DESKTOP = { width: 1280, height: 900 };
 const DESKTOP_TALL = { width: 1280, height: 1700 };
 const PHONE_TALL = { width: 390, height: 2100 };
 
-const SAVE_FORM = '[data-test-form="save-article"]';
+const SAVE_FORM = '#add-link [data-test-form="save-article"]';
 const SAVE_INPUT = `${SAVE_FORM} input[name="url"]`;
 const SAVE_BUTTON = `${SAVE_FORM} button[type="submit"]`;
 const SAVE_FORM_IN_FLIGHT = `${SAVE_FORM}.htmx-request`;
@@ -36,7 +37,7 @@ const FIRST_CARD = `${LIST} > ${CARD}:first-child`;
 const LANDED_TOGGLE = '#latest-saved [data-test-action="mark-read"]';
 const PENDING_CARD = '[data-card-status="pending"]';
 const EMPTY = "main.readlist [data-test-empty-readlist]";
-const SAVE_ERROR = "[data-test-save-error]";
+const SAVE_ERROR = "#add-link [data-test-save-error]";
 const LISTING_COUNT = "main.readlist #readlist-count";
 
 const PINNED_SAVE_URL = "https://example.com/an-article-being-saved";
@@ -150,6 +151,7 @@ async function holdSave(page: Page): Promise<() => void> {
 }
 
 async function submitSave(page: Page, url: string): Promise<void> {
+	await openAddLink(page);
 	await page.locator(SAVE_INPUT).fill(url);
 	await page.locator(SAVE_BUTTON).click();
 	await page.mouse.move(DESKTOP.width - 5, 5);
@@ -339,7 +341,7 @@ test.describe("The skeleton comes before the answer", () => {
 		);
 	});
 
-	test("shows the skeleton first and the error pill after a rejected URL", async ({
+	test("shows the skeleton first and the refusal under the dialog's field after a rejected URL", async ({
 		page,
 	}, testInfo) => {
 		const run = `${testInfo.workerIndex}-${Date.now()}`;
@@ -358,6 +360,8 @@ test.describe("The skeleton comes before the answer", () => {
 			timeout: SETTLE_MS,
 		});
 		await expect(page.locator(SAVE_ERROR)).toHaveText("Enter a valid article link.");
+		await expect(page.locator(SAVE_INPUT)).toHaveValue("https://server");
+		await expect(page.locator(SAVE_INPUT)).toBeFocused();
 		await expect(page.locator(SKELETON)).toBeHidden();
 		await expect(page.locator(CARD)).toHaveCount(SEEDED_ARTICLES.length);
 	});

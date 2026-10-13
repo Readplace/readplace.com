@@ -85,10 +85,13 @@ async function saveFrom(agent: TestAgent, readlist: string, url: string) {
 	return agent.post(`/queue/save?queue=${readlist}`).type("form").send({ url });
 }
 
-function saveCardIn(doc: Document): Element {
-	const card = doc.querySelector("[data-test-save-card]");
-	assert(card, "the readlist page must render the save card");
-	return card;
+function addLinkDialogIn(doc: Document): Element {
+	const trigger = doc.querySelector('.readlist__tabs-bar [data-test-action="add-link"]');
+	assert(trigger, "the readlist page must offer Add link beside its tabs");
+	const dialog = doc.getElementById("add-link");
+	assert(dialog, "the readlist page must render the Add link dialog");
+	expect(trigger.getAttribute("popovertarget")).toBe(dialog.id);
+	return dialog;
 }
 
 function deleteTriggerTargets(doc: Document): (string | null)[] {
@@ -570,7 +573,7 @@ describe("a readlist the reader opened", () => {
 		expect(articleIds(parse((await agent.get(`/queue?queue=${readlist}`)).text))).toEqual([]);
 	});
 
-	it("shows the save bar on a custom readlist and points the empty state at the default readlist", async () => {
+	it("offers Add link on a custom readlist and points the empty state at the default readlist", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
@@ -578,8 +581,8 @@ describe("a readlist the reader opened", () => {
 		const onWork = parse((await agent.get(`/queue?queue=${readlist}`)).text);
 		const onDefault = parse((await agent.get("/queue")).text);
 
-		expect(saveCardIn(onWork).className).toBe("readlist-save");
-		expect(saveCardIn(onDefault).className).toBe("readlist-save");
+		expect(addLinkDialogIn(onWork).getAttribute("popover")).toBe("auto");
+		expect(addLinkDialogIn(onDefault).getAttribute("popover")).toBe("auto");
 		const empty = onWork.querySelector("[data-test-empty-readlist]");
 		assert(empty, "an untouched readlist must render its empty state");
 		expect(empty.textContent).toContain(
@@ -603,8 +606,8 @@ describe("a readlist the reader opened", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlistAndOpen(agent, "New Readlist");
 		const doc = parse((await agent.get(`/queue?queue=${readlist}`)).text);
-		const form = saveCardIn(doc).querySelector('[data-test-form="save-article"]');
-		assert(form, "the custom readlist's save card must render its form");
+		const form = addLinkDialogIn(doc).querySelector('[data-test-form="save-article"]');
+		assert(form, "the custom readlist's Add link dialog must render its form");
 		const action = form.getAttribute("action");
 		assert(action, "the save form must post somewhere");
 		const target = new URL(action, TEST_APP_ORIGIN);
@@ -686,15 +689,15 @@ describe("the readlist every reader is given", () => {
 		).toEqual(["https://example.com/work-only"]);
 	});
 
-	it("keeps the save bar on a readlist URL that was never minted", async () => {
+	it("keeps Add link on a readlist URL that was never minted", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await createReadlistAndOpen(agent, "New Readlist");
 
 		const doc = parse((await agent.get("/queue?queue=never-minted")).text);
 
-		const form = saveCardIn(doc).querySelector('[data-test-form="save-article"]');
-		assert(form, "the save card must render its form");
+		const form = addLinkDialogIn(doc).querySelector('[data-test-form="save-article"]');
+		assert(form, "the Add link dialog must render its form");
 		const action = form.getAttribute("action");
 		assert(action, "the save form must post somewhere");
 		expect(new URL(action, TEST_APP_ORIGIN).pathname).toBe("/queue/save");

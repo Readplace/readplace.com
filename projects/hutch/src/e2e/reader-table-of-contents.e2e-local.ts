@@ -5,6 +5,7 @@ import { expect, measuredBox, test, waitForBrandFonts } from "@packages/e2e-harn
 import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
+import { openAddLink } from "./page-interactions";
 import { measureBoxes } from "./page-measurements.browser";
 import { htmxIsLive, readScrollY } from "./readlist-reader-skeleton.browser";
 import { maxScrollY, recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
@@ -36,7 +37,6 @@ const READER_SLOT = "#article-body-reader-slot";
 const READY_SLOT = '[data-test-reader-slot][data-reader-status="ready"]';
 const PENDING_SLOT = '[data-test-reader-slot][data-reader-status="pending"]';
 const EXIT_CONFIRM = "#reader-exit-confirm";
-const SAVE_FORM = '[data-test-form="save-article"]';
 const SAVED_CARD = "[data-test-article]";
 const SAVED_CARD_TITLE = "[data-test-article-title]";
 const SCROLL_STAMP = "data-test-scroll-after-swap";
@@ -146,8 +146,9 @@ async function saveLoopbackPage(page: Page, input: { stamp: string; url: string 
 	await createReader(page, email);
 	await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
 	await signIn(page, { email, password: PASSWORD });
-	await page.locator(`${SAVE_FORM} input[name="url"]`).fill(input.url);
-	await page.locator(`${SAVE_FORM} button[type="submit"]`).click();
+	const saveForm = await openAddLink(page);
+	await saveForm.locator('input[name="url"]').fill(input.url);
+	await saveForm.locator('button[type="submit"]').click();
 	await expect(page.locator(SAVED_CARD)).toHaveCount(1);
 	const href = await page.locator(SAVED_CARD_TITLE).getAttribute("href");
 	assert.ok(href, "the saved card must link into the reader");

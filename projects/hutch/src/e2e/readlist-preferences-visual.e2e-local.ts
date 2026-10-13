@@ -28,7 +28,7 @@ const MAIN = "main.readlist";
 const RAIL = ".readlist__rail";
 const MAIN_COLUMN = ".readlist__main";
 const SIDE = ".readlist__side";
-const SAVE_CARD = "[data-test-save-card]";
+const ADD_LINK = '[data-test-action="add-link"]';
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -402,8 +402,8 @@ async function unsetCardComposition(page: Page): Promise<void> {
 
 async function purposeCardSitsUnderTheTabs(page: Page): Promise<void> {
 	await expect(page.locator(SETUP_TRIGGER)).toBeHidden();
-	const [save, tabs, panel, inboxes, purpose, glyph] = [
-		await measuredBox(page, SAVE_CARD),
+	const [addLink, tabs, panel, inboxes, purpose, glyph] = [
+		await measuredBox(page, ADD_LINK),
 		await measuredBox(page, TABS),
 		await measuredBox(page, PREFERENCES),
 		await measuredBox(page, INBOXES),
@@ -411,8 +411,8 @@ async function purposeCardSitsUnderTheTabs(page: Page): Promise<void> {
 		await measuredBox(page, MENU_GLYPH),
 	];
 	assert.ok(
-		near({ actual: tabs.y - (save.y + save.height), expected: 32, within: 1 }),
-		`the tabs must sit 32px under the save card, measured ${tabs.y - (save.y + save.height)}px`,
+		addLink.x >= tabs.x + tabs.width && addLink.y < tabs.y + tabs.height,
+		`Add link must sit beside the tabs, measured addLink=${JSON.stringify(addLink)} tabs=${JSON.stringify(tabs)}`,
 	);
 	assert.ok(
 		near({ actual: panel.y - (tabs.y + tabs.height), expected: 32, within: 1 }),
@@ -481,16 +481,16 @@ async function menuOpensUnderItsKebab(page: Page): Promise<void> {
 	}
 }
 
-async function phoneGuideSitsBetweenSaveCardAndTabs(page: Page): Promise<void> {
+async function phoneGuideLeadsAddLinkAndTabs(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
-	const [save, guide, tabs, panel] = [
-		await measuredBox(page, SAVE_CARD),
+	const [guide, addLink, tabs, panel] = [
 		await measuredBox(page, SETUP_GUIDE),
+		await measuredBox(page, ADD_LINK),
 		await measuredBox(page, TABS),
 		await measuredBox(page, PREFERENCES),
 	];
-	assert.ok(save.y + save.height <= guide.y, "the setup guide must follow the save card on a phone");
-	assert.ok(guide.y + guide.height <= tabs.y, "the setup guide must lead the tabs on a phone");
+	assert.ok(guide.y + guide.height <= addLink.y, "the setup guide must lead Add link on a phone");
+	assert.ok(addLink.y + addLink.height <= tabs.y, "Add link must wrap above the tabs on a phone");
 	assert.ok(tabs.y + tabs.height <= panel.y, "the purpose card must sit under the tabs on a phone");
 }
 
@@ -602,7 +602,7 @@ const UNSET_PHONE: VisualCheckpoint = {
 const SET_PHONE: VisualCheckpoint = {
 	...SET,
 	name: "readlist-preferences-set-phone",
-	geometry: phoneGuideSitsBetweenSaveCardAndTabs,
+	geometry: phoneGuideLeadsAddLinkAndTabs,
 };
 
 const WIZARD_PHONE: VisualCheckpoint = {
@@ -822,7 +822,7 @@ test.describe("Readlist preferences on a phone", () => {
 		await captureCheckpoint(page, UNSET_PHONE);
 	});
 
-	test("puts the setup guide between the save card and the tabs on a phone (light)", async ({
+	test("puts the setup guide ahead of Add link and the tabs on a phone (light)", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });

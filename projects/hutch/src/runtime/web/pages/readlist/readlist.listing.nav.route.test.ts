@@ -114,13 +114,15 @@ describe("Readlist nav", () => {
 				"readlist__main",
 				"readlist__side",
 			]);
-			const saveForm = body.querySelector('.readlist__main [data-test-form="save-article"]');
-			assert(saveForm, "the save bar must live inside the readlist panel");
-			expect(saveForm.getAttribute("method")).toBe("POST");
 			const browse = body.querySelector(".readlist__main.readlist__main--interleaved > .readlist__browse");
 			assert(browse, "the tabs and results must share the phone browsing block");
 			expect(Array.from(browse.children, (child) => child.className.split(" ")[0])).toEqual([
-				"underline-tabs", "readlist__results",
+				"readlist__tabs-bar", "readlist__results",
+			]);
+			const bar = browse.querySelector(".readlist__tabs-bar");
+			assert(bar, "the tabs must sit in their bar");
+			expect(Array.from(bar.children, (child) => child.className.split(" ")[0])).toEqual([
+				"underline-tabs", "readlist-add-link",
 			]);
 			expect(Array.from(browse.querySelectorAll("[data-test-listing], [data-test-pagination]"), (child) => child.className.split(" ")[0])).toEqual([
 				"readlist-listing", "pagination",

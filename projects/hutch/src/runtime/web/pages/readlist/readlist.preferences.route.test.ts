@@ -210,28 +210,29 @@ describe("GET /queue/queues/:slug/preferences", () => {
 			"readlist__browse",
 		]);
 		const lead = main.querySelector(".readlist__lead");
-		assert(lead, "the column must lead with the alert and the save card");
-		const LEAD_PARTS = ['[data-test-alert="readlist"]', "[data-test-save-card]"];
-		expect(Array.from(lead.children, (child) => LEAD_PARTS.find((part) => child.matches(part)))).toEqual(
-			LEAD_PARTS,
-		);
+		assert(lead, "the column must lead with the alert");
+		expect(Array.from(lead.children, (child) => child.getAttribute("data-test-alert"))).toEqual(["readlist"]);
 		const browse = main.querySelector(".readlist__browse");
 		assert(browse, "the column must browse the tabs, the panel and the inboxes");
-		const BROWSE_PARTS = ["[data-test-filters]", "[data-test-readlist-preferences]", "[data-test-readlist-inboxes]"];
+		const BROWSE_PARTS = [".readlist__tabs-bar", "[data-test-readlist-preferences]", "[data-test-readlist-inboxes]"];
 		expect(Array.from(browse.children, (child) => BROWSE_PARTS.find((part) => child.matches(part)))).toEqual(
 			BROWSE_PARTS,
 		);
+		const bar = browse.querySelector(".readlist__tabs-bar");
+		assert(bar, "the tabs must sit in their bar");
+		expect(Array.from(bar.children, (child) => child.matches("[data-test-filters]") || child.matches("[data-test-add-link]"))).toEqual([true, true]);
 	});
 
-	it("wraps the panel in the readlist chrome: the save card posting to /queue/save and the setup guide beside it", async () => {
+	it("wraps the panel in the readlist chrome: Add link posting to /queue/save and the setup guide beside it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		const saveForm = doc.querySelector('[data-test-save-card] form[data-test-form="save-article"]');
-		assert(saveForm, "the preferences page must offer the save card");
+		assert(doc.querySelector('[data-test-action="add-link"]'), "the preferences page must offer Add link");
+		const saveForm = doc.querySelector('#add-link form[data-test-form="save-article"]');
+		assert(saveForm, "the preferences page must offer the Add link dialog");
 		expect(saveForm.getAttribute("action")).toBe(
 			"/queue/save?utm_source=queue&utm_medium=internal&utm_content=save",
 		);

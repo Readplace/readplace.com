@@ -1,0 +1,11 @@
+<form class="confirm-popover__actions readlist-add-link__form" id="add-link-form" method="POST" action="{{action}}" hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="this:drop" hx-disabled-elt="find .readlist__save-btn" hx-indicator="closest form, .readlist-save-skeleton" data-save-link-form data-save-link-failure="{{failureMessage}}" data-save-tip="{{saveTipState}}" data-test-form="save-article"{{#if autoSubmit}} data-auto-submit{{/if}}>
+  <div class="form-field">
+    <label class="form-field__label" for="add-link-url">Article link</label>
+    <input class="form-input" id="add-link-url" type="url" name="url" placeholder="https://" required autocomplete="off" autofocus value="{{value}}" aria-describedby="add-link-url-error"{{#if error}} aria-invalid="true"{{/if}}{{#if accessIsReadOnly}} disabled{{/if}}>
+    <p class="form-field__error" id="add-link-url-error" role="alert" data-save-link-error{{#each errorAttributes}} {{name}}="{{value}}"{{/each}}>{{error}}</p>
+  </div>
+  <div class="confirm-popover__buttons">
+    <button class="btn btn--neutral readlist-add-link__cancel" type="button" popovertarget="add-link" popovertargetaction="hide" data-test-action="add-link-cancel">Cancel</button>
+    <button class="btn btn--primary readlist__save-btn" type="submit" data-test-action="add-link-save"{{#if accessIsReadOnly}} disabled{{/if}}><span class="btn__label-stack"><span class="readlist__save-btn-label">Save</span><span class="readlist__save-btn-saving">Saving…</span></span></button>
+  </div>
+</form>
