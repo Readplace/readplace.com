@@ -91,4 +91,20 @@ describe("markCrawlUnsupported", () => {
 
 		assert.deepEqual(before, snapshot);
 	});
+
+	it("no-ops on a crawl=ready row so a slower unsupported leg cannot take away the capture another tier already promoted", () => {
+		const before = buildArticle({
+			crawl: { kind: "ready" },
+			summary: { kind: "ready", summary: "kept summary", excerpt: "kept excerpt" },
+		});
+
+		const { article, effects, writes } = markCrawlUnsupported(before, {
+			reason: { kind: "non-html-content", contentType: "unsupported content type: " },
+		});
+
+		assert.deepEqual(article.crawl, { kind: "ready" });
+		assert.deepEqual(article.summary, { kind: "ready", summary: "kept summary", excerpt: "kept excerpt" });
+		assert.deepEqual(effects, []);
+		assert.deepEqual(writes, []);
+	});
 });
