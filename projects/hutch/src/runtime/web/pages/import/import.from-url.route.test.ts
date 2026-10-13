@@ -46,7 +46,38 @@ describe("POST /import/from-url routes", () => {
 			expect(input.classList.contains("form-input")).toBe(true);
 			const label = form.querySelector('label[for="import-from-url-input"]');
 			assert(label, "url input label must be rendered");
-			expect(label.classList.contains("form-field__label")).toBe(true);
+			expect(label.textContent).toBe("Import from a link");
+			expect(label.parentElement?.tagName).toBe("H2");
+		});
+
+		it("describes the field by the panel description and the meta", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/import");
+
+			const doc = new JSDOM(response.text).window.document;
+			const input = doc.querySelector("[data-test-import-from-url-input]");
+			assert(input, "url input must be rendered");
+			const ids = (input.getAttribute("aria-describedby") ?? "").split(" ");
+			expect(ids).toEqual(["import-from-url-description", "import-from-url-meta"]);
+			const descriptions = ids.map((id) => doc.getElementById(id)?.textContent);
+			expect(descriptions).toEqual([
+				"Paste a newsletter or index page link, and Readplace finds all the links for you to review.",
+				"Readplace will load the page and list every outbound link.",
+			]);
+		});
+
+		it("keeps the Fetch link label", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/import");
+
+			const doc = new JSDOM(response.text).window.document;
+			const button = doc.querySelector('[data-test-action="import-from-url-submit"]');
+			assert(button, "the fetch button must be rendered");
+			expect(button.textContent).toBe("Fetch link");
 		});
 
 		it("prefills the url input and emits the auto-submit script for a from-url deep link", async () => {

@@ -163,39 +163,39 @@ describe("toImportViewModel", () => {
 
 describe("toImportAcquireViewModel", () => {
 	it("defaults the mode to from-url when no mode is provided", () => {
-		const vm = toImportAcquireViewModel({});
+		const vm = toImportAcquireViewModel({ isSignedIn: true });
 		expect(vm.mode).toBe("from-url");
 		expect(vm.uploadAction).toBe("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
 		expect(vm.fromUrlAction).toBe("/import/from-url?utm_source=import-acquire&utm_medium=internal&utm_content=fetch-links");
 	});
 
 	it("sets mode to upload when mode=upload", () => {
-		const vm = toImportAcquireViewModel({ mode: "upload" });
+		const vm = toImportAcquireViewModel({ isSignedIn: true, mode: "upload" });
 		expect(vm.mode).toBe("upload");
 	});
 
 	it("keeps the legacy mode=from-url deep link on the from-url tab", () => {
-		const vm = toImportAcquireViewModel({ mode: "from-url" });
+		const vm = toImportAcquireViewModel({ isSignedIn: true, mode: "from-url" });
 		expect(vm.mode).toBe("from-url");
 	});
 
 	it("falls back to from-url for an unrecognised mode value", () => {
-		const vm = toImportAcquireViewModel({ mode: "garbage" });
+		const vm = toImportAcquireViewModel({ isSignedIn: true, mode: "garbage" });
 		expect(vm.mode).toBe("from-url");
 	});
 
 	it("passes through an error message when provided", () => {
-		const vm = toImportAcquireViewModel({ errors: [{ message: "We couldn't find any links in that file." }] });
+		const vm = toImportAcquireViewModel({ isSignedIn: true, errors: [{ message: "We couldn't find any links in that file." }] });
 		expect(vm.errors?.[0]?.message).toBe("We couldn't find any links in that file.");
 	});
 
 	it("leaves errors undefined when no message is provided", () => {
-		const vm = toImportAcquireViewModel({});
+		const vm = toImportAcquireViewModel({ isSignedIn: true });
 		expect(vm.errors).toBeUndefined();
 	});
 
 	it("emits both tabs with the from-url tab active by default", () => {
-		const vm = toImportAcquireViewModel({});
+		const vm = toImportAcquireViewModel({ isSignedIn: true });
 		expect(vm.tabs.map((t) => t.key)).toEqual(["from-url", "upload"]);
 		expect(vm.tabs[0].isActive).toBe(true);
 		expect(vm.tabs[0].href).toBe("/import?utm_source=import-tabs&utm_medium=internal&utm_content=from-url");
@@ -204,13 +204,14 @@ describe("toImportAcquireViewModel", () => {
 	});
 
 	it("marks the upload tab active when mode=upload", () => {
-		const vm = toImportAcquireViewModel({ mode: "upload" });
+		const vm = toImportAcquireViewModel({ isSignedIn: true, mode: "upload" });
 		expect(vm.tabs[0].isActive).toBe(false);
 		expect(vm.tabs[1].isActive).toBe(true);
 	});
 
 	it("prefills the trimmed url on the from-url tab", () => {
 		const vm = toImportAcquireViewModel({
+			isSignedIn: true,
 			mode: "from-url",
 			url: "  https://news.ycombinator.com  ",
 		});
@@ -218,18 +219,32 @@ describe("toImportAcquireViewModel", () => {
 	});
 
 	it("prefills the trimmed url when no mode param is given", () => {
-		const vm = toImportAcquireViewModel({ url: "  https://news.ycombinator.com  " });
+		const vm = toImportAcquireViewModel({ isSignedIn: true, url: "  https://news.ycombinator.com  " });
 		expect(vm.prefillUrl).toBe("https://news.ycombinator.com");
 	});
 
 	it("leaves the prefill empty on the from-url tab when no url is provided", () => {
-		const vm = toImportAcquireViewModel({ mode: "from-url" });
+		const vm = toImportAcquireViewModel({ isSignedIn: true, mode: "from-url" });
 		expect(vm.prefillUrl).toBe("");
 	});
 
 	it("ignores a url param on the upload tab", () => {
-		const vm = toImportAcquireViewModel({ mode: "upload", url: "https://news.ycombinator.com" });
+		const vm = toImportAcquireViewModel({ isSignedIn: true, mode: "upload", url: "https://news.ycombinator.com" });
 		expect(vm.mode).toBe("upload");
 		expect(vm.prefillUrl).toBe("");
+	});
+
+	it("gives a guest the no-account sentence after the designed intro", () => {
+		const vm = toImportAcquireViewModel({ isSignedIn: false });
+		expect(vm.intro).toBe(
+			"Paste a page link or upload a bookmarks file. Readplace finds the links and lets you review them before saving. No account needed until you save.",
+		);
+	});
+
+	it("gives a signed-in reader the designed intro alone", () => {
+		const vm = toImportAcquireViewModel({ isSignedIn: true });
+		expect(vm.intro).toBe(
+			"Paste a page link or upload a bookmarks file. Readplace finds the links and lets you review them before saving.",
+		);
 	});
 });

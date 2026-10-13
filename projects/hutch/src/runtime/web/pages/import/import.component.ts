@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { CONFIRM_POPOVER_STYLES, PAGINATION_STYLES, render, renderAlert, UNDERLINE_TABS_STYLES } from "@packages/web-shell";
 import type { CspNonce, PageBody } from "@packages/web-shell";
 
+import { DISCLOSURE_CARD_STYLES } from "../../shared/disclosure-card/disclosure-card.styles";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
+import { IMPORT_LIMITS } from "./import.limits";
 import { IMPORT_STYLES } from "./import.styles";
 import type {
 	ImportAcquireViewModel,
@@ -167,8 +169,7 @@ const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string 
 	},
 	{
 		question: "How many links can I import at once?",
-		answer:
-			"Up to 2,000 links per import, from files up to 4.5 MB. Split a larger export into smaller files and import them one at a time.",
+		answer: `Up to ${IMPORT_LIMITS.maxLinks} links per import, from files up to ${IMPORT_LIMITS.maxFileSize}. Split a larger export into smaller files and import them one at a time.`,
 	},
 	{
 		question: "Is there a Pocket import?",
@@ -193,6 +194,7 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 		...vm,
 		tabs,
 		faq: IMPORT_FAQ,
+		limits: IMPORT_LIMITS,
 		errorMessage,
 		errorAlertHtml: errorMessage
 			? renderAlert({ key: "import", content: { variant: "error", message: { text: errorMessage } } })
@@ -234,7 +236,7 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 				},
 			],
 		},
-		styles: `${IMPORT_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${UNDERLINE_TABS_STYLES}`,
+		styles: `${DISCLOSURE_CARD_STYLES}\n${IMPORT_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${UNDERLINE_TABS_STYLES}`,
 		bodyClass: "page-import",
 		content: { html: content },
 		scripts: `${panel.scripts(options.cspNonce)}${SAVE_TIP_SCRIPT}`,

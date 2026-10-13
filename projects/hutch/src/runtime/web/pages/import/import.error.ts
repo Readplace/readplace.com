@@ -1,5 +1,7 @@
+import { IMPORT_LIMITS } from "./import.limits";
+
 const IMPORT_ERROR_MESSAGES: Record<string, string> = {
-	import_too_large: "That file is too large. The limit is 4.5 MB — split the export into smaller files and import them one at a time.",
+	import_too_large: `That file is too large. The limit is ${IMPORT_LIMITS.maxFileSize} — split the export into smaller files and import them one at a time.`,
 	import_no_urls: "We couldn't find any links in that file.",
 	import_session_not_found: "That import session has expired. Please upload the file again.",
 	import_url_invalid: "That URL can't be crawled — Readplace blocks private-network and non-http(s) addresses.",

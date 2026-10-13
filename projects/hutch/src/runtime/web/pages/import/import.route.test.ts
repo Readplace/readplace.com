@@ -97,9 +97,34 @@ describe("Import routes", () => {
 			);
 			expect(navKeys).toContain("import");
 		});
+
+		it("tells a guest no account is needed until they save", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/import");
+			const doc = new JSDOM(response.text).window.document;
+			const intro = doc.querySelector("[data-test-import-intro]");
+			assert(intro, "the import intro must render");
+			expect(intro.textContent).toBe(
+				"Paste a page link or upload a bookmarks file. Readplace finds the links and lets you review them before saving. No account needed until you save.",
+			);
+		});
 	});
 
 	describe("GET /import (authenticated)", () => {
+		it("gives a signed-in reader the designed intro alone", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/import");
+
+			const doc = new JSDOM(response.text).window.document;
+			const intro = doc.querySelector("[data-test-import-intro]");
+			assert(intro, "the import intro must render");
+			expect(intro.textContent).toBe(
+				"Paste a page link or upload a bookmarks file. Readplace finds the links and lets you review them before saving.",
+			);
+		});
+
 		it("renders the upload form with both import tabs", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -148,6 +173,36 @@ describe("Import routes", () => {
 			const label = uploading.querySelector('[data-import-progress-label]');
 			assert(fill, "progress fill must be rendered inside the uploading region");
 			assert(label, "progress label must be rendered inside the uploading region");
+		});
+
+		it("renders the caps from the domain constants", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/import?mode=upload");
+
+			const doc = new JSDOM(response.text).window.document;
+			const meta = doc.querySelector("[data-import-dropzone-meta]");
+			assert(meta, "the dropzone must name the formats and caps");
+			expect(meta.textContent).toBe("HTML, JSON, or plain text · Max 4.5 MB · Up to 2,000 links");
+			const size = meta.querySelector(".import__dropzone-size");
+			assert(size, "the size cap must sit in its own unbreakable span");
+			expect(size.textContent).toBe("4.5 MB");
+		});
+
+		it("keeps Upload as the no-JS submit after the dropzone", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/import?mode=upload");
+
+			const doc = new JSDOM(response.text).window.document;
+			const dropzone = doc.querySelector('[data-import-region="idle"] > [data-import-dropzone]');
+			assert(dropzone, "the dropzone must sit in the idle region");
+			const next = dropzone.nextElementSibling;
+			assert(next, "an element must follow the dropzone");
+			expect(next.getAttribute("data-test-action")).toBe("import-upload");
+			expect(next.getAttribute("type")).toBe("submit");
 		});
 
 		it("includes the import client bundle on the upload page", async () => {

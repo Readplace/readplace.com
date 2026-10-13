@@ -774,6 +774,17 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				CONTRAST_SENSITIVE,
 			);
 		});
+
+		test(`the import page keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await createEinkUser(page, `import-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await loginAs(page, email);
+			await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-import-intro]")).toBeVisible();
+			await settle(page, "main.import");
+
+			await expect(page.locator("main.import")).toHaveScreenshot(`eink-import-${theme}.png`, CONTRAST_SENSITIVE);
+		});
 	}
 
 	test("a summary still says it is working when the panel refuses motion", async ({

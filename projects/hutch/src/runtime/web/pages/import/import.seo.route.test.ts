@@ -78,6 +78,20 @@ describe("Import page SEO", () => {
 		assert(pocketLink, "sources must link to the Pocket recovery guide");
 	});
 
+	it("keeps the steps and the sources announced as lists once CSS removes their markers", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get("/import");
+
+		const doc = new JSDOM(response.text).window.document;
+		const lists = ["import-how-it-works", "import-sources"].map((section) => {
+			const list = doc.querySelector(`[data-test-section="${section}"] .disclosure-card__body`);
+			assert(list, `${section} must render its list`);
+			return `${list.tagName.toLowerCase()} ${list.getAttribute("role")}`;
+		});
+		expect(lists).toEqual(["ol list", "ul list"]);
+	});
+
 	it("emits WebPage and FAQPage JSON-LD where the FAQ matches the on-page text", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
@@ -107,6 +121,50 @@ describe("Import page SEO", () => {
 		}));
 		expect(onPageFaq.length).toBeGreaterThan(0);
 		expect(jsonLdFaq).toEqual(onPageFaq);
+	});
+
+	it("renders the H1 'Import links to your readlist'", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get("/import");
+
+		const doc = new JSDOM(response.text).window.document;
+		const headings = Array.from(doc.querySelectorAll("h1")).map((h1) => h1.textContent);
+		expect(headings).toEqual(["Import links to your readlist"]);
+	});
+
+	it("keeps every FAQ answer in the page while the items render closed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get("/import");
+
+		const doc = new JSDOM(response.text).window.document;
+		const items = Array.from(doc.querySelectorAll<HTMLDetailsElement>("details.import__faq-item"));
+		expect(items).toHaveLength(5);
+		expect(items.map((item) => item.open)).toEqual([false, false, false, false, false]);
+		const answers = items.map((item) => item.querySelector("[data-test-import-faq-answer]")?.textContent?.trim().length ?? 0);
+		expect(answers.map((length) => length > 0)).toEqual([true, true, true, true, true]);
+	});
+
+	it("returns every FAQ answer and each row's title with its text in the markdown form", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const html = await request(harness.server).get("/import");
+		const markdown = await request(harness.server).get("/import").set("Accept", "text/markdown");
+
+		expect(markdown.status).toBe(200);
+		expect(markdown.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+		const doc = new JSDOM(html.text).window.document;
+		const answers = Array.from(doc.querySelectorAll("[data-test-import-faq-answer]")).map(
+			(answer) => answer.textContent ?? "",
+		);
+		expect(answers).toHaveLength(5);
+		for (const answer of answers) {
+			expect(markdown.text).toContain(answer);
+		}
+		expect(markdown.text).toContain("**Newsletters and blogrolls** Paste the page URL");
+		const firstStep = markdown.text.split("\n").find((line) => line.includes("**Paste a link or upload a file**"));
+		expect(firstStep).toMatch(/^1\. \*\*Paste a link or upload a file\*\* Any page URL works/);
 	});
 
 	it("keeps the review page out of search indexes", async () => {

@@ -389,24 +389,6 @@ test.describe("Light-pinned interaction states hold their WCAG contrast", () => 
 		}
 	});
 
-	test("the import dropzone's link stays legible on the tint it takes under hover and focus", async ({ page }) => {
-		await page.goto(`${BASE_URL}/import?mode=upload`, { waitUntil: "domcontentloaded" });
-		const client = await auditContext(page);
-		await stamp(page, { selector: "[data-import-dropzone]", auditId: "dropzone" });
-		await stamp(page, { selector: "[data-import-dropzone] .import__dropzone-link", auditId: "dropzone-link" });
-
-		for (const state of ["hover", "focus-within"]) {
-			await measure(page, client, "dropzone", [state]);
-			const ink = await measure(page, client, "dropzone-link", []);
-			for (const lens of Object.values(LENSES)) {
-				assert.ok(
-					labelContrast(ink, lens) >= textMinimum(ink),
-					labelShortfall(ink, lens, `import/dropzone-link:${state}`),
-				);
-			}
-		}
-	});
-
 	test("the import upload error reads in body ink, not the surface red", async ({ page }) => {
 		await page.goto(`${BASE_URL}/import?mode=upload&error_code=import_too_large`, {
 			waitUntil: "domcontentloaded",
@@ -765,6 +747,60 @@ test.describe("Article history interaction states hold their WCAG contrast in bo
 				assert.ok(
 					edgeContrast({ edge: deleteFocused.outline.colour, against: insideTheCard, lens }) >= NON_TEXT_MINIMUM,
 					edgeShortfall({ edge: deleteFocused.outline.colour, against: insideTheCard, lens, view: `${view}/delete` }),
+				);
+			}
+		}
+	});
+});
+
+test.describe("Import interaction states hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("the dropzone's text stays legible on the tint it takes under hover and focus", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `import-dropzone-contrast-${testInfo.workerIndex}-${Date.now()}@example.com`);
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/import?mode=upload`, { waitUntil: "domcontentloaded" });
+			const client = await auditContext(page);
+			await stamp(page, { selector: "[data-import-dropzone]", auditId: "dropzone" });
+			await stamp(page, { selector: "[data-import-dropzone] .import__dropzone-primary", auditId: "dropzone-primary" });
+			await stamp(page, { selector: "[data-import-dropzone] .import__dropzone-meta", auditId: "dropzone-meta" });
+
+			for (const state of ["hover", "focus-within"]) {
+				await measure(page, client, "dropzone", [state]);
+				for (const auditId of ["dropzone-primary", "dropzone-meta"]) {
+					const ink = await measure(page, client, auditId, []);
+					for (const [lensName, lens] of Object.entries(LENSES)) {
+						assert.ok(
+							labelContrast(ink, lens) >= textMinimum(ink),
+							labelShortfall(ink, lens, `${theme}/import/${auditId}:${state}/${lensName}`),
+						);
+					}
+				}
+			}
+		}
+	});
+
+	test("a FAQ question rings at 3:1 inside its row", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `import-faq-contrast-${testInfo.workerIndex}-${Date.now()}@example.com`);
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+			const client = await auditContext(page);
+			await stamp(page, { selector: "summary.import__faq-summary", auditId: "faq-summary" });
+
+			const focused = await measure(page, client, "faq-summary", FOCUSED);
+			const view = `${theme}/import/faq-summary`;
+			assert.equal(focused.outline.width, 2, `${view}: the question's focus ring must be 2px wide`);
+			assert.equal(focused.outline.offset, -2, `${view}: the question's focus ring must sit 2px inside it`);
+			assert.notEqual(focused.outline.style, "none", `${view}: the question's focus ring must be visible`);
+			const card: Neighbour = { name: "card", colour: focused.surface };
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				assert.ok(
+					edgeContrast({ edge: focused.outline.colour, against: card, lens }) >= NON_TEXT_MINIMUM,
+					edgeShortfall({ edge: focused.outline.colour, against: card, lens, view: `${view}/${lensName}` }),
 				);
 			}
 		}

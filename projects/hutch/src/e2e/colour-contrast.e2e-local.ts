@@ -527,6 +527,63 @@ test.describe("Alert variants hold their WCAG contrast in both themes", () => {
 	});
 });
 
+test.describe("Import colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("both tabs, a fetch error and the review clear their contrast minimum", async ({ page }, testInfo) => {
+		await signUpFreshUser(page, `import-contrast-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		const uploaded = await page.request.post(`${BASE_URL}/import`, {
+			multipart: {
+				file: {
+					name: "links.txt",
+					mimeType: "text/plain",
+					buffer: Buffer.from(
+						[
+							"https://example.com/essays/import-contrast-first",
+							"https://example.com/essays/import-contrast-second",
+							"https://example.com/essays/import-contrast-third",
+						].join("\n"),
+					),
+				},
+			},
+			maxRedirects: 0,
+		});
+		assert.equal(uploaded.status(), 303, "the import upload must redirect to its review page");
+		const location = uploaded.headers().location;
+		assert(location, "the import upload must redirect to its review page");
+		const reviewUrl = new URL(location, BASE_URL).href;
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+
+			await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+			const firstQuestion = page.locator("details.import__faq-item").first();
+			await firstQuestion.locator("summary").click();
+			await expect(firstQuestion).toHaveAttribute("open", "");
+			await auditRoot(page, { root: "main.import", theme, view: "import/paste" });
+
+			await page.goto(`${BASE_URL}/import?mode=upload`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-import-dropzone]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "main.import", theme, view: "import/upload" });
+
+			await page.goto(`${BASE_URL}/import?error_code=import_url_fetch_failed`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-alert="import"]')).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "main.import", theme, view: "import/fetch-error" });
+
+			await page.goto(reviewUrl, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-import-list]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "main.import", theme, view: "import/review" });
+		}
+	});
+
+	test("the logged-out import page clears its contrast minimum", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-import-intro]")).toBeVisible({ timeout: SETTLE_MS });
+		await auditRoot(page, { root: "main.import", theme: "light", view: "import/guest" });
+	});
+});
+
 async function createChipReader(page: Page, email: string): Promise<string> {
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
