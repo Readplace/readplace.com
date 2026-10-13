@@ -3,6 +3,11 @@ import { expect, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { EXPERIMENT_COOKIE_NAME } from "../runtime/web/experiments/homepage-assignment";
 import { HOMEPAGE_SPLIT } from "../runtime/web/experiments/homepage-split";
+import {
+	HOME_COMPARE_CONTENT,
+	HOME_COMPARE_FEATURES,
+	HOME_COMPARE_PRICES,
+} from "../runtime/web/pages/home-b/home-b-compare.content";
 import { clickAndWaitForPageReload } from "./page-interactions";
 import { pageOverflowsSideways, resolveColourTokens } from "./page-measurements.browser";
 
@@ -20,7 +25,7 @@ for (const viewport of VIEWPORTS) {
 	test.describe(`Homepage comparison at ${viewport.width}px`, () => {
 		test.use({ viewport, timezoneId: "UTC" });
 
-		test("keeps every outcome readable and the comparison signup attributed", async ({ page }) => {
+		test("keeps every comparison row readable and the comparison signup attributed", async ({ page }) => {
 			await page.emulateMedia({ colorScheme: "light" });
 			await page.context().addCookies([{
 				name: EXPERIMENT_COOKIE_NAME,
@@ -53,17 +58,20 @@ for (const viewport of VIEWPORTS) {
 			], "the comparison must sit between the promise and pricing in alternating bands");
 
 			const table = page.locator(TABLE);
-			await expect(page.getByRole("table", { name: /Each outcome for a reader who saves 40 articles a month/ })).toHaveCount(1);
+			await expect(page.getByRole("table", { name: HOME_COMPARE_CONTENT.caption })).toHaveCount(1);
 			await expect(table.getByRole("columnheader")).toHaveText([
-				"What you get", "Readplace", "With a $200/month AI plan", "Share of the $200 plan",
+				HOME_COMPARE_CONTENT.columns.feature,
+				HOME_COMPARE_CONTENT.columns.readplace,
+				HOME_COMPARE_CONTENT.columns.claude,
+				HOME_COMPARE_CONTENT.columns.chatgpt,
 			]);
-			await expect(table.getByRole("rowgroup")).toHaveCount(3);
-			await expect(table.getByRole("row")).toHaveCount(13);
-			await expect(table.getByRole("rowheader")).toHaveCount(12);
-			await expect(table.getByRole("cell")).toHaveCount(36);
-			await expect(table.locator("tbody > tr")).toHaveCount(11);
-			await expect(table.locator("tbody > tr > th[scope='row']")).toHaveCount(11);
-			await expect(table.locator("tfoot > tr")).toHaveCount(1);
+			const rowCount = HOME_COMPARE_PRICES.length + HOME_COMPARE_FEATURES.length;
+			await expect(table.getByRole("rowgroup")).toHaveCount(2);
+			await expect(table.getByRole("row")).toHaveCount(rowCount + 1);
+			await expect(table.getByRole("rowheader")).toHaveCount(rowCount);
+			await expect(table.getByRole("cell")).toHaveCount(rowCount * 3);
+			await expect(table.locator("tbody > tr")).toHaveCount(rowCount);
+			await expect(table.locator("tbody > tr > th[scope='row']")).toHaveCount(rowCount);
 			const tableBox = await table.boundingBox();
 			assert(tableBox, "the comparison must have a measurable table");
 			const layout = {
@@ -97,17 +105,20 @@ for (const viewport of VIEWPORTS) {
 				});
 				assert.deepEqual(header, { position: "absolute", clip: "rect(0px, 0px, 0px, 0px)", width: 1, height: 1 });
 				for (const row of rows) {
-					assert.equal(row.display, "block", "each mobile outcome must form a stacked card");
+					assert.equal(row.display, "grid", "each mobile row must form a card with its 3 answers side by side");
 					for (const cell of row.cells) assert.equal(cell.display, "block");
-					for (const [index, cell] of row.cells.slice(1).entries()) {
-						const previous = row.cells[index];
-						assert(previous, "a stacked cell must follow the cell above it");
-						assert.ok(cell.y >= previous.y + previous.height - 1,
-							"mobile columns must stack without obscuring the comparison above");
-					}
-					for (const cell of row.cells.slice(1)) {
+					const [heading, ...answers] = row.cells;
+					assert(heading, "each mobile card must lead with its row heading");
+					for (const [index, cell] of answers.entries()) {
+						assert.ok(cell.y >= heading.y + heading.height - 1,
+							"the answers must sit below the row heading without obscuring it");
+						assert.ok(Math.abs(cell.y - heading.y - heading.height) <= 5,
+							"the answers must sit on one line under the row heading");
+						const previous = answers[index - 1];
+						if (previous) assert.ok(cell.x >= previous.x + previous.width - 1,
+							"the answers must sit side by side without overlapping");
 						assert(cell.label, "every mobile data cell must name its column");
-						assert.equal(cell.prefix, JSON.stringify(`${cell.label}: `));
+						assert.equal(cell.prefix, JSON.stringify(cell.label));
 					}
 				}
 			} else {
@@ -119,13 +130,13 @@ for (const viewport of VIEWPORTS) {
 				}
 			}
 			for (const [index, row] of rows.entries()) {
-				assert.equal(row.cells.length, 4, `outcome ${index + 1} must retain all four columns`);
+				assert.equal(row.cells.length, 4, `row ${index + 1} must retain all four columns`);
 				for (const cell of row.cells) {
-					assert.ok(cell.text?.trim(), `outcome ${index + 1} must render its complete comparison`);
-					assert.ok(cell.width > 0 && cell.height > 0, `outcome ${index + 1} must be readable`);
-					assert.ok(cell.scrollWidth <= cell.clientWidth + 1, `outcome ${index + 1} must wrap its text`);
+					assert.ok(cell.text?.trim(), `row ${index + 1} must render its complete comparison`);
+					assert.ok(cell.width > 0 && cell.height > 0, `row ${index + 1} must be readable`);
+					assert.ok(cell.scrollWidth <= cell.clientWidth + 1, `row ${index + 1} must wrap its text`);
 					assert.ok(cell.x >= tableBox.x - 1 && cell.x + cell.width <= tableBox.x + tableBox.width + 1,
-						`outcome ${index + 1} must stay within the comparison`);
+						`row ${index + 1} must stay within the comparison`);
 				}
 			}
 

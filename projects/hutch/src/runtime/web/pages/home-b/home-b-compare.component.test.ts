@@ -1,39 +1,64 @@
 import assert from "node:assert/strict";
+import { iconSvg } from "@packages/ui-icons";
 import { parseHTML } from "linkedom";
 import { renderHomeCompareSection } from "./home-b-compare.component";
-import { HOME_COMPARE_ROWS } from "./home-b-compare.content";
+import { HOME_COMPARE_CONTENT, HOME_COMPARE_FEATURES } from "./home-b-compare.content";
+
+function parsedGlyph(svg: string): string | undefined {
+	return parseHTML(`<span>${svg}</span>`).document.querySelector("svg")?.outerHTML;
+}
+
+function renderTable(): Element {
+	const { document } = parseHTML(renderHomeCompareSection());
+	const table = document.querySelector(".home-compare__table");
+	assert(table);
+	return table;
+}
 
 describe("homepage AI comparison", () => {
-	it("prices all 11 outcomes from their tokens, including the offline stand-in", () => {
-		const inputTokens = HOME_COMPARE_ROWS.reduce((sum, row) => sum + row.inputTokens, 0);
-		const outputTokens = HOME_COMPARE_ROWS.reduce((sum, row) => sum + row.outputTokens, 0);
-		expect({ inputTokens, outputTokens }).toEqual({ inputTokens: 3_920_500, outputTokens: 408_867 });
-		expect(inputTokens * 10 / 1_000_000 + outputTokens * 50 / 1_000_000).toBeCloseTo(59.65, 2);
-		const { document } = parseHTML(renderHomeCompareSection());
-		const table = document.querySelector(".home-compare__table");
-		assert(table);
-		expect(table.querySelectorAll("tbody tr").length).toBe(11);
-		const total = table.querySelector("tfoot tr");
-		assert(total);
-		expect(total.textContent).toContain("4,329,367 tokens");
-		expect(total.lastElementChild?.textContent).toBe(
-			"$0.82 of Claude Max, $4.12 of ChatGPT Pro (about $60 at API list price)",
+	it("prices Readplace's yearly plan against both $200 plans per month and per year", () => {
+		const table = renderTable();
+		const prices = Array.from(table.querySelectorAll('[data-test-compare-row="month"], [data-test-compare-row="year"]'), (row) =>
+			Array.from(row.querySelectorAll("th, td"), (cell) => cell.textContent),
 		);
-		const offline = table.querySelector('[data-test-outcome="offline"]');
-		assert(offline);
-		expect(offline.lastElementChild?.textContent).toBe("Not possible");
-		const archive = table.querySelector('[data-test-outcome="archive"]');
-		assert(archive);
-		expect(archive.lastElementChild?.textContent).toBe("Claude Max: $0.08; ChatGPT Pro: $0.40");
+		expect(prices).toEqual([
+			["Per month", "$5", "$200", "$200"],
+			["Per year", "$60", "$2,400", "$2,400"],
+		]);
+	});
+
+	it("ticks every feature row for Readplace and crosses it for both AI plans", () => {
+		const table = renderTable();
+		const features = HOME_COMPARE_FEATURES.map((feature) => {
+			const row = table.querySelector(`[data-test-compare-row="${feature.key}"]`);
+			assert(row, `the ${feature.key} row must render`);
+			return {
+				label: row.querySelector("th")?.textContent,
+				answers: Array.from(row.querySelectorAll("td"), (cell) => ({
+					glyph: cell.querySelector("svg")?.outerHTML,
+					text: cell.querySelector(".sr-only")?.textContent,
+				})),
+			};
+		});
+		const yes = { glyph: parsedGlyph(iconSvg("check")), text: "Yes" };
+		const no = { glyph: parsedGlyph(iconSvg("x")), text: "No" };
+		expect(features).toEqual(HOME_COMPARE_FEATURES.map((feature) => ({ label: feature.label, answers: [yes, no, no] })));
+		expect(table.querySelectorAll("tbody tr").length).toBe(2 + HOME_COMPARE_FEATURES.length);
 	});
 
 	it("keeps mobile labels aligned with table headings and tracks the closing signup link", () => {
 		const { document } = parseHTML(renderHomeCompareSection());
 		const headers = Array.from(document.querySelectorAll("thead th"), (cell) => cell.textContent);
-		const labels = Array.from(document.querySelectorAll("tbody tr:first-child td"), (cell) =>
-			cell.getAttribute("data-label"),
-		);
-		expect(labels).toEqual(headers.slice(1));
+		expect(headers).toEqual([
+			HOME_COMPARE_CONTENT.columns.feature,
+			HOME_COMPARE_CONTENT.columns.readplace,
+			HOME_COMPARE_CONTENT.columns.claude,
+			HOME_COMPARE_CONTENT.columns.chatgpt,
+		]);
+		for (const row of document.querySelectorAll("tbody tr")) {
+			const labels = Array.from(row.querySelectorAll("td"), (cell) => cell.getAttribute("data-label"));
+			expect(labels).toEqual(headers.slice(1));
+		}
 		expect(Array.from(document.querySelectorAll("thead th"), (cell) => cell.getAttribute("scope")))
 			.toEqual(["col", "col", "col", "col"]);
 		const signup = document.querySelector('[data-test-cta="compare-signup"]');

@@ -3,8 +3,7 @@
   background: var(--background);
 }
 
-.home-compare__lede,
-.home-compare__close {
+.home-compare__lede {
   font-size: var(--text-lg);
   line-height: 1.6;
   text-wrap: pretty;
@@ -20,17 +19,9 @@
   display: block;
   width: 100%;
   border-collapse: collapse;
-  margin: 16px 0 8px;
+  margin: 0 0 8px;
   font-size: var(--text-md);
   line-height: 1.5;
-}
-
-.home-compare__caption {
-  display: block;
-  text-align: left;
-  font-weight: 600;
-  color: var(--foreground);
-  margin-bottom: 8px;
 }
 
 .home-compare__table thead {
@@ -46,57 +37,86 @@
   border: 0;
 }
 
-.home-compare__table tbody,
-.home-compare__table tfoot,
-.home-compare__table tr,
-.home-compare__table th,
-.home-compare__table td {
+.home-compare__table tbody {
   display: block;
 }
 
-.home-compare__table tr {
+.home-compare__table tbody tr {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: 4px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
-  padding: 8px 0;
 }
 
 .home-compare__table th,
 .home-compare__table td {
-  padding: 4px 0;
+  display: block;
+  padding: 0;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
   overflow-wrap: anywhere;
   color: var(--foreground);
 }
 
-.home-compare__table th {
+.home-compare__table tbody th {
+  grid-column: 1 / -1;
   font-weight: 600;
-}
-
-.home-compare__table td {
-  font-variant-numeric: tabular-nums;
 }
 
 .home-compare__table td::before {
-  content: attr(data-label) ": ";
-  font-weight: 600;
+  content: attr(data-label);
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
 }
 
-.home-compare__table tfoot th,
-.home-compare__table tfoot td {
-  font-weight: 600;
+.home-compare__cell {
+  font-variant-numeric: tabular-nums;
 }
 
-.home-compare__notes {
-  padding-inline-start: 20px;
-  margin: 24px 0;
+.home-compare__cell svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  vertical-align: middle;
+}
+
+.home-compare__cell--readplace {
+  font-weight: 700;
+  color: var(--primary-text);
+}
+
+.home-compare__cell--readplace svg {
+  color: var(--success-text);
+}
+
+.home-compare__cell--ai svg {
+  color: var(--error-text);
+}
+
+.home-compare__head--readplace {
+  color: var(--primary-text);
 }
 
 .home-compare__note {
   font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--muted-foreground);
-  margin-bottom: 16px;
-  overflow-wrap: anywhere;
+  margin: 0 0 24px;
+}
+
+.home-compare__close {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.home-compare__reassurance {
+  min-width: 0;
+  margin: 0;
+  color: var(--muted-foreground);
 }
 
 @media (min-width: 768px) {
@@ -109,11 +129,6 @@
     table-layout: fixed;
   }
 
-  .home-compare__caption {
-    display: table-caption;
-    caption-side: top;
-  }
-
   .home-compare__table thead {
     display: table-header-group;
     position: static;
@@ -123,18 +138,13 @@
     overflow: visible;
     clip: auto;
     white-space: normal;
-    background: var(--muted);
   }
 
   .home-compare__table tbody {
     display: table-row-group;
   }
 
-  .home-compare__table tfoot {
-    display: table-footer-group;
-  }
-
-  .home-compare__table tr {
+  .home-compare__table tbody tr {
     display: table-row;
     padding: 0;
   }
@@ -142,8 +152,21 @@
   .home-compare__table th,
   .home-compare__table td {
     display: table-cell;
-    padding: 8px 12px;
+    padding: 12px;
     border-bottom: 1px solid var(--border);
+  }
+
+  .home-compare__table thead th {
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .home-compare__table thead th:first-child {
+    width: 40%;
+  }
+
+  .home-compare__table td {
+    text-align: center;
   }
 
   .home-compare__table td::before {
