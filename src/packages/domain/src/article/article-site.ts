@@ -46,10 +46,27 @@ function comparableDestination(article: ComparableArticle): string {
 		.replace(/\/$/, "");
 }
 
+const DISCUSSIONS = [
+	/^news\.ycombinator\.com\/item\?/,
+	/^newsletter\.pragmaticengineer\.com\/p\/[^/?]+\/comments(?:\?|$)/,
+];
+const UNICODE_CHART = /^unicode\.org\/(?:Public\/[^/]+\/)?charts\/PDF\/(U[\dA-F]+)\.pdf$/;
+
+function shareTitleAsDifferentPages(destinations: { destination: string; otherDestination: string }): boolean {
+	const { destination, otherDestination } = destinations;
+	if (DISCUSSIONS.some((discussion) => discussion.test(destination) || discussion.test(otherDestination))) return true;
+	const chart = UNICODE_CHART.exec(destination);
+	const otherChart = UNICODE_CHART.exec(otherDestination);
+	return chart !== null && otherChart !== null && chart[1] !== otherChart[1];
+}
+
 export function isSameArticle(pair: { article: ComparableArticle; other: ComparableArticle }): boolean {
+	const destination = comparableDestination(pair.article);
+	const otherDestination = comparableDestination(pair.other);
+	if (destination === otherDestination) return true;
+	if (shareTitleAsDifferentPages({ destination, otherDestination })) return false;
 	const title = comparableTitle(pair.article.title);
-	if (title !== "" && title === comparableTitle(pair.other.title)) return true;
-	return comparableDestination(pair.article) === comparableDestination(pair.other);
+	return title !== "" && title === comparableTitle(pair.other.title);
 }
 
 export function articleDestinationHost(destinationUrl: ArticleDestinationUrl): string {
