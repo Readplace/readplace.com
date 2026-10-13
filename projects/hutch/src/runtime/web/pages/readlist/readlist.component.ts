@@ -561,7 +561,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			.join("\n"),
 		subscribePlansHtml: side.subscribePlansHtml,
 		filtersDrawerHtml: renderReadlistFiltersDrawer(discovery),
-		saveTipHtml: options.saveTip.html,
+		saveTipHtml: isDefaultReadlist ? options.saveTip.html : "",
 		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
 	});
 

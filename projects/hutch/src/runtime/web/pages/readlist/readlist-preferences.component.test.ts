@@ -59,7 +59,6 @@ function page(overrides: {
 			completedBefore: false,
 			completionUnearned: false,
 		},
-		saveTip: { state: "due", html: "" },
 		query: overrides.query ?? {},
 		cspNonce: NONCE,
 	});
