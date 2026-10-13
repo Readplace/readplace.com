@@ -594,3 +594,12 @@ it("preserves the accepted Gmail eligibility count and held flag when extraction
 	await store.putLinksMeta({ ...key, meta: { ...first, eligibleArticleCount: 1, savesHeld: false } });
 	expect((await store.listLinksByEmail(key)).meta).toEqual({ ...first, readlistOutcomes: [] });
 });
+
+it("preserves the first record of where a Gmail issue went when extraction retries", async () => {
+	const store = initInMemoryInboxEmailLink();
+	const key = { userId: owner, receivedAtMessageId: RAM };
+	const first = { truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: false } };
+	await store.putLinksMeta({ ...key, meta: first });
+	await store.putLinksMeta({ ...key, meta: { ...first, issueSave: { readlists: [], held: true } } });
+	expect((await store.listLinksByEmail(key)).meta).toEqual(first);
+});

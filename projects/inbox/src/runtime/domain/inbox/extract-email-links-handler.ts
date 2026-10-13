@@ -532,6 +532,9 @@ export function initExtractEmailLinksHandler(deps: {
 							: routing.kind === "inbox" && canSubmit && routedReadlist === undefined
 								? { selectedReadlists: [], eligibleArticleCount: eligibleForAll, savesHeld: writeAccess !== "full" }
 								: {}),
+						...(canSubmit && fanOut.issue
+							? { issueSave: { readlists: selectedReadlists, held: writeAccess !== "full" } }
+							: {}),
 					},
 				});
 				if (routing.kind === "gmail") await publishReadlistSelections();

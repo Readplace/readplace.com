@@ -82,6 +82,14 @@ const InboxEmailLinkRow = z.object({
 	readlistOutcome: dynamoField(InboxReadlistOutcomeSchema),
 	eligibleArticleCount: dynamoField(z.number().int().nonnegative()),
 	savesHeld: dynamoField(z.boolean()),
+	issueSave: dynamoField(
+		z.object({
+			readlists: z.array(
+				z.object({ readlist: ReadlistSlugSchema, label: z.string().min(1) }),
+			),
+			held: z.boolean(),
+		}),
+	),
 });
 
 type InboxEmailLinkRowType = z.infer<typeof InboxEmailLinkRow>;
@@ -290,7 +298,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 				);
 				values[":selectedReadlists"] = meta.selectedReadlists;
 			}
-			for (const field of ["eligibleArticleCount", "savesHeld"] as const) {
+			for (const field of ["eligibleArticleCount", "savesHeld", "issueSave"] as const) {
 				if (meta[field] !== undefined) {
 					sets.push(`${field} = if_not_exists(${field}, :${field})`);
 					values[`:${field}`] = meta[field];
@@ -430,6 +438,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 						readlistDecision: item.readlistDecision,
 						...(item.eligibleArticleCount === undefined ? {} : { eligibleArticleCount: item.eligibleArticleCount }),
 						...(item.savesHeld === undefined ? {} : { savesHeld: item.savesHeld }),
+						...(item.issueSave === undefined ? {} : { issueSave: item.issueSave }),
 						...(item.selectedReadlists === undefined
 							? {}
 							: { selectedReadlists: item.selectedReadlists }),

@@ -109,6 +109,7 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 						}),
 				...((existingMeta?.eligibleArticleCount ?? meta.eligibleArticleCount) === undefined ? {} : { eligibleArticleCount: existingMeta?.eligibleArticleCount ?? meta.eligibleArticleCount }),
 				...((existingMeta?.savesHeld ?? meta.savesHeld) === undefined ? {} : { savesHeld: existingMeta?.savesHeld ?? meta.savesHeld }),
+				...((existingMeta?.issueSave ?? meta.issueSave) === undefined ? {} : { issueSave: existingMeta?.issueSave ?? meta.issueSave }),
 				readlistDecision:
 					meta.readlistDecision === undefined
 						? existing
