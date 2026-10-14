@@ -546,8 +546,9 @@ export interface SubmitLinkBundle {
 }
 
 export interface WrapperTargetBundle {
-	resolveWrapperTarget: (url: string) => Promise<{ url: string; contentSourceUrl?: string } | undefined>;
+	resolveWrapperTarget: (url: string) => Promise<{ url: string; contentSourceUrl?: string } | { ownOriginal: true } | undefined>;
 	targets: Map<string, string>;
+	ownOriginals: Set<string>;
 	calls: string[];
 }
 

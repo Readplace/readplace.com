@@ -1047,7 +1047,45 @@ it.each(["slot", "completion"])("does not stage or save an unresolved wrapper fr
 	expect(await fixture.articleStore.findArticleByUrl("https://archive.ph/abc")).toBeNull();
 });
 
-it("queues an unresolved wrapper from inline content intake and answers with a notice every shipped client renders", async () => {
+it("grants an upload slot for an unreachable archive short link under its own link", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	fixture.wrapperTarget.ownOriginals.add("https://archive.ph/abc");
+	const testApp = useApp(fixture);
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", "https://archive.ph/abc").field("mediaType", "text/html").field("size", "100");
+	expect(response.status).toBe(200);
+	expect(response.body.class).toEqual(["upload-slot"]);
+	const complete = response.body.actions.find((action: { name: string }) => action.name === "save-uploaded-content");
+	expect(complete.fields).toContainEqual(expect.objectContaining({ name: "url", value: "https://archive.ph/abc" }));
+});
+
+it("passes an unreachable archive short link's identity on upload completion and refuses only the missing upload", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	fixture.wrapperTarget.ownOriginals.add("https://archive.ph/abc");
+	const testApp = useApp(fixture);
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", "https://archive.ph/abc").field("mediaType", "text/html").field("uploaded", "true").field("saveAttemptId", UPLOAD_ATTEMPT);
+	expect(response.status).toBe(422);
+	expect(response.body.properties.code).toBe("upload-not-found");
+});
+
+it("keys an unreachable archive short link on itself and stages the reader's bytes", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	fixture.wrapperTarget.ownOriginals.add("https://archive.ph/abc");
+	const events: unknown[] = [];
+	const staged: unknown[] = [];
+	const testApp = useApp({ ...fixture, events: { ...fixture.events, publishSaveLinkRawHtmlCommand: async (event) => { events.push(event); } }, pendingHtml: { ...fixture.pendingHtml, putPendingHtml: async (input) => { staged.push(input); } } });
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", "https://archive.ph/abc").field("mediaType", "text/html").attach("content", VALID_HTML, "page.html");
+	expect(response.status).toBe(201);
+	expect(response.body.properties.url).toBe("https://archive.ph/abc");
+	expect(staged).toEqual([expect.objectContaining({ url: "https://archive.ph/abc" })]);
+	expect(events).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", sourceUrl: "https://archive.ph/abc", sourceOriginalUrl: "https://archive.ph/abc" })]);
+	expect(fixture.submitLink.submitLinks).toEqual([]);
+	expect((await fixture.articleStore.findArticleByUrl("https://archive.ph/abc"))?.metadata.siteName).toBe("archive.ph");
+});
+
+it("queues a wrapper the resolver answered but could not name a destination for", async () => {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const events: unknown[] = [];
 	const staged: unknown[] = [];
@@ -1071,6 +1109,19 @@ it("queues a URL-only save of an unresolved wrapper and answers with the notice 
 	expect(response.body).toEqual({ class: ["error"], properties: { messages: [{ type: "warning", content: { type: "text/html", body: "This link is queued while Readplace finds the original article." } }] } });
 	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", readlist: "default", saveAttemptId: expect.any(String) })]);
 	expect(await fixture.articleStore.findArticleByUrl("https://archive.ph/abc")).toBeNull();
+	expect(testApp.analytics.events.filter((event) => event.event === "view_save_intent")).toEqual([expect.objectContaining({ path: "/queue", outcome: "saved" })]);
+});
+
+it("creates the archive-keyed row for a URL-only save and answers the saved entity", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	fixture.wrapperTarget.ownOriginals.add("https://archive.ph/abc");
+	const testApp = useApp(fixture);
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).send({ url: "https://archive.ph/abc" });
+	expect(response.status).toBe(201);
+	expect(response.body.properties.url).toBe("https://archive.ph/abc");
+	expect(fixture.submitLink.submitLinks).toEqual([]);
+	expect((await fixture.articleStore.findArticleByUrl("https://archive.ph/abc"))?.metadata.siteName).toBe("archive.ph");
 	expect(testApp.analytics.events.filter((event) => event.event === "view_save_intent")).toEqual([expect.objectContaining({ path: "/queue", outcome: "saved" })]);
 });
 

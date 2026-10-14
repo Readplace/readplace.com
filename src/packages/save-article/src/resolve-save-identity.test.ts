@@ -49,6 +49,33 @@ describe("save identity", () => {
 		expect(h.claims).toEqual([]);
 	});
 
+	it("saves an unreachable archive short link as its own original without claiming an alias", async () => {
+		const h = harness({ targets: { [ARCHIVE]: { ownOriginal: true } } });
+		expect(await h.resolve(ARCHIVE)).toEqual(resolved(ARCHIVE));
+		expect(h.claims).toEqual([]);
+	});
+
+	it("lands an unreachable short link on the target a legacy alias already recorded", async () => {
+		const h = harness({ rows: { [ARCHIVE]: { kind: "alias", targetUrl: ORIGINAL } }, targets: { [ARCHIVE]: { ownOriginal: true } } });
+		expect(await h.resolve(ARCHIVE)).toEqual(resolved(ORIGINAL));
+	});
+
+	it("refuses an unreachable short link whose legacy alias points at an unrepaired wrapper row", async () => {
+		const h = harness({ rows: { [ARCHIVE]: { kind: "alias", targetUrl: TRACKER }, [TRACKER]: { kind: "article" } }, targets: { [ARCHIVE]: { ownOriginal: true } } });
+		expect(await h.resolve(ARCHIVE)).toEqual({ status: "unresolved" });
+		expect(h.claims).toEqual([]);
+	});
+
+	it.each<{ submitted: string; targets: Record<string, Awaited<ReturnType<ResolveWrapperTarget>>> }>([
+		{ submitted: TRACKER, targets: { [TRACKER]: { url: ARCHIVE, contentSourceUrl: TRACKER }, [ARCHIVE]: { ownOriginal: true } } },
+		{ submitted: "https://archive.ph/wip/Ab1cD", targets: { [ARCHIVE]: { ownOriginal: true } } },
+		{ submitted: "https://archive.ph/Ab1cD/123abc/scr.png", targets: { [ARCHIVE]: { ownOriginal: true } } },
+	])("refuses $submitted when it only leads to an unreachable short link", async ({ submitted, targets }) => {
+		const h = harness({ targets });
+		expect(await h.resolve(submitted)).toEqual({ status: "unresolved" });
+		expect(h.claims).toEqual([]);
+	});
+
 	it("keeps a plain original", async () => {
 		const h = harness();
 		expect(await h.resolve(ORIGINAL)).toEqual(resolved(ORIGINAL));

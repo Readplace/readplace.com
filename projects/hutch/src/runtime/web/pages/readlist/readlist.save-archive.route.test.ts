@@ -1,5 +1,5 @@
 import { MinutesSchema } from "@packages/domain/article";
-import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from "@packages/save-article";
+import { initResolveSaveIdentity, initSubmitFreshness } from "@packages/save-article";
 import type { PublishLinkQueued, PublishLinkSaved, PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture, type TestAppFixture } from "@packages/test-fixtures";
@@ -21,7 +21,7 @@ function createHarness() {
 			validateUrl: fixture.shared.validateSaveableUrl,
 			findIdentityRow: fixture.articleStore.findIdentityRow,
 			claimAlias: fixture.articleStore.claimAlias,
-			resolveWrapperTarget: neverResolveWrapperTarget,
+			resolveWrapperTarget: fixture.wrapperTarget.resolveWrapperTarget,
 			now: () => new Date(),
 		}),
 		publishStaleCheckRequested: async (params) => {
@@ -134,6 +134,17 @@ it.each(["https://archive.ph/abc", "https://web.archive.org/about", "https://app
 	expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toBeUndefined();
 	expect(linkSaves).toEqual([]);
 	expect(linkQueued).toEqual([]);
+});
+it("keys an unreachable archive short link on its own link from the web save bar", async () => {
+	const { fixture, harness, linkSaves } = createHarness();
+	const short = "https://archive.ph/abc";
+	fixture.wrapperTarget.ownOriginals.add(short);
+	const agent = await loginAgent(harness.server, harness.auth);
+	const response = await agent.post("/queue/save").type("form").send({ url: short });
+	expect([response.status, response.headers.location]).toEqual([303, "/queue#latest-saved"]);
+	expect(linkSaves).toEqual([{ url: short, userId: expect.any(String), saveAttemptId: expect.any(String) }]);
+	expect(await fixture.articleCrawl.findArticleCrawlStatus(short)).toEqual({ status: "pending" });
+	expect(fixture.submitLink.submitLinks).toEqual([]);
 });
 it("retains and retries a proven short capture on a repeated foreground save", async () => {
 	const { fixture, harness, linkSaves } = createHarness();
