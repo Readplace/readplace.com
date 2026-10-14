@@ -63,6 +63,8 @@ const MEMBER_PATHS = [
 	"/account",
 	"/account?section=subscription",
 	"/account?error=delete_confirmation",
+	"/account?password=changed",
+	"/account/password",
 	"/account/plans",
 	"/export",
 	"/install",

@@ -8,6 +8,7 @@ import type { NativeClientPlatform } from "../../onboarding/native-client";
 export function buildAccountUrl(params?: {
 	cancelling?: boolean;
 	deleteConfirmationError?: boolean;
+	passwordChanged?: boolean;
 	manage?: "payment";
 	surfacePlatform?: NativeClientPlatform;
 	appShell?: boolean;
@@ -15,6 +16,7 @@ export function buildAccountUrl(params?: {
 	const search = new URLSearchParams();
 	if (params?.cancelling) search.set("cancelling", "1");
 	if (params?.deleteConfirmationError) search.set("error", "delete_confirmation");
+	if (params?.passwordChanged) search.set("password", "changed");
 	if (params?.manage) search.set("manage", params.manage);
 	// Both markers are preserved across a POST-Redirect-GET so the re-rendered
 	// account page keeps the app's in-app surface and its chromeless shell — the
@@ -24,6 +26,32 @@ export function buildAccountUrl(params?: {
 	if (params?.appShell) search.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
 	const qs = search.toString();
 	return qs ? `/account?${qs}` : "/account";
+}
+
+export const ACCOUNT_PASSWORD_URL = "/account/password";
+
+export const CHANGE_PASSWORD_REFUSALS = [
+	"current-missing",
+	"current-incorrect",
+	"too-many-attempts",
+	"password-short",
+	"confirm-missing",
+	"mismatch",
+] as const;
+
+export type ChangePasswordRefusal = (typeof CHANGE_PASSWORD_REFUSALS)[number];
+
+export function buildAccountPasswordUrl(params: {
+	surfacePlatform?: NativeClientPlatform;
+	appShell?: boolean;
+	error?: ChangePasswordRefusal;
+}): string {
+	const search = new URLSearchParams();
+	if (params.error) search.set("error", params.error);
+	if (params.surfacePlatform) search.set(PLATFORM_QUERY, params.surfacePlatform);
+	if (params.appShell) search.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
+	const qs = search.toString();
+	return qs ? `${ACCOUNT_PASSWORD_URL}?${qs}` : ACCOUNT_PASSWORD_URL;
 }
 
 export const ACCOUNT_APPEARANCE_URL = "/account/appearance";

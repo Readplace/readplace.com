@@ -2,7 +2,7 @@ import type { RateLimitDecision, RateLimitRule } from "@packages/domain/rate-lim
 import { UserIdSchema } from "@packages/domain/user";
 import type { CreateSession, VerifyCredentials, VerifyCredentialsResult } from "@packages/provider-contracts/auth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
-import { initSignInWithPassword } from "./sign-in-with-password";
+import { initSignInWithPassword, initVerifyAccountPassword } from "./sign-in-with-password";
 
 const RULE: RateLimitRule = { limit: 5, windowSeconds: 900 };
 
@@ -83,5 +83,64 @@ describe("initSignInWithPassword", () => {
 		await signInWithPassword({ email: "alice@example.com", password: "correct-horse" });
 
 		expect(sessionCalls).toEqual([{ userId, emailVerified: false }]);
+	});
+});
+
+describe("initVerifyAccountPassword", () => {
+	function recordingVerifyDeps(outcomes: { decision: RateLimitDecision; verified: VerifyCredentialsResult }) {
+		const calls: string[] = [];
+		const rateLimitCalls: Parameters<ConsumeRateLimit>[0][] = [];
+		const consumeRateLimit: ConsumeRateLimit = async (params) => {
+			calls.push("consume-rate-limit");
+			rateLimitCalls.push(params);
+			return outcomes.decision;
+		};
+		const verifyCredentials: VerifyCredentials = async () => {
+			calls.push("verify-credentials");
+			return outcomes.verified;
+		};
+		const verifyAccountPassword = initVerifyAccountPassword({
+			consumeRateLimit,
+			loginAccountRule: RULE,
+			verifyCredentials,
+		});
+		return { verifyAccountPassword, calls, rateLimitCalls };
+	}
+
+	it("spends the account's login attempt, keyed by its normalised address, before checking the password", async () => {
+		const userId = UserIdSchema.parse("user_1");
+		const { verifyAccountPassword, calls, rateLimitCalls } = recordingVerifyDeps({
+			decision: { allowed: true },
+			verified: { ok: true, userId, emailVerified: true },
+		});
+
+		const result = await verifyAccountPassword({ email: " Alice@Example.com", password: "correct-horse" });
+
+		expect(result).toEqual({ ok: true, userId, emailVerified: true });
+		expect(calls).toEqual(["consume-rate-limit", "verify-credentials"]);
+		expect(rateLimitCalls).toEqual([{ bucket: "login-account", key: "alice@example.com", rule: RULE }]);
+	});
+
+	it("refuses a throttled account without checking the password", async () => {
+		const { verifyAccountPassword, calls } = recordingVerifyDeps({
+			decision: { allowed: false, retryAfterSeconds: 42 },
+			verified: { ok: true, userId: UserIdSchema.parse("user_1"), emailVerified: true },
+		});
+
+		const result = await verifyAccountPassword({ email: "alice@example.com", password: "correct-horse" });
+
+		expect(result).toEqual({ ok: false, reason: "rate-limited", retryAfterSeconds: 42 });
+		expect(calls).toEqual(["consume-rate-limit"]);
+	});
+
+	it("reports a wrong password as invalid credentials", async () => {
+		const { verifyAccountPassword } = recordingVerifyDeps({
+			decision: { allowed: true },
+			verified: { ok: false, reason: "invalid-credentials" },
+		});
+
+		const result = await verifyAccountPassword({ email: "alice@example.com", password: "wrong-horse" });
+
+		expect(result).toEqual({ ok: false, reason: "invalid-credentials" });
 	});
 });

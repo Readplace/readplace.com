@@ -8,6 +8,7 @@ import type {
 	DestroyUserSessions,
 	FindEmailByUserId,
 	FindUserById,
+	FindUserPasswordStatus,
 	MarkAccountDeleted,
 	SetUserAppearance,
 	SetUserDisplayName,
@@ -103,6 +104,7 @@ import {
 	type PaymentSectionInput,
 	buildAppearanceSection,
 	buildProfileSection,
+	buildSecuritySection,
 	parseAccountQuery,
 	toAccountViewModel,
 	withoutCommerce,
@@ -134,6 +136,7 @@ interface AccountDependencies {
 	markActiveSubscription: MarkSubscriptionActive;
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
+	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
 	setUserDisplayName: SetUserDisplayName;
 	destroyUserSessions: DestroyUserSessions;
@@ -221,12 +224,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		},
 	): Promise<void> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const [email, user] = await Promise.all([
+		const [email, user, passwordStatus] = await Promise.all([
 			deps.findEmailByUserId(req.userId),
 			deps.findUserById(req.userId),
+			deps.findUserPasswordStatus(req.userId),
 		]);
 		assert(email, "an authenticated account page must resolve an email");
 		assert(user, "an authenticated account page must resolve a user");
+		assert(passwordStatus, "an authenticated account page must resolve a password status");
 		const profile = buildProfileSection({
 			email,
 			displayName: user.displayName,
@@ -238,10 +243,19 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
+		const queryState = parseAccountQuery(req.query);
+		const now = deps.now();
+		const security = buildSecuritySection({
+			status: passwordStatus,
+			now,
+			changed: queryState.passwordChanged,
+			appShell: isAppShell(req),
+			platform: nativeSurfaceOf(req),
+		});
 		const webVm = toAccountViewModel({
 			access: input.access,
-			queryState: parseAccountQuery(req.query),
-			now: deps.now(),
+			queryState,
+			now,
 			nextCharge: input.nextCharge,
 			plan: input.plan,
 			hasCustomer: input.hasCustomer,
@@ -259,6 +273,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 						withoutCommerce(webVm, { appShell: true, platform: nativeSurfaceOf(req) }),
 						{
 							profile,
+							security,
 							appearance: appearanceSection,
 							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
 						},
@@ -278,7 +293,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		sendComponent(
 			req,
 			res,
-			Base(AccountPage(vm, { profile, appearance: appearanceSection }), bannerState),
+			Base(AccountPage(vm, { profile, security, appearance: appearanceSection }), bannerState),
 		);
 	}
 

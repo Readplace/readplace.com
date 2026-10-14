@@ -494,6 +494,76 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("findUserPasswordStatus", () => {
+		it("returns null for an unknown userId", async () => {
+			const auth = makeAuth();
+
+			const status = await auth.findUserPasswordStatus(UserIdSchema.parse("nobody"));
+
+			expect(status).toBeNull();
+		});
+
+		it("records the password as changed at the instant a password account registered", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			const user = await auth.findUserById(created.userId);
+			assert(user?.registeredAt, "registeredAt must be set");
+
+			const status = await auth.findUserPasswordStatus(created.userId);
+
+			expect(status).toEqual({ kind: "set", updatedAt: user.registeredAt });
+		});
+
+		it("records the password as changed at registration for an account created from a precomputed hash", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUserWithPasswordHash({
+				email: "test@example.com",
+				passwordHash: await hashPassword("password123"),
+				attribution: undefined,
+			});
+			assert(created.ok, "User creation failed");
+			const user = await auth.findUserById(created.userId);
+			assert(user?.registeredAt, "registeredAt must be set");
+
+			const status = await auth.findUserPasswordStatus(created.userId);
+
+			expect(status).toEqual({ kind: "set", updatedAt: user.registeredAt });
+		});
+
+		it("reports no password for an account that signs in with Google", async () => {
+			const auth = makeAuth();
+			const userId = UserIdSchema.parse("google-user-123");
+			await auth.createGoogleUser({ email: "google@example.com", userId });
+
+			const status = await auth.findUserPasswordStatus(userId);
+
+			expect(status).toEqual({ kind: "not-set" });
+		});
+
+		it("reports the instant the password was last updated", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.updatePassword({
+				email: "test@example.com",
+				password: "a-new-password",
+				updatedAt: "2026-10-15T08:00:00.000Z",
+			});
+
+			expect(await auth.findUserPasswordStatus(created.userId)).toEqual({
+				kind: "set",
+				updatedAt: "2026-10-15T08:00:00.000Z",
+			});
+			expect(await auth.verifyCredentials({ email: "test@example.com", password: "a-new-password" })).toEqual({
+				ok: true,
+				userId: created.userId,
+				emailVerified: false,
+			});
+		});
+	});
+
 	describe("createGoogleUser", () => {
 		it("should create a user without a password and verified email", async () => {
 			const auth = makeAuth();

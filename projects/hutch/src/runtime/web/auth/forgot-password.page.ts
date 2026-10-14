@@ -40,6 +40,7 @@ interface ForgotPasswordDependencies {
 	logError: (message: string, error?: Error) => void;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRule: RateLimitRule;
+	now: () => Date;
 }
 
 export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Router {
@@ -151,7 +152,11 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 			return;
 		}
 
-		await deps.updatePassword({ email: verifyResult.email, password: parsed.data.password });
+		await deps.updatePassword({
+			email: verifyResult.email,
+			password: parsed.data.password,
+			updatedAt: deps.now().toISOString(),
+		});
 		// A password reset invalidates the credential, so no session issued before
 		// it may keep working — an attacker holding a stolen session must be locked
 		// out by the victim's reset.

@@ -144,6 +144,22 @@
   text-wrap: pretty;
 }
 
+.account-security--visible {
+  display: flex;
+}
+
+.account-security--hidden {
+  display: none;
+}
+
+.account-security__updated--visible {
+  display: block;
+}
+
+.account-security__updated--hidden {
+  display: none;
+}
+
 .account-row__actions {
   grid-area: actions;
   display: flex;

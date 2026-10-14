@@ -24,6 +24,7 @@ import type {
 	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
+	FindUserPasswordStatus,
 	GetSessionUserId,
 	MarkAccountDeleted,
 	RenewSession,
@@ -45,6 +46,7 @@ interface StoredUser {
 	id: UserId;
 	email: string;
 	passwordHash: string | undefined;
+	passwordUpdatedAt: string | undefined;
 	appleRefreshToken: string | undefined;
 	emailVerified: boolean;
 	registeredAt: string;
@@ -96,6 +98,7 @@ export function initInMemoryAuth(opts: {
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
+	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
 	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
@@ -132,14 +135,16 @@ export function initInMemoryAuth(opts: {
 			return { ok: false, reason: "email-already-exists" };
 		}
 		const passwordHash = await _hashPassword(password);
+		const at = new Date().toISOString();
 
 		users.set(normalizedEmail, {
 			id: userId,
 			email: normalizedEmail,
 			passwordHash,
+			passwordUpdatedAt: at,
 			appleRefreshToken: undefined,
 			emailVerified: false,
-			registeredAt: new Date().toISOString(),
+			registeredAt: at,
 			attribution,
 		});
 
@@ -152,14 +157,16 @@ export function initInMemoryAuth(opts: {
 		if (normalizedEmail === null) {
 			return { ok: false, reason: "email-already-exists" };
 		}
+		const at = new Date().toISOString();
 
 		users.set(normalizedEmail, {
 			id: userId,
 			email: normalizedEmail,
 			passwordHash,
+			passwordUpdatedAt: at,
 			appleRefreshToken: undefined,
 			emailVerified: false,
-			registeredAt: new Date().toISOString(),
+			registeredAt: at,
 			attribution,
 		});
 
@@ -189,6 +196,7 @@ export function initInMemoryAuth(opts: {
 			id: userId,
 			email: normalizedEmail,
 			passwordHash: undefined,
+			passwordUpdatedAt: undefined,
 			appleRefreshToken,
 			emailVerified: true,
 			registeredAt: new Date().toISOString(),
@@ -374,6 +382,16 @@ export function initInMemoryAuth(opts: {
 		return null;
 	};
 
+	const findUserPasswordStatus: FindUserPasswordStatus = async (userId) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				if (user.passwordHash === undefined) return { kind: "not-set" };
+				return { kind: "set", updatedAt: user.passwordUpdatedAt };
+			}
+		}
+		return null;
+	};
+
 	const setUserAppearance: SetUserAppearance = async ({ userId, appearance }) => {
 		for (const user of users.values()) {
 			if (user.id === userId) {
@@ -401,11 +419,12 @@ export function initInMemoryAuth(opts: {
 		}
 	};
 
-	const updatePassword: UpdatePassword = async ({ email, password }) => {
+	const updatePassword: UpdatePassword = async ({ email, password, updatedAt }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const user = users.get(normalizedEmail);
 		assert(user, `Cannot update password: no user found for ${normalizedEmail}`);
 		user.passwordHash = await _hashPassword(password);
+		user.passwordUpdatedAt = updatedAt;
 	};
 
 	const getAcquisitionAttribution = async (email: string): Promise<UserAcquisitionAttribution | undefined> => {
@@ -447,6 +466,7 @@ export function initInMemoryAuth(opts: {
 		findEmailByUserId,
 		findUserContactByUserId,
 		findUserById,
+		findUserPasswordStatus,
 		setUserAppearance,
 		setUserDisplayName,
 		setQueueDigestOptOut,

@@ -6,6 +6,7 @@ import {
 	DISPLAY_NAME_MAX_LENGTH,
 	type DisplayName,
 } from "@packages/domain/user";
+import type { PasswordStatus } from "@packages/provider-contracts/auth";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
@@ -18,6 +19,7 @@ import {
 	initialsFor,
 	parsePollParam,
 	toAbsoluteDate,
+	toRelativePhrase,
 	withInternalTracking,
 } from "@packages/web-shell";
 import {
@@ -40,6 +42,7 @@ import {
 	ACCOUNT_PROFILE_URL,
 	ACCOUNT_REACTIVATE_URL,
 	ACCOUNT_SUBSCRIBE_URL,
+	buildAccountPasswordUrl,
 	buildAccountStatusPollUrl,
 	buildAccountUrl,
 	buildCardPrimaryUrl,
@@ -247,6 +250,7 @@ export interface AccountUrlState {
 	errorPaymentMethod: boolean;
 	errorSubscribeFailed: boolean;
 	deleteConfirmationError: boolean;
+	passwordChanged: boolean;
 	cardError: CardError | undefined;
 	manage: AccountManage;
 }
@@ -273,6 +277,7 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 		errorPaymentMethod: query?.error === "payment_method",
 		errorSubscribeFailed: query?.error === "subscribe_failed",
 		deleteConfirmationError: query?.error === "delete_confirmation",
+		passwordChanged: query?.password === "changed",
 		cardError: parseCardError(query?.error),
 		manage: parseManage(query?.manage),
 	};
@@ -966,6 +971,30 @@ export function buildProfileSection(input: {
 						maxLength: DISPLAY_NAME_MAX_LENGTH,
 					},
 				],
+	};
+}
+
+export type SecuritySectionViewModel =
+	| { state: "hidden" }
+	| { state: "visible"; changeHref: string; updated: LocalTime | undefined; changed: boolean };
+
+export function buildSecuritySection(input: {
+	status: PasswordStatus;
+	now: Date;
+	changed: boolean;
+	appShell: boolean;
+	platform: NativeClientPlatform | undefined;
+}): SecuritySectionViewModel {
+	if (input.status.kind === "not-set") return { state: "hidden" };
+	const { updatedAt } = input.status;
+	return {
+		state: "visible",
+		changeHref: withInternalTracking(
+			buildAccountPasswordUrl({ surfacePlatform: input.platform, appShell: input.appShell }),
+			{ source: ACCOUNT_SOURCE, content: "change-password" },
+		),
+		updated: updatedAt === undefined ? undefined : toRelativePhrase({ iso: updatedAt, now: input.now }),
+		changed: input.changed,
 	};
 }
 

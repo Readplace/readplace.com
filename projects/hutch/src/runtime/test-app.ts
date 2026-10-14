@@ -173,6 +173,7 @@ function flattenFixtureToAppDependencies(
 		setSessionReadlistFilter: fixture.auth.setSessionReadlistFilter,
 		findSessionReadlistFilter: fixture.auth.findSessionReadlistFilter,
 		findUserById: fixture.auth.findUserById,
+		findUserPasswordStatus: fixture.auth.findUserPasswordStatus,
 		setUserAppearance: fixture.auth.setUserAppearance,
 		setQueueDigestOptOut: fixture.auth.setQueueDigestOptOut,
 		setUserDisplayName: fixture.auth.setUserDisplayName,

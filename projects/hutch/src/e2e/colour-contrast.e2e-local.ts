@@ -990,6 +990,42 @@ test.describe("Account colour roles hold their WCAG contrast in both themes", ()
 	});
 });
 
+test.describe("Account password colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the Change password page, its refusal and its confirmation clear their contrast minimum", async ({ page }, testInfo) => {
+		const email = `colour-contrast-password-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const newPassword = "N3w-Secret-Pw!";
+		await createChipReader(page, email);
+		await loginChipReader(page, email);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/account/password`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-change-password");
+			await auditAuth(page, { theme, view: "account/password" });
+			await page.locator("#currentPassword").fill("Wr0ng-Password!");
+			await page.locator("#password").fill(newPassword);
+			await page.locator("#confirmPassword").fill(newPassword);
+			await page.locator('[data-test-action="change-password"]').click();
+			await expect(page.locator('[data-test-error="currentPassword"]')).toBeVisible({ timeout: SETTLE_MS });
+			await auditAuth(page, { theme, view: "account/password/wrong-current" });
+		}
+
+		await page.locator("#currentPassword").fill(PASSWORD);
+		await page.locator("#password").fill(newPassword);
+		await page.locator("#confirmPassword").fill(newPassword);
+		await page.locator('[data-test-action="change-password"]').click();
+		await expect(page.locator('[data-test-alert="password-changed"]')).toBeVisible({ timeout: SETTLE_MS });
+		await auditAccount(page, { theme: "dark", view: "account/password-changed" });
+
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/account?password=changed`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator('[data-test-alert="password-changed"]')).toBeVisible({ timeout: SETTLE_MS });
+		await auditAccount(page, { theme: "light", view: "account/password-changed" });
+	});
+});
+
 test.describe("Readlist preferences colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 

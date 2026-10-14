@@ -39,6 +39,7 @@ const BACK_LINK = "[data-test-account-back-link]";
 const IDENTITY_PINNED = [
 	{ selector: '[data-test-account-profile-line="email"]', text: "reader@example.com" },
 	{ selector: "[data-test-account-profile-initials]", text: "RE" },
+	{ selector: "[data-test-password-updated]", text: "6 months ago" },
 ];
 const BILLING_SECTION = '[data-test-account-section="subscription"]';
 const PLAN_SECTION = "[data-test-account-card]";
@@ -151,8 +152,8 @@ async function boxesOf(page: Page, selector: string): Promise<MeasuredBox[]> {
 async function sectionRhythm(page: Page): Promise<void> {
 	const sections = await page.locator(SECTION).evaluateAll((elements) =>
 		elements.map((section) => {
-			const heading = section.querySelector(".account-section__heading");
-			const card = heading?.nextElementSibling;
+			const heading = section.querySelector(":scope > .account-section__heading");
+			const card = section.querySelector(":scope > .account-section__card");
 			if (!heading || !card) throw new Error("every account section must open with its heading over a card");
 			const box = section.getBoundingClientRect();
 			return {
@@ -163,7 +164,7 @@ async function sectionRhythm(page: Page): Promise<void> {
 			};
 		}),
 	);
-	assert.equal(sections.length, 5, "the account page renders five sections");
+	assert.equal(sections.length, 6, "the account page renders six sections");
 	for (const [index, section] of sections.entries()) {
 		assertNear({ actual: section.cardTop - section.headingBottom, expected: 12 }, `section ${index}'s heading sits 12px above its card`);
 		const next = sections[index + 1];
@@ -201,7 +202,7 @@ async function designWidthGeometry(page: Page, input: { rows: number }): Promise
 	const [main, title] = await page.evaluate(measureBoxes, [MAIN, TITLE]);
 	assertNear({ actual: title.y - main.y, expected: 32 }, "at 1440 the title's line box starts 32px under the header");
 	const cards = await boxesOf(page, CARDS);
-	assert.equal(cards.length, 5, "the billing card and the four settings cards are measured");
+	assert.equal(cards.length, 6, "the billing card and the five settings cards are measured");
 	for (const [index, card] of cards.entries()) {
 		assertNear({ actual: card.x, expected: 280 }, `card ${index} starts on the 880px column's left edge`);
 		assertNear({ actual: card.x + card.width, expected: 1160 }, `card ${index} ends on the 880px column's right edge`);
@@ -453,7 +454,7 @@ test.describe("Account page at the design width", () => {
 			await openAccount(page);
 			await captureCheckpoint(
 				page,
-				mainCheckpoint({ name: `account-founding-${theme}`, geometry: (settled) => designWidthGeometry(settled, { rows: 4 }) }),
+				mainCheckpoint({ name: `account-founding-${theme}`, geometry: (settled) => designWidthGeometry(settled, { rows: 5 }) }),
 			);
 		});
 
@@ -472,7 +473,7 @@ test.describe("Account page at the design width", () => {
 		await openAccount(page);
 		await captureCheckpoint(
 			page,
-			mainCheckpoint({ name: "account-inactive-light", geometry: (settled) => designWidthGeometry(settled, { rows: 5 }) }),
+			mainCheckpoint({ name: "account-inactive-light", geometry: (settled) => designWidthGeometry(settled, { rows: 6 }) }),
 		);
 	});
 

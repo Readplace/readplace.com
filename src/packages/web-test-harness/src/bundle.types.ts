@@ -124,6 +124,7 @@ import type {
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
+	FindUserPasswordStatus,
 	ForceMarkCrawlPending,
 	GetOnboardingSignals,
 	GetSessionUserId,
@@ -258,6 +259,7 @@ export interface AuthBundle {
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
+	findUserPasswordStatus: FindUserPasswordStatus;
 	findUserContactByUserId: FindUserContactByUserId;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;

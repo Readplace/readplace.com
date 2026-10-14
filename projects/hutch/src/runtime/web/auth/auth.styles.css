@@ -83,6 +83,18 @@
   margin-top: 8px;
 }
 
+.htmx-request .auth-form__submit {
+  cursor: progress;
+}
+
+.htmx-request .auth-form__submit-label {
+  visibility: hidden;
+}
+
+.htmx-request .auth-form__loader {
+  display: flex;
+}
+
 .auth-form__hint {
   font-size: var(--text-sm);
   color: var(--muted-foreground);

@@ -22,6 +22,7 @@ import type {
 	DestroyUserSessions,
 	FindEmailByUserId,
 	FindUserById,
+	FindUserPasswordStatus,
 	FindUserByEmail,
 	GetSessionUserId,
 	RenewSession,
@@ -239,7 +240,8 @@ import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-uns
 import { initQueueDigestMarkReadRoutes } from "./web/pages/queue-digest-mark-read/queue-digest-mark-read.page";
 import { initQueueDigestMarkReadToken } from "./domain/email/queue-digest-mark-read-token";
 import { initAccountRoutes } from "./web/pages/account/account.page";
-import { ACCOUNT_PLANS_URL } from "./web/pages/account/account.url";
+import { initAccountPasswordRoutes } from "./web/pages/account/account-password.page";
+import { ACCOUNT_PASSWORD_URL, ACCOUNT_PLANS_URL } from "./web/pages/account/account.url";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
 import { initRecordMcpHandshake, initRecordMcpToolCall } from "./web/mcp/mcp-analytics";
@@ -360,6 +362,7 @@ interface AppDependencies {
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findUserById: FindUserById;
+	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
 	setUserDisplayName: SetUserDisplayName;
@@ -1372,6 +1375,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		consumeRateLimit: deps.consumeRateLimit,
 		rateLimitRule: deps.rateLimitRules.forgotPassword,
+		now: deps.now,
 	});
 	app.use(forgotPasswordRouter);
 
@@ -1671,6 +1675,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markActiveSubscription: deps.subscriptionProviders.markActive,
 		findEmailByUserId: deps.findEmailByUserId,
 		findUserById: deps.findUserById,
+		findUserPasswordStatus: deps.findUserPasswordStatus,
 		setUserAppearance: deps.setUserAppearance,
 		setUserDisplayName: deps.setUserDisplayName,
 		destroyUserSessions: deps.destroyUserSessions,
@@ -1713,6 +1718,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordSubscriptionEvent,
 		recordAnalyticsEvent,
 	});
+	const accountPasswordRouter = initAccountPasswordRoutes({
+		findUserById: deps.findUserById,
+		findUserPasswordStatus: deps.findUserPasswordStatus,
+		verifyCredentials: deps.verifyCredentials,
+		consumeRateLimit: deps.consumeRateLimit,
+		loginAccountRule: deps.rateLimitRules.loginAccount,
+		updatePassword: deps.updatePassword,
+		destroyUserSessions: deps.destroyUserSessions,
+		createSession: deps.createSession,
+		secureCookies,
+		now: deps.now,
+		buildBannerState,
+	});
+	app.use(ACCOUNT_PASSWORD_URL, accountPasswordRouter);
 	app.get(ACCOUNT_PLANS_URL, (req: Request, res: Response, next: NextFunction) => {
 		if (req.userId) {
 			next();

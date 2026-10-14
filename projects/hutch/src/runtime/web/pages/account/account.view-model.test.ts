@@ -9,6 +9,7 @@ import {
 	buildAppearanceSection,
 	buildPaymentSectionViewModel,
 	buildProfileSection,
+	buildSecuritySection,
 	toAccountViewModel,
 	parseAccountQuery,
 	withoutCommerce,
@@ -34,6 +35,7 @@ const BASE_QUERY: AccountUrlState = {
 	errorPaymentMethod: false,
 	errorSubscribeFailed: false,
 	deleteConfirmationError: false,
+	passwordChanged: false,
 	cardError: undefined,
 	manage: undefined,
 };
@@ -696,9 +698,15 @@ describe("parseAccountQuery", () => {
 			errorPaymentMethod: false,
 			errorSubscribeFailed: false,
 			deleteConfirmationError: false,
+			passwordChanged: false,
 			cardError: undefined,
 			manage: undefined,
 		});
+	});
+
+	it("reads a just-changed password from ?password=changed, and ignores a value that names nothing", () => {
+		assert.equal(parseAccountQuery({ password: "changed" }).passwordChanged, true);
+		assert.equal(parseAccountQuery({ password: "reset" }).passwordChanged, false);
 	});
 
 	it("clamps a poll cursor past the budget so a client can't buy itself extra ticks", () => {
@@ -1178,4 +1186,81 @@ describe("buildProfileSection", () => {
 		);
 		assert.deepEqual(section.edits, []);
 	});
+});
+
+describe("buildSecuritySection", () => {
+	const NOW = new Date("2026-10-15T12:00:00.000Z");
+
+	it("hides the section for an account that has no password to change", () => {
+		const section = buildSecuritySection({
+			status: { kind: "not-set" },
+			now: NOW,
+			changed: false,
+			appShell: false,
+			platform: undefined,
+		});
+		assert.deepEqual(section, { state: "hidden" });
+	});
+
+	it("reads when the password last changed as a relative phrase and links to the change page", () => {
+		const updatedAt = new Date(NOW.getTime() - 180 * ONE_DAY_MS).toISOString();
+		const section = buildSecuritySection({
+			status: { kind: "set", updatedAt },
+			now: NOW,
+			changed: false,
+			appShell: false,
+			platform: undefined,
+		});
+		assert.deepEqual(section, {
+			state: "visible",
+			changeHref: "/account/password?utm_source=account&utm_medium=internal&utm_content=change-password",
+			updated: { iso: updatedAt, label: "6 months ago", mode: "relative" },
+			changed: false,
+		});
+	});
+
+	it("leaves the change time out when the password predates the record of it", () => {
+		const section = buildSecuritySection({
+			status: { kind: "set", updatedAt: undefined },
+			now: NOW,
+			changed: false,
+			appShell: false,
+			platform: undefined,
+		});
+		assert(section.state === "visible", "a password account shows the security section");
+		assert.equal(section.updated, undefined);
+	});
+
+	it("carries a just-changed password through to the section", () => {
+		const section = buildSecuritySection({
+			status: { kind: "set", updatedAt: NOW.toISOString() },
+			now: NOW,
+			changed: true,
+			appShell: false,
+			platform: undefined,
+		});
+		assert(section.state === "visible", "a password account shows the security section");
+		assert.equal(section.changed, true);
+		assert.deepEqual(section.updated, { iso: NOW.toISOString(), label: "just now", mode: "relative" });
+	});
+
+	it.each(["ios", "android"] as const)(
+		"carries the %s app sheet's markers onto the change link so the page opens inside the sheet",
+		(platform) => {
+			const section = buildSecuritySection({
+				status: { kind: "set", updatedAt: NOW.toISOString() },
+				now: NOW,
+				changed: false,
+				appShell: true,
+				platform,
+			});
+			assert(section.state === "visible", "a password account shows the security section");
+			const url = new URL(section.changeHref, "https://internal.invalid");
+			assert.equal(url.pathname, "/account/password");
+			assert.equal(url.searchParams.get("utm_source"), "account");
+			assert.equal(url.searchParams.get("utm_content"), "change-password");
+			assert.equal(url.searchParams.get("platform"), platform);
+			assert.equal(url.searchParams.get("shell"), "app");
+		},
+	);
 });

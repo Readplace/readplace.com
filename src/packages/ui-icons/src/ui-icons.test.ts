@@ -93,6 +93,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"info",
 	"link",
 	"loader",
+	"lock",
 	"log-in",
 	"log-out",
 	"mail",
@@ -138,6 +139,12 @@ describe("the stroke set", () => {
 
 	it("resolves the menu glyph the phone nav toggle names", () => {
 		expect(findIconSvg("menu")).toBe(iconSvg("menu"));
+	});
+
+	it("resolves the lock glyph the password settings row names, with the Hugeicons lock-password shackle", () => {
+		expect(findIconSvg("lock")).toContain(
+			'<path d="M7.5 9V6.5C7.5 4.01472 9.51472 2 12 2C14.4853 2 16.5 4.01472 16.5 6.5V9"/>',
+		);
 	});
 
 	it("draws the file glyph the default readlist names, distinct from the folder a custom readlist draws", () => {

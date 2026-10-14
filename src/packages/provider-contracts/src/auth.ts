@@ -74,7 +74,11 @@ export type FindSessionReadlistFilter = (sessionId: string) => Promise<ReadlistF
 
 export type UserExistsByEmail = (email: string) => Promise<boolean>;
 
-export type UpdatePassword = (args: { email: string; password: string }) => Promise<void>;
+export type UpdatePassword = (args: { email: string; password: string; updatedAt: string }) => Promise<void>;
+
+export type PasswordStatus = { kind: "set"; updatedAt: string | undefined } | { kind: "not-set" };
+
+export type FindUserPasswordStatus = (userId: UserId) => Promise<PasswordStatus | null>;
 
 export type FindUserByEmailResult =
 	| { userId: UserId; emailVerified: boolean; registeredAt?: string }

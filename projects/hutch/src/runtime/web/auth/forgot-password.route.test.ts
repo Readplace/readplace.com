@@ -262,6 +262,35 @@ describe("Forgot password", () => {
 			expect(await auth.getSessionUserId(stolenSession)).toBeNull();
 		});
 
+		it("a reset records when the password last changed", async () => {
+			const resetAt = new Date("2026-10-15T09:45:00.000Z");
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.shared.now = () => resetAt;
+			const harness = useApp(fixture);
+			const { auth, email } = harness;
+			const created = await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
+			assert(created.ok, "User must be created");
+
+			await request(harness.server)
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
+				.type("form")
+				.send({ email: "user@example.com" });
+			const sent = email.getSentEmails();
+			const tokenMatch = sent[0].html.match(/token&#x3D;([a-f0-9]+)/);
+			assert(tokenMatch, "Expected token in password reset email");
+
+			const response = await request(harness.server)
+				.post(`/reset-password?token=${tokenMatch[1]}`)
+				.type("form")
+				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
+
+			expect(response.status).toBe(200);
+			expect(await auth.findUserPasswordStatus(created.userId)).toEqual({
+				kind: "set",
+				updatedAt: resetAt.toISOString(),
+			});
+		});
+
 		it("rejects a token whose account no longer exists", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const token = await harness.passwordReset.createPasswordResetToken({ email: "ghost@example.com" });

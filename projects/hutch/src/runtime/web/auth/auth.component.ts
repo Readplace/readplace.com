@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CHEAPEST_MONTHLY_DISPLAY, render, renderAlert, VERIFICATION_CONTACT_EMAIL, withInternalTracking } from "@packages/web-shell";
+import {
+	CHEAPEST_MONTHLY_DISPLAY,
+	IN_FLIGHT_DOTS_STYLES,
+	render,
+	renderAlert,
+	renderInFlightDots,
+	VERIFICATION_CONTACT_EMAIL,
+	withInternalTracking,
+} from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
@@ -17,6 +25,12 @@ const VERIFY_EMAIL_TEMPLATE = readFileSync(join(__dirname, "verify-email.templat
 const ACCOUNT_LOCKED_TEMPLATE = readFileSync(join(__dirname, "account-locked.template.html"), "utf-8");
 const FORGOT_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "forgot-password.template.html"), "utf-8");
 const RESET_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "reset-password.template.html"), "utf-8");
+const CHANGE_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "change-password.template.html"), "utf-8");
+const CHANGE_PASSWORD_FORM_TEMPLATE = readFileSync(join(__dirname, "change-password-form.template.html"), "utf-8");
+
+const CHANGE_PASSWORD_LOADER_HTML = renderInFlightDots("auth-form__loader in-flight-dots");
+
+const CHANGE_PASSWORD_FIELDS = ["currentPassword", "password", "confirmPassword"] as const;
 
 interface AuthFormData {
 	email?: string;
@@ -235,5 +249,47 @@ export function ResetPasswordPage(
 		bodyClass: "page-reset-password",
 		content: { html: content },
 		statusCode: options?.statusCode,
+	};
+}
+
+interface ChangePasswordFormData {
+	email: string;
+	formAction: string;
+	errors?: ComponentError[];
+}
+
+export function renderChangePasswordForm(data: ChangePasswordFormData): string {
+	const firstInvalid = CHANGE_PASSWORD_FIELDS.find((field) => toFieldViewModel(data.errors, field).error !== undefined);
+	const field = (name: (typeof CHANGE_PASSWORD_FIELDS)[number]) => ({
+		...toFieldViewModel(data.errors, name),
+		autofocus: name === firstInvalid,
+	});
+	return render(CHANGE_PASSWORD_FORM_TEMPLATE, {
+		email: data.email,
+		formAction: data.formAction,
+		loaderHtml: CHANGE_PASSWORD_LOADER_HTML,
+		currentPasswordField: field("currentPassword"),
+		passwordField: field("password"),
+		confirmPasswordField: field("confirmPassword"),
+	});
+}
+
+export function ChangePasswordPage(data: ChangePasswordFormData & { forgotHref: string; backHref: string }): PageBody {
+	const content = render(CHANGE_PASSWORD_TEMPLATE, {
+		formHtml: renderChangePasswordForm(data),
+		forgotHref: data.forgotHref,
+		backHref: data.backHref,
+	});
+
+	return {
+		seo: {
+			title: "Change password — Readplace",
+			description: "Change the password you sign in with.",
+			canonicalUrl: "/account/password",
+			robots: "noindex, nofollow",
+		},
+		styles: `${IN_FLIGHT_DOTS_STYLES}${AUTH_STYLES}`,
+		bodyClass: "page-change-password",
+		content: { html: content },
 	};
 }

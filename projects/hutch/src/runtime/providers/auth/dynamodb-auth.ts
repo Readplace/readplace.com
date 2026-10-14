@@ -40,6 +40,7 @@ import type {
 	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
+	FindUserPasswordStatus,
 	GetSessionUserId,
 	MarkAccountDeleted,
 	MarkEmailVerified,
@@ -60,6 +61,7 @@ const UserRow = z.object({
 	email: z.string(),
 	userId: UserIdSchema,
 	passwordHash: dynamoField(z.string()),
+	passwordUpdatedAt: dynamoField(z.string()),
 	/* Only on rows that signed in with Apple; revoked and deleted with the
 	 * account (App Store 5.1.1(v)). */
 	appleRefreshToken: dynamoField(z.string()),
@@ -124,6 +126,7 @@ export function initDynamoDbAuth(deps: {
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
+	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
 	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
@@ -209,14 +212,16 @@ export function initDynamoDbAuth(deps: {
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const passwordHash = await hashPassword(password);
+		const at = new Date().toISOString();
 
 		const result = await writeNewUserRow({
 			userRow: {
 				email: normalizedEmail,
 				userId,
 				passwordHash,
+				passwordUpdatedAt: at,
 				emailVerified: false,
-				registeredAt: new Date().toISOString(),
+				registeredAt: at,
 				canonicalEmail: canonicalizeEmail(email),
 				...(attribution ?? {}),
 			},
@@ -230,14 +235,16 @@ export function initDynamoDbAuth(deps: {
 		const normalizedEmail = normalizeEmail(email);
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
+		const at = new Date().toISOString();
 
 		const result = await writeNewUserRow({
 			userRow: {
 				email: normalizedEmail,
 				userId,
 				passwordHash,
+				passwordUpdatedAt: at,
 				emailVerified: false,
-				registeredAt: new Date().toISOString(),
+				registeredAt: at,
 				canonicalEmail: canonicalizeEmail(email),
 				...(attribution ?? {}),
 			},
@@ -530,6 +537,19 @@ export function initDynamoDbAuth(deps: {
 		};
 	};
 
+	const findUserPasswordStatus: FindUserPasswordStatus = async (userId) => {
+		const { items } = await users.query({
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+			Limit: 1,
+		});
+		const row = items[0];
+		if (!row) return null;
+		if (row.passwordHash === undefined) return { kind: "not-set" };
+		return { kind: "set", updatedAt: row.passwordUpdatedAt };
+	};
+
 	const setUserAppearance: SetUserAppearance = async ({ userId, appearance }) => {
 		const email = await findEmailByUserId(userId);
 		if (email === null) return;
@@ -579,14 +599,14 @@ export function initDynamoDbAuth(deps: {
 		});
 	};
 
-	const updatePassword: UpdatePassword = async ({ email, password }) => {
+	const updatePassword: UpdatePassword = async ({ email, password, updatedAt }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const passwordHash = await hashPassword(password);
 		await users.update({
 			Key: { email: normalizedEmail },
-			UpdateExpression: "SET passwordHash = :hash",
+			UpdateExpression: "SET passwordHash = :hash, passwordUpdatedAt = :updatedAt",
 			ConditionExpression: "attribute_exists(email)",
-			ExpressionAttributeValues: { ":hash": passwordHash },
+			ExpressionAttributeValues: { ":hash": passwordHash, ":updatedAt": updatedAt },
 		});
 	};
 
@@ -616,6 +636,7 @@ export function initDynamoDbAuth(deps: {
 		findEmailByUserId,
 		findUserContactByUserId,
 		findUserById,
+		findUserPasswordStatus,
 		setUserAppearance,
 		setUserDisplayName,
 		setQueueDigestOptOut,

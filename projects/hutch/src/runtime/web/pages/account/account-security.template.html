@@ -1,0 +1,16 @@
+<section class="account-section account-security account-security--visible" aria-labelledby="account-section-security" data-test-account-section="security">
+          <h2 class="account-section__heading" id="account-section-security">Security</h2>
+          {{{alertHtml}}}
+          <div class="account-section__card" data-test-account-security>
+            <div class="account-row" data-test-settings-row="password">
+              <span class="account-row__icon" aria-hidden="true">{{icon "lock"}}</span>
+              <div class="account-row__text">
+                <h3 class="account-row__title">Password</h3>
+                <p class="{{updatedClass}}" data-test-password-updated-line>{{{updatedHtml}}}</p>
+              </div>
+              <div class="account-row__actions">
+                <a class="btn btn--neutral btn--m" href="{{changeHref}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top" data-test-action="account-change-password">{{icon "pencil"}}<span>Change password</span></a>
+              </div>
+            </div>
+          </div>
+        </section>

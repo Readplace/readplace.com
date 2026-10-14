@@ -202,6 +202,7 @@ function checkpoint(scenario: Scenario, theme: Theme): VisualCheckpoint {
 		capture: "element",
 		pinnedText: scenario.pinnedText,
 		settled: async (page) => {
+			await page.mouse.move(0, 0);
 			const alert = page.locator(selector);
 			await expect(alert).toBeVisible();
 			await expect(alert).toHaveAttribute("data-test-alert-variant", scenario.variant);

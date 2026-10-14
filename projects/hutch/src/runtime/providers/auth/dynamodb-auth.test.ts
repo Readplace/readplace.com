@@ -465,6 +465,72 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("findUserPasswordStatus", () => {
+		it("reports the password and when it last changed via the userId-index", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					passwordHash: "hashed",
+					passwordUpdatedAt: "2026-04-18T09:30:00.000Z",
+				},
+			});
+
+			const status = await initAuth(client).findUserPasswordStatus(USER);
+
+			expect(status).toEqual({ kind: "set", updatedAt: "2026-04-18T09:30:00.000Z" });
+			expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
+		});
+
+		it("reports a password with no known change time for a row written before the stamp existed", async () => {
+			const { client } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123", passwordHash: "hashed" },
+			});
+
+			const status = await initAuth(client).findUserPasswordStatus(USER);
+
+			expect(status).toEqual({ kind: "set", updatedAt: undefined });
+		});
+
+		it("reports no password for an account that signs in with Google or Apple", async () => {
+			const { client } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123", emailVerified: true },
+			});
+
+			const status = await initAuth(client).findUserPasswordStatus(USER);
+
+			expect(status).toEqual({ kind: "not-set" });
+		});
+
+		it("returns null when no row exists for the id", async () => {
+			const { client } = createQueryFakeClient({});
+
+			const status = await initAuth(client).findUserPasswordStatus(USER);
+
+			expect(status).toBeNull();
+		});
+	});
+
+	describe("updatePassword", () => {
+		it("records when the password changed together with the new hash, conditionally so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).updatePassword({
+				email: "User@Example.com",
+				password: "a-new-password",
+				updatedAt: "2026-10-15T08:00:00.000Z",
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toMatchObject({
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET passwordHash = :hash, passwordUpdatedAt = :updatedAt",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":hash": expect.any(String), ":updatedAt": "2026-10-15T08:00:00.000Z" },
+			});
+		});
+	});
+
 	describe("createUser", () => {
 		it("writes the user row and canonical claim in one transaction for Gmail", async () => {
 			const { client, commands } = createWriteFakeClient();
@@ -515,6 +581,18 @@ describe("initDynamoDbAuth", () => {
 			});
 		});
 
+		it("records the password as changed at the instant the account was registered", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).createUser({ email: "user@example.com", password: "password123" });
+
+			const item = commands.find((c) => c.name === "PutCommand")?.input.Item;
+			assert(item && typeof item === "object", "expected a PutCommand item");
+			const { registeredAt, passwordUpdatedAt } = Object.fromEntries(Object.entries(item));
+			expect(typeof registeredAt).toBe("string");
+			expect(passwordUpdatedAt).toBe(registeredAt);
+		});
+
 		it("maps a Gmail transaction cancelled on the delivery-email key to email-already-exists", async () => {
 			const { client } = createWriteFakeClient({ fail: cancelled(["ConditionalCheckFailed", "None"]) });
 
@@ -562,6 +640,24 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("createUserWithPasswordHash", () => {
+		it("records the password as changed at the instant the account was registered", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).createUserWithPasswordHash({
+				email: "user@example.com",
+				passwordHash: "hashed",
+				attribution: undefined,
+			});
+
+			const item = commands.find((c) => c.name === "PutCommand")?.input.Item;
+			assert(item && typeof item === "object", "expected a PutCommand item");
+			const { registeredAt, passwordUpdatedAt } = Object.fromEntries(Object.entries(item));
+			expect(typeof registeredAt).toBe("string");
+			expect(passwordUpdatedAt).toBe(registeredAt);
+		});
+	});
+
 	describe("createAppleUser", () => {
 		it("stores the Apple refresh token on the verified user row", async () => {
 			const { client, commands } = createWriteFakeClient();
@@ -596,6 +692,22 @@ describe("initDynamoDbAuth", () => {
 			const put = commands.find((c) => c.name === "PutCommand");
 			assert(put, "expected a PutCommand");
 			expect(put.input.Item).not.toHaveProperty("appleRefreshToken");
+		});
+
+		it("writes a federated row with no password and so no record of a password change", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).createGoogleUser({ email: "user@example.com", userId: USER });
+
+			const put = commands.find((c) => c.name === "PutCommand");
+			assert(put, "expected a PutCommand");
+			expect(put.input.Item).toEqual({
+				email: "user@example.com",
+				userId: USER,
+				emailVerified: true,
+				registeredAt: expect.any(String),
+				canonicalEmail: "user@example.com",
+			});
 		});
 	});
 

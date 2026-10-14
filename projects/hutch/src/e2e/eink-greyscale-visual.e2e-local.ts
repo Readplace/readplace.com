@@ -819,6 +819,9 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				if (!emailLine || !initials) throw new Error("the account page's Profile row must name the signed-in address");
 				emailLine.textContent = "reader@example.com";
 				initials.textContent = "RE";
+				const passwordUpdated = document.querySelector("[data-test-password-updated]");
+				if (!passwordUpdated) throw new Error("the account page's Security row must say when the password last changed");
+				passwordUpdated.textContent = "6 months ago";
 			});
 			await settle(page, "main.account");
 			const main = await measuredBox(page, "main.account");

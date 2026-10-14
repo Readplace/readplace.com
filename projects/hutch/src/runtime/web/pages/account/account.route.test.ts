@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { DisplayNameSchema } from "@packages/domain/user";
+import { DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import { CardSetupIdSchema, PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import { InvoiceIdSchema, type InvoiceSummary } from "@packages/provider-contracts/subscription-billing";
@@ -640,6 +640,7 @@ describe("GET /account (headed sections)", () => {
 
 		expect(sections(doc).map((section) => section.getAttribute("data-test-account-section"))).toEqual([
 			"profile",
+			"security",
 			"subscription",
 			"appearance",
 			"data",
@@ -647,6 +648,7 @@ describe("GET /account (headed sections)", () => {
 		]);
 		expect(sections(doc).map((section) => headingOf(doc, section))).toEqual([
 			"Profile",
+			"Security",
 			"Subscription & billing",
 			"Appearance",
 			"Your data",
@@ -707,6 +709,7 @@ describe("GET /account (headed sections)", () => {
 
 		expect(sections(doc).map((section) => headingOf(doc, section))).toEqual([
 			"Profile",
+			"Security",
 			"Subscription",
 			"Appearance",
 			"Your data",
@@ -4080,6 +4083,166 @@ describe("GET /account (Profile row)", () => {
 		assert(section, "the Profile section must render");
 		expect(section.querySelectorAll("form")).toHaveLength(0);
 		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
+	});
+});
+
+describe("GET /account (security section)", () => {
+	const CHANGE_HREF = "/account/password?utm_source=account&utm_medium=internal&utm_content=change-password";
+
+	function securitySection(doc: Document): Element {
+		const section = doc.querySelector('[data-test-account-section="security"]');
+		assert(section, "the account page must always render the security slot");
+		return section;
+	}
+
+	function passwordRow(doc: Document): Element {
+		const row = securitySection(doc).querySelector('[data-test-settings-row="password"]');
+		assert(row, "the security section must render the password row");
+		return row;
+	}
+
+	function changeLink(doc: Document): Element {
+		const link = passwordRow(doc).querySelector('[data-test-action="account-change-password"]');
+		assert(link, "the password row must render its change action");
+		return link;
+	}
+
+	function updatedLine(doc: Document): Element {
+		const line = passwordRow(doc).querySelector("[data-test-password-updated-line]");
+		assert(line, "the password row must always render its last-updated slot");
+		return line;
+	}
+
+	function passwordChangedAlert(doc: Document): Element {
+		const alert = securitySection(doc).querySelector('[data-test-alert="password-changed"]');
+		assert(alert, "the security section must always render its confirmation slot");
+		return alert;
+	}
+
+	async function signInWithGoogle(harness: ReturnType<ReturnType<typeof useTestServer>>) {
+		const userId = UserIdSchema.parse("google-account-reader");
+		await harness.auth.createGoogleUser({ email: "google-account-reader@example.com", userId });
+		const sessionId = await harness.auth.createSession({ userId, emailVerified: true });
+		return { cookie: `hutch_sid=${sessionId}` };
+	}
+
+	it("shows a password account its Password row, with a boosted link to the change page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "security-web@example.com");
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		const section = securitySection(doc);
+		expect(section.classList.contains("account-security--visible")).toBe(true);
+		expect(section.querySelector(".account-section__heading")?.textContent).toBe("Security");
+		expect(passwordRow(doc).querySelector(".account-row__title")?.textContent).toBe("Password");
+		const link = changeLink(doc);
+		expect(link.textContent).toBe("Change password");
+		expect(
+			["href", "hx-boost", "hx-target", "hx-select", "hx-swap"].map((name) => link.getAttribute(name)),
+		).toEqual([CHANGE_HREF, "true", "main", "main", "outerHTML show:none scroll:html:top"]);
+		expect(link.parentElement?.classList.contains("account-row__actions")).toBe(true);
+	});
+
+	it("reads when the password last changed, with the instant on the time element", async () => {
+		const now = new Date("2026-10-15T12:00:00.000Z");
+		const changedAt = new Date(now.getTime() - 180 * ONE_DAY_MS).toISOString();
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.now = () => now;
+		const harness = useApp(fixture);
+		const { agent } = await loginUser(harness, "security-stamp@example.com");
+		await harness.auth.updatePassword({
+			email: "security-stamp@example.com",
+			password: "password123",
+			updatedAt: changedAt,
+		});
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		const line = updatedLine(doc);
+		expect(line.textContent).toBe("Last updated 6 months ago.");
+		expect(line.classList.contains("account-security__updated--visible")).toBe(true);
+		const time = line.querySelector("[data-test-password-updated]");
+		assert(time, "the last-updated line must name the instant");
+		expect([time.tagName, time.getAttribute("datetime"), time.getAttribute("data-local-time")]).toEqual([
+			"TIME",
+			changedAt,
+			"relative",
+		]);
+	});
+
+	it("leaves the last-updated line off for a password Readplace never recorded a change for", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.auth.findUserPasswordStatus = async () => ({ kind: "set", updatedAt: undefined });
+		const harness = useApp(fixture);
+		const { agent } = await loginUser(harness, "security-legacy@example.com");
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		expect(passwordRow(doc).querySelector(".account-row__title")?.textContent).toBe("Password");
+		expect(changeLink(doc).getAttribute("href")).toBe(CHANGE_HREF);
+		const line = updatedLine(doc);
+		expect(line.classList.contains("account-security__updated--hidden")).toBe(true);
+		expect(line.innerHTML).toBe("");
+	});
+
+	it("hides the section for an account that signs in with Google and has no password", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { cookie } = await signInWithGoogle(harness);
+
+		const response = await request(harness.server).get("/account").set("Cookie", cookie);
+
+		expect(response.status).toBe(200);
+		const section = securitySection(new JSDOM(response.text).window.document);
+		expect(section.classList.contains("account-security--hidden")).toBe(true);
+		expect(section.innerHTML).toBe("");
+	});
+
+	it("confirms a just-changed password with a success alert in the section", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "security-changed@example.com");
+
+		const doc = new JSDOM((await agent.get("/account?password=changed")).text).window.document;
+
+		const alert = passwordChangedAlert(doc);
+		expect([
+			alert.classList.contains("alert--visible"),
+			alert.getAttribute("data-test-alert-variant"),
+			alert.getAttribute("role"),
+			alert.querySelector("[data-test-alert-title]")?.textContent,
+			alert.querySelector("[data-test-alert-message]")?.textContent,
+		]).toEqual([true, "success", "status", "Password changed", "Other browsers were signed out of the website."]);
+		const card = securitySection(doc).querySelector("[data-test-account-security]");
+		assert(card, "the security section must render its card");
+		expect(alert.nextElementSibling).toBe(card);
+	});
+
+	it("keeps the confirmation slot hidden without the flag", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "security-quiet@example.com");
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		expect(passwordChangedAlert(doc).classList.contains("alert--hidden")).toBe(true);
+	});
+
+	it.each([
+		["the iOS app sheet", "/account?platform=ios&shell=app", "platform=ios&shell=app&"],
+		["the Android app sheet", "/account?platform=android&shell=app", "platform=android&shell=app&"],
+		["the iOS surface", "/account?platform=ios", "platform=ios&"],
+	])("carries %s's markers onto the same boosted change link", async (_surface, path, markers) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "security-surface@example.com");
+
+		const doc = new JSDOM((await agent.get(path)).text).window.document;
+
+		const link = changeLink(doc);
+		expect(["href", "hx-boost", "hx-target", "hx-select"].map((name) => link.getAttribute(name))).toEqual([
+			`/account/password?${markers}utm_source=account&utm_medium=internal&utm_content=change-password`,
+			"true",
+			"main",
+			"main",
+		]);
 	});
 });
 

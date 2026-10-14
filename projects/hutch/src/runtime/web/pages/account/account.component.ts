@@ -16,6 +16,7 @@ import {
 	renderSubscribePlansPopover,
 } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { renderAccountProfileEdit, renderAccountProfileFallbackForm } from "./account-profile.component";
+import { renderSecuritySection } from "./account-security.component";
 import { ACCOUNT_STYLES } from "./account.styles";
 import { ACCOUNT_EXPORT_URL } from "./account.url";
 import type {
@@ -29,6 +30,7 @@ import type {
 	PriceViewModel,
 	ProfileLine,
 	ProfileSectionViewModel,
+	SecuritySectionViewModel,
 } from "./account.view-model";
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
@@ -297,7 +299,12 @@ function renderBillingSections(vm: AccountViewModel): string {
 
 export function AccountPage(
 	vm: AccountViewModel,
-	page: { profile: ProfileSectionViewModel; appearance: AppearanceSectionViewModel; surface?: AccountSurface },
+	page: {
+		profile: ProfileSectionViewModel;
+		security: SecuritySectionViewModel;
+		appearance: AppearanceSectionViewModel;
+		surface?: AccountSurface;
+	},
 ): PageBody {
 	const surface = page.surface;
 	return {
@@ -323,6 +330,7 @@ export function AccountPage(
 				},
 				profileEditHtml: page.profile.edits.map(renderAccountProfileEdit).join(""),
 				profileFallbackFormHtml: page.profile.edits.map(renderAccountProfileFallbackForm).join(""),
+				securitySectionHtml: renderSecuritySection(page.security),
 				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
 				danger: buildDangerZone(vm),
