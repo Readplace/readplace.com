@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
+import { InvoiceIdSchema } from "@packages/provider-contracts/subscription-billing";
 import { initStripeSubscriptions } from "./stripe-subscriptions";
 
 const USER_ID = UserIdSchema.parse("usr_test_abc123");
@@ -708,6 +709,159 @@ describe("initStripeSubscriptions", () => {
 			await stripe.findSubscriptionNextCharge({ subscriptionId: "sub with/slash" });
 
 			assert.equal(urls[0], "https://api.stripe.com/v1/subscriptions/sub%20with%2Fslash");
+		});
+	});
+
+	describe("listInvoices", () => {
+		const PAID_INVOICE = {
+			id: "in_1Paid",
+			number: "RP-0001",
+			created: 1789689600,
+			amount_paid: 1000,
+			currency: "usd",
+			hosted_invoice_url: "https://invoice.stripe.com/i/acct_x/in_1Paid",
+		};
+
+		function stubInvoices(input: {
+			status: number;
+			body: object;
+			record?: (url: string, init: RequestInit | undefined) => void;
+		}): typeof globalThis.fetch {
+			return async (target, init) => {
+				input.record?.(typeof target === "string" ? target : target.toString(), init);
+				return jsonResponse(input.status, input.body);
+			};
+		}
+
+		it("asks Stripe for the customer's paid invoices, one page at a time, with the bearer token", async () => {
+			const requests: { url: string; init: RequestInit | undefined }[] = [];
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubInvoices({
+					status: 200,
+					body: { data: [], has_more: false },
+					record: (url, init) => requests.push({ url, init }),
+				}),
+			});
+
+			await stripe.listInvoices({ customerId: "cus_paying", cursor: undefined });
+
+			assert.equal(
+				requests[0]?.url,
+				"https://api.stripe.com/v1/invoices?customer=cus_paying&status=paid&limit=12",
+			);
+			assert.equal(requests[0]?.init?.method, "GET");
+			const headers = new Headers(requests[0]?.init?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Stripe-Version"), "2026-04-22.dahlia");
+		});
+
+		it("reads each invoice's number, issue date, amount paid and hosted page, and whether more follow", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubInvoices({ status: 200, body: { data: [PAID_INVOICE], has_more: true } }),
+			});
+
+			const page = await stripe.listInvoices({ customerId: "cus_paying", cursor: undefined });
+
+			assert.deepEqual(page, {
+				invoices: [
+					{
+						id: "in_1Paid",
+						number: "RP-0001",
+						issuedAt: "2026-09-18T00:00:00.000Z",
+						amountPaidMinor: 1000,
+						currency: "usd",
+						hostedInvoiceUrl: "https://invoice.stripe.com/i/acct_x/in_1Paid",
+					},
+				],
+				hasMore: true,
+			});
+		});
+
+		it("pages to older invoices after the given one", async () => {
+			const urls: string[] = [];
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubInvoices({
+					status: 200,
+					body: { data: [], has_more: false },
+					record: (url) => urls.push(url),
+				}),
+			});
+
+			await stripe.listInvoices({
+				customerId: "cus_paying",
+				cursor: { startingAfter: InvoiceIdSchema.parse("in_1Last") },
+			});
+
+			assert.equal(
+				urls[0],
+				"https://api.stripe.com/v1/invoices?customer=cus_paying&status=paid&limit=12&starting_after=in_1Last",
+			);
+		});
+
+		it("pages to newer invoices before the given one", async () => {
+			const urls: string[] = [];
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubInvoices({
+					status: 200,
+					body: { data: [], has_more: false },
+					record: (url) => urls.push(url),
+				}),
+			});
+
+			await stripe.listInvoices({
+				customerId: "cus_paying",
+				cursor: { endingBefore: InvoiceIdSchema.parse("in_1First") },
+			});
+
+			assert.equal(
+				urls[0],
+				"https://api.stripe.com/v1/invoices?customer=cus_paying&status=paid&limit=12&ending_before=in_1First",
+			);
+		});
+
+		it("keeps a $0 invoice — the receipt Stripe finalizes when a trial starts is still a receipt", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubInvoices({
+					status: 200,
+					body: { data: [{ ...PAID_INVOICE, amount_paid: 0 }], has_more: false },
+				}),
+			});
+
+			const page = await stripe.listInvoices({ customerId: "cus_paying", cursor: undefined });
+
+			assert.deepEqual(
+				page.invoices.map((invoice) => invoice.amountPaidMinor),
+				[0],
+			);
+		});
+
+		it("throws with the Stripe error message when the API returns a non-2xx", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubInvoices({ status: 500, body: { error: { message: "Boom" } } }),
+			});
+
+			await assert.rejects(
+				() => stripe.listInvoices({ customerId: "cus_paying", cursor: undefined }),
+				/Stripe listInvoices failed \(500\): Boom/,
+			);
+		});
+
+		it("throws on a body it cannot read, rather than passing it off as an empty history", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubInvoices({ status: 200, body: { data: [{ id: "not-an-invoice" }] } }),
+			});
+
+			await assert.rejects(
+				() => stripe.listInvoices({ customerId: "cus_paying", cursor: undefined }),
+				/Stripe listInvoices returned an unexpected body/,
+			);
 		});
 	});
 });

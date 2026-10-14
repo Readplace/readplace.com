@@ -35,6 +35,21 @@ describe("PRICING_PLANS", () => {
 		expect(PRICING_PLANS.triennial.billedLine).toContain(PRICING_PLANS.triennial.totalDisplay);
 	});
 
+	it("names each plan for the account page's plan summary", () => {
+		expect(PRICING_PLANS.monthly.summaryName).toBe("Monthly plan");
+		expect(PRICING_PLANS.yearly.summaryName).toBe("Yearly plan");
+		expect(PRICING_PLANS.triennial.summaryName).toBe("3-year plan");
+	});
+
+	it("quotes the whole-period charge with its cadence in the brand's price format", () => {
+		expect(PRICING_PLANS.monthly.cadenceDisplay).toBe("$10/month");
+		expect(PRICING_PLANS.yearly.cadenceDisplay).toBe("$60/year");
+		expect(PRICING_PLANS.triennial.cadenceDisplay).toBe("$108 every 3 years");
+		expect(PRICING_PLANS.monthly.cadenceDisplay.startsWith(PRICING_PLANS.monthly.totalDisplay)).toBe(true);
+		expect(PRICING_PLANS.yearly.cadenceDisplay.startsWith(PRICING_PLANS.yearly.totalDisplay)).toBe(true);
+		expect(PRICING_PLANS.triennial.cadenceDisplay.startsWith(PRICING_PLANS.triennial.totalDisplay)).toBe(true);
+	});
+
 	it("derives each monthly figure from the amount actually charged, so the two cannot drift", () => {
 		expect(Number(PRICING_PLANS.monthly.monthlyAmount) * 1).toBe(
 			Number(PRICING_PLANS.monthly.totalAmount),

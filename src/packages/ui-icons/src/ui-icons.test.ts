@@ -57,6 +57,10 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("palette")).toBe(iconSvg("palette"));
 	});
 
+	it("resolves the receipt glyph the account Billing history row draws in its well", () => {
+		expect(findIconSvg("receipt")).toBe(iconSvg("receipt"));
+	});
+
 	it("reports an unknown name rather than drawing nothing, so a caller can fail a typo", () => {
 		expect(findIconSvg("fa-solid fa-inbox")).toBeUndefined();
 		expect(findIconSvg("constructor")).toBeUndefined();
@@ -98,6 +102,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"pencil",
 	"plug",
 	"plus",
+	"receipt",
 	"search",
 	"share",
 	"sparkles",

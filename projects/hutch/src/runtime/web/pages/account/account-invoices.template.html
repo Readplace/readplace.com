@@ -1,0 +1,43 @@
+    <main class="account">
+      <div class="account__layout">
+        <div class="account__header">
+          <a class="account__back" href="{{backHref}}" data-test-invoices-back>{{icon "arrow-left"}} Account</a>
+          <h1 class="account__title">Invoices</h1>
+        </div>
+        <div class="account-invoices__card" data-test-invoices-state="{{state}}">
+          {{{alertHtml}}}
+          {{#if isList}}
+          <ul class="account-invoices__list">
+            {{#each rows}}
+            <li class="account-invoices__row" data-test-invoice-row>
+              <time class="account-invoices__date" datetime="{{date.iso}}" data-local-time="{{date.mode}}">{{date.label}}</time>
+              <span class="account-invoices__number">{{number}}</span>
+              <span class="account-invoices__amount">{{amount}}</span>
+              <a class="account-invoices__link" href="{{href}}" rel="noreferrer" data-test-invoice-link>View invoice<span class="sr-only"> {{number}}</span></a>
+            </li>
+            {{/each}}
+          </ul>
+          {{/if}}
+          {{#if isEmpty}}
+          <div class="account-invoices__empty" data-test-invoices-empty>
+            <h2 class="account-invoices__empty-title">No invoices yet</h2>
+            <p class="account-invoices__empty-body">Your invoices appear here after your first payment.</p>
+          </div>
+          {{/if}}
+        </div>
+        <nav class="{{pagerClass}}" aria-label="Pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-invoices-pagination>
+          <div class="pagination__controls">
+            {{#if pager.newerHref}}
+            <a class="pagination__link pagination__link--enabled" href="{{pager.newerHref}}" rel="prev" data-test-invoices-newer>{{icon "chevron-left"}} Newer</a>
+            {{else}}
+            <span class="pagination__link pagination__link--disabled" aria-disabled="true" data-test-invoices-newer>{{icon "chevron-left"}} Newer</span>
+            {{/if}}
+            {{#if pager.olderHref}}
+            <a class="pagination__link pagination__link--enabled" href="{{pager.olderHref}}" rel="next" data-test-invoices-older>Older {{icon "chevron-right"}}</a>
+            {{else}}
+            <span class="pagination__link pagination__link--disabled" aria-disabled="true" data-test-invoices-older>Older {{icon "chevron-right"}}</span>
+            {{/if}}
+          </div>
+        </nav>
+      </div>
+    </main>

@@ -1,12 +1,15 @@
 import { z } from "zod";
-import type {
-	CancelSubscriptionImmediately,
-	CreateSubscriptionOnExistingCustomer,
-	DeleteCustomer,
-	FindSubscriptionNextCharge,
-	OnUnpaidFirstInvoice,
-	ReverseScheduledCancellation,
-	ScheduleCancellationAtPeriodEnd,
+import {
+	INVOICE_PAGE_SIZE,
+	InvoiceIdSchema,
+	type CancelSubscriptionImmediately,
+	type CreateSubscriptionOnExistingCustomer,
+	type DeleteCustomer,
+	type FindSubscriptionNextCharge,
+	type ListInvoices,
+	type OnUnpaidFirstInvoice,
+	type ReverseScheduledCancellation,
+	type ScheduleCancellationAtPeriodEnd,
 } from "@packages/provider-contracts/subscription-billing";
 
 const STRIPE_API = "https://api.stripe.com/v1";
@@ -81,6 +84,30 @@ const StripeInvoicePreview = z.object({
  * page until the platform killed it. */
 const NEXT_CHARGE_BUDGET_MS = 3_000;
 
+const StripeInvoiceList = z.object({
+	data: z.array(
+		z.object({
+			id: InvoiceIdSchema,
+			number: z.string(),
+			created: z.number().int(),
+			amount_paid: z.number().int(),
+			currency: z.string(),
+			hosted_invoice_url: z.string(),
+		}),
+	),
+	has_more: z.boolean(),
+});
+
+function invoiceCursorParams(cursor: Parameters<ListInvoices>[0]["cursor"]): Record<string, string> {
+	if (cursor === undefined) {
+		return {};
+	}
+	if ("startingAfter" in cursor) {
+		return { starting_after: cursor.startingAfter };
+	}
+	return { ending_before: cursor.endingBefore };
+}
+
 export function initStripeSubscriptions(deps: {
 	apiKey: string;
 	fetch: typeof globalThis.fetch;
@@ -91,6 +118,7 @@ export function initStripeSubscriptions(deps: {
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	deleteCustomer: DeleteCustomer;
+	listInvoices: ListInvoices;
 } {
 	const stripeHeaders = {
 		Authorization: `Bearer ${deps.apiKey}`,
@@ -318,6 +346,41 @@ export function initStripeSubscriptions(deps: {
 		};
 	};
 
+	const listInvoices: ListInvoices = async ({ customerId, cursor }) => {
+		const query = new URLSearchParams({
+			customer: customerId,
+			status: "paid",
+			limit: `${INVOICE_PAGE_SIZE}`,
+			...invoiceCursorParams(cursor),
+		});
+		const response = await deps.fetch(`${STRIPE_API}/invoices?${query.toString()}`, {
+			method: "GET",
+			headers: stripeHeaders,
+		});
+
+		if (!response.ok) {
+			const message = await readStripeErrorMessage(response);
+			throw new Error(`Stripe listInvoices failed (${response.status}): ${message}`);
+		}
+
+		const list = StripeInvoiceList.safeParse(await response.json());
+		if (!list.success) {
+			throw new Error("Stripe listInvoices returned an unexpected body");
+		}
+
+		return {
+			invoices: list.data.data.map((invoice) => ({
+				id: invoice.id,
+				number: invoice.number,
+				issuedAt: new Date(invoice.created * 1000).toISOString(),
+				amountPaidMinor: invoice.amount_paid,
+				currency: invoice.currency,
+				hostedInvoiceUrl: invoice.hosted_invoice_url,
+			})),
+			hasMore: list.data.has_more,
+		};
+	};
+
 	return {
 		cancelImmediately,
 		createSubscriptionOnExistingCustomer,
@@ -325,5 +388,6 @@ export function initStripeSubscriptions(deps: {
 		scheduleCancellationAtPeriodEnd,
 		reverseScheduledCancellation,
 		deleteCustomer,
+		listInvoices,
 	};
 }

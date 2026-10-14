@@ -513,6 +513,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		trialScheduler,
 		createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge: stripeSubscriptions.findSubscriptionNextCharge,
+		listInvoices: stripeSubscriptions.listInvoices,
 		reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods,
 		resolvePriceId: stripePrices.resolvePriceId,

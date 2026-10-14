@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { CardSetupIdSchema, PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
+import { InvoiceIdSchema, type InvoiceSummary } from "@packages/provider-contracts/subscription-billing";
 import {
 	BROWSER_USER_AGENT,
 	describeUntrackedCtas,
@@ -28,8 +29,8 @@ function card(id: string, isPrimary: boolean, last4: string): SavedCard {
 	};
 }
 
-function cardRows(doc: Document): Element[] {
-	return Array.from(doc.querySelectorAll("[data-test-card]"));
+function cardRows(root: Document | Element): Element[] {
+	return Array.from(root.querySelectorAll("[data-test-card]"));
 }
 
 function cardActionKeys(row: Element): string[] {
@@ -71,6 +72,63 @@ function actionKeys(root: Document | Element): string[] {
 	return Array.from(root.querySelectorAll("[data-test-account-action]")).map(
 		(el) => el.getAttribute("data-test-account-action") ?? "",
 	);
+}
+
+function trailingActionKeys(doc: Document): string[] {
+	const slot = findCard(doc).querySelector(".account-billing__actions");
+	assert(slot, "the plan section must render its trailing action slot");
+	return actionKeys(slot);
+}
+
+function managePanel(doc: Document, panel: "subscription" | "payment"): Element {
+	const element = doc.querySelector(`[data-test-manage-panel="${panel}"]`);
+	assert(element, `the ${panel} panel must always render`);
+	return element;
+}
+
+function hiddenFields(form: Element): string[][] {
+	return Array.from(form.querySelectorAll<HTMLInputElement>('input[type="hidden"]')).map((input) => [
+		input.name,
+		input.value,
+	]);
+}
+
+function planChips(doc: Document): string[][] {
+	return Array.from(findCard(doc).querySelectorAll("[data-test-account-plan-chip]")).map((chip) => [
+		chip.textContent ?? "",
+		chip.className,
+	]);
+}
+
+function planTitle(doc: Document): string {
+	const title = findCard(doc).querySelector("[data-test-account-plan-title]");
+	assert(title, "the plan section must render its title");
+	return title.textContent ?? "";
+}
+
+function planPrice(doc: Document): Element {
+	const price = findCard(doc).querySelector("[data-test-account-price]");
+	assert(price, "the price must always render");
+	return price;
+}
+
+function expectBillingHidden(doc: Document) {
+	const payment = doc.querySelector("[data-test-cards-section]");
+	assert(payment, "the payment section's root must always render");
+	expect(payment.getAttribute("data-test-cards-state")).toBe("hidden");
+	const history = doc.querySelector("[data-test-billing-history]");
+	assert(history, "the billing-history root must always render");
+	expect(history.getAttribute("data-billing-history-state")).toBe("hidden");
+	expect(doc.querySelectorAll('form[action*="/account/cards"]')).toHaveLength(0);
+	expect(doc.querySelectorAll("[data-card-elements]")).toHaveLength(0);
+}
+
+function expectAlertTitleBetweenHeadings(doc: Document) {
+	const section = doc.querySelector('[data-test-account-section="subscription"]');
+	assert(section, "the subscription section must render");
+	const outline = Array.from(section.querySelectorAll("h2, [data-test-alert-title], h3"));
+	expect(outline.slice(0, 3).map((element) => element.tagName)).toEqual(["H2", "P", "H3"]);
+	expect(outline[2].hasAttribute("data-test-account-plan-title")).toBe(true);
 }
 
 function confirmPopoverKeys(doc: Document): string[] {
@@ -132,7 +190,7 @@ describe("GET /account (founding member, no subscription row)", () => {
 });
 
 describe("GET /account (active paid subscription)", () => {
-	it("renders the active card with a destructive Cancel POST form — no GET confirmation step", async () => {
+	it("summarises the plan — title, Active chip and price — with Manage subscription, a GET form that opens the cancel panel in place", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "active@example.com");
@@ -140,6 +198,7 @@ describe("GET /account (active paid subscription)", () => {
 			userId,
 			subscriptionId: "sub_active",
 			customerId: "cus_active",
+			plan: "monthly",
 		});
 
 		const response = await agent.get("/account");
@@ -149,12 +208,208 @@ describe("GET /account (active paid subscription)", () => {
 		const card = findCard(doc);
 		expect(card.classList.contains("account-card--active")).toBe(true);
 		expect(card.getAttribute("data-test-account-state")).toBe("active");
+		expect(planTitle(doc)).toBe("Monthly plan");
+		expect(planChips(doc)).toEqual([["Active", "chip chip--status chip--success"]]);
+		expect(planPrice(doc).getAttribute("data-price-state")).toBe("visible");
+		expect(planPrice(doc).textContent).toBe("$10/month");
 
-		expect(actionKeys(doc)).toEqual(["cancel-form"]);
-		const cancelForm = findAction(doc, "cancel-form");
-		expect(cancelForm.tagName.toLowerCase()).toBe("form");
-		expect(cancelForm.getAttribute("action")).toBe("/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form");
-		expect(cancelForm.getAttribute("method")?.toUpperCase()).toBe("POST");
+		expect(actionKeys(card)).toEqual(["manage-subscription"]);
+		const manage = findAction(doc, "manage-subscription");
+		expect(manage.tagName.toLowerCase()).toBe("form");
+		expect(manage.getAttribute("method")?.toUpperCase()).toBe("GET");
+		expect(manage.getAttribute("action")).toBe("/account");
+		expect(hiddenFields(manage)).toEqual([
+			["utm_source", "account"],
+			["utm_medium", "internal"],
+			["utm_content", "manage-subscription"],
+			["manage", "subscription"],
+		]);
+		expect(manage.getAttribute("hx-swap")).toBe("outerHTML show:none");
+		const panel = managePanel(doc, "subscription");
+		expect(panel.getAttribute("data-manage-panel-state")).toBe("closed");
+		expect(panel.className).toBe("account-billing__panel account-billing__panel--closed");
+		expect(actionKeys(panel)).toEqual([]);
+	});
+});
+
+describe("GET /account?manage=subscription", () => {
+	it("opens the subscription panel with its sentence and the cancel form, and the trailing action becomes Done", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "manage-subscription@example.com");
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_manage",
+			customerId: "cus_manage",
+			plan: "monthly",
+		});
+
+		const response = await agent.get("/account?manage=subscription");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = managePanel(doc, "subscription");
+		expect(panel.getAttribute("data-manage-panel-state")).toBe("open");
+		expect(panel.className).toBe("account-billing__panel");
+		expect(panel.querySelector(".account-billing__panel-body")?.textContent).toBe(
+			"Cancelling stops your next payment. You keep full access until the end of the period you've paid for.",
+		);
+		expect(actionKeys(panel)).toEqual(["cancel-form"]);
+		const cancel = findAction(doc, "cancel-form");
+		expect(cancel.getAttribute("method")?.toUpperCase()).toBe("POST");
+		expect(cancel.getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form",
+		);
+		expect(cancel.querySelector("button")?.className).toBe("btn btn--destructive btn--m");
+
+		expect(trailingActionKeys(doc)).toEqual(["done"]);
+		const done = findAction(doc, "done");
+		expect(done.getAttribute("method")?.toUpperCase()).toBe("GET");
+		expect(done.getAttribute("action")).toBe("/account");
+		expect(hiddenFields(done)).toEqual([
+			["utm_source", "account"],
+			["utm_medium", "internal"],
+			["utm_content", "done"],
+		]);
+		expect(done.querySelector("button")?.className).toBe("btn btn--neutral btn--m");
+	});
+
+	it("leaves the panel shut for a trialing reader, whose card keeps Subscribe as its one action", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "manage-subscription-trial@example.com");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		const doc = new JSDOM((await agent.get("/account?manage=subscription")).text).window.document;
+
+		expect(managePanel(doc, "subscription").getAttribute("data-manage-panel-state")).toBe("closed");
+		expect(actionKeys(managePanel(doc, "subscription"))).toEqual([]);
+		expect(trailingActionKeys(doc)).toEqual(["subscribe"]);
+	});
+});
+
+describe("GET /account?manage=payment", () => {
+	it("opens the payment panel with the backups, the hint and Add a card, and the card row's action becomes Done", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "manage-payment@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const response = await agent.get("/account?manage=payment");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = managePanel(doc, "payment");
+		expect(panel.getAttribute("data-manage-panel-state")).toBe("open");
+		expect(cardRows(panel).map((row) => row.querySelector(".account-billing__title")?.textContent)).toEqual([
+			"Visa •••• 1111",
+		]);
+		expect(panel.querySelector(".account-billing__hint")?.textContent).toBe(
+			"A new card is added as a backup. Make it primary to pay with it from your next payment.",
+		);
+		assert(panel.querySelector("[data-test-add-card]"), "the open panel must offer Add a card below the cap");
+		const primaryRow = doc.querySelector("[data-test-card-primary]");
+		assert(primaryRow, "the primary card row must render");
+		expect(actionKeys(primaryRow)).toEqual(["done"]);
+		expect(hiddenFields(findAction(doc, "done"))).toEqual([
+			["utm_source", "account"],
+			["utm_medium", "internal"],
+			["utm_content", "done"],
+		]);
+	});
+
+	it("keeps the payment panel shut on a plain /account, with Update payment method on the primary card's row", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "manage-payment-closed@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		const panel = managePanel(doc, "payment");
+		expect(panel.getAttribute("data-manage-panel-state")).toBe("closed");
+		expect(cardRows(panel)).toHaveLength(0);
+		const primaryRow = doc.querySelector("[data-test-card-primary]");
+		assert(primaryRow, "the primary card row must render");
+		expect(actionKeys(primaryRow)).toEqual(["update-payment"]);
+		const update = findAction(doc, "update-payment");
+		expect(update.getAttribute("method")?.toUpperCase()).toBe("GET");
+		expect(update.getAttribute("action")).toBe("/account");
+		expect(hiddenFields(update)).toEqual([
+			["utm_source", "account"],
+			["utm_medium", "internal"],
+			["utm_content", "update-payment"],
+			["manage", "payment"],
+		]);
+		const updateButton = update.querySelector("button");
+		assert(updateButton, "Update payment method must render its button");
+		expect(updateButton.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+		expect(updateButton.querySelector(".account__action-label")?.textContent).toBe("Update payment method");
+	});
+
+	it("opens the panel on a card notice without being asked, so the reason sits beside the cards it names", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "manage-payment-notice@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const doc = new JSDOM((await agent.get("/account?error=cannot_remove_primary")).text).window.document;
+
+		const panel = managePanel(doc, "payment");
+		expect(panel.getAttribute("data-manage-panel-state")).toBe("open");
+		const notice = panel.querySelector('[data-test-alert="card-notice"]');
+		assert(notice, "the card notice must render inside the payment panel");
+		expect(notice.textContent).toContain("primary card can't be removed");
+	});
+});
+
+describe("GET /account (billing history)", () => {
+	it("offers View invoices to any reader with a billing customer, a former subscriber included", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "history-cancelled@example.com");
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_history",
+			customerId: "cus_history",
+		});
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		const history = doc.querySelector("[data-test-billing-history]");
+		assert(history, "the billing-history root must render");
+		expect(history.getAttribute("data-billing-history-state")).toBe("visible");
+		expect(history.querySelector(".account-row__title")?.textContent).toBe("Billing history");
+		expect(actionKeys(history)).toEqual(["view-invoices"]);
+		const viewInvoices = findAction(doc, "view-invoices");
+		expect(viewInvoices.getAttribute("method")?.toUpperCase()).toBe("GET");
+		expect(viewInvoices.getAttribute("action")).toBe("/account/invoices");
+		expect(viewInvoices.getAttribute("hx-swap")).toBe("outerHTML show:none scroll:html:top");
+		expect(hiddenFields(viewInvoices)).toEqual([
+			["utm_source", "account"],
+			["utm_medium", "internal"],
+			["utm_content", "view-invoices"],
+		]);
+	});
+
+	it("hides billing history for a trialing reader, who has no invoices to show", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "history-trial@example.com");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		const history = doc.querySelector("[data-test-billing-history]");
+		assert(history, "the billing-history root must render");
+		expect(history.getAttribute("data-billing-history-state")).toBe("hidden");
+		expect(history.className).toBe("account-billing__history account-billing__history--hidden");
+		expect(history.textContent?.trim()).toBe("");
 	});
 });
 
@@ -176,7 +431,7 @@ describe("GET /account (next-charge line)", () => {
 		return { harness, agent, userId };
 	}
 
-	it("renders the date and amount as a localisable <time> when the renewal is within 30 days", async () => {
+	it("renders the date and amount of the next payment as a localisable <time>", async () => {
 		const { harness, agent } = await activeSubscriber("charge-soon@example.com");
 		const at = new Date(Date.now() + 12 * ONE_DAY_MS).toISOString();
 		harness.subscriptionBilling.seedNextCharge({
@@ -193,27 +448,25 @@ describe("GET /account (next-charge line)", () => {
 		const time = line.querySelector("time[data-local-time='date']");
 		assert(time, "the renewal date must render as a <time> element for client localisation");
 		expect(time.getAttribute("datetime")).toBe(at);
-		expect(line.textContent).toContain("Next charge on ");
+		expect(line.textContent).toContain("Next payment on ");
 		expect(line.textContent).toContain("$49.00");
 	});
 
-	it("keeps the element but hides it when the renewal is more than 30 days out", async () => {
+	it("shows a payment months out — the plan summary always names the next payment", async () => {
 		const { harness, agent } = await activeSubscriber("charge-far@example.com");
+		const at = new Date(Date.now() + 200 * ONE_DAY_MS).toISOString();
 		harness.subscriptionBilling.seedNextCharge({
 			subscriptionId: "sub_active",
-			nextCharge: {
-				at: new Date(Date.now() + 60 * ONE_DAY_MS).toISOString(),
-				amountMinor: 4900,
-				currency: "usd",
-			},
+			nextCharge: { at, amountMinor: 6000, currency: "usd" },
 		});
 
 		const response = await agent.get("/account");
 
 		const doc = new JSDOM(response.text).window.document;
 		const line = nextChargeLine(doc);
-		expect(line.getAttribute("data-next-charge-state")).toBe("hidden");
-		expect(line.textContent).toBe("");
+		expect(line.getAttribute("data-next-charge-state")).toBe("visible");
+		expect(line.querySelector("time")?.getAttribute("datetime")).toBe(at);
+		expect(line.textContent).toContain("$60.00");
 	});
 
 	it("persists the fetched charge — a second visit does not ask Stripe again", async () => {
@@ -233,7 +486,7 @@ describe("GET /account (next-charge line)", () => {
 		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual(["sub_active"]);
 	});
 
-	it("still returns 200 with the plain active card when the provider read fails", async () => {
+	it("still returns 200 with the plain active summary when the provider read fails", async () => {
 		const { harness, agent } = await activeSubscriber("charge-fail@example.com");
 		harness.subscriptionBilling.failNextChargeLookup();
 
@@ -241,9 +494,9 @@ describe("GET /account (next-charge line)", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-account-status]")?.textContent).toBe(
-			"Subscription: Active.",
-		);
+		expect(planTitle(doc)).toBe("Subscription");
+		expect(planChips(doc)).toEqual([["Active", "chip chip--status chip--success"]]);
+		expect(doc.querySelector("[data-test-account-status]")?.textContent).toBe("");
 		expect(nextChargeLine(doc).getAttribute("data-next-charge-state")).toBe("hidden");
 	});
 
@@ -356,7 +609,7 @@ describe("GET /account (headed sections)", () => {
 		return section;
 	}
 
-	it("stacks the web page into labelled sections, with the subscription card and the payment cards under one heading", async () => {
+	it("stacks the web page into labelled sections, with the plan, payment and billing-history sections in one card under one heading", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -374,9 +627,16 @@ describe("GET /account (headed sections)", () => {
 			"Your data",
 			"Danger zone",
 		]);
-		const subscription = subscriptionSection(doc);
-		assert(subscription.querySelector("[data-test-account-card]"), "the subscription card must sit in its section");
-		assert(subscription.querySelector("[data-test-cards-section]"), "the payment cards must sit in the same section");
+		const billing = subscriptionSection(doc).querySelector("[data-test-account-billing]");
+		assert(billing, "the subscription section must hold one billing card");
+		expect(billing.classList.contains("account-section__card")).toBe(true);
+		expect(
+			Array.from(billing.children).map((child) =>
+				["data-test-account-card", "data-test-cards-section", "data-test-billing-history"].find((hook) =>
+					child.hasAttribute(hook),
+				),
+			),
+		).toEqual(["data-test-account-card", "data-test-cards-section", "data-test-billing-history"]);
 	});
 
 	it("keeps the payment cards' provider error inside the subscription section", async () => {
@@ -442,7 +702,7 @@ describe("GET /account (headed sections)", () => {
 });
 
 describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () => {
-	it("hides the Subscribe CTA and the payment-methods section for a trialing user, keeping status + danger zone", async () => {
+	it("hides the Subscribe CTA, the payment section and billing history for a trialing user, keeping status + danger zone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "ios-trial@example.com");
@@ -457,7 +717,7 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 		expect(doc.querySelector("[data-test-account-status]")?.textContent).toContain("free trial");
 		// No in-app purchase path: no Subscribe form, no card management section.
 		expect(actionKeys(doc)).toEqual([]);
-		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+		expectBillingHidden(doc);
 		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
 		// Apple requires in-app account deletion to stay reachable.
 		assert(
@@ -475,7 +735,7 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 		]);
 	});
 
-	it("keeps the Cancel control routed through ?platform=ios and hides card management for an active subscriber", async () => {
+	it("keeps Manage subscription and its panel's Cancel control routed through ?platform=ios, and hides the price and billing for an active subscriber", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "ios-active@example.com");
@@ -483,18 +743,27 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 			userId,
 			subscriptionId: "sub_ios",
 			customerId: "cus_ios",
+			plan: "yearly",
 		});
 
 		const response = await agent.get("/account?platform=ios");
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		expect(actionKeys(doc)).toEqual(["cancel-form"]);
-		const cancelForm = findAction(doc, "cancel-form");
-		expect(cancelForm.getAttribute("action")).toBe(
+		expect(planTitle(doc)).toBe("Yearly plan");
+		expect(planPrice(doc).getAttribute("data-price-state")).toBe("hidden");
+		expect(actionKeys(doc)).toEqual(["manage-subscription"]);
+		expect(hiddenFields(findAction(doc, "manage-subscription")).slice(-2)).toEqual([
+			["manage", "subscription"],
+			["platform", "ios"],
+		]);
+		expectBillingHidden(doc);
+
+		const managing = new JSDOM((await agent.get("/account?platform=ios&manage=subscription")).text).window.document;
+		expect(actionKeys(managePanel(managing, "subscription"))).toEqual(["cancel-form"]);
+		expect(findAction(managing, "cancel-form").getAttribute("action")).toBe(
 			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios",
 		);
-		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
 	});
 
 	it("hides the renewal line and never asks Stripe for a price on the iOS surface", async () => {
@@ -629,7 +898,7 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		expect(doc.querySelector('script[src*="/client-dist/account-cards.client.js"]')).toBeNull();
 	});
 
-	it("still hides commerce, and stamps both markers on the surviving controls so a boosted POST returns chromeless", async () => {
+	it("still hides commerce, and stamps both markers on the surviving controls so a boosted request returns chromeless", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "shell-commerce@example.com");
@@ -641,11 +910,12 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 
 		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app")).text).window.document;
 
-		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
-		expect(actionKeys(doc)).toEqual(["cancel-form"]);
-		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
-			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios&shell=app",
-		);
+		expectBillingHidden(doc);
+		expect(actionKeys(doc)).toEqual(["manage-subscription"]);
+		expect(hiddenFields(findAction(doc, "manage-subscription")).slice(-2)).toEqual([
+			["platform", "ios"],
+			["shell", "app"],
+		]);
 		const deleteActions = (["dialog", "fallback"] as const).map((placement) =>
 			dangerForm(doc, placement).getAttribute("action"),
 		);
@@ -669,7 +939,7 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		expect(doc.body.classList.contains("page-account--chromeless")).toBe(true);
 		// Guideline 3.1.1 holds off the shell marker alone: no Subscribe CTA, no cards.
 		expect(actionKeys(doc)).toEqual([]);
-		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+		expectBillingHidden(doc);
 		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
 	});
 
@@ -683,7 +953,32 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		expect(doc.querySelector("[data-test-account-back-link]")).toBeNull();
 		expect(doc.body.classList.contains("page-account--chromeless")).toBe(false);
 		// The old surface still satisfies Guideline 3.1.1.
-		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+		expectBillingHidden(doc);
+	});
+
+	it("opens the subscription panel with both markers on the cancel form's action and on Done's hidden fields", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "shell-manage@example.com");
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_shell_manage",
+			customerId: "cus_shell_manage",
+		});
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app&manage=subscription")).text).window.document;
+
+		expect(managePanel(doc, "subscription").getAttribute("data-manage-panel-state")).toBe("open");
+		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios&shell=app",
+		);
+		expect(trailingActionKeys(doc)).toEqual(["done"]);
+		expect(hiddenFields(findAction(doc, "done"))).toEqual([
+			["utm_source", "account"],
+			["utm_medium", "internal"],
+			["utm_content", "done"],
+			["platform", "ios"],
+			["shell", "app"],
+		]);
 	});
 
 	it("leaves the plain web account page untouched — shell, cards script and no back link", async () => {
@@ -725,6 +1020,8 @@ describe("GET /account?error=subscribe_failed", () => {
 		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
 		expect(alert.getAttribute("role")).toBe("alert");
 		expect(alert.classList.contains("alert--visible")).toBe(true);
+		expectAlertTitleBetweenHeadings(doc);
+		expect(planTitle(doc)).toBe("Subscription");
 		expect(
 			Array.from(doc.querySelectorAll("[data-test-account-action]")).map((el) =>
 				el.getAttribute("data-test-account-action"),
@@ -743,6 +1040,7 @@ describe("GET /account?error=payment_method", () => {
 			userId,
 			subscriptionId: "sub_pay_err",
 			customerId: "cus_pay_err",
+			plan: "triennial",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
 
@@ -756,7 +1054,9 @@ describe("GET /account?error=payment_method", () => {
 
 		const heading = doc.querySelector('[data-test-alert="account-subscription"] [data-test-alert-title]');
 		assert(heading, "error heading must render");
-		expect(heading.tagName).toBe("H2");
+		expectAlertTitleBetweenHeadings(doc);
+		expect(planTitle(doc)).toBe("3-year plan");
+		expect(planChips(doc)).toEqual([]);
 		const subscriptionAlert = heading.closest('[data-test-alert="account-subscription"]');
 		assert(subscriptionAlert, "the subscription error must render an alert");
 		expect(subscriptionAlert.getAttribute("data-test-alert-variant")).toBe("error");
@@ -789,6 +1089,8 @@ describe("GET /account (trialing inside trial window)", () => {
 		const status = doc.querySelector("[data-test-account-status]")?.textContent ?? "";
 		expect(status).toContain("free trial");
 		expect(status).toContain("7 days left");
+		expect(planTitle(doc)).toBe("Free trial");
+		expect(planChips(doc)).toEqual([]);
 
 		expect(actionKeys(doc)).toEqual(["subscribe"]);
 		const subscribe = findAction(doc, "subscribe");
@@ -814,9 +1116,9 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 		const card = findCard(doc);
 		expect(card.classList.contains("account-card--inactive")).toBe(true);
 		expect(card.getAttribute("data-test-account-state")).toBe("inactive");
-		expect(doc.querySelector("[data-test-account-status]")?.textContent).toContain(
-			"Subscription not active.",
-		);
+		expect(planTitle(doc)).toBe("Subscription");
+		expect(planChips(doc)).toEqual([["Inactive", "chip chip--status chip--error"]]);
+		expect(doc.querySelector("[data-test-account-status]")?.textContent).toBe("");
 		expect(actionKeys(doc)).toEqual(["subscribe"]);
 	});
 
@@ -931,7 +1233,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(actionKeys(doc)).toEqual(["manage-subscription", "view-invoices"]);
 		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
 	});
 });
@@ -960,7 +1262,11 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 		const notice = doc.querySelector("[data-test-cancelling-notice]");
 		assert(notice, "cancelling notice must render");
 		expect(notice.textContent).toContain("Cancellation in progress");
-		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		const panel = managePanel(doc, "subscription");
+		expect(panel.getAttribute("data-manage-panel-state")).toBe("open");
+		expect(panel.contains(notice)).toBe(true);
+		expect(actionKeys(panel)).toEqual(["cancel-form"]);
+		expect(trailingActionKeys(doc)).toEqual([]);
 		expect(cancelButton(doc).disabled).toBe(true);
 		expect(cancelButton(doc).textContent).toBe("Cancelling…");
 		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("polling");
@@ -977,7 +1283,7 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 			customerId: "cus_dbl",
 		});
 
-		const response = await agent.get("/account");
+		const response = await agent.get("/account?manage=subscription");
 
 		const doc = new JSDOM(response.text).window.document;
 		const form = findAction(doc, "cancel-form");
@@ -996,13 +1302,14 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 			customerId: "cus_no_notice",
 		});
 
-		const response = await agent.get("/account");
+		const response = await agent.get("/account?manage=subscription");
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
 		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
 		expect(cancelButton(doc).textContent).toBe("Cancel subscription");
 		expect(cancelButton(doc).disabled).toBe(false);
+		expect(managePanel(doc, "subscription").querySelectorAll("[data-test-cancelling-notice]")).toHaveLength(0);
 	});
 });
 
@@ -1022,12 +1329,15 @@ describe("GET /account/status — the poll fragment the cancelling card swaps it
 			userId,
 			subscriptionId: "sub_poll",
 			customerId: "cus_poll",
+			plan: "yearly",
 		});
 
 		const response = await agent.get("/account/status?cancelling=1&poll=1");
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
+		expect(planTitle(doc)).toBe("Yearly plan");
+		expect(planChips(doc)).toEqual([["Active", "chip chip--status chip--success"]]);
 		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("polling");
 		expect(findCard(doc).getAttribute("hx-get")).toBe("/account/status?cancelling=1&poll=2");
 		expect(cancelButton(doc).disabled).toBe(true);
@@ -1922,6 +2232,7 @@ describe("GET /account (cancellation-scheduled state)", () => {
 			userId,
 			subscriptionId: "sub_paid_scheduled",
 			customerId: "cus_paid_scheduled",
+			plan: "yearly",
 		});
 		const cancellationEffectiveAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
 		await subscriptionProviders.markPendingCancellation({
@@ -1938,8 +2249,11 @@ describe("GET /account (cancellation-scheduled state)", () => {
 		expect(card.getAttribute("data-test-account-state")).toBe("cancellation-scheduled");
 		const status = doc.querySelector("[data-test-account-status]")?.textContent ?? "";
 		expect(status).toContain("Your subscription ends on");
+		expect(planTitle(doc)).toBe("Yearly plan");
+		expect(planChips(doc)).toEqual([["Cancelled", "chip chip--status chip--error"]]);
+		expect(planPrice(doc).getAttribute("data-price-state")).toBe("hidden");
 
-		expect(actionKeys(doc)).toEqual(["reactivate-form"]);
+		expect(actionKeys(card)).toEqual(["reactivate-form"]);
 		const reactivate = findAction(doc, "reactivate-form");
 		expect(reactivate.tagName.toLowerCase()).toBe("form");
 		expect(reactivate.getAttribute("action")).toBe("/account/reactivate?utm_source=account&utm_medium=internal&utm_content=reactivate-form");
@@ -2265,7 +2579,7 @@ describe("GET /account — card management section", () => {
 		assert(script, "account-cards.client.js bundle must be loaded on /account");
 	});
 
-	it("renders the no-customer state for a founding member with no Stripe customer", async () => {
+	it("hides the payment section, with nothing inside it, for a founding member with no Stripe customer", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -2274,19 +2588,20 @@ describe("GET /account — card management section", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const section = doc.querySelector("[data-test-cards-section]");
 		assert(section, "card section must render");
-		expect(section.getAttribute("data-test-cards-state")).toBe("no-customer");
-		assert(doc.querySelector("[data-test-cards-message]"), "no-customer message must render");
+		expect(section.getAttribute("data-test-cards-state")).toBe("hidden");
+		expect(section.className).toBe("account-billing__payment account-billing__payment--hidden");
+		expect(section.textContent?.trim()).toBe("");
 		expect(cardRows(doc)).toHaveLength(0);
 	});
 
-	it("renders each saved card with the primary badged and backups carrying promote + remove", async () => {
+	it("renders the primary card as the row and, in the open panel, each backup carrying promote + remove", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await activeUserWithCards(harness, "cards-list@example.com", [
 			card("pm_primary", true, "4242"),
 			card("pm_backup", false, "1111"),
 		]);
 
-		const response = await agent.get("/account");
+		const response = await agent.get("/account?manage=payment");
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -2294,11 +2609,18 @@ describe("GET /account — card management section", () => {
 
 		const primaryRow = doc.querySelector("[data-test-card-primary]");
 		assert(primaryRow, "primary row must be addressable");
-		expect(primaryRow.textContent).toContain("4242");
+		expect(primaryRow.querySelector(".account-billing__tile")?.textContent).toBe("VISA");
+		expect(primaryRow.querySelector("h3")?.textContent).toBe("Visa •••• 4242");
+		expect(primaryRow.querySelector(".account-billing__expiry")?.textContent).toBe("Expires 12/30");
+		const badge = primaryRow.querySelector("[data-test-card-badge]");
+		assert(badge, "the primary card must carry its badge");
+		expect(badge.textContent).toBe("Primary");
+		expect(badge.className).toBe("chip chip--badge chip--accent");
 		expect(cardActionKeys(primaryRow)).toEqual([]);
 
 		const backupRow = cardRows(doc).find((row) => !row.hasAttribute("data-test-card-primary"));
 		assert(backupRow, "backup row must render");
+		expect(managePanel(doc, "payment").contains(backupRow)).toBe(true);
 		expect(backupRow.textContent).toContain("1111");
 		expect(cardActionKeys(backupRow)).toEqual(["promote", "remove"]);
 	});
@@ -2310,7 +2632,7 @@ describe("GET /account — card management section", () => {
 			card("pm_backup", false, "1111"),
 		]);
 
-		const listingDoc = new JSDOM((await agent.get("/account")).text).window.document;
+		const listingDoc = new JSDOM((await agent.get("/account?manage=payment")).text).window.document;
 		const addingDoc = new JSDOM((await agent.post("/account/cards/new")).text).window.document;
 
 		const listingSection = listingDoc.querySelector("[data-test-cards-section]");
@@ -2329,16 +2651,18 @@ describe("GET /account — card management section", () => {
 		expect(untracked).toEqual([]);
 	});
 
-	it("renders the add-card button when below the cap", async () => {
+	it("renders the add-card button in the open panel when below the cap", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await activeUserWithCards(harness, "cards-add@example.com", [
 			card("pm_primary", true, "4242"),
 		]);
 
-		const response = await agent.get("/account");
+		const response = await agent.get("/account?manage=payment");
 
 		const doc = new JSDOM(response.text).window.document;
-		assert(doc.querySelector("[data-test-add-card]"), "add-card button must render below the cap");
+		const addForm = doc.querySelector("[data-test-add-card]");
+		assert(addForm, "add-card button must render below the cap");
+		expect(managePanel(doc, "payment").contains(addForm)).toBe(true);
 	});
 
 	it("disables htmx history push on the add-card form (boosted POST renders 200, not a redirect) so a refresh can't 404 on /account/cards/new", async () => {
@@ -2346,13 +2670,64 @@ describe("GET /account — card management section", () => {
 		const { agent } = await activeUserWithCards(harness, "cards-add-history@example.com", [
 			card("pm_primary", true, "4242"),
 		]);
+		const { agent: noCardAgent, userId: noCardUserId } = await loginUser(harness, "cards-add-history-none@example.com");
+		await harness.subscriptionProviders.upsertActive({
+			userId: noCardUserId,
+			subscriptionId: "sub_no_card",
+			customerId: "cus_no_card",
+		});
 
-		const response = await agent.get("/account");
+		const panelDoc = new JSDOM((await agent.get("/account?manage=payment")).text).window.document;
+		const rowDoc = new JSDOM((await noCardAgent.get("/account")).text).window.document;
 
-		const doc = new JSDOM(response.text).window.document;
-		const addForm = doc.querySelector("[data-test-add-card]");
-		assert(addForm, "add-card form must render below the cap");
-		expect(addForm.getAttribute("hx-push-url")).toBe("false");
+		const panelAddForm = managePanel(panelDoc, "payment").querySelector("[data-test-add-card]");
+		assert(panelAddForm, "add-card form must render in the open panel below the cap");
+		expect(panelAddForm.getAttribute("hx-push-url")).toBe("false");
+		const noCardRow = rowDoc.querySelector("[data-test-no-card]");
+		assert(noCardRow, "a customer with no saved card must see the no-card row");
+		expect(noCardRow.querySelector("h3")?.textContent).toBe("No card on file");
+		expect(noCardRow.querySelector(".account-billing__detail")?.textContent).toBe("Add a card to keep your plan running.");
+		const rowAddForm = noCardRow.querySelector("[data-test-add-card]");
+		assert(rowAddForm, "the no-card row must offer Add a card while the panel is shut");
+		expect(rowAddForm.getAttribute("action")).toBe(
+			"/account/cards/new?utm_source=account&utm_medium=internal&utm_content=add-card",
+		);
+		expect(rowAddForm.getAttribute("hx-push-url")).toBe("false");
+		expect(managePanel(rowDoc, "payment").getAttribute("data-manage-panel-state")).toBe("closed");
+	});
+
+	it.each<[string, SavedCard[]]>([
+		["one saved card", [card("pm_a", false, "1111")]],
+		["the 3-card cap", [card("pm_a", false, "1111"), card("pm_b", false, "2222"), card("pm_c", false, "3333")]],
+	])("offers Update payment method on the row when no saved card is primary, at %s, and it leads to Make primary", async (_label, cards) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "cards-no-primary@example.com", cards);
+
+		const rowDoc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		const noCardRow = rowDoc.querySelector("[data-test-no-card]");
+		assert(noCardRow, "saved cards with none primary must render the no-card row");
+		expect(noCardRow.querySelector("h3")?.textContent).toBe("No primary card");
+		expect(noCardRow.querySelector(".account-billing__detail")?.textContent).toBe(
+			"Make one of your saved cards primary to keep your plan running.",
+		);
+		expect(Array.from(noCardRow.querySelectorAll("form")).map((form) => form.getAttribute("action"))).toEqual([
+			"/account",
+		]);
+		expect(actionKeys(noCardRow)).toEqual(["update-payment"]);
+		expect(hiddenFields(findAction(rowDoc, "update-payment"))).toEqual([
+			["utm_source", "account"],
+			["utm_medium", "internal"],
+			["utm_content", "update-payment"],
+			["manage", "payment"],
+		]);
+		expect(managePanel(rowDoc, "payment").getAttribute("data-manage-panel-state")).toBe("closed");
+
+		const panelDoc = new JSDOM((await agent.get("/account?manage=payment")).text).window.document;
+
+		expect(cardRows(managePanel(panelDoc, "payment")).map(cardActionKeys)).toEqual(
+			cards.map(() => ["promote", "remove"]),
+		);
 	});
 
 	it("degrades gracefully when the live card read fails — still renders the subscription card", async () => {
@@ -2388,7 +2763,7 @@ describe("GET /account — card management section", () => {
 });
 
 describe("POST /account/cards/:id/primary", () => {
-	it("promotes a backup to primary and redirects to /account", async () => {
+	it("promotes a backup to primary and redirects back to the open payment panel", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, customerId } = await activeUserWithCards(harness, "promote@example.com", [
 			card("pm_primary", true, "4242"),
@@ -2398,7 +2773,7 @@ describe("POST /account/cards/:id/primary", () => {
 		const response = await agent.post("/account/cards/pm_backup/primary");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
+		expect(response.headers.location).toBe("/account?manage=payment");
 		const cards = await harness.paymentMethods.listCards({ customerId });
 		expect(cards.find((c) => c.id === "pm_backup")?.isPrimary).toBe(true);
 		expect(cards.find((c) => c.id === "pm_primary")?.isPrimary).toBe(false);
@@ -2413,9 +2788,31 @@ describe("POST /account/cards/:id/primary", () => {
 		const response = await agent.post("/account/cards/pm_primary/primary");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
+		expect(response.headers.location).toBe("/account?manage=payment");
 		const cards = await harness.paymentMethods.listCards({ customerId });
 		expect(cards.find((c) => c.id === "pm_primary")?.isPrimary).toBe(true);
+	});
+
+	it("answers a failed provider call with the payment panel still open, leaving the cards as they were", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.setPrimaryCard = async () => {
+			throw new Error("Stripe is down");
+		};
+		const harness = useApp(fixture);
+		const { agent, customerId } = await activeUserWithCards(harness, "promote-fail@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const response = await agent.post("/account/cards/pm_backup/primary");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?manage=payment");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => [c.id, c.isPrimary])).toEqual([
+			["pm_primary", true],
+			["pm_backup", false],
+		]);
 	});
 
 	it("redirects unauthenticated callers to /login", async () => {
@@ -2427,7 +2824,7 @@ describe("POST /account/cards/:id/primary", () => {
 });
 
 describe("POST /account/cards/:id/remove", () => {
-	it("removes a backup and redirects to /account", async () => {
+	it("removes a backup and redirects back to the open payment panel", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, customerId } = await activeUserWithCards(harness, "remove@example.com", [
 			card("pm_primary", true, "4242"),
@@ -2437,9 +2834,43 @@ describe("POST /account/cards/:id/remove", () => {
 		const response = await agent.post("/account/cards/pm_backup/remove");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
+		expect(response.headers.location).toBe("/account?manage=payment");
 		const cards = await harness.paymentMethods.listCards({ customerId });
 		expect(cards.map((c) => c.id)).toEqual(["pm_primary"]);
+	});
+
+	it("noops on a card that is no longer saved and keeps the panel open", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "remove-gone@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const response = await agent.post("/account/cards/pm_gone/remove");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?manage=payment");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_primary", "pm_backup"]);
+	});
+
+	it("answers a failed provider call with the payment panel still open, leaving the cards as they were", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.removeCard = async () => {
+			throw new Error("Stripe is down");
+		};
+		const harness = useApp(fixture);
+		const { agent, customerId } = await activeUserWithCards(harness, "remove-fail@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const response = await agent.post("/account/cards/pm_backup/remove");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?manage=payment");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_primary", "pm_backup"]);
 	});
 
 	it("refuses to remove the primary card", async () => {
@@ -2516,9 +2947,28 @@ describe("POST /account/cards/new", () => {
 		const confirm = await agent.post(confirmUrl).type("form").send({ setupId });
 
 		expect(confirm.status).toBe(303);
-		expect(confirm.headers.location).toBe("/account");
+		expect(confirm.headers.location).toBe("/account?manage=payment");
 		const cards = await harness.paymentMethods.listCards({ customerId });
 		expect(cards.map((c) => c.id)).toEqual(["pm_primary", "pm_new"]);
+	});
+
+	it("points the add-card Cancel back at the open payment panel, as every other card flow returns", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "add-cancel@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const addingDoc = new JSDOM((await agent.post("/account/cards/new")).text).window.document;
+
+		const cancel = addingDoc.querySelector("[data-card-cancel]");
+		assert(cancel, "the adding state must render its cancel link");
+		const cancelHref = cancel.getAttribute("href");
+		assert(cancelHref, "the cancel link must carry an href");
+		expect(cancelHref).toBe(
+			"/account?manage=payment&utm_source=account&utm_medium=internal&utm_content=cancel-add-card",
+		);
+		const landingDoc = new JSDOM((await agent.get(cancelHref)).text).window.document;
+		expect(managePanel(landingDoc, "payment").getAttribute("data-manage-panel-state")).toBe("open");
 	});
 
 	it("redirects to the card-limit error when already at 3 cards", async () => {
@@ -2579,7 +3029,7 @@ describe("POST /account/cards/new", () => {
 });
 
 describe("POST /account/cards/confirm — server-side setup verification and cap reconciliation", () => {
-	it("keeps a verified card within the cap and redirects to /account", async () => {
+	it("keeps a verified card within the cap and redirects back to the open payment panel", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, customerId } = await activeUserWithCards(harness, "confirm-ok@example.com", [
 			card("pm_a", true, "4242"),
@@ -2594,7 +3044,7 @@ describe("POST /account/cards/confirm — server-side setup verification and cap
 			.send({ setupId });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
+		expect(response.headers.location).toBe("/account?manage=payment");
 		const cards = await harness.paymentMethods.listCards({ customerId });
 		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_new"]);
 	});
@@ -2736,7 +3186,7 @@ describe("POST /account/cards/confirm — server-side setup verification and cap
 			.send({ setupId });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
+		expect(response.headers.location).toBe("/account?manage=payment");
 		const cards = await harness.paymentMethods.listCards({ customerId });
 		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c"]);
 	});
@@ -2763,7 +3213,7 @@ describe("POST /account/cards/confirm — server-side setup verification and cap
 			.send({ setupId: "seti_stub" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
+		expect(response.headers.location).toBe("/account?manage=payment");
 		const cards = await harness.paymentMethods.listCards({ customerId });
 		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c", "pm_d"]);
 	});
@@ -2935,6 +3385,220 @@ describe("POST /account/cards/confirm — server-side setup verification and cap
 	it("redirects unauthenticated callers to /login", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/cards/confirm");
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+	});
+});
+
+describe("GET /account/invoices", () => {
+	function paidInvoices(count: number): InvoiceSummary[] {
+		return Array.from({ length: count }, (_, index) => {
+			const n = String(index + 1).padStart(3, "0");
+			return {
+				id: InvoiceIdSchema.parse(`in_route${n}`),
+				number: `RP-${n}`,
+				issuedAt: new Date(Date.UTC(2026, 8 - index, 18)).toISOString(),
+				amountPaidMinor: 1000,
+				currency: "usd",
+				hostedInvoiceUrl: `https://invoice.stripe.com/i/acct_test/in_route${n}`,
+			};
+		});
+	}
+
+	async function subscriberWithInvoices(
+		harness: ReturnType<ReturnType<typeof useTestServer>>,
+		email: string,
+		invoices: InvoiceSummary[],
+	) {
+		const { agent, userId } = await loginUser(harness, email);
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_invoices",
+			customerId: "cus_invoices",
+			plan: "monthly",
+		});
+		harness.subscriptionBilling.seedInvoices({ customerId: "cus_invoices", invoices });
+		return { agent };
+	}
+
+	function invoiceRows(doc: Document): Element[] {
+		return Array.from(doc.querySelectorAll("[data-test-invoice-row]"));
+	}
+
+	function invoicesState(doc: Document): string {
+		const card = doc.querySelector("[data-test-invoices-state]");
+		assert(card, "the invoices card must always render");
+		return card.getAttribute("data-test-invoices-state") ?? "";
+	}
+
+	function pagerStep(doc: Document, step: "newer" | "older"): Element {
+		const element = doc.querySelector(`[data-test-invoices-${step}]`);
+		assert(element, `the ${step} step must always render`);
+		return element;
+	}
+
+	it("lists the newest twelve paid invoices with their date, number, amount and a View invoice link to Stripe's hosted page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await subscriberWithInvoices(harness, "invoices-list@example.com", paidInvoices(13));
+
+		const response = await agent.get("/account/invoices");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["cache-control"]).toBe("private, no-cache");
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.body.classList.contains("page-account-invoices")).toBe(true);
+		expect(doc.title).toBe("Invoices — Readplace");
+		expect(doc.querySelector("h1")?.textContent).toBe("Invoices");
+		expect(doc.querySelector("[data-test-invoices-back]")?.getAttribute("href")).toBe(
+			"/account?utm_source=account-invoices&utm_medium=internal&utm_content=back",
+		);
+		expect(invoicesState(doc)).toBe("list");
+		const rows = invoiceRows(doc);
+		expect(rows).toHaveLength(12);
+		const [newest] = rows;
+		const date = newest.querySelector("time[data-local-time='date']");
+		assert(date, "each invoice date must render as a localisable <time>");
+		expect(date.getAttribute("datetime")).toBe("2026-09-18T00:00:00.000Z");
+		expect(date.textContent).toBe("Sep 18, 2026");
+		expect(newest.querySelector(".account-invoices__number")?.textContent).toBe("RP-001");
+		expect(newest.querySelector(".account-invoices__amount")?.textContent).toBe("$10.00");
+		const link = newest.querySelector("[data-test-invoice-link]");
+		assert(link, "each invoice must link to its hosted page");
+		expect(link.getAttribute("href")).toBe("https://invoice.stripe.com/i/acct_test/in_route001");
+		expect(link.getAttribute("rel")).toBe("noreferrer");
+		expect(link.textContent).toBe("View invoice RP-001");
+		expect(harness.subscriptionBilling.invoiceLookups()).toEqual(["cus_invoices"]);
+	});
+
+	it("pages to the older invoices, with Newer disabled on the first page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await subscriberWithInvoices(harness, "invoices-pager@example.com", paidInvoices(13));
+
+		const doc = new JSDOM((await agent.get("/account/invoices")).text).window.document;
+
+		const pager = doc.querySelector("[data-test-invoices-pagination]");
+		assert(pager, "the pager must always render");
+		expect(pager.className).toBe("pagination pagination--visible");
+		expect(pagerStep(doc, "newer").tagName).toBe("SPAN");
+		expect(pagerStep(doc, "newer").getAttribute("aria-disabled")).toBe("true");
+		expect(pagerStep(doc, "older").getAttribute("href")).toBe(
+			"/account/invoices?after=in_route012&utm_source=account-invoices&utm_medium=internal&utm_content=older",
+		);
+		expect(pagerStep(doc, "older").getAttribute("rel")).toBe("next");
+	});
+
+	it("follows the after cursor to the older page, where Newer leads back and Older is the end", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await subscriberWithInvoices(harness, "invoices-after@example.com", paidInvoices(13));
+
+		const doc = new JSDOM((await agent.get("/account/invoices?after=in_route012")).text).window.document;
+
+		expect(invoiceRows(doc).map((row) => row.querySelector(".account-invoices__number")?.textContent)).toEqual([
+			"RP-013",
+		]);
+		expect(pagerStep(doc, "newer").getAttribute("href")).toBe(
+			"/account/invoices?before=in_route013&utm_source=account-invoices&utm_medium=internal&utm_content=newer",
+		);
+		expect(pagerStep(doc, "newer").getAttribute("rel")).toBe("prev");
+		expect(pagerStep(doc, "older").getAttribute("aria-disabled")).toBe("true");
+	});
+
+	it("follows the before cursor back to the newest page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await subscriberWithInvoices(harness, "invoices-before@example.com", paidInvoices(13));
+
+		const doc = new JSDOM((await agent.get("/account/invoices?before=in_route013")).text).window.document;
+
+		expect(invoiceRows(doc)).toHaveLength(12);
+		expect(invoiceRows(doc)[0].querySelector(".account-invoices__number")?.textContent).toBe("RP-001");
+		expect(pagerStep(doc, "newer").getAttribute("aria-disabled")).toBe("true");
+		expect(pagerStep(doc, "older").getAttribute("href")).toBe(
+			"/account/invoices?after=in_route012&utm_source=account-invoices&utm_medium=internal&utm_content=older",
+		);
+	});
+
+	it.each([
+		["an after cursor that is not an invoice id", "?after=not-an-invoice"],
+		["a before cursor that is not an invoice id", "?before=in_bad-id"],
+		["both cursors at once", "?after=in_route001&before=in_route002"],
+		["a repeated cursor", "?after=in_route001&after=in_route002"],
+	])("refuses %s with a 400, before asking Stripe anything", async (_case, query) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await subscriberWithInvoices(harness, "invoices-bad-cursor@example.com", paidInvoices(13));
+
+		const response = await agent.get(`/account/invoices${query}`);
+
+		expect(response.status).toBe(400);
+		expect(response.text).toBe("Unknown invoice cursor");
+		expect(harness.subscriptionBilling.invoiceLookups()).toEqual([]);
+	});
+
+	it("lists a $0.00 invoice — a fully discounted period still has a receipt", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const [discounted] = paidInvoices(1);
+		const { agent } = await subscriberWithInvoices(harness, "invoices-zero@example.com", [
+			{ ...discounted, amountPaidMinor: 0 },
+		]);
+
+		const doc = new JSDOM((await agent.get("/account/invoices")).text).window.document;
+
+		expect(invoiceRows(doc).map((row) => row.querySelector(".account-invoices__amount")?.textContent)).toEqual([
+			"$0.00",
+		]);
+		const pager = doc.querySelector("[data-test-invoices-pagination]");
+		assert(pager, "the pager must always render");
+		expect(pager.className).toBe("pagination pagination--hidden");
+	});
+
+	it("shows the empty state when the customer has no paid invoice yet", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await subscriberWithInvoices(harness, "invoices-empty@example.com", []);
+
+		const doc = new JSDOM((await agent.get("/account/invoices")).text).window.document;
+
+		expect(invoicesState(doc)).toBe("empty");
+		const empty = doc.querySelector("[data-test-invoices-empty]");
+		assert(empty, "the empty state must render");
+		expect(empty.querySelector("h2")?.textContent).toBe("No invoices yet");
+		expect(empty.querySelector("p")?.textContent).toBe("Your invoices appear here after your first payment.");
+		expect(invoiceRows(doc)).toHaveLength(0);
+	});
+
+	it("shows the empty state, without asking Stripe, to a reader with no billing customer", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account/invoices");
+
+		expect(response.status).toBe(200);
+		expect(invoicesState(new JSDOM(response.text).window.document)).toBe("empty");
+		expect(harness.subscriptionBilling.invoiceLookups()).toEqual([]);
+	});
+
+	it("degrades a failed invoice read to an error alert in place of the list", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await subscriberWithInvoices(harness, "invoices-error@example.com", paidInvoices(3));
+		harness.subscriptionBilling.failInvoiceLookup();
+
+		const response = await agent.get("/account/invoices");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(invoicesState(doc)).toBe("provider-error");
+		const alert = doc.querySelector('[data-test-alert="account-invoices"]');
+		assert(alert, "the provider error must render as an alert");
+		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
+		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
+			"We couldn't load your invoices just now. Refresh the page to try again.",
+		);
+		expect(invoiceRows(doc)).toHaveLength(0);
+	});
+
+	it("redirects unauthenticated visitors to /login", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get("/account/invoices");
+
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
 	});

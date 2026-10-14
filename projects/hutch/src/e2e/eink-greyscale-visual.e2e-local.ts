@@ -46,6 +46,8 @@ const READLIST_LAYOUT = ".readlist__layout";
 const READLIST_PREFERENCES = "[data-test-readlist-preferences]";
 const OPEN_FILTER_DRAWER = "[data-test-discovery-drawer]:popover-open";
 const PUBLIC_READER_ACTION_BAR = "[data-test-view-cta]";
+const ACCOUNT_BILLING = '[data-test-account-section="subscription"]';
+const ACCOUNT_INVOICES = "main.account";
 const FETCHED_AT = "2026-04-27T08:00:00.000Z";
 
 const VOLATILE_CHROME = [
@@ -203,6 +205,20 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
+}
+
+async function seedBilling(page: Page, input: { userId: string; state: "active" | "inactive" }): Promise<void> {
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+		data: {
+			userId: input.userId,
+			state: input.state,
+			plan: "monthly",
+			cards: "primary",
+			nextChargeAt: "2099-09-18T00:00:00.000Z",
+			invoices: 13,
+		},
+	});
+	assert.equal(seeded.status(), 201, "the subscription-state seed endpoint must answer 201");
 }
 
 async function pinReaderSavedTime(page: Page): Promise<void> {
@@ -803,10 +819,52 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				signedInAs.textContent = "reader@example.com";
 			});
 			await settle(page, "main.account");
+			const main = await measuredBox(page, "main.account");
 
-			await expect(page.locator("main.account")).toHaveScreenshot(`eink-account-${theme}.png`, CONTRAST_SENSITIVE);
+			await expect(page).toHaveScreenshot(`eink-account-${theme}.png`, {
+				...CONTRAST_SENSITIVE,
+				fullPage: true,
+				clip: { x: main.x, y: main.y, width: main.width, height: Math.ceil(main.height) },
+			});
+		});
+
+		test(`the account's billing card keeps its chips legible in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, userId } = await createEinkUser(page, `account-billing-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await seedBilling(page, { userId, state: "active" });
+			await loginAs(page, email);
+			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-account-plan-chip]")).toHaveText("Active");
+			await expect(page.locator("[data-test-card-badge]")).toHaveText("Primary");
+			await settle(page, ACCOUNT_BILLING);
+
+			await expect(page.locator(ACCOUNT_BILLING)).toHaveScreenshot(`eink-account-billing-${theme}.png`, CONTRAST_SENSITIVE);
 		});
 	}
+
+	test("the account's Inactive chip reads by its border and label in greyscale", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+		const { email, userId } = await createEinkUser(page, `account-billing-inactive-${testInfo.workerIndex}-${Date.now()}`);
+		await seedBilling(page, { userId, state: "inactive" });
+		await loginAs(page, email);
+		await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-account-plan-chip]")).toHaveText("Inactive");
+		await settle(page, ACCOUNT_BILLING);
+
+		await expect(page.locator(ACCOUNT_BILLING)).toHaveScreenshot("eink-account-billing-inactive-light.png", CONTRAST_SENSITIVE);
+	});
+
+	test("the invoices page keeps its back link and invoice links legible in greyscale", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+		const { email, userId } = await createEinkUser(page, `account-invoices-${testInfo.workerIndex}-${Date.now()}`);
+		await seedBilling(page, { userId, state: "active" });
+		await loginAs(page, email);
+		await page.goto(`${BASE_URL}/account/invoices`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-invoice-row]")).toHaveCount(12);
+		await settle(page, ACCOUNT_INVOICES);
+
+		await expect(page.locator(ACCOUNT_INVOICES)).toHaveScreenshot("eink-account-invoices-light.png", CONTRAST_SENSITIVE);
+	});
 
 	test("a summary still says it is working when the panel refuses motion", async ({
 		page,

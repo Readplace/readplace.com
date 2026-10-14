@@ -382,6 +382,8 @@ describe("CHIP_STYLES", () => {
 		".chip--tab",
 		".chip--accent",
 		".chip--badge.chip--accent",
+		".chip--success",
+		".chip--status.chip--success",
 		".chip--error",
 		".chip__remove-form",
 		".chip__remove",
@@ -422,6 +424,12 @@ describe("CHIP_STYLES", () => {
 	it("sets an accent badge's amber label in the ink that clears contrast on the tint", () => {
 		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip--badge.chip--accent"), "color")).toBe(
 			"var(--primary-text-on-tint)",
+		);
+	});
+
+	it("sets a success status chip's label in --foreground, which clears 4.5:1 on its tint where --success-text does not", () => {
+		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip--status.chip--success"), "color")).toBe(
+			"var(--foreground)",
 		);
 	});
 

@@ -556,6 +556,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge: devStripeSubscriptions.findSubscriptionNextCharge,
+		listInvoices: devStripeSubscriptions.listInvoices,
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods: devPaymentMethods,
 		resolvePriceId: async (plan: BillingPlan) => `price_dev_${plan}`,

@@ -1,0 +1,131 @@
+<section class="{{paymentClass}}" data-test-cards-section data-test-cards-state="{{payment.state}}">
+              {{#if payment.isShown}}
+              {{{alertHtml}}}
+              {{#if payment.primary}}
+              <div class="account-billing__row" data-test-card data-test-card-primary>
+                <span class="account-billing__tile" aria-hidden="true">{{payment.primary.tileLabel}}</span>
+                <div class="account-billing__text">
+                  <div class="account-billing__card-line">
+                    <h3 class="account-billing__title">{{payment.primary.title}}</h3>
+                    {{#each payment.primary.chips}}
+                    <span class="{{className}}" data-test-card-badge>{{label}}</span>
+                    {{/each}}
+                  </div>
+                  <p class="account-billing__expiry">{{payment.primary.expiry}}</p>
+                </div>
+                <div class="account-billing__actions">
+                  {{#each paymentActions}}
+                  <form method="{{method}}" action="{{href}}" class="{{formClass}}"
+                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
+                    hx-disabled-elt="find button"
+                    data-test-account-action="{{key}}">
+                    {{#each hiddenFields}}
+                    <input type="hidden" name="{{name}}" value="{{value}}">
+                    {{/each}}
+                    <button type="submit" class="{{buttonClass}}">{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
+                  </form>
+                  {{/each}}
+                </div>
+              </div>
+              {{/if}}
+              {{#if payment.noCard}}
+              <div class="account-billing__row" data-test-no-card>
+                <div class="account-billing__text">
+                  <h3 class="account-billing__title">{{payment.noCard.title}}</h3>
+                  <p class="account-billing__detail">{{payment.noCard.line}}</p>
+                </div>
+                <div class="account-billing__actions">
+                  {{#each paymentActions}}
+                  <form method="{{method}}" action="{{href}}" class="{{formClass}}"
+                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
+                    hx-disabled-elt="find button"
+                    data-test-account-action="{{key}}">
+                    {{#each hiddenFields}}
+                    <input type="hidden" name="{{name}}" value="{{value}}">
+                    {{/each}}
+                    <button type="submit" class="{{buttonClass}}">{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
+                  </form>
+                  {{/each}}
+                  {{#if payment.showRowAddForm}}
+                  <form method="POST" action="{{payment.addUrl}}" class="account-billing__add-form"
+                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+                    hx-push-url="false" data-test-add-card>
+                    <button type="submit" class="btn btn--neutral btn--m">{{icon "plus"}}<span class="account__action-label">Add a card</span>{{{actionLoaderHtml}}}</button>
+                  </form>
+                  {{/if}}
+                </div>
+              </div>
+              {{/if}}
+              <div class="{{paymentPanelClass}}" data-test-manage-panel="payment" data-manage-panel-state="{{payment.panel.state}}">
+                {{{noticeAlertHtml}}}
+                <ul class="account-billing__backups">
+                  {{#each payment.panel.backups}}
+                  <li class="account-billing__backup" data-test-card>
+                    <span class="account-billing__tile" aria-hidden="true">{{tileLabel}}</span>
+                    <div class="account-billing__text">
+                      <p class="account-billing__title">{{title}}</p>
+                      <p class="account-billing__expiry">{{expiry}}</p>
+                    </div>
+                    <div class="account-billing__actions">
+                      {{#each actions}}
+                      <form method="POST" action="{{href}}" class="account-card__action-form"
+                        hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+                        data-test-card-action="{{key}}">
+                        <button type="submit" class="{{buttonClass}}"><span class="account__action-label">{{name}}</span>{{{@root.actionLoaderHtml}}}</button>
+                      </form>
+                      {{/each}}
+                    </div>
+                  </li>
+                  {{/each}}
+                </ul>
+                <p class="account-billing__hint">{{payment.panel.hint}}</p>
+                {{#if payment.panel.showAddButton}}
+                <form method="POST" action="{{payment.addUrl}}" class="account-billing__add-form"
+                  hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+                  hx-push-url="false" data-test-add-card>
+                  <button type="submit" class="btn btn--neutral btn--m">{{icon "plus"}}<span class="account__action-label">Add a card</span>{{{actionLoaderHtml}}}</button>
+                </form>
+                {{/if}}
+                {{#if payment.panel.showLimitHint}}
+                <p class="account-billing__hint" data-test-cards-limit-hint>{{payment.panel.limitHint}}</p>
+                {{/if}}
+                {{#if payment.panel.isAdding}}
+                <div class="account-billing__elements" data-test-card-elements data-card-elements
+                  data-publishable-key="{{payment.panel.adding.publishableKey}}"
+                  data-client-secret="{{payment.panel.adding.clientSecret}}"
+                  data-setup-id="{{payment.panel.adding.setupId}}">
+                  <div class="form-input form-input--within"><div class="form-input__control" data-card-element></div></div>
+                  <p class="form-field__error" data-card-error role="alert"></p>
+                  <div class="account-billing__elements-actions">
+                    <button type="button" class="btn btn--primary" data-card-submit data-card-confirm-url="{{payment.confirmUrl}}"><span class="account__action-label">Save card</span>{{{actionLoaderHtml}}}</button>
+                    <a class="btn btn--secondary" href="{{payment.cancelAddUrl}}" data-card-cancel>Cancel</a>
+                  </div>
+                </div>
+                {{/if}}
+              </div>
+              {{/if}}
+            </section>
+            <div class="{{historyClass}}" data-test-billing-history data-billing-history-state="{{billingHistory.state}}">
+              {{#if billingHistory.isVisible}}
+              <div class="account-row">
+                <span class="account-row__icon" aria-hidden="true">{{icon "receipt"}}</span>
+                <div class="account-row__text">
+                  <h3 class="account-row__title">Billing history</h3>
+                  <p class="account-row__description">View and download your past invoices.</p>
+                </div>
+                <div class="account-row__actions">
+                  {{#each historyActions}}
+                  <form method="{{method}}" action="{{href}}" class="{{formClass}}"
+                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
+                    hx-disabled-elt="find button"
+                    data-test-account-action="{{key}}">
+                    {{#each hiddenFields}}
+                    <input type="hidden" name="{{name}}" value="{{value}}">
+                    {{/each}}
+                    <button type="submit" class="{{buttonClass}}">{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
+                  </form>
+                  {{/each}}
+                </div>
+              </div>
+              {{/if}}
+            </div>

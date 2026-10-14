@@ -5,8 +5,10 @@ import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import type { EffectiveAccess } from "@packages/subscription-access";
+import type { IconName } from "@packages/ui-icons";
 import {
 	type LocalTime,
+	PRICING_PLANS,
 	SUBSCRIBE_CTA_LABEL,
 	parsePollParam,
 	toAbsoluteDate,
@@ -28,9 +30,11 @@ import {
 	ACCOUNT_CARDS_CONFIRM_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
+	ACCOUNT_INVOICES_URL,
 	ACCOUNT_REACTIVATE_URL,
 	ACCOUNT_SUBSCRIBE_URL,
 	buildAccountStatusPollUrl,
+	buildAccountUrl,
 	buildCardPrimaryUrl,
 	buildCardRemoveUrl,
 } from "./account.url";
@@ -65,21 +69,42 @@ export type AccountCardState =
 	| "error-payment-method"
 	| "error-subscribe-failed";
 
-export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form" | "delete-account";
+export type AccountActionKey =
+	| "subscribe"
+	| "cancel-form"
+	| "reactivate-form"
+	| "delete-account"
+	| "manage-subscription"
+	| "update-payment"
+	| "view-invoices"
+	| "done";
 
-export type AccountActionVariant = "primary" | "secondary" | "destructive";
+export type AccountActionVariant = "primary" | "secondary" | "neutral" | "destructive";
 
 export type AccountPollState = "polling" | "idle";
+
+export interface AccountHiddenField {
+	name: string;
+	value: string;
+}
 
 export interface AccountAction {
 	key: AccountActionKey;
 	name: string;
 	variant: AccountActionVariant;
 	buttonClass: string;
-	method: "POST";
+	method: "GET" | "POST";
 	href: string;
+	hiddenFields: AccountHiddenField[];
+	leadingIcon: IconName | undefined;
+	trailingIcon: IconName | undefined;
 	isPending: boolean;
 	popoverTarget?: string;
+}
+
+export interface AccountChip {
+	label: string;
+	className: string;
 }
 
 export interface DangerConfirmationViewModel {
@@ -91,12 +116,83 @@ export interface DangerConfirmationViewModel {
 	notice: string;
 }
 
+export type ManagePanelState = "open" | "closed";
+
+export interface PriceViewModel {
+	state: "visible" | "hidden";
+	text: string;
+}
+
+export interface ManagePanelViewModel {
+	state: ManagePanelState;
+	body: string;
+	actions: AccountAction[];
+	showCancellingNotice: boolean;
+	cancellingNotice: string;
+}
+
+export type CardActionKey = "promote" | "remove";
+
+export interface CardActionView {
+	key: CardActionKey;
+	name: string;
+	variant: "toggle" | "destructive";
+	buttonClass: string;
+	href: string;
+}
+
+export interface CardViewItem {
+	tileLabel: string;
+	title: string;
+	expiry: string;
+	actions: CardActionView[];
+}
+
+export type PaymentSectionState = "card" | "no-card" | "provider-error" | "hidden";
+
+export interface PaymentPanelViewModel {
+	state: ManagePanelState;
+	hasNotice: boolean;
+	notice: string;
+	backups: CardViewItem[];
+	hint: string;
+	showAddButton: boolean;
+	showLimitHint: boolean;
+	limitHint: string;
+	isAdding: boolean;
+	adding: { publishableKey: string; clientSecret: string; setupId: string } | undefined;
+}
+
+export interface PaymentSectionViewModel {
+	state: PaymentSectionState;
+	isShown: boolean;
+	primary: { tileLabel: string; title: string; expiry: string; chips: AccountChip[] } | undefined;
+	noCard: { title: string; line: string } | undefined;
+	actions: AccountAction[];
+	showRowAddForm: boolean;
+	addUrl: string;
+	confirmUrl: string;
+	cancelAddUrl: string;
+	isError: boolean;
+	message: string;
+	panel: PaymentPanelViewModel;
+}
+
+export interface BillingHistoryViewModel {
+	state: "visible" | "hidden";
+	isVisible: boolean;
+	actions: AccountAction[];
+}
+
 export interface AccountViewModel {
 	state: AccountCardState;
 	stateClass: string;
 	heading: string;
 	lede: string;
 	subscriptionHeading: string;
+	title: string;
+	chips: AccountChip[];
+	price: PriceViewModel;
 	/** Leading sentence text. For the trial-countdown and cancellation-scheduled
 	 * states this is only the text before the date — `statusDate`/`statusDateTail`
 	 * carry the rest so the date renders as a localisable `<time>` element. */
@@ -106,8 +202,7 @@ export interface AccountViewModel {
 	/** Only the active state overrides this; every other state keeps the hidden value
 	 * from `baseFor`, so a state cannot start announcing a charge by accident. */
 	nextCharge: NextChargeViewModel;
-	showCancellingNotice: boolean;
-	cancellingNotice: string;
+	managePanel: ManagePanelViewModel;
 	pollState: AccountPollState;
 	pollUrl?: string;
 	stateIsErrorPaymentMethod: boolean;
@@ -118,9 +213,8 @@ export interface AccountViewModel {
 	 * `actions` array so the danger zone renders in every subscription state. */
 	dangerAction: AccountAction;
 	dangerConfirmation: DangerConfirmationViewModel;
-	/** Whether the payment-methods section renders. False on the iOS app surface,
-	 * where card management is hidden for App Store review Guideline 3.1.1. */
-	showCardSection: boolean;
+	payment: PaymentSectionViewModel;
+	billingHistory: BillingHistoryViewModel;
 }
 
 function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
@@ -138,6 +232,8 @@ export type CardError =
 	| "card_setup_failed"
 	| "card_setup_unverified";
 
+export type AccountManage = "subscription" | "payment" | undefined;
+
 export interface AccountUrlState {
 	cancelling: boolean;
 	pollCount: number;
@@ -145,6 +241,7 @@ export interface AccountUrlState {
 	errorSubscribeFailed: boolean;
 	deleteConfirmationError: boolean;
 	cardError: CardError | undefined;
+	manage: AccountManage;
 }
 
 function parseCardError(error: unknown): CardError | undefined {
@@ -156,6 +253,12 @@ function parseCardError(error: unknown): CardError | undefined {
 	return undefined;
 }
 
+function parseManage(manage: unknown): AccountManage {
+	if (manage === "subscription") return "subscription";
+	if (manage === "payment") return "payment";
+	return undefined;
+}
+
 export function parseAccountQuery(query: Record<string, unknown> | undefined): AccountUrlState {
 	return {
 		cancelling: query?.cancelling === "1",
@@ -164,39 +267,67 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 		errorSubscribeFailed: query?.error === "subscribe_failed",
 		deleteConfirmationError: query?.error === "delete_confirmation",
 		cardError: parseCardError(query?.error),
+		manage: parseManage(query?.manage),
 	};
 }
 
 const ACCOUNT_ACTION_BUTTON_CLASS: Record<AccountActionVariant, string> = {
-	primary: "btn btn--primary account-card__action",
-	secondary: "btn btn--secondary account-card__action",
-	destructive: "btn btn--destructive account-card__action",
+	primary: "btn btn--primary btn--m",
+	secondary: "btn btn--secondary btn--m",
+	neutral: "btn btn--neutral btn--m",
+	destructive: "btn btn--destructive btn--m",
 };
 
-function action(input: Omit<AccountAction, "isPending" | "buttonClass">): AccountAction {
+/** Origin for parsing root-relative action hrefs; `.invalid` is reserved by RFC
+ * 2606 so it can never resolve, and only `pathname`/`search` are read back. */
+const APP_HREF_PARSE_ORIGIN = "https://internal.invalid";
+
+type ActionInput = Omit<AccountAction, "isPending" | "buttonClass" | "method" | "hiddenFields">;
+
+function postAction(input: ActionInput): AccountAction {
 	return {
 		...input,
+		method: "POST",
 		isPending: false,
 		buttonClass: ACCOUNT_ACTION_BUTTON_CLASS[input.variant],
 		href: withInternalTracking(input.href, { source: ACCOUNT_SOURCE, content: input.key }),
+		hiddenFields: [],
 	};
 }
 
-const SUBSCRIBE_ACTION = action({
+function getAction(input: ActionInput & { fields: AccountHiddenField[] }): AccountAction {
+	const { fields, ...rest } = input;
+	const tracked = new URL(
+		withInternalTracking(input.href, { source: ACCOUNT_SOURCE, content: input.key }),
+		APP_HREF_PARSE_ORIGIN,
+	);
+	return {
+		...rest,
+		method: "GET",
+		isPending: false,
+		buttonClass: ACCOUNT_ACTION_BUTTON_CLASS[input.variant],
+		href: tracked.pathname,
+		hiddenFields: [...Array.from(tracked.searchParams, ([name, value]) => ({ name, value })), ...fields],
+	};
+}
+
+const SUBSCRIBE_ACTION = postAction({
 	key: "subscribe",
 	name: SUBSCRIBE_CTA_LABEL,
 	variant: "primary",
-	method: "POST",
 	href: ACCOUNT_SUBSCRIBE_URL,
+	leadingIcon: undefined,
+	trailingIcon: undefined,
 	popoverTarget: SUBSCRIBE_PLANS_POPOVER_ID,
 });
 
-const CANCEL_FORM_ACTION = action({
+const CANCEL_FORM_ACTION = postAction({
 	key: "cancel-form",
 	name: "Cancel subscription",
 	variant: "destructive",
-	method: "POST",
 	href: ACCOUNT_CANCEL_URL,
+	leadingIcon: undefined,
+	trailingIcon: undefined,
 });
 
 const CANCEL_PENDING_ACTION: AccountAction = {
@@ -205,66 +336,91 @@ const CANCEL_PENDING_ACTION: AccountAction = {
 	isPending: true,
 };
 
-const REACTIVATE_FORM_ACTION = action({
+const REACTIVATE_FORM_ACTION = postAction({
 	key: "reactivate-form",
 	name: "Reactivate subscription",
 	variant: "primary",
-	method: "POST",
 	href: ACCOUNT_REACTIVATE_URL,
+	leadingIcon: undefined,
+	trailingIcon: undefined,
 });
 
-const DELETE_ACCOUNT_ACTION = action({
+const DELETE_ACCOUNT_ACTION = postAction({
 	key: "delete-account",
 	name: "Delete account",
 	variant: "destructive",
-	method: "POST",
 	href: ACCOUNT_DELETE_URL,
+	leadingIcon: undefined,
+	trailingIcon: undefined,
 });
 
-export type CardSectionState = "no-customer" | "loaded" | "provider-error";
+const MANAGE_SUBSCRIPTION_ACTION = getAction({
+	key: "manage-subscription",
+	name: "Manage subscription",
+	variant: "primary",
+	href: buildAccountUrl(),
+	fields: [{ name: "manage", value: "subscription" }],
+	leadingIcon: undefined,
+	trailingIcon: undefined,
+});
 
-export type CardActionKey = "promote" | "remove";
+const UPDATE_PAYMENT_ACTION = getAction({
+	key: "update-payment",
+	name: "Update payment method",
+	variant: "neutral",
+	href: buildAccountUrl(),
+	fields: [{ name: "manage", value: "payment" }],
+	leadingIcon: "pencil",
+	trailingIcon: undefined,
+});
 
-export interface CardActionView {
-	key: CardActionKey;
-	name: string;
-	variant: "toggle" | "destructive";
-	buttonClass: string;
-	href: string;
-}
+const VIEW_INVOICES_ACTION = getAction({
+	key: "view-invoices",
+	name: "View invoices",
+	variant: "neutral",
+	href: ACCOUNT_INVOICES_URL,
+	fields: [],
+	leadingIcon: undefined,
+	trailingIcon: "chevron-right",
+});
 
-export interface CardViewItem {
-	itemClass: string;
-	/** Either "data-test-card-primary" or "" — interpolated raw into the row tag
-	 * so the primary row is addressable without a per-item {{#if}} in the template. */
-	primaryTestAttr: string;
-	brandLabel: string;
-	last4: string;
-	expLabel: string;
-	badges: { label: string }[];
-	actions: CardActionView[];
-}
+const DONE_ACTION = getAction({
+	key: "done",
+	name: "Done",
+	variant: "neutral",
+	href: buildAccountUrl(),
+	fields: [],
+	leadingIcon: undefined,
+	trailingIcon: undefined,
+});
 
-export interface CardSectionViewModel {
-	state: CardSectionState;
-	stateClass: string;
-	heading: string;
-	isLoaded: boolean;
-	isError: boolean;
-	message: string;
-	hasNotice: boolean;
-	notice: string;
-	cards: CardViewItem[];
-	showAddButton: boolean;
-	addUrl: string;
-	confirmUrl: string;
-	showLimitHint: boolean;
-	limitHint: string;
-	isAdding: boolean;
-	adding: { publishableKey: string; clientSecret: string; setupId: string } | undefined;
-}
+const ACTIVE_CHIP: AccountChip = { label: "Active", className: "chip chip--status chip--success" };
+const CANCELLED_CHIP: AccountChip = { label: "Cancelled", className: "chip chip--status chip--error" };
+const INACTIVE_CHIP: AccountChip = { label: "Inactive", className: "chip chip--status chip--error" };
+const PRIMARY_CARD_CHIP: AccountChip = { label: "Primary", className: "chip chip--badge chip--accent" };
 
-export type CardSectionInput =
+const HIDDEN_PRICE: PriceViewModel = { state: "hidden", text: "" };
+
+const MANAGE_SUBSCRIPTION_BODY =
+	"Cancelling stops your next payment. You keep full access until the end of the period you've paid for.";
+
+const CLOSED_MANAGE_PANEL: ManagePanelViewModel = {
+	state: "closed",
+	body: "",
+	actions: [],
+	showCancellingNotice: false,
+	cancellingNotice: "",
+};
+
+const OPEN_MANAGE_PANEL: ManagePanelViewModel = {
+	state: "open",
+	body: MANAGE_SUBSCRIPTION_BODY,
+	actions: [CANCEL_FORM_ACTION],
+	showCancellingNotice: false,
+	cancellingNotice: "",
+};
+
+export type PaymentSectionInput =
 	| { kind: "no-customer" }
 	| { kind: "provider-error" }
 	| {
@@ -286,14 +442,33 @@ const CARD_NOTICES: Record<CardError, string> = {
 		"We couldn't verify your new card just now. Refresh to check your saved cards, then try again.",
 };
 
-const NO_CUSTOMER_MESSAGE = "Add a payment method once you start your subscription.";
 const PROVIDER_ERROR_MESSAGE =
 	"We couldn't load your saved cards just now. Refresh the page to try again.";
 const LIMIT_HINT = "You've reached the 3-card limit. Remove a backup to add a different card.";
+const BACKUP_CARD_HINT =
+	"A new card is added as a backup. Make it primary to pay with it from your next payment.";
 
-function titleCaseBrand(brand: string): string {
-	if (brand.length === 0) return brand;
-	return brand.charAt(0).toUpperCase() + brand.slice(1);
+const NO_CARD_ROW = { title: "No card on file", line: "Add a card to keep your plan running." };
+const NO_PRIMARY_CARD_ROW = {
+	title: "No primary card",
+	line: "Make one of your saved cards primary to keep your plan running.",
+};
+
+const CARD_BRAND_LABELS: Record<string, { tile: string; name: string }> = {
+	visa: { tile: "VISA", name: "Visa" },
+	mastercard: { tile: "MASTERCARD", name: "Mastercard" },
+	amex: { tile: "AMEX", name: "American Express" },
+	discover: { tile: "DISCOVER", name: "Discover" },
+	diners: { tile: "DINERS", name: "Diners Club" },
+	jcb: { tile: "JCB", name: "JCB" },
+	unionpay: { tile: "UNIONPAY", name: "UnionPay" },
+	eftpos_au: { tile: "EFTPOS", name: "eftpos" },
+};
+
+const UNKNOWN_CARD_BRAND = { tile: "CARD", name: "Card" };
+
+function cardBrandLabel(brand: string): { tile: string; name: string } {
+	return Object.hasOwn(CARD_BRAND_LABELS, brand) ? CARD_BRAND_LABELS[brand] : UNKNOWN_CARD_BRAND;
 }
 
 function formatExpiry(card: SavedCard): string {
@@ -303,7 +478,7 @@ function formatExpiry(card: SavedCard): string {
 }
 
 const CARD_ACTION_BUTTON_CLASS: Record<CardActionView["variant"], string> = {
-	toggle: "btn btn--secondary btn--m",
+	toggle: "btn btn--secondary btn--s",
 	destructive: "btn btn--destructive btn--s",
 };
 
@@ -333,186 +508,287 @@ const CONFIRM_CARD_URL = withInternalTracking(ACCOUNT_CARDS_CONFIRM_URL, {
 	content: "save-card",
 });
 
+const CANCEL_ADD_CARD_URL = withInternalTracking(buildAccountUrl({ manage: "payment" }), {
+	source: ACCOUNT_SOURCE,
+	content: "cancel-add-card",
+});
+
 function toCardViewItem(card: SavedCard): CardViewItem {
+	const brand = cardBrandLabel(card.brand);
 	return {
-		itemClass: `account-cards__item account-cards__item--${card.isPrimary ? "primary" : "backup"}`,
-		primaryTestAttr: card.isPrimary ? "data-test-card-primary" : "",
-		brandLabel: titleCaseBrand(card.brand),
-		last4: card.last4,
-		expLabel: formatExpiry(card),
-		badges: card.isPrimary ? [{ label: "Primary" }] : [],
+		tileLabel: brand.tile,
+		title: `${brand.name} •••• ${card.last4}`,
+		expiry: `Expires ${formatExpiry(card)}`,
 		actions: cardActions(card),
 	};
 }
 
-function unavailableSection(
-	state: "no-customer" | "provider-error",
-	message: string,
-): CardSectionViewModel {
+const CLOSED_PAYMENT_PANEL: PaymentPanelViewModel = {
+	state: "closed",
+	hasNotice: false,
+	notice: "",
+	backups: [],
+	hint: "",
+	showAddButton: false,
+	showLimitHint: false,
+	limitHint: "",
+	isAdding: false,
+	adding: undefined,
+};
+
+function unavailableSection(state: "hidden" | "provider-error"): PaymentSectionViewModel {
 	return {
 		state,
-		stateClass: `account-cards account-cards--${state}`,
-		heading: "Payment methods",
-		isLoaded: false,
-		isError: state === "provider-error",
-		message,
-		hasNotice: false,
-		notice: "",
-		cards: [],
-		showAddButton: false,
+		isShown: state !== "hidden",
+		primary: undefined,
+		noCard: undefined,
+		actions: [],
+		showRowAddForm: false,
 		addUrl: ADD_CARD_URL,
 		confirmUrl: CONFIRM_CARD_URL,
-		showLimitHint: false,
-		limitHint: "",
-		isAdding: false,
-		adding: undefined,
+		cancelAddUrl: CANCEL_ADD_CARD_URL,
+		isError: state === "provider-error",
+		message: state === "provider-error" ? PROVIDER_ERROR_MESSAGE : "",
+		panel: CLOSED_PAYMENT_PANEL,
 	};
 }
 
-export function buildCardSectionViewModel(input: CardSectionInput): CardSectionViewModel {
+export function buildPaymentSectionViewModel(
+	input: PaymentSectionInput,
+	manage: AccountManage,
+): PaymentSectionViewModel {
 	if (input.kind === "no-customer") {
-		return unavailableSection("no-customer", NO_CUSTOMER_MESSAGE);
+		return unavailableSection("hidden");
 	}
 	if (input.kind === "provider-error") {
-		return unavailableSection("provider-error", PROVIDER_ERROR_MESSAGE);
+		return unavailableSection("provider-error");
 	}
 
+	const primaryCard = input.cards.find((card) => card.isPrimary);
 	const canAddCard = input.cards.length < MAX_CARDS;
 	const hasKey = input.publishableKey !== undefined && input.publishableKey.length > 0;
 	const isAdding = input.adding !== undefined && hasKey;
 	const notice = input.cardError ? CARD_NOTICES[input.cardError] : "";
+	const isOpen = manage === "payment" || input.cardError !== undefined || isAdding;
+
+	const panel: PaymentPanelViewModel = isOpen
+		? {
+				state: "open",
+				hasNotice: notice.length > 0,
+				notice,
+				backups: input.cards.filter((card) => !card.isPrimary).map(toCardViewItem),
+				hint: BACKUP_CARD_HINT,
+				// The add button only appears when there's room AND a publishable key to
+				// drive Elements; without a key (local dev) the list/manage actions still render.
+				showAddButton: canAddCard && hasKey && !isAdding,
+				showLimitHint: !canAddCard,
+				limitHint: LIMIT_HINT,
+				isAdding,
+				adding:
+					isAdding && input.adding !== undefined && input.publishableKey !== undefined
+						? {
+								publishableKey: input.publishableKey,
+								clientSecret: input.adding.clientSecret,
+								setupId: input.adding.setupId,
+							}
+						: undefined,
+			}
+		: CLOSED_PAYMENT_PANEL;
+
+	const primaryView = primaryCard === undefined ? undefined : toCardViewItem(primaryCard);
+	const hasSavedCards = input.cards.length > 0;
+	const closedRowActions = hasSavedCards ? [UPDATE_PAYMENT_ACTION] : [];
 
 	return {
-		state: "loaded",
-		stateClass: "account-cards account-cards--loaded",
-		heading: "Payment methods",
-		isLoaded: true,
-		isError: false,
-		message: "",
-		hasNotice: notice.length > 0,
-		notice,
-		cards: input.cards.map(toCardViewItem),
-		// The add button only appears when there's room AND a publishable key to
-		// drive Elements; without a key (local dev) the list/manage actions still render.
-		showAddButton: canAddCard && hasKey && !isAdding,
+		state: primaryView === undefined ? "no-card" : "card",
+		isShown: true,
+		primary:
+			primaryView === undefined
+				? undefined
+				: {
+						tileLabel: primaryView.tileLabel,
+						title: primaryView.title,
+						expiry: primaryView.expiry,
+						chips: [PRIMARY_CARD_CHIP],
+					},
+		noCard: primaryView !== undefined ? undefined : hasSavedCards ? NO_PRIMARY_CARD_ROW : NO_CARD_ROW,
+		actions: isOpen ? [DONE_ACTION] : closedRowActions,
+		showRowAddForm: !hasSavedCards && !isOpen && hasKey,
 		addUrl: ADD_CARD_URL,
 		confirmUrl: CONFIRM_CARD_URL,
-		showLimitHint: !canAddCard,
-		limitHint: LIMIT_HINT,
-		isAdding,
-		adding:
-			isAdding && input.adding !== undefined && input.publishableKey !== undefined
-				? {
-						publishableKey: input.publishableKey,
-						clientSecret: input.adding.clientSecret,
-						setupId: input.adding.setupId,
-					}
-				: undefined,
+		cancelAddUrl: CANCEL_ADD_CARD_URL,
+		isError: false,
+		message: "",
+		panel,
 	};
+}
+
+const HIDDEN_BILLING_HISTORY: BillingHistoryViewModel = {
+	state: "hidden",
+	isVisible: false,
+	actions: [],
+};
+
+const VISIBLE_BILLING_HISTORY: BillingHistoryViewModel = {
+	state: "visible",
+	isVisible: true,
+	actions: [VIEW_INVOICES_ACTION],
+};
+
+function planTitle(plan: BillingPlan | undefined): string {
+	return plan === undefined ? "Subscription" : PRICING_PLANS[plan].summaryName;
+}
+
+function planPrice(plan: BillingPlan | undefined): PriceViewModel {
+	return plan === undefined
+		? HIDDEN_PRICE
+		: { state: "visible", text: PRICING_PLANS[plan].cadenceDisplay };
 }
 
 type AccountCardBase = Omit<
 	AccountViewModel,
-	"dangerConfirmation" | "checkedPlan" | "statusLine" | "statusDate" | "statusDateTail"
+	| "dangerConfirmation"
+	| "checkedPlan"
+	| "statusLine"
+	| "statusDate"
+	| "statusDateTail"
+	| "payment"
+	| "billingHistory"
 >;
 
-function baseFor(state: AccountCardState, actions: AccountAction[]): AccountCardBase {
+function baseFor(input: {
+	state: AccountCardState;
+	title: string;
+	chips: AccountChip[];
+	actions: AccountAction[];
+}): AccountCardBase {
 	return {
-		state,
-		stateClass: `account-card account-card--${state}`,
+		state: input.state,
+		stateClass: `account-card account-card--${input.state}`,
 		heading: "Account",
 		lede: "Manage your account, billing and preferences.",
 		subscriptionHeading: "Subscription & billing",
+		title: input.title,
+		chips: input.chips,
+		price: HIDDEN_PRICE,
 		nextCharge: HIDDEN_NEXT_CHARGE,
-		showCancellingNotice: false,
-		cancellingNotice: "",
+		managePanel: CLOSED_MANAGE_PANEL,
 		pollState: "idle",
 		stateIsErrorPaymentMethod: false,
 		stateIsErrorSubscribeFailed: false,
-		actions,
+		actions: input.actions,
 		dangerAction: DELETE_ACCOUNT_ACTION,
-		showCardSection: true,
 	};
 }
 
-export function toAccountViewModel(
-	access: EffectiveAccess,
-	queryState: AccountUrlState,
-	now: Date,
-	nextCharge?: SubscriptionNextCharge,
-): AccountViewModel {
+export function toAccountViewModel(input: {
+	access: EffectiveAccess;
+	queryState: AccountUrlState;
+	now: Date;
+	nextCharge: SubscriptionNextCharge | undefined;
+	plan: BillingPlan | undefined;
+	hasCustomer: boolean;
+	payment: PaymentSectionInput;
+}): AccountViewModel {
 	return {
-		...stateViewModel(access, queryState, now, nextCharge),
-		checkedPlan: planChargedWithoutChoice(access),
+		...stateViewModel(input),
+		checkedPlan: planChargedWithoutChoice(input.access),
 		dangerConfirmation: {
 			phrase: DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 			pattern: DELETE_CONFIRMATION_PATTERN,
 			title: DELETE_CONFIRMATION_TITLE,
 			field: DELETE_ACCOUNT_CONFIRMATION_FIELD,
-			hasNotice: queryState.deleteConfirmationError,
+			hasNotice: input.queryState.deleteConfirmationError,
 			notice: DELETE_CONFIRMATION_NOTICE,
 		},
+		payment: buildPaymentSectionViewModel(input.payment, input.queryState.manage),
+		billingHistory: input.hasCustomer ? VISIBLE_BILLING_HISTORY : HIDDEN_BILLING_HISTORY,
 	};
 }
 
 const CANCELLING_NOTICE = "Cancellation in progress.";
 const CANCELLING_STALLED_NOTICE = "Cancellation is taking longer than usual. Refresh to check.";
 
-function cancellingViewModel(queryState: AccountUrlState): AccountCardBase & { statusLine: string } {
+function cancellingViewModel(
+	queryState: AccountUrlState,
+	plan: BillingPlan | undefined,
+): AccountCardBase & { statusLine: string } {
 	const canPoll = queryState.pollCount < ACCOUNT_CANCEL_MAX_POLLS;
 	return {
-		...baseFor("active", [CANCEL_PENDING_ACTION]),
-		statusLine: "Subscription: Active.",
-		showCancellingNotice: true,
-		cancellingNotice: canPoll ? CANCELLING_NOTICE : CANCELLING_STALLED_NOTICE,
+		...baseFor({ state: "active", title: planTitle(plan), chips: [ACTIVE_CHIP], actions: [] }),
+		price: planPrice(plan),
+		statusLine: "",
+		managePanel: {
+			state: "open",
+			body: MANAGE_SUBSCRIPTION_BODY,
+			actions: [CANCEL_PENDING_ACTION],
+			showCancellingNotice: true,
+			cancellingNotice: canPoll ? CANCELLING_NOTICE : CANCELLING_STALLED_NOTICE,
+		},
 		pollState: canPoll ? "polling" : "idle",
 		pollUrl: canPoll ? buildAccountStatusPollUrl(queryState.pollCount + 1) : undefined,
 	};
 }
 
-function stateViewModel(
-	access: EffectiveAccess,
-	queryState: AccountUrlState,
-	now: Date,
-	nextCharge: SubscriptionNextCharge | undefined,
-): Omit<AccountViewModel, "dangerConfirmation" | "checkedPlan"> {
+function stateViewModel(input: {
+	access: EffectiveAccess;
+	queryState: AccountUrlState;
+	now: Date;
+	nextCharge: SubscriptionNextCharge | undefined;
+	plan: BillingPlan | undefined;
+}): Omit<AccountViewModel, "dangerConfirmation" | "checkedPlan" | "payment" | "billingHistory"> {
+	const { access, queryState, now, nextCharge, plan } = input;
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
 	if (queryState.errorPaymentMethod) {
 		return {
-			...baseFor("error-payment-method", []),
-			statusLine: "We couldn't restart your subscription.",
+			...baseFor({ state: "error-payment-method", title: planTitle(plan), chips: [], actions: [] }),
+			statusLine: "",
 			stateIsErrorPaymentMethod: true,
 		};
 	}
 
 	if (queryState.errorSubscribeFailed) {
 		return {
-			...baseFor("error-subscribe-failed", [SUBSCRIBE_ACTION]),
-			statusLine: "We couldn't start your subscription. Nothing was charged.",
+			...baseFor({
+				state: "error-subscribe-failed",
+				title: "Subscription",
+				chips: [],
+				actions: [SUBSCRIBE_ACTION],
+			}),
+			statusLine: "",
 			stateIsErrorSubscribeFailed: true,
 		};
 	}
 
 	switch (access.banner) {
-		case "none":
+		case "none": {
 			if (access.tier === "founding") {
 				return {
-					...baseFor("founding", []),
-					statusLine: "You're a founding member — free for life.",
+					...baseFor({ state: "founding", title: "Founding member", chips: [], actions: [] }),
+					statusLine: "Free for life.",
 				};
 			}
-			if (queryState.cancelling) return cancellingViewModel(queryState);
+			if (queryState.cancelling) return cancellingViewModel(queryState, plan);
+			const managing = queryState.manage === "subscription";
 			return {
-				...baseFor("active", [CANCEL_FORM_ACTION]),
-				statusLine: "Subscription: Active.",
+				...baseFor({
+					state: "active",
+					title: planTitle(plan),
+					chips: [ACTIVE_CHIP],
+					actions: [managing ? DONE_ACTION : MANAGE_SUBSCRIPTION_ACTION],
+				}),
+				price: planPrice(plan),
+				statusLine: "",
 				nextCharge: buildNextChargeViewModel({ nextCharge, now }),
+				managePanel: managing ? OPEN_MANAGE_PANEL : CLOSED_MANAGE_PANEL,
 			};
+		}
 		case "trial-countdown": {
 			const trialEndsAt = access.trialEndsAt;
 			const { daysLeft, daysLeftWord } = formatTrialDaysLeft(trialEndsAt, now);
 			return {
-				...baseFor("trial", [SUBSCRIBE_ACTION]),
+				...baseFor({ state: "trial", title: "Free trial", chips: [], actions: [SUBSCRIBE_ACTION] }),
 				statusLine: "Your free trial ends on ",
 				statusDate: toAbsoluteDate({ iso: trialEndsAt }),
 				statusDateTail: ` — ${daysLeft} ${daysLeftWord} left.`,
@@ -520,22 +796,28 @@ function stateViewModel(
 		}
 		case "cancellation-scheduled":
 			return {
-				...baseFor("cancellation-scheduled", [REACTIVATE_FORM_ACTION]),
+				...baseFor({
+					state: "cancellation-scheduled",
+					title: planTitle(plan),
+					chips: [CANCELLED_CHIP],
+					actions: [REACTIVATE_FORM_ACTION],
+				}),
 				statusLine: "Your subscription ends on ",
 				statusDate: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
 				statusDateTail: ".",
 			};
 		case "inactive":
 			return {
-				...baseFor("inactive", [SUBSCRIBE_ACTION]),
-				statusLine: "Subscription not active.",
+				...baseFor({
+					state: "inactive",
+					title: "Subscription",
+					chips: [INACTIVE_CHIP],
+					actions: [SUBSCRIBE_ACTION],
+				}),
+				statusLine: "",
 			};
 	}
 }
-
-/** Origin for parsing root-relative action hrefs; `.invalid` is reserved by RFC
- * 2606 so it can never resolve, and only `pathname`/`search` are read back. */
-const APP_HREF_PARSE_ORIGIN = "https://internal.invalid";
 
 interface AppSurfaceOptions {
 	appShell: boolean;
@@ -552,8 +834,30 @@ function carryAppSurfaceHref(href: string, options: AppSurfaceOptions): string {
 	return `${url.pathname}${url.search}`;
 }
 
+function appSurfaceFields(options: AppSurfaceOptions): AccountHiddenField[] {
+	const url = new URL(carryAppSurfaceHref("/", options), APP_HREF_PARSE_ORIGIN);
+	return Array.from(url.searchParams, ([name, value]) => ({ name, value }));
+}
+
+const CARRY_APP_SURFACE: Record<
+	AccountAction["method"],
+	(action: AccountAction, options: AppSurfaceOptions) => AccountAction
+> = {
+	POST: (action, options) => ({ ...action, href: carryAppSurfaceHref(action.href, options) }),
+	GET: (action, options) => ({
+		...action,
+		hiddenFields: [...action.hiddenFields, ...appSurfaceFields(options)],
+	}),
+};
+
 function carryAppSurface(action: AccountAction, options: AppSurfaceOptions): AccountAction {
-	return { ...action, href: carryAppSurfaceHref(action.href, options) };
+	return CARRY_APP_SURFACE[action.method](action, options);
+}
+
+function withoutPurchaseActions(actions: AccountAction[], options: AppSurfaceOptions): AccountAction[] {
+	return actions
+		.filter((a) => a.key !== "subscribe" && a.key !== "reactivate-form")
+		.map((a) => carryAppSurface(a, options));
 }
 
 export interface AppearanceOptionView {
@@ -612,13 +916,7 @@ export function buildAppearanceSection(input: {
  * payment-methods section — so the build satisfies App Store review Guideline
  * 3.1.1. Kept: the subscription status line, the cancel control, and the
  * delete-account danger zone (Apple requires in-app account deletion; cancelling
- * buys nothing). Every surviving control — the cancel control and the
- * delete-account danger action — carries the request's own surface markers on its
- * href so a POST lands on e.g. /account/cancel?platform=ios (or
- * /account/delete?platform=ios&shell=app) and its post-redirect GET re-renders this
- * same surface — the WKWebView form post sends no client header, so a
- * server-rejected delete confirmation stays commerce-free (and, in the app shell,
- * chromeless) instead of bouncing to the web surface. Commerce-stripping itself is
+ * buys nothing). Commerce-stripping itself is
  * keyed on the iOS surface, not the app shell: a store build predating the shell
  * marker must keep satisfying Guideline 3.1.1. */
 export function withoutCommerce(
@@ -627,16 +925,20 @@ export function withoutCommerce(
 ): AccountViewModel {
 	return {
 		...vm,
-		actions: vm.actions
-			.filter((a) => a.key !== "subscribe" && a.key !== "reactivate-form")
-			.map((a) => carryAppSurface(a, options)),
+		actions: withoutPurchaseActions(vm.actions, options),
+		managePanel: {
+			...vm.managePanel,
+			actions: withoutPurchaseActions(vm.managePanel.actions, options),
+		},
 		dangerAction: carryAppSurface(vm.dangerAction, options),
 		pollUrl: vm.pollUrl === undefined ? undefined : carryAppSurfaceHref(vm.pollUrl, options),
 		/** Naming a price is the part of this page Guideline 3.1.1 objects to, so the
 		 * renewal line is stripped here rather than relying on the route happening not
 		 * to load one. */
 		nextCharge: HIDDEN_NEXT_CHARGE,
-		showCardSection: false,
+		price: HIDDEN_PRICE,
+		payment: buildPaymentSectionViewModel({ kind: "no-customer" }, undefined),
+		billingHistory: HIDDEN_BILLING_HISTORY,
 		lede: "Manage your account and preferences.",
 		subscriptionHeading: "Subscription",
 	};

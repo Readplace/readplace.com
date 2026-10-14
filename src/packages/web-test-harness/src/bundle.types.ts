@@ -102,6 +102,8 @@ import type {
 	FindSubscriptionByUserId,
 	FindSubscriptionNextCharge,
 	FindUnreadSavesForDigest,
+	InvoiceSummary,
+	ListInvoices,
 	SaveReadlistArticle,
 	FindReadlistArticles,
 	CountReadlistArticles,
@@ -352,6 +354,10 @@ export interface SubscriptionBillingBundle {
 	seedNextCharge: (input: { subscriptionId: string; nextCharge: SubscriptionNextCharge }) => void;
 	failNextChargeLookup: () => void;
 	nextChargeLookups: () => readonly string[];
+	listInvoices: ListInvoices;
+	seedInvoices: (input: { customerId: string; invoices: InvoiceSummary[] }) => void;
+	failInvoiceLookup: () => void;
+	invoiceLookups: () => readonly string[];
 }
 
 export interface ArticleStoreBundle {

@@ -11,6 +11,8 @@ export interface PricingPlan {
 	readonly totalDisplay: string;
 	readonly billedNote: string;
 	readonly billedLine: string;
+	readonly summaryName: string;
+	readonly cadenceDisplay: string;
 }
 
 function toPricingPlan(input: {
@@ -19,6 +21,8 @@ function toPricingPlan(input: {
 	months: number;
 	billedAs: string;
 	cadence: string;
+	summaryName: string;
+	cadenceSuffix: string;
 }): PricingPlan {
 	const monthlyAmount = `${input.totalUsd / input.months}`;
 	const totalAmount = `${input.totalUsd}`;
@@ -31,6 +35,8 @@ function toPricingPlan(input: {
 		totalDisplay,
 		billedNote: `${totalDisplay} ${input.billedAs}`,
 		billedLine: `Billed ${totalDisplay} ${input.cadence}`,
+		summaryName: input.summaryName,
+		cadenceDisplay: `${totalDisplay}${input.cadenceSuffix}`,
 	};
 }
 
@@ -41,6 +47,8 @@ export const PRICING_PLANS: Record<BillingPlan, PricingPlan> = {
 		months: 1,
 		billedAs: "billed monthly",
 		cadence: "every month",
+		summaryName: "Monthly plan",
+		cadenceSuffix: "/month",
 	}),
 	yearly: toPricingPlan({
 		name: "Yearly",
@@ -48,6 +56,8 @@ export const PRICING_PLANS: Record<BillingPlan, PricingPlan> = {
 		months: 12,
 		billedAs: "billed once a year",
 		cadence: "once a year",
+		summaryName: "Yearly plan",
+		cadenceSuffix: "/year",
 	}),
 	triennial: toPricingPlan({
 		name: "Every 3 years",
@@ -55,6 +65,8 @@ export const PRICING_PLANS: Record<BillingPlan, PricingPlan> = {
 		months: 36,
 		billedAs: "billed once every 3 years",
 		cadence: "every 3 years",
+		summaryName: "3-year plan",
+		cadenceSuffix: " every 3 years",
 	}),
 };
 

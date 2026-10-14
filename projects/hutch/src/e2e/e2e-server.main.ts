@@ -35,6 +35,9 @@ import {
 	GMAIL_SETTINGS_SCOPE,
 } from '@packages/provider-contracts/gmail-oauth'
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from '@packages/provider-contracts/newsletter-catalog'
+import { type SavedCard, PaymentMethodIdSchema } from '@packages/provider-contracts/payment-methods'
+import { type InvoiceSummary, InvoiceIdSchema } from '@packages/provider-contracts/subscription-billing'
+import { BILLING_PLANS } from '@packages/provider-contracts/subscription-providers'
 import { initInMemoryGmailIntegration } from '@packages/test-fixtures/providers/gmail-integration'
 import {
 	type InMemoryNewsletterCatalog,
@@ -1065,10 +1068,47 @@ server.post('/e2e/seed-newsletter-catalog', (req, res) => {
 const SUBSCRIPTION_TRIAL_DEFAULT_OFFSET_MS = ((9 * 24 + 23) * 60 + 18) * 60 * 1000
 const SUBSCRIPTION_CANCELLATION_DEFAULT_OFFSET_MS = 30 * 24 * 60 * 60 * 1000
 
+const E2E_PRIMARY_CARD: SavedCard = {
+	id: PaymentMethodIdSchema.parse('pm_e2e_visa'),
+	brand: 'visa',
+	last4: '4242',
+	expMonth: 12,
+	expYear: 2034,
+	isPrimary: true,
+}
+const E2E_BACKUP_CARD: SavedCard = {
+	id: PaymentMethodIdSchema.parse('pm_e2e_mastercard'),
+	brand: 'mastercard',
+	last4: '5555',
+	expMonth: 8,
+	expYear: 2029,
+	isPrimary: false,
+}
+const E2E_SEED_CARDS = {
+	primary: [E2E_PRIMARY_CARD],
+	'primary-and-backup': [E2E_PRIMARY_CARD, E2E_BACKUP_CARD],
+}
+const E2E_CHARGE = { amountMinor: 1000, currency: 'usd' }
+
+function e2eInvoices(count: number): InvoiceSummary[] {
+	return Array.from({ length: count }, (_, index) => ({
+		id: InvoiceIdSchema.parse(`in_e2e${String(index + 1).padStart(3, '0')}`),
+		number: `E2E-${String(index + 1).padStart(4, '0')}`,
+		issuedAt: new Date(Date.UTC(2026, 8 - index, 18)).toISOString(),
+		amountPaidMinor: E2E_CHARGE.amountMinor,
+		currency: E2E_CHARGE.currency,
+		hostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_e2e/invoice',
+	}))
+}
+
 const SeedSubscriptionStateBody = z.object({
 	userId: UserIdSchema,
-	state: z.enum(['trialing', 'cancellation-scheduled', 'inactive']),
+	state: z.enum(['trialing', 'active', 'cancellation-scheduled', 'inactive']),
 	at: z.string().optional(),
+	plan: z.enum(BILLING_PLANS).optional(),
+	cards: z.enum(['primary', 'primary-and-backup']).optional(),
+	nextChargeAt: z.string().optional(),
+	invoices: z.number().int().nonnegative().optional(),
 })
 server.post('/e2e/seed-subscription-state', async (req, res) => {
 	const parsed = SeedSubscriptionStateBody.safeParse(req.body)
@@ -1076,17 +1116,22 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { userId, state, at } = parsed.data
+	const { userId, state, at, plan, cards, nextChargeAt, invoices } = parsed.data
+	const subscriptionId = `e2e-sub-${userId}`
+	const customerId = `e2e-cus-${userId}`
 	if (state === 'trialing') {
 		const trialEndsAt = at ?? new Date(fixture.shared.now().getTime() + SUBSCRIPTION_TRIAL_DEFAULT_OFFSET_MS).toISOString()
 		await fixture.subscriptionProviders.upsertTrialing({ userId, trialEndsAt })
 	}
+	if (state === 'active') {
+		await fixture.subscriptionProviders.upsertActive({ userId, subscriptionId, customerId, plan: plan ?? 'monthly' })
+	}
 	if (state === 'cancellation-scheduled' || state === 'inactive') {
 		await fixture.subscriptionProviders.upsertActive({
 			userId,
-			subscriptionId: `e2e-sub-${userId}`,
-			customerId: `e2e-cus-${userId}`,
-			plan: 'yearly',
+			subscriptionId,
+			customerId,
+			plan: plan ?? 'yearly',
 		})
 	}
 	if (state === 'cancellation-scheduled') {
@@ -1095,6 +1140,15 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 	}
 	if (state === 'inactive') {
 		await fixture.subscriptionProviders.markCancelledByUserId({ userId })
+	}
+	if (cards !== undefined) {
+		fixture.paymentMethods.seedCards({ customerId, cards: E2E_SEED_CARDS[cards] })
+	}
+	if (nextChargeAt !== undefined) {
+		fixture.subscriptionBilling.seedNextCharge({ subscriptionId, nextCharge: { at: nextChargeAt, ...E2E_CHARGE } })
+	}
+	if (invoices !== undefined) {
+		fixture.subscriptionBilling.seedInvoices({ customerId, invoices: e2eInvoices(invoices) })
 	}
 	res.status(201).json({ ok: true })
 })

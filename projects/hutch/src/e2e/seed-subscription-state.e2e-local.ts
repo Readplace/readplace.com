@@ -20,7 +20,12 @@ async function createVerifiedUser(page: Page, email: string): Promise<string> {
 
 async function seedSubscriptionState(
 	page: Page,
-	params: { userId: string; state: "trialing" | "cancellation-scheduled" | "inactive" },
+	params: {
+		userId: string;
+		state: "trialing" | "active" | "cancellation-scheduled" | "inactive";
+		plan?: "monthly" | "yearly" | "triennial";
+		cards?: "primary" | "primary-and-backup";
+	},
 ): Promise<void> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
 		data: params,
@@ -70,5 +75,18 @@ test.describe("Subscription state seed fixture", () => {
 		await page.waitForSelector("body.page-readlist");
 
 		await expect(page.locator(BANNER)).toHaveClass(/readlist-subscription--cancellation-scheduled/);
+	});
+
+	test("a seeded active subscription shows the plan title and the primary card on /account", async ({ page }, testInfo) => {
+		const email = `seed-subscription-active-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedSubscriptionState(page, { userId, state: "active", plan: "yearly", cards: "primary" });
+
+		await loginAs(page, email);
+		await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-account");
+
+		await expect(page.locator("[data-test-account-plan-title]")).toHaveText("Yearly plan");
+		await expect(page.locator("[data-test-card-primary] h3")).toHaveText("Visa •••• 4242");
 	});
 });

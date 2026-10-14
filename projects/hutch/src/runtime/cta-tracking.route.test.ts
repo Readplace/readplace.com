@@ -6,6 +6,8 @@ import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/doma
 import { AliasNameSchema } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
+import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
+import { InvoiceIdSchema } from "@packages/provider-contracts/subscription-billing";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -180,6 +182,68 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		expect(readerHref).toContain("/view");
 		expect(readlistPaths.length).toBe(6);
 		expect(untracked).toEqual([]);
+	});
+
+	it("holds across the billing surfaces of a paying subscriber with saved cards and invoices", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const reader = await harness.auth.findUserByEmail("test@example.com");
+		assert(reader, "the logged-in reader must exist");
+		await harness.subscriptionProviders.upsertActive({
+			userId: reader.userId,
+			subscriptionId: "sub_billing_ctas",
+			customerId: "cus_billing_ctas",
+			plan: "monthly",
+		});
+		harness.paymentMethods.seedCards({
+			customerId: "cus_billing_ctas",
+			cards: [
+				{ id: PaymentMethodIdSchema.parse("pm_billing_primary"), brand: "visa", last4: "4242", expMonth: 12, expYear: 2034, isPrimary: true },
+				{ id: PaymentMethodIdSchema.parse("pm_billing_backup"), brand: "mastercard", last4: "5555", expMonth: 8, expYear: 2029, isPrimary: false },
+			],
+		});
+		harness.subscriptionBilling.seedInvoices({
+			customerId: "cus_billing_ctas",
+			invoices: Array.from({ length: 13 }, (_, index) => {
+				const n = String(index + 1).padStart(3, "0");
+				return {
+					id: InvoiceIdSchema.parse(`in_cta${n}`),
+					number: `CTA-${n}`,
+					issuedAt: new Date(Date.UTC(2026, 8 - index, 18)).toISOString(),
+					amountPaidMinor: 1000,
+					currency: "usd",
+					hostedInvoiceUrl: `https://invoice.stripe.com/i/acct_test/in_cta${n}`,
+				};
+			}),
+		});
+
+		const pages: [string, string][] = [];
+		for (const path of [
+			"/account",
+			"/account?manage=subscription",
+			"/account?manage=payment",
+			"/account/invoices",
+			"/account/invoices?after=in_cta012",
+		]) {
+			pages.push([path, (await agent.get(path).set(BROWSER_REQUEST_HEADERS)).text]);
+		}
+
+		const rendered = pages.map(([, html]) => new JSDOM(html).window.document);
+		const accountActions = new Set(rendered.flatMap((doc) =>
+			Array.from(doc.querySelectorAll("[data-test-account-action]"), (el) => el.getAttribute("data-test-account-action")),
+		));
+		expect([...accountActions].sort()).toEqual([
+			"cancel-form",
+			"done",
+			"manage-subscription",
+			"update-payment",
+			"view-invoices",
+		]);
+		expect(rendered.flatMap((doc) => Array.from(doc.querySelectorAll("a[data-test-invoices-newer], a[data-test-invoices-older]"), (el) => el.getAttribute("rel")))).toEqual([
+			"next",
+			"prev",
+		]);
+		expect(pages.flatMap(([path, html]) => untrackedOn(path, html))).toEqual([]);
 	});
 
 	it("holds across the GMail Newsletters page with both pickers open, every mapping action and the import consent", async () => {

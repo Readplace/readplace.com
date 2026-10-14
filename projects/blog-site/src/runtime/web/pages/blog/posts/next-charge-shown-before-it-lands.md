@@ -1,9 +1,10 @@
 ---
 title: "A Charge You Can See Coming"
-description: "Readplace shows the exact date and amount of your next renewal on the account page, but only in the 30 days before it lands. The number is read live from the billing provider when its stored copy goes stale, hidden inside the iPhone app to satisfy App Store rules, and paired with a live cancelling state that heals into a one-tap reactivate."
-tldr: "Subscription pages tend to stay quiet about money until the day the card is charged. Readplace's account page does the reverse. In the 30 days before a renewal it shows the exact date the charge falls and the exact amount, read from the billing provider and shown in your own currency. Outside that window it shows nothing, because a renewal 11 months out is a number you learn to read past. The figure is cached on your subscription record and refetched only when the stored copy is missing, stale, or sitting in the past, so most of the year nothing is fetched at all. Cancel, and the card shows a live Cancelling state while the request runs, then settles into your subscription's end date with a one-tap Reactivate under it. Inside the iPhone app the price line is stripped, because App Store rules object to a web page naming a price. The reminder that goes out before a free trial ends now says where a subscription's money goes, too. None of the billing is hidden until after it has already happened."
+description: "Readplace shows the exact date and amount of your next renewal on the account page, under the plan it renews. The number is read live from the billing provider when its stored copy goes stale, hidden inside the iPhone app to satisfy App Store rules, and paired with a live cancelling state that heals into a one-tap reactivate."
+tldr: "Subscription pages tend to stay quiet about money until the day the card is charged. Readplace's account page does the reverse. Under the plan and its price, it shows the exact date the next charge falls and the exact amount, read from the billing provider and shown in your own currency. The figure is cached on your subscription record and refetched only when the stored copy is missing, stale, or sitting in the past, so most of the year nothing is fetched at all. Cancel, and the card shows a live Cancelling state while the request runs, then settles into your subscription's end date with a one-tap Reactivate. Inside the iPhone app the price line is stripped, because App Store rules object to a web page naming a price. The reminder that goes out before a free trial ends now says where a subscription's money goes, too. None of the billing is hidden until after it has already happened."
 slug: "next-charge-shown-before-it-lands"
 date: "2026-07-14"
+lastModified: "2026-10-14"
 author: "Fayner Brack"
 keywords: "when will I be charged subscription, see next charge date read it later, read it later app subscription cost, no surprise renewal reading app, cancel read it later subscription, reactivate subscription read later, read it later free trial no card, transparent subscription billing app, subscription renewal reminder, read it later app pricing"
 tags: ["changelog"]
@@ -14,17 +15,17 @@ Once a year, a Readplace subscription renews. For the other 11 months, the accou
 
 That silence was the safe default, and it was the wrong one. A charge you can't see coming is a charge you find out about only after it has landed.
 
-The account page shows the next one now. It names the day the card will be charged and the sum that will leave the account, and it does that only when the charge is close enough to act on.
+The account page shows the next one now. It names the day the card will be charged and the sum that will leave the account.
 
-## The line that shows up only in time
+## The line that sits under the price
 
-A yearly plan renews once. A renewal date printed every day of the year is a number you stop seeing, the way you stop reading a sign that never changes.
+The line sits in the plan summary, under the plan's name and its price. Placed there, the date reads as part of the plan, the same way the price above it does.
 
-So the line has a window. It appears in the 30 days before the charge and stays hidden the rest of the year. Thirty days is room enough to update a card, to cancel, or to simply not be surprised on the morning it hits.
+So the line stays for as long as a charge is coming, a week out or 11 months out. That leaves room to update a card, to cancel, or to simply not be surprised on the morning it hits.
 
-The window has a second edge. A charge dated in the past is not a charge to come, so the line hides then too. A reader whose card is failing, caught in the retries a provider runs before it gives up, would otherwise be told they will be billed on a day that has already gone. That reader has enough to deal with.
+A charge dated in the past is not a charge to come, so the line hides. A reader whose card is failing, caught in the retries a provider runs before it gives up, would otherwise be told they will be billed on a day that has already gone. That reader has enough to deal with.
 
-> **A renewal date shown every day of the year is one you train yourself to ignore.**
+> **A price says what a plan costs, and the date under it says when that cost lands.**
 
 ## A number read live, then held
 
@@ -40,7 +41,7 @@ The amount comes back in minor units, the cents behind a dollar or the pennies b
 
 Cancelling used to be a button that went quiet the moment you pressed it. The request went off to the provider, and the page sat still until it came back, with nothing on screen to say the press had landed.
 
-It says so now. Press Cancel and the control reads Cancelling while the request runs, and the card checks for the result on its own. When the provider confirms, the card rewrites itself: the status becomes the date your subscription ends, and a Reactivate button appears under it.
+It says so now. Press Cancel and the control reads Cancelling while the request runs, and the card checks for the result on its own. When the provider confirms, the card rewrites itself: the status becomes the date your subscription ends, and a Reactivate button appears.
 
 That reactivate path counts as much as the cancel. Changing your mind is a single press, not an email to a person. The subscription you cancelled on Tuesday is one tap back on Wednesday, right up to the day it actually ends.
 
@@ -53,13 +54,12 @@ Open the same account page inside the Readplace iPhone app and the renewal line 
 ```rp-figure
 kind: rule
 title: Whether the next charge line shows, and where its number came from
-note: The window, the cache rule, and the one surface where the number is stripped.
-choice: The renewal date | inside the 30 days before the charge | further out than 30 days | a day already gone
+note: The past-date rule, the cache rule, and the one surface where the number is stripped.
+choice: The renewal date | still to come | a day already gone
 flag: The stored copy is missing, stale, or already past
 flag: Opened inside the Readplace iPhone app
 when: f2 -> no | Hidden | Apple's App Store rules don't allow a web view inside an app to name a subscription price, so the line is stripped before the page renders on that surface.
-when: c1=3 -> no | Hidden | A charge dated in the past is not a charge to come, so the line hides then too.
-when: c1=2 -> no | Hidden | The line has a window. It appears in the 30 days before the charge and stays hidden the rest of the year.
+when: c1=2 -> no | Hidden | A charge dated in the past is not a charge to come, so the line hides.
 when: f1 -> ok | Shown live | Missing, stale, or a date already gone, so the page fetches the live figure from the provider and writes it back before showing it.
 else: ok | Shown | The stored copy is still in the future, so that is the answer, and nothing else is asked.
 ```
@@ -72,6 +72,6 @@ A page that shows the charge before it lands belongs to the same idea. A subscri
 
 ## Where your next charge shows
 
-If you are on a trial or already subscribed, open your account page in the 30 days before your renewal and the date and amount are sitting there, in your own currency. Outside that window the quiet is the feature working, and a saved copy of everything you kept [outlasts the pages it came from](/blog/saved-articles-outlast-the-original-page?utm_source=blog-next-charge-shown-before-it-lands&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page) either way. A readlist of your own starts at [readplace.com](/?utm_source=blog-next-charge-shown-before-it-lands&utm_medium=internal&utm_content=home).
+If you are on a trial or already subscribed, open your account page and the date and amount are sitting there, in your own currency. Whether you stay or cancel, a saved copy of everything you kept [outlasts the pages it came from](/blog/saved-articles-outlast-the-original-page?utm_source=blog-next-charge-shown-before-it-lands&utm_medium=internal&utm_content=post-saved-articles-outlast-the-original-page). A readlist of your own starts at [readplace.com](/?utm_source=blog-next-charge-shown-before-it-lands&utm_medium=internal&utm_content=home).
 
 Showing a price before someone subscribes is the easy half. Showing it before every charge after that is the half that counts.

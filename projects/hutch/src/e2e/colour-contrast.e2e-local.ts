@@ -933,6 +933,33 @@ test.describe("Account colour roles hold their WCAG contrast in both themes", ()
 			await expect(page.locator(`${dialog}:popover-open`)).toBeHidden({ timeout: SETTLE_MS });
 		}
 	});
+
+	test("the billing card's open payment panel and the invoices page clear their contrast minimum", async ({ page }, testInfo) => {
+		const email = `colour-contrast-billing-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createChipReader(page, email);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: {
+				userId,
+				state: "active",
+				plan: "monthly",
+				cards: "primary-and-backup",
+				nextChargeAt: "2099-09-18T00:00:00.000Z",
+				invoices: 13,
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		await loginChipReader(page, email);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/account?manage=payment`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-manage-panel="payment"]')).toHaveAttribute("data-manage-panel-state", "open");
+			await auditRoot(page, { root: "main.account", theme, view: "account/billing" });
+			await page.goto(`${BASE_URL}/account/invoices`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-invoices-state]")).toHaveAttribute("data-test-invoices-state", "list");
+			await auditRoot(page, { root: "main.account", theme, view: "account/invoices" });
+		}
+	});
 });
 
 test.describe("Readlist preferences colour roles hold their WCAG contrast in both themes", () => {

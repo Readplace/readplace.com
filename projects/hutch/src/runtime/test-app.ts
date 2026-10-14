@@ -333,6 +333,7 @@ function flattenFixtureToAppDependencies(
 			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge:
 			fixture.subscriptionBilling.findSubscriptionNextCharge,
+		listInvoices: fixture.subscriptionBilling.listInvoices,
 		reverseScheduledCancellation:
 			fixture.subscriptionBilling.reverseScheduledCancellation,
 		paymentMethods: {

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { iconSvg } from "@packages/ui-icons";
 import {
 	CONFIRM_POPOVER_STYLES,
 	render,
@@ -18,14 +19,18 @@ import { ACCOUNT_STYLES } from "./account.styles";
 import { ACCOUNT_EXPORT_URL } from "./account.url";
 import type {
 	AccountAction,
+	AccountActionKey,
 	AccountViewModel,
 	AppearanceSectionViewModel,
-	CardSectionViewModel,
+	BillingHistoryViewModel,
+	ManagePanelState,
+	PaymentSectionState,
+	PriceViewModel,
 } from "./account.view-model";
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
 const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.template.html"), "utf-8");
-const ACCOUNT_PAYMENT_CARDS_TEMPLATE = readFileSync(join(__dirname, "account-payment-cards.template.html"), "utf-8");
+const ACCOUNT_BILLING_TEMPLATE = readFileSync(join(__dirname, "account-billing.template.html"), "utf-8");
 const ACCOUNT_DANGER_FORM_TEMPLATE = readFileSync(join(__dirname, "account-danger-form.template.html"), "utf-8");
 
 /** Same-origin glue bundle (Stripe.js itself loads from js.stripe.com inside it).
@@ -51,6 +56,39 @@ export interface AccountSurface {
 const ACCOUNT_ACTION_FORM_CLASS = "account-card__action-form";
 
 const ACTION_LOADER_HTML = renderInFlightDots("account__action-loader in-flight-dots");
+
+const ACTION_SWAP: Record<AccountActionKey, string> = {
+	subscribe: "outerHTML show:none",
+	"cancel-form": "outerHTML show:none",
+	"reactivate-form": "outerHTML show:none",
+	"delete-account": "outerHTML show:none",
+	"manage-subscription": "outerHTML show:none",
+	"update-payment": "outerHTML show:none",
+	"view-invoices": "outerHTML show:none scroll:html:top",
+	done: "outerHTML show:none",
+};
+
+const PRICE_CLASS: Record<PriceViewModel["state"], string> = {
+	visible: "account-billing__price",
+	hidden: "account-billing__price account-billing__price--hidden",
+};
+
+const PANEL_CLASS: Record<ManagePanelState, string> = {
+	open: "account-billing__panel",
+	closed: "account-billing__panel account-billing__panel--closed",
+};
+
+const PAYMENT_CLASS: Record<PaymentSectionState, string> = {
+	card: "account-billing__payment",
+	"no-card": "account-billing__payment",
+	"provider-error": "account-billing__payment",
+	hidden: "account-billing__payment account-billing__payment--hidden",
+};
+
+const HISTORY_CLASS: Record<BillingHistoryViewModel["state"], string> = {
+	visible: "account-billing__history account-billing__history--visible",
+	hidden: "account-billing__history account-billing__history--hidden",
+};
 
 const DELETE_ACCOUNT_POPOVER_ID = "delete-account";
 
@@ -162,24 +200,32 @@ interface AccountCardPopoverTrigger {
 
 interface AccountCardAction extends AccountAction {
 	formClass: string;
+	hxSwap: string;
+	leadingIconHtml: string;
+	trailingIconHtml: string;
 	loaderHtml: string;
 	popoverTriggers: readonly AccountCardPopoverTrigger[];
 }
 
 function toAccountCardAction(action: AccountAction): AccountCardAction {
+	const rendered = {
+		...action,
+		hxSwap: ACTION_SWAP[action.key],
+		leadingIconHtml: action.leadingIcon === undefined ? "" : iconSvg(action.leadingIcon),
+		trailingIconHtml: action.trailingIcon === undefined ? "" : iconSvg(action.trailingIcon),
+		loaderHtml: ACTION_LOADER_HTML,
+	};
 	const popoverTarget = action.popoverTarget;
 	if (popoverTarget === undefined) {
 		return {
-			...action,
+			...rendered,
 			formClass: ACCOUNT_ACTION_FORM_CLASS,
-			loaderHtml: ACTION_LOADER_HTML,
 			popoverTriggers: [],
 		};
 	}
 	return {
-		...action,
+		...rendered,
 		formClass: `${ACCOUNT_ACTION_FORM_CLASS} subscribe-plans__fallback`,
-		loaderHtml: ACTION_LOADER_HTML,
 		popoverTriggers: [
 			{
 				popoverTarget,
@@ -197,7 +243,7 @@ export function renderAccountCard(vm: AccountViewModel): string {
 			key: "account-subscription",
 			content: {
 				variant: "error",
-				title: { text: "We couldn't restart your subscription", element: "h2" },
+				title: { text: "We couldn't restart your subscription", element: "p" },
 				message: { html: render('The card we have on file is no longer valid. Email <a href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a> and we\'ll get you back up and running.', {}) },
 			},
 		})
@@ -206,29 +252,46 @@ export function renderAccountCard(vm: AccountViewModel): string {
 				key: "account-subscription",
 				content: {
 					variant: "error",
-					title: { text: "We couldn't start your subscription", element: "h2" },
+					title: { text: "We couldn't start your subscription", element: "p" },
 					message: { html: render('Something went wrong on the way to the checkout and nothing was charged. Try again, and if it keeps happening email <a href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a>.', {}) },
 				},
 			})
 			: "";
-	return render(ACCOUNT_CARD_TEMPLATE, { ...vm, errorAlertHtml, actions: vm.actions.map(toAccountCardAction) });
+	return render(ACCOUNT_CARD_TEMPLATE, {
+		...vm,
+		errorAlertHtml,
+		priceClass: PRICE_CLASS[vm.price.state],
+		panelClass: PANEL_CLASS[vm.managePanel.state],
+		actions: vm.actions.map(toAccountCardAction),
+		panelActions: vm.managePanel.actions.map(toAccountCardAction),
+	});
+}
+
+function renderBillingSections(vm: AccountViewModel): string {
+	const payment = vm.payment;
+	return render(ACCOUNT_BILLING_TEMPLATE, {
+		payment,
+		billingHistory: vm.billingHistory,
+		paymentClass: PAYMENT_CLASS[payment.state],
+		paymentPanelClass: PANEL_CLASS[payment.panel.state],
+		historyClass: HISTORY_CLASS[vm.billingHistory.state],
+		paymentActions: payment.actions.map(toAccountCardAction),
+		historyActions: vm.billingHistory.actions.map(toAccountCardAction),
+		actionLoaderHtml: ACTION_LOADER_HTML,
+		alertHtml: payment.isError
+			? renderAlert({ key: "payment-methods", content: { variant: "error", message: { text: payment.message } } })
+			: "",
+		noticeAlertHtml: payment.panel.hasNotice
+			? renderAlert({ key: "card-notice", content: { variant: "error", message: { text: payment.panel.notice } } })
+			: "",
+	});
 }
 
 export function AccountPage(
 	vm: AccountViewModel,
-	cardSection: CardSectionViewModel,
 	page: { email: string; appearance: AppearanceSectionViewModel; surface?: AccountSurface },
 ): PageBody {
 	const surface = page.surface;
-	const cardSectionView = {
-		...cardSection,
-		alertHtml: cardSection.isError
-			? renderAlert({ key: "payment-methods", content: { variant: "error", message: { text: cardSection.message } } })
-			: "",
-		noticeAlertHtml: cardSection.hasNotice
-			? renderAlert({ key: "card-notice", content: { variant: "error", message: { text: cardSection.notice } } })
-			: "",
-	};
 	return {
 		seo: {
 			title: "Account — Readplace",
@@ -242,9 +305,7 @@ export function AccountPage(
 			html: render(ACCOUNT_TEMPLATE, {
 				...vm,
 				cardHtml: renderAccountCard(vm),
-				paymentCardsHtml: vm.showCardSection
-					? render(ACCOUNT_PAYMENT_CARDS_TEMPLATE, { cardSection: cardSectionView, actionLoaderHtml: ACTION_LOADER_HTML })
-					: "",
+				billingHtml: renderBillingSections(vm),
 				subscribePlansHtml: vm.actions.some((action) => action.popoverTarget !== undefined)
 					? renderSubscribePlansPopover({ source: "account", checkedPlan: vm.checkedPlan })
 					: "",

@@ -785,6 +785,10 @@ export const CHIP_STYLES = `
 		color: var(--success-text);
 	}
 
+	.chip--status.chip--success {
+		color: var(--foreground);
+	}
+
 	.chip--error {
 		border-color: var(--color-error);
 		background: var(--error-bg);

@@ -17,6 +17,28 @@ export type FindSubscriptionNextCharge = (input: {
 	subscriptionId: string;
 }) => Promise<SubscriptionNextCharge | undefined>;
 
+export const InvoiceIdSchema = z
+	.string()
+	.regex(/^in_[A-Za-z0-9]+$/)
+	.brand<"InvoiceId">();
+export type InvoiceId = z.infer<typeof InvoiceIdSchema>;
+
+export interface InvoiceSummary {
+	id: InvoiceId;
+	number: string;
+	issuedAt: string;
+	amountPaidMinor: number;
+	currency: string;
+	hostedInvoiceUrl: string;
+}
+
+export type ListInvoices = (input: {
+	customerId: string;
+	cursor: { startingAfter: InvoiceId } | { endingBefore: InvoiceId } | undefined;
+}) => Promise<{ invoices: InvoiceSummary[]; hasMore: boolean }>;
+
+export const INVOICE_PAGE_SIZE = 12;
+
 export type CancelSubscriptionImmediately = (input: {
 	subscriptionId: string;
 }) => Promise<void>;

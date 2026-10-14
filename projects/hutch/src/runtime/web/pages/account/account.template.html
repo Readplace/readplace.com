@@ -10,8 +10,10 @@
         </div>
         <section class="account-section" aria-labelledby="account-section-subscription" data-test-account-section="subscription">
           <h2 class="account-section__heading" id="account-section-subscription">{{subscriptionHeading}}</h2>
-          {{{cardHtml}}}
-          {{{paymentCardsHtml}}}
+          <div class="account-section__card" data-test-account-billing>
+            {{{cardHtml}}}
+            {{{billingHtml}}}
+          </div>
         </section>
         <section class="account-section" aria-labelledby="account-section-appearance" data-test-account-section="appearance">
           <h2 class="account-section__heading" id="account-section-appearance">Appearance</h2>

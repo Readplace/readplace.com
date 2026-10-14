@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
+import {
+	InvoiceIdSchema,
+	type InvoiceSummary,
+} from "@packages/provider-contracts/subscription-billing";
 import { initInMemorySubscriptionBilling } from "./in-memory-subscription-billing";
 
 const USER_ID = UserIdSchema.parse("usr_inmem_test");
@@ -163,5 +167,99 @@ describe("initInMemorySubscriptionBilling", () => {
 			() => stripe.findSubscriptionNextCharge({ subscriptionId: "sub_paid" }),
 			/In-memory billing findSubscriptionNextCharge failure/,
 		);
+	});
+
+	describe("listInvoices", () => {
+		function monthlyInvoices(count: number): InvoiceSummary[] {
+			return Array.from({ length: count }, (_, index) => ({
+				id: InvoiceIdSchema.parse(`in_test${String(index + 1).padStart(3, "0")}`),
+				number: `T-${String(index + 1).padStart(4, "0")}`,
+				issuedAt: new Date(Date.UTC(2026, 8 - index, 18)).toISOString(),
+				amountPaidMinor: 1000,
+				currency: "usd",
+				hostedInvoiceUrl: `https://invoice.example/${index + 1}`,
+			}));
+		}
+
+		function ids(page: { invoices: InvoiceSummary[] }): string[] {
+			return page.invoices.map((invoice) => invoice.id);
+		}
+
+		it("lists a customer's invoices newest first, twelve to a page, and records each lookup", async () => {
+			const stripe = initInMemorySubscriptionBilling();
+			stripe.seedInvoices({ customerId: "cus_paying", invoices: monthlyInvoices(13).reverse() });
+
+			const page = await stripe.listInvoices({ customerId: "cus_paying", cursor: undefined });
+
+			assert.deepEqual(ids(page), monthlyInvoices(12).map((invoice) => invoice.id));
+			assert.equal(page.hasMore, true);
+			assert.deepEqual(stripe.invoiceLookups(), ["cus_paying"]);
+		});
+
+		it("pages to the older invoices after a cursor, saying whether still older ones follow", async () => {
+			const stripe = initInMemorySubscriptionBilling();
+			stripe.seedInvoices({ customerId: "cus_paying", invoices: monthlyInvoices(13) });
+
+			const page = await stripe.listInvoices({
+				customerId: "cus_paying",
+				cursor: { startingAfter: InvoiceIdSchema.parse("in_test012") },
+			});
+
+			assert.deepEqual(ids(page), ["in_test013"]);
+			assert.equal(page.hasMore, false);
+		});
+
+		it("pages to the newer invoices nearest a cursor, saying whether still newer ones precede them", async () => {
+			const stripe = initInMemorySubscriptionBilling();
+			stripe.seedInvoices({ customerId: "cus_paying", invoices: monthlyInvoices(14) });
+
+			const nearest = await stripe.listInvoices({
+				customerId: "cus_paying",
+				cursor: { endingBefore: InvoiceIdSchema.parse("in_test014") },
+			});
+			const first = await stripe.listInvoices({
+				customerId: "cus_paying",
+				cursor: { endingBefore: InvoiceIdSchema.parse("in_test013") },
+			});
+
+			assert.deepEqual(ids(nearest), monthlyInvoices(13).slice(1).map((invoice) => invoice.id));
+			assert.equal(nearest.hasMore, true);
+			assert.deepEqual(ids(first), monthlyInvoices(12).map((invoice) => invoice.id));
+			assert.equal(first.hasMore, false);
+		});
+
+		it("lists nothing for a customer no test has seeded invoices for", async () => {
+			const stripe = initInMemorySubscriptionBilling();
+
+			assert.deepEqual(await stripe.listInvoices({ customerId: "cus_new", cursor: undefined }), {
+				invoices: [],
+				hasMore: false,
+			});
+		});
+
+		it("rejects a cursor that names no invoice of the customer, as Stripe does", async () => {
+			const stripe = initInMemorySubscriptionBilling();
+			stripe.seedInvoices({ customerId: "cus_paying", invoices: monthlyInvoices(2) });
+
+			await assert.rejects(
+				() =>
+					stripe.listInvoices({
+						customerId: "cus_paying",
+						cursor: { startingAfter: InvoiceIdSchema.parse("in_missing") },
+					}),
+				/No such invoice: in_missing/,
+			);
+		});
+
+		it("throws on lookup once configured to fail, standing in for a provider outage", async () => {
+			const stripe = initInMemorySubscriptionBilling();
+			stripe.failInvoiceLookup();
+
+			await assert.rejects(
+				() => stripe.listInvoices({ customerId: "cus_paying", cursor: undefined }),
+				/In-memory billing listInvoices failure/,
+			);
+			assert.deepEqual(stripe.invoiceLookups(), ["cus_paying"]);
+		});
 	});
 });

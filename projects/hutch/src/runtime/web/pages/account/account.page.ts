@@ -35,8 +35,9 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
-	ResolvePriceId,
 	FindSubscriptionNextCharge,
+	ListInvoices,
+	ResolvePriceId,
 	ReverseScheduledCancellation,
 	SubscriptionNextCharge,
 } from "@packages/provider-contracts/subscription-billing";
@@ -80,16 +81,22 @@ import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import { AccountPage, renderAccountCard } from "./account.component";
+import { AccountInvoicesPage } from "./account-invoices.component";
+import {
+	type AccountInvoicesFetch,
+	type InvoiceCursor,
+	InvoiceCursorQuerySchema,
+	buildAccountInvoicesViewModel,
+} from "./account-invoices.view-model";
 import { PlansPage } from "./plans-page.component";
 import { type PlansPageViewModel, toPlansPageOutcome } from "./plans-page.view-model";
 import {
 	type CardError,
-	type CardSectionViewModel,
 	DELETE_ACCOUNT_CONFIRMATION_FIELD,
 	DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 	MAX_CARDS,
+	type PaymentSectionInput,
 	buildAppearanceSection,
-	buildCardSectionViewModel,
 	parseAccountQuery,
 	toAccountViewModel,
 	withoutCommerce,
@@ -114,6 +121,7 @@ interface AccountDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	listInvoices: ListInvoices;
 	setSubscriptionNextCharge: SetSubscriptionNextCharge;
 	upsertActiveSubscription: UpsertActiveSubscription;
 	upsertTrialingSubscription: UpsertTrialingSubscription;
@@ -170,27 +178,27 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		access: EffectiveAccess;
 		cardError: CardError | undefined;
 		adding: { clientSecret: string; setupId: string } | undefined;
-	}): Promise<CardSectionViewModel> {
+	}): Promise<PaymentSectionInput> {
 		if (!input.customerId || input.access.access !== "full") {
-			return buildCardSectionViewModel({ kind: "no-customer" });
+			return { kind: "no-customer" };
 		}
 		try {
 			const cards = await deps.listCards({
 				customerId: input.customerId,
 				subscriptionId: input.subscriptionId,
 			});
-			return buildCardSectionViewModel({
+			return {
 				kind: "loaded",
 				cards,
 				publishableKey: deps.stripePublishableKey,
 				cardError: input.cardError,
 				adding: input.adding,
-			});
+			};
 		} catch (err) {
 			deps.logger.error("[account/cards] live read failed", {
 				error: err instanceof Error ? err.message : String(err),
 			});
-			return buildCardSectionViewModel({ kind: "provider-error" });
+			return { kind: "provider-error" };
 		}
 	}
 
@@ -199,8 +207,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		res: Response,
 		input: {
 			access: EffectiveAccess;
-			cardSection: CardSectionViewModel;
+			payment: PaymentSectionInput;
 			nextCharge: SubscriptionNextCharge | undefined;
+			plan: BillingPlan | undefined;
+			hasCustomer: boolean;
 		},
 	): Promise<void> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -216,12 +226,15 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
-		const webVm = toAccountViewModel(
-			input.access,
-			parseAccountQuery(req.query),
-			deps.now(),
-			input.nextCharge,
-		);
+		const webVm = toAccountViewModel({
+			access: input.access,
+			queryState: parseAccountQuery(req.query),
+			now: deps.now(),
+			nextCharge: input.nextCharge,
+			plan: input.plan,
+			hasCustomer: input.hasCustomer,
+			payment: input.payment,
+		});
 		// Inside the app's web sheet every nav and footer link would yank the user out
 		// into their OS default browser, where they are not signed in — so the app
 		// shell gets the same chromeless page the reader does, with a deep link back
@@ -232,7 +245,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				ChromelessPage(
 					AccountPage(
 						withoutCommerce(webVm, { appShell: true, platform: nativeSurfaceOf(req) }),
-						input.cardSection,
 						{
 							email,
 							appearance: appearanceSection,
@@ -254,26 +266,30 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		sendComponent(
 			req,
 			res,
-			Base(AccountPage(vm, input.cardSection, { email, appearance: appearanceSection }), bannerState),
+			Base(AccountPage(vm, { email, appearance: appearanceSection }), bannerState),
 		);
 	}
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
+		const row = await deps.findSubscriptionByUserId(req.userId);
+		const plan = row?.plan;
+		const hasCustomer = row?.customerId !== undefined;
 		if (isNativeSurface(req)) {
 			// The iOS surface hides the payment-methods section and the renewal line, so
 			// skip the live provider reads whose results would only be discarded.
 			await renderAccount(req, res, {
 				access,
-				cardSection: buildCardSectionViewModel({ kind: "no-customer" }),
+				payment: { kind: "no-customer" },
 				nextCharge: undefined,
+				plan,
+				hasCustomer,
 			});
 			return;
 		}
 		const query = parseAccountQuery(req.query);
-		const row = await deps.findSubscriptionByUserId(req.userId);
-		const cardSection = await loadCardSection({
+		const payment = await loadCardSection({
 			customerId: row?.customerId,
 			subscriptionId: row?.subscriptionId,
 			access,
@@ -285,7 +301,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			row,
 			suppressed: query.cancelling || query.errorPaymentMethod,
 		});
-		await renderAccount(req, res, { access, cardSection, nextCharge });
+		await renderAccount(req, res, { access, payment, nextCharge, plan, hasCustomer });
 	});
 
 	router.get("/plans", async (req: Request, res: Response) => {
@@ -314,13 +330,67 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	router.get("/status", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
-		const webVm = toAccountViewModel(access, parseAccountQuery(req.query), deps.now());
+		const row = await deps.findSubscriptionByUserId(req.userId);
+		const webVm = toAccountViewModel({
+			access,
+			queryState: parseAccountQuery(req.query),
+			now: deps.now(),
+			nextCharge: undefined,
+			plan: row?.plan,
+			hasCustomer: row?.customerId !== undefined,
+			payment: { kind: "no-customer" },
+		});
 		const vm = isNativeSurface(req)
 			? withoutCommerce(webVm, { appShell: isAppShell(req), platform: nativeSurfaceOf(req) })
 			: webVm;
 		res.set("Cache-Control", "private, no-cache");
 		res.set("Vary", "Cookie");
 		res.status(200).type("html").send(renderAccountCard(vm));
+	});
+
+	async function loadInvoices(input: {
+		userId: UserId;
+		customerId: string | undefined;
+		cursor: InvoiceCursor;
+	}): Promise<AccountInvoicesFetch> {
+		if (input.customerId === undefined) {
+			return { kind: "no-customer" };
+		}
+		try {
+			const page = await deps.listInvoices({ customerId: input.customerId, cursor: input.cursor });
+			return { kind: "loaded", cursor: input.cursor, ...page };
+		} catch (err) {
+			deps.logger.error("[account/invoices] live read failed", {
+				userId: input.userId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+			return { kind: "provider-error" };
+		}
+	}
+
+	router.get("/invoices", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const cursor = InvoiceCursorQuerySchema.safeParse({
+			after: req.query.after,
+			before: req.query.before,
+		});
+		if (!cursor.success) {
+			res.status(400).send("Unknown invoice cursor");
+			return;
+		}
+		const row = await deps.findSubscriptionByUserId(req.userId);
+		const fetched = await loadInvoices({
+			userId: req.userId,
+			customerId: row?.customerId,
+			cursor: cursor.data,
+		});
+		res.set("Cache-Control", "private, no-cache");
+		res.set("Vary", "Cookie");
+		sendComponent(
+			req,
+			res,
+			Base(AccountInvoicesPage(buildAccountInvoicesViewModel(fetched)), await deps.buildBannerState(req)),
+		);
 	});
 
 	router.post("/cards/:id/primary", async (req: Request, res: Response) => {
@@ -343,7 +413,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			// Unknown card or already-primary → idempotent noop; the next render
 			// shows whatever the live read actually contains.
 			if (!target || target.isPrimary) {
-				res.redirect(303, buildAccountUrl());
+				res.redirect(303, buildAccountUrl({ manage: "payment" }));
 				return;
 			}
 			await deps.setPrimaryCard({
@@ -351,13 +421,13 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				cardId,
 				subscriptionId: row.subscriptionId,
 			});
-			res.redirect(303, buildAccountUrl());
+			res.redirect(303, buildAccountUrl({ manage: "payment" }));
 		} catch (err) {
 			deps.logger.error("[account/cards/primary] failed", {
 				userId,
 				error: err instanceof Error ? err.message : String(err),
 			});
-			res.redirect(303, buildAccountUrl());
+			res.redirect(303, buildAccountUrl({ manage: "payment" }));
 		}
 	});
 
@@ -379,7 +449,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			});
 			const target = cards.find((card) => card.id === cardId);
 			if (!target) {
-				res.redirect(303, buildAccountUrl());
+				res.redirect(303, buildAccountUrl({ manage: "payment" }));
 				return;
 			}
 			// The primary card is never removable — the user must promote a backup
@@ -389,13 +459,13 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 			await deps.removeCard({ customerId: row.customerId, cardId });
-			res.redirect(303, buildAccountUrl());
+			res.redirect(303, buildAccountUrl({ manage: "payment" }));
 		} catch (err) {
 			deps.logger.error("[account/cards/remove] failed", {
 				userId,
 				error: err instanceof Error ? err.message : String(err),
 			});
-			res.redirect(303, buildAccountUrl());
+			res.redirect(303, buildAccountUrl({ manage: "payment" }));
 		}
 	});
 
@@ -424,17 +494,22 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 			const { clientSecret, setupId } = await deps.beginAddCard({ customerId: row.customerId });
-			const cardSection = buildCardSectionViewModel({
-				kind: "loaded",
-				cards,
-				publishableKey,
-				cardError: undefined,
-				adding: { clientSecret, setupId },
-			});
 			/* Whatever the row already knows, so the renewal line does not blink out
 			 * while a card is being added. Adding a card is not a reason to re-ask the
 			 * provider for a price. */
-			await renderAccount(req, res, { access, cardSection, nextCharge: row.nextCharge });
+			await renderAccount(req, res, {
+				access,
+				payment: {
+					kind: "loaded",
+					cards,
+					publishableKey,
+					cardError: undefined,
+					adding: { clientSecret, setupId },
+				},
+				nextCharge: row.nextCharge,
+				plan: row.plan,
+				hasCustomer: true,
+			});
 		} catch (err) {
 			deps.logger.error("[account/cards/new] failed", {
 				userId,
@@ -491,12 +566,12 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				subscriptionId: row.subscriptionId,
 			});
 			if (cards.length <= MAX_CARDS) {
-				res.redirect(303, buildAccountUrl());
+				res.redirect(303, buildAccountUrl({ manage: "payment" }));
 				return;
 			}
 			const surplus = cards.find((card) => card.id === ownCardId && !card.isPrimary);
 			if (!surplus) {
-				res.redirect(303, buildAccountUrl());
+				res.redirect(303, buildAccountUrl({ manage: "payment" }));
 				return;
 			}
 			await deps.removeCard({ customerId, cardId: surplus.id });

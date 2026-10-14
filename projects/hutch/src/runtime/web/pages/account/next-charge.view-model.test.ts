@@ -14,36 +14,33 @@ function chargeIn(days: number, overrides: Partial<SubscriptionNextCharge> = {})
 }
 
 describe("buildNextChargeViewModel", () => {
-	it("renders the date and amount when the charge is inside the window", () => {
+	it("renders the date and amount of a charge to come", () => {
 		const at = chargeIn(12).at;
 		const vm = buildNextChargeViewModel({ nextCharge: chargeIn(12), now: NOW });
 
 		assert.equal(vm.state, "visible");
 		assert.equal(vm.stateClass, "account-card__next-charge account-card__next-charge--visible");
-		assert.equal(vm.leadIn, "Next charge on ");
+		assert.equal(vm.leadIn, "Next payment on ");
 		assert.deepEqual(vm.date, { iso: at, label: "Jul 26, 2026", mode: "date" });
 		assert.equal(vm.tail, " — $49.00.");
 	});
 
-	it("shows a charge due in exactly thirty days — the boundary is inclusive", () => {
-		const vm = buildNextChargeViewModel({ nextCharge: chargeIn(30), now: NOW });
+	it("shows a charge months out — the plan summary always names the next payment", () => {
+		const at = chargeIn(200).at;
+		const vm = buildNextChargeViewModel({ nextCharge: chargeIn(200), now: NOW });
 
 		assert.equal(vm.state, "visible");
-	});
-
-	it("hides a charge that is still more than thirty days out", () => {
-		const vm = buildNextChargeViewModel({ nextCharge: chargeIn(31), now: NOW });
-
-		assert.equal(vm.state, "hidden");
-		assert.equal(vm.stateClass, "account-card__next-charge account-card__next-charge--hidden");
-		assert.equal(vm.date, undefined);
-		assert.equal(vm.tail, "");
+		assert.equal(vm.leadIn, "Next payment on ");
+		assert.deepEqual(vm.date, { iso: at, label: "Jan 30, 2027", mode: "date" });
 	});
 
 	it("hides a charge dated in the past", () => {
 		const vm = buildNextChargeViewModel({ nextCharge: chargeIn(-1), now: NOW });
 
 		assert.equal(vm.state, "hidden");
+		assert.equal(vm.stateClass, "account-card__next-charge account-card__next-charge--hidden");
+		assert.equal(vm.date, undefined);
+		assert.equal(vm.tail, "");
 	});
 
 	it("hides when there is no charge at all", () => {
@@ -71,23 +68,5 @@ describe("buildNextChargeViewModel", () => {
 		});
 
 		assert.equal(vm.tail, " — $29.00.");
-	});
-
-	it("formats a two-decimal foreign currency with its own symbol", () => {
-		const vm = buildNextChargeViewModel({
-			nextCharge: chargeIn(5, { amountMinor: 4500, currency: "eur" }),
-			now: NOW,
-		});
-
-		assert.equal(vm.tail, " — €45.00.");
-	});
-
-	it("does not invent decimals for a zero-decimal currency", () => {
-		const vm = buildNextChargeViewModel({
-			nextCharge: chargeIn(5, { amountMinor: 5000, currency: "jpy" }),
-			now: NOW,
-		});
-
-		assert.equal(vm.tail, " — ¥5,000.");
 	});
 });

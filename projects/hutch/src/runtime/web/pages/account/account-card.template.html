@@ -1,28 +1,50 @@
-<section class="{{stateClass}}" data-test-account-card data-test-account-state="{{state}}" data-test-account-poll="{{pollState}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
-            {{#if stateIsErrorPaymentMethod}}
-            {{{errorAlertHtml}}}
-            {{else}}
-            {{#if stateIsErrorSubscribeFailed}}
-            {{{errorAlertHtml}}}
-            {{/if}}
-            {{#if showCancellingNotice}}
-            <p class="account-card__notice" data-test-cancelling-notice>{{#if pollUrl}}{{icon "loader"}}{{/if}}{{cancellingNotice}}</p>
-            <noscript><p class="account-card__notice">Refresh the page to see the update.</p></noscript>
-            {{/if}}
-            <p class="account-card__status" data-test-account-status>{{statusLine}}{{#if statusDate}}<time class="account-card__status-date" datetime="{{statusDate.iso}}" data-local-time="{{statusDate.mode}}">{{statusDate.label}}</time>{{statusDateTail}}{{/if}}</p>
-            {{/if}}
-            <p class="{{nextCharge.stateClass}}" data-test-next-charge data-next-charge-state="{{nextCharge.state}}">{{nextCharge.leadIn}}{{#if nextCharge.date}}<time class="account-card__next-charge-date" datetime="{{nextCharge.date.iso}}" data-local-time="{{nextCharge.date.mode}}">{{nextCharge.date.label}}</time>{{/if}}{{nextCharge.tail}}</p>
-            <div class="account-card__actions">
-              {{#each actions}}
-              {{#each popoverTriggers}}
-              <button type="button" class="{{buttonClass}}" popovertarget="{{popoverTarget}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{label}}</button>
-              {{/each}}
-              <form method="{{method}}" action="{{href}}" class="{{formClass}}"
-                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+<section class="account-billing__plan {{stateClass}}" data-test-account-card data-test-account-state="{{state}}" data-test-account-poll="{{pollState}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}>
+              {{{errorAlertHtml}}}
+              <div class="account-billing__head">
+                <div class="account-billing__title-row">
+                  <h3 class="account-billing__title" data-test-account-plan-title>{{title}}</h3>
+                  {{#each chips}}
+                  <span class="{{className}}" data-test-account-plan-chip>{{label}}</span>
+                  {{/each}}
+                </div>
+                <p class="{{priceClass}}" data-test-account-price data-price-state="{{price.state}}">{{price.text}}</p>
+                <p class="account-billing__line" data-test-account-status>{{statusLine}}{{#if statusDate}}<time class="account-card__status-date" datetime="{{statusDate.iso}}" data-local-time="{{statusDate.mode}}">{{statusDate.label}}</time>{{statusDateTail}}{{/if}}</p>
+              </div>
+              <p class="{{nextCharge.stateClass}}" data-test-next-charge data-next-charge-state="{{nextCharge.state}}">{{nextCharge.leadIn}}{{#if nextCharge.date}}<time class="account-card__next-charge-date" datetime="{{nextCharge.date.iso}}" data-local-time="{{nextCharge.date.mode}}">{{nextCharge.date.label}}</time>{{/if}}{{nextCharge.tail}}</p>
+              <div class="account-billing__actions">
+                {{#each actions}}
+                {{#each popoverTriggers}}
+                <button type="button" class="{{buttonClass}}" popovertarget="{{popoverTarget}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{label}}</button>
+                {{/each}}
+                <form method="{{method}}" action="{{href}}" class="{{formClass}}"
+                  hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
+                  hx-disabled-elt="find button"
+                  data-test-account-action="{{key}}">
+                  {{#each hiddenFields}}
+                  <input type="hidden" name="{{name}}" value="{{value}}">
+                  {{/each}}
+                  <button type="submit" class="{{buttonClass}}"{{#if isPending}} disabled{{/if}}>{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
+                </form>
+                {{/each}}
+              </div>
+              <div class="{{panelClass}}" data-test-manage-panel="subscription" data-manage-panel-state="{{managePanel.state}}">
+                <p class="account-billing__panel-body">{{managePanel.body}}</p>
+                {{#if managePanel.showCancellingNotice}}
+                <p class="account-card__notice" data-test-cancelling-notice>{{#if pollUrl}}{{icon "loader"}}{{/if}}{{managePanel.cancellingNotice}}</p>
+                <noscript><p class="account-card__notice">Refresh the page to see the update.</p></noscript>
+                {{/if}}
+                <div class="account-billing__panel-actions">
+                  {{#each panelActions}}
+                  <form method="{{method}}" action="{{href}}" class="{{formClass}}"
+                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
                     hx-disabled-elt="find button"
                     data-test-account-action="{{key}}">
-                <button type="submit" class="{{buttonClass}}"{{#if isPending}} disabled{{/if}}><span class="account__action-label">{{name}}</span>{{{loaderHtml}}}</button>
-              </form>
-              {{/each}}
-            </div>
-          </section>
+                    {{#each hiddenFields}}
+                    <input type="hidden" name="{{name}}" value="{{value}}">
+                    {{/each}}
+                    <button type="submit" class="{{buttonClass}}"{{#if isPending}} disabled{{/if}}>{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
+                  </form>
+                  {{/each}}
+                </div>
+              </div>
+            </section>

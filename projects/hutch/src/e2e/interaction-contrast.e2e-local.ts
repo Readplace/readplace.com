@@ -35,6 +35,12 @@ const HISTORY_DELETE = `${HISTORY_CARD} [data-test-action="article-version-delet
 const TOC_CARD = "[data-test-toc-card]";
 const TOC_CURRENT_ROW = `${TOC_CARD} [data-test-toc-section][aria-current="location"]`;
 const TOC_OTHER_ROW = `${TOC_CARD} [data-test-toc-section]:not([aria-current])`;
+const VIEW_INVOICES = '[data-test-account-action="view-invoices"] button';
+const INVOICE_LINK = "[data-test-invoice-link]";
+const INVOICES_LINKS = [
+	{ selector: "[data-test-invoices-back]", auditId: "invoices-back" },
+	{ selector: INVOICE_LINK, auditId: "invoice-link" },
+] as const;
 const TOOLBAR_CONTROLS = [
 	{ selector: "summary[data-test-readlists-trigger]", auditId: "toolbar-add", ink: "label" },
 	{ selector: '[data-test-mark-read-slot] [data-test-action="mark-read"]', auditId: "toolbar-mark", ink: "label" },
@@ -934,6 +940,53 @@ test.describe("The account's Theme choice holds its WCAG contrast in both themes
 					edgeContrast({ edge: focused.outline.colour, against: card, lens }) >= NON_TEXT_MINIMUM,
 					edgeShortfall({ edge: focused.outline.colour, against: card, lens, view: `${view}/${lensName}` }),
 				);
+			}
+		}
+	});
+});
+
+test.describe("Billing history interaction states hold their WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("View invoices stays legible on its neutral hover and the invoices page's links ring at 3:1 on focus", async ({
+		page,
+	}, testInfo) => {
+		const userId = await signInAsNewReader(page, `billing-history-contrast-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: { userId, state: "active", plan: "monthly", invoices: 2 },
+		});
+		assert.equal(seeded.status(), 201, "the subscription-state seed endpoint must answer 201");
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(VIEW_INVOICES)).toBeVisible({ timeout: SETTLE_MS });
+			const accountClient = await auditContext(page);
+			await stamp(page, { selector: VIEW_INVOICES, auditId: "view-invoices" });
+			const rest = await measure(page, accountClient, "view-invoices", []);
+			const hover = await measure(page, accountClient, "view-invoices", ["hover"]);
+			const account = `${theme}/account/view-invoices:hover`;
+			assert.notDeepEqual(hover.fill, rest.fill, `${account}: hovering must repaint the fill`);
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				assert.ok(labelContrast(hover, lens) >= textMinimum(hover), labelShortfall(hover, lens, `${account}/${lensName}`));
+			}
+
+			await page.goto(`${BASE_URL}/account/invoices`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(INVOICE_LINK)).toHaveCount(2);
+			const invoicesClient = await auditContext(page);
+			for (const link of INVOICES_LINKS) {
+				await stamp(page, link);
+				const focused = await measure(page, invoicesClient, link.auditId, FOCUSED);
+				const view = `${theme}/account/invoices/${link.auditId}`;
+				assert.notEqual(focused.outline.style, "none", `${view}: ${focused.name} draws no focus outline`);
+				assert.ok(focused.outline.width > 0, `${view}: ${focused.name} draws a zero-width focus outline`);
+				const surface: Neighbour = { name: "surface", colour: focused.surface };
+				for (const [lensName, lens] of Object.entries(LENSES)) {
+					assert.ok(
+						edgeContrast({ edge: focused.outline.colour, against: surface, lens }) >= NON_TEXT_MINIMUM,
+						edgeShortfall({ edge: focused.outline.colour, against: surface, lens, view: `${view}/${lensName}` }),
+					);
+				}
 			}
 		}
 	});

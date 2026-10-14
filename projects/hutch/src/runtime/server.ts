@@ -70,6 +70,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ResolvePriceId,
 	FindSubscriptionNextCharge,
+	ListInvoices,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/subscription-billing";
 import type {
@@ -517,6 +518,7 @@ interface AppDependencies {
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	listInvoices: ListInvoices;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	paymentMethods: {
 		listCards: ListCards;
@@ -1677,6 +1679,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		createCheckoutSession: deps.createCheckoutSession,
 		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge: deps.findSubscriptionNextCharge,
+		listInvoices: deps.listInvoices,
 		setSubscriptionNextCharge: deps.subscriptionProviders.setNextCharge,
 		reverseScheduledCancellation: deps.reverseScheduledCancellation,
 		listCards: deps.paymentMethods.listCards,

@@ -8,12 +8,14 @@ import type { NativeClientPlatform } from "../../onboarding/native-client";
 export function buildAccountUrl(params?: {
 	cancelling?: boolean;
 	deleteConfirmationError?: boolean;
+	manage?: "payment";
 	surfacePlatform?: NativeClientPlatform;
 	appShell?: boolean;
 }): string {
 	const search = new URLSearchParams();
 	if (params?.cancelling) search.set("cancelling", "1");
 	if (params?.deleteConfirmationError) search.set("error", "delete_confirmation");
+	if (params?.manage) search.set("manage", params.manage);
 	// Both markers are preserved across a POST-Redirect-GET so the re-rendered
 	// account page keeps the app's in-app surface and its chromeless shell — the
 	// web view's form post carries no client header, only whatever query the
@@ -32,6 +34,7 @@ export const ACCOUNT_STATUS_URL = "/account/status";
 export const ACCOUNT_EXPORT_URL = "/export";
 export const ACCOUNT_SUBSCRIBE_URL = "/account/subscribe";
 export const ACCOUNT_PLANS_URL = "/account/plans";
+export const ACCOUNT_INVOICES_URL = "/account/invoices";
 export const ACCOUNT_ERROR_PAYMENT_METHOD_URL = "/account?error=payment_method";
 
 export const ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL = "/account?error=subscribe_failed";

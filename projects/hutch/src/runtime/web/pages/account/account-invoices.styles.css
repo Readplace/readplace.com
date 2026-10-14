@@ -1,0 +1,108 @@
+.account-invoices__card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.account-invoices__card > .alert {
+  margin: 20px;
+}
+
+.account-invoices__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.account-invoices__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "date amount link"
+    "number amount link";
+  column-gap: 24px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 20px;
+}
+
+.account-invoices__row + .account-invoices__row {
+  border-top: 1px solid var(--border);
+}
+
+.account-invoices__date {
+  grid-area: date;
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1.375;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-invoices__number {
+  grid-area: number;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
+.account-invoices__amount {
+  grid-area: amount;
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-invoices__link {
+  grid-area: link;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--foreground);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.account-invoices__link:hover {
+  color: var(--primary-text);
+}
+
+.account-invoices__empty {
+  padding: 24px;
+}
+
+.account-invoices__empty-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1.375;
+  color: var(--foreground);
+}
+
+.account-invoices__empty-body {
+  margin-top: 2px;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+@media (max-width: 767px) {
+  .account-invoices__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "date amount"
+      "number number"
+      "link link";
+  }
+
+  .account-invoices__link {
+    justify-self: start;
+  }
+}

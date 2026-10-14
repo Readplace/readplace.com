@@ -1,12 +1,17 @@
+import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
-import type {
-	CancelSubscriptionImmediately,
-	CreateSubscriptionOnExistingCustomer,
-	FindSubscriptionNextCharge,
-	OnUnpaidFirstInvoice,
-	ReverseScheduledCancellation,
-	ScheduleCancellationAtPeriodEnd,
-	SubscriptionNextCharge,
+import {
+	INVOICE_PAGE_SIZE,
+	type CancelSubscriptionImmediately,
+	type CreateSubscriptionOnExistingCustomer,
+	type FindSubscriptionNextCharge,
+	type InvoiceId,
+	type InvoiceSummary,
+	type ListInvoices,
+	type OnUnpaidFirstInvoice,
+	type ReverseScheduledCancellation,
+	type ScheduleCancellationAtPeriodEnd,
+	type SubscriptionNextCharge,
 } from "@packages/provider-contracts/subscription-billing";
 
 /** Fixed cancellationEffectiveAt for the in-memory provider. Tests that need a
@@ -38,6 +43,10 @@ export function initInMemorySubscriptionBilling(opts?: {
 	seedNextCharge: (input: { subscriptionId: string; nextCharge: SubscriptionNextCharge }) => void;
 	failNextChargeLookup: () => void;
 	nextChargeLookups: () => readonly string[];
+	listInvoices: ListInvoices;
+	seedInvoices: (input: { customerId: string; invoices: InvoiceSummary[] }) => void;
+	failInvoiceLookup: () => void;
+	invoiceLookups: () => readonly string[];
 } {
 	const cancelled: string[] = [];
 	const created: {
@@ -52,6 +61,9 @@ export function initInMemorySubscriptionBilling(opts?: {
 	const nextCharges = new Map<string, SubscriptionNextCharge>();
 	const nextChargeLookupCalls: string[] = [];
 	let nextChargeLookupFails = false;
+	const invoicesByCustomer = new Map<string, InvoiceSummary[]>();
+	const invoiceLookupCalls: string[] = [];
+	let invoiceLookupFails = false;
 	let nextId = 1;
 
 	const cancelImmediately: CancelSubscriptionImmediately = async ({ subscriptionId }) => {
@@ -95,7 +107,7 @@ export function initInMemorySubscriptionBilling(opts?: {
 	};
 
 	/* Seeded per test rather than defaulted: a stock charge date would quietly start
-	 * rendering the renewal line in unrelated tests as soon as the clock reached it.
+	 * rendering the renewal line in unrelated tests.
 	 * The seams are mutators, not constructor options, because the shared fixture
 	 * builds this provider with no arguments. */
 	const findSubscriptionNextCharge: FindSubscriptionNextCharge = async ({ subscriptionId }) => {
@@ -104,6 +116,40 @@ export function initInMemorySubscriptionBilling(opts?: {
 			throw new Error("In-memory billing findSubscriptionNextCharge failure");
 		}
 		return nextCharges.get(subscriptionId);
+	};
+
+	function cursorIndex(invoices: readonly InvoiceSummary[], id: InvoiceId): number {
+		const index = invoices.findIndex((invoice) => invoice.id === id);
+		assert(index >= 0, `No such invoice: ${id}`);
+		return index;
+	}
+
+	const listInvoices: ListInvoices = async ({ customerId, cursor }) => {
+		invoiceLookupCalls.push(customerId);
+		if (invoiceLookupFails) {
+			throw new Error("In-memory billing listInvoices failure");
+		}
+		const newestFirst = [...(invoicesByCustomer.get(customerId) ?? [])].sort((a, b) =>
+			b.issuedAt.localeCompare(a.issuedAt),
+		);
+		if (cursor === undefined) {
+			return {
+				invoices: newestFirst.slice(0, INVOICE_PAGE_SIZE),
+				hasMore: newestFirst.length > INVOICE_PAGE_SIZE,
+			};
+		}
+		if ("startingAfter" in cursor) {
+			const older = newestFirst.slice(cursorIndex(newestFirst, cursor.startingAfter) + 1);
+			return {
+				invoices: older.slice(0, INVOICE_PAGE_SIZE),
+				hasMore: older.length > INVOICE_PAGE_SIZE,
+			};
+		}
+		const newer = newestFirst.slice(0, cursorIndex(newestFirst, cursor.endingBefore));
+		return {
+			invoices: newer.slice(Math.max(0, newer.length - INVOICE_PAGE_SIZE)),
+			hasMore: newer.length > INVOICE_PAGE_SIZE,
+		};
 	};
 
 	return {
@@ -123,5 +169,13 @@ export function initInMemorySubscriptionBilling(opts?: {
 			nextChargeLookupFails = true;
 		},
 		nextChargeLookups: () => [...nextChargeLookupCalls],
+		listInvoices,
+		seedInvoices: ({ customerId, invoices }) => {
+			invoicesByCustomer.set(customerId, [...invoices]);
+		},
+		failInvoiceLookup: () => {
+			invoiceLookupFails = true;
+		},
+		invoiceLookups: () => [...invoiceLookupCalls],
 	};
 }
