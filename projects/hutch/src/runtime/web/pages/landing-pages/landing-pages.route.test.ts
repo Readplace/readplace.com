@@ -85,6 +85,14 @@ describe("landing pages", () => {
 		expect(limits).toContain(`${INBOX_ADDRESS_MAX_PER_USER}`);
 	});
 
+	it("captions the newsletter page's screenshot with where a newsletter's articles land", async () => {
+		const { doc } = await loadPage("save-newsletter-links");
+
+		const caption = doc.querySelector('[data-test-section="lp-proof"] .lp-proof__caption');
+		assert(caption, "save-newsletter-links must caption its proof screenshot");
+		expect(caption.textContent).toBe("Articles from a newsletter land in your readlist.");
+	});
+
 	it.each<LandingPageSlug>(["pdf-ocr", "pdf-reflow"])("names every OCR script's tested language on /%s", async (slug) => {
 		const { doc } = await loadPage(slug);
 
