@@ -29,8 +29,10 @@ describe("Export routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("h1")?.textContent).toContain(
-				"Export Your Data",
+			expect(doc.querySelector("h1")?.textContent).toBe("Export your data");
+			expect(doc.title).toBe("Export your data — Readplace");
+			expect(doc.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(
+				"Download a list of the articles you saved on Readplace.",
 			);
 			const button = doc.querySelector("[data-test-export-start]");
 			expect(button?.tagName.toLowerCase()).toBe("button");
@@ -48,9 +50,7 @@ describe("Export routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-export-preparing]")).not.toBeNull();
-			expect(doc.querySelector("h1")?.textContent).toContain(
-				"preparing your export",
-			);
+			expect(doc.querySelector("h1")?.textContent).toBe("Preparing your export");
 		});
 	});
 

@@ -4,6 +4,7 @@ import {
 	CONFIRM_POPOVER_STYLES,
 	render,
 	renderAlert,
+	renderConfirmPopover,
 	renderInFlightDots,
 	withInternalTracking,
 } from "@packages/web-shell";
@@ -24,6 +25,8 @@ import type {
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
 const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.template.html"), "utf-8");
+const ACCOUNT_PAYMENT_CARDS_TEMPLATE = readFileSync(join(__dirname, "account-payment-cards.template.html"), "utf-8");
+const ACCOUNT_DANGER_FORM_TEMPLATE = readFileSync(join(__dirname, "account-danger-form.template.html"), "utf-8");
 
 /** Same-origin glue bundle (Stripe.js itself loads from js.stripe.com inside it).
  * Loaded on every /account render; it no-ops unless the Elements container is
@@ -48,6 +51,107 @@ export interface AccountSurface {
 const ACCOUNT_ACTION_FORM_CLASS = "account-card__action-form";
 
 const ACTION_LOADER_HTML = renderInFlightDots("account__action-loader in-flight-dots");
+
+const DELETE_ACCOUNT_POPOVER_ID = "delete-account";
+
+type DangerPresentation = "inline" | "dialog";
+
+const DANGER_CARD_CLASS: Record<DangerPresentation, string> = {
+	inline: "account-section__card account-danger account-danger--inline",
+	dialog: "account-section__card account-danger account-danger--dialog",
+};
+
+const DANGER_PAGE_FORM_PLACEMENT: Record<DangerPresentation, "inline" | "fallback"> = {
+	inline: "inline",
+	dialog: "fallback",
+};
+
+interface DangerFormButton {
+	type: "submit" | "button";
+	buttonClass: string;
+	testAction: string;
+	popoverTargetAttrs: string;
+	labelHtml: string;
+}
+
+function submitLabelHtml(label: string): string {
+	return render('<span class="account__action-label">{{label}}</span>{{{loader}}}', {
+		label,
+		loader: ACTION_LOADER_HTML,
+	});
+}
+
+function buildDangerZone(vm: AccountViewModel) {
+	const confirmation = vm.dangerConfirmation;
+	const presentation: DangerPresentation = confirmation.hasNotice ? "inline" : "dialog";
+	const commitLabelHtml = submitLabelHtml(vm.dangerAction.name);
+	const sharedFormFields = {
+		method: vm.dangerAction.method,
+		href: vm.dangerAction.href,
+		phrase: confirmation.phrase,
+		pattern: confirmation.pattern,
+		title: confirmation.title,
+		field: confirmation.field,
+		notice: confirmation.notice,
+	};
+	const pageFormButtons: DangerFormButton[] = [
+		{
+			type: "submit",
+			buttonClass: "btn btn--destructive btn--m",
+			testAction: "delete-account-submit",
+			popoverTargetAttrs: "",
+			labelHtml: commitLabelHtml,
+		},
+	];
+	const dialogFormButtons: DangerFormButton[] = [
+		{
+			type: "button",
+			buttonClass: "btn btn--neutral",
+			testAction: "delete-account-cancel",
+			popoverTargetAttrs: render(' popovertarget="{{id}}" popovertargetaction="hide"', {
+				id: DELETE_ACCOUNT_POPOVER_ID,
+			}),
+			labelHtml: render("{{label}}", { label: "Cancel" }),
+		},
+		{
+			type: "submit",
+			buttonClass: "btn btn--primary",
+			testAction: "delete-account-confirm",
+			popoverTargetAttrs: "",
+			labelHtml: commitLabelHtml,
+		},
+	];
+	return {
+		cardClass: DANGER_CARD_CLASS[presentation],
+		presentation,
+		popoverId: DELETE_ACCOUNT_POPOVER_ID,
+		triggerLabel: vm.dangerAction.name,
+		inlineFormHtml: render(ACCOUNT_DANGER_FORM_TEMPLATE, {
+			...sharedFormFields,
+			placement: DANGER_PAGE_FORM_PLACEMENT[presentation],
+			formClass: "account-danger__form",
+			buttonsClass: "account-danger__buttons",
+			inputId: "delete-account-confirmation",
+			hasNotice: confirmation.hasNotice,
+			buttons: pageFormButtons,
+		}),
+		dialogHtml: renderConfirmPopover({
+			id: DELETE_ACCOUNT_POPOVER_ID,
+			key: "delete-account",
+			title: "Delete your account?",
+			body: "This deletes your account, every saved article, and your reading history. It can't be undone.",
+			actionsHtml: render(ACCOUNT_DANGER_FORM_TEMPLATE, {
+				...sharedFormFields,
+				placement: "dialog",
+				formClass: "confirm-popover__actions account-danger__dialog-form",
+				buttonsClass: "confirm-popover__buttons",
+				inputId: "delete-account-confirmation-dialog",
+				hasNotice: false,
+				buttons: dialogFormButtons,
+			}),
+		}),
+	};
+}
 
 interface AccountCardPopoverTrigger {
 	popoverTarget: string;
@@ -116,10 +220,19 @@ export function AccountPage(
 	page: { email: string; appearance: AppearanceSectionViewModel; surface?: AccountSurface },
 ): PageBody {
 	const surface = page.surface;
+	const cardSectionView = {
+		...cardSection,
+		alertHtml: cardSection.isError
+			? renderAlert({ key: "payment-methods", content: { variant: "error", message: { text: cardSection.message } } })
+			: "",
+		noticeAlertHtml: cardSection.hasNotice
+			? renderAlert({ key: "card-notice", content: { variant: "error", message: { text: cardSection.notice } } })
+			: "",
+	};
 	return {
 		seo: {
 			title: "Account — Readplace",
-			description: "Manage your Readplace subscription.",
+			description: "Manage your account, billing and preferences.",
 			canonicalUrl: "/account",
 			robots: "noindex, nofollow",
 		},
@@ -128,23 +241,17 @@ export function AccountPage(
 		content: {
 			html: render(ACCOUNT_TEMPLATE, {
 				...vm,
-				cardSection: {
-					...cardSection,
-					alertHtml: cardSection.isError
-						? renderAlert({ key: "payment-methods", content: { variant: "error", message: { text: cardSection.message } } })
-						: "",
-					noticeAlertHtml: cardSection.hasNotice
-						? renderAlert({ key: "card-notice", content: { variant: "error", message: { text: cardSection.notice } } })
-						: "",
-				},
 				cardHtml: renderAccountCard(vm),
+				paymentCardsHtml: vm.showCardSection
+					? render(ACCOUNT_PAYMENT_CARDS_TEMPLATE, { cardSection: cardSectionView, actionLoaderHtml: ACTION_LOADER_HTML })
+					: "",
 				subscribePlansHtml: vm.actions.some((action) => action.popoverTarget !== undefined)
 					? renderSubscribePlansPopover({ source: "account", checkedPlan: vm.checkedPlan })
 					: "",
 				email: page.email,
 				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
-				actionLoaderHtml: ACTION_LOADER_HTML,
+				danger: buildDangerZone(vm),
 				backLink: surface?.backLink,
 			}),
 		},

@@ -95,6 +95,8 @@ export interface AccountViewModel {
 	state: AccountCardState;
 	stateClass: string;
 	heading: string;
+	lede: string;
+	subscriptionHeading: string;
 	/** Leading sentence text. For the trial-countdown and cancellation-scheduled
 	 * states this is only the text before the date — `statusDate`/`statusDateTail`
 	 * carry the rest so the date renders as a localisable `<time>` element. */
@@ -419,6 +421,8 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): AccountCard
 		state,
 		stateClass: `account-card account-card--${state}`,
 		heading: "Account",
+		lede: "Manage your account, billing and preferences.",
+		subscriptionHeading: "Subscription & billing",
 		nextCharge: HIDDEN_NEXT_CHARGE,
 		showCancellingNotice: false,
 		cancellingNotice: "",
@@ -557,7 +561,6 @@ export interface AppearanceOptionView {
 	label: string;
 	active: boolean;
 	ariaPressed: "true" | "false";
-	variant: "secondary" | "neutral";
 }
 
 export interface AppearanceSectionViewModel {
@@ -566,9 +569,15 @@ export interface AppearanceSectionViewModel {
 }
 
 const APPEARANCE_LABELS: Record<AppearancePreference, string> = {
-	system: "System",
+	system: "Auto",
 	light: "Light",
 	dark: "Dark",
+};
+
+const APPEARANCE_OPTION_POSITION: Record<AppearancePreference, number> = {
+	light: 0,
+	dark: 1,
+	system: 2,
 };
 
 export function buildAppearanceSection(input: {
@@ -584,16 +593,17 @@ export function buildAppearanceSection(input: {
 			}),
 			{ source: ACCOUNT_SOURCE, content: "appearance" },
 		),
-		options: APPEARANCE_PREFERENCES.map((value) => {
-			const active = value === input.current;
-			return {
-				value,
-				label: APPEARANCE_LABELS[value],
-				active,
-				ariaPressed: active ? "true" : "false",
-				variant: active ? "secondary" : "neutral",
-			};
-		}),
+		options: [...APPEARANCE_PREFERENCES]
+			.sort((a, b) => APPEARANCE_OPTION_POSITION[a] - APPEARANCE_OPTION_POSITION[b])
+			.map((value) => {
+				const active = value === input.current;
+				return {
+					value,
+					label: APPEARANCE_LABELS[value],
+					active,
+					ariaPressed: active ? "true" : "false",
+				};
+			}),
 	};
 }
 
@@ -627,5 +637,7 @@ export function withoutCommerce(
 		 * to load one. */
 		nextCharge: HIDDEN_NEXT_CHARGE,
 		showCardSection: false,
+		lede: "Manage your account and preferences.",
+		subscriptionHeading: "Subscription",
 	};
 }

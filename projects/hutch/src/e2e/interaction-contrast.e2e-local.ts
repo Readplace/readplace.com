@@ -890,7 +890,7 @@ test.describe("Destructive account actions hold their WCAG contrast in both them
 			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
 			const client = await auditContext(page);
 			await stamp(page, {
-				selector: '[data-test-danger-action="delete-account"] button[type="submit"]',
+				selector: "[data-test-danger-open]",
 				auditId: "delete-account",
 			});
 			for (const state of ["rest", "hover", "active"] as const) {
@@ -906,6 +906,34 @@ test.describe("Destructive account actions hold their WCAG contrast in both them
 						);
 					}
 				}
+			}
+		}
+	});
+});
+
+test.describe("The account's Theme choice holds its WCAG contrast in both themes", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("the pressed Theme option rings at 3:1 against its card", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `account-theme-contrast-${testInfo.workerIndex}-${Date.now()}@example.com`);
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
+			const client = await auditContext(page);
+			await stamp(page, { selector: '[data-test-appearance-option][aria-pressed="true"]', auditId: "theme-pressed" });
+
+			const focused = await measure(page, client, "theme-pressed", FOCUSED);
+			const view = `${theme}/account/theme-pressed`;
+			assert.equal(focused.outline.width, 2, `${view}: the pressed option's focus ring must be 2px wide`);
+			assert.equal(focused.outline.offset, 2, `${view}: the pressed option's focus ring must sit 2px outside it`);
+			assert.notEqual(focused.outline.style, "none", `${view}: the pressed option's focus ring must be visible`);
+			const card: Neighbour = { name: "card", colour: focused.surface };
+			for (const [lensName, lens] of Object.entries(LENSES)) {
+				assert.ok(
+					edgeContrast({ edge: focused.outline.colour, against: card, lens }) >= NON_TEXT_MINIMUM,
+					edgeShortfall({ edge: focused.outline.colour, against: card, lens, view: `${view}/${lensName}` }),
+				);
 			}
 		}
 	});

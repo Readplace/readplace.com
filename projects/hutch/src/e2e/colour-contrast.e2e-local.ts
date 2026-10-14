@@ -912,6 +912,29 @@ test.describe("Plan choice holds its WCAG contrast in both themes", () => {
 	});
 });
 
+test.describe("Account colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the account page and its open delete dialog clear their contrast minimum", async ({ page }, testInfo) => {
+		const email = `colour-contrast-account-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createChipReader(page, email);
+		await loginChipReader(page, email);
+		const dialog = '[data-test-confirm-popover="delete-account"]';
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-account");
+			await auditRoot(page, { root: "main.account", theme, view: "account" });
+			await page.locator("[data-test-danger-open]").click({ timeout: SETTLE_MS });
+			await expect(page.locator(`${dialog}:popover-open`)).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: dialog, theme, view: "account/delete-dialog" });
+			await page.keyboard.press("Escape");
+			await expect(page.locator(`${dialog}:popover-open`)).toBeHidden({ timeout: SETTLE_MS });
+		}
+	});
+});
+
 test.describe("Readlist preferences colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 

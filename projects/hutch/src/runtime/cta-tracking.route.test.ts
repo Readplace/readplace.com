@@ -60,6 +60,7 @@ const MEMBER_PATHS = [
 	"/queue?time=5-10&saved=month",
 	"/account",
 	"/account?section=subscription",
+	"/account?error=delete_confirmation",
 	"/account/plans",
 	"/export",
 	"/install",

@@ -1,0 +1,17 @@
+<form method="{{method}}" action="{{href}}" class="{{formClass}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-danger-action="delete-account" data-test-danger-form="{{placement}}">
+              <div class="form-field">
+                <label class="form-field__label" for="{{inputId}}">Type "{{phrase}}" to confirm</label>
+                <input type="text" id="{{inputId}}" class="form-input"
+                  name="{{field}}" required pattern="{{pattern}}"
+                  title="{{title}}" autocomplete="off" autocapitalize="off" spellcheck="false"{{#if hasNotice}} aria-invalid="true" aria-describedby="{{inputId}}-error"{{/if}}
+                  data-test-danger-confirm-input>
+                {{#if hasNotice}}
+                <p id="{{inputId}}-error" class="form-field__error" role="alert" data-test-danger-notice>{{notice}}</p>
+                {{/if}}
+              </div>
+              <div class="{{buttonsClass}}">
+                {{#each buttons}}
+                <button type="{{type}}" class="{{buttonClass}}"{{{popoverTargetAttrs}}} data-test-action="{{testAction}}">{{{labelHtml}}}</button>
+                {{/each}}
+              </div>
+            </form>

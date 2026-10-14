@@ -47,11 +47,15 @@ export async function dismissOnboarding(input: { page: Page; baseURL: string }):
 export async function deletePerfUser(input: { page: Page; baseURL: string }): Promise<void> {
 	const { page, baseURL } = input;
 	await page.goto(`${baseURL}/account`, { waitUntil: "domcontentloaded" });
+	await page.locator("[data-test-danger-open]").click();
+	await page.waitForSelector('[data-test-confirm-popover="delete-account"]:popover-open', {
+		timeout: NAVIGATION_TIMEOUT_MS,
+	});
 	await page
-		.locator("#delete-account-confirmation")
+		.locator("#delete-account-confirmation-dialog")
 		.fill(DELETE_ACCOUNT_CONFIRMATION_PHRASE);
 	await page
-		.locator('[data-test-danger-action="delete-account"] button[type="submit"]')
+		.locator('[data-test-danger-form="dialog"] button[type="submit"]')
 		.click();
 	await page.waitForSelector("body.page-home", { timeout: NAVIGATION_TIMEOUT_MS });
 

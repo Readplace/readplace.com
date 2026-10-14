@@ -53,6 +53,10 @@ describe("findIconSvg", () => {
 		expect(findIconSvg("info")).toBe(iconSvg("info"));
 	});
 
+	it("resolves the palette icon the account Theme row draws in its well", () => {
+		expect(findIconSvg("palette")).toBe(iconSvg("palette"));
+	});
+
 	it("reports an unknown name rather than drawing nothing, so a caller can fail a typo", () => {
 		expect(findIconSvg("fa-solid fa-inbox")).toBeUndefined();
 		expect(findIconSvg("constructor")).toBeUndefined();
@@ -90,6 +94,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"mail",
 	"menu",
 	"note",
+	"palette",
 	"pencil",
 	"plug",
 	"plus",

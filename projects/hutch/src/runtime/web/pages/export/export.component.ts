@@ -24,8 +24,8 @@ export function ExportPage(params: { status: "idle" | "preparing" }): PageBody {
 
 	return {
 		seo: {
-			title: "Export Your Data — Readplace",
-			description: "Download all your saved articles and data from Readplace.",
+			title: "Export your data — Readplace",
+			description: "Download a list of the articles you saved on Readplace.",
 			canonicalUrl: "/export",
 			robots: "noindex, nofollow",
 		},

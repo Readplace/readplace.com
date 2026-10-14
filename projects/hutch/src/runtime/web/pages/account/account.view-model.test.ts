@@ -391,7 +391,12 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 	it("hides the payment-methods section", () => {
 		const web = toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now);
 		assert.equal(web.showCardSection, true);
-		assert.equal(withoutCommerce(web, { appShell: false, platform: "ios" }).showCardSection, false);
+		assert.equal(web.subscriptionHeading, "Subscription & billing");
+		assert.equal(web.lede, "Manage your account, billing and preferences.");
+		const app = withoutCommerce(web, { appShell: false, platform: "ios" });
+		assert.equal(app.showCardSection, false);
+		assert.equal(app.subscriptionHeading, "Subscription");
+		assert.equal(app.lede, "Manage your account and preferences.");
 	});
 
 	it("strips a visible renewal line — naming a price in-app is the part Guideline 3.1.1 objects to", () => {
@@ -754,11 +759,11 @@ describe("buildAppearanceSection", () => {
 		const section = buildAppearanceSection({ current: "dark", appShell: false, platform: undefined });
 		assert.equal(section.formAction, "/account/appearance?utm_source=account&utm_medium=internal&utm_content=appearance");
 		assert.deepEqual(
-			section.options.map((o) => [o.value, o.active, o.variant, o.ariaPressed]),
+			section.options.map((o) => [o.value, o.label, o.active, o.ariaPressed]),
 			[
-				["system", false, "neutral", "false"],
-				["light", false, "neutral", "false"],
-				["dark", true, "secondary", "true"],
+				["light", "Light", false, "false"],
+				["dark", "Dark", true, "true"],
+				["system", "Auto", false, "false"],
 			],
 		);
 	});

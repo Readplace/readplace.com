@@ -310,6 +310,14 @@ describe("FORM_CONTROL_STYLES", () => {
 		);
 	});
 
+	it("rings a choice mark inside a button and dots it from the button's aria-pressed", () => {
+		expect(formControlRule(".form-choice--mark")).toContain("border-radius: 50%;");
+		expect(formControlRuleIndex(".form-choice--mark")).toBeGreaterThan(formControlRuleIndex(".form-choice"));
+		expect(formControlRule('[aria-pressed="true"] > .form-choice--mark')).toContain(
+			"background: radial-gradient(circle, var(--foreground) 0 4px, transparent 4.5px);",
+		);
+	});
+
 	it("insets a field's text past a leading glyph", () => {
 		expect(formControlRule(".form-input--leading-icon")).toContain("padding-inline-start: 40px;");
 	});

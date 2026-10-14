@@ -18,8 +18,8 @@ NOTES FOR REVIEW
 - The app communicates only with https://readplace.com. The NSAllowsArbitraryLoadsInWebContent ATS exception exists solely so the reader and capture web views can load arbitrary user-saved article pages (some are http-only).
 - Readplace is a subscription service purchased on the web, not via In-App Purchase. The app is fully functional during the free trial and sells no digital content in-app.
 - TRACKING: the app does not track. It links no third-party SDK of any kind, contains no AppTrackingTransparency, IDFA or AdSupport reference, and shares no data with any third party or data broker. The bundled privacy manifest declares NSPrivacyTracking = false with an empty NSPrivacyTrackingDomains; the email address, user ID and reading history it collects are used only to run the user's own reading list, on our own server.
-- ACCOUNT DELETION: in the Reading List, tap "Account" (person icon, top-right toolbar) — the account page opens in-app. Scroll to "Danger zone". Deletion is guarded by a typed confirmation rather than a dialog: type the exact phrase
+- ACCOUNT DELETION: in the Reading List, tap "Account" (person icon, top-right toolbar) — the account page opens in-app. Scroll to "Danger zone" and tap "Delete account". A dialog asks for the exact phrase
       delete my account permanently
-  into the text field, then tap "Delete account". The account, every saved article and the reading history are deleted, and the app returns to the sign-in screen immediately. (The same flow exists on the web at readplace.com/account.)
+  Type it into the text field, then tap "Delete account". (On iOS 16 the same field and button appear under the row instead of in a dialog.) The account, every saved article and the reading history are deleted, and the app returns to the sign-in screen immediately. (The same flow exists on the web at readplace.com/account.)
 
 Demo account: see the App Review Information fields.

@@ -33,7 +33,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 | 10 | [Readlist digest](#10-readlist-digest) | `Waiting in your readlist` | At most once every 7 days, for verified paying members (never founding members; trialists are checked, but a 14-day trial never holds a 30-day-old save), while saves at least 30 days old (unread, reader view and summary ready, never listed before) are waiting; checked every 6 hours. | none |
 | 11 | [First inbox email arrived](#11-first-inbox-email-arrived) | `Your first email landed in your Readplace Inbox` | Seconds after the first email with a saveable article link is sent directly to one of the reader's Readplace addresses while the reader can save (a read-only reader gets Inbox saves paused instead, and this email waits for a later email after access returns); mail routed from Gmail never sends it; once per account, ever. | `readplace+first_inbox_email@readplace.com` |
 | 12 | [Gmail newsletter notice](#12-gmail-newsletter-notice) | `Choose readlists for {newsletterName}` | At the next 6-hourly check after an approved, unmapped newsletter mails a connected Gmail account or a seen sender becomes approved, once 7 days have passed since the reader's last notice email and the reader has a readlist besides All; at most 10 newsletters per email, those pending longest first, the rest in the next weekly email. | none |
-| 13 | [Data export ready](#13-data-export-ready) | `Your Readplace export is ready` | Seconds to minutes after a signed-in customer clicks Email Me My Data on /export; one email per click. | none |
+| 13 | [Data export ready](#13-data-export-ready) | `Your Readplace export is ready` | Seconds to minutes after a signed-in customer clicks Email me my data on /export; one email per click. | none |
 | 14 | [Hacker News starter email](#14-hacker-news-starter-email) | `Your Hacker News picks are ready` | Once per account, on a 6-hourly digest check after Readplace added ten Hacker News picks to an inactive reader's library, while at least one pick is still unread and 47.5h have passed since the reader's last digest. | none |
 
 ## 1. Email verification
@@ -3268,11 +3268,11 @@ Exact HTML body: [`html/gmail-newsletter-notice--grouped.html`](html/gmail-newsl
 
 ### When it is sent
 
-A signed-in customer opens Export Your Data (/export) from Export my data on the Account page or from the Privacy page, and clicks Email Me My Data. Readplace queues a background job that collects every saved article across all their readlists into one JSON file, stores it in S3 and emails a download link to the account's address. The email normally arrives within seconds to a few minutes. Every click sends its own email, because nothing deduplicates or rate-limits requests.
+A signed-in customer opens Export your data (/export) from Export data on the Account page or from the Privacy page, and clicks Email me my data. Readplace queues a background job that collects every saved article across all their readlists into one JSON file, stores it in S3 and emails a download link to the account's address. The email normally arrives within seconds to a few minutes. Every click sends its own email, because nothing deduplicates or rate-limits requests.
 
 Trigger chain:
 
-1. The customer opens /export from the Account page or the Privacy page and clicks Email Me My Data, which posts to /export/start `projects/hutch/src/runtime/web/pages/export/export.template.html:29`
+1. The customer opens /export from the Account page or the Privacy page and clicks Email me my data, which posts to /export/start `projects/hutch/src/runtime/web/pages/export/export.template.html:29`
 2. requireAuth lets the request through only when it carries a signed-in cookie session `projects/hutch/src/runtime/server.ts:1586`
 3. The route reads the account's email address from the users table `projects/hutch/src/runtime/web/pages/export/export.page.ts:30`
 4. The route publishes ExportUserDataCommand { userId, email, requestedAt } to EventBridge and redirects to /export?status=preparing `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
@@ -3284,7 +3284,7 @@ Trigger chain:
 Sent only when:
 
 - The customer is signed in on the website with a session cookie `projects/hutch/src/runtime/server.ts:1586`
-- The customer clicks Email Me My Data on /export, and each click queues its own email `projects/hutch/src/runtime/web/pages/export/export.template.html:29`
+- The customer clicks Email me my data on /export, and each click queues its own email `projects/hutch/src/runtime/web/pages/export/export.template.html:29`
 - Account status does not matter: trial, membership, lapsed, read-only and locked (unverified past the 7-day window) accounts all qualify, because the route checks only sign-in and exporting is deliberately left open to locked accounts `projects/hutch/src/runtime/web/middleware/require-not-locked.middleware.ts:13`
 - The account has an email address in the users table at the moment of the click `projects/hutch/src/runtime/web/pages/export/export.page.ts:31`
 - The command publishes to EventBridge without error `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
@@ -3311,7 +3311,7 @@ Not sent when:
 <details><summary>Edge cases</summary>
 
 - Only a cookie session counts: the session is read from the Cookie header, so the browser extension, MCP and the apps' bearer-token API calls cannot request an export `projects/hutch/src/runtime/server.ts:783`
-- The iOS and Android apps show the Account page in an in-app sheet with the session cookie injected, but tapping Export my data there opens /export outside the app (Chrome first on iOS, the default browser on Android), so the export works only if that browser is signed in to Readplace `projects/native-apps/ios/App/ReaderNavigation.swift:43`, `projects/native-apps/android/app/src/main/kotlin/com/readplace/android/app/ReaderNavigation.kt:57`
+- The iOS and Android apps show the Account page in an in-app sheet with the session cookie injected, but tapping Export data there opens /export outside the app (Chrome first on iOS, the default browser on Android), so the export works only if that browser is signed in to Readplace `projects/native-apps/ios/App/ReaderNavigation.swift:43`, `projects/native-apps/android/app/src/main/kotlin/com/readplace/android/app/ReaderNavigation.kt:57`
 - The session cookie is SameSite=Lax, so a form posted from another site arrives without it and is redirected to /login `src/packages/web-analytics/src/cookie-options.ts:6`
 - Requests on the old hutch-app.com host get a 301 to readplace.com before any route runs, so a POST there never reaches /export/start `projects/hutch/src/runtime/server.ts:580`
 - A malformed utm_* query value gets a 400 before the route runs; the page's own form always sends valid values `src/packages/web-analytics/src/utm-validation.middleware.ts:23`
@@ -3329,7 +3329,7 @@ Not sent when:
 > **Observations**
 >
 > - The "7 days" promise may not hold (unverified): the worker presigns the link with the Lambda role's temporary credentials, so the URL carries X-Amz-Security-Token, and AWS stops honouring such a URL when those credentials expire, likely within hours. The email, the /export page, the preparing page and the Privacy page all promise 7 days `projects/hutch/src/runtime/user-data-jobs.main.ts:56`
-> - A failed export is invisible to the customer. They have already seen "I'm preparing your export. Check your inbox shortly.", and when every retry fails only ops hear about it, through the dead-letter alarm email `projects/hutch/src/runtime/web/pages/export/export-preparing.template.html:5`
+> - A failed export is invisible to the customer. They have already seen "Preparing your export. Check your inbox shortly.", and when every retry fails only ops hear about it, through the dead-letter alarm email `projects/hutch/src/runtime/web/pages/export/export-preparing.template.html:5`
 > - Duplicate emails are possible: /export/start has no rate limit or dedupe, and the worker passes no idempotency key to Resend, so repeat clicks and retries after a successful send each deliver another email with a different link `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
 > - On a reserved test domain the worker still logs "[ExportUserData] sent email" and publishes UserDataExported although nothing was sent, so logs and events overstate deliveries `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:128`
 > - The worker logs the recipient address alongside the userId on every send `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:130`
@@ -3369,7 +3369,7 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
 
 ```json
 {
-  "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email Me My Data\" button on https://readplace.com/export)",
+  "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email me my data\" button on https://readplace.com/export)",
   "customerEmail": "sam.reader@gmail.com",
   "userId": "944bd89b7f3dea9073c72bedad648df4",
   "savedArticles": [
@@ -3525,7 +3525,7 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
 
 ```json
 {
-  "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email Me My Data\" button on https://readplace.com/export)",
+  "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email me my data\" button on https://readplace.com/export)",
   "customerEmail": "sam.reader@gmail.com",
   "userId": "c1c4bd92a3f35e7421ea2a3533ad7ab4",
   "savedArticles": [
@@ -3600,7 +3600,7 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
 
 ```json
 {
-  "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email Me My Data\" button on https://readplace.com/export)",
+  "customerAction": "Logged-in user POSTs /export/start?utm_source=export&utm_medium=internal&utm_content=start (the \"Email me my data\" button on https://readplace.com/export)",
   "customerEmail": "sam.reader@gmail.com",
   "userId": "ae70c7d8d05cba7ca83575ce2d89516b",
   "savedArticles": [],

@@ -25,7 +25,7 @@ export async function runExtendTrialFlow(page: Page, config: ExtendTrialConfig &
 	const seed = await playwrightRequest.newContext({ baseURL: config.baseURL })
 	try {
 		const adminCreated = await seed.post('/e2e/users', {
-			data: { email: config.admin.email, password: config.admin.password },
+			data: { email: config.admin.email, password: config.admin.password, verified: true },
 		})
 		assert.equal(adminCreated.status(), 201, 'seeding the admin user must succeed')
 

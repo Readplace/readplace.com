@@ -790,6 +790,22 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 			await expect(page.locator("main.import")).toHaveScreenshot(`eink-import-${theme}.png`, CONTRAST_SENSITIVE);
 		});
+
+		test(`the account page keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email } = await createEinkUser(page, `account-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await loginAs(page, email);
+			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-account");
+			await page.evaluate(() => {
+				const signedInAs = document.querySelector("[data-test-account-email] strong");
+				if (!signedInAs) throw new Error("the account page must name the signed-in address");
+				signedInAs.textContent = "reader@example.com";
+			});
+			await settle(page, "main.account");
+
+			await expect(page.locator("main.account")).toHaveScreenshot(`eink-account-${theme}.png`, CONTRAST_SENSITIVE);
+		});
 	}
 
 	test("a summary still says it is working when the panel refuses motion", async ({

@@ -704,6 +704,14 @@ export const FORM_CONTROL_STYLES = `
 		background: radial-gradient(circle, var(--foreground) 0 4px, transparent 4.5px);
 	}
 
+	.form-choice--mark {
+		border-radius: 50%;
+	}
+
+	[aria-pressed="true"] > .form-choice--mark {
+		background: radial-gradient(circle, var(--foreground) 0 4px, transparent 4.5px);
+	}
+
 	.form-choice:focus-visible {
 		outline: 2px solid var(--ring);
 		outline-offset: 2px;

@@ -79,6 +79,12 @@ function confirmPopoverKeys(doc: Document): string[] {
 	);
 }
 
+function dangerForm(doc: Document, placement: "dialog" | "fallback" | "inline"): Element {
+	const form = doc.querySelector(`[data-test-danger-form="${placement}"]`);
+	assert(form, `the ${placement} delete form must render`);
+	return form;
+}
+
 function subscribePlanKeys(doc: Document): string[] {
 	return Array.from(
 		doc.querySelectorAll(
@@ -304,6 +310,12 @@ describe("GET /account (which account am I in?)", () => {
 		const identity = doc.querySelector("[data-test-account-email]");
 		assert(identity, "the account page must name the signed-in email");
 		expect(identity.textContent).toBe("Signed in as reader@example.com");
+		const lede = doc.querySelector(".account__lede");
+		assert(lede, "the account page must open with its lede");
+		expect(lede.textContent).toBe("Manage your account, billing and preferences.");
+		expect(doc.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(
+			"Manage your account, billing and preferences.",
+		);
 	});
 
 	it("names it on the app shell too, the only surface the iOS app renders", async () => {
@@ -317,6 +329,115 @@ describe("GET /account (which account am I in?)", () => {
 		const identity = doc.querySelector("[data-test-account-email]");
 		assert(identity, "the app-shell account page must name the signed-in email");
 		expect(identity.textContent).toBe("Signed in as ios-reader@example.com");
+		const lede = doc.querySelector(".account__lede");
+		assert(lede, "the app-shell account page must open with its lede");
+		expect(lede.textContent).toBe("Manage your account and preferences.");
+	});
+});
+
+describe("GET /account (headed sections)", () => {
+	function sections(doc: Document): Element[] {
+		return Array.from(doc.querySelectorAll("[data-test-account-section]"));
+	}
+
+	function headingOf(doc: Document, section: Element): string {
+		const headingId = section.getAttribute("aria-labelledby");
+		assert(headingId, "every account section must be labelled by its heading");
+		const heading = doc.getElementById(headingId);
+		assert(heading, `the heading a section is labelled by (#${headingId}) must render`);
+		assert(section.contains(heading), "a section's heading must sit inside it");
+		expect(heading.tagName).toBe("H2");
+		return heading.textContent ?? "";
+	}
+
+	function subscriptionSection(doc: Document): Element {
+		const section = doc.querySelector('[data-test-account-section="subscription"]');
+		assert(section, "the subscription section must render");
+		return section;
+	}
+
+	it("stacks the web page into labelled sections, with the subscription card and the payment cards under one heading", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		expect(sections(doc).map((section) => section.getAttribute("data-test-account-section"))).toEqual([
+			"subscription",
+			"appearance",
+			"data",
+			"danger",
+		]);
+		expect(sections(doc).map((section) => headingOf(doc, section))).toEqual([
+			"Subscription & billing",
+			"Appearance",
+			"Your data",
+			"Danger zone",
+		]);
+		const subscription = subscriptionSection(doc);
+		assert(subscription.querySelector("[data-test-account-card]"), "the subscription card must sit in its section");
+		assert(subscription.querySelector("[data-test-cards-section]"), "the payment cards must sit in the same section");
+	});
+
+	it("keeps the payment cards' provider error inside the subscription section", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.listCards = async () => {
+			throw new Error("Stripe is down");
+		};
+		const harness = useApp(fixture);
+		const { agent, userId } = await loginUser(harness, "sections-provider-error@example.com");
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_sections_err",
+			customerId: "cus_sections_err",
+		});
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		const alert = subscriptionSection(doc).querySelector('[data-test-alert="payment-methods"]');
+		assert(alert, "the provider error must render inside the subscription section");
+		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
+			"We couldn't load your saved cards just now. Refresh the page to try again.",
+		);
+	});
+
+	it("keeps a card notice inside the subscription section", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "sections-card-notice@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const doc = new JSDOM((await agent.get("/account?error=card_limit")).text).window.document;
+
+		const notice = subscriptionSection(doc).querySelector('[data-test-alert="card-notice"]');
+		assert(notice, "the card notice must render inside the subscription section");
+		expect(notice.getAttribute("data-test-alert-variant")).toBe("error");
+	});
+
+	it("names the section Subscription, and leaves billing out of the lede, on the iOS surface, which hides billing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios")).text).window.document;
+
+		expect(sections(doc).map((section) => headingOf(doc, section))).toEqual([
+			"Subscription",
+			"Appearance",
+			"Your data",
+			"Danger zone",
+		]);
+		expect(doc.querySelector(".account__lede")?.textContent).toBe("Manage your account and preferences.");
+	});
+
+	it("names it Subscription on the app shell alone too, under the sheet's back link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account?shell=app")).text).window.document;
+
+		expect(headingOf(doc, subscriptionSection(doc))).toBe("Subscription");
+		assert(doc.querySelector("[data-test-account-back-link]"), "the app shell must render its back link");
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(true);
 	});
 });
 
@@ -337,7 +458,7 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 		// No in-app purchase path: no Subscribe form, no card management section.
 		expect(actionKeys(doc)).toEqual([]);
 		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
-		expect(confirmPopoverKeys(doc)).toEqual([]);
+		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
 		// Apple requires in-app account deletion to stay reachable.
 		assert(
 			doc.querySelector("[data-test-account-danger]"),
@@ -345,11 +466,13 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 		);
 		// The delete form carries ?platform=ios too, so a server-rejected confirmation
 		// re-renders commerce-free (mirrors the cancel control above).
-		const deleteForm = doc.querySelector('[data-test-danger-action="delete-account"]');
-		assert(deleteForm, "the delete form must render on the iOS surface");
-		expect(deleteForm.getAttribute("action")).toBe(
-			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios",
+		const deleteActions = (["dialog", "fallback"] as const).map((placement) =>
+			dangerForm(doc, placement).getAttribute("action"),
 		);
+		expect(deleteActions).toEqual([
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios",
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios",
+		]);
 	});
 
 	it("keeps the Cancel control routed through ?platform=ios and hides card management for an active subscriber", async () => {
@@ -523,11 +646,13 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
 			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios&shell=app",
 		);
-		const deleteForm = doc.querySelector('[data-test-danger-action="delete-account"]');
-		assert(deleteForm, "the delete form must render on the app surface");
-		expect(deleteForm.getAttribute("action")).toBe(
-			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios&shell=app",
+		const deleteActions = (["dialog", "fallback"] as const).map((placement) =>
+			dangerForm(doc, placement).getAttribute("action"),
 		);
+		expect(deleteActions).toEqual([
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios&shell=app",
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios&shell=app",
+		]);
 	});
 
 	it("treats the app shell as an iOS surface on its own — the app never has to carry both markers for commerce to stay hidden", async () => {
@@ -545,7 +670,7 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		// Guideline 3.1.1 holds off the shell marker alone: no Subscribe CTA, no cards.
 		expect(actionKeys(doc)).toEqual([]);
 		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
-		expect(confirmPopoverKeys(doc)).toEqual([]);
+		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
 	});
 
 	it("keeps the full web shell for a store build that predates the marker — it sends platform=ios alone and cannot drive a deep link", async () => {
@@ -605,7 +730,7 @@ describe("GET /account?error=subscribe_failed", () => {
 				el.getAttribute("data-test-account-action"),
 			),
 		).toContain("subscribe");
-		expect(confirmPopoverKeys(doc)).toEqual(["subscribe-plans"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["delete-account", "subscribe-plans"]);
 	});
 });
 
@@ -734,7 +859,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
 		const fallback = findAction(doc, "subscribe");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
-		expect(confirmPopoverKeys(doc)).toEqual(["subscribe-plans"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["delete-account", "subscribe-plans"]);
 		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
 	}
 
@@ -792,7 +917,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		]);
 	});
 
-	it("renders no plan popover for an active subscriber — the page's popover key list carries exactly what the card's actions declare", async () => {
+	it("renders no plan popover for an active subscriber — beside the delete dialog, the page's popover key list carries exactly what the card's actions declare", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "active-plans@example.com");
@@ -807,7 +932,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
 		expect(actionKeys(doc)).toEqual(["cancel-form"]);
-		expect(confirmPopoverKeys(doc)).toEqual([]);
+		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
 	});
 });
 
@@ -2924,17 +3049,24 @@ describe("POST /account/delete", () => {
 		const after = await agent.get("/account?error=delete_confirmation");
 		expect(after.status).toBe(200);
 		const doc = new JSDOM(after.text).window.document;
-		const notice = doc.querySelector("[data-test-danger-notice]");
+		const danger = doc.querySelector("[data-test-account-danger]");
+		assert(danger, "the danger zone must render");
+		expect(danger.getAttribute("data-test-danger-presentation")).toBe("inline");
+		const inlineForm = dangerForm(doc, "inline");
+		assert(danger.contains(inlineForm), "the refused form must render in the danger card, where no popover has to open");
+		const notice = inlineForm.querySelector("[data-test-danger-notice]");
 		assert(notice, "the rejected-delete notice must render");
 		expect(notice.getAttribute("role")).toBe("alert");
 		expect(notice.classList.contains("form-field__error")).toBe(true);
 		expect(notice.textContent).toBe(
 			'Your account was not deleted. Type "delete my account permanently" exactly to confirm.',
 		);
-		const input = doc.querySelector("[data-test-danger-confirm-input]");
+		const input = inlineForm.querySelector("[data-test-danger-confirm-input]");
 		assert(input, "the typed-confirmation input must render beside its notice");
 		expect(input.getAttribute("aria-invalid")).toBe("true");
-		expect(input.getAttribute("aria-describedby")).toBe(notice.getAttribute("id"));
+		const describedBy = input.getAttribute("aria-describedby");
+		assert(describedBy, "the refused input must point at its notice");
+		expect(doc.getElementById(describedBy)).toBe(notice);
 	});
 
 	it("rejects a delete whose confirmation phrase does not match exactly", async () => {
@@ -3034,6 +3166,18 @@ describe("POST /account/delete", () => {
 });
 
 describe("GET /account (export)", () => {
+	function expectExportLink(doc: Document) {
+		const card = doc.querySelector("[data-test-account-export]");
+		assert(card, "the export card must render");
+		const link = card.querySelector("[data-test-account-export-link]");
+		assert(link, "the export link must render");
+		expect(link.tagName).toBe("A");
+		expect(link.getAttribute("href")).toBe(
+			"/export?utm_source=account&utm_medium=internal&utm_content=export",
+		);
+		expect(link.textContent).toBe("Export data");
+	}
+
 	it("offers the data export, which no longer has a header-nav entry of its own", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -3041,14 +3185,18 @@ describe("GET /account (export)", () => {
 		const response = await agent.get("/account");
 		const doc = new JSDOM(response.text).window.document;
 
-		const section = doc.querySelector("[data-test-account-export]");
-		assert(section, "the export section must render");
-		const link = section.querySelector("[data-test-account-export-link]");
-		assert(link, "the export link must render");
-		expect(link.getAttribute("href")).toBe(
-			"/export?utm_source=account&utm_medium=internal&utm_content=export",
-		);
+		expectExportLink(doc);
 		expect(doc.querySelector('[data-test-nav-item="export"]')).toBeNull();
+	});
+
+	it("keeps the export a link on the app shell, which the iOS sheet opens in the browser instead of loading the web header's commerce in-app", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account?platform=ios&shell=app");
+		const doc = new JSDOM(response.text).window.document;
+
+		expectExportLink(doc);
 	});
 
 	it("keeps the export reachable for a read-only user, whose data is still theirs to take", async () => {
@@ -3063,13 +3211,33 @@ describe("GET /account (export)", () => {
 		const response = await agent.get("/account");
 		const doc = new JSDOM(response.text).window.document;
 
-		const link = doc.querySelector("[data-test-account-export-link]");
-		assert(link, "a read-only user must still be offered the export");
+		expectExportLink(doc);
 	});
 });
 
 describe("GET /account (danger zone)", () => {
-	it("renders a destructive delete-account form pointing at /account/delete", async () => {
+	function expectConfirmationField(form: Element, inputId: string) {
+		const input = form.querySelector("[data-test-danger-confirm-input]");
+		assert(input, "the typed-confirmation input must render");
+		expect(input.getAttribute("id")).toBe(inputId);
+		expect(input.getAttribute("name")).toBe("confirmation");
+		expect(input.hasAttribute("required")).toBe(true);
+		expect(input.getAttribute("pattern")).toBe("delete my account permanently");
+		expect(input.getAttribute("title")).toBe("Type the phrase exactly: delete my account permanently");
+		expect(input.classList.contains("form-input")).toBe(true);
+		expect(input.hasAttribute("aria-invalid")).toBe(false);
+		expect(input.hasAttribute("aria-describedby")).toBe(false);
+
+		const label = form.querySelector(`label[for="${inputId}"]`);
+		assert(label, "the confirmation input must be labelled");
+		expect(label.textContent).toBe('Type "delete my account permanently" to confirm');
+		expect(label.classList.contains("form-field__label")).toBe(true);
+		const field = input.closest(".form-field");
+		assert(field, "the confirmation input must sit in a form field");
+		assert(field.contains(label), "the label must share the confirmation input's form field");
+	}
+
+	it("opens a delete dialog from the row, and keeps the same delete form in the card for a browser without popovers", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -3078,15 +3246,30 @@ describe("GET /account (danger zone)", () => {
 
 		const danger = doc.querySelector("[data-test-account-danger]");
 		assert(danger, "the danger zone must render");
-		const deleteForm = danger.querySelector('[data-test-danger-action="delete-account"]');
-		assert(deleteForm, "the delete-account form must render");
-		expect(deleteForm.getAttribute("method")).toBe("POST");
-		expect(deleteForm.getAttribute("action")).toBe(
-			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account",
-		);
+		expect(danger.getAttribute("data-test-danger-presentation")).toBe("dialog");
+		const trigger = danger.querySelector("[data-test-danger-open]");
+		assert(trigger, "the row must render the dialog trigger");
+		expect(trigger.getAttribute("type")).toBe("button");
+		expect(trigger.getAttribute("popovertarget")).toBe("delete-account");
+		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
+		const dialog = doc.querySelector('[data-test-confirm-popover="delete-account"]');
+		assert(dialog, "the delete dialog must render");
+		expect(dialog.getAttribute("id")).toBe("delete-account");
+
+		const fallback = dangerForm(doc, "fallback");
+		const dialogForm = dangerForm(doc, "dialog");
+		assert(danger.contains(fallback), "the no-popover fallback must render in the danger card");
+		assert(dialog.contains(dialogForm), "the dialog's form must render in the dialog");
+		for (const form of [dialogForm, fallback]) {
+			expect(form.getAttribute("method")).toBe("POST");
+			expect(form.getAttribute("action")).toBe(
+				"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account",
+			);
+			expect(form.getAttribute("hx-target")).toBe("main");
+		}
 	});
 
-	it("warns the deletion is irreversible and loses all data, and requires typing the confirmation phrase", async () => {
+	it("warns the deletion is irreversible and loses all data, and requires typing the confirmation phrase in either form", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -3097,32 +3280,34 @@ describe("GET /account (danger zone)", () => {
 		assert(danger, "the danger zone must render");
 		expect(danger.textContent).toContain("This can't be undone — you will lose all your data.");
 
-		const input = danger.querySelector("[data-test-danger-confirm-input]");
-		assert(input, "the typed-confirmation input must render");
-		expect(input.getAttribute("name")).toBe("confirmation");
-		expect(input.hasAttribute("required")).toBe(true);
-		expect(input.getAttribute("pattern")).toBe("delete my account permanently");
-		expect(input.getAttribute("title")).toBe("Type the phrase exactly: delete my account permanently");
-		expect(input.classList.contains("form-input")).toBe(true);
-		expect(input.hasAttribute("aria-invalid")).toBe(false);
-		expect(input.hasAttribute("aria-describedby")).toBe(false);
+		expectConfirmationField(dangerForm(doc, "dialog"), "delete-account-confirmation-dialog");
+		expectConfirmationField(dangerForm(doc, "fallback"), "delete-account-confirmation");
+	});
 
-		const inputId = input.getAttribute("id");
-		assert(inputId, "the confirmation input must have an id for its label");
-		const label = danger.querySelector(`label[for="${inputId}"]`);
-		assert(label, "the confirmation input must be labelled");
-		expect(label.textContent).toContain('Type "delete my account permanently" to confirm');
-		expect(label.classList.contains("form-field__label")).toBe(true);
-		const field = input.closest(".form-field");
-		assert(field, "the confirmation input must sit in a form field");
-		assert(field.contains(label), "the label must share the confirmation input's form field");
+	it("puts Cancel before the commit in the dialog, and only the commit shows the in-flight dots", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
 
-		const deleteForm = danger.querySelector('[data-test-danger-action="delete-account"]');
-		assert(deleteForm, "the delete-account form must render");
-		assert(
-			deleteForm.contains(input),
-			"the confirmation input must submit with the delete form",
-		);
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		const buttons = Array.from(dangerForm(doc, "dialog").querySelectorAll("button"));
+		expect(buttons.map((button) => [button.getAttribute("data-test-action"), button.getAttribute("type")])).toEqual([
+			["delete-account-cancel", "button"],
+			["delete-account-confirm", "submit"],
+		]);
+		const cancel = buttons[0];
+		expect(cancel.getAttribute("popovertarget")).toBe("delete-account");
+		expect(cancel.getAttribute("popovertargetaction")).toBe("hide");
+		expect(cancel.innerHTML).toBe("Cancel");
+		const commit = buttons[1];
+		expect(commit.querySelector(".account__action-label")?.textContent).toBe("Delete account");
+		assert(commit.querySelector(".account__action-loader"), "the commit must carry the in-flight dots");
+
+		const fallbackSubmit = dangerForm(doc, "fallback").querySelector('button[type="submit"]');
+		assert(fallbackSubmit, "the fallback form must render its submit");
+		expect(fallbackSubmit.getAttribute("data-test-action")).toBe("delete-account-submit");
+		expect(fallbackSubmit.querySelector(".account__action-label")?.textContent).toBe("Delete account");
 	});
 });
 
@@ -3133,7 +3318,7 @@ describe("Account appearance preference", () => {
 		return el;
 	}
 
-	it("renders the appearance control with System active by default and no theme class pinned", async () => {
+	it("renders the appearance control with Auto active by default and no theme class pinned", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await loginUser(harness, "appearance-default@example.com");
 
@@ -3143,6 +3328,21 @@ describe("Account appearance preference", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const section = doc.querySelector("[data-test-account-appearance]");
 		assert(section, "appearance section must be rendered");
+		const options = Array.from(section.querySelectorAll("[data-test-appearance-option]"));
+		expect(options.map((option) => option.getAttribute("data-test-appearance-option"))).toEqual([
+			"light",
+			"dark",
+			"system",
+		]);
+		expect(options.map((option) => option.classList.contains("btn--neutral"))).toEqual([true, true, true]);
+		expect(
+			options.filter((option) => option.getAttribute("aria-pressed") === "true").map((option) => option.textContent),
+		).toEqual(["Auto"]);
+		const group = section.querySelector('[role="group"]');
+		assert(group, "the options must be grouped");
+		const labelledBy = group.getAttribute("aria-labelledby");
+		assert(labelledBy, "the group must be labelled by its row title");
+		expect(doc.getElementById(labelledBy)?.textContent).toBe("Theme");
 		expect(appearanceOption(doc, "system").getAttribute("aria-pressed")).toBe("true");
 		expect(appearanceOption(doc, "light").getAttribute("aria-pressed")).toBe("false");
 		expect(appearanceOption(doc, "dark").getAttribute("aria-pressed")).toBe("false");
