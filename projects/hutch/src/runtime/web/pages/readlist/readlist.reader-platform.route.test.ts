@@ -11,6 +11,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { MARKED_READ_EVENT } from "../reader/reader-exit-confirm.client";
@@ -110,6 +111,47 @@ function buildFailedHarness(): ReturnType<typeof useApp> {
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 		},
 	});
+}
+
+function buildNotFoundHarness(): ReturnType<typeof useApp> {
+	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
+	const parseArticle = async () => ({
+		ok: false as const,
+		reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
+	});
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const applyParseResult = createFakeApplyParseResult({
+		articleStore: fixture.articleStore,
+		articleCrawl: fixture.articleCrawl,
+		parseArticle,
+	});
+	return useApp({
+		...fixture,
+		parser: { parseArticle, crawlArticle },
+		events: {
+			...fixture.events,
+			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+		},
+	});
+}
+
+function openAppReaderPage(input: { html: string; htmxLive: boolean }) {
+	const posted: unknown[] = [];
+	const ajaxCalls: unknown[][] = [];
+	const dom = new JSDOM(input.html, {
+		runScripts: "dangerously",
+		beforeParse(window) {
+			Object.assign(window, {
+				webkit: { messageHandlers: { readplaceReader: { postMessage: (message: unknown) => posted.push(message) } } },
+			});
+			if (input.htmxLive) {
+				Object.assign(window, { htmx: { ajax: (...call: unknown[]) => ajaxCalls.push(call) } });
+			}
+		},
+	});
+	return { dom, posted, ajaxCalls };
 }
 
 async function saveAndGetArticleId(
@@ -287,11 +329,10 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-bridge");
 
 		const iosText = (await agent.get(`/queue/${articleId}/view?platform=ios`)).text;
+		expect(iosText).toContain("captureAvailable");
 		expect(iosText).toContain("captureBlocked");
 		expect(iosText).toContain("data-reader-capture");
 		expect(iosText).toContain('setAttribute("data-reader-capture-host", "")');
-		expect(iosText).toContain("data-reader-capture-poll");
-		expect(iosText).toContain('window.htmx.ajax("GET", pollUrl, { target: "#article-body-reader-slot", swap: "outerHTML" })');
 
 		const shellText = (await agent.get(`/queue/${articleId}/view`)).text;
 		expect(shellText).not.toContain("captureBlocked");
@@ -341,117 +382,140 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		});
 	});
 
-	it("posts captureBlocked and fires the capture poll from a failed notice exactly as from a blocked one", async () => {
-		const harness = buildFailedHarness();
-		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-failed-capture-tap");
+	it("posts captureAvailable once when an offered capture control is in the document, and never for a withheld one", async () => {
+		const offeredHarness = buildBlockedHarness();
+		const offeredAgent = await loginAgent(offeredHarness.server, offeredHarness.auth);
+		const offeredId = await saveAndGetArticleId(offeredAgent, "https://example.com/app-capture-offered");
+		const offered = openAppReaderPage({
+			html: (await offeredAgent.get(`/queue/${offeredId}/view?platform=ios`)).text,
+			htmxLive: true,
+		});
+		const offeredControl = offered.dom.window.document.querySelector<HTMLButtonElement>("[data-reader-capture]");
+		assert(offeredControl, "the blocked notice must render the capture control");
 
-		const posted: unknown[] = [];
-		const ajaxCalls: Array<{ verb: string; url: string; opts: unknown }> = [];
-		const dom = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text, {
-			runScripts: "dangerously",
-			beforeParse(window) {
-				Object.assign(window, {
-					webkit: { messageHandlers: { readplaceReader: { postMessage: (message: unknown) => posted.push(message) } } },
-					htmx: {
-						ajax: (verb: string, url: string, opts: unknown) => ajaxCalls.push({ verb, url, opts }),
-					},
-				});
+		const withheldHarness = buildNotFoundHarness();
+		const withheldAgent = await loginAgent(withheldHarness.server, withheldHarness.auth);
+		const withheldId = await saveAndGetArticleId(withheldAgent, "https://example.com/app-capture-withheld");
+		const withheld = openAppReaderPage({
+			html: (await withheldAgent.get(`/queue/${withheldId}/view?platform=ios`)).text,
+			htmxLive: true,
+		});
+		const withheldControl = withheld.dom.window.document.querySelector("[data-reader-capture]");
+		assert(withheldControl, "the not-found notice must render the capture control");
+
+		expect({
+			offered: { posted: offered.posted, ajaxCalls: offered.ajaxCalls, disabled: offeredControl.disabled },
+			withheld: {
+				posted: withheld.posted,
+				withheld: withheldControl.classList.contains("article-body__reader-notice-capture--withheld"),
 			},
+		}).toEqual({
+			offered: { posted: [{ type: "captureAvailable" }], ajaxCalls: [], disabled: false },
+			withheld: { posted: [], withheld: true },
 		});
 
-		const button = dom.window.document.querySelector<HTMLButtonElement>(
-			'[data-test-reader-notice] [data-test-reader-action="capture"]',
-		);
-		assert(button, "the failed notice must render the capture control");
-		const pollUrl = button.getAttribute("data-reader-capture-poll");
-
-		button.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
-
-		expect({ disabled: button.disabled, posted, ajaxCalls }).toEqual({
-			disabled: true,
-			posted: [{ type: "captureBlocked" }],
-			ajaxCalls: [{ verb: "GET", url: pollUrl, opts: { target: "#article-body-reader-slot", swap: "outerHTML" } }],
-		});
-
-		dom.window.close();
+		offered.dom.window.close();
+		withheld.dom.window.close();
 	});
 
-	it("fires the reader-slot capture poll immediately when htmx is already loaded at tap time", async () => {
+	it("waits for htmx before offering the capture", async () => {
 		const harness = buildBlockedHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-immediate");
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-awaits-htmx");
+		const reader = openAppReaderPage({
+			html: (await agent.get(`/queue/${articleId}/view?platform=ios`)).text,
+			htmxLive: false,
+		});
+		const readerDocument = reader.dom.window.document;
+		const beforeHtmx = {
+			posted: [...reader.posted],
+			captureHost: readerDocument.documentElement.hasAttribute("data-reader-capture-host"),
+		};
 
-		const ajaxCalls: Array<{ verb: string; url: string; opts: unknown }> = [];
-		const dom = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text, {
-			runScripts: "dangerously",
-			beforeParse(window) {
-				Object.assign(window, {
-					webkit: { messageHandlers: { readplaceReader: { postMessage: () => {} } } },
-					htmx: {
-						ajax: (verb: string, url: string, opts: unknown) => ajaxCalls.push({ verb, url, opts }),
-					},
-				});
+		readerDocument.body.dispatchEvent(new reader.dom.window.Event("htmx:load"));
+
+		expect({
+			beforeHtmx,
+			afterHtmx: {
+				posted: reader.posted,
+				captureHost: readerDocument.documentElement.hasAttribute("data-reader-capture-host"),
 			},
+		}).toEqual({
+			beforeHtmx: { posted: [], captureHost: false },
+			afterHtmx: { posted: [{ type: "captureAvailable" }], captureHost: true },
 		});
 
-		const button = dom.window.document.querySelector<HTMLButtonElement>("[data-reader-capture]");
-		assert(button, "the blocked notice must render the capture control");
-		const pollUrl = button.getAttribute("data-reader-capture-poll");
-
-		button.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
-
-		expect(button.disabled).toBe(true);
-		expect(ajaxCalls).toEqual([
-			{ verb: "GET", url: pollUrl, opts: { target: "#article-body-reader-slot", swap: "outerHTML" } },
-		]);
-
-		dom.window.close();
+		reader.dom.window.close();
 	});
 
-	it("defers the reader-slot capture poll to htmx:load when a tap lands before deferred htmx initialises", async () => {
-		const harness = buildBlockedHarness();
+	it("posts captureAvailable when the control arrives in a later swap, and only once", async () => {
+		let crawl: ArticleCrawl = { status: "pending" };
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus: async () => crawl },
+		});
 		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-deferred");
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-later-swap");
+		const reader = openAppReaderPage({
+			html: (await agent.get(`/queue/${articleId}/view?platform=ios`)).text,
+			htmxLive: true,
+		});
+		const readerDocument = reader.dom.window.document;
+		const postedWhilePending = [...reader.posted];
 
-		const posted: Array<{ type?: string }> = [];
-		const dom = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text, {
-			runScripts: "dangerously",
-			beforeParse(window) {
-				Object.assign(window, {
-					webkit: {
-						messageHandlers: {
-							readplaceReader: { postMessage: (msg: { type?: string }) => posted.push(msg) },
-						},
-					},
-				});
-			},
+		crawl = { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) };
+		const poll = new JSDOM((await agent.get(`/queue/${articleId}/reader?poll=2&platform=ios`)).text).window.document;
+		const arrivingNotice = poll.querySelector("#article-body-reader-notice");
+		assert(arrivingNotice, "the poll must carry the blocked notice");
+		const pendingNotice = readerDocument.querySelector("#article-body-reader-notice");
+		assert(pendingNotice, "the pending reader must hold the notice region");
+		pendingNotice.outerHTML = arrivingNotice.outerHTML;
+		readerDocument.body.dispatchEvent(new reader.dom.window.Event("htmx:afterSettle"));
+		readerDocument.body.dispatchEvent(new reader.dom.window.Event("htmx:afterSettle"));
+
+		expect({ postedWhilePending, posted: reader.posted }).toEqual({
+			postedWhilePending: [],
+			posted: [{ type: "captureAvailable" }],
 		});
 
-		const button = dom.window.document.querySelector<HTMLButtonElement>("[data-reader-capture]");
-		assert(button, "the blocked notice must render the capture control");
-		const pollUrl = button.getAttribute("data-reader-capture-poll");
+		reader.dom.window.close();
+	});
 
-		button.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+	it("a tap posts captureBlocked and the bridge does nothing else", async () => {
+		const notices = [
+			{ variant: "blocked", buildNoticeHarness: buildBlockedHarness },
+			{ variant: "failed", buildNoticeHarness: buildFailedHarness },
+		];
+		for (const { variant, buildNoticeHarness } of notices) {
+			const harness = buildNoticeHarness();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetArticleId(agent, `https://example.com/app-capture-tap-${variant}`);
+			const reader = openAppReaderPage({
+				html: (await agent.get(`/queue/${articleId}/view?platform=ios`)).text,
+				htmxLive: true,
+			});
+			const notice = reader.dom.window.document.querySelector("[data-test-reader-notice]");
+			assert(notice, `the ${variant} notice must be rendered`);
+			const button = notice.querySelector<HTMLButtonElement>('[data-test-reader-action="capture"]');
+			assert(button, `the ${variant} notice must render the capture control`);
 
-		expect(button.disabled).toBe(true);
-		expect(posted).toEqual([{ type: "captureBlocked" }]);
+			button.dispatchEvent(new reader.dom.window.Event("click", { bubbles: true }));
 
-		const ajaxCalls: Array<{ verb: string; url: string; opts: unknown }> = [];
-		Object.assign(dom.window, {
-			htmx: {
-				ajax: (verb: string, url: string, opts: unknown) => ajaxCalls.push({ verb, url, opts }),
-			},
-		});
-		expect(ajaxCalls).toEqual([]);
+			expect({
+				variant: notice.getAttribute("data-reader-status"),
+				posted: reader.posted,
+				ajaxCalls: reader.ajaxCalls,
+				disabled: button.disabled,
+			}).toEqual({
+				variant,
+				posted: [{ type: "captureAvailable" }, { type: "captureBlocked" }],
+				ajaxCalls: [],
+				disabled: false,
+			});
 
-		dom.window.document.body.dispatchEvent(new dom.window.Event("htmx:load"));
-
-		expect(ajaxCalls).toEqual([
-			{ verb: "GET", url: pollUrl, opts: { target: "#article-body-reader-slot", swap: "outerHTML" } },
-		]);
-
-		dom.window.close();
+			reader.dom.window.close();
+		}
 	});
 
 	it("marks the body chromeless so the reader CSS can pin the top actions", async () => {

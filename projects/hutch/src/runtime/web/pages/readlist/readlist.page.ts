@@ -699,21 +699,26 @@ const readerStatusChangedBridgeScript = (cspNonce: CspNonce) => `<script nonce="
 
 const readerCaptureBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspNonce}">
 (function () {${readerBridgePostFn}
-	document.documentElement.setAttribute("data-reader-capture-host", "");
+	var offered = false;
+	function offerCapture() {
+		if (offered) { return; }
+		if (!document.querySelector("[data-reader-capture].article-body__reader-notice-capture--offered")) { return; }
+		offered = true;
+		post({ type: "captureAvailable" });
+	}
+	function run() {
+		document.documentElement.setAttribute("data-reader-capture-host", "");
+		offerCapture();
+		document.body.addEventListener("htmx:afterSettle", offerCapture);
+	}
 	document.body.addEventListener("click", function (event) {
 		var target = event.target;
 		var button = target && target.closest ? target.closest("[data-reader-capture]") : null;
 		if (!button) { return; }
-		button.disabled = true;
 		post({ type: "captureBlocked" });
-		var pollUrl = button.getAttribute("data-reader-capture-poll");
-		if (!pollUrl) { return; }
-		function poll() {
-			window.htmx.ajax("GET", pollUrl, { target: "#article-body-reader-slot", swap: "outerHTML" });
-		}
-		if (window.htmx) { poll(); return; }
-		document.body.addEventListener("htmx:load", poll, { once: true });
 	});
+	if (window.htmx) { run(); return; }
+	document.body.addEventListener("htmx:load", run, { once: true });
 })();
 </script>`;
 

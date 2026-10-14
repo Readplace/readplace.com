@@ -36,6 +36,17 @@ function noticeFor(input: { variant: ReaderFailedVariant; extensionInstallUrl?: 
 	return notice;
 }
 
+function pollAffordanceOf(element: Element) {
+	return {
+		hxGet: element.getAttribute("hx-get"),
+		hxTrigger: element.getAttribute("hx-trigger"),
+		hxTarget: element.getAttribute("hx-target"),
+		hxSwap: element.getAttribute("hx-swap"),
+		hxDisabledElt: element.getAttribute("hx-disabled-elt"),
+		backgroundRequest: element.hasAttribute("data-background-request"),
+	};
+}
+
 const PITCH_VISIBLE_CLASS = "article-body__reader-notice-pitch article-body__reader-notice-pitch--visible";
 const PITCH_HIDDEN_CLASS = "article-body__reader-notice-pitch article-body__reader-notice-pitch--hidden";
 
@@ -269,5 +280,68 @@ describe("renderReaderFailed", () => {
 		const capture = doc.querySelector('[data-test-reader-notice] [data-test-reader-action="capture"]');
 		assert(capture, "the failed notice must render a capture control");
 		assert.equal(capture.getAttribute("data-reader-capture-poll"), "/queue/abc/reader?poll=1&capturing=1");
+	});
+
+	it("the notice section and the capture button carry the htmx poll affordances", () => {
+		const capturePollUrl = "/queue/abc/reader?poll=1&capturing=1&platform=ios";
+		const doc = parse(
+			renderReaderFailed({
+				url: destinationUrl("https://example.com/some-article"),
+				variant: "blocked",
+				captureRescue: "offered",
+				capturePollUrl,
+				noticeOob: false,
+			}).notice,
+		);
+
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "the blocked notice must be rendered");
+		const capture = notice.querySelector('[data-test-reader-action="capture"]');
+		assert(capture, "the blocked notice must render its capture control");
+		assert.deepEqual(pollAffordanceOf(notice), {
+			hxGet: capturePollUrl,
+			hxTrigger: "readplace-capture-started from:document",
+			hxTarget: "#article-body-reader-slot",
+			hxSwap: "outerHTML show:none",
+			hxDisabledElt: null,
+			backgroundRequest: true,
+		});
+		assert.deepEqual(
+			{ ...pollAffordanceOf(capture), capturePoll: capture.getAttribute("data-reader-capture-poll") },
+			{
+				hxGet: capturePollUrl,
+				hxTrigger: "click",
+				hxTarget: "#article-body-reader-slot",
+				hxSwap: "outerHTML show:none",
+				hxDisabledElt: "this",
+				backgroundRequest: true,
+				capturePoll: capturePollUrl,
+			},
+		);
+	});
+
+	it("gives a notice without a capture poll URL no poll affordance", () => {
+		const doc = parse(
+			renderReaderFailed({
+				url: destinationUrl("https://example.com/some-article"),
+				variant: "slow",
+				captureRescue: "withheld",
+				noticeOob: false,
+			}).notice,
+		);
+
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "the slow notice must be rendered");
+		const capture = notice.querySelector('[data-test-reader-action="capture"]');
+		assert(capture, "the slow notice must render its capture control");
+		const inert = {
+			hxGet: null,
+			hxTrigger: null,
+			hxTarget: null,
+			hxSwap: null,
+			hxDisabledElt: null,
+			backgroundRequest: false,
+		};
+		assert.deepEqual([pollAffordanceOf(notice), pollAffordanceOf(capture)], [inert, inert]);
 	});
 });

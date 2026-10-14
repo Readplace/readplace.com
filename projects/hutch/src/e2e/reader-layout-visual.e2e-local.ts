@@ -27,6 +27,7 @@ const SUMMARY = {
 	excerpt: "Reading columns stop growing at a comfortable measure.",
 };
 const NOT_FOUND_REASON = JSON.stringify({ kind: "not-found", httpStatus: 404 });
+const BLOCKED_REASON = JSON.stringify({ kind: "blocked", cause: "edge-block" });
 
 const LAYOUT = ".reading-layout";
 const MAIN = ".reading-layout__main";
@@ -40,6 +41,8 @@ const CONTENT = "[data-test-reader-content]";
 const READER_SLOT = "#article-body-reader-slot";
 const READY_SLOT = '[data-test-reader-slot][data-reader-status="ready"]';
 const PENDING_SLOT = '[data-test-reader-slot][data-reader-status="pending"]';
+const PENDING_TITLE = `${PENDING_SLOT} [data-test-reader-pending-title]`;
+const READER_NOTICE = "#article-body-reader-notice";
 const NOT_FOUND_MARKER = '[data-test-reader-slot][data-reader-status="not-found"]';
 const VISIBLE_NOTICE = ".article-body__reader-notice--visible";
 const NOT_FOUND_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader-status="not-found"]`;
@@ -117,7 +120,10 @@ async function quietReader(page: Page): Promise<void> {
 	});
 }
 
-async function seedOwnerArticle(page: Page, input: { stamp: string; content: string }): Promise<SeededReader> {
+async function seedOwnerArticle(
+	page: Page,
+	input: { stamp: string; content: string; crawlVersions?: { crawledAtMinute: string }[] },
+): Promise<SeededReader> {
 	const email = `reader-layout-${input.stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -134,6 +140,7 @@ async function seedOwnerArticle(page: Page, input: { stamp: string; content: str
 			contentFetchedAt: CONTENT_FETCHED_AT,
 			savedByUserId: userId,
 			generatedSummary: SUMMARY,
+			crawlVersions: input.crawlVersions,
 		},
 	});
 	assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
@@ -713,5 +720,78 @@ test.describe("A reader whose crawl fails while it is open", () => {
 		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
 
 		await captureCheckpoint(page, PENDING_TO_FAILED);
+	});
+});
+
+const BLOCKED_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader-status="blocked"]`;
+const CAPTURE = `${BLOCKED_NOTICE} [data-test-reader-action="capture"]`;
+const COPYING_TITLE = "Copying the page from your device";
+const HISTORY_HOLDING_THE_PAGE_HEIGHT = [
+	"2026-07-10T09:14Z",
+	"2026-06-28T22:01Z",
+	"2026-05-19T07:45Z",
+	"2026-04-02T16:30Z",
+	"2026-03-26T14:32Z",
+	"2026-02-11T11:08Z",
+].map((crawledAtMinute) => ({ crawledAtMinute }));
+
+async function openBlockedReader(page: Page, stamp: string): Promise<void> {
+	await quietReader(page);
+	const reader = await seedOwnerArticle(page, {
+		stamp,
+		content: SHORT_ARTICLE,
+		crawlVersions: HISTORY_HOLDING_THE_PAGE_HEIGHT,
+	});
+	await seedCrawlStatus(page, { url: reader.url, status: "pending" });
+	await seedCrawlStatus(page, { url: reader.url, status: "failed", reason: BLOCKED_REASON });
+	await openReader(page, { reader, query: "" });
+	await page.waitForSelector(BLOCKED_NOTICE);
+	await expect.poll(() => page.evaluate(htmxIsLive)).toBe(true);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+test.describe("A capture host starting the reader's capture poll", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 360 } });
+
+	test("a capture-started event swaps the slot to the copying state and the page holds still", async ({
+		page,
+	}, testInfo) => {
+		await openBlockedReader(page, `capture-started-${testInfo.workerIndex}-${Date.now()}`);
+		const title = await measuredBox(page, TITLE);
+		await scrollToY(page, Math.round(title.y + 4));
+		const before = await page.evaluate(readScrollY);
+		expect(before).toBeGreaterThan(0);
+
+		await page.evaluate(recordScrollAfterSwap, READER_NOTICE);
+		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-started")));
+
+		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
+		await awaitScrollStamp(page);
+		await expect(page.locator(PENDING_SLOT)).toHaveCount(1);
+		await expect(page.locator(READER_NOTICE)).toHaveAttribute("data-reader-status", "none");
+		await expect(page.locator(READER_NOTICE)).toHaveCSS("display", "none");
+		expect(before).toBeLessThanOrEqual(await page.evaluate(maxScrollY));
+		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
+	});
+
+	test("a tap on the revealed capture button polls the slot without moving the page", async ({ page }, testInfo) => {
+		await openBlockedReader(page, `capture-tap-${testInfo.workerIndex}-${Date.now()}`);
+		await page.evaluate(() => document.documentElement.setAttribute("data-reader-capture-host", ""));
+		await expect(page.locator(CAPTURE)).toBeVisible();
+		const viewport = page.viewportSize();
+		assert.ok(viewport, "the tap must run with an explicit viewport");
+		const capture = await measuredBox(page, CAPTURE);
+		await scrollToY(page, Math.round(capture.y + capture.height + 24 - viewport.height));
+		const before = await page.evaluate(readScrollY);
+		expect(before).toBeGreaterThan(0);
+
+		await page.evaluate(recordScrollAfterSwap, CAPTURE);
+		await page.locator(CAPTURE).click();
+
+		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
+		await awaitScrollStamp(page);
+		await expect(page.locator(PENDING_SLOT)).toHaveCount(1);
+		expect(before).toBeLessThanOrEqual(await page.evaluate(maxScrollY));
+		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
 	});
 });
