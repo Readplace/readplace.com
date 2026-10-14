@@ -35,7 +35,7 @@ final class DrainUploadJobsTests: XCTestCase {
 	}
 
 	private func emptyCaptor() -> FakeHTMLCaptor {
-		FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil))
+		FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil))
 	}
 
 	private func makeDrain(
@@ -162,7 +162,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		try await jobs.admit(job(title: "Title from the share sheet"))
 		serveReadlist()
 		let captor = FakeHTMLCaptor(
-			page: CapturedPage(rawHtml: "<html>rendered in the app</html>", title: "Rendered", mediaType: "text/html")
+			page: CapturedPage(rawHtml: "<html>rendered in the app</html>", title: "Rendered", mediaType: "text/html", mainFrameStatus: 200)
 		)
 
 		await makeDrain(jobs: jobs, captor: captor).run()
@@ -200,7 +200,7 @@ final class DrainUploadJobsTests: XCTestCase {
 				return .json(404, "{}")
 			}
 		}
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>never rendered</html>", title: nil, mediaType: "text/html"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>never rendered</html>", title: nil, mediaType: "text/html", mainFrameStatus: 200))
 
 		await makeDrain(jobs: jobs, captor: captor).run()
 
@@ -265,6 +265,21 @@ final class DrainUploadJobsTests: XCTestCase {
 		XCTAssertEqual(jobs.loadAll(now: Self.epoch), [])
 	}
 
+	func testDropsAPendingJobWhosePageTheOriginDidNotServe() async throws {
+		let jobs = makeStore()
+		try await jobs.admit(job())
+		serveReadlist()
+		let captor = FakeHTMLCaptor(
+			page: CapturedPage(rawHtml: "<html>Just a moment</html>", title: "Just a moment", mediaType: "text/html", mainFrameStatus: 403)
+		)
+
+		await makeDrain(jobs: jobs, captor: captor).run()
+
+		XCTAssertEqual(captor.capturedURLs.map(\.absoluteString), ["https://example.com/post"])
+		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
+		XCTAssertEqual(jobs.loadAll(now: Self.epoch), [])
+	}
+
 	// MARK: - What the server's answer decides
 
 	func testDropsAJobTheServerRefusesWithItsOwnVerdict() async throws {
@@ -322,7 +337,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		try await jobs.admit(job())
 		serveReadlist(saveContent: { .json(503, Fixtures.sirenError(code: "unavailable", message: "Try again later.")) })
 		let captor = FakeHTMLCaptor(
-			page: CapturedPage(rawHtml: "<html>rendered once</html>", title: "Rendered", mediaType: "text/html")
+			page: CapturedPage(rawHtml: "<html>rendered once</html>", title: "Rendered", mediaType: "text/html", mainFrameStatus: 200)
 		)
 
 		await makeDrain(jobs: jobs, captor: captor).run()
@@ -430,7 +445,7 @@ final class DrainUploadJobsTests: XCTestCase {
 		{ "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }
 		"""
 		serveReadlist(actionsJSON: saveArticleOnly)
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html", mainFrameStatus: 200))
 
 		await makeDrain(jobs: jobs, captor: captor).run()
 

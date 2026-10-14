@@ -64,12 +64,12 @@ struct DrainUploadJobs {
 	private func content(of job: UploadJob, at url: URL, detectedMediaType: String?) async -> MultipartForm? {
 		if detectedMediaType == Self.pdfMediaType {
 			guard let bytes = await api.fetchExternalContent(url), bytes.starts(with: Self.pdfMagic) else { return nil }
-			return saveContentForm(url: url, bytes: bytes, mediaType: Self.pdfMediaType, title: job.title)
+			return saveContentForm(url: url, bytes: bytes, mediaType: Self.pdfMediaType, title: job.title, captureTrigger: .manual)
 		}
 		let captured = await captor.capture(url: url)
-		guard let html = captured.rawHtml, !html.isEmpty else { return nil }
+		guard captured.servedArticle, let html = captured.rawHtml, !html.isEmpty else { return nil }
 		let title = (captured.title?.isEmpty == false) ? captured.title : job.title
-		return saveContentForm(url: url, bytes: Data(html.utf8), mediaType: "text/html", title: title)
+		return saveContentForm(url: url, bytes: Data(html.utf8), mediaType: "text/html", title: title, captureTrigger: .manual)
 	}
 
 	private func reschedule(_ job: UploadJob) {

@@ -417,7 +417,7 @@ final class ReadingListViewModel: ObservableObject {
 			let url = URL(string: article.url)
 		else { return }
 		do {
-			let outcome = try await HealBlockedArticle(api: api, captor: captor).run(url: url)
+			let outcome = try await HealBlockedArticle(api: api, captor: captor).run(url: url, trigger: .manual)
 			if let failureText = outcome.failureText {
 				errorText = failureText
 				return

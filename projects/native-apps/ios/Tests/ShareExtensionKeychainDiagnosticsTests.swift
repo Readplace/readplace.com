@@ -43,7 +43,7 @@ final class ShareExtensionKeychainDiagnosticsTests: XCTestCase {
 				nativeUserAgent: TestSupport.nativeUserAgent,
 				sessionConfiguration: TestSupport.stubbedConfiguration()
 			),
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil, mainFrameStatus: 200)),
 			jobs: UploadJobStore(containerURL: TestSupport.temporaryContainer()),
 			unseenSave: nil,
 			shareTarget: ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer())),

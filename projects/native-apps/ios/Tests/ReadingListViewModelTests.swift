@@ -3303,7 +3303,7 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	private func htmlCaptor(_ rawHtml: String?) -> FakeHTMLCaptor {
-		FakeHTMLCaptor(page: CapturedPage(rawHtml: rawHtml, title: "Captured", mediaType: "text/html"))
+		FakeHTMLCaptor(page: CapturedPage(rawHtml: rawHtml, title: "Captured", mediaType: "text/html", mainFrameStatus: 200))
 	}
 
 	func testCapturingTheOpenBlockedArticleUploadsItAndReconcilesTheList() async throws {
@@ -3420,7 +3420,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let jobs = UploadJobStore(containerURL: TestSupport.temporaryContainer())
 		try await jobs.admit(stagedJob())
 		let captor = FakeHTMLCaptor(
-			page: CapturedPage(rawHtml: "<html>rendered in the app</html>", title: "Rendered", mediaType: "text/html"),
+			page: CapturedPage(rawHtml: "<html>rendered in the app</html>", title: "Rendered", mediaType: "text/html", mainFrameStatus: 200),
 			delay: 0.2
 		)
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), jobs: jobs)
@@ -3437,7 +3437,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	func testDrainingIsANoOpWithoutASharedContainer() async {
 		StubURLProtocol.setHandler(stagedUploadHandler())
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html", mainFrameStatus: 200))
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		await viewModel.drainStagedUploads(with: captor)

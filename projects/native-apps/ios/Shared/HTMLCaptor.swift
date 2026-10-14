@@ -11,6 +11,12 @@ struct CapturedPage {
 	let rawHtml: String?
 	let title: String?
 	let mediaType: String?
+	let mainFrameStatus: Int?
+
+	var servedArticle: Bool {
+		guard let mainFrameStatus else { return false }
+		return (200..<300).contains(mainFrameStatus)
+	}
 }
 
 /// Loads a URL in an off-screen WKWebView and returns the rendered DOM as
@@ -152,11 +158,11 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 		timeoutTask?.cancel()
 		timeoutTask = nil
 
-		var page = CapturedPage(rawHtml: nil, title: nil, mediaType: detectedMediaType)
+		var page = CapturedPage(rawHtml: nil, title: nil, mediaType: detectedMediaType, mainFrameStatus: mainFrameStatus)
 		if extractContent {
 			let html = (try? await webView.evaluateJavaScript("document.documentElement.outerHTML")) as? String
 			let title = (try? await webView.evaluateJavaScript("document.title")) as? String
-			page = CapturedPage(rawHtml: html, title: title, mediaType: "text/html")
+			page = CapturedPage(rawHtml: html, title: title, mediaType: "text/html", mainFrameStatus: mainFrameStatus)
 		}
 		webView.stopLoading()
 		continuation.resume(returning: page)

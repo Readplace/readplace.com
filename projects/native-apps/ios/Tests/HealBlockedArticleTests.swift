@@ -42,11 +42,11 @@ final class HealBlockedArticleTests: XCTestCase {
 
 	func testUploadsTheOnDeviceCaptureThroughTheAdvertisedSaveContentAction() async throws {
 		let captor = FakeHTMLCaptor(
-			page: CapturedPage(rawHtml: "<html><body>the page the crawler was blocked from</body></html>", title: "Captured", mediaType: "text/html")
+			page: CapturedPage(rawHtml: "<html><body>the page the crawler was blocked from</body></html>", title: "Captured", mediaType: "text/html", mainFrameStatus: 200)
 		)
 		serveReadlistAndSaveContent()
 
-		let outcome = try await makeHealer(store: TestSupport.loggedInStore(access: "access-1"), captor: captor).run(url: blockedURL)
+		let outcome = try await makeHealer(store: TestSupport.loggedInStore(access: "access-1"), captor: captor).run(url: blockedURL, trigger: .manual)
 
 		XCTAssertEqual(outcome, .healed)
 		XCTAssertNil(outcome.failureText, "a landed heal leaves nothing to tell the user about")
@@ -76,6 +76,7 @@ final class HealBlockedArticleTests: XCTestCase {
 		XCTAssertEqual(parts.first { $0.name == "url" }?.text, "https://example.com/post")
 		XCTAssertEqual(parts.first { $0.name == "mediaType" }?.text, "text/html")
 		XCTAssertEqual(parts.first { $0.name == "title" }?.text, "Captured")
+		XCTAssertEqual(parts.first { $0.name == "captureTrigger" }?.text, "manual")
 		let content = try XCTUnwrap(parts.first { $0.name == "content" })
 		XCTAssertEqual(content.filename, "content", "the content part needs a filename so the server treats it as a file")
 		XCTAssertEqual(content.text, "<html><body>the page the crawler was blocked from</body></html>")
@@ -86,8 +87,8 @@ final class HealBlockedArticleTests: XCTestCase {
 
 		let outcome = try await makeHealer(
 			store: TestSupport.loggedInStore(),
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html"))
-		).run(url: blockedURL)
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html", mainFrameStatus: 200))
+		).run(url: blockedURL, trigger: .manual)
 
 		XCTAssertEqual(outcome, .healed)
 		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
@@ -96,15 +97,15 @@ final class HealBlockedArticleTests: XCTestCase {
 			body: upload.body
 		)
 		XCTAssertEqual(
-			parts.compactMap(\.name), ["url", "mediaType", "content"],
+			parts.compactMap(\.name), ["url", "mediaType", "captureTrigger", "content"],
 			"an untitled render sends no title part rather than an empty one"
 		)
 	}
 
 	func testUploadsNothingWhenTheCaptureProducedNoHtml() async throws {
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: "application/pdf"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: "application/pdf", mainFrameStatus: nil))
 
-		let outcome = try await makeHealer(store: TestSupport.loggedInStore(), captor: captor).run(url: blockedURL)
+		let outcome = try await makeHealer(store: TestSupport.loggedInStore(), captor: captor).run(url: blockedURL, trigger: .manual)
 
 		XCTAssertEqual(outcome, .captureWasEmpty)
 		XCTAssertTrue(
@@ -121,8 +122,8 @@ final class HealBlockedArticleTests: XCTestCase {
 
 		let outcome = try await makeHealer(
 			store: TestSupport.loggedInStore(),
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html"))
-		).run(url: blockedURL)
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html", mainFrameStatus: 200))
+		).run(url: blockedURL, trigger: .manual)
 
 		XCTAssertEqual(outcome, .noSaveContentAction)
 		XCTAssertEqual(
@@ -141,8 +142,8 @@ final class HealBlockedArticleTests: XCTestCase {
 		do {
 			_ = try await makeHealer(
 				store: TestSupport.loggedInStore(),
-				captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html"))
-			).run(url: blockedURL)
+				captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html", mainFrameStatus: 200))
+			).run(url: blockedURL, trigger: .manual)
 			XCTFail("expected the server's refusal to surface")
 		} catch let APIError.refused(messages) {
 			XCTAssertTrue(
@@ -150,5 +151,67 @@ final class HealBlockedArticleTests: XCTestCase {
 				"the refusal carries the server's message so the caller renders it verbatim"
 			)
 		}
+	}
+
+	func testUploadsNothingWhenTheOriginAnsweredTheDeviceWithANon2xx() async throws {
+		serveReadlistAndSaveContent()
+
+		let outcome = try await makeHealer(
+			store: TestSupport.loggedInStore(),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>captcha</html>", title: "Just a moment", mediaType: "text/html", mainFrameStatus: 403))
+		).run(url: blockedURL, trigger: .manual)
+
+		XCTAssertEqual(outcome, .pageNotServed)
+		XCTAssertEqual(
+			outcome.failureText,
+			"This device couldn't load the article either — the site answered with an error page instead of it."
+		)
+		XCTAssertTrue(
+			StubURLProtocol.records.isEmpty,
+			"an error page the origin answered with must never be uploaded as the article"
+		)
+	}
+
+	func testUploadsNothingWhenNoMainFrameResponseArrived() async throws {
+		serveReadlistAndSaveContent()
+
+		let outcome = try await makeHealer(
+			store: TestSupport.loggedInStore(),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html", mainFrameStatus: nil))
+		).run(url: blockedURL, trigger: .manual)
+
+		XCTAssertEqual(outcome, .pageNotServed)
+		XCTAssertTrue(
+			StubURLProtocol.records.isEmpty,
+			"a render the origin never answered is not the article"
+		)
+	}
+
+	func testAnAutomaticCaptureNamesItsTriggerBeforeTheContent() async throws {
+		serveReadlistAndSaveContent()
+
+		let outcome = try await makeHealer(
+			store: TestSupport.loggedInStore(),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: "text/html", mainFrameStatus: 200))
+		).run(url: blockedURL, trigger: .automatic)
+
+		XCTAssertEqual(outcome, .healed)
+		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
+		let parts = TestSupport.multipartParts(
+			contentType: upload.request.value(forHTTPHeaderField: "Content-Type"),
+			body: upload.body
+		)
+		XCTAssertEqual(parts.compactMap(\.name), ["url", "mediaType", "title", "captureTrigger", "content"])
+		XCTAssertEqual(parts.first { $0.name == "captureTrigger" }?.text, "automatic")
+	}
+
+	func testOnlyAPageTheOriginServedWithA2xxCountsAsTheArticle() {
+		XCTAssertEqual(
+			[200, 204, 299, 300, 403, 429, 500, nil].map {
+				CapturedPage(rawHtml: "<html>hi</html>", title: nil, mediaType: "text/html", mainFrameStatus: $0).servedArticle
+			},
+			[true, true, true, false, false, false, false, false],
+			"a redirect, an error or a CAPTCHA page is not the article, and neither is a render no response answered"
+		)
 	}
 }

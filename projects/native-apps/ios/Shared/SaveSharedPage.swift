@@ -167,24 +167,25 @@ struct SaveSharedPage {
 		sharedPdf: (() async -> Data?)?
 	) async -> ResolvedContent {
 		if let sharedPdf, let bytes = await sharedPdf(), bytes.starts(with: Self.pdfMagic) {
-			return .form(saveContentForm(url: url, bytes: bytes, mediaType: "application/pdf", title: fallbackTitle))
+			return .form(saveContentForm(url: url, bytes: bytes, mediaType: "application/pdf", title: fallbackTitle, captureTrigger: .manual))
 		}
 		let captured = await captor.capture(url: url)
 		let title = (captured.title?.isEmpty == false) ? captured.title : fallbackTitle
 		if captured.mediaType == "application/pdf" { return .pdfDetected }
-		guard let html = captured.rawHtml, !html.isEmpty else { return .none }
-		return .form(saveContentForm(url: url, bytes: Data(html.utf8), mediaType: "text/html", title: title))
+		guard let html = captured.rawHtml, !html.isEmpty, captured.servedArticle else { return .none }
+		return .form(saveContentForm(url: url, bytes: Data(html.utf8), mediaType: "text/html", title: title, captureTrigger: .manual))
 	}
 }
 
 /// The `save-content` fields in wire order, boundary included, so the body that is
 /// staged and the `Content-Type` the request declares can never disagree.
-func saveContentForm(url: URL, bytes: Data, mediaType: String, title: String?) -> MultipartForm {
+func saveContentForm(url: URL, bytes: Data, mediaType: String, title: String?, captureTrigger: CaptureTrigger) -> MultipartForm {
 	var textParts = [
 		MultipartForm.TextPart(name: "url", value: url.absoluteString),
 		MultipartForm.TextPart(name: "mediaType", value: mediaType),
 	]
 	if let title, !title.isEmpty { textParts.append(MultipartForm.TextPart(name: "title", value: title)) }
+	textParts.append(MultipartForm.TextPart(name: "captureTrigger", value: captureTrigger.rawValue))
 	return MultipartForm(
 		boundary: UUID().uuidString,
 		textParts: textParts,

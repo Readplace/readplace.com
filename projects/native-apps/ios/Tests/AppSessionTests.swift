@@ -167,7 +167,7 @@ extension AppSessionTests {
 		_ = try await jobs.stageReady(job, form: form)
 		let firstAPI = session.makeAPI()
 		let drain = DrainUploadJobs(api: session.makeAPI(),
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
 			jobs: jobs, now: { now })
 		let first = Task { try await firstAPI.loadReadlist() }
 		await fulfillment(of: [refreshStarted], timeout: 2)

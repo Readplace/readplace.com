@@ -88,7 +88,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testSavesTheLinkFirstThenLeavesTheCaptureReadyForTheApp() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil, mainFrameStatus: 200))
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -122,7 +122,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testReadlistsTheJobBeforeItReportsTheLinkSaved() async throws {
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil), delay: 0.2)
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200), delay: 0.2)
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -154,7 +154,7 @@ final class SaveSharedPageTests: XCTestCase {
 		var recordedWhenReported = false
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: container
 		)
 		let outcome = await saver.run(
@@ -173,7 +173,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testMarksTheJobReadyOnceTheCaptureIsStaged() async throws {
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200))
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -190,7 +190,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// The sheet is told "Saved" the moment the link lands, with the capture
 		// still running behind it.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil), delay: 0.2)
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200), delay: 0.2)
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -220,7 +220,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// keeps waiting — the captor's own timeout is the only bound — so the
 		// content is staged rather than abandoned.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>slow</html>", title: "Slow", mediaType: nil), delay: 0.3)
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>slow</html>", title: "Slow", mediaType: nil, mainFrameStatus: 200), delay: 0.3)
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -236,7 +236,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testSignalsStillSavingWhenTheJourneyOutlastsItsThreshold() async throws {
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>slow</html>", title: "Slow", mediaType: nil), delay: 0.3)
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>slow</html>", title: "Slow", mediaType: nil, mainFrameStatus: 200), delay: 0.3)
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -256,7 +256,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testSaysNothingAboutStillSavingWhenTheJourneySettlesFirst() async throws {
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200))
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -279,7 +279,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// sheet at the moment it paints, and the outcome carries the same words —
 		// so the copy changes server-side, with no App Store release.
 		let store = TestSupport.loggedInStore()
-		let emptyCaptor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil))
+		let emptyCaptor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil))
 		let savedBody = """
 		{
 			"class": ["article"],
@@ -321,7 +321,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// The journey must stage those bytes directly — no WKWebView render, no
 		// refetch of an origin that might block a cookie-less second request.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>never used</html>", title: "never used", mediaType: nil))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>never used</html>", title: "never used", mediaType: nil, mainFrameStatus: 200))
 		let container = TestSupport.temporaryContainer()
 		let pdfBytes = Data("%PDF-1.7\nshared pdf body".utf8)
 		serveReadlistAndSave()
@@ -354,7 +354,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// stage, so it hands the app the media type and lets the app — which is not
 		// running under the share sheet's memory budget — fetch them.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: "application/pdf"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: "application/pdf", mainFrameStatus: 200))
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -378,7 +378,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// magic header must not be staged; the journey falls back to the normal
 		// capture path for the URL.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil, mainFrameStatus: 200))
 		let container = TestSupport.temporaryContainer()
 		serveReadlistAndSave()
 
@@ -411,7 +411,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: "Shared title", sharedPdf: nil)
@@ -420,6 +420,44 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertEqual(urlOnlyPosts().count, 1)
 		XCTAssertEqual(queuedJobs(in: container).map(\.state), [.capturePending(detectedMediaType: nil)])
 		assertUploadedNothing()
+	}
+
+	func testUploadsNothingWhenTheSharedPageAnsweredTheDeviceWithANon2xx() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		serveReadlistAndSave()
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>captcha</html>", title: "Just a moment", mediaType: "text/html", mainFrameStatus: 403)),
+			container: container
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: "Shared title", sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .savedAwaitingUpload([]))
+		XCTAssertEqual(urlOnlyPosts().count, 1, "the link itself is still saved")
+		XCTAssertEqual(
+			queuedJobs(in: container).map(\.state), [.capturePending(detectedMediaType: nil)],
+			"an error page the origin answered with is never staged as the article"
+		)
+		assertUploadedNothing()
+	}
+
+	func testSharesAServedPageAsATap() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		serveReadlistAndSave()
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: "text/html", mainFrameStatus: 200)),
+			container: container
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .savedAwaitingUpload([]))
+		let job = try XCTUnwrap(queuedJobs(in: container).first)
+		XCTAssertEqual(try stagedParts(of: job, in: container).first { $0.name == "captureTrigger" }?.text, "manual")
 	}
 
 	func testReadlistsNothingWhenTheServerAdvertisesNoContentAction() async throws {
@@ -445,7 +483,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -464,7 +502,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let saver = SaveSharedPage(
 			store: store,
 			api: makeAPI(store: store),
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			jobs: nil,
 			unseenSave: nil,
 			shareTarget: ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer())),
@@ -498,7 +536,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -541,7 +579,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -606,7 +644,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -633,7 +671,7 @@ final class SaveSharedPageTests: XCTestCase {
 		serveReadlistAndSave()
 		let saver = makeSaver(
 			store: TestSupport.loggedInStore(),
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
 			container: TestSupport.temporaryContainer()
 		)
 
@@ -667,7 +705,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -699,7 +737,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -732,7 +770,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -751,7 +789,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let container = TestSupport.temporaryContainer()
 		let saver = makeSaver(
 			store: loggedOut,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil, mainFrameStatus: 200)),
 			container: container
 		)
 
@@ -771,7 +809,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// URL to key the article on, so the journey reports .noLink before any
 		// capture, network call, or PDF byte load.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil, mainFrameStatus: 200))
 		let container = TestSupport.temporaryContainer()
 		let saver = makeSaver(store: store, captor: captor, container: container)
 
@@ -808,7 +846,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -841,7 +879,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -861,7 +899,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: container
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
@@ -883,7 +921,7 @@ final class SaveSharedPageTests: XCTestCase {
 		var savePostsWhenNoticed = -1
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: TestSupport.temporaryContainer()
 		)
 		let outcome = await saver.run(
@@ -915,7 +953,7 @@ final class SaveSharedPageTests: XCTestCase {
 		var lastMessages: [ServerMessage] = []
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: TestSupport.temporaryContainer()
 		)
 		let outcome = await saver.run(
@@ -998,7 +1036,7 @@ final class SaveSharedPageTests: XCTestCase {
 	) -> SaveSharedPage {
 		makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
 			container: container,
 			shareTarget: shareTarget,
 			readlistChooser: readlistChooser
@@ -1131,7 +1169,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: container,
 			shareTarget: shareTarget,
 			readlistChooser: chooser
@@ -1230,7 +1268,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saver = makeSaver(
 			store: store,
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil)),
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>hi</html>", title: "Captured", mediaType: nil, mainFrameStatus: 200)),
 			container: TestSupport.temporaryContainer(),
 			shareTarget: shareTarget,
 			readlistChooser: chooser
