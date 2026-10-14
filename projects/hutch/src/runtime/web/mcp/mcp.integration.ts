@@ -129,6 +129,38 @@ describe("MCP server over the real app", () => {
 		expect(metadata.status).toBe(200);
 		expect(metadata.body.resource).toBe(`${TEST_APP_ORIGIN}/mcp`);
 		expect(metadata.body.authorization_servers).toEqual([TEST_APP_ORIGIN]);
+		expect(harness.analytics.events.filter((event) => event.event === "mcp_request_refused")).toEqual([
+			expect.objectContaining({ status: 401, reason: "missing_bearer", ua_client: "other" }),
+		]);
+	});
+
+	it("records the client's declared identity on initialize and the tool count on tools/list", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
+
+		await callTool(harness, accessToken, {
+			jsonrpc: "2.0",
+			id: 1,
+			method: "initialize",
+			params: {
+				protocolVersion: MCP_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "integration-client", version: "1.2.3" },
+			},
+		});
+		const listed = await callTool(harness, accessToken, { jsonrpc: "2.0", id: 2, method: "tools/list" });
+
+		expect(harness.analytics.events.filter((event) => event.event === "mcp_session_initialized")).toEqual([
+			expect.objectContaining({
+				oauth_client_id: CLIENT_ID,
+				client_protocol_version: MCP_PROTOCOL_VERSION,
+				client_name: "integration-client",
+				client_version: "1.2.3",
+			}),
+		]);
+		expect(harness.analytics.events.filter((event) => event.event === "mcp_tools_listed")).toEqual([
+			expect.objectContaining({ oauth_client_id: CLIENT_ID, tool_count: listed.body.result.tools.length }),
+		]);
 	});
 
 	it("saves a link and then lists it back for the authenticated user", async () => {

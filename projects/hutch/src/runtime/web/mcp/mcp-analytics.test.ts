@@ -1,6 +1,6 @@
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics";
-import { initRecordMcpToolCall } from "./mcp-analytics";
+import { initRecordMcpHandshake, initRecordMcpToolCall } from "./mcp-analytics";
 import type { McpToolCallRecord } from "./mcp-server";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
@@ -88,5 +88,74 @@ describe("initRecordMcpToolCall", () => {
 		expect(serialized).not.toContain("secret-path");
 		expect(serialized).not.toContain("abc");
 		expect(serialized).toContain("example.com");
+	});
+});
+
+describe("initRecordMcpHandshake", () => {
+	const now = () => new Date("2026-09-12T04:47:00.000Z");
+
+	it("records an initialize as mcp_session_initialized with what the client declared", () => {
+		const { recordUngatedAnalyticsEvent, captured } = capture();
+		initRecordMcpHandshake({ recordUngatedAnalyticsEvent, now })({
+			method: "initialize",
+			userId,
+			oauthClientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+			clientProtocolVersion: "2025-06-18",
+			clientName: "openai-mcp",
+			clientVersion: "1.0.0",
+		});
+		expect(captured).toEqual([
+			{
+				stream: "analytics",
+				event: "mcp_session_initialized",
+				timestamp: "2026-09-12T04:47:00.000Z",
+				oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+				user_id: userId,
+				client_protocol_version: "2025-06-18",
+				client_name: "openai-mcp",
+				client_version: "1.0.0",
+			},
+		]);
+	});
+
+	it("leaves the client fields out of the line when the client declared nothing", () => {
+		const { recordUngatedAnalyticsEvent, captured } = capture();
+		initRecordMcpHandshake({ recordUngatedAnalyticsEvent, now })({
+			method: "initialize",
+			userId,
+			oauthClientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+			clientProtocolVersion: undefined,
+			clientName: undefined,
+			clientVersion: undefined,
+		});
+		expect(JSON.parse(JSON.stringify(captured))).toEqual([
+			{
+				stream: "analytics",
+				event: "mcp_session_initialized",
+				timestamp: "2026-09-12T04:47:00.000Z",
+				oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+				user_id: userId,
+			},
+		]);
+	});
+
+	it("records a tools/list as mcp_tools_listed with the tool count", () => {
+		const { recordUngatedAnalyticsEvent, captured } = capture();
+		initRecordMcpHandshake({ recordUngatedAnalyticsEvent, now })({
+			method: "tools/list",
+			userId,
+			oauthClientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+			toolCount: 12,
+		});
+		expect(captured).toEqual([
+			{
+				stream: "analytics",
+				event: "mcp_tools_listed",
+				timestamp: "2026-09-12T04:47:00.000Z",
+				oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+				user_id: userId,
+				tool_count: 12,
+			},
+		]);
 	});
 });

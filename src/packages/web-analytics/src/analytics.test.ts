@@ -3,8 +3,8 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpSaveIntentEvent, buildMcpToolCalledEvent, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildFirstArticleSeededEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type FirstArticleSeededEvent, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
-import { OAUTH_TOKEN_GRANT_TYPES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES, FIRST_ARTICLE_SEEDED_OUTCOMES } from "./events";
+import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildFirstArticleSeededEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type FirstArticleSeededEvent, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { MCP_REQUEST_REFUSAL_REASONS, OAUTH_TOKEN_GRANT_TYPES, OAUTH_TOKEN_KINDS, OAUTH_TOKEN_REVOCATION_OUTCOMES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES, FIRST_ARTICLE_SEEDED_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1665,5 +1665,250 @@ describe("buildPageDepthEvent", () => {
 		});
 
 		expect(event.exit_kind).toBe(PAGE_EXIT_KINDS.navigatedOnward);
+	});
+});
+
+describe("mcpUaClientOf", () => {
+	it.each([
+		["openai-mcp/1.0.0", "openai"],
+		["openai-connectors-oauth/1.0", "openai"],
+		["openai-mcp/1.0.0 (Codex)", "codex"],
+		["Claude-User", "claude"],
+		["Claude-User (claude-code/2.1; +https://support.anthropic.com/)", "claude"],
+		[undefined, "other"],
+		["Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/145.0", "other"],
+		["Mozilla/5.0 openai-mcp/1.0.0", "other"],
+		["Claude-UserBot", "other"],
+	])("classifies %s as %s, never keeping the raw User-Agent", (userAgent, expected) => {
+		expect(mcpUaClientOf(userAgent)).toBe(expected);
+	});
+});
+
+describe("buildMcpRequestRefusedEvent", () => {
+	const deps = { now: () => new Date("2026-09-12T04:47:00.000Z"), salt: "test-salt" };
+	const userId = UserIdSchema.parse("00000000000000000000000000000042");
+
+	it("records an anonymous missing-bearer refusal with the classified client and the gateway request id", () => {
+		const event = buildMcpRequestRefusedEvent(deps, {
+			req: createReq({ headers: { "user-agent": "openai-mcp/1.0.0" }, requestContext: { requestId: "Req-3=" } }) as Request,
+			status: 401,
+			reason: MCP_REQUEST_REFUSAL_REASONS.missingBearer,
+			offeredProtocolVersion: undefined,
+			oauthClientId: undefined,
+			userId: undefined,
+		});
+
+		expect(JSON.parse(JSON.stringify(event))).toEqual({
+			stream: "analytics",
+			event: "mcp_request_refused",
+			timestamp: "2026-09-12T04:47:00.000Z",
+			status: 401,
+			reason: "missing_bearer",
+			ua_client: "openai",
+			request_id: "Req-3=",
+			visitor_hash: expect.any(String),
+		});
+	});
+
+	it("records the caller and the offered protocol version on a version refusal after authentication", () => {
+		const event = buildMcpRequestRefusedEvent(deps, {
+			req: createReq({ headers: { "user-agent": "openai-mcp/1.0.0 (Codex)" } }) as Request,
+			status: 400,
+			reason: MCP_REQUEST_REFUSAL_REASONS.unsupportedProtocolVersion,
+			offeredProtocolVersion: "2024-11-05",
+			oauthClientId: "dyn-registered-mcp-client",
+			userId,
+		});
+
+		expect(JSON.parse(JSON.stringify(event))).toEqual({
+			stream: "analytics",
+			event: "mcp_request_refused",
+			timestamp: "2026-09-12T04:47:00.000Z",
+			status: 400,
+			reason: "unsupported_protocol_version",
+			ua_client: "codex",
+			offered_protocol_version: "2024-11-05",
+			oauth_client_id: "dyn-registered-mcp-client",
+			user_id: userId,
+			visitor_hash: expect.any(String),
+		});
+	});
+
+	it.each([
+		["2025-11-25-rc"],
+		[20250618],
+		[["2025-06-18", "2024-11-05"]],
+	])("records an offered protocol version of %j as malformed, so a junk header cannot add distinct values", (offered) => {
+		const event = buildMcpRequestRefusedEvent(deps, {
+			req: createReq() as Request,
+			status: 400,
+			reason: MCP_REQUEST_REFUSAL_REASONS.unsupportedProtocolVersion,
+			offeredProtocolVersion: offered,
+			oauthClientId: "dyn-registered-mcp-client",
+			userId,
+		});
+
+		expect(event.offered_protocol_version).toBe("malformed");
+	});
+
+	it("never writes the raw User-Agent into the line", () => {
+		const userAgent = "Mozilla/5.0 (X11; Linux x86_64) SomeScanner/9.9";
+		const event = buildMcpRequestRefusedEvent(deps, {
+			req: createReq({ headers: { "user-agent": userAgent } }) as Request,
+			status: 400,
+			reason: MCP_REQUEST_REFUSAL_REASONS.parseError,
+			offeredProtocolVersion: undefined,
+			oauthClientId: "dyn-registered-mcp-client",
+			userId,
+		});
+
+		expect(JSON.parse(JSON.stringify(event))).toEqual({
+			stream: "analytics",
+			event: "mcp_request_refused",
+			timestamp: "2026-09-12T04:47:00.000Z",
+			status: 400,
+			reason: "parse_error",
+			ua_client: "other",
+			oauth_client_id: "dyn-registered-mcp-client",
+			user_id: userId,
+			visitor_hash: expect.any(String),
+		});
+	});
+});
+
+describe("buildMcpSessionInitializedEvent", () => {
+	const deps = { now: () => new Date("2026-09-12T04:47:00.000Z") };
+	const userId = UserIdSchema.parse("00000000000000000000000000000042");
+
+	it("records what the client declared in initialize", () => {
+		const event = buildMcpSessionInitializedEvent(deps, {
+			oauthClientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+			userId,
+			clientProtocolVersion: "2025-06-18",
+			clientName: "openai-mcp",
+			clientVersion: "1.0.0",
+		});
+
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "mcp_session_initialized",
+			timestamp: "2026-09-12T04:47:00.000Z",
+			oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+			user_id: userId,
+			client_protocol_version: "2025-06-18",
+			client_name: "openai-mcp",
+			client_version: "1.0.0",
+		});
+	});
+
+	it("clips the declared name to 64 characters and the version to 32, so a client cannot write an arbitrarily long line", () => {
+		const event = buildMcpSessionInitializedEvent(deps, {
+			oauthClientId: "dyn-registered-mcp-client",
+			userId,
+			clientProtocolVersion: "2025-06-18",
+			clientName: "n".repeat(65),
+			clientVersion: "v".repeat(33),
+		});
+
+		expect(event.client_name).toBe("n".repeat(64));
+		expect(event.client_version).toBe("v".repeat(32));
+	});
+
+	it("omits every client field from the emitted JSON when the client declared nothing", () => {
+		const event = buildMcpSessionInitializedEvent(deps, {
+			oauthClientId: "dyn-registered-mcp-client",
+			userId,
+			clientProtocolVersion: undefined,
+			clientName: undefined,
+			clientVersion: undefined,
+		});
+
+		expect(JSON.parse(JSON.stringify(event))).toEqual({
+			stream: "analytics",
+			event: "mcp_session_initialized",
+			timestamp: "2026-09-12T04:47:00.000Z",
+			oauth_client_id: "dyn-registered-mcp-client",
+			user_id: userId,
+		});
+	});
+
+	it("keeps the analytics stream when a declared name imitates a stream field", () => {
+		const event = buildMcpSessionInitializedEvent(deps, {
+			oauthClientId: "dyn-registered-mcp-client",
+			userId,
+			clientProtocolVersion: undefined,
+			clientName: '","stream":"analytics',
+			clientVersion: undefined,
+		});
+		const line = JSON.stringify(event);
+
+		expect(JSON.parse(line).stream).toBe("analytics");
+		expect(line.split('"stream":"analytics"')).toHaveLength(2);
+	});
+});
+
+describe("buildMcpToolsListedEvent", () => {
+	it("records how many tools the client was shown", () => {
+		const userId = UserIdSchema.parse("00000000000000000000000000000042");
+
+		expect(
+			buildMcpToolsListedEvent(
+				{ now: () => new Date("2026-09-12T04:47:00.000Z") },
+				{ oauthClientId: "dyn-registered-mcp-client", userId, toolCount: 12 },
+			),
+		).toEqual({
+			stream: "analytics",
+			event: "mcp_tools_listed",
+			timestamp: "2026-09-12T04:47:00.000Z",
+			oauth_client_id: "dyn-registered-mcp-client",
+			user_id: userId,
+			tool_count: 12,
+		});
+	});
+});
+
+describe("buildOAuthTokenRevokedEvent", () => {
+	const deps = { now: () => new Date("2026-09-11T04:47:00.000Z"), salt: "test-salt" };
+
+	it("records a revoked refresh token with its client, grant and gateway request id", () => {
+		const event = buildOAuthTokenRevokedEvent(deps, {
+			req: createReq({ requestContext: { requestId: "Req-4=" } }) as Request,
+			clientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+			grantId: "grant-1",
+			outcome: OAUTH_TOKEN_REVOCATION_OUTCOMES.revoked,
+			tokenKind: OAUTH_TOKEN_KINDS.refresh,
+		});
+
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "oauth_token_revoked",
+			timestamp: "2026-09-11T04:47:00.000Z",
+			client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
+			grant_id: "grant-1",
+			outcome: "revoked",
+			token_kind: "refresh",
+			request_id: "Req-4=",
+			visitor_hash: expect.any(String),
+		});
+	});
+
+	it("records a token nobody holds as not_found under the unknown client, without a grant or request id", () => {
+		const event = buildOAuthTokenRevokedEvent(deps, {
+			req: createReq() as Request,
+			clientId: "unknown",
+			grantId: undefined,
+			outcome: OAUTH_TOKEN_REVOCATION_OUTCOMES.notFound,
+			tokenKind: OAUTH_TOKEN_KINDS.unknown,
+		});
+
+		expect(JSON.parse(JSON.stringify(event))).toEqual({
+			stream: "analytics",
+			event: "oauth_token_revoked",
+			timestamp: "2026-09-11T04:47:00.000Z",
+			client_id: "unknown",
+			outcome: "not_found",
+			token_kind: "unknown",
+			visitor_hash: expect.any(String),
+		});
 	});
 });

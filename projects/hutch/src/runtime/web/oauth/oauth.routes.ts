@@ -2,7 +2,6 @@ import express, { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import ExpressOAuthServer from "@node-oauth/express-oauth-server";
-import type { RefreshToken } from "@node-oauth/oauth2-server";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type {
 	FindOAuthClient,
@@ -17,8 +16,7 @@ import type {
 	DestroyUserSessions,
 	FindEmailByUserId,
 } from "@packages/provider-contracts/auth";
-import { getBuiltInClient, revokeDestroysUserSessions } from "@packages/domain/oauth";
-import { UserIdSchema } from "@packages/domain/user";
+import { getBuiltInClient } from "@packages/domain/oauth";
 import assert from "node:assert";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { Base } from "../base.component";
@@ -27,8 +25,8 @@ import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { sendComponent } from "@packages/web-shell";
 import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics";
 import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
-import { refreshContext } from "../../oauth-refresh/evidence";
 import { initObserveTokenOutcome } from "./token-refusal";
+import { initTokenRevocation } from "./token-revocation";
 
 const authorizeQuerySchema = z.object({
 	client_id: z.string(),
@@ -54,10 +52,6 @@ const switchBodySchema = z.object({
 	code_challenge_method: z.literal("S256"),
 	state: z.string().optional(),
 	screen_hint: z.enum(["login", "signup"]).optional(),
-});
-
-const revokeBodySchema = z.object({
-	token: z.string().min(1),
 });
 
 /**
@@ -173,18 +167,6 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 			refresh_token: false,
 		},
 	});
-
-	const findRefreshRecord = async (token: string): Promise<RefreshToken | null> => {
-		const refreshToken = await deps.model.getRefreshToken(token);
-		if (refreshToken) return refreshToken;
-		const accessTokenResult = await deps.model.getAccessToken(token);
-		// biome-ignore lint/complexity/useOptionalChain: oauth2-server's Falsey type (false | "" | 0 | null | undefined) cannot be narrowed via ?. — needs a truthy guard
-		if (accessTokenResult && accessTokenResult.refreshToken) {
-			const associatedRefresh = await deps.model.getRefreshToken(accessTokenResult.refreshToken);
-			if (associatedRefresh) return associatedRefresh;
-		}
-		return null;
-	};
 
 	router.post(
 		"/register",
@@ -383,33 +365,17 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		oauthServer.token(),
 	);
 
-	router.post("/revoke", express.json(), async (req: Request, res: Response) => {
-		const parsed = revokeBodySchema.safeParse(req.body);
-		if (!parsed.success) {
-			res.status(400).json({
-				error: "invalid_request",
-				error_description: "token parameter required",
-			});
-			return;
-		}
-
-		const { token } = parsed.data;
-
-		const refreshRecord = await findRefreshRecord(token);
-		if (refreshRecord) {
-			if (revokeDestroysUserSessions(refreshRecord.client.id)) {
-				const userId = UserIdSchema.parse(refreshRecord.user.id);
-				// Sessions before the token: if the session destroy fails, the presented
-				// token is still valid and the client's retry re-runs the whole sign-out.
-				// Other clients' tokens survive on purpose — their devices transparently
-				// re-mint a session on next use instead of being signed out too.
-				await deps.destroyUserSessions(userId);
-			}
-			await refreshContext.run({ revocationCause: "logout" }, () => deps.model.revokeToken(refreshRecord));
-		}
-
-		res.status(200).json({});
-	});
+	router.post(
+		"/revoke",
+		express.json(),
+		initTokenRevocation({
+			model: deps.model,
+			destroyUserSessions: deps.destroyUserSessions,
+			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
+			now: deps.now,
+			salt: deps.salt,
+		}),
+	);
 
 	router.get("/callback", async (req: Request, res: Response) => {
 		sendComponent(req, res, Base(OAuthCallbackPage(), await deps.buildBannerState(req)));

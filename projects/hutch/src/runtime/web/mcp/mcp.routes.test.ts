@@ -3,6 +3,8 @@ import request from "supertest";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
+import type { AnalyticsEvent } from "@packages/web-analytics";
 import { initMcpRoutes } from "./mcp.routes";
 import { initMcpServer } from "./mcp-server";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
@@ -14,7 +16,8 @@ const validateAccessToken: ValidateAccessToken = async (token) =>
 		? { userId, emailVerified: true, oauthClientId: "dyn-registered-mcp-client" }
 		: null;
 
-function buildApp(): Express {
+function buildObservedApp(): { app: Express; captured: AnalyticsEvent[] } {
+	const captured: AnalyticsEvent[] = [];
 	const mcpServer = initMcpServer({
 		appOrigin: "https://readplace.com",
 		saveLink: async ({ url }) => ({
@@ -36,14 +39,29 @@ function buildApp(): Express {
 		markAsUnread: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
 		recordToolCall: () => {},
+		recordHandshake: () => {},
 		logError: () => {},
 	});
 	const app = express();
+	app.use(createViewerIdentityMiddleware({ edgeSecret: "" }));
 	app.use(
 		"/mcp",
-		initMcpRoutes({ validateAccessToken, mcpServer, baseUrl: "https://readplace.com" }),
+		initMcpRoutes({
+			validateAccessToken,
+			mcpServer,
+			baseUrl: "https://readplace.com",
+			recordUngatedAnalyticsEvent: (event) => {
+				captured.push(event);
+			},
+			now: () => new Date("2026-09-12T04:47:00.000Z"),
+			salt: "test-salt",
+		}),
 	);
-	return app;
+	return { app, captured };
+}
+
+function buildApp(): Express {
+	return buildObservedApp().app;
 }
 
 function post(app: Express, body: unknown) {
@@ -175,5 +193,134 @@ describe("MCP transport routes", () => {
 		const response = await request(buildApp()).delete("/mcp");
 		expect(response.status).toBe(405);
 		expect(response.headers.allow).toBe("POST");
+	});
+
+	describe("refusal analytics", () => {
+		it("records a missing bearer with the classified client and never the raw User-Agent", async () => {
+			const { app, captured } = buildObservedApp();
+			await request(app)
+				.post("/mcp")
+				.set("User-Agent", "openai-mcp/1.0.0")
+				.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+			expect(captured).toEqual([
+				{
+					stream: "analytics",
+					event: "mcp_request_refused",
+					timestamp: "2026-09-12T04:47:00.000Z",
+					status: 401,
+					reason: "missing_bearer",
+					ua_client: "openai",
+					offered_protocol_version: undefined,
+					oauth_client_id: undefined,
+					user_id: undefined,
+					visitor_hash: expect.any(String),
+				},
+			]);
+			expect(JSON.stringify(captured)).not.toContain("openai-mcp/1.0.0");
+		});
+
+		it("records a non-Bearer Authorization header as a missing bearer", async () => {
+			const { app, captured } = buildObservedApp();
+			await request(app)
+				.post("/mcp")
+				.set("Authorization", "Basic abc")
+				.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+			expect(captured).toEqual([expect.objectContaining({ status: 401, reason: "missing_bearer" })]);
+		});
+
+		it.each([["Bearer nope"]])(
+			"records %j as an invalid token without identity",
+			async (authorization) => {
+				const { app, captured } = buildObservedApp();
+				const response = await request(app)
+					.post("/mcp")
+					.set("Authorization", authorization)
+					.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+				expect(response.status).toBe(401);
+				expect(JSON.parse(JSON.stringify(captured))).toEqual([
+					{
+						stream: "analytics",
+						event: "mcp_request_refused",
+						timestamp: "2026-09-12T04:47:00.000Z",
+						status: 401,
+						reason: "invalid_token",
+						ua_client: "other",
+						visitor_hash: expect.any(String),
+					},
+				]);
+			},
+		);
+
+		it("records an unsupported protocol version with the caller and the version it offered", async () => {
+			const { app, captured } = buildObservedApp();
+			await request(app)
+				.post("/mcp")
+				.set("Authorization", "Bearer good-token")
+				.set("User-Agent", "openai-mcp/1.0.0 (Codex)")
+				.set("MCP-Protocol-Version", "2024-11-05")
+				.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+			expect(captured).toEqual([
+				expect.objectContaining({
+					status: 400,
+					reason: "unsupported_protocol_version",
+					ua_client: "codex",
+					offered_protocol_version: "2024-11-05",
+					oauth_client_id: "dyn-registered-mcp-client",
+					user_id: userId,
+				}),
+			]);
+		});
+
+		it("records a protocol version that is not a date as malformed", async () => {
+			const { app, captured } = buildObservedApp();
+			await request(app)
+				.post("/mcp")
+				.set("Authorization", "Bearer good-token")
+				.set("MCP-Protocol-Version", "nope")
+				.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+			expect(captured).toEqual([expect.objectContaining({ offered_protocol_version: "malformed" })]);
+		});
+
+		it("records a parse error with the caller", async () => {
+			const { app, captured } = buildObservedApp();
+			await request(app)
+				.post("/mcp")
+				.set("Authorization", "Bearer good-token")
+				.send("{");
+			expect(JSON.parse(JSON.stringify(captured))).toEqual([
+				{
+					stream: "analytics",
+					event: "mcp_request_refused",
+					timestamp: "2026-09-12T04:47:00.000Z",
+					status: 400,
+					reason: "parse_error",
+					ua_client: "other",
+					oauth_client_id: "dyn-registered-mcp-client",
+					user_id: userId,
+					visitor_hash: expect.any(String),
+				},
+			]);
+		});
+
+		it("records nothing for a dispatched request or a notification", async () => {
+			const { app, captured } = buildObservedApp();
+			await post(app, { jsonrpc: "2.0", id: 1, method: "ping" });
+			await post(app, { jsonrpc: "2.0", method: "notifications/initialized" });
+			expect(captured).toEqual([]);
+		});
+
+		it.each([
+			[{ "MCP-Protocol-Version": "2024-11-05" }, JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" })],
+			[{}, "{"],
+		])("never writes the bearer token into an authenticated refusal (%j)", async (headers, body) => {
+			const { app, captured } = buildObservedApp();
+			await request(app)
+				.post("/mcp")
+				.set("Authorization", "Bearer good-token")
+				.set(headers)
+				.send(body);
+			expect(captured).toHaveLength(1);
+			expect(JSON.stringify(captured)).not.toContain("good-token");
+		});
 	});
 });

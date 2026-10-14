@@ -240,7 +240,7 @@ import { initAccountRoutes } from "./web/pages/account/account.page";
 import { ACCOUNT_PLANS_URL } from "./web/pages/account/account.url";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
-import { initRecordMcpToolCall } from "./web/mcp/mcp-analytics";
+import { initRecordMcpHandshake, initRecordMcpToolCall } from "./web/mcp/mcp-analytics";
 import { initMcpArticleOperations } from "./web/mcp/article-operations";
 import { initResolveOwnedArticle } from "./web/mcp/article-lookup";
 import { initResolveReadlistMembership } from "./web/mcp/readlist-membership";
@@ -687,6 +687,10 @@ export function createApp(dependencies: AppDependencies): Express {
 			recordUngatedAnalyticsEvent,
 			now: deps.now,
 		}),
+		recordHandshake: initRecordMcpHandshake({
+			recordUngatedAnalyticsEvent,
+			now: deps.now,
+		}),
 		logError: deps.logError,
 		saveLink: async ({ userId, url, readlists, oauthClientId }) => {
 			const access = await resolveSaveAccess(userId);
@@ -1006,6 +1010,9 @@ export function createApp(dependencies: AppDependencies): Express {
 			validateAccessToken: deps.validateAccessToken,
 			mcpServer,
 			baseUrl: dependencies.baseUrl,
+			recordUngatedAnalyticsEvent,
+			now: deps.now,
+			salt: deps.salt,
 		}),
 	);
 

@@ -241,6 +241,7 @@ export interface McpServerDeps {
 	}) => Promise<ArticleStatusResult>;
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
 	recordToolCall: RecordMcpToolCall;
+	recordHandshake: RecordMcpHandshake;
 	logError: (message: string, error?: Error) => void;
 }
 
@@ -254,6 +255,26 @@ export interface McpToolCallRecord {
 }
 
 export type RecordMcpToolCall = (record: McpToolCallRecord) => void;
+
+interface McpInitializeRecord {
+	readonly method: "initialize";
+	readonly userId: AuthenticatedUserId;
+	readonly oauthClientId: string;
+	readonly clientProtocolVersion: unknown;
+	readonly clientName: string | undefined;
+	readonly clientVersion: string | undefined;
+}
+
+interface McpToolsListRecord {
+	readonly method: "tools/list";
+	readonly userId: AuthenticatedUserId;
+	readonly oauthClientId: string;
+	readonly toolCount: number;
+}
+
+export type McpHandshakeRecord = McpInitializeRecord | McpToolsListRecord;
+
+export type RecordMcpHandshake = (record: McpHandshakeRecord) => void;
 
 /** The authenticated caller a request runs as. Resolved from the OAuth bearer
  * token by the transport before a message reaches the server. */
@@ -309,6 +330,18 @@ const EnvelopeSchema = z.object({
 	method: z.string(),
 	params: z.unknown().optional(),
 });
+
+const InitializeParams = z
+	.object({
+		protocolVersion: z.unknown(),
+		clientInfo: z
+			.object({
+				name: z.string().optional().catch(undefined),
+				version: z.string().optional().catch(undefined),
+			})
+			.catch({}),
+	})
+	.catch({ protocolVersion: undefined, clientInfo: {} });
 
 const ToolCallParams = z.object({
 	name: z.string(),
@@ -1073,15 +1106,32 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		return toolHandlers.get(name)?.(rawArgs, context);
 	}
 
-	function recordCall(call: McpToolCallRecord): void {
+	function guarded(failureMessage: string, record: () => void): void {
 		try {
-			deps.recordToolCall(call);
+			record();
 		} catch (error) {
-			deps.logError(
-				"MCP tool-call analytics failed",
-				error instanceof Error ? error : undefined,
-			);
+			deps.logError(failureMessage, error instanceof Error ? error : undefined);
 		}
+	}
+
+	function recordCall(call: McpToolCallRecord): void {
+		guarded("MCP tool-call analytics failed", () => deps.recordToolCall(call));
+	}
+
+	function recordHandshake(handshake: McpHandshakeRecord): void {
+		guarded("MCP handshake analytics failed", () => deps.recordHandshake(handshake));
+	}
+
+	function initializeRecord(params: unknown, context: McpRequestContext): McpHandshakeRecord {
+		const declared = InitializeParams.parse(params);
+		return {
+			method: "initialize",
+			userId: context.userId,
+			oauthClientId: context.oauthClientId,
+			clientProtocolVersion: declared.protocolVersion,
+			clientName: declared.clientInfo.name,
+			clientVersion: declared.clientInfo.version,
+		};
 	}
 
 	function submittedSaveUrl(
@@ -1182,10 +1232,17 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			const id = parsed.data.id ?? null;
 			switch (parsed.data.method) {
 				case "initialize":
+					recordHandshake(initializeRecord(parsed.data.params, context));
 					return success(id, initializeResult());
 				case "ping":
 					return success(id, {});
 				case "tools/list":
+					recordHandshake({
+						method: "tools/list",
+						userId: context.userId,
+						oauthClientId: context.oauthClientId,
+						toolCount: TOOL_DEFINITIONS.length,
+					});
 					return success(id, toolsList());
 				case "tools/call":
 					return handleToolsCall(id, parsed.data.params, context);

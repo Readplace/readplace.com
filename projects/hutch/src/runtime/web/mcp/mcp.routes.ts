@@ -7,6 +7,13 @@ import express, {
 } from "express";
 import { AccessTokenSchema } from "@packages/domain/oauth";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
+import {
+	type AnalyticsEvent,
+	buildMcpRequestRefusedEvent,
+	MCP_REQUEST_REFUSAL_REASONS,
+	type McpRequestRefusalReason,
+	type RecordUngatedEvent,
+} from "@packages/web-analytics";
 import type { McpServer } from "./mcp-server";
 import { MCP_PROTOCOL_VERSION, MCP_RESOURCE_METADATA_PATH } from "./protocol";
 
@@ -14,6 +21,9 @@ interface McpRoutesDeps {
 	validateAccessToken: ValidateAccessToken;
 	mcpServer: McpServer;
 	baseUrl: string;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
+	now: () => Date;
+	salt: string;
 }
 
 const PARSE_ERROR = {
@@ -37,6 +47,18 @@ const PARSE_ERROR = {
 export function initMcpRoutes(deps: McpRoutesDeps): Router {
 	const router = express.Router();
 
+	function recordRefusal(
+		req: Request,
+		refusal: { status: number; reason: McpRequestRefusalReason; offeredProtocolVersion: unknown },
+	): void {
+		deps.recordUngatedAnalyticsEvent(
+			buildMcpRequestRefusedEvent(
+				{ now: deps.now, salt: deps.salt },
+				{ req, ...refusal, oauthClientId: req.oauthClientId, userId: req.userId },
+			),
+		);
+	}
+
 	function unauthorized(res: Response, message: string): void {
 		res
 			.status(401)
@@ -54,12 +76,22 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 	): Promise<void> {
 		const header = req.headers.authorization;
 		if (!header?.startsWith("Bearer ")) {
+			recordRefusal(req, {
+				status: 401,
+				reason: MCP_REQUEST_REFUSAL_REASONS.missingBearer,
+				offeredProtocolVersion: undefined,
+			});
 			unauthorized(res, "Authentication required");
 			return;
 		}
 		const token = AccessTokenSchema.parse(header.slice(7));
 		const validated = await deps.validateAccessToken(token);
 		if (!validated) {
+			recordRefusal(req, {
+				status: 401,
+				reason: MCP_REQUEST_REFUSAL_REASONS.invalidToken,
+				offeredProtocolVersion: undefined,
+			});
 			unauthorized(res, "Invalid or expired token");
 			return;
 		}
@@ -75,6 +107,11 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 	): void {
 		const offered = req.headers["mcp-protocol-version"];
 		if (offered !== undefined && offered !== MCP_PROTOCOL_VERSION) {
+			recordRefusal(req, {
+				status: 400,
+				reason: MCP_REQUEST_REFUSAL_REASONS.unsupportedProtocolVersion,
+				offeredProtocolVersion: offered,
+			});
 			res.status(400).json({
 				jsonrpc: "2.0",
 				id: null,
@@ -104,6 +141,11 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 			try {
 				message = JSON.parse(req.body);
 			} catch {
+				recordRefusal(req, {
+					status: 400,
+					reason: MCP_REQUEST_REFUSAL_REASONS.parseError,
+					offeredProtocolVersion: req.headers["mcp-protocol-version"],
+				});
 				res.status(400).json(PARSE_ERROR);
 				return;
 			}

@@ -7,9 +7,11 @@ import {
 	type McpArticle,
 	type CreateReadlistResult,
 	type AddToReadlistResult,
+	type McpHandshakeRecord,
 	type McpServerDeps,
 	type McpToolCallRecord,
 } from "./mcp-server";
+import { TOOL_DEFINITIONS } from "./tool-definitions";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 const context = { userId, oauthClientId: "dyn-registered-mcp-client" };
@@ -36,6 +38,7 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		markAsUnread: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
 		recordToolCall: () => {},
+		recordHandshake: () => {},
 		logError: () => {},
 		...overrides,
 	};
@@ -2155,4 +2158,135 @@ describe("MCP readlist name validation", () => {
 it("reports queued wrapper resolution without inventing a saved article", async () => {
 	const server = initMcpServer(fakeDeps({ saveLink: async () => ({ ok: true, pending: true }) }));
 	expect(await call(server, 91, "save_link", { url: "https://archive.ph/abc" })).toMatchObject({ result: { structuredContent: { status: "pending" } } });
+});
+
+describe("recordHandshake", () => {
+	function handshakes(overrides?: Partial<McpServerDeps>) {
+		const records: McpHandshakeRecord[] = [];
+		const server = initMcpServer(
+			fakeDeps({ recordHandshake: (record) => { records.push(record); }, ...overrides }),
+		);
+		return { server, records };
+	}
+
+	it("records what the client declared in initialize, so a scanner's request shape is on file", async () => {
+		const { server, records } = handshakes();
+		await server.handle(
+			{
+				jsonrpc: "2.0",
+				id: 1,
+				method: "initialize",
+				params: {
+					protocolVersion: "2025-06-18",
+					clientInfo: { name: "openai-mcp", version: "1.0.0" },
+					capabilities: {},
+				},
+			},
+			context,
+		);
+		expect(records).toEqual([
+			{
+				method: "initialize",
+				userId,
+				oauthClientId: "dyn-registered-mcp-client",
+				clientProtocolVersion: "2025-06-18",
+				clientName: "openai-mcp",
+				clientVersion: "1.0.0",
+			},
+		]);
+	});
+
+	it("records an initialize that declares nothing and still answers it", async () => {
+		const { server, records } = handshakes();
+		const response = await server.handle({ jsonrpc: "2.0", id: 1, method: "initialize" }, context);
+		expect(response).toMatchObject({ id: 1, result: { protocolVersion: MCP_PROTOCOL_VERSION } });
+		expect(records).toEqual([
+			{
+				method: "initialize",
+				userId,
+				oauthClientId: "dyn-registered-mcp-client",
+				clientProtocolVersion: undefined,
+				clientName: undefined,
+				clientVersion: undefined,
+			},
+		]);
+	});
+
+	it("records malformed initialize params without changing the answer", async () => {
+		const { server, records } = handshakes();
+		const response = await server.handle(
+			{
+				jsonrpc: "2.0",
+				id: 1,
+				method: "initialize",
+				params: { protocolVersion: 20250618, clientInfo: "openai-mcp" },
+			},
+			context,
+		);
+		expect(response).toMatchObject({ id: 1, result: { protocolVersion: MCP_PROTOCOL_VERSION } });
+		expect(records).toEqual([
+			{
+				method: "initialize",
+				userId,
+				oauthClientId: "dyn-registered-mcp-client",
+				clientProtocolVersion: 20250618,
+				clientName: undefined,
+				clientVersion: undefined,
+			},
+		]);
+	});
+
+	it("records an initialize whose params are not an object at all", async () => {
+		const { server, records } = handshakes();
+		await server.handle({ jsonrpc: "2.0", id: 1, method: "initialize", params: "hello" }, context);
+		expect(records).toEqual([
+			expect.objectContaining({ method: "initialize", clientProtocolVersion: undefined, clientName: undefined }),
+		]);
+	});
+
+	it("records how many tools a tools/list showed the client", async () => {
+		const { server, records } = handshakes();
+		const response = await server.handle({ jsonrpc: "2.0", id: 2, method: "tools/list" }, context);
+		expect(response).toMatchObject({ result: { tools: expect.any(Array) } });
+		expect(records).toEqual([
+			{
+				method: "tools/list",
+				userId,
+				oauthClientId: "dyn-registered-mcp-client",
+				toolCount: TOOL_DEFINITIONS.length,
+			},
+		]);
+	});
+
+	it("records no handshake for ping or a tool call", async () => {
+		const { server, records } = handshakes();
+		await server.handle({ jsonrpc: "2.0", id: 3, method: "ping" }, context);
+		await call(server, 4, "list_readlist_articles");
+		expect(records).toEqual([]);
+	});
+
+	it("never lets a failing analytics write break the handshake", async () => {
+		const errors: string[] = [];
+		const { server } = handshakes({
+			recordHandshake: () => {
+				throw new Error("analytics down");
+			},
+			logError: (message) => { errors.push(message); },
+		});
+		const response = await server.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }, context);
+		expect(response).toMatchObject({ id: 1, result: { tools: expect.any(Array) } });
+		expect(errors).toEqual(["MCP handshake analytics failed"]);
+	});
+
+	it("logs a failing analytics write that throws something other than an Error without an error object", async () => {
+		const logError = jest.fn();
+		const { server } = handshakes({
+			recordHandshake: () => {
+				throw "analytics down";
+			},
+			logError,
+		});
+		await server.handle({ jsonrpc: "2.0", id: 1, method: "initialize" }, context);
+		expect(logError).toHaveBeenCalledWith("MCP handshake analytics failed", undefined);
+	});
 });

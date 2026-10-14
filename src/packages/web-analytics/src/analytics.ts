@@ -10,7 +10,13 @@ import {
 	ANALYTICS_EVENTS,
 	EMAIL_CLICK_MEDIUM,
 	INTERNAL_CLICK_MEDIUM,
+	MALFORMED_PROTOCOL_VERSION,
+	MCP_UA_CLIENTS,
+	type McpRequestRefusalReason,
 	type McpToolOutcome,
+	type McpUaClient,
+	type OAuthTokenKind,
+	type OAuthTokenRevocationOutcome,
 	SAVE_CLIENTS,
 	SAVE_LINK_SURFACES,
 	SAVE_SURFACE_QUERY,
@@ -191,6 +197,36 @@ export function readplaceNativeClientOf(userAgent: string | undefined): "ios" | 
 	if (NATIVE_CLIENT_USER_AGENTS.ios.test(userAgent)) return "ios";
 	if (NATIVE_CLIENT_USER_AGENTS.android.test(userAgent)) return "android";
 	return undefined;
+}
+
+const MCP_UA_CLIENT_USER_AGENTS = {
+	codex: /^openai-mcp\/[\d.]+ \(Codex\)$/,
+	openai: /^openai-(?:mcp|connectors-oauth)\/[\d.]+$/,
+	claude: /^Claude-User(?:[/ ;]|$)/,
+} satisfies Record<Exclude<McpUaClient, "other">, RegExp>;
+
+export function mcpUaClientOf(userAgent: string | undefined): McpUaClient {
+	if (userAgent === undefined) return MCP_UA_CLIENTS.other;
+	if (MCP_UA_CLIENT_USER_AGENTS.codex.test(userAgent)) return MCP_UA_CLIENTS.codex;
+	if (MCP_UA_CLIENT_USER_AGENTS.openai.test(userAgent)) return MCP_UA_CLIENTS.openai;
+	if (MCP_UA_CLIENT_USER_AGENTS.claude.test(userAgent)) return MCP_UA_CLIENTS.claude;
+	return MCP_UA_CLIENTS.other;
+}
+
+const ProtocolVersionSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+function protocolVersionFieldOf(value: unknown): string | undefined {
+	if (value === undefined) return undefined;
+	const parsed = ProtocolVersionSchema.safeParse(value);
+	return parsed.success ? parsed.data : MALFORMED_PROTOCOL_VERSION;
+}
+
+const MCP_CLIENT_NAME_FIELD_LIMIT = 64;
+const MCP_CLIENT_VERSION_FIELD_LIMIT = 32;
+
+function clipped(value: string | undefined, limit: number): string | undefined {
+	if (value === undefined) return undefined;
+	return value.slice(0, limit);
 }
 
 export function isReadplaceNativeClient(userAgent: string | undefined): boolean {
@@ -477,6 +513,52 @@ export interface QueueDigestUnsubscribedEvent {
 	method: QueueDigestUnsubscribeMethod;
 }
 
+export interface McpRequestRefusedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.mcpRequestRefused;
+	timestamp: string;
+	status: number;
+	reason: McpRequestRefusalReason;
+	ua_client: McpUaClient;
+	offered_protocol_version?: string;
+	oauth_client_id?: string;
+	user_id?: UserId;
+	request_id?: string;
+	visitor_hash: string | null;
+}
+
+export interface McpSessionInitializedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.mcpSessionInitialized;
+	timestamp: string;
+	oauth_client_id: string;
+	user_id: UserId;
+	client_protocol_version?: string;
+	client_name?: string;
+	client_version?: string;
+}
+
+export interface McpToolsListedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.mcpToolsListed;
+	timestamp: string;
+	oauth_client_id: string;
+	user_id: UserId;
+	tool_count: number;
+}
+
+export interface OAuthTokenRevokedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.oauthTokenRevoked;
+	timestamp: string;
+	client_id: string;
+	grant_id?: string;
+	outcome: OAuthTokenRevocationOutcome;
+	token_kind: OAuthTokenKind;
+	request_id?: string;
+	visitor_hash: string | null;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| AnalyticsClick
@@ -497,7 +579,11 @@ export type AnalyticsEvent =
 	| SaveRefusedEvent
 	| PageDepthEvent
 	| PlansPageViewedEvent
-	| QueueDigestUnsubscribedEvent;
+	| QueueDigestUnsubscribedEvent
+	| McpRequestRefusedEvent
+	| McpSessionInitializedEvent
+	| McpToolsListedEvent
+	| OAuthTokenRevokedEvent;
 
 function isRenderedPageStatus(statusCode: number): boolean {
 	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
@@ -777,6 +863,93 @@ export function buildOAuthTokenRefusedEvent(
 				: OAUTH_TOKEN_REFUSAL_REASONS.rejected,
 		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
 		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+	};
+}
+
+export function buildOAuthTokenRevokedEvent(
+	deps: { now: () => Date; salt: string },
+	params: {
+		req: Request;
+		clientId: string;
+		grantId: string | undefined;
+		outcome: OAuthTokenRevocationOutcome;
+		tokenKind: OAuthTokenKind;
+	},
+): OAuthTokenRevokedEvent {
+	const gatewayRequestId = gatewayRequestIdOf(params.req);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.oauthTokenRevoked,
+		timestamp: deps.now().toISOString(),
+		client_id: params.clientId,
+		grant_id: params.grantId,
+		outcome: params.outcome,
+		token_kind: params.tokenKind,
+		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+	};
+}
+
+export function buildMcpRequestRefusedEvent(
+	deps: { now: () => Date; salt: string },
+	params: {
+		req: Request;
+		status: number;
+		reason: McpRequestRefusalReason;
+		offeredProtocolVersion: unknown;
+		oauthClientId: string | undefined;
+		userId: UserId | undefined;
+	},
+): McpRequestRefusedEvent {
+	const gatewayRequestId = gatewayRequestIdOf(params.req);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.mcpRequestRefused,
+		timestamp: deps.now().toISOString(),
+		status: params.status,
+		reason: params.reason,
+		ua_client: mcpUaClientOf(params.req.get("user-agent")),
+		offered_protocol_version: protocolVersionFieldOf(params.offeredProtocolVersion),
+		oauth_client_id: params.oauthClientId,
+		user_id: params.userId,
+		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+	};
+}
+
+export function buildMcpSessionInitializedEvent(
+	deps: { now: () => Date },
+	params: {
+		oauthClientId: string;
+		userId: UserId;
+		clientProtocolVersion: unknown;
+		clientName: string | undefined;
+		clientVersion: string | undefined;
+	},
+): McpSessionInitializedEvent {
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.mcpSessionInitialized,
+		timestamp: deps.now().toISOString(),
+		oauth_client_id: params.oauthClientId,
+		user_id: params.userId,
+		client_protocol_version: protocolVersionFieldOf(params.clientProtocolVersion),
+		client_name: clipped(params.clientName, MCP_CLIENT_NAME_FIELD_LIMIT),
+		client_version: clipped(params.clientVersion, MCP_CLIENT_VERSION_FIELD_LIMIT),
+	};
+}
+
+export function buildMcpToolsListedEvent(
+	deps: { now: () => Date },
+	params: { oauthClientId: string; userId: UserId; toolCount: number },
+): McpToolsListedEvent {
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.mcpToolsListed,
+		timestamp: deps.now().toISOString(),
+		oauth_client_id: params.oauthClientId,
+		user_id: params.userId,
+		tool_count: params.toolCount,
 	};
 }
 

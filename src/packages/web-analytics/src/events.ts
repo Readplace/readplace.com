@@ -36,6 +36,10 @@ export const ANALYTICS_EVENTS = {
 	pageDepth: "page_depth",
 	plansPageViewed: "plans_page_viewed",
 	queueDigestUnsubscribed: "queue_digest_unsubscribed",
+	mcpRequestRefused: "mcp_request_refused",
+	mcpSessionInitialized: "mcp_session_initialized",
+	mcpToolsListed: "mcp_tools_listed",
+	oauthTokenRevoked: "oauth_token_revoked",
 } as const;
 
 export const PLANS_PAGE_TERMS = {
@@ -81,6 +85,45 @@ export const OAUTH_TOKEN_REFUSAL_REASONS = {
 
 export type OAuthTokenRefusalReason =
 	(typeof OAUTH_TOKEN_REFUSAL_REASONS)[keyof typeof OAUTH_TOKEN_REFUSAL_REASONS];
+
+export const OAUTH_TOKEN_REVOCATION_OUTCOMES = {
+	revoked: "revoked",
+	notFound: "not_found",
+} as const;
+
+export type OAuthTokenRevocationOutcome =
+	(typeof OAUTH_TOKEN_REVOCATION_OUTCOMES)[keyof typeof OAUTH_TOKEN_REVOCATION_OUTCOMES];
+
+export const OAUTH_TOKEN_KINDS = {
+	refresh: "refresh",
+	access: "access",
+	unknown: "unknown",
+} as const;
+
+export type OAuthTokenKind = (typeof OAUTH_TOKEN_KINDS)[keyof typeof OAUTH_TOKEN_KINDS];
+
+export const UNKNOWN_OAUTH_CLIENT = "unknown";
+
+export const MCP_REQUEST_REFUSAL_REASONS = {
+	missingBearer: "missing_bearer",
+	invalidToken: "invalid_token",
+	unsupportedProtocolVersion: "unsupported_protocol_version",
+	parseError: "parse_error",
+} as const;
+
+export type McpRequestRefusalReason =
+	(typeof MCP_REQUEST_REFUSAL_REASONS)[keyof typeof MCP_REQUEST_REFUSAL_REASONS];
+
+export const MCP_UA_CLIENTS = {
+	openai: "openai",
+	codex: "codex",
+	claude: "claude",
+	other: "other",
+} as const;
+
+export type McpUaClient = (typeof MCP_UA_CLIENTS)[keyof typeof MCP_UA_CLIENTS];
+
+export const MALFORMED_PROTOCOL_VERSION = "malformed";
 
 export const SIGNUP_OUTCOMES = {
 	created: "created",

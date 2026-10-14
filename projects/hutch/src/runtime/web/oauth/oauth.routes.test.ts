@@ -923,6 +923,19 @@ describe("OAuth routes", () => {
 				"revoke-refresh",
 			);
 			expect(revokedToken).toBeNull();
+			const revocations = harness.analytics.events.filter((event) => event.event === "oauth_token_revoked");
+			expect(JSON.parse(JSON.stringify(revocations))).toEqual([
+				{
+					stream: "analytics",
+					event: "oauth_token_revoked",
+					timestamp: expect.any(String),
+					client_id: TEST_CLIENT_ID,
+					outcome: "revoked",
+					token_kind: "refresh",
+					visitor_hash: expect.any(String),
+				},
+			]);
+			expect(JSON.stringify(revocations)).not.toContain("revoke-refresh");
 		});
 
 		it("returns 400 without token parameter", async () => {
@@ -934,6 +947,7 @@ describe("OAuth routes", () => {
 
 			expect(response.status).toBe(400);
 			expect(response.body.error).toBe("invalid_request");
+			expect(harness.analytics.events.filter((event) => event.event === "oauth_token_revoked")).toEqual([]);
 		});
 
 		it("revokes via access token and removes associated refresh token", async () => {
@@ -964,6 +978,9 @@ describe("OAuth routes", () => {
 				"refresh-for-revoke",
 			);
 			expect(revokedRefresh).toBeNull();
+			expect(harness.analytics.events.filter((event) => event.event === "oauth_token_revoked")).toEqual([
+				expect.objectContaining({ client_id: TEST_CLIENT_ID, outcome: "revoked", token_kind: "access" }),
+			]);
 		});
 
 		it("destroys all of the user's sessions but only the presented token when the revoked token belongs to the iOS app", async () => {
@@ -1072,6 +1089,11 @@ describe("OAuth routes", () => {
 				.send({ token: "non-existent-token" });
 
 			expect(response.status).toBe(200);
+			const revocations = harness.analytics.events.filter((event) => event.event === "oauth_token_revoked");
+			expect(revocations).toEqual([
+				expect.objectContaining({ client_id: "unknown", outcome: "not_found", token_kind: "unknown" }),
+			]);
+			expect(JSON.stringify(revocations)).not.toContain("non-existent-token");
 		});
 	});
 

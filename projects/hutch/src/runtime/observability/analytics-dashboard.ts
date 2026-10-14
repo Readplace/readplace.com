@@ -1171,7 +1171,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 304, width: 8, height: 4,
+			x: index * 8, y: 312, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1212,6 +1212,44 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| limit 40",
 			].join(" "),
 			x: 12, y: 194, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "OAuth token revocations — per day by client × outcome",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, client_id, outcome",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.oauthTokenRevoked}"`,
+				"| stats count(*) as revocations by bin(1d), client_id, outcome",
+			].join(" "),
+			x: 12, y: 238, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+		logWidget({
+			region,
+			title: "MCP requests refused by the transport — per day by reason × client",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, reason, ua_client",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpRequestRefused}"`,
+				"| stats count(*) as refusals by bin(1d), reason, ua_client",
+			].join(" "),
+			x: 0, y: 304, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+		logWidget({
+			region,
+			title: "MCP handshakes — initialize and tools/list by declared client",
+			logGroupNames: analyticsSource,
+			query: [
+				'fields @timestamp, event, coalesce(client_name, "-") as assistant, coalesce(client_version, "-") as version, coalesce(client_protocol_version, "-") as protocol',
+				`| filter stream = "${STREAMS.analytics}" and event in ["${ANALYTICS_EVENTS.mcpSessionInitialized}", "${ANALYTICS_EVENTS.mcpToolsListed}"]`,
+				"| stats count(*) as calls, count_distinct(oauth_client_id) as clients by event, assistant, version, protocol",
+				"| sort calls desc",
+				"| limit 50",
+			].join(" "),
+			x: 12, y: 304, width: 12, height: 8,
 			view: "table",
 		}),
 	);
