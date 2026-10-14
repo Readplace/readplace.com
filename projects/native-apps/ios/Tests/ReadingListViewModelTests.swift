@@ -18,6 +18,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		sessionConfiguration: URLSessionConfiguration = TestSupport.stubbedConfiguration(),
 		offlineContainer: AppGroupContainer = AppGroupContainer(url: TestSupport.temporaryContainer()),
 		backgroundTime: BackgroundTimeKeeping? = nil,
+		reportAutomaticCaptureFailure: @escaping (String) -> Void = { _ in },
 		onSessionExpired: @escaping () -> Void = {}
 	) -> ReadingListViewModel {
 		let api = ReadplaceAPI(
@@ -35,6 +36,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			snapshot: OfflineReadlistSnapshot(container: offlineContainer),
 			manifest: OfflineDownloadManifest(container: offlineContainer),
 			backgroundTime: backgroundTime ?? FakeBackgroundTime(),
+			automaticCaptureAttempts: AutomaticCaptureAttempts(defaults: defaults),
+			reportAutomaticCaptureFailure: reportAutomaticCaptureFailure,
 			onSessionExpired: onSessionExpired
 		)
 	}
@@ -3386,6 +3389,199 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
+	func testTheOpenRowIsClaimedForAnAutomaticCaptureOnlyOnce() async throws {
+		StubURLProtocol.setHandler(blockedCaptureHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let row = try XCTUnwrap(viewModel.articles.first)
+		viewModel.openReader(for: row)
+
+		XCTAssertTrue(viewModel.claimAutomaticCapture(), "the first offer for an open failed article starts its rescue")
+
+		viewModel.readerPresentation = nil
+		viewModel.openReader(for: row)
+
+		XCTAssertFalse(
+			viewModel.claimAutomaticCapture(),
+			"reopening the article offers the capture again, but this device already spent its one automatic attempt"
+		)
+	}
+
+	func testAnOfferThatCannotStartACaptureSpendsNoAttempt() async {
+		StubURLProtocol.setHandler(blockedCaptureHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		XCTAssertFalse(viewModel.claimAutomaticCapture(), "with no reader open there is no article to rescue")
+		viewModel.openReader(for: article(readHref: "/queue/a1/view", id: "a1"))
+		XCTAssertFalse(
+			viewModel.claimAutomaticCapture(),
+			"a reader open on an article the list does not hold has no row whose url the hidden render could load"
+		)
+
+		await viewModel.refresh()
+
+		XCTAssertTrue(
+			viewModel.claimAutomaticCapture(),
+			"neither declined offer spent the article's attempt, so the first one that can start a capture still gets it"
+		)
+	}
+
+	func testAnAutomaticCaptureNamesItsTriggerAndReconcilesTheList() async throws {
+		let postHeal = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "h1")], total: 2
+		)
+		StubURLProtocol.setHandler(blockedCaptureHandler(laterReadlist: postHeal))
+		var reported: [String] = []
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(),
+			reportAutomaticCaptureFailure: { reported.append($0) }
+		)
+		await viewModel.refresh()
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+
+		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>captured in the app</html>"))
+
+		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
+		let parts = TestSupport.multipartParts(
+			contentType: upload.request.value(forHTTPHeaderField: "Content-Type"),
+			body: upload.body
+		)
+		XCTAssertEqual(
+			parts.first { $0.name == "url" }?.text, "https://example.com/post",
+			"the rescue loads the open row's own url, never the reader url hosting it"
+		)
+		XCTAssertEqual(
+			parts.first { $0.name == "captureTrigger" }?.text, "automatic",
+			"nobody tapped this capture, so the server must judge it like a crawl instead of trusting it as the reader's own"
+		)
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "h1"],
+			"a landed rescue reconciles the list exactly as a tapped one does"
+		)
+		XCTAssertEqual(reported, [])
+	}
+
+	func testAnAutomaticCaptureIsANoOpWithoutAnOpenReader() async {
+		StubURLProtocol.setHandler(blockedCaptureHandler())
+		var reported: [String] = []
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(),
+			reportAutomaticCaptureFailure: { reported.append($0) }
+		)
+		await viewModel.refresh()
+		let captor = htmlCaptor("<html>hi</html>")
+
+		await viewModel.captureArticleAutomatically(with: captor)
+
+		XCTAssertEqual(captor.capturedURLs, [], "a reader closed before the render started leaves no article to render")
+		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
+		XCTAssertEqual(reported, [])
+	}
+
+	func testAnEmptyAutomaticCaptureIsReportedWithoutABanner() async throws {
+		let postHeal = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "h1")], total: 2
+		)
+		StubURLProtocol.setHandler(
+			blockedCaptureHandler(laterReadlist: postHeal, readlistGETsBeforeTheHealReconciles: 1)
+		)
+		var reported: [String] = []
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(),
+			reportAutomaticCaptureFailure: { reported.append($0) }
+		)
+		await viewModel.refresh()
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+
+		await viewModel.captureArticleAutomatically(with: htmlCaptor(nil))
+
+		XCTAssertEqual(
+			reported, ["This device couldn't capture that page either — the site returned nothing to save."],
+			"the failure goes to the log, so a capture the reader never asked for is still diagnosable"
+		)
+		XCTAssertNil(viewModel.errorText, "the reader never asked for this capture, so its failure is not put in front of them")
+		XCTAssertEqual(viewModel.messages, [])
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"], "with nothing uploaded there is no new server truth to adopt")
+	}
+
+	func testAnAutomaticCaptureOfAnErrorPageIsReportedWithoutABanner() async throws {
+		let postHeal = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "h1")], total: 2
+		)
+		StubURLProtocol.setHandler(
+			blockedCaptureHandler(laterReadlist: postHeal, readlistGETsBeforeTheHealReconciles: 1)
+		)
+		var reported: [String] = []
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(),
+			reportAutomaticCaptureFailure: { reported.append($0) }
+		)
+		await viewModel.refresh()
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+
+		await viewModel.captureArticleAutomatically(with: FakeHTMLCaptor(
+			page: CapturedPage(rawHtml: "<html>captcha</html>", title: "Just a moment", mediaType: "text/html", mainFrameStatus: 403)
+		))
+
+		XCTAssertEqual(
+			reported, ["This device couldn't load the article either — the site answered with an error page instead of it."]
+		)
+		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
+		XCTAssertNil(viewModel.errorText)
+		XCTAssertEqual(viewModel.messages, [])
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"])
+	}
+
+	func testAnAutomaticCaptureTheServerRefusesIsReportedWithoutItsMessages() async throws {
+		let postHeal = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "h1")], total: 2
+		)
+		StubURLProtocol.setHandler(
+			blockedCaptureHandler(
+				laterReadlist: postHeal,
+				saveContentStub: { .json(403, Fixtures.accountLockedError()) }
+			)
+		)
+		var reported: [String] = []
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(),
+			reportAutomaticCaptureFailure: { reported.append($0) }
+		)
+		await viewModel.refresh()
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+
+		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertEqual(
+			reported, ["request failed"],
+			"the log line carries a fixed label, never the server's text or the article's url"
+		)
+		XCTAssertEqual(viewModel.messages, [], "a refusal of a capture the reader never asked for is not shown to them")
+		XCTAssertNil(viewModel.errorText)
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"])
+	}
+
+	func testAnAutomaticCaptureOnAnExpiredSessionStillSignsOut() async throws {
+		StubURLProtocol.setHandler(blockedCaptureHandler())
+		var expired = false
+		var reported: [String] = []
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(),
+			reportAutomaticCaptureFailure: { reported.append($0) },
+			onSessionExpired: { expired = true }
+		)
+		await viewModel.refresh()
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
+		}
+
+		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertTrue(expired, "a dead session signs the reader out whichever capture discovered it")
+		XCTAssertEqual(reported, [], "a sign-out is acted on, not logged as a failed capture")
+	}
+
 	// MARK: - Draining what the share sheet staged
 
 	private func stagedUploadHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
@@ -3470,6 +3666,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			snapshot: OfflineReadlistSnapshot(container: shareContainer),
 			manifest: OfflineDownloadManifest(container: shareContainer),
 			backgroundTime: FakeBackgroundTime(),
+			automaticCaptureAttempts: AutomaticCaptureAttempts(defaults: defaults),
+			reportAutomaticCaptureFailure: { _ in },
 			onSessionExpired: { expired = true }
 		)
 		StubURLProtocol.setHandler { request, _ in

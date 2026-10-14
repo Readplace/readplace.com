@@ -2,6 +2,7 @@ import Foundation
 
 enum ReaderMessageRoute: Equatable {
 	case startCapture
+	case startAutomaticCapture
 	case markRead
 	case reconcileStatus
 	case ignore
@@ -12,6 +13,9 @@ enum ReaderMessageRoute: Equatable {
 		captureInFlight: Bool,
 		alreadyMarkedRead: Bool
 	) -> ReaderMessageRoute {
+		if ReaderBridge.isCaptureAvailable(message: name, body: body) {
+			return captureInFlight ? .ignore : .startAutomaticCapture
+		}
 		if ReaderBridge.isCaptureBlocked(message: name, body: body) {
 			return captureInFlight ? .ignore : .startCapture
 		}

@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let readerLogger = Logger(subsystem: "com.readplace.app", category: "reader")
+let readerLogger = Logger(subsystem: "com.readplace.app", category: "reader")
 
 /// The reader sheet's content. It opens immediately on tap and shows a skeleton
 /// of the article while the cookie session is minted from the bearer, then swaps
@@ -14,6 +14,8 @@ struct ReaderSheet: View {
 	let onMarkedRead: () -> Void
 	let onStatusChanged: () -> Void
 	let onCaptureBlocked: (HTMLCapturing) async -> Void
+	let claimAutomaticCapture: () -> Bool
+	let onCaptureAvailable: (HTMLCapturing) async -> Void
 	let onClose: () -> Void
 	let onLogout: () -> Void
 
@@ -71,6 +73,8 @@ struct ReaderSheet: View {
 					onMarkedRead: onMarkedRead,
 					onStatusChanged: onStatusChanged,
 					onCaptureBlocked: onCaptureBlocked,
+					claimAutomaticCapture: claimAutomaticCapture,
+					onCaptureAvailable: onCaptureAvailable,
 					onClose: onClose,
 					onLogout: onLogout,
 					externalBrowser: .system,

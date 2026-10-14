@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 struct ReadingListView: View {
@@ -39,6 +40,10 @@ struct ReadingListView: View {
 			snapshot: OfflineReadlistSnapshot(container: container),
 			manifest: OfflineDownloadManifest(container: container),
 			backgroundTime: ApplicationBackgroundTime(application: .shared),
+			automaticCaptureAttempts: AutomaticCaptureAttempts(defaults: defaults),
+			reportAutomaticCaptureFailure: { failure in
+				readerLogger.info("automatic capture failed: \(failure, privacy: .public)")
+			},
 			onSessionExpired: { [weak session] in session?.reconcileSession() }
 		))
 	}
@@ -165,6 +170,10 @@ struct ReadingListView: View {
 						},
 						onCaptureBlocked: { captor in
 							await viewModel.captureBlockedArticle(with: captor)
+						},
+						claimAutomaticCapture: { viewModel.claimAutomaticCapture() },
+						onCaptureAvailable: { captor in
+							await viewModel.captureArticleAutomatically(with: captor)
 						},
 						onClose: { viewModel.readerPresentation = nil },
 						// The account is gone, so the server-side revoke `logout()` performs

@@ -24,6 +24,8 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	let onMarkedRead: () -> Void
 	let onStatusChanged: () -> Void
 	let onCaptureBlocked: (HTMLCapturing) async -> Void
+	let claimAutomaticCapture: () -> Bool
+	let onCaptureAvailable: (HTMLCapturing) async -> Void
 	let onClose: () -> Void
 	/// The account page deleted the account, so the server destroyed every session
 	/// and redirected here rather than to the logged-out home — the sheet dismisses
@@ -47,6 +49,8 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			onMarkedRead: onMarkedRead,
 			onStatusChanged: onStatusChanged,
 			onCaptureBlocked: onCaptureBlocked,
+			claimAutomaticCapture: claimAutomaticCapture,
+			onCaptureAvailable: onCaptureAvailable,
 			onClose: onClose,
 			onLogout: onLogout,
 			externalBrowser: externalBrowser,
@@ -119,6 +123,8 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		private let onMarkedRead: () -> Void
 		private let onStatusChanged: () -> Void
 		private let onCaptureBlocked: (HTMLCapturing) async -> Void
+		private let claimAutomaticCapture: () -> Bool
+		private let onCaptureAvailable: (HTMLCapturing) async -> Void
 		private let onClose: () -> Void
 		private let onLogout: () -> Void
 		private let externalBrowser: ExternalBrowser
@@ -151,6 +157,8 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			onMarkedRead: @escaping () -> Void,
 			onStatusChanged: @escaping () -> Void,
 			onCaptureBlocked: @escaping (HTMLCapturing) async -> Void,
+			claimAutomaticCapture: @escaping () -> Bool,
+			onCaptureAvailable: @escaping (HTMLCapturing) async -> Void,
 			onClose: @escaping () -> Void,
 			onLogout: @escaping () -> Void,
 			externalBrowser: ExternalBrowser,
@@ -164,6 +172,8 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			self.onMarkedRead = onMarkedRead
 			self.onStatusChanged = onStatusChanged
 			self.onCaptureBlocked = onCaptureBlocked
+			self.claimAutomaticCapture = claimAutomaticCapture
+			self.onCaptureAvailable = onCaptureAvailable
 			self.onClose = onClose
 			self.onLogout = onLogout
 			self.externalBrowser = externalBrowser
@@ -280,6 +290,17 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				attachHidden(captor.webView, in: window)
 				Task { @MainActor in
 					await self.onCaptureBlocked(captor)
+					captor.webView.removeFromSuperview()
+					self.capturing = false
+				}
+			case .startAutomaticCapture:
+				guard let webView = message.webView, let window = webView.window, claimAutomaticCapture() else { return }
+				webView.evaluateJavaScript(ReaderBridge.captureStartedScript)
+				capturing = true
+				let captor = HTMLCaptor()
+				attachHidden(captor.webView, in: window)
+				Task { @MainActor in
+					await self.onCaptureAvailable(captor)
 					captor.webView.removeFromSuperview()
 					self.capturing = false
 				}
@@ -496,6 +517,12 @@ enum ReaderBridge {
 	static func isCaptureBlocked(message name: String, body: Any) -> Bool {
 		payloadType(message: name, body: body) == "captureBlocked"
 	}
+
+	static func isCaptureAvailable(message name: String, body: Any) -> Bool {
+		payloadType(message: name, body: body) == "captureAvailable"
+	}
+
+	static let captureStartedScript = #"document.dispatchEvent(new Event("readplace-capture-started"))"#
 
 	static func isStatusChanged(message name: String, body: Any) -> Bool {
 		payloadType(message: name, body: body) == "statusChanged"

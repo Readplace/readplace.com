@@ -315,6 +315,8 @@ final class LoginFlowTests: XCTestCase {
 			snapshot: OfflineReadlistSnapshot(container: shareContainer),
 			manifest: OfflineDownloadManifest(container: shareContainer),
 			backgroundTime: FakeBackgroundTime(),
+			automaticCaptureAttempts: AutomaticCaptureAttempts(defaults: defaults),
+			reportAutomaticCaptureFailure: { _ in },
 			onSessionExpired: {}
 		)
 		await viewModel.loadIfNeeded()

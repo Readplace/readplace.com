@@ -63,6 +63,14 @@ final class ReaderBridgeTests: XCTestCase {
 		XCTAssertFalse(ReaderBridge.isCaptureBlocked(message: ReaderBridge.messageName, body: "captureBlocked"))
 	}
 
+	func testIsCaptureAvailableAcceptsCaptureAvailablePayloadOnBridgeChannel() {
+		XCTAssertTrue(ReaderBridge.isCaptureAvailable(message: ReaderBridge.messageName, body: ["type": "captureAvailable"]))
+	}
+
+	func testIsCaptureAvailableRejectsWrongChannel() {
+		XCTAssertFalse(ReaderBridge.isCaptureAvailable(message: "someOtherHandler", body: ["type": "captureAvailable"]))
+	}
+
 	func testIsStatusChangedAcceptsStatusChangedPayloadOnBridgeChannel() {
 		XCTAssertTrue(ReaderBridge.isStatusChanged(message: ReaderBridge.messageName, body: ["type": "statusChanged"]))
 	}

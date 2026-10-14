@@ -66,6 +66,8 @@ final class ReadingListViewModel: ObservableObject {
 	private let snapshot: OfflineReadlistSnapshot
 	private let manifest: OfflineDownloadManifest
 	private let backgroundTime: BackgroundTimeKeeping
+	private let automaticCaptureAttempts: AutomaticCaptureAttempts
+	private let reportAutomaticCaptureFailure: (String) -> Void
 	private let onSessionExpired: () -> Void
 	private var manifestChanges: AnyCancellable?
 
@@ -92,6 +94,8 @@ final class ReadingListViewModel: ObservableObject {
 		snapshot: OfflineReadlistSnapshot,
 		manifest: OfflineDownloadManifest,
 		backgroundTime: BackgroundTimeKeeping,
+		automaticCaptureAttempts: AutomaticCaptureAttempts,
+		reportAutomaticCaptureFailure: @escaping (String) -> Void,
 		onSessionExpired: @escaping () -> Void
 	) {
 		self.api = api
@@ -102,6 +106,8 @@ final class ReadingListViewModel: ObservableObject {
 		self.snapshot = snapshot
 		self.manifest = manifest
 		self.backgroundTime = backgroundTime
+		self.automaticCaptureAttempts = automaticCaptureAttempts
+		self.reportAutomaticCaptureFailure = reportAutomaticCaptureFailure
 		self.onSessionExpired = onSessionExpired
 		// Append the same app-shell marker `open(link:)` puts on the account href, so
 		// the help page is served chromeless with a deep-link back to the native list.
@@ -426,6 +432,38 @@ final class ReadingListViewModel: ObservableObject {
 		} catch {
 			handle(error)
 		}
+	}
+
+	func claimAutomaticCapture() -> Bool {
+		guard let row = openRow else { return false }
+		return automaticCaptureAttempts.claim(articleId: row.articleId)
+	}
+
+	func captureArticleAutomatically(with captor: HTMLCapturing) async {
+		guard let row = openRow else { return }
+		do {
+			let outcome = try await HealBlockedArticle(api: api, captor: captor).run(url: row.url, trigger: .automatic)
+			if let failureText = outcome.failureText {
+				reportAutomaticCaptureFailure(failureText)
+				return
+			}
+			await reloadAndAdopt()
+		} catch {
+			switch error {
+			case APIError.unauthorized, APIError.noToken:
+				handle(error)
+			default:
+				reportAutomaticCaptureFailure("request failed")
+			}
+		}
+	}
+
+	private var openRow: (articleId: String, url: URL)? {
+		guard let articleId = readerPresentation?.articleId,
+			let article = articles.first(where: { $0.id == articleId }),
+			let url = URL(string: article.url)
+		else { return nil }
+		return (articleId, url)
 	}
 
 	func drainStagedUploads(with captor: HTMLCapturing) async {

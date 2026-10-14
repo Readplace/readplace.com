@@ -99,11 +99,21 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   reader posts a `markedRead` message to the app's `readplaceReader` WebKit handler,
   and the app injects no script and reads none of the reader's htmx internals — so
   the reader's request shape and endpoint can change without an app release. That
-  handler carries three messages: `markedRead` (terminal, latched once per sheet —
+  handler carries four messages: `markedRead` (terminal, latched once per sheet —
   it closes the sheet and re-reads the list), `captureBlocked` (starts the hidden
-  render that heals a blocked article), and `statusChanged` (neither terminal nor
+  render that heals a blocked article), `captureAvailable` (starts that same render
+  without a tap, as described below), and `statusChanged` (neither terminal nor
   latched — the reader's **Next Read** confirmation marks the article read, keeps
   the sheet open, and swaps the suggestion in while the list reconciles behind it).
+  The page posts `captureAvailable` when it offers to capture a failed article. The
+  app acts on it once per article per device, and never while a capture is already
+  running: it dispatches a `readplace-capture-started` DOM event on the reader's
+  `document`, which the server's markup turns into the capture poll, and uploads
+  the render with `captureTrigger=automatic`, so the server judges it like a crawl
+  instead of trusting it as the reader's own capture. The app names the event and
+  nothing more, so what the page does with it can change without an app release.
+  A failed automatic capture is logged rather than shown (an expired session still
+  signs the app out), and the capture button stays as the retry.
 - **Save by sharing**: a **Share Extension** appears in the iOS share sheet for
   URLs/web pages, plain text, and PDF documents — via a SUBQUERY
   `NSExtensionActivationRule` predicate ([`ShareExtension/Info.plist`](./ShareExtension/Info.plist)

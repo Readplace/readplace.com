@@ -33,6 +33,20 @@ final class ReaderMessageRouteTests: XCTestCase {
 		)
 	}
 
+	func testACaptureOfferStartsAnAutomaticCapture() {
+		XCTAssertEqual(
+			route(["type": "captureAvailable"]), .startAutomaticCapture,
+			"an offer nobody tapped is routed apart from a tap, so the upload can say it was not the reader's choice"
+		)
+	}
+
+	func testACaptureOfferIsIgnoredWhileACaptureIsRunning() {
+		XCTAssertEqual(
+			route(["type": "captureAvailable"], captureInFlight: true), .ignore,
+			"an offer that arrives during a tapped capture is dropped before it can spend the article's one automatic attempt"
+		)
+	}
+
 	func testAMarkReadReportMarksTheArticleRead() {
 		XCTAssertEqual(route(["type": "markedRead"]), .markRead)
 	}
