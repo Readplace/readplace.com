@@ -1,4 +1,5 @@
 import type { CapturedContent } from "../capture-active-tab-bytes";
+import type { CaptureTrigger, TabContent } from "../reading-list/reading-list.types";
 import type { UploadJob } from "./upload-job";
 
 /** `read` hands back the raw stored value rather than jobs so the engine can
@@ -40,6 +41,12 @@ export type CaptureForJob = (target: {
 
 export interface UploadQueue {
 	enqueue: (target: { url: string; title?: string; tabId?: number }) => Promise<void>;
+	enqueueCaptured: (captured: {
+		url: string;
+		title?: string;
+		content: TabContent;
+		trigger: CaptureTrigger;
+	}) => Promise<void>;
 	resume: () => Promise<void>;
 	purge: () => Promise<void>;
 }

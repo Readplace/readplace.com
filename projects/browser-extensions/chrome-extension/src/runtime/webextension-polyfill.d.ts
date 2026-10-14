@@ -43,6 +43,10 @@ declare module "webextension-polyfill" {
 	}
 
 	namespace Runtime {
+		interface MessageSender {
+			tab?: Tabs.Tab;
+		}
+
 		function sendMessage(message: unknown): Promise<unknown>;
 		function getURL(path: string): string;
 
@@ -50,7 +54,7 @@ declare module "webextension-polyfill" {
 			addListener(
 				callback: (
 					message: unknown,
-					sender: unknown,
+					sender: MessageSender,
 					sendResponse: (response: unknown) => void,
 				) => true | undefined,
 			): void;
@@ -87,7 +91,11 @@ declare module "webextension-polyfill" {
 
 		function get(tabId: number): Promise<Tab>;
 
-		function create(createProperties: { url?: string }): Promise<Tab>;
+		function create(createProperties: {
+			url?: string;
+			active?: boolean;
+			openerTabId?: number;
+		}): Promise<Tab>;
 
 		function remove(tabId: number): Promise<void>;
 
@@ -112,6 +120,21 @@ declare module "webextension-polyfill" {
 					tabId: number,
 					changeInfo: { url?: string; status?: string },
 					tab: Tab,
+				) => void,
+			): void;
+		};
+
+		const onRemoved: {
+			addListener(
+				callback: (
+					tabId: number,
+					removeInfo: { windowId: number; isWindowClosing: boolean },
+				) => void,
+			): void;
+			removeListener(
+				callback: (
+					tabId: number,
+					removeInfo: { windowId: number; isWindowClosing: boolean },
 				) => void,
 			): void;
 		};

@@ -51,6 +51,10 @@ declare namespace browser {
 	}
 
 	namespace runtime {
+		interface MessageSender {
+			tab?: tabs.Tab;
+		}
+
 		function sendMessage(message: unknown): Promise<unknown>;
 		function getURL(path: string): string;
 
@@ -58,7 +62,7 @@ declare namespace browser {
 			addListener(
 				callback: (
 					message: unknown,
-					sender: unknown,
+					sender: MessageSender,
 					sendResponse: (response: unknown) => void,
 				) => true | undefined,
 			): void;
@@ -79,7 +83,11 @@ declare namespace browser {
 
 		function get(tabId: number): Promise<Tab>;
 
-		function create(createProperties: { url?: string }): Promise<Tab>;
+		function create(createProperties: {
+			url?: string;
+			active?: boolean;
+			openerTabId?: number;
+		}): Promise<Tab>;
 
 		function remove(tabId: number): Promise<void>;
 
@@ -108,6 +116,20 @@ declare namespace browser {
 			): void;
 		};
 
+		const onRemoved: {
+			addListener(
+				callback: (
+					tabId: number,
+					removeInfo: { windowId: number; isWindowClosing: boolean },
+				) => void,
+			): void;
+			removeListener(
+				callback: (
+					tabId: number,
+					removeInfo: { windowId: number; isWindowClosing: boolean },
+				) => void,
+			): void;
+		};
 	}
 
 	namespace browserAction {

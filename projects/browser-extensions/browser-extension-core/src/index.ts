@@ -95,4 +95,17 @@ export { captureActiveTabBytes } from "./capture-active-tab-bytes";
 export type { CapturedContent } from "./capture-active-tab-bytes";
 export { isHtmlDocument } from "./is-html-document";
 export type { TabContent } from "./reading-list/reading-list.types";
-
+export {
+	CAPTURE_STARTED_EVENT,
+	ReaderRescueRequestSchema,
+} from "./reader-rescue/reader-rescue-message.types";
+export type { ReaderRescueAnswer } from "./reader-rescue/reader-rescue-message.types";
+export { initAnnounceCaptureStarted } from "./reader-rescue/announce-capture-started";
+export { initCaptureHost } from "./reader-rescue/capture-host";
+export { navigationResponseStatus } from "./reader-rescue/navigation-response-status";
+export { READER_RESCUES_STORAGE_KEY, initRescueAttempts } from "./reader-rescue/rescue-attempts";
+export type { RescueAttemptStore } from "./reader-rescue/rescue-attempts";
+export { initOpenHiddenTab } from "./reader-rescue/hidden-tab";
+export type { Timers } from "./reader-rescue/hidden-tab";
+export { initRescueCapture } from "./reader-rescue/rescue-capture";
+export { initReaderRescue } from "./reader-rescue/reader-rescue";

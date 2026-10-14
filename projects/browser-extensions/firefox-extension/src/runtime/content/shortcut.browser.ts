@@ -1,6 +1,8 @@
 /* c8 ignore start -- content script, runs in browser page context only */
-import { installShortcuts, isHtmlDocument, matchesShortcut, resolveCanonicalUrlFromDocument, resolveContentShortcuts, ADVERTISED_CAPABILITIES_STORAGE_KEY, COMMAND_BINDINGS_STORAGE_KEY, DEFAULT_SAVE_SHORTCUT, SAVE_ALL_SHORTCUT_MESSAGE_TYPE, type ContentShortcuts } from "browser-extension-core";
+import { initAnnounceCaptureStarted, initCaptureHost, installShortcuts, isAppUrl, isHtmlDocument, matchesShortcut, navigationResponseStatus, resolveCanonicalUrlFromDocument, resolveContentShortcuts, ADVERTISED_CAPABILITIES_STORAGE_KEY, CAPTURE_STARTED_EVENT, COMMAND_BINDINGS_STORAGE_KEY, DEFAULT_SAVE_SHORTCUT, SAVE_ALL_SHORTCUT_MESSAGE_TYPE, type ContentShortcuts } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+
+declare const __APP_DOMAINS__: string[];
 
 const logger = HutchLogger.from(consoleLogger);
 
@@ -58,9 +60,28 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 			rawHtml: isHtmlDocument(document) ? document.documentElement.outerHTML : "",
 			title: document.title,
 			canonicalUrl: resolveCanonicalUrlFromDocument({ document, requestedUrl: document.location.href }),
+			responseStatus: navigationResponseStatus(performance),
 		});
 		return true;
 	}
 	return undefined;
 });
+
+if (isAppUrl({ tabUrl: location.href, appDomains: __APP_DOMAINS__ })) {
+	const captureHost = initCaptureHost({
+		document,
+		requestRescue: (request) => browser.runtime.sendMessage(request),
+		announceCaptureStarted: initAnnounceCaptureStarted({
+			document,
+			dispatch: () => document.dispatchEvent(new Event(CAPTURE_STARTED_EVENT)),
+		}),
+		logger,
+	});
+	new MutationObserver(() => {
+		void captureHost.pageChanged();
+	}).observe(document.documentElement, { childList: true, subtree: true });
+	document.addEventListener("click", (event) => {
+		if (event.target instanceof Element) void captureHost.tapped(event.target);
+	});
+}
 /* c8 ignore stop */

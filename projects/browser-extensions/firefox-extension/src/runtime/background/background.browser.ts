@@ -9,8 +9,14 @@ import {
 	initBulkSaveQueue,
 	initSyncContextMenus,
 	initUploadQueue,
+	initOpenHiddenTab,
+	initReaderRescue,
+	initRescueAttempts,
+	initRescueCapture,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	COMMAND_BINDINGS_STORAGE_KEY,
+	READER_RESCUES_STORAGE_KEY,
+	ReaderRescueRequestSchema,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
 	SAVE_ALL_TABS_COMMAND,
 	bulkSaveNotification,
@@ -26,7 +32,10 @@ import {
 	type BulkSaveResult,
 	type GuardedResult,
 	type BulkSavePage,
+	type ReaderRescueAnswer,
+	type RescueAttemptStore,
 	type SaveableTab,
+	type Timers,
 	type TokenStorage,
 	type UploadJobStore,
 	type UploadQueue,
@@ -66,6 +75,16 @@ const advertisedCapabilityStore: AdvertisedCapabilityStore = {
 		await browser.storage.local.set({
 			[ADVERTISED_CAPABILITIES_STORAGE_KEY]: capabilities,
 		});
+	},
+};
+
+const rescueAttemptStore: RescueAttemptStore = {
+	async read(): Promise<unknown> {
+		const stored = await browser.storage.local.get(READER_RESCUES_STORAGE_KEY);
+		return stored[READER_RESCUES_STORAGE_KEY];
+	},
+	async write(articleIds): Promise<void> {
+		await browser.storage.local.set({ [READER_RESCUES_STORAGE_KEY]: articleIds });
 	},
 };
 
@@ -112,6 +131,10 @@ const bulkSaveWakeScheduler: WakeScheduler = {
 		if (bulkSaveWake !== undefined) clearTimeout(bulkSaveWake);
 		bulkSaveWake = undefined;
 	},
+};
+
+const timers: Timers = {
+	after: (ms) => new Promise((resolve) => setTimeout(() => resolve("timeout"), ms)),
 };
 
 declare const __SERVER_URL__: string;
@@ -295,6 +318,18 @@ async function initCore() {
 		logger,
 	});
 
+	const readerRescue = initReaderRescue({
+		attempts: initRescueAttempts({ store: rescueAttemptStore }),
+		capture: initRescueCapture({
+			openHiddenTab: initOpenHiddenTab({ tabs: browser.tabs, timers, captureTimeoutMs: CAPTURE_HTML_TIMEOUT_MS }),
+			timers,
+			loadTimeoutMs: RESCUE_LOAD_TIMEOUT_MS,
+			logger,
+		}),
+		enqueueCaptured: uploadQueue.enqueueCaptured,
+		logger,
+	});
+
 	const core = BrowserExtensionCore(shell, {
 		auth,
 		logger,
@@ -309,7 +344,7 @@ async function initCore() {
 
 	core.init();
 
-	return { core, uploadQueue, bulkSaveQueue };
+	return { core, uploadQueue, bulkSaveQueue, auth, readerRescue };
 }
 
 const appPromise = initCore();
@@ -350,6 +385,7 @@ function readlistContentUpload(
 }
 
 const CAPTURE_HTML_TIMEOUT_MS = 5000;
+const RESCUE_LOAD_TIMEOUT_MS = 30_000;
 
 async function captureTabHtml(
 	tabId: number | undefined,
@@ -431,7 +467,7 @@ function showBulkSaveNotification(notification: {
 		.catch((err) => logger.error("Failed to show bulk save notification", err));
 }
 
-browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
+browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 	if (hasStringType(raw) && raw.type === "shortcut-pressed") {
 		browser.browserAction.openPopup().catch((err) => logger.error(err));
 		return;
@@ -440,6 +476,25 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if (hasStringType(raw) && raw.type === SAVE_ALL_SHORTCUT_MESSAGE_TYPE) {
 		shell.openSaveAllTabsPopup();
 		return;
+	}
+
+	const rescue = ReaderRescueRequestSchema.safeParse(raw);
+	if (rescue.success) {
+		const { url, articleId, trigger } = rescue.data;
+		const openerTabId = sender.tab?.id;
+		appPromise
+			.then(async ({ auth, readerRescue }) => {
+				const guarded = auth.whenLoggedIn(() => readerRescue({ url, articleId, trigger, openerTabId }));
+				if (!guarded.ok) {
+					sendResponse({ outcome: "skipped", reason: "not-logged-in" } satisfies ReaderRescueAnswer);
+					return;
+				}
+				const { answer, completion } = await guarded.value;
+				sendResponse(answer);
+				await completion;
+			})
+			.catch((err) => logger.error("Failed to rescue the reader's article", err));
+		return true;
 	}
 
 	if (!isPopupMessage(raw)) return;

@@ -228,6 +228,112 @@ describe("initUploadQueue enqueue", () => {
 	});
 });
 
+describe("initUploadQueue enqueueCaptured", () => {
+	it("uploads the bytes it was given without capturing", async () => {
+		const uploaded: { url: string; title?: string; html: string; mediaType: string; trigger: CaptureTrigger }[] = [];
+		const harness = createHarness({
+			upload: async ({ url, title, content, trigger }) => {
+				uploaded.push({
+					url,
+					title,
+					html: new TextDecoder().decode(content.bytes),
+					mediaType: content.mediaType,
+					trigger,
+				});
+				return { ok: true };
+			},
+		});
+
+		await harness.queue.enqueueCaptured({
+			url: "https://example.com/a",
+			title: "A",
+			content: capturedHtml("<html>rescued</html>"),
+			trigger: "automatic",
+		});
+
+		expect(harness.captures).toEqual([]);
+		expect(uploaded).toEqual([
+			{
+				url: "https://example.com/a",
+				title: "A",
+				html: "<html>rescued</html>",
+				mediaType: "text/html",
+				trigger: "automatic",
+			},
+		]);
+		expect(harness.jobs()).toEqual([]);
+		expect(harness.payloads.size).toBe(0);
+	});
+
+	it("keeps a captured page that cannot upload yet as a ready job carrying its trigger", async () => {
+		const harness = createHarness({
+			upload: async () => {
+				throw new Error("server down");
+			},
+		});
+
+		await harness.queue.enqueueCaptured({
+			url: "https://example.com/a",
+			content: capturedHtml(),
+			trigger: "automatic",
+		});
+
+		expect(harness.jobs()).toEqual([
+			expect.objectContaining({
+				url: "https://example.com/a",
+				state: "ready",
+				mediaType: "text/html",
+				trigger: "automatic",
+				attempts: 1,
+			}),
+		]);
+		expect(harness.payloads.size).toBe(1);
+		expect(harness.captures).toEqual([]);
+	});
+
+	it("supersedes an earlier job for the same URL, dropping its captured bytes", async () => {
+		const harness = createHarness({
+			upload: async () => {
+				throw new Error("server down");
+			},
+		});
+		await harness.queue.enqueue({ url: "https://example.com/a", title: "Tapped" });
+		const earlier = harness.jobs()[0];
+
+		await harness.queue.enqueueCaptured({
+			url: "https://example.com/a",
+			title: "Rescued",
+			content: capturedHtml("<html>rescued</html>"),
+			trigger: "automatic",
+		});
+
+		const jobs = harness.jobs();
+		expect(jobs).toHaveLength(1);
+		expect(jobs[0].title).toBe("Rescued");
+		expect(harness.payloads.has(earlier.id)).toBe(false);
+	});
+
+	it("logs, leaves no bytes behind and keeps serving when recording the captured page fails", async () => {
+		const harness = createHarness({
+			jobStore: {
+				write: async () => {
+					throw new Error("storage full");
+				},
+			},
+		});
+
+		await harness.queue.enqueueCaptured({
+			url: "https://example.com/a",
+			content: capturedHtml(),
+			trigger: "automatic",
+		});
+
+		expect(harness.errors.some((line) => line.includes("failed to record"))).toBe(true);
+		expect(harness.payloads.size).toBe(0);
+		expect(harness.uploads).toEqual([]);
+	});
+});
+
 describe("initUploadQueue resume", () => {
 	/** A dead worker runs no catch, so it leaves the `capturing` record enqueue
 	 * wrote before the capture began — seeded here directly, rather than by

@@ -32,6 +32,8 @@ type PassOutcome = "continue" | "purged";
 
 type UploadTarget = { url: string; title?: string; tabId?: number };
 
+type CapturedUpload = Parameters<UploadQueue["enqueueCaptured"]>[0];
+
 export function initUploadQueue(deps: {
 	jobs: UploadJobStore;
 	payloads: PayloadStore;
@@ -233,6 +235,34 @@ export function initUploadQueue(deps: {
 		}
 	}
 
+	async function admitCaptured(captured: CapturedUpload): Promise<void> {
+		try {
+			const now = deps.scheduler.now();
+			const jobs = await readJobs();
+			for (const superseded of jobs.filter((job) => job.url === captured.url)) {
+				await deps.payloads.remove(superseded.id);
+			}
+			const job: Extract<UploadJob, { state: "ready" }> = {
+				id: crypto.randomUUID(),
+				url: captured.url,
+				title: captured.title,
+				attempts: 0,
+				nextAttemptAt: now,
+				createdAt: now,
+				state: "ready",
+				mediaType: captured.content.mediaType,
+				trigger: captured.trigger,
+			};
+			await deps.jobs.write([...jobs.filter((entry) => entry.url !== captured.url), job]);
+			await deps.payloads.put({
+				id: job.id,
+				blob: new Blob([captured.content.bytes], { type: captured.content.mediaType }),
+			});
+		} catch (error) {
+			deps.logger.error(`[upload-queue] failed to record a captured upload for ${captured.url}`, error);
+		}
+	}
+
 	async function purgeSafely(): Promise<void> {
 		try {
 			await purgeAll();
@@ -244,6 +274,10 @@ export function initUploadQueue(deps: {
 	return {
 		async enqueue(target) {
 			await chain(() => admit(target));
+			await resume();
+		},
+		async enqueueCaptured(captured) {
+			await chain(() => admitCaptured(captured));
 			await resume();
 		},
 		resume,
