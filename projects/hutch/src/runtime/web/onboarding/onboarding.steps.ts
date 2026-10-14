@@ -102,13 +102,13 @@ const SAVE_COPY: Record<PitchablePlatform, StepCopy> = {
 
 const EMAIL_STEP_TITLE = "Get articles from email";
 const EMAIL_STEP_DESCRIPTION =
-	"Your account has its own email address. Forward a newsletter, or any email with links in it, and the links are saved here for you to read.";
+	"Your account has its own custom email. Subscribe to a newsletter with it, or forward any email with links in it, and the links are saved here for you to read.";
 const EMAIL_STEP_ACTIONS: OnboardingAction[] = [
 	{
 		key: "see-inbox-address",
 		method: "GET",
 		href: CUSTOM_EMAILS_PATH,
-		label: "See your inbox address",
+		label: "See your custom email",
 		variant: "primary",
 	},
 	{

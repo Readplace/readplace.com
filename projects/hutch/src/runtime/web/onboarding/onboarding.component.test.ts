@@ -274,6 +274,16 @@ describe("OnboardingChecklist", () => {
 			: "Use the browser extension to save your first article for later.");
 	});
 
+	it("names the account's custom email in the email step", () => {
+		const emailStep = stepOf(parse(checklist(contextWith())), "receive-articles-by-email");
+		const description = emailStep.querySelector(".setup-guide__description");
+		assert(description, "the email step must explain its action");
+		expect(description.textContent).toBe(
+			"Your account has its own custom email. Subscribe to a newsletter with it, or forward any email with links in it, and the links are saved here for you to read.",
+		);
+		expect(actionForm(emailStep, "see-inbox-address").querySelector("button")?.textContent).toBe("See your custom email");
+	});
+
 	it("renders every step, install current and open, at 0% on first run", () => {
 		const doc = parse(checklist(contextWith()));
 

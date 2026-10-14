@@ -26,20 +26,20 @@ describe("GmailNewsletterNoticeEmail", () => {
 		expect(email.subject).toBe("Choose readlists for Example Letter");
 		expect(email.to("text/plain")).toBe([
 			"Readplace recognizes Example Letter in your Gmail: letter@example.com. It is ready to connect to your readlists.",
-			`Choose readlists and Save to send its future emails to Readplace, which saves every eligible article to All and to any other readlists you choose. ${IMPORT_SENTENCE}`,
+			`Choose readlists and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. ${IMPORT_SENTENCE}`,
 			"Choose readlists: https://readplace.com/newsletters/gmail?sender=letter%40example.com",
 			REPLY,
 			SIGNOFF,
-			"You are receiving this email because you haven't mapped this newsletter to a readlist. This is a one-time notification for Example Letter.",
+			"You are receiving this email because you haven't chosen readlists for this newsletter. This is a one-time notification for Example Letter.",
 		].join("\n\n"));
-		expect(footerOf(email.to("text/html"))).toBe("You are receiving this email because you haven't mapped this newsletter to a readlist. This is a one-time notification for Example Letter.");
+		expect(footerOf(email.to("text/html"))).toBe("You are receiving this email because you haven't chosen readlists for this newsletter. This is a one-time notification for Example Letter.");
 	});
 
 	it("names an unnamed newsletter by its address", () => {
 		const email = notice([newsletter({ newsletterName: undefined })]);
 
 		expect(email.subject).toBe("Choose readlists for letter@example.com");
-		expect(footerOf(email.to("text/html"))).toBe("You are receiving this email because you haven't mapped this newsletter to a readlist. This is a one-time notification for letter@example.com.");
+		expect(footerOf(email.to("text/html"))).toBe("You are receiving this email because you haven't chosen readlists for this newsletter. This is a one-time notification for letter@example.com.");
 	});
 
 	it("lists several newsletters, each linked to its own readlist choice, points the button at the Gmail page, and says nothing about waiting newsletters when none wait", () => {
@@ -53,11 +53,11 @@ describe("GmailNewsletterNoticeEmail", () => {
 			"Readplace recognizes 2 newsletters in your Gmail that are ready to connect to your readlists:",
 			"Example Letter (letter@example.com): https://readplace.com/newsletters/gmail?sender=letter%40example.com",
 			"news@wildcard.example: https://readplace.com/newsletters/gmail?sender=news%40wildcard.example",
-			`Choose readlists for a newsletter and Save to send its future emails to Readplace, which saves every eligible article to All and to any other readlists you choose. ${IMPORT_SENTENCE}`,
+			`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. ${IMPORT_SENTENCE}`,
 			`Choose readlists: ${GMAIL_URL}`,
 			REPLY,
 			SIGNOFF,
-			"You are receiving this email because you haven't mapped these newsletters to a readlist. This is a one-time notification for each of them.",
+			"You are receiving this email because you haven't chosen readlists for these newsletters. This is a one-time notification for each of them.",
 		].join("\n\n"));
 		const anchors = [...new JSDOM(email.to("text/html")).window.document.querySelectorAll("a")].map((anchor) => [anchor.textContent, anchor.getAttribute("href")]);
 		expect(anchors).toEqual([
@@ -66,7 +66,7 @@ describe("GmailNewsletterNoticeEmail", () => {
 			["news@wildcard.example", "https://readplace.com/newsletters/gmail?sender=news%40wildcard.example"],
 			["Choose readlists", GMAIL_URL],
 		]);
-		expect(new JSDOM(email.to("text/html")).window.document.querySelector("a")?.closest("table")?.nextElementSibling?.textContent).toBe(`Choose readlists for a newsletter and Save to send its future emails to Readplace, which saves every eligible article to All and to any other readlists you choose. ${IMPORT_SENTENCE}`);
+		expect(new JSDOM(email.to("text/html")).window.document.querySelector("a")?.closest("table")?.nextElementSibling?.textContent).toBe(`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. ${IMPORT_SENTENCE}`);
 	});
 
 	it.each([
@@ -83,17 +83,17 @@ describe("GmailNewsletterNoticeEmail", () => {
 			"Example Letter (letter@example.com): https://readplace.com/newsletters/gmail?sender=letter%40example.com",
 			"news@wildcard.example: https://readplace.com/newsletters/gmail?sender=news%40wildcard.example",
 			sentence,
-			`Choose readlists for a newsletter and Save to send its future emails to Readplace, which saves every eligible article to All and to any other readlists you choose. ${IMPORT_SENTENCE}`,
+			`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. ${IMPORT_SENTENCE}`,
 			`Choose readlists: ${GMAIL_URL}`,
 			REPLY,
 			SIGNOFF,
-			"You are receiving this email because you haven't mapped these newsletters to a readlist. This is a one-time notification for each of them.",
+			"You are receiving this email because you haven't chosen readlists for these newsletters. This is a one-time notification for each of them.",
 		].join("\n\n"));
 		const html = email.to("text/html");
 		const listTable = new JSDOM(html).window.document.querySelector("a")?.closest("table");
 		expect(listTable?.nextElementSibling?.tagName).toBe("P");
 		expect(listTable?.nextElementSibling?.textContent).toBe(sentence);
-		expect(footerOf(html)).toBe("You are receiving this email because you haven't mapped these newsletters to a readlist. This is a one-time notification for each of them.");
+		expect(footerOf(html)).toBe("You are receiving this email because you haven't chosen readlists for these newsletters. This is a one-time notification for each of them.");
 	});
 
 	it("refuses a single-newsletter notice that says more are waiting", () => {

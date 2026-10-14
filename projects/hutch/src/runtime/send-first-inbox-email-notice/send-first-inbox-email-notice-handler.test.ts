@@ -23,9 +23,9 @@ const EXPECTED_INBOX_URL =
 	"https://readplace.com/inbox?highlight=2026-06-04T08%3A00%3A00.000Z%23%3Cnews%40example.com%3E&utm_source=first-inbox-email&utm_medium=email&utm_campaign=inbox-first-arrival&utm_content=open-inbox";
 
 const EXPECTED_TEXT = [
-	"The first email to your Readplace inbox at in-3f9a2c@read.place just came through.",
-	"From here on, every email sent to that address shows up in your inbox, and Readplace pulls the article links out of it and adds them to All, your main readlist, so you can read them later.",
-	`See it in your inbox: ${EXPECTED_INBOX_URL}`,
+	"The first email to your custom email in-3f9a2c@read.place just came through.",
+	"From here on, every email sent to that custom email shows up in your Inbox, and Readplace pulls the article links out of it and adds them to All, your main readlist, so you can read them later.",
+	`See it in your Inbox: ${EXPECTED_INBOX_URL}`,
 	"If you have any questions, please reply to this email",
 	"— Fayner Brack, Founder & CEO",
 ].join("\n\n");
@@ -115,7 +115,7 @@ describe("send-first-inbox-email-notice handler", () => {
 		assert.equal(sent.to, "user@example.com");
 		assert.equal(sent.replyTo, "fayner@readplace.com");
 		assert.equal(sent.bcc, "readplace+first_inbox_email@readplace.com");
-		assert.equal(sent.subject, "Your first email landed in your Readplace inbox");
+		assert.equal(sent.subject, "Your first email landed in your Readplace Inbox");
 		assert.equal(sent.text, EXPECTED_TEXT);
 		assert.ok(
 			sent.html.includes(
@@ -123,10 +123,10 @@ describe("send-first-inbox-email-notice handler", () => {
 			),
 			"the hyphenated address must be bold and byte-exact in the HTML",
 		);
-		assert.ok(sent.html.includes("Your first email landed in your Readplace inbox"));
+		assert.ok(sent.html.includes("Your first email landed in your Readplace Inbox"));
 		assert.ok(sent.html.includes(`src="${FOUNDER_AVATAR_URL}"`));
 		assert.ok(sent.html.includes('alt="Fayner Brack"'));
-		assert.ok(sent.html.includes(">See it in your inbox</a>"));
+		assert.ok(sent.html.includes(">See it in your Inbox</a>"));
 		assert.ok(
 			sent.html.includes("If you have any questions, please reply to this email"),
 			"the reply invitation must render — it is only honest because replyTo is asserted above",

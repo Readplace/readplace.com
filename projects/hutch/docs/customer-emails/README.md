@@ -4,7 +4,7 @@ Every automated email Readplace sends to customers: who gets it, exactly when, a
 
 Each example was produced by running the real sending code (the route, Lambda handler or sender function that calls `sendEmail`) with in-memory fakes and example inputs, using the production origins `https://readplace.com` and `https://static.readplace.com`. The capture records the exact message handed to the mail provider. The HTML files in [`html/`](html/) are those bodies, byte for byte. The screenshots are Chromium renders of the same HTML at 800px and 390px wide, with the brand font Inter installed. Mail clients without Inter fall back to the system fonts in the template's font stack.
 
-Each email's conditions were traced through the code with `path:line` citations, then checked against the code by two independent reviews. The inventory reflects the code as of 2026-10-12. When an email's template, copy or trigger changes, update its section.
+Each email's conditions were traced through the code with `path:line` citations, then checked against the code by two independent reviews. The inventory reflects the code as of 2026-10-13. When an email's template, copy or trigger changes, update its section.
 
 ## How every email is delivered
 
@@ -13,7 +13,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 - With `PERSISTENCE=development` the local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:544`); with `PERSISTENCE=prod` it uses the production providers and sends through Resend (`projects/hutch/src/runtime/dev-app.ts:15`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
 - The account emails (email verification, welcome, password reset) come from `Fayner from Readplace <fayner@readplace.com>`; every other email comes from `Readplace <readplace@readplace.com>`, the support address. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: through Reply-To on every email that sets one, which is every email except email verification and password reset, and through the From address on those two.
 - Nine emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
-- Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link, and they share one opt-out. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that turning off their inbox addresses stops it.
+- Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link, and they share one opt-out. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that disabling their custom emails stops it.
 - Only the Gmail newsletter notice and the Hacker News starter email set a Resend idempotency key. The rest rely on their own once-only markers, or on none.
 - Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry an attachment: one EPUB book of the articles they list (`projects/hutch/src/runtime/web/queue-digest-book.ts:12`, passed to Resend at `projects/hutch/src/runtime/providers/email/resend-email.ts:18`). No other email has an attachment.
 
@@ -29,9 +29,9 @@ Each email's conditions were traced through the code with `path:line` citations,
 | 6 | [Pre-charge reminder](#6-pre-charge-reminder) | `your Readplace membership starts on {chargeDate}` | 7 days before a trial subscriber's first charge, or 5 minutes after subscribing or reactivating when less than 7 days remain. | `readplace+charge_reminder@readplace.com` |
 | 7 | [Payment failed](#7-payment-failed) | `your Readplace payment didn't go through` | Within seconds of each failed renewal charge attempt that Stripe will retry; not on the final attempt and never during a trial. | `readplace+payment_failed@readplace.com` |
 | 8 | [Trial feedback request](#8-trial-feedback-request) | `you tried Readplace — what was missing?` | About 3 days after a trial ends without a membership, normally 17 days and 1 hour after signup. | `readplace+trial_feedback@readplace.com` |
-| 9 | [Inbox saves paused](#9-inbox-saves-paused) | `links sent to your Readplace inbox are waiting` | Immediately, the first time mail to a reader's Readplace inbox address brings article links (or, for a Gmail sender mapped in "issue" or "both" mode, any issue) while their subscription is read-only. Once per lapse. | `readplace+automation_saves_held@readplace.com` |
+| 9 | [Inbox saves paused](#9-inbox-saves-paused) | `links sent to your Readplace Inbox are waiting` | Immediately, the first time mail to a reader's Readplace inbox address brings article links (or, for a Gmail sender mapped in "issue" or "both" mode, any issue) while their subscription is read-only. Once per lapse. | `readplace+automation_saves_held@readplace.com` |
 | 10 | [Readlist digest](#10-readlist-digest) | `Waiting in your readlist` | At most once every 7 days, for verified paying members (never founding members; trialists are checked, but a 14-day trial never holds a 30-day-old save), while saves at least 30 days old (unread, reader view and summary ready, never listed before) are waiting; checked every 6 hours. | none |
-| 11 | [First inbox email arrived](#11-first-inbox-email-arrived) | `Your first email landed in your Readplace inbox` | Seconds after the first email with a saveable article link is sent directly to one of the reader's Readplace addresses while the reader can save (a read-only reader gets Inbox saves paused instead, and this email waits for a later email after access returns); mail routed from Gmail never sends it; once per account, ever. | `readplace+first_inbox_email@readplace.com` |
+| 11 | [First inbox email arrived](#11-first-inbox-email-arrived) | `Your first email landed in your Readplace Inbox` | Seconds after the first email with a saveable article link is sent directly to one of the reader's Readplace addresses while the reader can save (a read-only reader gets Inbox saves paused instead, and this email waits for a later email after access returns); mail routed from Gmail never sends it; once per account, ever. | `readplace+first_inbox_email@readplace.com` |
 | 12 | [Gmail newsletter notice](#12-gmail-newsletter-notice) | `Choose readlists for {newsletterName}` | At the next 6-hourly check after an approved, unmapped newsletter mails a connected Gmail account or a seen sender becomes approved, once 7 days have passed since the reader's last notice email and the reader has a readlist besides All; at most 10 newsletters per email, those pending longest first, the rest in the next weekly email. | none |
 | 13 | [Data export ready](#13-data-export-ready) | `Your Readplace export is ready` | Seconds to minutes after a signed-in customer clicks Email Me My Data on /export; one email per click. | none |
 | 14 | [Hacker News starter email](#14-hacker-news-starter-email) | `Your Hacker News picks are ready` | Once per account, on a 6-hourly digest check after Readplace added ten Hacker News picks to an inactive reader's library, while at least one pick is still unread and 47.5h have passed since the reader's last digest. | none |
@@ -2099,14 +2099,13 @@ Not sent when:
 > **Observations**
 >
 > - The marker is claimed before rendering and sending, so delivery is at-most-once: a Resend rejection, Resend outage or render error loses the notice for the whole lapse, never reaches the DLQ alarm and leaves only an error log `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:219`
-> - The reassurance says the held email and articles "go back to saving automatically once your subscription is active again", but nothing resubmits held links on reactivation: only new mail saves automatically, and held links must be saved one at a time from the inbox, a route that needs write access `projects/inbox/src/runtime/web/pages/inbox/inbox.page.ts:495`
 > - Starting or retrying a Gmail history import needs write access, but the import worker and ingest never re-check it, so an import still running after the lapse triggers this notice on old mail while the copy says the email "just arrived" `projects/hutch/src/runtime/web/auth/automation-saves-held-email.ts:32`
 > - Turning inbox addresses off is the only opt-out the email offers; no unsubscribe header or email preference is consulted `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:248`
 > - Because AI triage fails open, an email with no real articles (only menu or ad links) can trigger the notice when DeepSeek is unavailable `projects/inbox/src/runtime/domain/inbox/triage-email-links.ts:133`
 > - Unverified and locked accounts receive the notice, since the send handler checks neither `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:209`
 > - The no-address and plain-/inbox branches cannot be reached from the only publisher, which always sends both fields `projects/inbox/src/runtime/extract-email-links.main.ts:129`
 > - The infra comment for this Lambda names only the Scheduler and stripe-webhook-receiver as callers and lists four kinds, omitting the inbox extractor and automation_saves_held `projects/hutch/src/infra/index.ts:1196`
-> - Cosmetic: the HTML <title> is capitalised while the subject is lowercase, the opening uses " - " as a dash, the reply line has no closing period, and the reactivate link goes out with raw & while the other links are entity-escaped; all render correctly `projects/hutch/src/runtime/web/auth/automation-saves-held-email.template.html:6`
+> - Cosmetic: the HTML <title> is capitalised while the subject is lowercase, the reply line has no closing period, and the reactivate link goes out with raw & while the other links are entity-escaped; all render correctly `projects/hutch/src/runtime/web/auth/automation-saves-held-email.template.html:6`
 
 ### Message
 
@@ -2116,7 +2115,7 @@ Not sent when:
 | To | The reader's login email from the users table (findEmailByUserId), not their Readplace inbox address |
 | Bcc | `readplace+automation_saves_held@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
-| Subject | links sent to your Readplace inbox are waiting |
+| Subject | links sent to your Readplace Inbox are waiting |
 | Headers | none |
 | Plain-text part | A plain-text version with the same six paragraphs, each link written out as a full URL. |
 | Idempotency key | none |
@@ -2126,13 +2125,13 @@ Content variants:
 | Variant | Shown when |
 |---|---|
 | default | The command carries inboxAddress and receivedAtMessageId, which the only publisher always sets (`projects/inbox/src/runtime/extract-email-links.main.ts:129`). The opening names the address in bold and the button opens /inbox?highlight={receivedAtMessageId} with utm tags. The address is the one that received the mail for an inbox address; for Gmail forwarding it is the first mapped destination, or the Gmail address itself when the sender is unreadable or a gmail-mapped address has no sender mapping (`projects/inbox/src/runtime/domain/gmail/route-gmail-forwarded-email.ts:66`); for a Gmail import it is the first selected destination (`projects/inbox/src/runtime/domain/inbox/ingest-gmail-import-handler.ts:153`). Everything else is fixed and does not change with subscription status, routing, origin or the number of held links. |
-| no-inbox-address | inboxAddress is missing, so the opening reads "An email to your Readplace inbox just arrived..." with no address (`projects/hutch/src/runtime/web/auth/automation-saves-held-email.ts:41`); receivedAtMessageId is missing, so the button opens the plain /inbox list (`src/packages/domain/src/inbox/inbox-routes.ts:37`). Each field controls its own part independently; the schema allows both to be absent, but no current publisher sends such a command. |
+| no-inbox-address | inboxAddress is missing, so the opening reads "An email just arrived in your Readplace Inbox..." with no address (`projects/hutch/src/runtime/web/auth/automation-saves-held-email.ts:41`); receivedAtMessageId is missing, so the button opens the plain /inbox list (`src/packages/domain/src/inbox/inbox-routes.ts:37`). Each field controls its own part independently; the schema allows both to be absent, but no current publisher sends such a command. |
 
 ### Example
 
 #### `default` — A cancelled reader's first held newsletter (a TLDR issue to inbox-k7m2q9@read.place), run through the real extract and send handlers, showing the address in bold and the button deep-linking to the highlighted email in /inbox.
 
-Subject: **links sent to your Readplace inbox are waiting** · To: `sam.reader@gmail.com`
+Subject: **links sent to your Readplace Inbox are waiting** · To: `sam.reader@gmail.com`
 
 <details><summary>Example inputs</summary>
 
@@ -2194,7 +2193,7 @@ Exact HTML body: [`html/automation-saves-held--default.html`](html/automation-sa
 
 #### `no-inbox-address` — A hand-built command with no inboxAddress or receivedAtMessageId, which no current publisher sends, showing the opening without an address and the button linking to the plain /inbox list.
 
-Subject: **links sent to your Readplace inbox are waiting** · To: `sam.reader@gmail.com`
+Subject: **links sent to your Readplace Inbox are waiting** · To: `sam.reader@gmail.com`
 
 <details><summary>Example inputs</summary>
 
@@ -2694,7 +2693,7 @@ Not sent when:
 > - Premature on the custom-readlist path: the email goes out before the readlist's filter decides, and a readlist with a purpose can keep zero links, so the reader can be told their links were added when nothing was saved `projects/save-link/src/runtime/domain/filter-email-links/filter-email-links-handler.ts:85`
 > - The copy says Readplace adds the links 'to All, your main readlist' for every address, including aliases routed to a custom readlist where the readlist's filter decides `projects/hutch/src/runtime/web/auth/inbox-first-arrival-email.ts:23`
 > - A reader whose mail all reaches Readplace through Gmail (auto-forwarding or history imports) never gets this email, even though those links are saved to All `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
-> - Gmail mail sets no marker, so a reader whose Gmail newsletters have been landing in their inbox for weeks is still told 'The first email to your Readplace inbox at {address} just came through' the first time mail reaches a Readplace address directly `projects/hutch/src/runtime/web/auth/inbox-first-arrival-email.ts:19`
+> - Gmail mail sets no marker, so a reader whose Gmail newsletters have been landing in their inbox for weeks is still told 'The first email to your custom email {address} just came through' the first time mail reaches a Readplace address directly `projects/hutch/src/runtime/web/auth/inbox-first-arrival-email.ts:19`
 > - The LLM triage fails open, so during a DeepSeek outage a non-article email (a receipt or notification) can trigger this once-ever onboarding email `projects/inbox/src/runtime/domain/inbox/triage-email-links.ts:133`
 > - No unsubscribe or preference check and no List-Unsubscribe header; it is sent as a one-time transactional notice `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:101`
 > - The internal BCC copy carries the reader's Readplace inbox address, which anyone can use to send mail into their inbox `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:104`
@@ -2709,9 +2708,9 @@ Not sent when:
 | To | The account's login email, looked up by userId in the users table |
 | Bcc | `readplace+first_inbox_email@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
-| Subject | Your first email landed in your Readplace inbox |
+| Subject | Your first email landed in your Readplace Inbox |
 | Headers | none |
-| Plain-text part | Yes: the same copy as plain text, with the button written as "See it in your inbox: {inboxUrl}". |
+| Plain-text part | Yes: the same copy as plain text, with the button written as "See it in your Inbox: {inboxUrl}". |
 | Idempotency key | none |
 
 Content variants:
@@ -2725,7 +2724,7 @@ Content variants:
 
 #### `default` — A newsletter sent to the reader's signup address inbox-k7m2q9@read.place during their trial: the body names that address and the button highlights the email by its SES receipt time and Message-ID.
 
-Subject: **Your first email landed in your Readplace inbox** · To: `sam.reader@gmail.com`
+Subject: **Your first email landed in your Readplace Inbox** · To: `sam.reader@gmail.com`
 
 <details><summary>Example inputs</summary>
 
@@ -2822,7 +2821,7 @@ Exact HTML body: [`html/inbox-first-arrival--default.html`](html/inbox-first-arr
 
 #### `custom-readlist-alias` — A newsletter sent to the custom address longreads-p4n8z2@read.place, which the reader routed to their 'Long reads' readlist; the email goes out when the links are handed to that readlist's filter, before anything is saved.
 
-Subject: **Your first email landed in your Readplace inbox** · To: `sam.reader@gmail.com`
+Subject: **Your first email landed in your Readplace Inbox** · To: `sam.reader@gmail.com`
 
 <details><summary>Example inputs</summary>
 
@@ -3037,9 +3036,9 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| named-newsletter | One eligible newsletter is due and the deciding approved record has a name: subject "Choose readlists for {newsletterName}", opening "Readplace recognizes {newsletterName} in your Gmail: {senderEmail}. It is ready to connect to your readlists." with the address in bold, the button selecting that sender, and the footer "You are receiving this email because you haven't mapped this newsletter to a readlist. This is a one-time notification for {newsletterName}." |
+| named-newsletter | One eligible newsletter is due and the deciding approved record has a name: subject "Choose readlists for {newsletterName}", opening "Readplace recognizes {newsletterName} in your Gmail: {senderEmail}. It is ready to connect to your readlists." with the address in bold, the button selecting that sender, and the footer "You are receiving this email because you haven't chosen readlists for this newsletter. This is a one-time notification for {newsletterName}." |
 | unnamed-sender | One eligible newsletter is due and the deciding approved record has no name (a reader-submitted record approved without a name, an unnamed *@domain wildcard or a record auto-approved under one, or a name cleared by an admin edit): subject "Choose readlists for {senderEmail}", opening "Readplace recognizes this newsletter in your Gmail: {senderEmail}. ...", and the footer ends "This is a one-time notification for {senderEmail}." |
-| grouped | Two or more eligible newsletters are due when the email is built, usually after the 7-day interval or the All-only hold kept them waiting: subject "Choose readlists for {N} newsletters", intro "Readplace recognizes {N} newsletters in your Gmail that are ready to connect to your readlists:", then up to 10 newsletters (GMAIL_NEWSLETTER_NOTICE_MAX_NEWSLETTERS), those pending longest, sorted by name or address, each name and the address beneath it linking to that newsletter's readlist choice (an unnamed one shows only its address); when more eligible newsletters are waiting, a muted line under the list says "{W} more newsletters are waiting and will be in your next email in about 7 days." ("1 more newsletter is waiting ..." for one), and is absent when none wait; then the button opening /newsletters/gmail with no sender selected (utm_content=choose-readlists), and the footer "You are receiving this email because you haven't mapped these newsletters to a readlist. This is a one-time notification for each of them." |
+| grouped | Two or more eligible newsletters are due when the email is built, usually after the 7-day interval or the All-only hold kept them waiting: subject "Choose readlists for {N} newsletters", intro "Readplace recognizes {N} newsletters in your Gmail that are ready to connect to your readlists:", then up to 10 newsletters (GMAIL_NEWSLETTER_NOTICE_MAX_NEWSLETTERS), those pending longest, sorted by name or address, each name and the address beneath it linking to that newsletter's readlist choice (an unnamed one shows only its address); when more eligible newsletters are waiting, a muted line under the list says "{W} more newsletters are waiting and will be in your next email in about 7 days." ("1 more newsletter is waiting ..." for one), and is absent when none wait; then the button opening /newsletters/gmail with no sender selected (utm_content=choose-readlists), and the footer "You are receiving this email because you haven't chosen readlists for these newsletters. This is a one-time notification for each of them." |
 | persisted-payload-resend | A claim already holds a message from an earlier ambiguous attempt and at least one of its listed notices is still pending: that stored message is resent exactly, including its original recipient, subject and links. The reader's NOTICE_BATCH row holds a single or grouped email; a batch whose listed notices are all already marked sent is settled without resending. A notice claimed one by one by a build before grouping is resent on its own, with that build's From and copy and no footer. One stored by build 508b6d7 has subject "Choose a readlist for ..." and no readlist_choice_for in the link (not captured, the current template cannot produce it). |
 
 ### Example

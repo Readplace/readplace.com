@@ -10,7 +10,7 @@ const TEMPLATE = readFileSync(
 );
 
 export const AUTOMATION_SAVES_HELD_EMAIL_SUBJECT =
-	"links sent to your Readplace inbox are waiting";
+	"links sent to your Readplace Inbox are waiting";
 
 const SIGNOFF = "— Fayner Brack, Founder & CEO";
 
@@ -29,7 +29,7 @@ interface AutomationSavesHeldEmailComponent {
 const CTA_LABEL = "See the articles waiting";
 
 const OPENING_AFTER =
-	" just arrived, but the articles weren't saved to All - your subscription is read-only, so saving is paused.";
+	" just arrived in your Readplace Inbox, but the articles weren't saved to All — your subscription is read-only, so saving is paused.";
 
 function openingFragments(inboxAddress: string | undefined): {
 	before: string;
@@ -39,15 +39,15 @@ function openingFragments(inboxAddress: string | undefined): {
 	return {
 		before:
 			inboxAddress === undefined
-				? "An email to your Readplace inbox"
-				: "An email to your Readplace inbox at ",
+				? "An email"
+				: "An email to ",
 		address: inboxAddress ?? "",
 		after: OPENING_AFTER,
 	};
 }
 
 const REASSURANCE_PREFIX =
-	"Don't worry, you didn't lose anything. The email and the extracted articles are still in your inbox, and they go back to saving automatically once ";
+	"Don't worry, you didn't lose anything. The email and the extracted articles stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once ";
 
 const REASSURANCE_LINK_TEXT = "your subscription is active again";
 
@@ -90,7 +90,7 @@ export function AutomationSavesHeldEmail(
 				...paragraphs.map((paragraph) => paragraph.text),
 				`${CTA_LABEL}: ${params.inboxUrl}`,
 				EMAIL_REPLY_INVITATION,
-				`If you'd rather not continue, turn off your inbox addresses and nothing more will be forwarded and you will stop receiving these emails: ${params.manageAddressesUrl}`,
+				`If you'd rather not continue, disable your custom emails and nothing more will be forwarded and you will stop receiving these emails: ${params.manageAddressesUrl}`,
 				SIGNOFF,
 			].join("\n\n");
 		},

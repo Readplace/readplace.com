@@ -202,7 +202,7 @@ async function emailStepOutstandingSettled(page: Page): Promise<void> {
 
 async function emailRowStandsAlone(page: Page): Promise<void> {
 	await onlyStepOpen(page, "receive-articles-by-email");
-	await stepAnatomyHolds(page, 576);
+	await stepAnatomyHolds(page, 595);
 
 	const row = await measuredBox(page, EMAIL_STEP);
 	const cta = await measuredBox(page, EMAIL_CTA);

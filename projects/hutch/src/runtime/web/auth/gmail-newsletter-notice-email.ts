@@ -28,8 +28,8 @@ function singleCopy(newsletter: GmailNewsletterNoticeItem) {
 			address: newsletter.senderEmail,
 			after: ". It is ready to connect to your readlists.",
 		},
-		paragraph: `Choose readlists and Save to send its future emails to Readplace, which saves every eligible article to All and to any other readlists you choose. You can also choose to import earlier unread messages from the last ${GMAIL_HISTORY_IMPORT_WINDOW_DAYS} days.`,
-		footer: `You are receiving this email because you haven't mapped this newsletter to a readlist. This is a one-time notification for ${label}.`,
+		paragraph: `Choose readlists and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. You can also choose to import earlier unread messages from the last ${GMAIL_HISTORY_IMPORT_WINDOW_DAYS} days.`,
+		footer: `You are receiving this email because you haven't chosen readlists for this newsletter. This is a one-time notification for ${label}.`,
 	};
 }
 
@@ -37,8 +37,8 @@ function groupCopy(count: number) {
 	return {
 		subject: `Choose readlists for ${count} newsletters`,
 		introLine: `Readplace recognizes ${count} newsletters in your Gmail that are ready to connect to your readlists:`,
-		paragraph: `Choose readlists for a newsletter and Save to send its future emails to Readplace, which saves every eligible article to All and to any other readlists you choose. You can also choose to import earlier unread messages from the last ${GMAIL_HISTORY_IMPORT_WINDOW_DAYS} days.`,
-		footer: "You are receiving this email because you haven't mapped these newsletters to a readlist. This is a one-time notification for each of them.",
+		paragraph: `Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. You can also choose to import earlier unread messages from the last ${GMAIL_HISTORY_IMPORT_WINDOW_DAYS} days.`,
+		footer: "You are receiving this email because you haven't chosen readlists for these newsletters. This is a one-time notification for each of them.",
 	};
 }
 

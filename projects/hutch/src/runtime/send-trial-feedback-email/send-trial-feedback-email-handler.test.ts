@@ -137,7 +137,7 @@ describe("automation-saves-held notice", () => {
 		assert(sent.text, "the notice must carry a plain-text alternative");
 		assert.equal(sent.to, "user@example.com");
 		assert.equal(sent.bcc, "readplace+automation_saves_held@readplace.com");
-		assert.equal(sent.subject, "links sent to your Readplace inbox are waiting");
+		assert.equal(sent.subject, "links sent to your Readplace Inbox are waiting");
 		assert.equal(sent.replyTo, "fayner@readplace.com");
 		assert.ok(
 			sent.text.includes("If you have any questions, please reply to this email"),
@@ -145,7 +145,7 @@ describe("automation-saves-held notice", () => {
 		);
 		assert.ok(
 			sent.text.startsWith(
-				`An email to your Readplace inbox at ${HELD_INBOX_ADDRESS} just arrived,`,
+				`An email to ${HELD_INBOX_ADDRESS} just arrived in your Readplace Inbox,`,
 			),
 		);
 		assert.ok(
