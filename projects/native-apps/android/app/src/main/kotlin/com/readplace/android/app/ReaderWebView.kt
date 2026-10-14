@@ -63,6 +63,8 @@ fun ReaderWebView(
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
 	onCaptureBlocked: () -> Job,
+	claimAutomaticCapture: () -> Boolean,
+	onCaptureAvailable: () -> Job,
 	onClose: () -> Unit,
 	/** The account page deleted the account, so the server destroyed every session
 	 * and redirected here rather than to the logged-out home — the sheet dismisses
@@ -137,6 +139,9 @@ fun ReaderWebView(
 					onMarkedRead = onMarkedRead,
 					onStatusChanged = onStatusChanged,
 					onCaptureBlocked = onCaptureBlocked,
+					claimAutomaticCapture = claimAutomaticCapture,
+					onCaptureAvailable = onCaptureAvailable,
+					dispatchToPage = { script -> evaluateJavascript(script, null) },
 					onMainThread = { action -> post { action() } },
 				)
 				addJavascriptInterface(bridge, bridge.name)
@@ -421,6 +426,9 @@ private class ReaderBridge(
 	private val onMarkedRead: () -> Unit,
 	private val onStatusChanged: () -> Unit,
 	private val onCaptureBlocked: () -> Job,
+	private val claimAutomaticCapture: () -> Boolean,
+	private val onCaptureAvailable: () -> Job,
+	private val dispatchToPage: (String) -> Unit,
 	private val onMainThread: (() -> Unit) -> Unit,
 ) {
 	/** The one name the interface is registered under; the same name is what the
@@ -449,6 +457,19 @@ private class ReaderBridge(
 			ReaderMessageRoute.START_CAPTURE -> {
 				capturing = true
 				val job = onCaptureBlocked()
+				scope.launch {
+					try {
+						job.join()
+					} finally {
+						capturing = false
+					}
+				}
+			}
+			ReaderMessageRoute.START_AUTOMATIC_CAPTURE -> {
+				if (!claimAutomaticCapture()) return
+				dispatchToPage(ReaderMessageRoute.CAPTURE_STARTED_SCRIPT)
+				capturing = true
+				val job = onCaptureAvailable()
 				scope.launch {
 					try {
 						job.join()

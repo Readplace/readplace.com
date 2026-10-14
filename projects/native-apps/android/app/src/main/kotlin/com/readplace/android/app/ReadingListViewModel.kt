@@ -119,6 +119,9 @@ class ReadingListViewModel(
 	private val lastViewed: LastViewedReadlist,
 	private val shareTarget: ShareTarget,
 	private val healBlockedArticle: suspend (url: String) -> HealBlockedOutcome,
+	private val healArticleAutomatically: suspend (url: String) -> HealBlockedOutcome,
+	private val automaticCaptureAttempts: AutomaticCaptureAttempts,
+	private val reportAutomaticCaptureFailure: (String) -> Unit,
 	private val drainUploadJobs: suspend () -> Unit,
 	private val onSessionExpired: () -> Unit,
 ) {
@@ -573,6 +576,35 @@ class ReadingListViewModel(
 		} catch (error: Exception) {
 			handle(error)
 		}
+	}
+
+	fun claimAutomaticCapture(): Boolean {
+		val article = openArticle() ?: return false
+		return automaticCaptureAttempts.claim(article.id)
+	}
+
+	suspend fun captureArticleAutomatically() {
+		val article = openArticle() ?: return
+		try {
+			val failureText = healArticleAutomatically(article.url).failureText
+			if (failureText != null) {
+				reportAutomaticCaptureFailure(failureText)
+				return
+			}
+			reloadAndAdopt()
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (error: Exception) {
+			when (error) {
+				is ApiError.Unauthorized, is ApiError.NoToken -> handle(error)
+				else -> reportAutomaticCaptureFailure("request failed")
+			}
+		}
+	}
+
+	private fun openArticle(): Article? {
+		val articleId = states.value.readerPresentation?.articleId ?: return null
+		return states.value.articles.firstOrNull { it.id == articleId }
 	}
 
 	suspend fun drainStagedUploads() {

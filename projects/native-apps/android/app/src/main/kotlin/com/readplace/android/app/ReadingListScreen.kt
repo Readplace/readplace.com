@@ -322,6 +322,10 @@ fun ReadingListScreen(
 				onCaptureBlocked = {
 					scope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
 				},
+				claimAutomaticCapture = viewModel::claimAutomaticCapture,
+				onCaptureAvailable = {
+					scope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureArticleAutomatically() }
+				},
 				// The close path carries the probe: the sheet routes every dismissal —
 				// including an interactive swipe-down or back press that never touches a
 				// control — through it, so a session killed inside the sheet (the account

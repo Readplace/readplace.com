@@ -3,8 +3,8 @@ package com.readplace.android.app
 import android.content.SharedPreferences
 import com.readplace.android.core.ReaderChoiceStorage
 
-/** The SharedPreferences seam behind [KeyValueFlags], the one place the launch
- * intro's flags touch the OS. */
+/** The SharedPreferences seam behind [KeyValueFlags], the one place the
+ * flags touch the OS. */
 class PreferenceFlags(private val preferences: SharedPreferences) : KeyValueFlags {
 	override fun getBoolean(key: String): Boolean? =
 		if (preferences.contains(key)) preferences.getBoolean(key, false) else null

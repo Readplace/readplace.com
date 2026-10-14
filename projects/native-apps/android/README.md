@@ -71,6 +71,16 @@ JSON-serialised message, because that is the only shape an
 latched once per sheet: it closes the sheet and re-reads the list. `statusChanged`
 is neither, so the reader's own Next Read confirmation can mark an article read,
 stay open, and swap the suggestion in while the list reconciles behind it.
+A fourth message, `captureAvailable`, is posted when the page offers to capture a
+failed article. The app acts on it once per article per device, and never while a
+capture is already running: it evaluates
+`document.dispatchEvent(new Event("readplace-capture-started"))` in the reader, which
+the server's markup turns into the capture poll, and uploads the hidden render with
+`captureTrigger=automatic`, so the server judges it like a crawl instead of trusting
+it as the reader's own capture. The app names the event and nothing more, so what the
+page does with it can change without an app release. A failed automatic capture is
+logged under the `Capture` tag rather than shown (an expired session still signs the
+app out), and the capture button stays as the retry.
 
 **Transcoded intro media.** The iOS bundle ships `LaunchIntroTheme.caf` (Core Audio,
 which Android cannot decode) and `LaunchIntro.mp4` encoded as **10-bit HEVC** (which

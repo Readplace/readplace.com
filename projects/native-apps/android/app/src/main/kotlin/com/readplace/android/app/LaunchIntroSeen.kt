@@ -1,7 +1,7 @@
 package com.readplace.android.app
 
 /**
- * The launch intro's persisted flags, standing in for the iOS `UserDefaults`. A
+ * The persisted flags, standing in for the iOS `UserDefaults`. A
  * read answers null for a key never written, so each flag decides for itself how
  * an absent value reads. Production is SharedPreferences-backed; tests supply
  * their own.

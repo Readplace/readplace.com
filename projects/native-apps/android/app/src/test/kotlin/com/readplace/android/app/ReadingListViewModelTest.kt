@@ -74,6 +74,16 @@ class ReadingListViewModelTest {
 		}
 	}
 
+	private class EphemeralFlags : KeyValueFlags {
+		val values = mutableMapOf<String, Boolean>()
+
+		override fun getBoolean(key: String): Boolean? = values[key]
+
+		override fun putBoolean(key: String, value: Boolean) {
+			values[key] = value
+		}
+	}
+
 	private fun loggedInStore(): TokenStore {
 		val store = TokenStore(RecordingTokenStorage())
 		store.save(OAuthTokens(AccessToken("access-1"), RefreshToken("refresh-1")))
@@ -101,6 +111,11 @@ class ReadingListViewModelTest {
 		lastViewed: LastViewedReadlist = LastViewedReadlist(InMemoryReaderChoiceStorage()),
 		shareTarget: ShareTarget = ShareTarget(InMemoryReaderChoiceStorage()),
 		healBlockedArticle: suspend (String) -> HealBlockedOutcome = { throw AssertionError("no heal expected for $it") },
+		healArticleAutomatically: suspend (String) -> HealBlockedOutcome = {
+			throw AssertionError("no automatic heal expected for $it")
+		},
+		automaticCaptureAttempts: AutomaticCaptureAttempts = AutomaticCaptureAttempts(EphemeralFlags()),
+		reportAutomaticCaptureFailure: (String) -> Unit = {},
 		drainUploadJobs: suspend () -> Unit = { throw AssertionError("no drain expected") },
 		onSessionExpired: () -> Unit = {},
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
@@ -111,6 +126,9 @@ class ReadingListViewModelTest {
 			lastViewed = lastViewed,
 			shareTarget = shareTarget,
 			healBlockedArticle = healBlockedArticle,
+			healArticleAutomatically = healArticleAutomatically,
+			automaticCaptureAttempts = automaticCaptureAttempts,
+			reportAutomaticCaptureFailure = reportAutomaticCaptureFailure,
 			drainUploadJobs = drainUploadJobs,
 			onSessionExpired = onSessionExpired,
 		)
@@ -1924,6 +1942,235 @@ class ReadingListViewModelTest {
 		assertTrue(viewModel.state.value.messages.isEmpty())
 		assertFalse("the reload's finally clears the loading state even when it is cancelled", viewModel.state.value.isLoading)
 		ownerScope.cancel()
+	}
+
+	@Test
+	fun `the open row is claimed for an automatic capture only once`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val viewModel = viewModel()
+		viewModel.refresh()
+		val row = viewModel.state.value.articles.first()
+		viewModel.openReader(row)
+
+		assertTrue("the first offer for an open failed article starts its rescue", viewModel.claimAutomaticCapture())
+
+		viewModel.closeReader()
+		viewModel.openReader(row)
+
+		assertFalse(
+			"reopening the article offers the capture again, but this device already spent its one automatic attempt",
+			viewModel.claimAutomaticCapture(),
+		)
+	}
+
+	@Test
+	fun `an offer that cannot start a capture spends no attempt`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val viewModel = viewModel()
+
+		assertFalse("with no reader open there is no article to rescue", viewModel.claimAutomaticCapture())
+		viewModel.openReader(article(readHref = "/queue/a1/view", id = "a1"))
+		assertFalse(
+			"a reader open on an article the list does not hold has no row whose url the hidden render could load",
+			viewModel.claimAutomaticCapture(),
+		)
+
+		viewModel.refresh()
+
+		assertTrue(
+			"neither declined offer spent the article's attempt, so the first one that can start a capture still gets it",
+			viewModel.claimAutomaticCapture(),
+		)
+	}
+
+	@Test
+	fun `an automatic capture heals the open row and reconciles the list`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
+		val healed = mutableListOf<String>()
+		val reported = mutableListOf<String>()
+		val viewModel = viewModel(
+			healArticleAutomatically = { url -> healed += url; HealBlockedOutcome.HEALED },
+			reportAutomaticCaptureFailure = { reported += it },
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		viewModel.captureArticleAutomatically()
+
+		assertEquals(
+			"the rescue goes through the automatic heal, keyed on the open row's own url, never the reader url hosting it",
+			listOf("https://example.com/post"),
+			healed,
+		)
+		assertEquals("a landed rescue reconciles the list exactly as a tapped one does", listOf("a1", "h1"), viewModel.articleIds)
+		assertEquals(emptyList<String>(), reported)
+	}
+
+	@Test
+	fun `an automatic capture is a no-op without an open reader`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val healed = mutableListOf<String>()
+		val reported = mutableListOf<String>()
+		val viewModel = viewModel(
+			healArticleAutomatically = { url -> healed += url; HealBlockedOutcome.HEALED },
+			reportAutomaticCaptureFailure = { reported += it },
+		)
+		viewModel.refresh()
+
+		viewModel.captureArticleAutomatically()
+
+		assertEquals("a reader closed before the render started leaves no article to render", emptyList<String>(), healed)
+		assertEquals(emptyList<String>(), reported)
+	}
+
+	@Test
+	fun `an automatic capture is a no-op when the open reader's row is no longer listed`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val healed = mutableListOf<String>()
+		val viewModel = viewModel(healArticleAutomatically = { url -> healed += url; HealBlockedOutcome.HEALED })
+		viewModel.refresh()
+		viewModel.openReader(article(readHref = "/queue/gone/view", id = "gone"))
+
+		viewModel.captureArticleAutomatically()
+
+		assertEquals("a row the list no longer holds has no url to capture", emptyList<String>(), healed)
+	}
+
+	@Test
+	fun `an empty automatic capture is reported without a banner`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
+		val reported = mutableListOf<String>()
+		val viewModel = viewModel(
+			healArticleAutomatically = { HealBlockedOutcome.CAPTURE_WAS_EMPTY },
+			reportAutomaticCaptureFailure = { reported += it },
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		viewModel.captureArticleAutomatically()
+
+		assertEquals(
+			"the failure goes to the log, so a capture the reader never asked for is still diagnosable",
+			listOf("This device couldn't capture that page either — the site returned nothing to save."),
+			reported,
+		)
+		assertNull("the reader never asked for this capture, so its failure is not put in front of them", viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertEquals("with nothing uploaded there is no new server truth to adopt", listOf("a1"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `an automatic capture of an error page is reported without a banner`() = runTest {
+		val postHeal = Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("h1")), total = 2)
+		server.handle(blockedCaptureHandler(laterReadlist = postHeal))
+		val reported = mutableListOf<String>()
+		val viewModel = viewModel(
+			healArticleAutomatically = { HealBlockedOutcome.PAGE_NOT_SERVED },
+			reportAutomaticCaptureFailure = { reported += it },
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		viewModel.captureArticleAutomatically()
+
+		assertEquals(
+			listOf("This device couldn't load the article either — the site answered with an error page instead of it."),
+			reported,
+		)
+		assertNull(viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+		assertEquals(listOf("a1"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `an automatic capture the server refuses is reported without its messages`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val refusal = listOf(ServerMessage("warning", ServerMessage.Content("text/html", Fixtures.LOCKED_MESSAGE)))
+		val reported = mutableListOf<String>()
+		val viewModel = viewModel(
+			healArticleAutomatically = { throw ApiError.Refused(refusal) },
+			reportAutomaticCaptureFailure = { reported += it },
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		viewModel.captureArticleAutomatically()
+
+		assertEquals(
+			"the log line carries a fixed label, never the server's text or the article's url",
+			listOf("request failed"),
+			reported,
+		)
+		assertTrue("a refusal of a capture the reader never asked for is not shown to them", viewModel.state.value.messages.isEmpty())
+		assertNull(viewModel.state.value.errorText)
+		assertEquals(listOf("a1"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `an automatic capture on an expired session still signs out`() = runTest {
+		server.handle(blockedCaptureHandler())
+		var expiries = 0
+		val reported = mutableListOf<String>()
+		val viewModel = viewModel(
+			healArticleAutomatically = { throw ApiError.Unauthorized() },
+			reportAutomaticCaptureFailure = { reported += it },
+			onSessionExpired = { expiries += 1 },
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		viewModel.captureArticleAutomatically()
+
+		assertEquals("a dead session signs the reader out whichever capture discovered it", 1, expiries)
+		assertEquals("a sign-out is acted on, not logged as a failed capture", emptyList<String>(), reported)
+	}
+
+	@Test
+	fun `an automatic capture without a token still signs out`() = runTest {
+		server.handle(blockedCaptureHandler())
+		var expiries = 0
+		val reported = mutableListOf<String>()
+		val viewModel = viewModel(
+			healArticleAutomatically = { throw ApiError.NoToken() },
+			reportAutomaticCaptureFailure = { reported += it },
+			onSessionExpired = { expiries += 1 },
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		viewModel.captureArticleAutomatically()
+
+		assertEquals(1, expiries)
+		assertEquals(emptyList<String>(), reported)
+	}
+
+	@Test
+	fun `disposing the signed-in screen during an automatic capture cancels it without a report`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val release = CompletableDeferred<Unit>()
+		val reported = mutableListOf<String>()
+		val viewModel = viewModel(
+			healArticleAutomatically = {
+				release.await()
+				HealBlockedOutcome.HEALED
+			},
+			reportAutomaticCaptureFailure = { reported += it },
+		)
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		val ownerScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+		val job = ownerScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureArticleAutomatically() }
+
+		ownerScope.cancel()
+		job.join()
+
+		assertTrue("the disposed screen's capture job is cancelled", job.isCancelled)
+		assertEquals("a cancellation is unwound, never logged as a failed capture", emptyList<String>(), reported)
+		assertNull(viewModel.state.value.errorText)
+		assertEquals(listOf("a1"), viewModel.articleIds)
 	}
 
 	// endregion

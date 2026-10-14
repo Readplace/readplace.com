@@ -42,6 +42,24 @@ class ReaderMessageRouteTest {
 	}
 
 	@Test
+	fun `a capture offer starts an automatic capture`() {
+		assertEquals(
+			"an offer nobody tapped is routed apart from a tap, so the upload can say it was not the reader's choice",
+			ReaderMessageRoute.START_AUTOMATIC_CAPTURE,
+			route("captureAvailable"),
+		)
+	}
+
+	@Test
+	fun `a capture offer is ignored while a capture is running`() {
+		assertEquals(
+			"an offer that arrives during a tapped capture is dropped before it can spend the article's one automatic attempt",
+			ReaderMessageRoute.IGNORE,
+			route("captureAvailable", captureInFlight = true),
+		)
+	}
+
+	@Test
 	fun `a mark-read report marks the article read`() {
 		assertEquals(ReaderMessageRoute.MARK_READ, route("markedRead"))
 	}
@@ -120,5 +138,13 @@ class ReaderMessageRouteTest {
 	@Test
 	fun `the bridge name is the one the server's injected script posts to`() {
 		assertEquals("ReadplaceReader", ReaderMessageRoute.BRIDGE_NAME)
+	}
+
+	@Test
+	fun `a started capture is announced with the DOM event the server's markup listens for`() {
+		assertEquals(
+			"document.dispatchEvent(new Event(\"readplace-capture-started\"))",
+			ReaderMessageRoute.CAPTURE_STARTED_SCRIPT,
+		)
 	}
 }

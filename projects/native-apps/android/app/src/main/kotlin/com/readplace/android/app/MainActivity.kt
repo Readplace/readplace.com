@@ -127,6 +127,9 @@ class MainActivity : ComponentActivity() {
 				lastViewed = lastViewed,
 				shareTarget = shareTarget,
 				healBlockedArticle = { url -> heal.run(url, CaptureTrigger.MANUAL) },
+				healArticleAutomatically = { url -> heal.run(url, CaptureTrigger.AUTOMATIC) },
+				automaticCaptureAttempts = AutomaticCaptureAttempts(flags),
+				reportAutomaticCaptureFailure = { failure -> Log.i("Capture", "automatic capture failed: $failure") },
 				drainUploadJobs = { drain.run() },
 				onSessionExpired = { session.forceLogout() },
 			)
