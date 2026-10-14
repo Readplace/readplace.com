@@ -100,7 +100,7 @@ describe("Custom emails routes", () => {
 			expect(back.textContent?.trim()).toBe("Inbox");
 		});
 
-		it("sends the back link to Newsletters when the reader came from Newsletters", async () => {
+		it("sends the back link to Connectors when the reader came from Connectors", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
@@ -113,7 +113,7 @@ describe("Custom emails routes", () => {
 			expect(back.getAttribute("href")).toBe(
 				"/newsletters?utm_source=inbox-addresses&utm_medium=internal&utm_content=back-to-newsletters",
 			);
-			expect(back.textContent?.trim()).toBe("Newsletters");
+			expect(back.textContent?.trim()).toBe("Connectors");
 			const create = doc.querySelector("[data-test-inbox-create]")?.closest("form");
 			assert(create, "the create form must render");
 			expect(create.getAttribute("action")).toBe(
@@ -121,7 +121,7 @@ describe("Custom emails routes", () => {
 			);
 		});
 
-		it("keeps the Newsletters back link after creating an inbox email", async () => {
+		it("keeps the Connectors back link after creating a custom email", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
@@ -135,7 +135,7 @@ describe("Custom emails routes", () => {
 			const doc = new JSDOM((await agent.get(created.headers.location)).text).window.document;
 			const back = doc.querySelector("[data-test-inbox-back]");
 			assert(back, "the header back link must render");
-			expect(back.textContent?.trim()).toBe("Newsletters");
+			expect(back.textContent?.trim()).toBe("Connectors");
 		});
 
 		it("shows the limit banner proactively at the cap without the &error=limit param", async () => {

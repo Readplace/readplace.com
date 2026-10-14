@@ -612,4 +612,21 @@ describe("InboxPage", () => {
 			"the page alert comes before the create card",
 		);
 	});
+
+	it("says what a custom email does and walks through setting one up", () => {
+		const doc = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		assert.equal(
+			doc.querySelector(".inbox__subtitle")?.textContent,
+			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. The issue stays in Inbox, and Readplace saves its article links to All.",
+		);
+		assert.deepEqual(
+			Array.from(doc.querySelectorAll(".inbox__steps > li"), (step) => step.textContent),
+			[
+				"Create a custom email and copy it.",
+				"In your email app, forward a newsletter (or set up forwarding) to it.",
+				"If a newsletter sends a confirmation email, open it in Inbox and click its confirm link on the View tab.",
+				"New issues show up in your Inbox automatically.",
+			],
+		);
+	});
 });

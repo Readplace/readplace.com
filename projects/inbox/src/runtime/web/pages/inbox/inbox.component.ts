@@ -19,7 +19,7 @@ const STATUS_TOAST_DISMISS_MS = 6000;
 
 const BACK_LINKS: Record<CustomEmailsOrigin, { href: string; label: string; content: string }> = {
 	inbox: { href: INBOX_PATH, label: "Inbox", content: "back-to-inbox" },
-	newsletters: { href: NEWSLETTERS_PATH, label: "Newsletters", content: "back-to-newsletters" },
+	newsletters: { href: NEWSLETTERS_PATH, label: "Connectors", content: "back-to-newsletters" },
 };
 
 function trackAddresses(href: string, content: string): string {

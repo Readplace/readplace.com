@@ -1330,7 +1330,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		);
 		expect(panelNotices(articles)).toEqual(["deciding"]);
 		expect(articles.querySelector('[data-test-panel-notice="deciding"]')?.textContent).toBe(
-			"Choosing which links fit this inbox's readlist…",
+			"Choosing which links fit this custom email's readlist…",
 		);
 		expect(articles.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(0);
 		expect(

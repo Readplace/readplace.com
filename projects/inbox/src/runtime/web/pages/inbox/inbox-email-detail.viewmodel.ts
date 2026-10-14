@@ -107,7 +107,7 @@ const SKIPPED_NOTE_NOTICE: PanelNotice = {
 
 const DECIDING_NOTICE: PanelNotice = {
 	key: "deciding",
-	text: "Choosing which links fit this inbox's readlist…",
+	text: "Choosing which links fit this custom email's readlist…",
 	iconName: "loader",
 };
 const DECISION_FAILED_ALERT: PanelAlert = {

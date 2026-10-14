@@ -1001,7 +1001,7 @@ describe("toInboxArticlesMoreViewModel", () => {
 describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => {
 	const DECIDING_NOTICE = {
 		key: "deciding",
-		text: "Choosing which links fit this inbox's readlist…",
+		text: "Choosing which links fit this custom email's readlist…",
 		iconName: "loader",
 	};
 
