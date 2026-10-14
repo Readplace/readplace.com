@@ -40,7 +40,7 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	readTimeEmptyClass: string;
 	viaLabel: string;
 	viaTitle: string;
-	viaSender: string | undefined;
+	viaSender: ProvenanceLabel["sender"];
 	viaPopoverId: string;
 	viaEmptyClass: string;
 	viaFallbackClass: string;
@@ -97,10 +97,10 @@ function toViaDisplay(article: { id: string; via?: ProvenanceLabel }): ViaDispla
 	return {
 		viaLabel: article.via.label,
 		viaTitle: provenanceTitle(article.via),
-		viaSender: article.via.senderEmail,
+		viaSender: article.via.sender,
 		viaPopoverId,
 		viaEmptyClass: "",
-		viaFallbackClass: article.via.senderEmail === undefined ? "" : " sender-popover__fallback",
+		viaFallbackClass: article.via.sender === undefined ? "" : " sender-popover__fallback",
 	};
 }
 

@@ -467,7 +467,7 @@ describe("toReadlistArticleViewModel — via", () => {
 			...base,
 			readerProvenance: { kind: "newsletter", name: "TLDR", senderEmail: "dan@tldr.tech" },
 		});
-		expect(vm.via).toEqual({ label: "via TLDR", iconSvg: iconSvg("envelope"), senderEmail: "dan@tldr.tech" });
+		expect(vm.via).toEqual({ label: "via TLDR", iconSvg: iconSvg("envelope"), sender: { name: "TLDR", address: "dan@tldr.tech" } });
 	});
 
 	it("carries no via for a save that did not arrive by email, and none for a row saved before provenance was kept", () => {

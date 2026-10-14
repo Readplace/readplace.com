@@ -35,7 +35,7 @@ interface ViaFact {
 	text: string;
 	title: string | null;
 	empty: boolean;
-	sender: string | undefined;
+	sender: string[] | undefined;
 	fallback: { text: string; title: string | null; hiddenUnderPopover: boolean };
 }
 
@@ -51,7 +51,7 @@ function viaOf(card: Element): ViaFact {
 		text: via.textContent?.trim() ?? "",
 		title: via.getAttribute("title"),
 		empty: via.classList.contains("readlist-article__via--empty"),
-		sender: sender?.textContent ?? undefined,
+		sender: sender === null ? undefined : Array.from(sender.children, (line) => line.textContent ?? ""),
 		fallback: {
 			text: fallback.textContent?.trim() ?? "",
 			title: fallback.getAttribute("title"),
@@ -72,7 +72,7 @@ const NAMED: ViaFact = {
 	text: "via TLDR",
 	title: NAMED_SENDER,
 	empty: false,
-	sender: NAMED_SENDER,
+	sender: ["TLDR", NAMED_SENDER],
 	fallback: { text: "via TLDR", title: NAMED_SENDER, hiddenUnderPopover: true },
 };
 function addressedBy(sender: string): ViaFact {

@@ -129,7 +129,9 @@ describe("Reader save-provenance tag", () => {
 			expect(tag.getAttribute("title")).toBe("dan@tldr.tech");
 			const popoverId = tag.getAttribute("popovertarget");
 			assert(popoverId, "the named tag must open the sender popover");
-			expect(doc.getElementById(popoverId)?.textContent).toBe("dan@tldr.tech");
+			const popover = doc.getElementById(popoverId);
+			assert(popover, "the sender popover must render beside the named tag");
+			expect(Array.from(popover.children, (line) => line.textContent)).toEqual(["TLDR", "dan@tldr.tech"]);
 			const fallback = doc.querySelector("[data-test-reader-provenance-fallback]");
 			assert(fallback, "the plain tag must render for a browser without popovers");
 			expect(fallback.className).toBe("article-body__fact article-body__provenance sender-popover__fallback");

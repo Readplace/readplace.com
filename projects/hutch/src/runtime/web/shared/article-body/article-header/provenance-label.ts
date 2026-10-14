@@ -8,11 +8,11 @@ export type ReaderProvenance = SaveProvenance | { kind: "newsletter"; name: stri
 export interface ProvenanceLabel {
 	label: string;
 	iconSvg?: string;
-	senderEmail?: string;
+	sender?: { name: string; address: string };
 }
 
 export function provenanceTitle(label: ProvenanceLabel): string {
-	return label.senderEmail ?? label.label;
+	return label.sender?.address ?? label.label;
 }
 
 /** Absent rather than a raw slug: the name is a stored value, so a client that
@@ -54,7 +54,7 @@ export function provenanceLabel(provenance: ReaderProvenance): ProvenanceLabel |
 			return { label: `via ${sender === "" ? "Email" : sender}`, iconSvg: iconSvg("envelope") };
 		}
 		case "newsletter":
-			return { label: `via ${provenance.name}`, iconSvg: iconSvg("envelope"), senderEmail: provenance.senderEmail };
+			return { label: `via ${provenance.name}`, iconSvg: iconSvg("envelope"), sender: { name: provenance.name, address: provenance.senderEmail } };
 		default:
 			return labelForAssistant(provenance.registeredName);
 	}

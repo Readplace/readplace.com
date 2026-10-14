@@ -21,7 +21,7 @@
     <span class="article-body__fact article-body__provenance{{provenanceFallbackClass}}" title="{{provenanceTitle}}" data-test-reader-provenance-fallback{{#unless provenanceSender}} data-test-reader-provenance data-test-reader-fact="provenance"{{/unless}}>{{{provenanceIconSvg}}}<span class="article-body__fact-label">{{provenanceLabel}}</span></span>
     {{#if provenanceSender}}
     <button class="article-body__fact article-body__provenance sender-popover__trigger" type="button" popovertarget="{{provenancePopoverId}}" title="{{provenanceTitle}}" data-test-reader-provenance data-test-reader-fact="provenance">{{{provenanceIconSvg}}}<span class="article-body__fact-label">{{provenanceLabel}}</span></button>
-    <div class="sender-popover" id="{{provenancePopoverId}}" popover="auto" data-test-reader-provenance-sender>{{provenanceSender}}</div>
+    <div class="sender-popover" id="{{provenancePopoverId}}" popover="auto" data-test-reader-provenance-sender><span class="sender-popover__name">{{provenanceSender.name}}</span><span class="sender-popover__address">{{provenanceSender.address}}</span></div>
     {{/if}}
     {{/if}}
     <a class="article-body__fact article-body__original" href="{{url}}" target="_blank" rel="noopener" data-test-original-link data-test-reader-fact="original">{{icon "external-link"}}<span>Original</span><span class="sr-only"> article</span></a>

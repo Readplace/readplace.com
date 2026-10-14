@@ -455,7 +455,7 @@ describe("renderReadlistCard", () => {
 		const doc = parse(
 			renderReadlistCard(
 				display(
-					makeViewModel({ via: { label: "via TLDR", iconSvg: iconSvg("envelope"), senderEmail: "dan@tldr.tech" } }),
+					makeViewModel({ via: { label: "via TLDR", iconSvg: iconSvg("envelope"), sender: { name: "TLDR", address: "dan@tldr.tech" } } }),
 					{ isFirst: false },
 				),
 			),
@@ -478,7 +478,10 @@ describe("renderReadlistCard", () => {
 		assert(sender, "the sender popover must render for a named newsletter");
 		expect(sender.getAttribute("popover")).toBe("auto");
 		expect(sender.hasAttribute("data-test-article-via-sender")).toBe(true);
-		expect(sender.textContent).toBe("dan@tldr.tech");
+		expect(Array.from(sender.children, (line) => [line.className, line.textContent])).toEqual([
+			["sender-popover__name", "TLDR"],
+			["sender-popover__address", "dan@tldr.tech"],
+		]);
 		expect(metaRow(doc)).toEqual([
 			"readlist-article__site",
 			"readlist-article__saved",

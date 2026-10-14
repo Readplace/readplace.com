@@ -29,7 +29,7 @@
       <span class="readlist-article__via{{viaEmptyClass}}{{viaFallbackClass}}" title="{{viaTitle}}" data-test-article-via-fallback{{#unless viaSender}} data-test-article-via{{/unless}}>{{icon "envelope"}}<span class="readlist-article__via-label">{{viaLabel}}</span></span>
       {{#if viaSender}}
       <button class="readlist-article__via sender-popover__trigger" type="button" popovertarget="{{viaPopoverId}}" title="{{viaTitle}}" data-test-article-via>{{icon "envelope"}}<span class="readlist-article__via-label">{{viaLabel}}</span></button>
-      <div class="sender-popover" id="{{viaPopoverId}}" popover="auto" data-test-article-via-sender>{{viaSender}}</div>
+      <div class="sender-popover" id="{{viaPopoverId}}" popover="auto" data-test-article-via-sender><span class="sender-popover__name">{{viaSender.name}}</span><span class="sender-popover__address">{{viaSender.address}}</span></div>
       {{/if}}
     </div>
     {{#each statusActions}}

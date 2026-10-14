@@ -19,7 +19,7 @@ function viaSegmentOf(readerProvenance: ReaderProvenance | undefined): string[] 
 	const hash = createHash("sha256");
 	hash.update(via.label);
 	hash.update("|");
-	hash.update(via.senderEmail ?? "");
+	hash.update(via.sender?.address ?? "");
 	return [hash.digest("hex").slice(0, 16)];
 }
 

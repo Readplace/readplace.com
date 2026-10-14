@@ -44,10 +44,13 @@ const VIA_LABEL = ".readlist-article__via-label";
 const VIA_SENDER = "[data-test-article-via-sender]";
 const CARD_TIME = ".readlist-article__time";
 const READER_READY = '[data-test-reader-slot][data-reader-status="ready"]';
-const READER_HEADER = "#article-header";
+const READER_CARD = "[data-test-article-card]";
 const READER_SAVED = "[data-test-reader-saved]";
 const PROVENANCE = "[data-test-reader-provenance]";
 const PROVENANCE_SENDER = "[data-test-reader-provenance-sender]";
+const SENDER_NAME = ".sender-popover__name";
+const SENDER_ADDRESS = ".sender-popover__address";
+const SENDER_LINES = `${SENDER_NAME}, ${SENDER_ADDRESS}`;
 const ROW_TOLERANCE = 1.5;
 const META_ROW_GAP = 16;
 const NAME_FLOOR = 60;
@@ -222,16 +225,26 @@ function namedCardCheckpoint(id: string): VisualCheckpoint {
 
 async function senderSitsAboveItsFact(page: Page, fact: { trigger: string; sender: string }): Promise<void> {
 	const trigger = await measuredBox(page, fact.trigger);
-	const address = await measuredBox(page, fact.sender);
-	const gap = trigger.y - (address.y + address.height);
-	assert.ok(Math.abs(gap - 4) <= 1, `the sender address sits 4px above the fact it names, measured ${gap}px`);
+	const popover = await measuredBox(page, fact.sender);
+	const gap = trigger.y - (popover.y + popover.height);
+	assert.ok(Math.abs(gap - 4) <= 1, `the sender popover sits 4px above the fact it names, measured ${gap}px`);
 	assert.ok(
-		Math.abs(address.x - trigger.x) <= 1,
-		`the sender address starts at the fact's leading edge — ${address.x} vs ${trigger.x}`,
+		Math.abs(popover.x - trigger.x) <= 1,
+		`the sender popover starts at the fact's leading edge — ${popover.x} vs ${trigger.x}`,
 	);
 	const viewport = page.viewportSize();
 	assert.ok(viewport, "the capture needs a fixed viewport");
-	assert.ok(address.x + address.width <= viewport.width, "the sender address stays inside the viewport");
+	assert.ok(popover.x + popover.width <= viewport.width, "the sender popover stays inside the viewport");
+	const name = await measuredBox(page, `${fact.sender} ${SENDER_NAME}`);
+	const address = await measuredBox(page, `${fact.sender} ${SENDER_ADDRESS}`);
+	assert.ok(
+		Math.abs(address.y - (name.y + name.height)) <= 1,
+		`the sender address sits directly under the newsletter name — ${address.y} vs ${name.y + name.height}`,
+	);
+	assert.ok(
+		Math.abs(address.x - name.x) <= 1,
+		`the newsletter name and the sender address share a leading edge — ${name.x} vs ${address.x}`,
+	);
 }
 
 function senderOpenCheckpoint(id: string): VisualCheckpoint {
@@ -242,7 +255,7 @@ function senderOpenCheckpoint(id: string): VisualCheckpoint {
 		settled: async (page) => {
 			await waitForBrandFonts(page, ["Inter"]);
 			await page.locator(trigger).click();
-			await expect(page.locator(`${sender}:popover-open`)).toHaveText(NAMED_SENDER);
+			await expect(page.locator(`${sender}:popover-open`).locator(SENDER_LINES)).toHaveText([NEWSLETTER_NAME, NAMED_SENDER]);
 			await page.mouse.move(0, 0);
 		},
 		geometry: (page) => senderSitsAboveItsFact(page, { trigger, sender }),
@@ -259,11 +272,11 @@ function readerSenderOpenCheckpoint(): VisualCheckpoint {
 			await expect(page.locator(PROVENANCE)).toHaveText(`via ${NEWSLETTER_NAME}`);
 			await waitForBrandFonts(page, ["Inter"]);
 			await page.locator(PROVENANCE).click();
-			await expect(page.locator(`${PROVENANCE_SENDER}:popover-open`)).toHaveText(NAMED_SENDER);
+			await expect(page.locator(`${PROVENANCE_SENDER}:popover-open`).locator(SENDER_LINES)).toHaveText([NEWSLETTER_NAME, NAMED_SENDER]);
 			await page.mouse.move(0, 0);
 		},
 		geometry: (page) => senderSitsAboveItsFact(page, { trigger: PROVENANCE, sender: PROVENANCE_SENDER }),
-		target: READER_HEADER,
+		target: READER_CARD,
 		capture: "element",
 		pinnedText: [{ selector: READER_SAVED, text: "6h ago" }],
 	};
@@ -272,7 +285,7 @@ function readerSenderOpenCheckpoint(): VisualCheckpoint {
 test.describe("Readlist card provenance", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("an emailed save names the newsletter it came from, and a tap shows the sender address on the card and in the reader", async ({
+	test("an emailed save names the newsletter it came from, and a tap shows its name over the sender address on the card and in the reader", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });

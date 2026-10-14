@@ -46,7 +46,7 @@ describe("provenanceLabel", () => {
 		expect(provenanceLabel({ kind: "newsletter", name: "TLDR", senderEmail: "dan@tldr.tech" })).toEqual({
 			label: "via TLDR",
 			iconSvg: iconSvg("envelope"),
-			senderEmail: "dan@tldr.tech",
+			sender: { name: "TLDR", address: "dan@tldr.tech" },
 		});
 	});
 
@@ -66,7 +66,7 @@ describe("provenanceLabel", () => {
 
 describe("provenanceTitle", () => {
 	it("puts the sender address behind a newsletter name, so hover still reaches the address", () => {
-		expect(provenanceTitle({ label: "via TLDR", senderEmail: "dan@tldr.tech" })).toBe("dan@tldr.tech");
+		expect(provenanceTitle({ label: "via TLDR", sender: { name: "TLDR", address: "dan@tldr.tech" } })).toBe("dan@tldr.tech");
 	});
 
 	it("repeats the label when it already shows everything there is to show", () => {

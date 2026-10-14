@@ -261,7 +261,10 @@ describe("save provenance tag", () => {
 		assert(sender, "the sender popover must render for a named newsletter");
 		expect(sender.getAttribute("popover")).toBe("auto");
 		expect(sender.hasAttribute("data-test-reader-provenance-sender")).toBe(true);
-		expect(sender.textContent).toBe("dan@tldr.tech");
+		expect(Array.from(sender.children, (line) => [line.className, line.textContent])).toEqual([
+			["sender-popover__name", "TLDR"],
+			["sender-popover__address", "dan@tldr.tech"],
+		]);
 		expect(metaRow(doc)).toEqual([
 			"article-body__fact article-body__site",
 			"article-body__fact article-body__read-time",

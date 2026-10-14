@@ -17,6 +17,16 @@
   box-shadow: var(--shadow-menu);
 }
 
+.sender-popover__name {
+  display: block;
+  font-weight: 600;
+}
+
+.sender-popover__address {
+  display: block;
+  color: var(--muted-foreground);
+}
+
 .sender-popover__trigger {
   display: none;
   padding: 0;
