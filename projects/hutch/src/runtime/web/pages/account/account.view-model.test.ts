@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { DisplayNameSchema } from "@packages/domain/user";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { EffectiveAccess } from "@packages/subscription-access";
@@ -7,6 +8,7 @@ import {
 	type AccountUrlState,
 	buildAppearanceSection,
 	buildPaymentSectionViewModel,
+	buildProfileSection,
 	toAccountViewModel,
 	parseAccountQuery,
 	withoutCommerce,
@@ -1124,5 +1126,56 @@ describe("buildAppearanceSection", () => {
 		assert.equal(url.searchParams.get("utm_content"), "appearance");
 		assert.equal(url.searchParams.get("shell"), "app");
 		assert.equal(url.searchParams.get("platform"), "ios");
+	});
+});
+
+describe("buildProfileSection", () => {
+	it("titles the row with the display name over the email, takes the initials from the name and posts the edit to the profile route", () => {
+		const section = buildProfileSection({
+			email: "reader@example.com",
+			displayName: DisplayNameSchema.parse("Reader Name"),
+			nativeSurface: false,
+		});
+		assert.equal(section.initials, "RN");
+		assert.deepEqual(section.lines, [
+			{ text: "Reader Name", kind: "name", role: "title" },
+			{ text: "reader@example.com", kind: "email", role: "description" },
+		]);
+		assert.deepEqual(section.edits, [
+			{
+				popoverId: "account-profile-edit",
+				formAction: "/account/profile?utm_source=account&utm_medium=internal&utm_content=edit-profile",
+				value: "Reader Name",
+				maxLength: 64,
+			},
+		]);
+	});
+
+	it("titles the row with the email alone and takes the initials from it when no name is set, leaving the field empty", () => {
+		const section = buildProfileSection({
+			email: "reader@example.com",
+			displayName: undefined,
+			nativeSurface: false,
+		});
+		assert.equal(section.initials, "RE");
+		assert.deepEqual(section.lines, [{ text: "reader@example.com", kind: "email", role: "title" }]);
+		assert.deepEqual(
+			section.edits.map((edit) => edit.value),
+			[""],
+		);
+	});
+
+	it("shows a native app surface the same row with no edit", () => {
+		const section = buildProfileSection({
+			email: "reader@example.com",
+			displayName: DisplayNameSchema.parse("Reader Name"),
+			nativeSurface: true,
+		});
+		assert.equal(section.initials, "RN");
+		assert.deepEqual(
+			section.lines.map((line) => line.text),
+			["Reader Name", "reader@example.com"],
+		);
+		assert.deepEqual(section.edits, []);
 	});
 });

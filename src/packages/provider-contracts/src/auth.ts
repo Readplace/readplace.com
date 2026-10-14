@@ -1,5 +1,5 @@
 import type { ReadlistFilter } from "@packages/domain/article";
-import type { AppearancePreference, AuthenticatedUserId, UserId } from "@packages/domain/user";
+import type { AppearancePreference, AuthenticatedUserId, DisplayName, UserId } from "@packages/domain/user";
 
 export type CreateUserResult =
 	| { ok: true; userId: UserId }
@@ -89,6 +89,7 @@ export type FindUserByIdResult =
 			emailVerified: boolean;
 			registeredAt?: string;
 			appearance?: AppearancePreference;
+			displayName: DisplayName | undefined;
 			deletedAt?: string;
 		}
 	| null;
@@ -103,6 +104,11 @@ export type SetUserAppearance = (input: {
 export type SetQueueDigestOptOut = (input: {
 	userId: UserId;
 	optedOutAt: string | undefined;
+}) => Promise<void>;
+
+export type SetUserDisplayName = (input: {
+	userId: UserId;
+	displayName: DisplayName | undefined;
 }) => Promise<void>;
 
 export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;

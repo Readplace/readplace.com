@@ -129,6 +129,11 @@ export interface NavGroup {
 	items: NavItem[];
 }
 
+export interface SignedInUser {
+	email: string;
+	displayName: string | undefined;
+}
+
 export interface BannerState {
 	isAuthenticated: boolean;
 	emailVerified: boolean | undefined;
@@ -150,7 +155,7 @@ export interface BannerState {
 	 * the banner state synchronously (without an access lookup);
 	 * `buildNavGroups` treats undefined as full access. */
 	accessIsReadOnly?: boolean;
-	userEmail?: string;
+	signedInUser?: SignedInUser;
 	/** The latest feature announcement to surface site-wide. */
 	changelogBanner?: ChangelogBanner | typeof FETCH_CHANGELOG_BANNER_IN_BROWSER;
 	/** Path (+ query) of the page this banner is rendered on, echoed into the

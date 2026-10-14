@@ -1,6 +1,11 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
-import { APPEARANCE_PREFERENCES, type AppearancePreference } from "@packages/domain/user";
+import {
+	APPEARANCE_PREFERENCES,
+	type AppearancePreference,
+	DISPLAY_NAME_MAX_LENGTH,
+	type DisplayName,
+} from "@packages/domain/user";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
@@ -10,6 +15,7 @@ import {
 	type LocalTime,
 	PRICING_PLANS,
 	SUBSCRIBE_CTA_LABEL,
+	initialsFor,
 	parsePollParam,
 	toAbsoluteDate,
 	withInternalTracking,
@@ -31,6 +37,7 @@ import {
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
 	ACCOUNT_INVOICES_URL,
+	ACCOUNT_PROFILE_URL,
 	ACCOUNT_REACTIVATE_URL,
 	ACCOUNT_SUBSCRIBE_URL,
 	buildAccountStatusPollUrl,
@@ -908,6 +915,57 @@ export function buildAppearanceSection(input: {
 					ariaPressed: active ? "true" : "false",
 				};
 			}),
+	};
+}
+
+export interface ProfileLine {
+	text: string;
+	kind: "name" | "email";
+	role: "title" | "description";
+}
+
+export interface ProfileEdit {
+	popoverId: string;
+	formAction: string;
+	value: string;
+	maxLength: number;
+}
+
+export interface ProfileSectionViewModel {
+	initials: string;
+	lines: ProfileLine[];
+	edits: ProfileEdit[];
+}
+
+function profileLines(input: { email: string; displayName: DisplayName | undefined }): ProfileLine[] {
+	if (input.displayName === undefined) return [{ text: input.email, kind: "email", role: "title" }];
+	return [
+		{ text: input.displayName, kind: "name", role: "title" },
+		{ text: input.email, kind: "email", role: "description" },
+	];
+}
+
+export function buildProfileSection(input: {
+	email: string;
+	displayName: DisplayName | undefined;
+	nativeSurface: boolean;
+}): ProfileSectionViewModel {
+	return {
+		initials: initialsFor({ email: input.email, displayName: input.displayName }),
+		lines: profileLines(input),
+		edits: input.nativeSurface
+			? []
+			: [
+					{
+						popoverId: "account-profile-edit",
+						formAction: withInternalTracking(ACCOUNT_PROFILE_URL, {
+							source: ACCOUNT_SOURCE,
+							content: "edit-profile",
+						}),
+						value: input.displayName ?? "",
+						maxLength: DISPLAY_NAME_MAX_LENGTH,
+					},
+				],
 	};
 }
 

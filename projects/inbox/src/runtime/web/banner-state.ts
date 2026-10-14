@@ -31,7 +31,7 @@ export function initBuildBannerState(deps: {
 			...withBanner,
 			accessIsReadOnly: access.access === "read-only",
 			appearance: user?.appearance,
-			...(user ? { userEmail: user.email } : {}),
+			...(user ? { signedInUser: { email: user.email, displayName: user.displayName } } : {}),
 		};
 	};
 }

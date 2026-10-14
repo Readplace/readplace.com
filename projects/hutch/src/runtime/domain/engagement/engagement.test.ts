@@ -95,6 +95,7 @@ async function subject(
 			email: contact.email,
 			emailVerified: true,
 			registeredAt: "2026-10-01T00:00:00.000Z",
+			displayName: undefined,
 		}),
 		findUserContactByUserId: async () => contact,
 		getEffectiveAccess: async () =>
@@ -231,6 +232,7 @@ describe("starter eligibility and insertion", () => {
 					email: "reader@recipient.com",
 					emailVerified: true,
 					registeredAt,
+					displayName: undefined,
 				}),
 			},
 		});
@@ -250,7 +252,14 @@ describe("starter eligibility and insertion", () => {
 		["missing user", { findUserById: async () => null }],
 		[
 			"unknown account age",
-			{ findUserById: async () => ({ userId, email: "x", emailVerified: true }) },
+			{
+				findUserById: async () => ({
+					userId,
+					email: "x",
+					emailVerified: true,
+					displayName: undefined,
+				}),
+			},
 		],
 		["no contact", { findUserContactByUserId: async () => null }],
 		[
@@ -292,6 +301,7 @@ describe("starter eligibility and insertion", () => {
 					emailVerified: true,
 					registeredAt: "2026-10-01T00:00:00.000Z",
 					deletedAt: NOW.toISOString(),
+					displayName: undefined,
 				}),
 			},
 		],

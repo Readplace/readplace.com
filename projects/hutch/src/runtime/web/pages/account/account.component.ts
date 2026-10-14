@@ -15,6 +15,7 @@ import {
 	SUBSCRIBE_PLANS_STYLES,
 	renderSubscribePlansPopover,
 } from "../../shared/subscribe-plans/subscribe-plans.component";
+import { renderAccountProfileEdit, renderAccountProfileFallbackForm } from "./account-profile.component";
 import { ACCOUNT_STYLES } from "./account.styles";
 import { ACCOUNT_EXPORT_URL } from "./account.url";
 import type {
@@ -26,6 +27,8 @@ import type {
 	ManagePanelState,
 	PaymentSectionState,
 	PriceViewModel,
+	ProfileLine,
+	ProfileSectionViewModel,
 } from "./account.view-model";
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
@@ -88,6 +91,11 @@ const PAYMENT_CLASS: Record<PaymentSectionState, string> = {
 const HISTORY_CLASS: Record<BillingHistoryViewModel["state"], string> = {
 	visible: "account-billing__history account-billing__history--visible",
 	hidden: "account-billing__history account-billing__history--hidden",
+};
+
+const PROFILE_LINE_CLASS: Record<ProfileLine["role"], string> = {
+	title: "account-row__title",
+	description: "account-row__description",
 };
 
 const DELETE_ACCOUNT_POPOVER_ID = "delete-account";
@@ -289,7 +297,7 @@ function renderBillingSections(vm: AccountViewModel): string {
 
 export function AccountPage(
 	vm: AccountViewModel,
-	page: { email: string; appearance: AppearanceSectionViewModel; surface?: AccountSurface },
+	page: { profile: ProfileSectionViewModel; appearance: AppearanceSectionViewModel; surface?: AccountSurface },
 ): PageBody {
 	const surface = page.surface;
 	return {
@@ -309,7 +317,12 @@ export function AccountPage(
 				subscribePlansHtml: vm.actions.some((action) => action.popoverTarget !== undefined)
 					? renderSubscribePlansPopover({ source: "account", checkedPlan: vm.checkedPlan })
 					: "",
-				email: page.email,
+				profile: {
+					...page.profile,
+					lines: page.profile.lines.map((line) => ({ ...line, className: PROFILE_LINE_CLASS[line.role] })),
+				},
+				profileEditHtml: page.profile.edits.map(renderAccountProfileEdit).join(""),
+				profileFallbackFormHtml: page.profile.edits.map(renderAccountProfileFallbackForm).join(""),
 				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
 				danger: buildDangerZone(vm),

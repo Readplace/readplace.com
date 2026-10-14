@@ -201,6 +201,7 @@ import type {
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
 	SetUserAppearance,
+	SetUserDisplayName,
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
 	FindSavedUrls,
@@ -260,6 +261,7 @@ export interface AuthBundle {
 	findUserContactByUserId: FindUserContactByUserId;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
+	setUserDisplayName: SetUserDisplayName;
 	deleteUser: (email: string) => Promise<void>;
 	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }

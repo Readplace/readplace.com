@@ -91,7 +91,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				userEmail: "james.davis@example.com",
+				signedInUser: { email: "james.davis@example.com", displayName: undefined },
 			}),
 		);
 
@@ -102,7 +102,7 @@ describe("GlobalNav component", () => {
 		expect(menu.tagName.toLowerCase()).toBe("details");
 		expect(menu.hasAttribute("open")).toBe(false);
 		expect(menu.querySelector(".nav__avatar")?.textContent).toBe("JD");
-		expect(menu.querySelector("[data-test-nav-user-email]")?.textContent).toBe("james.davis@example.com");
+		expect(menu.querySelector("[data-test-nav-user-name]")?.textContent).toBe("james.davis@example.com");
 		expect(menu.querySelector("summary")?.getAttribute("aria-label")).toBe(
 			"Account menu for james.davis@example.com",
 		);
@@ -114,6 +114,27 @@ describe("GlobalNav component", () => {
 		assert(library, "library group must render");
 		expect(library.querySelector(".nav__group-label")?.textContent).toBe("Library");
 		expect(library.firstElementChild?.className).toBe("nav__group-label");
+	});
+
+	it("names the user menu by the display name, with initials from the name and the email kept in the accessible name", () => {
+		const doc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				signedInUser: { email: "reader@example.com", displayName: "James Davis" },
+			}),
+		);
+
+		const menu = doc.querySelector('[data-test-nav-group="account"] [data-test-nav-user]');
+		assert(menu, "the account group must render as a user menu for a named account");
+		expect(menu.querySelector(".nav__avatar")?.textContent).toBe("JD");
+		expect(
+			Array.from(menu.querySelectorAll("[data-test-nav-user-name]")).map((slot) => slot.textContent),
+		).toEqual(["James Davis", "James Davis"]);
+		expect(menu.querySelector("summary")?.getAttribute("aria-label")).toBe(
+			"Account menu for James Davis (reader@example.com)",
+		);
 	});
 
 	it("still folds a signed-in Account section into a user menu when the email is unknown, behind a plain Account trigger", () => {
@@ -130,7 +151,7 @@ describe("GlobalNav component", () => {
 		const menu = account.querySelector("[data-test-nav-user]");
 		assert(menu, "a signed-in account group must render as a user menu even without an email");
 		expect(menu.querySelector(".nav__avatar")?.textContent).toBe("");
-		expect(menu.querySelector("[data-test-nav-user-email]")?.textContent).toBe("Account");
+		expect(menu.querySelector("[data-test-nav-user-name]")?.textContent).toBe("Account");
 		expect(menu.querySelector("summary")?.getAttribute("aria-label")).toBe("Account menu");
 		const accountItems = Array.from(menu.querySelectorAll("[data-test-nav-item]")).map((el) =>
 			el.getAttribute("data-test-nav-item"),

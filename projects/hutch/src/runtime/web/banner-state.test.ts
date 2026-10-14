@@ -1,6 +1,6 @@
 import { generateCspNonce } from "@packages/web-shell";
 import { FETCH_CHANGELOG_BANNER_IN_BROWSER } from "@packages/web-shell";
-import { UserIdSchema } from "@packages/domain/user";
+import { DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import { initBuildBannerState } from "./banner-state";
 import type { EffectiveAccess } from "@packages/subscription-access";
@@ -157,7 +157,7 @@ describe("initBuildBannerState", () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "dark" }),
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "dark", displayName: undefined }),
 		});
 
 		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
@@ -165,19 +165,24 @@ describe("initBuildBannerState", () => {
 		expect(result.appearance).toBe("dark");
 	});
 
-	it("carries the signed-in user's email onto the banner state so the header can name the account", async () => {
+	it("carries the signed-in user's email and display name onto the banner state so the header can name the account", async () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true }),
+			findUserById: async () => ({
+				userId: USER_ID,
+				email: "james.davis@example.com",
+				emailVerified: true,
+				displayName: DisplayNameSchema.parse("James Davis"),
+			}),
 		});
 
 		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
 
-		expect(result.userEmail).toBe("james.davis@example.com");
+		expect(result.signedInUser).toEqual({ email: "james.davis@example.com", displayName: "James Davis" });
 	});
 
-	it("leaves the email off the banner state for a guest, who has no account to name", async () => {
+	it("leaves the signed-in user off the banner state for a guest, who has no account to name", async () => {
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => ({ tier: "founding", access: "full", banner: "none" }),
 			findUserById: noUser,
@@ -185,14 +190,14 @@ describe("initBuildBannerState", () => {
 
 		const result = await build({ cspNonce: CSP_NONCE });
 
-		expect(result.userEmail).toBeUndefined();
+		expect(result.signedInUser).toBeUndefined();
 	});
 
 	it("leaves appearance undefined when the signed-in user has no stored preference", async () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true }),
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, displayName: undefined }),
 		});
 
 		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
@@ -210,7 +215,7 @@ describe("initBuildBannerState", () => {
 
 		const result = await build(
 			{ userId: USER_ID, cspNonce: CSP_NONCE },
-			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "light" } },
+			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "light", displayName: undefined } },
 		);
 
 		expect(result.appearance).toBe("light");

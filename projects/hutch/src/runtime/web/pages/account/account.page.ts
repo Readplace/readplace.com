@@ -10,8 +10,13 @@ import type {
 	FindUserById,
 	MarkAccountDeleted,
 	SetUserAppearance,
+	SetUserDisplayName,
 } from "@packages/provider-contracts/auth";
-import { AppearancePreferenceSchema } from "@packages/domain/user";
+import {
+	AppearancePreferenceSchema,
+	DISPLAY_NAME_MAX_LENGTH,
+	parseDisplayNameInput,
+} from "@packages/domain/user";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
 import type {
 	CreateCheckoutSession,
@@ -97,6 +102,7 @@ import {
 	MAX_CARDS,
 	type PaymentSectionInput,
 	buildAppearanceSection,
+	buildProfileSection,
 	parseAccountQuery,
 	toAccountViewModel,
 	withoutCommerce,
@@ -129,6 +135,7 @@ interface AccountDependencies {
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
+	setUserDisplayName: SetUserDisplayName;
 	destroyUserSessions: DestroyUserSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
@@ -220,6 +227,11 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		]);
 		assert(email, "an authenticated account page must resolve an email");
 		assert(user, "an authenticated account page must resolve a user");
+		const profile = buildProfileSection({
+			email,
+			displayName: user.displayName,
+			nativeSurface: isNativeSurface(req),
+		});
 		const currentAppearance = user.appearance ?? "system";
 		const appearanceSection = buildAppearanceSection({
 			current: currentAppearance,
@@ -246,7 +258,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					AccountPage(
 						withoutCommerce(webVm, { appShell: true, platform: nativeSurfaceOf(req) }),
 						{
-							email,
+							profile,
 							appearance: appearanceSection,
 							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
 						},
@@ -266,7 +278,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		sendComponent(
 			req,
 			res,
-			Base(AccountPage(vm, { email, appearance: appearanceSection }), bannerState),
+			Base(AccountPage(vm, { profile, appearance: appearanceSection }), bannerState),
 		);
 	}
 
@@ -901,6 +913,25 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		if (parsed.success) {
 			await deps.setUserAppearance({ userId: req.userId, appearance: parsed.data });
 		}
+		res.redirect(
+			303,
+			buildAccountUrl({ appShell: isAppShell(req), surfacePlatform: nativeSurfaceOf(req) }),
+		);
+	});
+
+	router.post("/profile", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const body = z.object({ displayName: z.string() }).safeParse(req.body);
+		if (!body.success) {
+			res.status(400).send("Missing name");
+			return;
+		}
+		const parsed = parseDisplayNameInput(body.data.displayName);
+		if (!parsed.ok) {
+			res.status(400).send(`Names are ${DISPLAY_NAME_MAX_LENGTH} characters or fewer.`);
+			return;
+		}
+		await deps.setUserDisplayName({ userId: req.userId, displayName: parsed.displayName });
 		res.redirect(
 			303,
 			buildAccountUrl({ appShell: isAppShell(req), surfacePlatform: nativeSurfaceOf(req) }),

@@ -14,7 +14,7 @@ export interface VisualCheckpoint {
 	maxDiffPixelRatio?: number;
 }
 
-const SHELL_USER_EMAIL_SELECTOR = "[data-test-nav-user-email]";
+const SHELL_USER_NAME_SELECTOR = "[data-test-nav-user-name]";
 
 const SHELL_USER_EMAIL_PLACEHOLDER = "reader@example.com";
 
@@ -96,13 +96,13 @@ export function initCaptureCheckpoint(deps: {
 					if (!pinned) throw new Error(`pinned text selector "${entry.selector}" matched nothing`);
 					pinned.textContent = entry.text;
 				}
-				for (const shellEmail of document.querySelectorAll(pins.shellEmail.selector)) {
-					shellEmail.textContent = pins.shellEmail.text;
+				for (const shellName of document.querySelectorAll(pins.shellName.selector)) {
+					if (shellName.textContent?.includes("@")) shellName.textContent = pins.shellName.text;
 				}
 			},
 			{
 				required: checkpoint.pinnedText,
-				shellEmail: { selector: SHELL_USER_EMAIL_SELECTOR, text: SHELL_USER_EMAIL_PLACEHOLDER },
+				shellName: { selector: SHELL_USER_NAME_SELECTOR, text: SHELL_USER_EMAIL_PLACEHOLDER },
 			},
 		);
 		let previousBox = "";

@@ -6,8 +6,27 @@
           {{/if}}
           <h1 class="account__title">{{heading}}</h1>
           <p class="account__lede">{{lede}}</p>
-          <p class="account__email" data-test-account-email>Signed in as <strong>{{email}}</strong></p>
         </div>
+        <section class="account-section" aria-labelledby="account-section-profile" data-test-account-section="profile">
+          <h2 class="account-section__heading" id="account-section-profile">Profile</h2>
+          <div class="account-section__card account-profile" data-test-account-profile>
+            <div class="account-row">
+              <span class="account-row__icon account-profile__avatar" aria-hidden="true" data-test-account-profile-initials>{{profile.initials}}</span>
+              <div class="account-row__text account-profile__text">
+                {{#each profile.lines}}
+                <p class="{{className}}" data-test-account-profile-line="{{kind}}">{{text}}</p>
+                {{/each}}
+              </div>
+              {{#each profile.edits}}
+              <div class="account-row__actions">
+                <button type="button" class="btn btn--neutral btn--m" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="account-profile-edit">{{icon "pencil"}}<span>Edit</span><span class="sr-only"> profile</span></button>
+              </div>
+              {{/each}}
+            </div>
+            {{{profileFallbackFormHtml}}}
+          </div>
+          {{{profileEditHtml}}}
+        </section>
         <section class="account-section" aria-labelledby="account-section-subscription" data-test-account-section="subscription">
           <h2 class="account-section__heading" id="account-section-subscription">{{subscriptionHeading}}</h2>
           <div class="account-section__card" data-test-account-billing>

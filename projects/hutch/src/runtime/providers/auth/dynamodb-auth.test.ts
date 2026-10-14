@@ -4,7 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
 } from "@packages/hutch-storage-client";
-import { UserIdSchema } from "@packages/domain/user";
+import { DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";
 
 /** Fake that honours the GetCommand projection so a row with fields missing from it round-trips as real DynamoDB would. */
@@ -347,6 +347,55 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("setUserDisplayName", () => {
+		it("sets the display name conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).setUserDisplayName({
+				userId: USER,
+				displayName: DisplayNameSchema.parse("James Davis"),
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET displayName = :displayName",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":displayName": "James Davis" },
+			});
+		});
+
+		it("removes the display name when it is cleared", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).setUserDisplayName({ userId: USER, displayName: undefined });
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "REMOVE displayName",
+				ConditionExpression: "attribute_exists(email)",
+			});
+		});
+
+		it("no-ops when the user row is already gone", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).setUserDisplayName({
+				userId: USER,
+				displayName: DisplayNameSchema.parse("James Davis"),
+			});
+
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
+	});
+
 	describe("findUserById", () => {
 		it("returns id, verification status, and registeredAt via the userId-index", async () => {
 			const { client, commands } = createQueryFakeClient({
@@ -391,6 +440,28 @@ describe("initDynamoDbAuth", () => {
 			const user = await initAuth(client).findUserById(USER);
 
 			expect(user?.deletedAt).toBe("2026-10-10T12:00:00.000Z");
+		});
+
+		it("carries the display name the reader set, so the header can name them", async () => {
+			const { client } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					registeredAt: "2026-04-20T00:00:00.000Z",
+					displayName: "James Davis",
+				},
+			});
+
+			const user = await initAuth(client).findUserById(USER);
+
+			expect(user).toEqual({
+				userId: "abc123",
+				email: "user@example.com",
+				emailVerified: true,
+				registeredAt: "2026-04-20T00:00:00.000Z",
+				displayName: "James Davis",
+			});
 		});
 	});
 

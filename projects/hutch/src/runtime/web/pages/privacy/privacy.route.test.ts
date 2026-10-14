@@ -35,6 +35,13 @@ describe("GET /privacy", () => {
 		expect(response.text).toContain("revokes its Readplace token");
 	});
 
+	it("lists the optional display name among the account information Readplace keeps", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("the name you add on your Account page");
+	});
+
 	it("scopes the account-deletion claim to the saved list and reading history, not 'every saved article'", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");

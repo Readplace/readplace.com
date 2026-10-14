@@ -14,6 +14,7 @@ import { z } from "zod";
 import {
 	UserIdSchema,
 	AppearancePreferenceSchema,
+	DisplayNameSchema,
 	normalizeEmail,
 	canonicalizeEmail,
 	gmailIdentityKey,
@@ -48,6 +49,7 @@ import type {
 	SetQueueDigestOptOut,
 	SetSessionReadlistFilter,
 	SetUserAppearance,
+	SetUserDisplayName,
 	UpdatePassword,
 	UserAcquisitionAttribution,
 	UserExistsByEmail,
@@ -78,6 +80,7 @@ const UserRow = z.object({
 	landing_path: dynamoField(z.string()),
 	deletedAt: dynamoField(z.string()),
 	appearance: dynamoField(AppearancePreferenceSchema),
+	displayName: dynamoField(DisplayNameSchema),
 	queueDigestOptOutAt: dynamoField(z.string()),
 });
 
@@ -122,6 +125,7 @@ export function initDynamoDbAuth(deps: {
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
+	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
 } {
 	const users = defineDynamoTable({
@@ -521,6 +525,7 @@ export function initDynamoDbAuth(deps: {
 			emailVerified: row.emailVerified === true,
 			registeredAt: row.registeredAt,
 			appearance: row.appearance,
+			displayName: row.displayName,
 			deletedAt: row.deletedAt,
 		};
 	};
@@ -533,6 +538,25 @@ export function initDynamoDbAuth(deps: {
 			UpdateExpression: "SET appearance = :appearance",
 			ConditionExpression: "attribute_exists(email)",
 			ExpressionAttributeValues: { ":appearance": appearance },
+		});
+	};
+
+	const setUserDisplayName: SetUserDisplayName = async ({ userId, displayName }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		if (displayName === undefined) {
+			await users.update({
+				Key: { email },
+				UpdateExpression: "REMOVE displayName",
+				ConditionExpression: "attribute_exists(email)",
+			});
+			return;
+		}
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET displayName = :displayName",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":displayName": displayName },
 		});
 	};
 
@@ -593,6 +617,7 @@ export function initDynamoDbAuth(deps: {
 		findUserContactByUserId,
 		findUserById,
 		setUserAppearance,
+		setUserDisplayName,
 		setQueueDigestOptOut,
 	};
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { UserId } from "@packages/domain/user";
-import { UserIdSchema, hashPassword, verifyPassword } from "@packages/domain/user";
+import { DisplayNameSchema, UserIdSchema, hashPassword, verifyPassword } from "@packages/domain/user";
 import { SESSION_TTL_SECONDS } from "@packages/web-session";
 import { initInMemoryAuth } from "./in-memory-auth";
 
@@ -481,6 +481,17 @@ describe("initInMemoryAuth", () => {
 
 			expect(result?.emailVerified).toBe(true);
 		});
+
+		it("should carry the display name the reader set", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			await auth.setUserDisplayName({ userId: created.userId, displayName: DisplayNameSchema.parse("James Davis") });
+
+			const result = await auth.findUserById(created.userId);
+
+			expect(result?.displayName).toBe("James Davis");
+		});
 	});
 
 	describe("createGoogleUser", () => {
@@ -689,6 +700,50 @@ describe("initInMemoryAuth", () => {
 				email: "contact@example.com",
 				emailVerified: false,
 				queueDigestOptOutAt: undefined,
+				deletedAt: undefined,
+			});
+		});
+	});
+
+	describe("setUserDisplayName", () => {
+		it("clears the display name when it is set to undefined", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			await auth.setUserDisplayName({ userId: created.userId, displayName: DisplayNameSchema.parse("James Davis") });
+
+			await auth.setUserDisplayName({ userId: created.userId, displayName: undefined });
+
+			const user = await auth.findUserById(created.userId);
+			expect(user).toStrictEqual({
+				userId: created.userId,
+				email: "reader@example.com",
+				emailVerified: false,
+				registeredAt: expect.any(String),
+				appearance: undefined,
+				displayName: undefined,
+				deletedAt: undefined,
+			});
+		});
+
+		it("is a no-op for an unknown userId, leaving existing users intact", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.setUserDisplayName({
+				userId: UserIdSchema.parse("nobody"),
+				displayName: DisplayNameSchema.parse("James Davis"),
+			});
+
+			const user = await auth.findUserById(created.userId);
+			expect(user).toStrictEqual({
+				userId: created.userId,
+				email: "reader@example.com",
+				emailVerified: false,
+				registeredAt: expect.any(String),
+				appearance: undefined,
+				displayName: undefined,
 				deletedAt: undefined,
 			});
 		});

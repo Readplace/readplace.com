@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { DisplayNameSchema } from "@packages/domain/user";
 import { CardSetupIdSchema, PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import { InvoiceIdSchema, type InvoiceSummary } from "@packages/provider-contracts/subscription-billing";
@@ -129,6 +130,16 @@ function expectAlertTitleBetweenHeadings(doc: Document) {
 	const outline = Array.from(section.querySelectorAll("h2, [data-test-alert-title], h3"));
 	expect(outline.slice(0, 3).map((element) => element.tagName)).toEqual(["H2", "P", "H3"]);
 	expect(outline[2].hasAttribute("data-test-account-plan-title")).toBe(true);
+}
+
+function profileLineTexts(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll("[data-test-account-profile-line]")).map((line) => line.textContent ?? "");
+}
+
+function profileInitials(doc: Document): string {
+	const initials = doc.querySelector("[data-test-account-profile-initials]");
+	assert(initials, "the Profile row must render its initials disc");
+	return initials.textContent ?? "";
 }
 
 function confirmPopoverKeys(doc: Document): string[] {
@@ -552,7 +563,7 @@ describe("GET /account (next-charge line)", () => {
 });
 
 describe("GET /account (which account am I in?)", () => {
-	it("names the signed-in email so a reader can tell two accounts apart", async () => {
+	it("names the signed-in email in the Profile row so a reader can tell two accounts apart", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await loginUser(harness, "reader@example.com");
 
@@ -560,9 +571,8 @@ describe("GET /account (which account am I in?)", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		const identity = doc.querySelector("[data-test-account-email]");
-		assert(identity, "the account page must name the signed-in email");
-		expect(identity.textContent).toBe("Signed in as reader@example.com");
+		expect(profileLineTexts(doc)).toEqual(["reader@example.com"]);
+		expect(profileInitials(doc)).toBe("RE");
 		const lede = doc.querySelector(".account__lede");
 		assert(lede, "the account page must open with its lede");
 		expect(lede.textContent).toBe("Manage your account, billing and preferences.");
@@ -579,12 +589,25 @@ describe("GET /account (which account am I in?)", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		const identity = doc.querySelector("[data-test-account-email]");
-		assert(identity, "the app-shell account page must name the signed-in email");
-		expect(identity.textContent).toBe("Signed in as ios-reader@example.com");
+		expect(profileLineTexts(doc)).toEqual(["ios-reader@example.com"]);
+		expect(profileInitials(doc)).toBe("IR");
 		const lede = doc.querySelector(".account__lede");
 		assert(lede, "the app-shell account page must open with its lede");
 		expect(lede.textContent).toBe("Manage your account and preferences.");
+	});
+
+	it("names the reader by their display name over the email, with initials from the name", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "reader@example.com");
+		await harness.auth.setUserDisplayName({ userId, displayName: DisplayNameSchema.parse("Reader Name") });
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		expect(profileLineTexts(doc)).toEqual(["Reader Name", "reader@example.com"]);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-account-profile-line]")).map((line) => line.className),
+		).toEqual(["account-row__title", "account-row__description"]);
+		expect(profileInitials(doc)).toBe("RN");
 	});
 });
 
@@ -616,12 +639,14 @@ describe("GET /account (headed sections)", () => {
 		const doc = new JSDOM((await agent.get("/account")).text).window.document;
 
 		expect(sections(doc).map((section) => section.getAttribute("data-test-account-section"))).toEqual([
+			"profile",
 			"subscription",
 			"appearance",
 			"data",
 			"danger",
 		]);
 		expect(sections(doc).map((section) => headingOf(doc, section))).toEqual([
+			"Profile",
 			"Subscription & billing",
 			"Appearance",
 			"Your data",
@@ -681,6 +706,7 @@ describe("GET /account (headed sections)", () => {
 		const doc = new JSDOM((await agent.get("/account?platform=ios")).text).window.document;
 
 		expect(sections(doc).map((section) => headingOf(doc, section))).toEqual([
+			"Profile",
 			"Subscription",
 			"Appearance",
 			"Your data",
@@ -1027,7 +1053,7 @@ describe("GET /account?error=subscribe_failed", () => {
 				el.getAttribute("data-test-account-action"),
 			),
 		).toContain("subscribe");
-		expect(confirmPopoverKeys(doc)).toEqual(["delete-account", "subscribe-plans"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["account-profile", "delete-account", "subscribe-plans"]);
 	});
 });
 
@@ -1161,7 +1187,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
 		const fallback = findAction(doc, "subscribe");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
-		expect(confirmPopoverKeys(doc)).toEqual(["delete-account", "subscribe-plans"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["account-profile", "delete-account", "subscribe-plans"]);
 		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
 	}
 
@@ -1219,7 +1245,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		]);
 	});
 
-	it("renders no plan popover for an active subscriber — beside the delete dialog, the page's popover key list carries exactly what the card's actions declare", async () => {
+	it("renders no plan popover for an active subscriber — beside the profile and delete dialogs, the page's popover key list carries exactly what the card's actions declare", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "active-plans@example.com");
@@ -1234,7 +1260,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
 		expect(actionKeys(doc)).toEqual(["manage-subscription", "view-invoices"]);
-		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["account-profile", "delete-account"]);
 	});
 });
 
@@ -3972,6 +3998,158 @@ describe("GET /account (danger zone)", () => {
 		assert(fallbackSubmit, "the fallback form must render its submit");
 		expect(fallbackSubmit.getAttribute("data-test-action")).toBe("delete-account-submit");
 		expect(fallbackSubmit.querySelector(".account__action-label")?.textContent).toBe("Delete account");
+	});
+});
+
+describe("GET /account (Profile row)", () => {
+	function profileCard(doc: Document): Element {
+		const card = doc.querySelector("[data-test-account-profile]");
+		assert(card, "the Profile section must render its card");
+		return card;
+	}
+
+	function profileRow(doc: Document): Element {
+		const row = profileCard(doc).querySelector(".account-row");
+		assert(row, "the Profile card must render its row");
+		return row;
+	}
+
+	function leadingClasses(parent: Element): string[] {
+		return Array.from(parent.children).map((child) => child.classList[0]);
+	}
+
+	it("gives the web row an Edit that opens a one-field dialog, with the same form inline as the no-popover fallback", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "profile-web@example.com");
+		await harness.auth.setUserDisplayName({ userId, displayName: DisplayNameSchema.parse("Reader Name") });
+
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+
+		expect(leadingClasses(profileRow(doc))).toEqual(["account-row__icon", "account-row__text", "account-row__actions"]);
+		expect(leadingClasses(profileCard(doc))).toEqual(["account-row", "account-profile__fallback"]);
+		const trigger = profileRow(doc).querySelector('[data-test-action="account-profile-edit"]');
+		assert(trigger, "the web Profile row must render its Edit trigger");
+		expect(trigger.getAttribute("popovertarget")).toBe("account-profile-edit");
+		const panel = doc.getElementById("account-profile-edit");
+		assert(panel, "the Edit trigger must target the profile dialog");
+		expect(panel.getAttribute("data-test-confirm-popover")).toBe("account-profile");
+		const dialogForm = panel.querySelector('[data-test-form="account-profile"]');
+		assert(dialogForm, "the dialog must render the profile form");
+		const fallbackForm = profileCard(doc).querySelector('[data-test-form="account-profile-fallback"]');
+		assert(fallbackForm, "the Profile card must render the fallback form");
+		const fields = [dialogForm, fallbackForm].map((form) => {
+			const field = form.querySelector<HTMLInputElement>("input.form-input");
+			assert(field, "each profile form must render its name field");
+			return [
+				form.getAttribute("method"),
+				form.getAttribute("action"),
+				field.name,
+				field.getAttribute("maxlength"),
+				field.getAttribute("autocomplete"),
+				field.value,
+				doc.querySelector(`label[for="${field.id}"]`)?.textContent,
+			];
+		});
+		const formAction = "/account/profile?utm_source=account&utm_medium=internal&utm_content=edit-profile";
+		expect(fields).toEqual([
+			["POST", formAction, "displayName", "64", "name", "Reader Name", "Name"],
+			["POST", formAction, "displayName", "64", "name", "Reader Name", "Name"],
+		]);
+	});
+
+	it.each([
+		["the iOS surface", "/account?platform=ios"],
+		["the Android surface", "/account?platform=android"],
+		["the app shell", "/account?shell=app"],
+		["the iOS app's in-app web sheet", "/account?platform=ios&shell=app"],
+	])("shows %s the Profile row read-only, with no Edit and no form", async (_surface, path) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "profile-native@example.com");
+
+		const doc = new JSDOM((await agent.get(path)).text).window.document;
+
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-account-section]")).map((section) =>
+				section.getAttribute("data-test-account-section"),
+			)[0],
+		).toBe("profile");
+		expect(profileLineTexts(doc)).toEqual(["profile-native@example.com"]);
+		expect(leadingClasses(profileRow(doc))).toEqual(["account-row__icon", "account-row__text"]);
+		expect(leadingClasses(profileCard(doc))).toEqual(["account-row"]);
+		const section = doc.querySelector('[data-test-account-section="profile"]');
+		assert(section, "the Profile section must render");
+		expect(section.querySelectorAll("form")).toHaveLength(0);
+		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
+	});
+});
+
+describe("POST /account/profile", () => {
+	function navUserNames(doc: Document): string[] {
+		return Array.from(doc.querySelectorAll("[data-test-nav-user-name]")).map((name) => name.textContent ?? "");
+	}
+
+	function accountMenuSummary(doc: Document): Element {
+		const summary = doc.querySelector('[data-test-nav-group="account"] summary.nav__user-summary');
+		assert(summary, "the header must render the account menu trigger");
+		return summary;
+	}
+
+	it("saves a display name, which then titles the Profile row and replaces the email in the header", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "reader@example.com");
+
+		const post = await agent
+			.post("/account/profile?utm_source=account&utm_medium=internal&utm_content=edit-profile")
+			.type("form")
+			.send({ displayName: "  Reader Name  " });
+
+		expect(post.status).toBe(303);
+		expect(post.headers.location).toBe("/account");
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+		expect(profileLineTexts(doc)).toEqual(["Reader Name", "reader@example.com"]);
+		expect(navUserNames(doc)).toEqual(["Reader Name", "Reader Name"]);
+		expect(accountMenuSummary(doc).querySelector(".nav__avatar")?.textContent).toBe("RN");
+		expect(accountMenuSummary(doc).getAttribute("aria-label")).toBe(
+			"Account menu for Reader Name (reader@example.com)",
+		);
+	});
+
+	it("clears the name on a blank save, so the email names the account again", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "reader@example.com");
+		await harness.auth.setUserDisplayName({ userId, displayName: DisplayNameSchema.parse("Reader Name") });
+
+		const post = await agent.post("/account/profile").type("form").send({ displayName: "   " });
+
+		expect(post.status).toBe(303);
+		expect(post.headers.location).toBe("/account");
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+		expect(profileLineTexts(doc)).toEqual(["reader@example.com"]);
+		expect(navUserNames(doc)).toEqual(["reader@example.com", "reader@example.com"]);
+		expect(accountMenuSummary(doc).getAttribute("aria-label")).toBe("Account menu for reader@example.com");
+	});
+
+	it("refuses a name over 64 characters and keeps the saved one", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "reader@example.com");
+		await harness.auth.setUserDisplayName({ userId, displayName: DisplayNameSchema.parse("Reader Name") });
+
+		const post = await agent.post("/account/profile").type("form").send({ displayName: "R".repeat(65) });
+
+		expect(post.status).toBe(400);
+		expect(post.text).toBe("Names are 64 characters or fewer.");
+		const doc = new JSDOM((await agent.get("/account")).text).window.document;
+		expect(profileLineTexts(doc)).toEqual(["Reader Name", "reader@example.com"]);
+	});
+
+	it("refuses a post that carries no name field", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "reader@example.com");
+
+		const post = await agent.post("/account/profile").type("form").send({});
+
+		expect(post.status).toBe(400);
+		expect(post.text).toBe("Missing name");
 	});
 });
 

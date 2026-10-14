@@ -36,7 +36,10 @@ const DIALOG_CANCEL = `${DIALOG} [data-test-action="delete-account-cancel"]`;
 const DIALOG_COMMIT = `${DIALOG} [data-test-action="delete-account-confirm"]`;
 const INLINE_FORM = '[data-test-danger-form="inline"]';
 const BACK_LINK = "[data-test-account-back-link]";
-const EMAIL_PINNED = [{ selector: "[data-test-account-email] strong", text: "reader@example.com" }];
+const IDENTITY_PINNED = [
+	{ selector: '[data-test-account-profile-line="email"]', text: "reader@example.com" },
+	{ selector: "[data-test-account-profile-initials]", text: "RE" },
+];
 const BILLING_SECTION = '[data-test-account-section="subscription"]';
 const PLAN_SECTION = "[data-test-account-card]";
 const PLAN_TITLE_ROW = ".account-billing__title-row";
@@ -84,7 +87,7 @@ const ACTIVE_SEED: SubscriptionSeed = {
 	invoices: 13,
 };
 
-const ACTIVE_PINNED = [...EMAIL_PINNED, { selector: NEXT_PAYMENT_DATE, text: "Sep 18, 2026" }];
+const ACTIVE_PINNED = [...IDENTITY_PINNED, { selector: NEXT_PAYMENT_DATE, text: "Sep 18, 2026" }];
 
 function assertNear(input: { actual: number; expected: number }, message: string): void {
 	assert.ok(
@@ -160,7 +163,7 @@ async function sectionRhythm(page: Page): Promise<void> {
 			};
 		}),
 	);
-	assert.equal(sections.length, 4, "the account page renders four sections");
+	assert.equal(sections.length, 5, "the account page renders five sections");
 	for (const [index, section] of sections.entries()) {
 		assertNear({ actual: section.cardTop - section.headingBottom, expected: 12 }, `section ${index}'s heading sits 12px above its card`);
 		const next = sections[index + 1];
@@ -198,7 +201,7 @@ async function designWidthGeometry(page: Page, input: { rows: number }): Promise
 	const [main, title] = await page.evaluate(measureBoxes, [MAIN, TITLE]);
 	assertNear({ actual: title.y - main.y, expected: 32 }, "at 1440 the title's line box starts 32px under the header");
 	const cards = await boxesOf(page, CARDS);
-	assert.equal(cards.length, 4, "the billing card and the three settings cards are measured");
+	assert.equal(cards.length, 5, "the billing card and the four settings cards are measured");
 	for (const [index, card] of cards.entries()) {
 		assertNear({ actual: card.x, expected: 280 }, `card ${index} starts on the 880px column's left edge`);
 		assertNear({ actual: card.x + card.width, expected: 1160 }, `card ${index} ends on the 880px column's right edge`);
@@ -425,7 +428,7 @@ function mainCheckpoint(input: { name: string; geometry: (page: Page) => Promise
 		geometry: input.geometry,
 		target: MAIN,
 		capture: "element",
-		pinnedText: EMAIL_PINNED,
+		pinnedText: IDENTITY_PINNED,
 	};
 }
 
@@ -436,7 +439,7 @@ function dialogCheckpoint(input: { name: string; geometry: (page: Page) => Promi
 		geometry: input.geometry,
 		target: DIALOG,
 		capture: "element",
-		pinnedText: EMAIL_PINNED,
+		pinnedText: IDENTITY_PINNED,
 	};
 }
 
@@ -450,7 +453,7 @@ test.describe("Account page at the design width", () => {
 			await openAccount(page);
 			await captureCheckpoint(
 				page,
-				mainCheckpoint({ name: `account-founding-${theme}`, geometry: (settled) => designWidthGeometry(settled, { rows: 3 }) }),
+				mainCheckpoint({ name: `account-founding-${theme}`, geometry: (settled) => designWidthGeometry(settled, { rows: 4 }) }),
 			);
 		});
 
@@ -469,7 +472,7 @@ test.describe("Account page at the design width", () => {
 		await openAccount(page);
 		await captureCheckpoint(
 			page,
-			mainCheckpoint({ name: "account-inactive-light", geometry: (settled) => designWidthGeometry(settled, { rows: 4 }) }),
+			mainCheckpoint({ name: "account-inactive-light", geometry: (settled) => designWidthGeometry(settled, { rows: 5 }) }),
 		);
 	});
 
@@ -485,7 +488,7 @@ test.describe("Account page at the design width", () => {
 			geometry: appearanceGeometry,
 			target: APPEARANCE_SECTION,
 			capture: "element",
-			pinnedText: EMAIL_PINNED,
+			pinnedText: IDENTITY_PINNED,
 		});
 	});
 
@@ -499,7 +502,7 @@ test.describe("Account page at the design width", () => {
 			geometry: rejectedGeometry,
 			target: DANGER_SECTION,
 			capture: "element",
-			pinnedText: EMAIL_PINNED,
+			pinnedText: IDENTITY_PINNED,
 		});
 	});
 });
@@ -576,7 +579,7 @@ test.describe("Account billing card", () => {
 		await openAccount(page, "?cancelling=1&poll=20");
 		await captureCheckpoint(
 			page,
-			billingCheckpoint({ name: "account-billing-cancelling-light", geometry: cancellingGeometry, pinnedText: EMAIL_PINNED }),
+			billingCheckpoint({ name: "account-billing-cancelling-light", geometry: cancellingGeometry, pinnedText: IDENTITY_PINNED }),
 		);
 	});
 
@@ -589,7 +592,7 @@ test.describe("Account billing card", () => {
 			billingCheckpoint({
 				name: "account-billing-trial-light",
 				geometry: titleRowGeometry,
-				pinnedText: [...EMAIL_PINNED, { selector: STATUS_DATE, text: "Oct 24, 2026" }],
+				pinnedText: [...IDENTITY_PINNED, { selector: STATUS_DATE, text: "Oct 24, 2026" }],
 			}),
 		);
 	});
@@ -606,7 +609,7 @@ test.describe("Account billing card", () => {
 			billingCheckpoint({
 				name: "account-billing-cancellation-scheduled-light",
 				geometry: statusChipGeometry,
-				pinnedText: [...EMAIL_PINNED, { selector: STATUS_DATE, text: "Nov 13, 2026" }],
+				pinnedText: [...IDENTITY_PINNED, { selector: STATUS_DATE, text: "Nov 13, 2026" }],
 			}),
 		);
 	});
@@ -617,7 +620,7 @@ test.describe("Account billing card", () => {
 		await openAccount(page);
 		await captureCheckpoint(
 			page,
-			billingCheckpoint({ name: "account-billing-inactive-light", geometry: statusChipGeometry, pinnedText: EMAIL_PINNED }),
+			billingCheckpoint({ name: "account-billing-inactive-light", geometry: statusChipGeometry, pinnedText: IDENTITY_PINNED }),
 		);
 	});
 
@@ -627,7 +630,7 @@ test.describe("Account billing card", () => {
 		await openAccount(page, "?platform=ios");
 		await captureCheckpoint(
 			page,
-			billingCheckpoint({ name: "account-billing-ios-light", geometry: iosBillingGeometry, pinnedText: EMAIL_PINNED }),
+			billingCheckpoint({ name: "account-billing-ios-light", geometry: iosBillingGeometry, pinnedText: IDENTITY_PINNED }),
 		);
 	});
 });

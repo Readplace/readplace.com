@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import type { ReadlistFilter } from "@packages/domain/article";
-import type { AppearancePreference, UserId } from "@packages/domain/user";
+import type { AppearancePreference, DisplayName, UserId } from "@packages/domain/user";
 import {
 	UserIdSchema,
 	authenticatedUserIdFrom,
@@ -33,6 +33,7 @@ import type {
 	SetQueueDigestOptOut,
 	SetSessionReadlistFilter,
 	SetUserAppearance,
+	SetUserDisplayName,
 	UpdatePassword,
 	UserAcquisitionAttribution,
 	UserExistsByEmail,
@@ -50,6 +51,7 @@ interface StoredUser {
 	deletedAt?: string;
 	attribution?: UserAcquisitionAttribution;
 	appearance?: AppearancePreference;
+	displayName?: DisplayName;
 	queueDigestOptOutAt?: string;
 }
 
@@ -95,6 +97,7 @@ export function initInMemoryAuth(opts: {
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
+	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
 	deleteUser: (email: string) => Promise<void>;
 	/** Test-only accessor for the attribution persisted at signup, so signup
@@ -363,6 +366,7 @@ export function initInMemoryAuth(opts: {
 					emailVerified: user.emailVerified,
 					registeredAt: user.registeredAt,
 					appearance: user.appearance,
+					displayName: user.displayName,
 					deletedAt: user.deletedAt,
 				};
 			}
@@ -374,6 +378,15 @@ export function initInMemoryAuth(opts: {
 		for (const user of users.values()) {
 			if (user.id === userId) {
 				user.appearance = appearance;
+				return;
+			}
+		}
+	};
+
+	const setUserDisplayName: SetUserDisplayName = async ({ userId, displayName }) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				user.displayName = displayName;
 				return;
 			}
 		}
@@ -435,6 +448,7 @@ export function initInMemoryAuth(opts: {
 		findUserContactByUserId,
 		findUserById,
 		setUserAppearance,
+		setUserDisplayName,
 		setQueueDigestOptOut,
 		getAcquisitionAttribution,
 		deleteUser,

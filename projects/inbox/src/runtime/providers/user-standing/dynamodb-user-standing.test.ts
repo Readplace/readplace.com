@@ -68,7 +68,7 @@ describe("initDynamoDbUserStanding", () => {
 			expect(captured.TableName).toBe(TABLES.users);
 			expect(captured.IndexName).toBe("userId-index");
 			expect(captured.ProjectionExpression).toBe(
-				"userId, email, emailVerified, registeredAt, appearance",
+				"userId, email, emailVerified, registeredAt, appearance, displayName",
 			);
 			expect(captured.ExpressionAttributeValues).toEqual({ ":userId": USER_ID });
 		});
@@ -90,6 +90,25 @@ describe("initDynamoDbUserStanding", () => {
 
 			assert(user, "user must be returned");
 			expect(user.appearance).toBe("dark");
+		});
+
+		it("reads the reader's display name so inbox pages name them in the header", async () => {
+			const { findUserById } = initWithFake(() => ({
+				Items: [
+					{
+						userId: USER_ID,
+						email: "user@example.com",
+						emailVerified: true,
+						registeredAt: "2026-01-01T00:00:00.000Z",
+						displayName: "James Davis",
+					},
+				],
+			}));
+
+			const user = await findUserById(USER_ID);
+
+			assert(user, "user must be returned");
+			expect(user.displayName).toBe("James Davis");
 		});
 
 		it("reads an absent emailVerified attribute as false (legacy row)", async () => {

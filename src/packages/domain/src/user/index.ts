@@ -7,3 +7,5 @@ export { VERIFICATION_WINDOW_MS, computeVerificationStatus } from "./verificatio
 export type { VerificationStatus } from "./verification-deadline";
 export { APPEARANCE_PREFERENCES, AppearancePreferenceSchema } from "./appearance";
 export type { AppearancePreference } from "./appearance";
+export { DISPLAY_NAME_MAX_LENGTH, DisplayNameSchema, parseDisplayNameInput } from "./display-name";
+export type { DisplayName } from "./display-name";

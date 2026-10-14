@@ -32,6 +32,12 @@ const SHARE_LOGO_COLOURS = [
 	{ ink: WHITE_MARK, surface: { red: 136, green: 136, blue: 136 } },
 	{ ink: WHITE_MARK, surface: { red: 255, green: 69, blue: 0 } },
 ];
+const ACCOUNT_ROOT = "main.account";
+const PROFILE_INITIALS = "[data-test-account-profile-initials]";
+const PROFILE_INITIALS_COLOURS = {
+	light: [{ ink: WHITE_MARK, surface: { red: 124, green: 92, blue: 230 } }],
+	dark: [{ ink: WHITE_MARK, surface: { red: 143, green: 122, blue: 240 } }],
+};
 const AUTH_ROOT = "main.auth-page";
 const READLIST_ROOT = "main.readlist";
 const BANNER_AREA_ROOT = ".banner-area";
@@ -174,6 +180,28 @@ async function auditShareDialog(page: Page, where: { theme: string; view: string
 
 	await dialog.locator('[data-test-action="share-cancel"]').click();
 	await expect(dialog).toBeHidden({ timeout: SETTLE_MS });
+}
+
+function isProfileInitials(measured: RenderedInk): boolean {
+	return measured.role === "text" && measured.name === PROFILE_INITIALS;
+}
+
+async function auditAccount(page: Page, where: { theme: "light" | "dark"; view: string }): Promise<void> {
+	await page.mouse.move(0, 0);
+	const measurements = await stableMeasurements(page, ACCOUNT_ROOT);
+	assert.ok(
+		measurements.length > 0,
+		`${where.theme}/${where.view}: the audit measured nothing inside ${ACCOUNT_ROOT}`,
+	);
+	assert.deepEqual(
+		measurements.filter(isProfileInitials).map(({ ink, surface }) => ({ ink, surface })),
+		PROFILE_INITIALS_COLOURS[where.theme],
+		`${where.theme}/${where.view}: the Profile disc's initials are decorative (aria-hidden) white on --color-avatar, which the BRAND Avatar row allows`,
+	);
+	assertContrast(
+		measurements.filter((measured) => !isProfileInitials(measured)),
+		where,
+	);
 }
 
 async function auditAuth(page: Page, where: { theme: string; view: string }): Promise<void> {
@@ -925,7 +953,7 @@ test.describe("Account colour roles hold their WCAG contrast in both themes", ()
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
 			await page.waitForSelector("body.page-account");
-			await auditRoot(page, { root: "main.account", theme, view: "account" });
+			await auditAccount(page, { theme, view: "account" });
 			await page.locator("[data-test-danger-open]").click({ timeout: SETTLE_MS });
 			await expect(page.locator(`${dialog}:popover-open`)).toBeVisible({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: dialog, theme, view: "account/delete-dialog" });
@@ -954,7 +982,7 @@ test.describe("Account colour roles hold their WCAG contrast in both themes", ()
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(`${BASE_URL}/account?manage=payment`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator('[data-test-manage-panel="payment"]')).toHaveAttribute("data-manage-panel-state", "open");
-			await auditRoot(page, { root: "main.account", theme, view: "account/billing" });
+			await auditAccount(page, { theme, view: "account/billing" });
 			await page.goto(`${BASE_URL}/account/invoices`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("[data-test-invoices-state]")).toHaveAttribute("data-test-invoices-state", "list");
 			await auditRoot(page, { root: "main.account", theme, view: "account/invoices" });

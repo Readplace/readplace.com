@@ -535,20 +535,20 @@ describe("Base component", () => {
 		expect(navItems).toEqual(["queue", "import", "inbox", "integrations", "account", "blog", "privacy", "terms", "logout"]);
 	});
 
-	it("hands the signed-in email to the header so the account section renders as the user menu", () => {
+	it("hands the signed-in user to the header so the account section renders as the user menu", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
-			userEmail: "ana_lu@example.com",
+			signedInUser: { email: "ana_lu@example.com", displayName: undefined },
 		}).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const menu = doc.querySelector("[data-test-nav-user]");
 		assert(menu, "the user menu must render when the banner state carries the email");
 		expect(menu.querySelector(".nav__avatar")?.textContent).toBe("AL");
-		expect(menu.querySelector("[data-test-nav-user-email]")?.textContent).toBe("ana_lu@example.com");
+		expect(menu.querySelector("[data-test-nav-user-name]")?.textContent).toBe("ana_lu@example.com");
 	});
 
 	it("hides import and inbox from the nav for a read-only user (trial-expired / subscription-cancelled) but keeps Integrations and Account so they can still stop forwarding and reach /account", () => {

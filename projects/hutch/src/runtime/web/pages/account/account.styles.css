@@ -58,13 +58,6 @@
   text-wrap: pretty;
 }
 
-.account__email {
-  margin-top: 4px;
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
-  overflow-wrap: anywhere;
-}
-
 .account-section {
   display: flex;
   flex-direction: column;
@@ -115,9 +108,23 @@
   height: 1.25rem;
 }
 
+.account-row__icon.account-profile__avatar {
+  background: var(--color-avatar);
+  color: var(--color-on-brand);
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
 .account-row__text {
   grid-area: text;
   min-width: 0;
+}
+
+.account-profile__text {
+  overflow-wrap: anywhere;
 }
 
 .account-row__title {
@@ -221,11 +228,13 @@
   margin: 0;
 }
 
-.account-danger .account-row__actions {
+.account-danger .account-row__actions,
+.account-profile .account-row__actions {
   display: none;
 }
 
-.account-danger__form {
+.account-danger__form,
+.account-profile__fallback {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -234,21 +243,25 @@
   border-top: 1px solid var(--border);
 }
 
-.account-danger__form .form-field {
+.account-danger__form .form-field,
+.account-profile__fallback .form-field {
   align-self: stretch;
 }
 
 @supports selector(:popover-open) {
-  .account-danger--dialog .account-row__actions {
+  .account-danger--dialog .account-row__actions,
+  .account-profile .account-row__actions {
     display: flex;
   }
 
-  .account-danger--dialog .account-danger__form {
+  .account-danger--dialog .account-danger__form,
+  .account-profile__fallback {
     display: none;
   }
 }
 
-.account-danger__dialog-form > .confirm-popover__buttons {
+.account-danger__dialog-form > .confirm-popover__buttons,
+.account-profile__dialog-form > .confirm-popover__buttons {
   margin-top: 12px;
 }
 

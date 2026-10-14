@@ -351,6 +351,7 @@ What happens to a saved library, stated as mechanisms in the code today:
 Readplace collects only what is necessary to run the service:
 
 - Email address for authentication
+- A display name, if the reader adds one
 - Saved article URLs
 - Basic server logs
 

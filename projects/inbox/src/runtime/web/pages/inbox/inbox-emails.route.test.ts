@@ -8,7 +8,7 @@ import {
 	MessageIdSchema,
 	buildInboxHighlightUrl,
 } from "@packages/domain/inbox";
-import type { UserId } from "@packages/domain/user";
+import { DisplayNameSchema, type UserId } from "@packages/domain/user";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -118,6 +118,24 @@ describe("Inbox emails list route", () => {
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 			"noindex, nofollow",
 		);
+	});
+
+	it("names the reader in the header by the display name set on their account", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist before naming it");
+		await fixture.auth.setUserDisplayName({
+			userId: user.userId,
+			displayName: DisplayNameSchema.parse("Inbox Reader"),
+		});
+
+		const doc = new JSDOM((await agent.get("/inbox")).text).window.document;
+
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-nav-user-name]")).map((name) => name.textContent),
+		).toEqual(["Inbox Reader", "Inbox Reader"]);
 	});
 
 	it("sends a reader with no forwarding address to Custom Emails to create one", async () => {

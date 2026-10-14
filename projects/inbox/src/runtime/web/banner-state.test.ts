@@ -1,6 +1,6 @@
 import { generateCspNonce } from "@packages/web-shell";
 import { FETCH_CHANGELOG_BANNER_IN_BROWSER } from "@packages/web-shell";
-import { UserIdSchema } from "@packages/domain/user";
+import { DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import { initBuildBannerState } from "./banner-state";
 import type { EffectiveAccess } from "@packages/subscription-access";
 import type { FindUserById } from "@packages/provider-contracts/auth";
@@ -154,17 +154,22 @@ describe("initBuildBannerState", () => {
 	});
 });
 
-describe("initBuildBannerState (signed-in email)", () => {
-	it("carries the signed-in user's email onto the banner state so the header can name the account", async () => {
+describe("initBuildBannerState (signed-in user)", () => {
+	it("carries the signed-in user's email and display name onto the banner state so the header can name the account", async () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true }),
+			findUserById: async () => ({
+				userId: USER_ID,
+				email: "james.davis@example.com",
+				emailVerified: true,
+				displayName: DisplayNameSchema.parse("James Davis"),
+			}),
 		});
 
 		const result = await buildBannerState({ userId: USER_ID, cspNonce: CSP_NONCE });
 
-		expect(result.userEmail).toBe("james.davis@example.com");
+		expect(result.signedInUser).toEqual({ email: "james.davis@example.com", displayName: "James Davis" });
 	});
 });
 
@@ -178,6 +183,7 @@ describe("initBuildBannerState (signed-in appearance)", () => {
 				email: "james.davis@example.com",
 				emailVerified: true,
 				appearance: "dark",
+				displayName: undefined,
 			}),
 		});
 

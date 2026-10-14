@@ -6,10 +6,11 @@ import {
 	type NavGroup,
 	type NavItem,
 	type NavItemKey,
+	type SignedInUser,
 } from "./banner-state";
 import { type ClickSurface, withClickSurface } from "./internal-link-tracking";
 import { NAV_TEMPLATE } from "./nav.template";
-import { initialsFromEmail } from "./user-initials";
+import { initialsFor } from "./user-initials";
 
 export interface NavProps {
 	variant: "default" | "transparent";
@@ -17,7 +18,7 @@ export interface NavProps {
 	accessIsReadOnly: boolean;
 	currentPath?: string;
 	clickSurface?: ClickSurface;
-	userEmail?: string;
+	signedInUser?: SignedInUser;
 }
 
 interface NavUserMenu {
@@ -38,17 +39,24 @@ type NavGroupDisplayModel = Omit<NavGroup, "items"> & {
 
 const ANONYMOUS_USER_MENU: NavUserMenu = { initials: "", name: "Account", ariaLabel: "Account menu" };
 
-function userMenuFrom(userEmail: string | undefined): NavUserMenu {
-	if (userEmail === undefined) return ANONYMOUS_USER_MENU;
-	return { initials: initialsFromEmail(userEmail), name: userEmail, ariaLabel: `Account menu for ${userEmail}` };
+function userMenuFrom(user: SignedInUser | undefined): NavUserMenu {
+	if (user === undefined) return ANONYMOUS_USER_MENU;
+	return {
+		initials: initialsFor(user),
+		name: user.displayName ?? user.email,
+		ariaLabel:
+			user.displayName === undefined
+				? `Account menu for ${user.email}`
+				: `Account menu for ${user.displayName} (${user.email})`,
+	};
 }
 
 function userMenuFor(
 	group: NavGroupDisplayModel,
-	signedIn: { isAuthenticated: boolean; userEmail: string | undefined },
+	signedIn: { isAuthenticated: boolean; signedInUser: SignedInUser | undefined },
 ): NavGroupDisplayModel {
 	if (group.key !== "account" || !signedIn.isAuthenticated) return group;
-	return { ...group, userMenu: userMenuFrom(signedIn.userEmail) };
+	return { ...group, userMenu: userMenuFrom(signedIn.signedInUser) };
 }
 
 const CURRENT_NAV_KEY_BY_SECTION: ReadonlyMap<string, NavItemKey> = new Map<string, NavItemKey>([
@@ -103,7 +111,7 @@ export function GlobalNav(props: NavProps): string {
 		navGroups: groups.map((group) =>
 			userMenuFor(
 				{ ...group, items: group.items.map((item) => displayItem(item, context)) },
-				{ isAuthenticated: props.isAuthenticated, userEmail: props.userEmail },
+				{ isAuthenticated: props.isAuthenticated, signedInUser: props.signedInUser },
 			),
 		),
 		navVariant: props.isAuthenticated ? "authenticated" : "guest",

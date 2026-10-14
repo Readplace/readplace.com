@@ -32,6 +32,7 @@ import type {
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
 	SetUserAppearance,
+	SetUserDisplayName,
 	UpdatePassword,
 	MarkAccountDeleted,
 	UserExistsByEmail,
@@ -361,6 +362,7 @@ interface AppDependencies {
 	findUserById: FindUserById;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
+	setUserDisplayName: SetUserDisplayName;
 	googleAuth?: {
 		exchangeGoogleCode: ExchangeGoogleCode;
 		clientId: string;
@@ -1670,6 +1672,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findEmailByUserId: deps.findEmailByUserId,
 		findUserById: deps.findUserById,
 		setUserAppearance: deps.setUserAppearance,
+		setUserDisplayName: deps.setUserDisplayName,
 		destroyUserSessions: deps.destroyUserSessions,
 		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
 		markAccountDeleted: deps.markAccountDeleted,

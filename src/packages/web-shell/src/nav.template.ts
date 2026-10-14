@@ -27,7 +27,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 					{{/inline}}
 					{{#*inline "identity"}}
 					<span class="nav__avatar" aria-hidden="true">{{userMenu.initials}}</span>
-					<span class="nav__user-name" data-test-nav-user-email>{{userMenu.name}}</span>
+					<span class="nav__user-name" data-test-nav-user-name>{{userMenu.name}}</span>
 					{{/inline}}
 					{{#each navGroups}}
 					<div class="nav__group nav__group--{{key}}" data-test-nav-group="{{key}}">

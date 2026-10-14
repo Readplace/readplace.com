@@ -397,7 +397,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
 				currentPath: state.currentPath,
 				clickSurface: body.clickSurface,
-				userEmail: state.userEmail,
+				signedInUser: state.signedInUser,
 			}),
 			content: injectPageStylesIntoMain({
 				content: body.content.html,

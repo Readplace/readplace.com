@@ -592,7 +592,7 @@ describe("captureCheckpoint", () => {
 			viewport: { width: 1280, height: 720 },
 			scroll: { x: 0, y: 0 },
 			pinned: new Map(),
-			pinnedAll: new Map([["[data-test-nav-user-email]", [email, drawerEmail]]]),
+			pinnedAll: new Map([["[data-test-nav-user-name]", [email, drawerEmail]]]),
 			elements: new Map([["[data-test-card]", card]]),
 		});
 		const { expect: expectFake, screenshots } = createExpectFake(calls);
@@ -609,6 +609,36 @@ describe("captureCheckpoint", () => {
 
 		expect(email.textContent).toBe("reader@example.com");
 		expect(drawerEmail.textContent).toBe("reader@example.com");
+		expect(screenshots).toHaveLength(1);
+	});
+
+	it("leaves a display name in the header as rendered", async () => {
+		const name = { textContent: "James Davis" };
+		const drawerName = { textContent: "James Davis" };
+		const card = fakeElement({ rect: { x: 0, y: 48, width: 320, height: 96 } });
+		const { page, calls } = createCheckpointPage({
+			locators: {
+				"[data-test-card]": { count: 1, boxes: [{ x: 0, y: 48, width: 320, height: 96 }] },
+			},
+			viewport: { width: 1280, height: 720 },
+			scroll: { x: 0, y: 0 },
+			pinned: new Map(),
+			pinnedAll: new Map([["[data-test-nav-user-name]", [name, drawerName]]]),
+			elements: new Map([["[data-test-card]", card]]),
+		});
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+		const checkpoint: VisualCheckpoint = {
+			name: "queue-card",
+			settled: async () => {},
+			geometry: async () => {},
+			target: "[data-test-card]",
+			capture: "element",
+			pinnedText: [],
+		};
+
+		await initCaptureCheckpoint({ expect: expectFake, testInfo: createTestInfoFake().testInfo })(page, checkpoint);
+
+		expect([name.textContent, drawerName.textContent]).toEqual(["James Davis", "James Davis"]);
 		expect(screenshots).toHaveLength(1);
 	});
 

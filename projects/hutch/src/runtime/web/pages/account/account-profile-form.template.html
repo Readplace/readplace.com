@@ -1,0 +1,11 @@
+<form class="{{formClass}}" method="POST" action="{{action}}" data-test-form="{{formKey}}">
+              <div class="form-field">
+                <label class="form-field__label" for="{{inputId}}">Name</label>
+                <input class="form-input" id="{{inputId}}" type="text" name="displayName" value="{{value}}" maxlength="{{maxLength}}" autocomplete="name">
+              </div>
+              <div class="{{buttonsClass}}">
+                {{#each buttons}}
+                <button type="{{type}}" class="{{buttonClass}}"{{{popoverTargetAttrs}}} data-test-action="{{testAction}}">{{label}}</button>
+                {{/each}}
+              </div>
+            </form>

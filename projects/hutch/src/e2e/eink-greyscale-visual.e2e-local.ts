@@ -814,9 +814,11 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
 			await page.waitForSelector("body.page-account");
 			await page.evaluate(() => {
-				const signedInAs = document.querySelector("[data-test-account-email] strong");
-				if (!signedInAs) throw new Error("the account page must name the signed-in address");
-				signedInAs.textContent = "reader@example.com";
+				const emailLine = document.querySelector('[data-test-account-profile-line="email"]');
+				const initials = document.querySelector("[data-test-account-profile-initials]");
+				if (!emailLine || !initials) throw new Error("the account page's Profile row must name the signed-in address");
+				emailLine.textContent = "reader@example.com";
+				initials.textContent = "RE";
 			});
 			await settle(page, "main.account");
 			const main = await measuredBox(page, "main.account");

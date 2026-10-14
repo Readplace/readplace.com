@@ -4,7 +4,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { AppearancePreferenceSchema, UserIdSchema } from "@packages/domain/user";
+import { AppearancePreferenceSchema, DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import { SessionRow } from "@packages/web-session";
 import type {
 	FindUserById,
@@ -20,6 +20,7 @@ const UserStandingRow = z.object({
 	emailVerified: dynamoField(z.boolean()),
 	registeredAt: dynamoField(z.string()),
 	appearance: dynamoField(AppearancePreferenceSchema),
+	displayName: dynamoField(DisplayNameSchema),
 });
 
 /** Read/heal access to the user and session rows hutch owns. */
@@ -43,7 +44,7 @@ export function initDynamoDbUserStanding(deps: {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
 			ExpressionAttributeValues: { ":userId": userId },
-			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance",
+			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance, displayName",
 			Limit: 1,
 		});
 		const row = items[0];
@@ -54,6 +55,7 @@ export function initDynamoDbUserStanding(deps: {
 			emailVerified: row.emailVerified === true,
 			registeredAt: row.registeredAt,
 			appearance: row.appearance,
+			displayName: row.displayName,
 		};
 	};
 
