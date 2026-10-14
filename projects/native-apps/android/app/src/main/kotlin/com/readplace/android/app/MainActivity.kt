@@ -38,6 +38,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.readplace.android.BuildConfig
 import com.readplace.android.core.AppConfig
+import com.readplace.android.core.CaptureTrigger
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.NativeCleartextPolicy
@@ -125,7 +126,7 @@ class MainActivity : ComponentActivity() {
 				unseenSave = unseenSave,
 				lastViewed = lastViewed,
 				shareTarget = shareTarget,
-				healBlockedArticle = { url -> heal.run(url) },
+				healBlockedArticle = { url -> heal.run(url, CaptureTrigger.MANUAL) },
 				drainUploadJobs = { drain.run() },
 				onSessionExpired = { session.forceLogout() },
 			)

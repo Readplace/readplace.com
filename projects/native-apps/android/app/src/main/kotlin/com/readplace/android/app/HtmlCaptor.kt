@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.readplace.android.core.AppConfig
@@ -54,6 +55,7 @@ class HtmlCaptor(
 		// never-throw contract the heal/drain/share callers rely on).
 		var webView: WebView? = null
 		var host: ViewGroup? = null
+		var mainFrameHttpError: Int? = null
 		try {
 			val view = WebView(context).apply {
 				settings.javaScriptEnabled = true
@@ -73,6 +75,14 @@ class HtmlCaptor(
 
 					override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
 						if (request.isForMainFrame) loaded.complete(CapturedPage.Empty)
+					}
+
+					override fun onReceivedHttpError(
+						view: WebView,
+						request: WebResourceRequest,
+						errorResponse: WebResourceResponse,
+					) {
+						if (request.isForMainFrame) mainFrameHttpError = errorResponse.statusCode
 					}
 				}
 			}
@@ -95,9 +105,9 @@ class HtmlCaptor(
 				CaptureResolution.NothingLoaded -> CapturedPage.Empty
 				CaptureResolution.ExtractAfterSettle -> {
 					delay(CaptureDecision.SETTLE_DELAY)
-					extract(view)
+					extract(view, mainFrameHttpError)
 				}
-				CaptureResolution.ExtractPartial -> extract(view)
+				CaptureResolution.ExtractPartial -> extract(view, mainFrameHttpError)
 			}
 		} catch (cancelled: CancellationException) {
 			// A cancelled capture (the Activity went away mid-render) is not a
@@ -159,11 +169,11 @@ class HtmlCaptor(
 		if (view.viewTreeObserver.isAlive) view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
 	}
 
-	private suspend fun extract(webView: WebView): CapturedPage {
+	private suspend fun extract(webView: WebView, mainFrameHttpError: Int?): CapturedPage {
 		val html = evaluate(webView, "document.documentElement.outerHTML")
 		if (html.isNullOrEmpty()) return CapturedPage.Empty
 		val title = evaluate(webView, "document.title")?.takeIf { it.isNotEmpty() }
-		return CapturedPage.Html(html = html, title = title)
+		return CapturedPage.Html(html = html, title = title, mainFrameHttpError = mainFrameHttpError)
 	}
 
 	/** `evaluateJavascript` answers a JSON-encoded string; decode it through a JSON

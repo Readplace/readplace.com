@@ -430,7 +430,7 @@ class SaveSharedPageTest {
 	}
 
 	private fun html(html: String = "<html>hi</html>", title: String? = "Captured"): CapturedPage =
-		CapturedPage.Html(html = html, title = title)
+		CapturedPage.Html(html = html, title = title, mainFrameHttpError = null)
 
 	@Test
 	fun `saves the link first then leaves the capture ready for the app`() = runTest {
@@ -465,6 +465,7 @@ class SaveSharedPageTest {
 		assertEquals("https://example.com/post", part(parts, "url")?.text)
 		assertEquals("text/html", part(parts, "mediaType")?.text)
 		assertEquals("Captured", part(parts, "title")?.text)
+		assertEquals("manual", part(parts, "captureTrigger")?.text)
 		val contentPart = part(parts, "content") ?: throw AssertionError("expected a content part")
 		assertEquals("the content part needs a filename so the server treats it as a file", "content", contentPart.filename)
 		assertEquals("<html><body>hi</body></html>", contentPart.text)
@@ -775,7 +776,7 @@ class SaveSharedPageTest {
 
 		assertEquals(SaveSharedOutcome.SavedAwaitingUpload(emptyList()), outcome)
 		val parts = stagedParts(queuedJobs(container).single(), container)
-		assertEquals("a blank title is no title", listOf("url", "mediaType", "content"), parts.map { it.name })
+		assertEquals("a blank title is no title", listOf("url", "mediaType", "captureTrigger", "content"), parts.map { it.name })
 	}
 
 	@Test
@@ -867,7 +868,7 @@ class SaveSharedPageTest {
 		assertEquals(SaveSharedOutcome.SavedAwaitingUpload(emptyList()), outcome)
 		val job = queuedJobs(container).single()
 		assertNull(job.title)
-		assertEquals(listOf("url", "mediaType", "content"), stagedParts(job, container).map { it.name })
+		assertEquals(listOf("url", "mediaType", "captureTrigger", "content"), stagedParts(job, container).map { it.name })
 	}
 
 	@Test
@@ -884,6 +885,31 @@ class SaveSharedPageTest {
 		assertEquals(SaveSharedOutcome.SavedAwaitingUpload(emptyList()), outcome)
 		assertEquals(1, urlOnlyPosts().size)
 		assertEquals(listOf(UploadJob.State.CapturePending(detectedMediaType = null)), queuedJobs(container).map { it.state })
+		assertUploadedNothing()
+	}
+
+	@Test
+	fun `uploads nothing when the shared page answered the device with an HTTP error`() = runTest {
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		serveReadlistAndSave()
+
+		val saver = makeSaver(
+			store = store,
+			captor = FakeHtmlCaptor(
+				page = CapturedPage.Html(html = "<html>captcha</html>", title = "Just a moment", mainFrameHttpError = 403),
+			),
+			container = container,
+		)
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = "Shared title", sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.SavedAwaitingUpload(emptyList()), outcome)
+		assertEquals("the link itself is still saved", 1, urlOnlyPosts().size)
+		assertEquals(
+			"an error page the origin answered with is never staged as the article",
+			listOf(UploadJob.State.CapturePending(detectedMediaType = null)),
+			queuedJobs(container).map { it.state },
+		)
 		assertUploadedNothing()
 	}
 

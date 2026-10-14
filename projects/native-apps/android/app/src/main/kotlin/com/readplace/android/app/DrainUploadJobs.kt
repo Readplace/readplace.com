@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import com.readplace.android.core.ApiError
+import com.readplace.android.core.CaptureTrigger
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.MultipartForm
@@ -92,16 +93,23 @@ class DrainUploadJobs(
 		if (detectedMediaType == PDF_MEDIA_TYPE) {
 			val bytes = api.fetchExternalContent(job.url) ?: return null
 			if (!isPdf(bytes)) return null
-			return saveContentForm(url = job.url, bytes = bytes, mediaType = PDF_MEDIA_TYPE, title = job.title)
+			return saveContentForm(
+				url = job.url,
+				bytes = bytes,
+				mediaType = PDF_MEDIA_TYPE,
+				title = job.title,
+				captureTrigger = CaptureTrigger.MANUAL,
+			)
 		}
 		val captured = captor.capture(job.url)
-		if (captured !is CapturedPage.Html || captured.html.isEmpty()) return null
+		if (captured !is CapturedPage.Html || captured.html.isEmpty() || !captured.servedArticle) return null
 		val title = captured.title?.takeIf { it.isNotEmpty() } ?: job.title
 		return saveContentForm(
 			url = job.url,
 			bytes = captured.html.toByteArray(Charsets.UTF_8),
 			mediaType = "text/html",
 			title = title,
+			captureTrigger = CaptureTrigger.MANUAL,
 		)
 	}
 

@@ -1,6 +1,7 @@
 package com.readplace.android.share
 
 import com.readplace.android.core.ApiError
+import com.readplace.android.core.CaptureTrigger
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.MultipartForm
@@ -219,7 +220,13 @@ class SaveSharedPage(
 		val delivered = sharedPdf?.invoke()
 		if (delivered != null && delivered.startsWith(PDF_MAGIC)) {
 			return ResolvedContent.Form(
-				saveContentForm(url = url, bytes = delivered, mediaType = PDF_MEDIA_TYPE, title = fallbackTitle),
+				saveContentForm(
+					url = url,
+					bytes = delivered,
+					mediaType = PDF_MEDIA_TYPE,
+					title = fallbackTitle,
+					captureTrigger = CaptureTrigger.MANUAL,
+				),
 			)
 		}
 		return when (val captured = captor.capture(url)) {
@@ -230,7 +237,7 @@ class SaveSharedPage(
 	}
 
 	private fun rendered(url: String, captured: CapturedPage.Html, fallbackTitle: String?): ResolvedContent {
-		if (captured.html.isEmpty()) return ResolvedContent.None
+		if (captured.html.isEmpty() || !captured.servedArticle) return ResolvedContent.None
 		val title = captured.title?.takeIf { it.isNotEmpty() } ?: fallbackTitle
 		return ResolvedContent.Form(
 			saveContentForm(
@@ -238,6 +245,7 @@ class SaveSharedPage(
 				bytes = captured.html.toByteArray(Charsets.UTF_8),
 				mediaType = HTML_MEDIA_TYPE,
 				title = title,
+				captureTrigger = CaptureTrigger.MANUAL,
 			),
 		)
 	}
@@ -256,12 +264,19 @@ class SaveSharedPage(
  * The `save-content` fields in wire order, boundary included, so the body that is
  * staged and the `Content-Type` the request declares can never disagree.
  */
-fun saveContentForm(url: String, bytes: ByteArray, mediaType: String, title: String?): MultipartForm {
+fun saveContentForm(
+	url: String,
+	bytes: ByteArray,
+	mediaType: String,
+	title: String?,
+	captureTrigger: CaptureTrigger,
+): MultipartForm {
 	val textParts = mutableListOf(
 		MultipartForm.TextPart(name = "url", value = url),
 		MultipartForm.TextPart(name = "mediaType", value = mediaType),
 	)
 	if (!title.isNullOrEmpty()) textParts += MultipartForm.TextPart(name = "title", value = title)
+	textParts += MultipartForm.TextPart(name = "captureTrigger", value = captureTrigger.wireValue)
 	return MultipartForm(
 		boundary = UUID.randomUUID().toString(),
 		textParts = textParts,

@@ -9,7 +9,9 @@ package com.readplace.android.core
  * to a URL-only crawl.
  */
 sealed interface CapturedPage {
-	data class Html(val html: String, val title: String?) : CapturedPage
+	data class Html(val html: String, val title: String?, val mainFrameHttpError: Int?) : CapturedPage {
+		val servedArticle: Boolean get() = mainFrameHttpError == null
+	}
 
 	data object PdfDetected : CapturedPage
 

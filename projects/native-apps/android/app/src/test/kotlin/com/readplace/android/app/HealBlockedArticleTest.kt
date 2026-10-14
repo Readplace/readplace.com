@@ -11,6 +11,7 @@ import com.readplace.android.app.DrainAndHealTestSupport.loggedInStore
 import com.readplace.android.app.DrainAndHealTestSupport.multipartParts
 import com.readplace.android.core.ApiError
 import com.readplace.android.core.AppConfig
+import com.readplace.android.core.CaptureTrigger
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.TokenStore
@@ -33,7 +34,7 @@ class HealBlockedArticleTest {
 		HealBlockedArticle(api = api(server, store, StandardTestDispatcher(testScheduler)), captor = captor)
 
 	private fun htmlCaptor(html: String = "<html>hi</html>", title: String? = null): RecordingHtmlCaptor =
-		RecordingHtmlCaptor(CapturedPage.Html(html = html, title = title))
+		RecordingHtmlCaptor(CapturedPage.Html(html = html, title = title, mainFrameHttpError = null))
 
 	private fun serveReadlistAndSaveContent(
 		actionsJson: String = Fixtures.COLLECTION_ACTIONS,
@@ -72,7 +73,7 @@ class HealBlockedArticleTest {
 		)
 		serveReadlistAndSaveContent()
 
-		val outcome = makeHealer(store = loggedInStore(access = "access-1"), captor = captor).run(url = blockedUrl)
+		val outcome = makeHealer(store = loggedInStore(access = "access-1"), captor = captor).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.HEALED, outcome)
 		assertNull("a landed heal leaves nothing to tell the user about", outcome.failureText)
@@ -102,6 +103,7 @@ class HealBlockedArticleTest {
 		assertEquals("https://example.com/post", parts.first { it.name == "url" }.text)
 		assertEquals("text/html", parts.first { it.name == "mediaType" }.text)
 		assertEquals("Captured", parts.first { it.name == "title" }.text)
+		assertEquals("manual", parts.first { it.name == "captureTrigger" }.text)
 		val content = parts.first { it.name == "content" }
 		assertEquals("the content part needs a filename so the server treats it as a file", "content", content.filename)
 		assertEquals("<html><body>the page the crawler was blocked from</body></html>", content.text)
@@ -111,13 +113,13 @@ class HealBlockedArticleTest {
 	fun `sends no title part when the render named the page nothing`() = runTest {
 		serveReadlistAndSaveContent()
 
-		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor(title = null)).run(url = blockedUrl)
+		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor(title = null)).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.HEALED, outcome)
 		val upload = server.records("/queue/save-content").first()
 		assertEquals(
 			"an untitled render sends no title part rather than an empty one",
-			listOf("url", "mediaType", "content"),
+			listOf("url", "mediaType", "captureTrigger", "content"),
 			parts(upload).mapNotNull { it.name },
 		)
 	}
@@ -126,7 +128,7 @@ class HealBlockedArticleTest {
 	fun `uploads nothing when the capture produced no html`() = runTest {
 		val captor = RecordingHtmlCaptor(CapturedPage.PdfDetected)
 
-		val outcome = makeHealer(store = loggedInStore(), captor = captor).run(url = blockedUrl)
+		val outcome = makeHealer(store = loggedInStore(), captor = captor).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.CAPTURE_WAS_EMPTY, outcome)
 		assertEquals(
@@ -138,7 +140,7 @@ class HealBlockedArticleTest {
 
 	@Test
 	fun `uploads nothing when the render produced an empty document`() = runTest {
-		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor(html = "", title = "Blank")).run(url = blockedUrl)
+		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor(html = "", title = "Blank")).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.CAPTURE_WAS_EMPTY, outcome)
 		assertTrue("an empty document is nothing to save, so no round trip is spent on it", server.records.isEmpty())
@@ -148,7 +150,7 @@ class HealBlockedArticleTest {
 	fun `uploads nothing when the server advertises no content action`() = runTest {
 		serveReadlistAndSaveContent(actionsJson = Fixtures.SAVE_ARTICLE_ONLY)
 
-		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl)
+		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.NO_SAVE_CONTENT_ACTION, outcome)
 		assertEquals(
@@ -167,7 +169,7 @@ class HealBlockedArticleTest {
 		serveReadlistAndSaveContent(saveContentStub = { Stub.json(403, Fixtures.accountLockedError()) })
 
 		val error = failsWith<ApiError.Refused> {
-			makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl)
+			makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 		}
 
 		assertTrue(
@@ -183,9 +185,39 @@ class HealBlockedArticleTest {
 		})
 
 		val error = failsWith<ApiError.Refused> {
-			makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl)
+			makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 		}
 
 		assertTrue("a media type the client can't render is dropped, and the refusal still stands", error.messages.isEmpty())
+	}
+
+	@Test
+	fun `uploads nothing when the origin answered the device with an HTTP error`() = runTest {
+		serveReadlistAndSaveContent()
+		val captor = RecordingHtmlCaptor(
+			CapturedPage.Html(html = "<html>captcha</html>", title = "Just a moment", mainFrameHttpError = 403),
+		)
+
+		val outcome = makeHealer(store = loggedInStore(), captor = captor).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
+
+		assertEquals(HealBlockedOutcome.PAGE_NOT_SERVED, outcome)
+		assertEquals(
+			"This device couldn't load the article either — the site answered with an error page instead of it.",
+			outcome.failureText,
+		)
+		assertTrue("an error page the origin answered with must never be uploaded as the article", server.records.isEmpty())
+	}
+
+	@Test
+	fun `an automatic capture names its trigger before the content`() = runTest {
+		serveReadlistAndSaveContent()
+
+		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor(title = "Captured"))
+			.run(url = blockedUrl, trigger = CaptureTrigger.AUTOMATIC)
+
+		assertEquals(HealBlockedOutcome.HEALED, outcome)
+		val parts = parts(server.records("/queue/save-content").first())
+		assertEquals(listOf("url", "mediaType", "title", "captureTrigger", "content"), parts.mapNotNull { it.name })
+		assertEquals("automatic", parts.first { it.name == "captureTrigger" }.text)
 	}
 }

@@ -201,7 +201,7 @@ class DrainUploadJobsTest {
 		val jobs = makeStore()
 		jobs.admit(job(title = "Title from the share sheet"))
 		serveReadlist()
-		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>rendered in the app</html>", title = "Rendered"))
+		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>rendered in the app</html>", title = "Rendered", mainFrameHttpError = null))
 
 		makeDrain(jobs, captor).run()
 
@@ -214,6 +214,7 @@ class DrainUploadJobsTest {
 			"Rendered",
 			part(upload, "title")?.text,
 		)
+		assertEquals("manual", part(upload, "captureTrigger")?.text)
 		assertEquals("<html>rendered in the app</html>", part(upload, "content")?.text)
 		assertEquals(emptyList<UploadJob>(), jobs.loadAll(now = epoch))
 	}
@@ -223,7 +224,7 @@ class DrainUploadJobsTest {
 		val jobs = makeStore()
 		jobs.admit(job(title = "Title from the share sheet"))
 		serveReadlist()
-		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>untitled</html>", title = ""))
+		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>untitled</html>", title = "", mainFrameHttpError = null))
 
 		makeDrain(jobs, captor).run()
 
@@ -241,7 +242,7 @@ class DrainUploadJobsTest {
 		val pdfBytes = "%PDF-1.7 the paper".toByteArray(Charsets.UTF_8)
 		jobs.admit(pdfHinted(url = "${server.baseUrl}/paper.pdf"))
 		servePdf(Stub(200, headers = mapOf("Content-Type" to "application/pdf"), body = pdfBytes))
-		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>never rendered</html>", title = null))
+		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>never rendered</html>", title = null, mainFrameHttpError = null))
 
 		makeDrain(jobs, captor).run()
 
@@ -316,9 +317,28 @@ class DrainUploadJobsTest {
 		jobs.admit(job())
 		serveReadlist()
 
-		makeDrain(jobs, RecordingHtmlCaptor(CapturedPage.Html(html = "", title = "Rendered"))).run()
+		makeDrain(jobs, RecordingHtmlCaptor(CapturedPage.Html(html = "", title = "Rendered", mainFrameHttpError = null))).run()
 
 		assertTrue("an empty document is nothing to save", server.records("/queue/save-content").isEmpty())
+		assertEquals(emptyList<UploadJob>(), jobs.loadAll(now = epoch))
+	}
+
+	@Test
+	fun `drops a pending job whose page the origin did not serve`() = runTest {
+		val jobs = makeStore()
+		jobs.admit(job())
+		serveReadlist()
+		val captor = RecordingHtmlCaptor(
+			CapturedPage.Html(html = "<html>Just a moment</html>", title = "Just a moment", mainFrameHttpError = 403),
+		)
+
+		makeDrain(jobs, captor).run()
+
+		assertEquals(listOf("https://example.com/post"), captor.capturedUrls)
+		assertTrue(
+			"an error page the origin answered with is never uploaded as the article",
+			server.records("/queue/save-content").isEmpty(),
+		)
 		assertEquals(emptyList<UploadJob>(), jobs.loadAll(now = epoch))
 	}
 
@@ -428,7 +448,7 @@ class DrainUploadJobsTest {
 		val jobs = makeStore()
 		jobs.admit(job())
 		serveReadlist(saveContent = { Stub.json(503, Fixtures.sirenError(code = "unavailable", message = "Try again later.")) })
-		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>rendered once</html>", title = "Rendered"))
+		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>rendered once</html>", title = "Rendered", mainFrameHttpError = null))
 
 		makeDrain(jobs, captor).run()
 
@@ -646,7 +666,7 @@ class DrainUploadJobsTest {
 		val ready = jobs.stageReady(staged, multipartForm(url = "https://example.com/one"))
 		jobs.admit(job(id = "j2", url = "https://example.com/two", createdAt = epoch.plusSeconds(1)))
 		serveReadlist(actionsJson = Fixtures.SAVE_ARTICLE_ONLY)
-		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>hi</html>", title = null))
+		val captor = RecordingHtmlCaptor(CapturedPage.Html(html = "<html>hi</html>", title = null, mainFrameHttpError = null))
 
 		makeDrain(jobs, captor).run()
 
