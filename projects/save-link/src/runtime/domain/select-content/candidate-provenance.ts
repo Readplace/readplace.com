@@ -1,8 +1,15 @@
 import { createHash } from "node:crypto";
 import assert from "node:assert";
-import { CandidateIdSchema, type CaptureTrigger, type SaveAttemptId, isWrapperUrl, wrapperFamilyOf } from "@packages/domain/article";
+import { CandidateIdSchema, type CaptureTrigger, type SaveAttemptId, type WrapperFamily, isWrapperUrl, unwrapWrapperUrl, wrapperFamilyOf } from "@packages/domain/article";
 import type { FindIdentityRow } from "@packages/provider-contracts/article-store";
 import type { CandidateProvenance, TierSourceMetadata } from "./tier-source.types";
+
+const OWN_ORIGINAL_IDENTITY_FAMILIES: ReadonlySet<WrapperFamily> = new Set(["apple-news", "archive-snapshot"]);
+
+function standsAsItsOwnOriginal(url: string): boolean {
+	const family = wrapperFamilyOf(url);
+	return family !== undefined && OWN_ORIGINAL_IDENTITY_FAMILIES.has(family) && unwrapWrapperUrl(url).url === url;
+}
 
 export function candidateProvenance(params: {
 	metadata: TierSourceMetadata;
@@ -39,7 +46,7 @@ export function initResolveCandidateOriginal(deps: { findIdentityRow: FindIdenti
 		const row = await deps.findIdentityRow(url);
 		assert(row.kind === "article", "candidate must belong to an existing article");
 		const originalUrl = row.originalUrl ?? url;
-		assert(!isWrapperUrl(originalUrl) || wrapperFamilyOf(originalUrl) === "apple-news", "a wrapper cannot be the article identity");
+		assert(!isWrapperUrl(originalUrl) || standsAsItsOwnOriginal(originalUrl), "a wrapper cannot be the article identity");
 		return originalUrl;
 	};
 }

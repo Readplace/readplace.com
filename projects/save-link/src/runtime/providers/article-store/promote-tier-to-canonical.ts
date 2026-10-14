@@ -4,7 +4,7 @@ import type { CanonicalCommit } from "@packages/domain/article-aggregate";
 import type { CandidateProvenance, VerifiedTierSource } from "../../domain/select-content/tier-source.types";
 import { initPersistCandidateArtifact } from "./persist-candidate-artifact";
 
-export type WriteCanonicalContent = (params: { url: string; source: VerifiedTierSource }) => Promise<Omit<CanonicalCommit, "expected">>;
+export type WriteCanonicalContent = (params: { url: string; source: VerifiedTierSource }) => Promise<Omit<CanonicalCommit, "expected" | "originalUrl">>;
 
 export function initWriteCanonicalContent(deps: { s3Client: Pick<S3Client, "send">; bucketName: string }): { writeCanonicalContent: WriteCanonicalContent } {
 	const persistCandidateArtifact = initPersistCandidateArtifact({ client: deps.s3Client, bucketName: deps.bucketName });
@@ -14,7 +14,7 @@ export function initWriteCanonicalContent(deps: { s3Client: Pick<S3Client, "send
 			assert(metadata.attemptId === "legacy-direct-canonical", "selected candidate must already be persisted");
 			metadata = await persistCandidateArtifact({ url: params.url, tier: params.source.tier, html: params.source.html, evaluationHtml: params.source.evaluationHtml, metadata });
 		}
-		return { contentLocation: `s3://${deps.bucketName}/${metadata.htmlLocation}`, candidateId: metadata.id, originalUrl: metadata.originalUrl, tier: params.source.tier };
+		return { contentLocation: `s3://${deps.bucketName}/${metadata.htmlLocation}`, candidateId: metadata.id, tier: params.source.tier };
 	};
 	return { writeCanonicalContent };
 }

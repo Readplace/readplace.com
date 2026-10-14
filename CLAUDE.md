@@ -40,7 +40,7 @@ Content selection enforces this with two rules (grep the save-link select-conten
 
 | Rule | When it applies | What happens |
 |---|---|---|
-| `first-capture` | A lone tapped capture is the article's first content | It is served without asking the judge |
+| `first-capture` | A lone tapped capture of a non-wrapper host is the article's first content | It is served without asking the judge |
 | `own-capture-over-verdict` | The judge answers `none`, there is no committed content and no earlier canonical, and this save's attempt holds a readable tapped capture that is not of a wrapper host | The capture is selected anyway |
 
 **Tapped, not automatic:** both rules trust a capture because the reader chose it. A capture a client took without the reader's tap carries `captureTrigger: automatic` on its tier-0 manifest. Nobody chose it, so it competes like a crawl copy: neither rule applies, a `none` verdict fails it, and it never raises `ownCaptureFailed`. A manifest whose `captureTrigger` is `manual` or absent holds a tapped capture.

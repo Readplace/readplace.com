@@ -54,6 +54,19 @@ function wrapperHostCapture(): VerifiedTierSource {
 	return capture;
 }
 
+function automaticCapture(): VerifiedTierSource {
+	const capture = source("tier-0", "automatic-capture");
+	capture.metadata.captureTrigger = "automatic";
+	return capture;
+}
+
+function archiveLinkCapture(): VerifiedTierSource {
+	const capture = source("tier-0", "archive-link-capture");
+	capture.metadata.originalUrl = ARCHIVE;
+	capture.metadata.sourceUrl = ARCHIVE;
+	return capture;
+}
+
 function article(overrides: Partial<Article> = {}): Article {
 	return {
 		url: URL, metadata: baseMetadata, freshness: { contentFetchedAt: NOW }, estimatedReadTime: 1,
@@ -177,6 +190,22 @@ describe("initPrepareContentSelection", () => {
 
 		expect(select).not.toHaveBeenCalled();
 		expect(result).toMatchObject({ outcome: "selected", selectionRule: "first-capture" });
+	});
+
+	it.each([
+		{ capture: "tap capture taken on a wrapper host", build: wrapperHostCapture },
+		{ capture: "automatic capture of the article's own host", build: automaticCapture },
+	])("judges a lone $capture instead of serving it as first content", async ({ build }) => {
+		const capture = build();
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+			.mockResolvedValue({ kind: "winner", candidateId: capture.metadata.id, reason: "The capture is the article" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [capture], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: capture.metadata.id }] });
+
+		expect(select).toHaveBeenCalledTimes(1);
+		expect(result.selected?.metadata.id).toBe(capture.metadata.id);
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge" });
 	});
 
 	it("does not serve a blank first capture", async () => {
@@ -525,6 +554,74 @@ describe("initPrepareContentSelection", () => {
 		expect(result.outcome).toBe("no-readable");
 		expect(result.sources).toEqual([]);
 		expect(readCanonicalContent).not.toHaveBeenCalled();
+	});
+
+	describe("an article keyed on an archive.today short link", () => {
+		const unverifiable: Dependencies["verifyWrapperSource"] = async () => {
+			throw new Error("a capture of the article's own archive link was sent to wrapper verification");
+		};
+
+		it("judges a tap capture of an archive short link kept as its own original instead of serving it unseen", async () => {
+			const capture = archiveLinkCapture();
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+				.mockResolvedValue({ kind: "winner", candidateId: capture.metadata.id, reason: "The capture is the snapshot" });
+			const { prepare } = setup({
+				loadArticle: async () => article({ url: ARCHIVE }),
+				resolveOriginalUrl: async () => ARCHIVE,
+				listAvailableTierSources: async () => [capture],
+				selectMostCompleteContent: select,
+				verifyWrapperSource: unverifiable,
+			});
+
+			const result = await prepare({ url: ARCHIVE, candidates: [{ tier: "tier-0", id: capture.metadata.id }] });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selected?.metadata.id).toBe(capture.metadata.id);
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge", ownCaptureFailed: false });
+		});
+
+		it("keeps the committed capture admissible after the row's identity is repaired", async () => {
+			const capture = archiveLinkCapture();
+			capture.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+			const blankLive = source("tier-1", "blank-live", { html: "<div></div>" });
+			blankLive.metadata.wordCount = 0;
+			const { prepare } = setup({
+				loadArticle: async () => article({
+					url: ARCHIVE,
+					contentSelection: { revision: 3, tier: "tier-0", candidateId: capture.metadata.id },
+					freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(capture.html) },
+				}),
+				resolveOriginalUrl: async () => URL,
+				listAvailableTierSources: async () => [capture, blankLive],
+				selectMostCompleteContent: async () => ({ kind: "none", reason: "The live page is blank" }),
+				verifyWrapperSource: unverifiable,
+			});
+
+			const result = await prepare({ url: ARCHIVE, candidates: [{ tier: "tier-1", id: cid("blank-live") }] });
+
+			expect(result.selected?.metadata.id).toBe(capture.metadata.id);
+			expect(result.outcome).toBe("retained");
+		});
+
+		it("drops a co-saver's capture recorded under the archive link once the row's identity is repaired", async () => {
+			const coSaverCapture = archiveLinkCapture();
+			const committed = source("tier-1", "committed");
+			committed.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+			const { prepare } = setup({
+				loadArticle: async () => article({
+					url: ARCHIVE,
+					contentSelection: { revision: 3, tier: "tier-1", candidateId: committed.metadata.id },
+					freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(committed.html) },
+				}),
+				resolveOriginalUrl: async () => URL,
+				listAvailableTierSources: async () => [committed, coSaverCapture],
+				verifyWrapperSource: unverifiable,
+			});
+
+			const result = await prepare({ url: ARCHIVE, candidates: [{ tier: "tier-0", id: coSaverCapture.metadata.id }] });
+
+			expect(result.sources.map((source) => source.metadata.id)).toEqual([committed.metadata.id]);
+		});
 	});
 
 	it("retains legacy direct canonical bytes only when their hash matches the stored canonical", async () => {

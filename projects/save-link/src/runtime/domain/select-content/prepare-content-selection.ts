@@ -48,7 +48,7 @@ function isTapCapture(metadata: CandidateProvenance): boolean {
 
 function firstCaptureOf(params: { isFirstContent: boolean; sources: readonly VerifiedTierSource[] }): VerifiedTierSource | undefined {
 	const [only] = params.sources;
-	return only !== undefined && params.sources.length === 1 && params.isFirstContent && isTapCapture(only.metadata) ? only : undefined;
+	return only !== undefined && params.sources.length === 1 && params.isFirstContent && isTapCapture(only.metadata) && !isWrapperUrl(only.metadata.sourceUrl) ? only : undefined;
 }
 
 function isOwnFreshCapture(params: { source: VerifiedTierSource; saveAttemptId: SaveAttemptId }): boolean {
@@ -97,7 +97,8 @@ export function initPrepareContentSelection(deps: {
 			const parsed = CandidateProvenanceSchema.safeParse(sourceMetadata);
 			if (!parsed.success) continue;
 			const metadata = parsed.data;
-			if (canonicalIdentityOf(metadata.originalUrl) !== canonicalIdentityOf(originalUrl)) continue;
+			const committedUnderOwnLink = metadata.id === canonical?.id && isWrapperUrl(metadata.sourceUrl) && canonicalIdentityOf(metadata.originalUrl) === canonicalIdentityOf(metadata.sourceUrl);
+			if (!committedUnderOwnLink && canonicalIdentityOf(metadata.originalUrl) !== canonicalIdentityOf(originalUrl)) continue;
 			if (createHash("sha256").update(source.evaluationHtml ?? source.html).digest("hex") !== metadata.contentHash) continue;
 			if (metadata.kind !== KIND_BY_TIER[source.tier]) continue;
 			if (metadata.id !== canonical?.id && (metadata.kind === "wrapper" || (isWrapperUrl(metadata.sourceUrl) && canonicalIdentityOf(metadata.sourceUrl) !== canonicalIdentityOf(originalUrl)))) {

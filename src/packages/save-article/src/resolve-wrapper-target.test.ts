@@ -272,7 +272,7 @@ describe("initResolveWrapperTarget", () => {
 		});
 
 		it.each([
-			{ label: "a 429 without a Link header", link: undefined, outcome: "no-memento-original" },
+			{ label: "a 200 without a Link header", link: undefined, outcome: "no-memento-original" },
 			{
 				label: "a Link header without an original relation",
 				link: '<https://archive.ph/timemap/x>; rel="timemap"',
@@ -281,11 +281,44 @@ describe("initResolveWrapperTarget", () => {
 			{ label: "a non-HTTP original", link: '<ftp://files.example/a>; rel="original"', outcome: "non-http-location" },
 		])("gives up on $label", async ({ link, outcome }) => {
 			const headers: Record<string, string> = link === undefined ? {} : { link };
-			const { fetchRedirectHop } = scriptedHops({ [ARCHIVE]: () => new Response(null, { status: 429, headers }) });
+			const { fetchRedirectHop } = scriptedHops({ [ARCHIVE]: () => new Response(null, { status: 200, headers }) });
 			const { resolve, lines } = createResolver({ fetchRedirectHop });
 
 			expect(await resolve(ARCHIVE)).toBeUndefined();
 			expect(parsedLine(lines)).toMatchObject({ outcome });
+		});
+
+		it("keys an archive.today short link on itself when the archive answers 429", async () => {
+			const { fetchRedirectHop } = scriptedHops({ [ARCHIVE]: () => new Response(null, { status: 429 }) });
+			const { resolve, lines } = createResolver({ fetchRedirectHop });
+
+			expect(await resolve(ARCHIVE)).toEqual({ ownOriginal: true });
+			expect(parsedLine(lines)).toEqual({ stream: "wrapper-resolve", family: "archive-snapshot", wrapperHost: "archive.ph", hops: 1, outcome: "archive-unreachable", status: 429 });
+		});
+
+		it("keys it on itself when the hop throws", async () => {
+			const { fetchRedirectHop } = scriptedHops({
+				[ARCHIVE]: () => {
+					throw new Error("socket hang up");
+				},
+			});
+			const { resolve, lines } = createResolver({ fetchRedirectHop });
+
+			expect(await resolve(ARCHIVE)).toEqual({ ownOriginal: true });
+			expect(parsedLine(lines)).toEqual({ stream: "wrapper-resolve", family: "archive-snapshot", wrapperHost: "archive.ph", hops: 1, outcome: "archive-unreachable", error: "socket hang up" });
+		});
+
+		it("keys it on itself when the total budget aborts the hop", async () => {
+			const { resolve, lines } = createResolver({
+				totalBudgetMs: 1,
+				fetchRedirectHop: (_url, init) =>
+					new Promise((_resolve, reject) => {
+						init.signal.addEventListener("abort", () => reject(init.signal.reason));
+					}),
+			});
+
+			expect(await resolve(ARCHIVE)).toEqual({ ownOriginal: true });
+			expect(parsedLine(lines)).toMatchObject({ outcome: "archive-unreachable", hops: 1 });
 		});
 
 		it("follows a redirect to an archive.today mirror before reading the Link header", async () => {

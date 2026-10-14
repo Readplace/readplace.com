@@ -20,4 +20,12 @@ describe("captured source identity", () => {
 		await expect(create(false)({ url, sourceUrl, sourceOriginalUrl: url })).rejects.toThrow("wrapper source");
 		await expect(create()({ url, sourceUrl, sourceOriginalUrl: url })).resolves.toBe(url);
 	});
+	it("accepts a capture of the article's own archive link without wrapper verification", async () => {
+		const archive = "https://archive.ph/Ab1cD";
+		const resolveSubmittedSource = initResolveSubmittedSource({
+			resolveOriginalUrl: async () => archive,
+			verifyWrapperSource: async () => { throw new Error("the article's own link was sent to wrapper verification"); },
+		});
+		expect(await resolveSubmittedSource({ url: archive, sourceUrl: archive, sourceOriginalUrl: archive })).toBe(archive);
+	});
 });

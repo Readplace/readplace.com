@@ -34,6 +34,7 @@ describe("isUnverifiedWrapperContent", () => {
 		{ originalUrl: "https://archive.ph/abc12", displayUrl: "https://example.com/post", contentSourceTier: "tier-2", canonicalCandidateId: candidateId, canonicalOriginalUrl: "https://example.com/post" },
 		{ contentSourceTier: "tier-2", canonicalCandidateId: candidateId, canonicalOriginalUrl: "https://example.com/post" },
 		{ originalUrl: "https://twitter.com/a/status/1", canonicalCandidateId: candidateId, canonicalOriginalUrl: "https://x.com/a/status/1" },
+		{ originalUrl: "https://archive.ph/abc12", canonicalCandidateId: candidateId, canonicalOriginalUrl: "https://archive.ph/abc12" },
 	])("allows %j", (row) => {
 		expect(isUnverifiedWrapperContent(VerificationRow.parse(row))).toBe(false);
 	});

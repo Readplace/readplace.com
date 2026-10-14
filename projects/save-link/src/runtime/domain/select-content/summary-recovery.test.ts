@@ -134,7 +134,7 @@ describe("summary recovery on canonical content change", () => {
 			readCanonicalContent: async () => undefined,
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
 			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "readable article", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
-			writeCanonicalContent: async () => ({ contentLocation: "s3://content/current.html", candidateId: tier1.metadata.id, originalUrl: URL, tier: "tier-1" }),
+			writeCanonicalContent: async () => ({ contentLocation: "s3://content/current.html", candidateId: tier1.metadata.id, tier: "tier-1" }),
 			resolveOriginalUrl: async () => URL,
 			verifyWrapperSource: async () => undefined,
 			recordCrawlVersion: jest.fn().mockResolvedValue(undefined),

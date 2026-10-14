@@ -30,4 +30,8 @@ describe("candidate provenance", () => {
 		const apple = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA";
 		expect(await initResolveCandidateOriginal({ findIdentityRow: async () => ({ kind: "article" }) })(apple)).toBe(apple);
 	});
+	it("accepts an archive.today short link kept as its own original", async () => {
+		const archive = "https://archive.ph/Ab1cD";
+		expect(await initResolveCandidateOriginal({ findIdentityRow: async () => ({ kind: "article", originalUrl: archive }) })(archive)).toBe(archive);
+	});
 });

@@ -74,7 +74,7 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 		const canonicalContentHash = computeCanonicalContentHash(source.html);
 		const crawledAt = deps.now().toISOString();
 		const metadata = { ...source.metadata, imageUrl: resolveCanonicalImageUrl({ winner: source, candidates: selection.sources }) };
-		const canonicalCommit = { ...(await deps.writeCanonicalContent({ url: params.url, source })), expected };
+		const canonicalCommit = { ...(await deps.writeCanonicalContent({ url: params.url, source })), originalUrl: selection.originalUrl, expected };
 		if (params.mode === "recrawl" && selection.outcome === "retained") {
 			await deps.transitionAndPersist(recrawlTieKeptCanonical, { url: params.url, input: { now: crawledAt }, canonicalCommit });
 		} else if (params.mode === "recrawl") {

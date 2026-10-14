@@ -4,6 +4,7 @@ import {
 	unwrapWrapperUrl,
 	type ValidateSaveableUrl,
 	withNewSavePreparation,
+	type WrapperFamily,
 	wrapperFamilyOf,
 } from "@packages/domain/article";
 import type { FindIdentityRow } from "@packages/provider-contracts/article-store";
@@ -12,7 +13,7 @@ import type { ResolveWrapperTarget } from "./resolve-wrapper-target";
 
 type OriginalResult =
 	| { status: "resolved"; originalUrl: string; contentSourceUrl?: string }
-	| { status: "own-original"; originalUrl: string }
+	| { status: "own-original"; originalUrl: string; family: WrapperFamily }
 	| UnresolvedSaveIdentity;
 
 export function initResolveWrapperOriginal(deps: {
@@ -58,7 +59,7 @@ export function initResolveWrapperOriginal(deps: {
 			if (target === undefined) {
 				return { status: "unresolved" };
 			}
-			if ("ownOriginal" in target) return { status: "own-original", originalUrl: current };
+			if ("ownOriginal" in target) return { status: "own-original", originalUrl: current, family };
 			contentSourceUrl ??= target.contentSourceUrl ?? current;
 			current = stripRedirectAddedParams({ wrapperUrl: current, targetUrl: target.url });
 		}

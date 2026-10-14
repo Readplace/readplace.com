@@ -95,7 +95,7 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 	const handler = initSelectMostCompleteContentHandler({
 		listAvailableTierSources: async () => sources,
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + fresh.length }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
-		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, originalUrl: URL, tier: source.tier }),
+		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, tier: source.tier }),
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => canonicalContent, loadArticle: async () => article, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,

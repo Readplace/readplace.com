@@ -37,11 +37,11 @@ type TestDependencies = Omit<SelectContentDependencies, "selectMostCompleteConte
 	selectMostCompleteContent: (params: Parameters<SelectMostCompleteContent>[0]) => Promise<ContentDecision>;
 };
 function setup(overrides: Partial<TestDependencies> = {}) {
-	const stored: Omit<CanonicalCommit, "expected"> = {
+	const stored: Omit<CanonicalCommit, "expected" | "originalUrl"> = {
 		contentLocation: "s3://bucket/immutable/content.html", candidateId: cid("tier-1"),
-		originalUrl: URL, tier: "tier-1",
+		tier: "tier-1",
 	};
-	const commit: CanonicalCommit = { ...stored, expected: undefined };
+	const commit: CanonicalCommit = { ...stored, originalUrl: URL, expected: undefined };
 	const events: string[] = [];
 	const transitionAndPersist: TransitionAndPersist = jest.fn(async () => { events.push("commit"); });
 	const deps: TestDependencies = {
@@ -172,6 +172,24 @@ describe("initSelectContentWork", () => {
 		await work({ ...laterRequest, mode: "recrawl", candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, { url: URL, input: { now: NOW }, canonicalCommit: { ...commit, expected: existing.contentSelection } });
 		expect(deps.recordCrawlVersion).not.toHaveBeenCalled();
+	});
+
+	it("commits the identity selection resolved for the row, not the winner's recorded one", async () => {
+		const archive = "https://archive.ph/abc12";
+		const capture = source("tier-0");
+		capture.metadata.originalUrl = archive;
+		capture.metadata.sourceUrl = archive;
+		const { work, deps } = setup({
+			loadArticle: async () => article({
+				url: archive,
+				contentSelection: { candidateId: cid("tier-0"), tier: "tier-0", revision: 4 },
+				freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(capture.html) },
+			}),
+			listAvailableTierSources: async () => [capture],
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("tier-0"), reason: "The snapshot" }),
+		});
+		await work({ ...laterRequest, url: archive, mode: "recrawl" });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, expect.objectContaining({ canonicalCommit: expect.objectContaining({ originalUrl: URL }) }));
 	});
 
 	it.each(["save", "recrawl"] as const)("retains the verified canonical and its existing version when the %s comparison returns none", async (mode) => {

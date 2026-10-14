@@ -36,7 +36,7 @@ function setupHandler(init: typeof initSelectMostCompleteContentHandler, overrid
 	const handler = init({
 		listAvailableTierSources: async () => [source],
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "readable article", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
-		writeCanonicalContent: async () => { order.push("upload"); return { contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, originalUrl: URL, tier: source.tier }; },
+		writeCanonicalContent: async () => { order.push("upload"); return { contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, tier: source.tier }; },
 		recordCrawlVersion: async () => { order.push("version"); },
 		readCanonicalContent: async () => undefined, loadArticle: async () => article,
 		transitionAndPersist,

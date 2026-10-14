@@ -9,12 +9,12 @@ export function initResolveSubmittedSource(deps: {
 }) {
 	return async (params: { url: string; sourceUrl: string; sourceOriginalUrl: string }) => {
 		const originalUrl = await deps.resolveOriginalUrl(params.url);
-		if (isWrapperUrl(params.sourceUrl)) {
+		const captured = canonicalIdentityOf(params.sourceUrl);
+		const ownLink = captured === canonicalIdentityOf(originalUrl) || captured === canonicalIdentityOf(params.url);
+		if (!ownLink) {
+			assert(isWrapperUrl(params.sourceUrl), "Captured source does not match article identity");
 			const verified = await deps.verifyWrapperSource({ articleUrl: params.url, sourceUrl: params.sourceUrl, claimedOriginalUrl: params.sourceOriginalUrl });
 			assert(verified, "Captured wrapper source does not match article identity");
-		} else {
-			const captured = canonicalIdentityOf(params.sourceUrl);
-			assert(captured === canonicalIdentityOf(originalUrl) || captured === canonicalIdentityOf(params.url), "Captured source does not match article identity");
 		}
 		return originalUrl;
 	};

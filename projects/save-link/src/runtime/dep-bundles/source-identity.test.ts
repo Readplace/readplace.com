@@ -50,4 +50,12 @@ describe("selection source identity", () => {
 	it("re-derives an embedded original instead of trusting a recorded claim", async () => {
 		expect(await verifyWrapperSource({ articleUrl: article, sourceUrl: "https://web.archive.org/web/20081203/https://attacker.example/post", claimedOriginalUrl: article })).toBeUndefined();
 	});
+
+	it("resolves an archive-keyed row's own link for selection", async () => {
+		const archive = "https://archive.ph/Ab1cD";
+		const { resolveOriginalUrl } = initSelectionSourceIdentity({
+			findIdentityRow: async (url) => url === archive ? { kind: "article", url, originalUrl: url } : { kind: "absent" },
+		});
+		expect(await resolveOriginalUrl(archive)).toBe(archive);
+	});
 });

@@ -30,9 +30,10 @@ type Outcome =
 	| "hop-budget-exhausted"
 	| "no-story-url"
 	| "shell-unavailable"
-	| "no-memento-original";
+	| "no-memento-original"
+	| "archive-unreachable";
 
-type Resolution = { target?: string; contentSourceUrl?: string; ownOriginal?: true; outcome: Outcome; hops: number };
+type Resolution = { target?: string; contentSourceUrl?: string; ownOriginal?: true; outcome: Outcome; hops: number; status?: number; error?: string };
 
 function parseHttpLocation(location: string, base: string): string | undefined {
 	let parsed: URL;
@@ -54,6 +55,10 @@ function archiveRedirectOf(response: Response, current: string): string | undefi
 
 function hostOf(url: string | undefined): string | undefined {
 	return url === undefined ? undefined : new URL(url).hostname;
+}
+
+function errorMessageOf(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
 export function initResolveWrapperTarget(deps: {
@@ -95,12 +100,18 @@ export function initResolveWrapperTarget(deps: {
 	const readMementoOriginal = async (url: string, deadline: AbortSignal): Promise<Resolution> => {
 		let current = url;
 		for (let hops = 1; hops <= MAX_HOPS; hops += 1) {
-			const response = await hop(current, deadline);
+			let response: Response;
+			try {
+				response = await hop(current, deadline);
+			} catch (error) {
+				return { ownOriginal: true, outcome: "archive-unreachable", hops, error: errorMessageOf(error) };
+			}
 			const next = archiveRedirectOf(response, current);
 			if (next !== undefined) {
 				current = next;
 				continue;
 			}
+			if (response.status >= 400) return { ownOriginal: true, outcome: "archive-unreachable", hops, status: response.status };
 			const link = response.headers.get("link");
 			const original = link === null ? null : MEMENTO_ORIGINAL.exec(link);
 			if (original !== null) {
@@ -133,6 +144,8 @@ export function initResolveWrapperTarget(deps: {
 					targetHost: hostOf(resolution.target),
 					hops: resolution.hops,
 					outcome: resolution.outcome,
+					status: resolution.status,
+					error: resolution.error,
 				}),
 			);
 			if (resolution.ownOriginal === true) return { ownOriginal: true };
@@ -144,7 +157,7 @@ export function initResolveWrapperTarget(deps: {
 					family,
 					wrapperHost,
 					outcome: "failed",
-					error: error instanceof Error ? error.message : String(error),
+					error: errorMessageOf(error),
 				}),
 			);
 			return undefined;
