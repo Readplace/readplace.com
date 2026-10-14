@@ -1,19 +1,9 @@
-import type {
-	Handler,
-	SQSBatchResponse,
-	SQSEvent,
-	SQSRecord,
-} from "aws-lambda";
 import { initCreateDeepseekMessage } from "@packages/ai-message";
 import { isSameArticle } from "@packages/domain/article";
 import {
 	initDynamoDbPastReads,
 	initDynamoDbRelatedArticles,
 } from "@packages/article-store";
-import {
-	ComputeRelatedPastReadsCommand,
-	QueueEntryCreatedEvent,
-} from "@packages/hutch-infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
@@ -22,6 +12,8 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import OpenAI from "openai";
+import { initSelectAgreedPicks } from "./domain/related-articles/agreed-picks";
+import { initComputeRelatedPasses } from "./domain/related-articles/compute-related-passes";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
 import { initComputeRelatedPastReadsHandler } from "./domain/related-articles/compute-related-past-reads-handler";
 import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
@@ -46,15 +38,18 @@ const deepseekClient = new OpenAI({
 });
 
 const createMessage = initCreateDeepseekMessage({
-	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
+	createChatCompletion: (params) => deepseekClient.chat.completions.create(params, {
+		signal: AbortSignal.timeout(RELATED_ARTICLES_TIMEOUTS.deepseekMs),
+	}),
 });
 
 const { selectRelatedArticles } = initSelectRelatedArticlesWithoutSharedBoilerplate(
 	initSelectRelatedArticlesAboveSharedWordsFloor({
-		...initSelectRelatedArticles({
+		...initSelectAgreedPicks(initSelectRelatedArticles({
 			createMessage,
+			nowMs: () => performance.now(),
 			logger: consoleLogger,
-		}),
+		})),
 		floor: NEXT_READ_SHARED_WORDS_FLOOR,
 		countsTowardFloor: ({ target, candidate }) => !isSameArticle({
 			article: { url: target.destinationUrl, title: target.title },
@@ -70,6 +65,7 @@ const { selectRelatedArticles: selectPastReads } =
 				createMessage,
 				logger: consoleLogger,
 				system: PAST_READS_PROMPT,
+				nowMs: () => performance.now(),
 			}),
 			floor: PAST_READS_SHARED_WORDS_FLOOR,
 			countsTowardFloor: () => true,
@@ -129,46 +125,4 @@ const pastReadsHandler = initComputeRelatedPastReadsHandler({
 	logger: consoleLogger,
 });
 
-const detailTypeOf = (record: SQSRecord): unknown =>
-	JSON.parse(record.body)["detail-type"];
-
-// One queue feeds both computations. A new save (QueueEntryCreated) precomputes
-// Next read AND, independently, the past-reads topic section; the explicit
-// ComputeRelatedPastReads command re-runs only the past-reads section for an
-// existing or stale save. A record that fails either pass is retried whole; both
-// passes are idempotent (Next read is terminal-once, past reads is
-// fingerprint-guarded), so re-running the succeeded pass is a no-op.
-export const handler: Handler<SQSEvent, SQSBatchResponse> = async (
-	event,
-	context,
-	callback,
-) => {
-	const nextReadRecords = event.Records.filter(
-		(record) => detailTypeOf(record) === QueueEntryCreatedEvent.detailType,
-	);
-	const pastReadsRecords = event.Records.filter((record) => {
-		const detailType = detailTypeOf(record);
-		return (
-			detailType === QueueEntryCreatedEvent.detailType ||
-			detailType === ComputeRelatedPastReadsCommand.detailType
-		);
-	});
-
-	const failed = new Set<string>();
-	const nextRead = await nextReadHandler(
-		{ ...event, Records: nextReadRecords },
-		context,
-		callback,
-	);
-	for (const failure of nextRead?.batchItemFailures ?? [])
-		failed.add(failure.itemIdentifier);
-	const pastReads = await pastReadsHandler(
-		{ ...event, Records: pastReadsRecords },
-		context,
-		callback,
-	);
-	for (const failure of pastReads?.batchItemFailures ?? [])
-		failed.add(failure.itemIdentifier);
-
-	return { batchItemFailures: [...failed].map((itemIdentifier) => ({ itemIdentifier })) };
-};
+export const handler = initComputeRelatedPasses({ nextReadHandler, pastReadsHandler });

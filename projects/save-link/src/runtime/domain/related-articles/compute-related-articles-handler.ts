@@ -171,6 +171,9 @@ export function initComputeRelatedArticlesHandler(
 					outputTokens: result.outputTokens,
 				});
 				logger.info("[ComputeRelatedArticles] completed", {
+					sampleCount: result.samples.length,
+					samples: result.samples,
+					agreement: result.agreement,
 					url: entry.url,
 					relatedCount: result.related.length,
 					droppedNoSharedWord: result.droppedNoSharedWord,

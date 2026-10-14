@@ -4,5 +4,5 @@
 export const RELATED_ARTICLES_TIMEOUTS = {
 	lambdaSeconds: 300,
 	sqsVisibilitySeconds: 300,
-	deepseekMs: 240_000,
+	deepseekMs: 90_000,
 } as const;

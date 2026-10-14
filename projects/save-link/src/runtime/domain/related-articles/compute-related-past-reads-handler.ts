@@ -1,3 +1,4 @@
+import type { SelectionSample } from "./related-articles-selector";
 import type {
 	Handler,
 	SQSBatchItemFailure,
@@ -71,6 +72,7 @@ export function initComputeRelatedPastReadsHandler(
 					pastReads: readonly PastReadLink[],
 					fingerprint: string,
 					tokens: {
+						samples: SelectionSample[];
 						inputTokens: number;
 						outputTokens: number;
 						droppedNoSharedWord: number;
@@ -99,6 +101,8 @@ export function initComputeRelatedPastReadsHandler(
 						outputTokens: tokens.outputTokens,
 					});
 					logger.info("[ComputeRelatedPastReads] completed", {
+						sampleCount: tokens.samples.length,
+						samples: tokens.samples,
 						url: entry.url,
 						relatedCount: pastReads.length,
 						droppedNoSharedWord: tokens.droppedNoSharedWord,
@@ -145,7 +149,7 @@ export function initComputeRelatedPastReadsHandler(
 				}
 
 				if (target.hasStubMetadata) {
-					await store([], fingerprint, { inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+					await store([], fingerprint, { samples: [], inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
 					continue;
 				}
 
@@ -155,7 +159,7 @@ export function initComputeRelatedPastReadsHandler(
 					readCandidates: candidates,
 				});
 				if (result.kind === "shared-boilerplate") {
-					await store([], fingerprint, { inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+					await store([], fingerprint, { samples: [], inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
 					continue;
 				}
 				if (result.kind === "no-shared-words") {
@@ -164,7 +168,7 @@ export function initComputeRelatedPastReadsHandler(
 						bestScore: result.bestScore,
 						candidateCount: result.candidateCount,
 					});
-					await store([], fingerprint, { inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+					await store([], fingerprint, { samples: [], inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
 					continue;
 				}
 				if (result.kind === "no-text-block") {
@@ -183,6 +187,7 @@ export function initComputeRelatedPastReadsHandler(
 						: { url: link.url, reason: link.reason, readlist };
 				});
 				await store(pastReads, fingerprint, {
+					samples: result.samples,
 					inputTokens: result.inputTokens,
 					outputTokens: result.outputTokens,
 					droppedNoSharedWord: result.droppedNoSharedWord,

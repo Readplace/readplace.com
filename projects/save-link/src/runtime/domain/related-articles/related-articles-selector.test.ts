@@ -53,6 +53,7 @@ function selectorReturning(text: string, captured: Captured = { prompts: [], sys
 		};
 	};
 	const { selectRelatedArticles } = initSelectRelatedArticles({
+		nowMs: () => 100,
 		createMessage,
 		logger: noopLogger,
 	});
@@ -79,6 +80,7 @@ describe("initSelectRelatedArticles", () => {
 		});
 		expect(result).toMatchObject({
 			kind: "ready",
+			samples: [expect.objectContaining({ durationMs: 0 })],
 			related: [{ url: "https://example.com/earlier-1", reason: "Queue maintenance" }],
 			droppedNoSharedWord: 1,
 			droppedReasonNotAboutPick: 1,
@@ -140,6 +142,7 @@ describe("initSelectRelatedArticles", () => {
 			};
 		};
 		const { selectRelatedArticles } = initSelectRelatedArticles({
+		nowMs: () => 100,
 			createMessage,
 			logger: noopLogger,
 			system: "STRICTER PAST-READS PROMPT",
@@ -252,6 +255,7 @@ describe("initSelectRelatedArticles", () => {
 
 		expect(result).toEqual({
 			kind: "ready",
+			samples: [expect.objectContaining({ durationMs: 0 })],
 			droppedNoSharedWord: 0,
 			droppedReasonNotAboutPick: 0,
 			related: [{ url: "https://example.com/finished-0", reason: "Queues craft" }],
@@ -311,6 +315,7 @@ describe("initSelectRelatedArticles", () => {
 
 		expect(result).toEqual({
 			kind: "ready",
+			samples: [expect.objectContaining({ durationMs: 0 })],
 			droppedNoSharedWord: 0,
 			droppedReasonNotAboutPick: 0,
 			related: [
@@ -343,6 +348,7 @@ describe("initSelectRelatedArticles", () => {
 
 		expect(result).toEqual({
 			kind: "ready",
+			samples: [expect.objectContaining({ durationMs: 0 })],
 			droppedNoSharedWord: 0,
 			droppedReasonNotAboutPick: 0,
 			related: [{ url: "https://example.com/earlier-1", reason: "Real queues" }],
@@ -371,6 +377,7 @@ describe("initSelectRelatedArticles", () => {
 
 		expect(result).toEqual({
 			kind: "ready",
+			samples: [expect.objectContaining({ durationMs: 0 })],
 			droppedNoSharedWord: 0,
 			droppedReasonNotAboutPick: 0,
 			related: [{ url: "https://example.com/earlier-1", reason: "First queues reason" }],
@@ -454,6 +461,7 @@ describe("initSelectRelatedArticles", () => {
 			usage: { input_tokens: 1, output_tokens: 0, cache_hit_input_tokens: 0, cache_miss_input_tokens: 1 },
 		});
 		const { selectRelatedArticles } = initSelectRelatedArticles({
+		nowMs: () => 100,
 			createMessage,
 			logger: noopLogger,
 		});

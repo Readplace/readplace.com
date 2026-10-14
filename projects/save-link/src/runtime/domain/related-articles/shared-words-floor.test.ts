@@ -15,7 +15,7 @@ const candidates: RelatedCandidate[] = Array.from({ length: 30 }, (_, index) => 
 	siteName: "Example",
 }));
 const ownCopy = { ...target, url: "https://mirror.example.com/operator", destinationUrl: articleDestinationUrl({ url: "https://mirror.example.com/operator", displayUrl: undefined }) };
-const ready: SelectRelatedResult = { kind: "ready", related: [], inputTokens: 10, outputTokens: 2, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 };
+const ready: SelectRelatedResult = { kind: "ready", samples: [], related: [], inputTokens: 10, outputTokens: 2, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 };
 
 describe("initSelectRelatedArticlesAboveSharedWordsFloor", () => {
 	it("skips below the floor without calling the selector", async () => {

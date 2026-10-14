@@ -39,9 +39,19 @@ export interface RelatedArticleTarget {
 	description: string;
 }
 
+export interface SelectionSample {
+	inputTokens: number;
+	outputTokens: number;
+	cacheHitInputTokens?: number;
+	cacheMissInputTokens?: number;
+	durationMs: number;
+}
+
 export type SelectRelatedResult =
 	| {
 			kind: "ready";
+			samples: SelectionSample[];
+			agreement?: { agreed: number; firstOnly: number; laterOnly: number };
 			related: RelatedArticleLink[];
 			inputTokens: number;
 			outputTokens: number;
@@ -154,6 +164,7 @@ function selectValidRelations(params: {
 
 export function initSelectRelatedArticles(deps: {
 	createMessage: CreateAiMessage;
+	nowMs: () => number;
 	logger: HutchLogger;
 	/** Overrides the Next-read prompt so an independent selection (e.g. the
 	 * stricter past-reads-on-this-topic pass) can reuse this exact message shape,
@@ -162,6 +173,7 @@ export function initSelectRelatedArticles(deps: {
 }): { selectRelatedArticles: SelectRelatedArticles } {
 	const system = deps.system ?? RELATED_ARTICLES_PROMPT;
 	const selectRelatedArticles: SelectRelatedArticles = async (params) => {
+		const startedAt = deps.nowMs();
 		const response = await deps.createMessage({
 			max_tokens: RELATED_MAX_OUTPUT_TOKENS,
 			system,
@@ -215,6 +227,7 @@ export function initSelectRelatedArticles(deps: {
 			},
 		});
 
+		const durationMs = deps.nowMs() - startedAt;
 		const textBlock = response.content.find((block) => block.type === "text");
 		if (textBlock?.type !== "text" || !textBlock.text) {
 			deps.logger.info("[related-articles] no text block in response");
@@ -224,6 +237,7 @@ export function initSelectRelatedArticles(deps: {
 		const parsed = RelatedPayload.parse(JSON.parse(textBlock.text));
 		return {
 			kind: "ready",
+			samples: [{ inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens, cacheHitInputTokens: response.usage.cache_hit_input_tokens, cacheMissInputTokens: response.usage.cache_miss_input_tokens, durationMs }],
 			...selectValidRelations({
 				entries: parsed.related,
 				candidates: orderedCandidates(params),

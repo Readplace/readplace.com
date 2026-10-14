@@ -107,7 +107,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 			return overrides.selectRelatedArticles
 				? overrides.selectRelatedArticles(params)
 				: {
-						kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
+						kind: "ready", samples: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 						related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
 						inputTokens: 120,
 						outputTokens: 30,
@@ -183,7 +183,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
-		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", {
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", { sampleCount: 0, samples: [], agreement: undefined,
 			droppedNoSharedWord: 0,
 			droppedReasonNotAboutPick: 0,
 			url: TARGET_URL,
@@ -200,7 +200,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		const { handler, published } = createHandler({
 			logger,
 			selectRelatedArticles: async () => ({
-				kind: "ready", droppedNoSharedWord: 1, droppedReasonNotAboutPick: 2,
+				kind: "ready", samples: [], droppedNoSharedWord: 1, droppedReasonNotAboutPick: 2,
 				related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
 				inputTokens: 120,
 				outputTokens: 30,
@@ -211,7 +211,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(published[0]?.relatedCount).toBe(1);
-		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", {
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", { sampleCount: 0, samples: [], agreement: undefined,
 			droppedNoSharedWord: 1,
 			droppedReasonNotAboutPick: 2,
 			url: TARGET_URL,
@@ -252,7 +252,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 	it("stores an empty result as a completed computation", async () => {
 		const { handler, ready, published } = createHandler({
 			selectRelatedArticles: async () => ({
-				kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
+				kind: "ready", samples: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 				related: [],
 				inputTokens: 90,
 				outputTokens: 5,
@@ -472,4 +472,15 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
+});
+
+
+it("logs both agreement samples while publishing only first-call tokens", async () => {
+	const logger = { ...noopLogger, info: jest.fn() };
+	const samples = [{ inputTokens: 120, outputTokens: 30, cacheHitInputTokens: 80, cacheMissInputTokens: 40, durationMs: 50 }, { inputTokens: 120, outputTokens: 10, cacheHitInputTokens: 120, cacheMissInputTokens: 0, durationMs: 20 }];
+	const agreement = { agreed: 1, firstOnly: 1, laterOnly: 0 };
+	const { handler, published } = createHandler({ logger, selectRelatedArticles: async () => ({ kind: "ready", related: [{ url: "https://example.com/earlier-0", reason: "Queues" }], inputTokens: 120, outputTokens: 30, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0, samples, agreement }) });
+	await handler(queueEntryEvent, buildLambdaContext(), () => {});
+	expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", expect.objectContaining({ sampleCount: 2, samples, agreement }));
+	expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "ready", relatedCount: 1, inputTokens: 120, outputTokens: 30 }]);
 });

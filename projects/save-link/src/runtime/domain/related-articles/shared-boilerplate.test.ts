@@ -37,7 +37,7 @@ function candidate(input: {
 function build() {
 	const calls: SelectRelatedArticlesParams[] = [];
 	const answer: SelectRelatedResult = {
-		kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
+		kind: "ready", samples: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 		related: [],
 		inputTokens: 7,
 		outputTokens: 3,

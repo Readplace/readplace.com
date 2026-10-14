@@ -106,7 +106,7 @@ function createHandler(overrides: Overrides = {}) {
 		selectPastReads:
 			overrides.selectPastReads ??
 			(async () => ({
-				kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
+				kind: "ready", samples: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 				related: [
 					{ url: "example.com/a", reason: "Same subject from work" },
 					{ url: "example.com/b", reason: "Same subject again" },
@@ -139,14 +139,14 @@ describe("initComputeRelatedPastReadsHandler", () => {
 		expect(storedTokens).toEqual([{ inputTokens: 0, outputTokens: 0 }]);
 		expect(published).toEqual([{ outcome: "ready", relatedCount: 0 }]);
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] no earlier read shares the article's words", { url: TARGET_URL, bestScore: 7.98, candidateCount: 2 });
-		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { sampleCount: 0, samples: [], url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
 	});
 
 	it("logs the selector's disjoint drop counts on completion", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-		const { handler } = createHandler({ logger, selectPastReads: async () => ({ kind: "ready", related: [], inputTokens: 200, outputTokens: 40, droppedNoSharedWord: 2, droppedReasonNotAboutPick: 1 }) });
+		const { handler } = createHandler({ logger, selectPastReads: async () => ({ kind: "ready", samples: [], related: [], inputTokens: 200, outputTokens: 40, droppedNoSharedWord: 2, droppedReasonNotAboutPick: 1 }) });
 		await handler(command, buildLambdaContext(), () => {});
-		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 2, droppedReasonNotAboutPick: 1 });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { sampleCount: 0, samples: [], url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 2, droppedReasonNotAboutPick: 1 });
 	});
 
 	it.each(["stub", "shared-boilerplate"])("logs zero drops when %s makes no model call", async (kind) => {
@@ -158,7 +158,7 @@ describe("initComputeRelatedPastReadsHandler", () => {
 		});
 		await handler(command, buildLambdaContext(), () => {});
 		expect(storedTokens).toEqual([{ inputTokens: 0, outputTokens: 0 }]);
-		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", { sampleCount: 0, samples: [], url: TARGET_URL, relatedCount: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
 	});
 	it("stores the selected past reads with their reading-list context and announces the outcome", async () => {
 		const { handler, marked, published } = createHandler();
@@ -207,7 +207,7 @@ describe("initComputeRelatedPastReadsHandler", () => {
 			targetLookup: { state: "found", article: crawledTarget({ hasStubMetadata: true }) },
 			selectPastReads: async () => {
 				modelCalled = true;
-				return { kind: "ready", droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0, related: [], inputTokens: 0, outputTokens: 0 };
+				return { kind: "ready", samples: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0, related: [], inputTokens: 0, outputTokens: 0 };
 			},
 		});
 
@@ -258,4 +258,14 @@ describe("initComputeRelatedPastReadsHandler", () => {
 
 		expect(published).toEqual([]);
 	});
+});
+
+
+it("logs the single Already-read sample with its cache split and duration", async () => {
+	const logger = { ...noopLogger, info: jest.fn() };
+	const samples = [{ inputTokens: 200, outputTokens: 40, cacheHitInputTokens: 150, cacheMissInputTokens: 50, durationMs: 30 }];
+	const { handler, storedTokens } = createHandler({ logger, selectPastReads: async () => ({ kind: "ready", related: [], inputTokens: 200, outputTokens: 40, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0, samples }) });
+	await handler(command, buildLambdaContext(), () => {});
+	expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", expect.objectContaining({ sampleCount: 1, samples }));
+	expect(storedTokens).toEqual([{ inputTokens: 200, outputTokens: 40 }]);
 });
