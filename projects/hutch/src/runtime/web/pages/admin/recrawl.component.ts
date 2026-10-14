@@ -101,6 +101,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		siteName: input.metadata.siteName,
 		readTime: displayableReadTime(input),
 		url: input.destinationUrl,
+		articleId: undefined,
 		saved: undefined,
 		content: input.content,
 		crawl: input.crawl,

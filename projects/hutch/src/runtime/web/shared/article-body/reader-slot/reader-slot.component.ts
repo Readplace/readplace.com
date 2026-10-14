@@ -22,6 +22,7 @@ export interface ReaderSlotInput {
 	crawl?: ArticleCrawl;
 	content?: string;
 	url: ArticleDestinationUrl;
+	articleId: string | undefined;
 	readerPollUrl?: string;
 	extensionInstallUrl?: string;
 	appOrigin: string;
@@ -94,6 +95,7 @@ function noticeOrCapture(
 	}
 	return renderReaderFailed({
 		url: input.url,
+		articleId: input.articleId,
 		variant: notice.variant,
 		extensionInstallUrl: input.extensionInstallUrl,
 		capturePollUrl: input.capturePollUrl,
@@ -122,6 +124,7 @@ function pollOrSlow(input: ReaderSlotInput, oob: boolean, pct: number): ReaderRe
 			)
 		: renderReaderFailed({
 				url: input.url,
+				articleId: input.articleId,
 				variant: "slow",
 				extensionInstallUrl: input.extensionInstallUrl,
 				captureRescue: "withheld",
@@ -142,6 +145,7 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 	if (input.notice !== undefined) {
 		return renderReaderFailed({
 			url: input.url,
+			articleId: input.articleId,
 			variant: input.notice,
 			captureRescue: "withheld",
 			oob,

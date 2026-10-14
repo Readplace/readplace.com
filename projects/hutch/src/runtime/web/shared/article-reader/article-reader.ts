@@ -50,6 +50,7 @@ import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 interface PollResponseBodyInput {
 	primary: "reader" | "summary";
 	url: ArticleDestinationUrl;
+	articleId: string | undefined;
 	crawl: ArticleCrawl | undefined;
 	summary: GeneratedSummary | undefined;
 	content: string | undefined;
@@ -72,6 +73,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		crawl: input.crawl,
 		content: input.content,
 		url: input.url,
+		articleId: input.articleId,
 		readerPollUrl: input.readerPollUrl,
 		capturePollUrl: input.capturePollUrl,
 		capturing: input.capturing,
@@ -304,6 +306,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			renderPollResponseBody({
 				primary,
 				url: destinationUrl,
+				articleId: undefined,
 				crawl: undefined,
 				summary: undefined,
 				content: undefined,
@@ -380,6 +383,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		return HtmlPage(renderPollResponseBody({
 			primary: "summary",
 			url: destinationUrl,
+			articleId: params.articleId,
 			crawl,
 			summary,
 			content,
@@ -426,6 +430,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		return HtmlPage(renderPollResponseBody({
 			primary: "reader",
 			url: destinationUrl,
+			articleId: params.articleId,
 			crawl,
 			summary,
 			content,

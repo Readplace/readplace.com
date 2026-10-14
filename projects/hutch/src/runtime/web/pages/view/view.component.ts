@@ -147,6 +147,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		// Header only; the share path, save action and SEO
 		// keep `articleUrl` (the identity).
 		url: input.destinationUrl,
+		articleId: undefined,
 		saved: undefined,
 		content: input.content,
 		crawl: input.crawl,

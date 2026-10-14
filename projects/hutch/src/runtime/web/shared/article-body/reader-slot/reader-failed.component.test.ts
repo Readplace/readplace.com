@@ -25,6 +25,7 @@ function noticeFor(input: { variant: ReaderFailedVariant; extensionInstallUrl?: 
 	const doc = parse(
 		renderReaderFailed({
 			url: destinationUrl("https://example.com/some-article"),
+			articleId: "0123456789abcdef0123456789abcdef",
 			variant: input.variant,
 			extensionInstallUrl: input.extensionInstallUrl,
 			captureRescue: "withheld",
@@ -129,6 +130,7 @@ describe("renderReaderFailed", () => {
 		for (const variant of ALL_VARIANTS) {
 			const { slot, notice } = renderReaderFailed({
 				url: destinationUrl("https://example.com/post"),
+				articleId: "0123456789abcdef0123456789abcdef",
 				variant,
 				captureRescue: "withheld",
 				noticeOob: false,
@@ -146,6 +148,7 @@ describe("renderReaderFailed", () => {
 	it("keeps the in-card marker on the slot id and renders the notice as its own visible card", () => {
 		const { slot, notice } = renderReaderFailed({
 			url: destinationUrl("https://example.com/post"),
+			articleId: "0123456789abcdef0123456789abcdef",
 			variant: "failed",
 			captureRescue: "offered",
 			noticeOob: false,
@@ -175,6 +178,7 @@ describe("renderReaderFailed", () => {
 		for (const { oob, noticeOob, expected } of cases) {
 			const { slot, notice } = renderReaderFailed({
 				url: destinationUrl("https://example.com/post"),
+				articleId: "0123456789abcdef0123456789abcdef",
 				variant: "failed",
 				captureRescue: "offered",
 				oob,
@@ -243,6 +247,7 @@ describe("renderReaderFailed", () => {
 				const doc = parse(
 					renderReaderFailed({
 						url: destinationUrl("https://example.com/some-article"),
+						articleId: "0123456789abcdef0123456789abcdef",
 						variant,
 						captureRescue,
 						noticeOob: false,
@@ -270,6 +275,7 @@ describe("renderReaderFailed", () => {
 		const doc = parse(
 			renderReaderFailed({
 				url: destinationUrl("https://example.com/some-article"),
+				articleId: "0123456789abcdef0123456789abcdef",
 				variant: "failed",
 				captureRescue: "offered",
 				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
@@ -287,6 +293,7 @@ describe("renderReaderFailed", () => {
 		const doc = parse(
 			renderReaderFailed({
 				url: destinationUrl("https://example.com/some-article"),
+				articleId: "0123456789abcdef0123456789abcdef",
 				variant: "blocked",
 				captureRescue: "offered",
 				capturePollUrl,
@@ -324,6 +331,7 @@ describe("renderReaderFailed", () => {
 		const doc = parse(
 			renderReaderFailed({
 				url: destinationUrl("https://example.com/some-article"),
+				articleId: "0123456789abcdef0123456789abcdef",
 				variant: "slow",
 				captureRescue: "withheld",
 				noticeOob: false,
@@ -343,5 +351,76 @@ describe("renderReaderFailed", () => {
 			backgroundRequest: false,
 		};
 		assert.deepEqual([pollAffordanceOf(notice), pollAffordanceOf(capture)], [inert, inert]);
+	});
+
+	it("publishes the rescue URL and article id only on a notice whose capture is offered with a capture poll and an article id", () => {
+		const RESCUE_URL = "data-reader-rescue-url";
+		const RESCUE_ID = "data-reader-article-id";
+		const articleId = "0123456789abcdef0123456789abcdef";
+		const capturePollUrl = "/queue/0123456789abcdef0123456789abcdef/reader?poll=1&capturing=1";
+		const rows: Array<{
+			captureRescue: "offered" | "withheld";
+			capturePollUrl: string | undefined;
+			articleId: string | undefined;
+			url: string;
+			expected: { rescueUrl: string | null; articleId: string | null };
+		}> = [
+			{
+				captureRescue: "offered",
+				capturePollUrl,
+				articleId,
+				url: "https://example.com/a",
+				expected: { rescueUrl: "https://example.com/a", articleId },
+			},
+			{
+				captureRescue: "offered",
+				capturePollUrl,
+				articleId,
+				url: "https://archive.ph/abc12",
+				expected: { rescueUrl: "https://archive.ph/abc12", articleId },
+			},
+			{
+				captureRescue: "withheld",
+				capturePollUrl,
+				articleId,
+				url: "https://example.com/a",
+				expected: { rescueUrl: null, articleId: null },
+			},
+			{
+				captureRescue: "offered",
+				capturePollUrl: undefined,
+				articleId,
+				url: "https://example.com/a",
+				expected: { rescueUrl: null, articleId: null },
+			},
+			{
+				captureRescue: "offered",
+				capturePollUrl,
+				articleId: undefined,
+				url: "https://example.com/a",
+				expected: { rescueUrl: null, articleId: null },
+			},
+		];
+		for (const row of rows) {
+			const doc = parse(
+				renderReaderFailed({
+					url: destinationUrl(row.url),
+					articleId: row.articleId,
+					variant: "blocked",
+					captureRescue: row.captureRescue,
+					capturePollUrl: row.capturePollUrl,
+					noticeOob: false,
+				}).notice,
+			);
+			const label = `captureRescue=${row.captureRescue} capturePollUrl=${row.capturePollUrl} articleId=${row.articleId} url=${row.url}`;
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, `the notice must be rendered for ${label}`);
+			assert(notice.querySelector("[data-reader-capture]"), `the capture button must be rendered for ${label}`);
+			assert.deepEqual(
+				{ rescueUrl: notice.getAttribute(RESCUE_URL), articleId: notice.getAttribute(RESCUE_ID) },
+				row.expected,
+				label,
+			);
+		}
 	});
 });

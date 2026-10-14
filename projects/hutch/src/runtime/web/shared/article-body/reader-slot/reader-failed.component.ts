@@ -20,6 +20,7 @@ export type { ReaderFailedVariant };
 
 export interface ReaderFailedInput {
 	url: ArticleDestinationUrl;
+	articleId: string | undefined;
 	/**
 	 * Distinguishes the four states that all surface the same "your link is
 	 * saved, open it on the source" page:
@@ -129,6 +130,13 @@ function renderCapturePitch(input: ReaderFailedInput): CapturePitch {
 	};
 }
 
+function rescueFor(input: ReaderFailedInput): { url: ArticleDestinationUrl; articleId: string } | undefined {
+	if (input.captureRescue !== "offered") return undefined;
+	if (input.capturePollUrl === undefined) return undefined;
+	if (input.articleId === undefined) return undefined;
+	return { url: input.url, articleId: input.articleId };
+}
+
 export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 	return {
 		slot: render(MARKER_TEMPLATE, {
@@ -145,6 +153,7 @@ export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 			ctaLabel: CTA_LABELS[input.variant],
 			captureClass: CAPTURE_RESCUE_CLASS[input.captureRescue],
 			capturePollUrl: input.capturePollUrl,
+			rescue: rescueFor(input),
 			...renderCapturePitch(input),
 		}),
 	};

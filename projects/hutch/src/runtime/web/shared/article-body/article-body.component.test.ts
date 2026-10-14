@@ -10,6 +10,7 @@ const baseInput = {
 	siteName: siteLabel("example.com"),
 	readTime: { value: "3", label: "3 min read" },
 	url: destinationUrl("https://example.com/post"),
+	articleId: "0123456789abcdef0123456789abcdef",
 	appOrigin: "https://readplace.com",
 	topActionsHtml: "",
 	bottomActionsHtml: "",

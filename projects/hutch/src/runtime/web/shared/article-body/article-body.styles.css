@@ -60,11 +60,6 @@
   text-wrap: pretty;
 }
 
-/**
- * 1. Revealed by the reader's capture bridge only when the page is running
- *    inside the app's WKWebView — a browser cannot service the message, so the
- *    control must never be tappable there.
- */
 .article-body__reader-notice-actions {
   display: flex;
   flex-wrap: wrap;
@@ -77,11 +72,11 @@
 }
 
 .article-body__reader-notice-capture--offered {
-  display: none; /* 1 */
+  display: none;
 }
 
 [data-reader-capture-host] .article-body__reader-notice-capture--offered {
-  display: inline-flex; /* 1 */
+  display: inline-flex;
 }
 
 .article-body__reader-notice-pitch--visible {

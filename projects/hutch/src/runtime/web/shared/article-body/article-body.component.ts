@@ -33,6 +33,7 @@ export interface ArticleBodyInput {
 	siteName: SiteLabel;
 	readTime: DisplayableReadTime | undefined;
 	url: ArticleDestinationUrl;
+	articleId: string | undefined;
 	content?: string;
 	crawl?: ArticleCrawl;
 	readerPollUrl?: string;
@@ -96,6 +97,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		crawl: input.crawl,
 		content: input.content,
 		url: input.url,
+		articleId: input.articleId,
 		readerPollUrl: input.readerPollUrl,
 		capturePollUrl: input.capturePollUrl,
 		extensionInstallUrl: input.extensionInstallUrl,

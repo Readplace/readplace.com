@@ -2741,6 +2741,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const component = await reader.handleSummaryPoll({
 			articleUrl: article.url,
+			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
 			capturing: parseCapturingFlag(req.query.capturing),
@@ -2779,6 +2780,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const component = await reader.handleReaderPoll({
 			articleUrl: article.url,
+			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
 			capturing: parseCapturingFlag(req.query.capturing),

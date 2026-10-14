@@ -473,6 +473,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 3,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -500,6 +501,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -528,6 +530,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -557,6 +560,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -588,6 +592,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -616,6 +621,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -645,6 +651,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 2,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -671,6 +678,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -702,6 +710,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -731,6 +740,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -758,6 +768,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -785,6 +796,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -812,6 +824,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -837,6 +850,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -872,6 +886,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -911,6 +926,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -943,6 +959,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -973,6 +990,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1000,6 +1018,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1033,6 +1052,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1062,6 +1082,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1104,6 +1125,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1138,6 +1160,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1169,6 +1192,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1207,6 +1231,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1237,6 +1262,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1270,6 +1296,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1300,6 +1327,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1330,6 +1358,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1370,6 +1399,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1406,6 +1436,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: true,
@@ -1441,6 +1472,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1469,6 +1501,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 3,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: true,
@@ -1496,6 +1529,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: true,
@@ -1542,6 +1576,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 2,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1585,6 +1620,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1614,6 +1650,7 @@ describe("initArticleReader", () => {
 		function pollParams() {
 			return {
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1748,6 +1785,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1778,6 +1816,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1809,6 +1848,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1833,6 +1873,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1857,6 +1898,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1882,6 +1924,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
+				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				capturing: false,
@@ -1956,6 +1999,7 @@ describe("initArticleReader", () => {
 				toHtml(
 					await reader.handleReaderPoll({
 						articleUrl: GATED_URL,
+						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
 						capturing: false,
@@ -2001,6 +2045,7 @@ describe("initArticleReader", () => {
 				toHtml(
 					await reader.handleReaderPoll({
 						articleUrl: GATED_URL,
+						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
 						capturing: false,
@@ -2031,6 +2076,7 @@ describe("initArticleReader", () => {
 				toHtml(
 					await reader.handleSummaryPoll({
 						articleUrl: GATED_URL,
+						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
 						capturing: false,
@@ -2062,6 +2108,7 @@ describe("initArticleReader", () => {
 				toHtml(
 					await reader.handleReaderPoll({
 						articleUrl: GATED_URL,
+						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
 						capturing: false,
@@ -2098,6 +2145,7 @@ describe("initArticleReader", () => {
 				toHtml(
 					await reader.handleReaderPoll({
 						articleUrl: GATED_URL,
+						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
 						capturing: false,

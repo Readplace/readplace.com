@@ -520,6 +520,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const utmParams = collectUtmParams(req.query);
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
+			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
 			capturing: false,
@@ -553,6 +554,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 		const utmParams = collectUtmParams(req.query);
 		const component = await reader.handleReaderPoll({
 			articleUrl,
+			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
 			capturing: false,

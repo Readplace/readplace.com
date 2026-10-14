@@ -11,6 +11,7 @@ function parse(regions: { slot: string; notice: string }) {
 
 const URL = destinationUrl("https://example.com/article");
 const APP_ORIGIN = "https://readplace.com";
+const ARTICLE_ID = "0123456789abcdef0123456789abcdef";
 
 function readerProgressTrack(doc: Document): Element {
 	const track = doc.querySelector('[data-test-progress-bar="reader"] [role="progressbar"]');
@@ -36,6 +37,7 @@ describe("renderReaderSlot", () => {
 			crawl: { status: "ready" },
 			content: "<p>Body</p>",
 			url: URL,
+			articleId: ARTICLE_ID,
 			appOrigin: APP_ORIGIN,
 			noticeOob: false,
 		});
@@ -49,6 +51,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "pending" },
 				url: URL,
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -68,6 +71,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "pending", stage: "crawl-parsed" },
 				url: URL,
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -86,6 +90,7 @@ describe("renderReaderSlot", () => {
 					parts: { current: 3, total: 10 },
 				},
 				url: URL,
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -102,6 +107,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "pending" },
 				url: destinationUrl("https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf"),
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -119,6 +125,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "pending" },
 				url: destinationUrl("https://example.com/articles/some-post"),
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -135,6 +142,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "pending" },
 				url: destinationUrl("not-a-valid-url"),
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -151,6 +159,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "pending" },
 				url: URL,
+				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -171,6 +180,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
 				url: URL,
+				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -199,6 +209,7 @@ describe("renderReaderSlot", () => {
 					reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
 				},
 				url: URL,
+				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 				extensionInstallUrl: "/install?client=chrome",
@@ -221,6 +232,7 @@ describe("renderReaderSlot", () => {
 					reason: "non-html content type: application/pdf",
 				},
 				url: URL,
+				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -242,6 +254,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "ready" },
 				content: "<p>Body copy</p>",
 				url: URL,
+				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -259,6 +272,7 @@ describe("renderReaderSlot", () => {
 		const doc = parse(
 			renderReaderSlot({
 				url: URL,
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -273,7 +287,7 @@ describe("renderReaderSlot", () => {
 	});
 
 	it("renders the 'slow' reframe when crawl status is missing and there is no poll URL left", () => {
-		const doc = parse(renderReaderSlot({ url: URL, appOrigin: APP_ORIGIN, noticeOob: false }));
+		const doc = parse(renderReaderSlot({ url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -285,6 +299,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				content: "<p>Legacy body</p>",
 				url: URL,
+				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -300,6 +315,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "ready" },
 				url: URL,
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -317,6 +333,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "ready" },
 				url: URL,
+				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -335,6 +352,7 @@ describe("renderReaderSlot", () => {
 					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
 				},
 				url: URL,
+				articleId: ARTICLE_ID,
 				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -359,6 +377,7 @@ describe("renderReaderSlot", () => {
 					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
 				},
 				url: URL,
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=2&capturing=1",
 				capturing: true,
 				appOrigin: APP_ORIGIN,
@@ -386,6 +405,7 @@ describe("renderReaderSlot", () => {
 					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
 				},
 				url: URL,
+				articleId: ARTICLE_ID,
 				capturing: true,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -404,6 +424,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "ready" },
 				content: "<p>Captured body</p>",
 				url: URL,
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=3&capturing=1",
 				capturing: true,
 				appOrigin: APP_ORIGIN,
@@ -422,6 +443,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
+				articleId: ARTICLE_ID,
 				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -438,7 +460,7 @@ describe("renderReaderSlot", () => {
 		}).toEqual({ offered: true, pollUrl: "/queue/abc/reader?poll=1&capturing=1" });
 	});
 
-	it.each<{ state: string; input: Omit<ReaderSlotInput, "url" | "appOrigin" | "noticeOob">; status: string }>([
+	it.each<{ state: string; input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob">; status: string }>([
 		{
 			state: "a deleted page",
 			input: { crawl: { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) } },
@@ -465,7 +487,7 @@ describe("renderReaderSlot", () => {
 			status: "slow",
 		},
 	])("renders the capture control withheld on $state, which no device can rescue", ({ input, status }) => {
-		const doc = parse(renderReaderSlot({ ...input, url: URL, appOrigin: APP_ORIGIN, noticeOob: false }));
+		const doc = parse(renderReaderSlot({ ...input, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -480,6 +502,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=2&capturing=1",
 				capturing: true,
 				appOrigin: APP_ORIGIN,
@@ -505,6 +528,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
+				articleId: ARTICLE_ID,
 				capturing: true,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -529,6 +553,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "ready" },
 				content: "<p>Inbox (42) — someone@example.com</p>",
 				url: destinationUrl("https://mail.google.com/mail/u/0/"),
+				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
@@ -546,7 +571,7 @@ describe("renderReaderSlot", () => {
 
 	it.each<{
 		state: string;
-		input: Omit<ReaderSlotInput, "url" | "appOrigin" | "noticeOob">;
+		input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob">;
 		slot: { status: string; stateClass: string };
 		notice: { status: string; stateClass: string };
 	}>([
@@ -609,7 +634,7 @@ describe("renderReaderSlot", () => {
 			notice: { status: "not-an-article", stateClass: "article-body__reader-notice--visible" },
 		},
 	])("pairs the $state slot with the notice region it needs", ({ input, slot, notice }) => {
-		const doc = parse(renderReaderSlot({ ...input, url: URL, appOrigin: APP_ORIGIN, noticeOob: false }));
+		const doc = parse(renderReaderSlot({ ...input, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }));
 
 		const slotElement = doc.querySelector("[data-test-reader-slot]");
 		assert(slotElement, "reader slot must be rendered");
@@ -639,7 +664,7 @@ describe("renderReaderSlot", () => {
 			{ oob: true, noticeOob: true },
 		].map(({ oob, noticeOob }) => {
 			const doc = parse(
-				renderReaderSlot({ crawl, readerPollUrl, url: URL, appOrigin: APP_ORIGIN, oob, noticeOob }),
+				renderReaderSlot({ crawl, readerPollUrl, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, oob, noticeOob }),
 			);
 			const slotElement = doc.querySelector("[data-test-reader-slot]");
 			assert(slotElement, "reader slot must be rendered");
@@ -661,10 +686,10 @@ describe("renderReaderSlot", () => {
 			input: Parameters<typeof renderReaderSlot>[0];
 			expected: string;
 		}> = [
-			{ input: { crawl: { status: "ready" }, content: "<p>x</p>", url: URL, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "ready" },
-			{ input: { crawl: { status: "pending" }, url: URL, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false }, expected: "pending" },
-			{ input: { crawl: { status: "failed", reason: "x" }, url: URL, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "failed" },
-			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "unsupported" },
+			{ input: { crawl: { status: "ready" }, content: "<p>x</p>", url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "ready" },
+			{ input: { crawl: { status: "pending" }, url: URL, articleId: ARTICLE_ID, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false }, expected: "pending" },
+			{ input: { crawl: { status: "failed", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "failed" },
+			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "unsupported" },
 		];
 
 		for (const { input, expected } of variants) {

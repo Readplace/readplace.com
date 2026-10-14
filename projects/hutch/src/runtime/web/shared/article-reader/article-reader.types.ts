@@ -118,6 +118,7 @@ export interface ResolveReaderStateParams {
  */
 export interface HandlePollParams {
 	articleUrl: string;
+	articleId: string | undefined;
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;
 	capturing: boolean;

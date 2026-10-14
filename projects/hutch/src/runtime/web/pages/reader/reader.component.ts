@@ -224,6 +224,7 @@ export function ReaderPage(
 		siteName: article.metadata.siteName,
 		readTime: displayableReadTime(article),
 		url: article.destinationUrl,
+		articleId,
 		provenance: options.provenance,
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: options.now }),
 		readlistTags: options.readlistFiling.tags,

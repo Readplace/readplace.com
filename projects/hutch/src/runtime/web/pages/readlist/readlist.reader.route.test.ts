@@ -15,6 +15,7 @@ import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 import { ReaderArticleHashId, calculateReadTime } from "@packages/domain/article";
 
 import request from "supertest";
+import { viewPathFor } from "../view/view-path";
 
 const useApp = useTestServer();
 
@@ -1910,6 +1911,78 @@ describe("Readlist routes", () => {
 			expect(
 				notice.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
 			).toBe(ARTICLE_URL);
+		});
+
+		it("the owner reader exposes the article URL and id for a rescue on a blocked crawl, and neither the public view nor the admin recrawl of the same article does, on the page or on a poll", async () => {
+			const crawlArticle = async () => ({
+				status: "fetched" as const,
+				html: "<html><body><article><p>x</p></article></body></html>",
+				bodyHash: "a".repeat(64),
+			});
+			const parseArticle = async () => ({
+				ok: false as const,
+				reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+			});
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					...fixture.events,
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .readlist-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+			const encodedUrl = encodeURIComponent(ARTICLE_URL);
+			const visitor = request(harness.server);
+			const asAdmin = (path: string) => visitor.get(path).set("x-service-token", fixture.admin.recrawlServiceToken);
+
+			const surfaces = [
+				{ surface: "owner reader", response: await agent.get(`/queue/${articleId}/view`) },
+				{ surface: "owner reader poll", response: await agent.get(`/queue/${articleId}/reader?poll=1`) },
+				{ surface: "owner summary poll", response: await agent.get(`/queue/${articleId}/summary?poll=1`) },
+				{ surface: "public view", response: await visitor.get(viewPathFor(ARTICLE_URL)) },
+				{ surface: "public reader poll", response: await visitor.get(`/view/reader?url=${encodedUrl}&poll=1`) },
+				{ surface: "public summary poll", response: await visitor.get(`/view/summary?url=${encodedUrl}&poll=1`) },
+				{ surface: "admin recrawl", response: await asAdmin(`/admin/recrawl?url=${encodedUrl}`) },
+				{ surface: "admin recrawl reader poll", response: await asAdmin(`/admin/recrawl/reader?url=${encodedUrl}&poll=1`) },
+				{ surface: "admin recrawl summary poll", response: await asAdmin(`/admin/recrawl/summary?url=${encodedUrl}&poll=1`) },
+			];
+
+			expect(
+				surfaces.map(({ surface, response }) => {
+					const notice = new JSDOM(response.text).window.document.querySelector("[data-test-reader-notice]");
+					assert(notice, `the ${surface} must render the blocked notice`);
+					return {
+						surface,
+						status: notice.getAttribute("data-reader-status"),
+						rescueUrl: notice.getAttribute("data-reader-rescue-url"),
+						articleId: notice.getAttribute("data-reader-article-id"),
+					};
+				}),
+			).toEqual([
+				{ surface: "owner reader", status: "blocked", rescueUrl: ARTICLE_URL, articleId },
+				{ surface: "owner reader poll", status: "blocked", rescueUrl: ARTICLE_URL, articleId },
+				{ surface: "owner summary poll", status: "blocked", rescueUrl: ARTICLE_URL, articleId },
+				{ surface: "public view", status: "blocked", rescueUrl: null, articleId: null },
+				{ surface: "public reader poll", status: "blocked", rescueUrl: null, articleId: null },
+				{ surface: "public summary poll", status: "blocked", rescueUrl: null, articleId: null },
+				{ surface: "admin recrawl", status: "blocked", rescueUrl: null, articleId: null },
+				{ surface: "admin recrawl reader poll", status: "blocked", rescueUrl: null, articleId: null },
+				{ surface: "admin recrawl summary poll", status: "blocked", rescueUrl: null, articleId: null },
+			]);
 		});
 
 		it("keeps the reader poll loop armed through the in-app capture, then lets the healed row stop it", async () => {
