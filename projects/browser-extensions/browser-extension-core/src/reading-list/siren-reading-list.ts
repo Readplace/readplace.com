@@ -23,6 +23,7 @@ import type {
 	SaveUrl,
 	SavePages,
 	SaveWarning,
+	CaptureTrigger,
 	TabContent,
 	UploadContent,
 	UploadContentResult,
@@ -1032,6 +1033,10 @@ async function describeUpload(attempt: UploadAttempt): Promise<string> {
 	return `${attempt.leg} failed: ${attempt.response.status}${body}`;
 }
 
+function appendCaptureTrigger(form: FormData, trigger: CaptureTrigger): void {
+	form.append("captureTrigger", trigger);
+}
+
 /** A 4xx is a verdict on these exact bytes, so a deferred upload drops rather than
  * retrying or degrading onto a URL-only save — the link save already landed. */
 async function classifyUpload(attempt: UploadAttempt): Promise<UploadContentResult> {
@@ -1187,6 +1192,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		url: string;
 		title?: string;
 		content: TabContent;
+		trigger: CaptureTrigger;
 	}): Promise<UploadAttempt> {
 		const authFetch = createAuthorizedFetch(deps);
 
@@ -1220,6 +1226,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		for (const field of completeAction.fields) {
 			if (field.value !== undefined) completeForm.append(field.name, String(field.value));
 		}
+		appendCaptureTrigger(completeForm, params.trigger);
 		return {
 			leg: "save-uploaded-content",
 			response: await authFetch(completeHref, { method: completeAction.method, body: completeForm }),
@@ -1232,7 +1239,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		title?: string;
 		content: TabContent;
 	}): Promise<ReadingListItem> {
-		const attempt = await uploadThroughSlot(params);
+		const attempt = await uploadThroughSlot({ ...params, trigger: "manual" });
 		assert(attempt.response.ok, await describeUpload(attempt));
 		return toReadingListItem(SirenSubEntitySchema.parse(await readSirenBody(attempt.response)), deps.serverUrl);
 	}
@@ -1311,7 +1318,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	/** The entry point is walked fresh on every run: a job outlives the worker
 	 * that queued it, and every href and presigned slot URL it could have
 	 * carried would have expired by the time it wakes. */
-	const uploadContent: UploadContent = async ({ url, title, content }) => {
+	const uploadContent: UploadContent = async ({ url, title, content, trigger }) => {
 		const collection = await start();
 		const descriptor = collection.descriptors["save-content"];
 		if (!descriptor) {
@@ -1327,7 +1334,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 				);
 				return { ok: false, reason: "unsupported" };
 			}
-			return classifyUpload(await uploadThroughSlot({ descriptor, url, title, content }));
+			return classifyUpload(await uploadThroughSlot({ descriptor, url, title, content, trigger }));
 		}
 		const actionUrl = resolveHref({ base: deps.serverUrl, href: descriptor.href });
 		assert(actionUrl, "save-content action href is not actionable");
@@ -1335,6 +1342,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		form.append("url", url);
 		form.append("mediaType", content.mediaType);
 		if (title) form.append("title", title);
+		appendCaptureTrigger(form, trigger);
 		form.append("content", new Blob([content.bytes], { type: content.mediaType }), "content");
 		const authFetch = createAuthorizedFetch(deps);
 		return classifyUpload({

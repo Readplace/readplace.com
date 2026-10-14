@@ -1,6 +1,6 @@
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UnauthorizedError } from "../auth/unauthorized-error";
-import type { TabContent, UploadContent, UploadContentResult } from "../reading-list/reading-list.types";
+import type { CaptureTrigger, TabContent, UploadContent, UploadContentResult } from "../reading-list/reading-list.types";
 import { type UploadJob, parseUploadJobs } from "./upload-job";
 import type {
 	CaptureForJob,
@@ -81,6 +81,7 @@ export function initUploadQueue(deps: {
 		url: string;
 		title?: string;
 		content: TabContent;
+		trigger: CaptureTrigger;
 	}): Promise<SendOutcome> {
 		try {
 			const result = await deps.uploadContent(payload);
@@ -109,11 +110,15 @@ export function initUploadQueue(deps: {
 		);
 	}
 
-	async function attempt(params: { job: UploadJob; content: TabContent }): Promise<PassOutcome> {
+	async function attempt(params: {
+		job: Extract<UploadJob, { state: "ready" }>;
+		content: TabContent;
+	}): Promise<PassOutcome> {
 		const outcome = await send({
 			url: params.job.url,
 			title: params.job.title,
 			content: params.content,
+			trigger: params.job.trigger ?? "manual",
 		});
 		if (outcome.state === "purged") return "purged";
 		if (outcome.state === "retry") {
@@ -140,7 +145,7 @@ export function initUploadQueue(deps: {
 			id: job.id,
 			blob: new Blob([captured.bytes], { type: captured.mediaType }),
 		});
-		const ready: UploadJob = {
+		const ready: Extract<UploadJob, { state: "ready" }> = {
 			id: job.id,
 			url: job.url,
 			title: job.title,
@@ -149,6 +154,7 @@ export function initUploadQueue(deps: {
 			createdAt: job.createdAt,
 			state: "ready",
 			mediaType: captured.mediaType,
+			trigger: "manual",
 		};
 		await replace((jobs) => jobs.map((entry) => (entry.id === job.id ? ready : entry)));
 		return attempt({ job: ready, content: captured });

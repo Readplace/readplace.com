@@ -18,6 +18,7 @@ const UploadJobSchema = z.discriminatedUnion("state", [
 	UploadJobBaseSchema.extend({
 		state: z.literal("ready"),
 		mediaType: z.string(),
+		trigger: z.enum(["manual", "automatic"]).optional(),
 	}),
 ]);
 

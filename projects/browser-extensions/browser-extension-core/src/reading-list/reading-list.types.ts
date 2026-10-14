@@ -32,6 +32,8 @@ export interface Message {
 
 export type TabContent = { bytes: ArrayBuffer; mediaType: string };
 
+export type CaptureTrigger = "manual" | "automatic";
+
 export type SaveUrlResult =
 	/** `messages` is what the server wants the reader told about this save, and
 	 * the item's links carry where it may send them next — so the confirmation
@@ -78,6 +80,7 @@ export type UploadContent = (params: {
 	url: string;
 	title?: string;
 	content: TabContent;
+	trigger: CaptureTrigger;
 }) => Promise<UploadContentResult>;
 
 /** Invokes the named action the server advertised on the item with `id`. The

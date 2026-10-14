@@ -4793,6 +4793,22 @@ describe("initSirenReadingList", () => {
 			expect(slotHeaders.get("authorization")).toBe("Bearer test-token");
 		});
 
+		it("a popup save over the cap completes as manual", async () => {
+			const { routes, captured } = slotRoutes();
+			const { fetchFn } = createRoutingFetch(routes);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			await list.saveUrl({
+				url: "https://example.com/doc.pdf",
+				title: "Doc",
+				content: { bytes: new ArrayBuffer(2048), mediaType: "application/pdf" },
+			});
+
+			const completion = captured.completionInit?.body;
+			assert(completion instanceof FormData, "the slot exchange must reach its completion leg");
+			expect(completion.get("captureTrigger")).toBe("manual");
+		});
+
 		it("falls back to a URL-only save when the presigned PUT fails, naming the leg and S3's reason", async () => {
 			const { routes } = slotRoutes({
 				put: {
@@ -5305,6 +5321,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		const result = await uploadContent({
 			url: "https://example.com/a",
+			trigger: "manual",
 			title: "A",
 			content: { bytes: new TextEncoder().encode("<html>a</html>").buffer, mediaType: "text/html" },
 		});
@@ -5319,6 +5336,72 @@ describe("initSirenReadingList deferred content upload", () => {
 		const part = uploaded.get("content");
 		assert(part instanceof Blob, "content part must be a Blob");
 		expect(await part.text()).toBe("<html>a</html>");
+	});
+
+	it("labels an automatic capture on the inline form and a tap capture manual", async () => {
+		const uploaded: FormData[] = [];
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(INLINE_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					assert(init?.body instanceof FormData, "save-content must carry a multipart body");
+					uploaded.push(init.body);
+					return { status: 201 };
+				},
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
+			trigger: "automatic",
+		});
+		await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
+			trigger: "manual",
+		});
+
+		expect(uploaded.map((form) => form.get("captureTrigger"))).toEqual(["automatic", "manual"]);
+	});
+
+	it("labels the slot completion request with the trigger and leaves the slot request unlabelled", async () => {
+		const forms: { slot?: FormData; completion?: FormData } = {};
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(SLOT_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					const body = init?.body;
+					assert(body instanceof FormData, "save-content must carry a multipart body");
+					if (body.has("uploaded")) {
+						forms.completion = body;
+						return { status: 201 };
+					}
+					forms.slot = body;
+					return { status: 200, body: uploadSlotResponse() };
+				},
+				[`PUT ${SLOT_UPLOAD_URL}`]: { status: 200 },
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
+			trigger: "automatic",
+		});
+
+		assert(forms.completion, "the slot exchange must reach its completion leg");
+		assert(forms.slot, "the slot exchange must start with a slot request");
+		expect(forms.completion.get("captureTrigger")).toBe("automatic");
+		expect([...forms.slot.keys()]).toEqual(["url", "mediaType", "size"]);
 	});
 
 	it("omits the title part when the tab had none", async () => {
@@ -5339,6 +5422,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		await uploadContent({
 			url: "https://example.com/a",
+			trigger: "manual",
 			content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
 		});
 
@@ -5363,6 +5447,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		const result = await uploadContent({
 			url: "https://example.com/a",
+			trigger: "manual",
 			content: { bytes: new ArrayBuffer(9_999), mediaType: "text/html" },
 		});
 
@@ -5393,6 +5478,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		const result = await uploadContent({
 			url: "https://example.com/a",
+			trigger: "manual",
 			content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
 		});
 
@@ -5420,6 +5506,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		const result = await uploadContent({
 			url: "https://example.com/a",
+			trigger: "manual",
 			content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
 		});
 
@@ -5446,6 +5533,7 @@ describe("initSirenReadingList deferred content upload", () => {
 		await expect(
 			uploadContent({
 				url: "https://example.com/a",
+				trigger: "manual",
 				content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
 			}),
 		).rejects.toThrow("upload-content failed: 503");
@@ -5474,6 +5562,7 @@ describe("initSirenReadingList deferred content upload", () => {
 		await expect(
 			uploadContent({
 				url: "https://example.com/a",
+				trigger: "manual",
 				content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
 			}),
 		).rejects.toThrow("upload-content failed: 503 <Error><Code>SlowDown</Code></Error>");
@@ -5494,6 +5583,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		const result = await uploadContent({
 			url: "https://example.com/a",
+			trigger: "manual",
 			content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
 		});
 
@@ -5519,6 +5609,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		const result = await uploadContent({
 			url: "https://example.com/a",
+			trigger: "manual",
 			content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
 		});
 
@@ -5540,6 +5631,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		const result = await uploadContent({
 			url: "https://example.com/a",
+			trigger: "manual",
 			content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
 		});
 
@@ -5561,6 +5653,7 @@ describe("initSirenReadingList deferred content upload", () => {
 		await expect(
 			uploadContent({
 				url: "https://example.com/a",
+				trigger: "manual",
 				content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
 			}),
 		).rejects.toThrow("save-content failed: 500");
@@ -5593,6 +5686,7 @@ describe("initSirenReadingList deferred content upload", () => {
 		await expect(
 			uploadContent({
 				url: "https://example.com/a",
+				trigger: "manual",
 				content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
 			}),
 		).rejects.toThrow("save-content action href is not actionable");

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type { CapturedContent } from "../capture-active-tab-bytes";
-import type { UploadContent, UploadContentResult } from "../reading-list/reading-list.types";
+import type { CaptureTrigger, UploadContent, UploadContentResult } from "../reading-list/reading-list.types";
 import { type UploadJob, parseUploadJobs } from "./upload-job";
 import { initUploadQueue } from "./upload-queue";
 import type { CaptureForJob, PayloadStore, UploadJobStore } from "./upload-queue.types";
@@ -31,7 +31,7 @@ interface Harness {
 	queue: ReturnType<typeof initUploadQueue>;
 	storage: { value: unknown };
 	payloads: Map<string, Blob>;
-	uploads: { url: string; title?: string; bytes: number; mediaType: string }[];
+	uploads: { url: string; title?: string; bytes: number; mediaType: string; trigger: CaptureTrigger }[];
 	captures: { url: string; tabId?: number }[];
 	wakes: number[];
 	getCancelCount: () => number;
@@ -102,8 +102,8 @@ function createHarness(
 			}),
 		uploadContent:
 			options.upload ??
-			(async ({ url, title, content }) => {
-				uploads.push({ url, title, bytes: content.bytes.byteLength, mediaType: content.mediaType });
+			(async ({ url, title, content, trigger }) => {
+				uploads.push({ url, title, bytes: content.bytes.byteLength, mediaType: content.mediaType, trigger });
 				return { ok: true };
 			}),
 		logger: HutchLogger.from({
@@ -147,11 +147,26 @@ describe("initUploadQueue enqueue", () => {
 				title: "A",
 				bytes: bytesOf("<html>page</html>").byteLength,
 				mediaType: "text/html",
+				trigger: "manual",
 			},
 		]);
 		expect(harness.jobs()).toEqual([]);
 		expect(harness.payloads.size).toBe(0);
 		expect(harness.getCancelCount()).toBe(1);
+	});
+
+	it("a captured tap job records trigger manual", async () => {
+		const harness = createHarness({
+			upload: async () => {
+				throw new Error("server down");
+			},
+		});
+
+		await harness.queue.enqueue({ url: "https://example.com/a", tabId: 7 });
+
+		expect(harness.jobs()).toEqual([
+			expect.objectContaining({ url: "https://example.com/a", state: "ready", trigger: "manual" }),
+		]);
 	});
 
 	it("records a resumable job before the capture starts so a worker death mid-capture is recoverable", async () => {
@@ -237,8 +252,8 @@ describe("initUploadQueue resume", () => {
 
 	it("runs due jobs oldest first", async () => {
 		const harness = createHarness({
-			upload: async ({ url, content }) => {
-				harness.uploads.push({ url, bytes: content.bytes.byteLength, mediaType: content.mediaType });
+			upload: async ({ url, content, trigger }) => {
+				harness.uploads.push({ url, bytes: content.bytes.byteLength, mediaType: content.mediaType, trigger });
 				return { ok: true };
 			},
 		});
@@ -302,6 +317,40 @@ describe("initUploadQueue resume", () => {
 		await harness.queue.resume();
 
 		expect(harness.getCancelCount()).toBe(1);
+	});
+
+	it("a ready job without a trigger uploads as manual", async () => {
+		const harness = createHarness();
+		harness.storage.value = [
+			{
+				id: "legacy",
+				url: "https://example.com/legacy",
+				state: "ready",
+				mediaType: "text/html",
+				attempts: 0,
+				nextAttemptAt: 1_000,
+				createdAt: 1_000,
+			},
+			{
+				id: "labelled",
+				url: "https://example.com/labelled",
+				state: "ready",
+				mediaType: "text/html",
+				trigger: "automatic",
+				attempts: 0,
+				nextAttemptAt: 2_000,
+				createdAt: 2_000,
+			},
+		];
+		harness.payloads.set("legacy", new Blob([bytesOf("<html>legacy</html>")], { type: "text/html" }));
+		harness.payloads.set("labelled", new Blob([bytesOf("<html>labelled</html>")], { type: "text/html" }));
+
+		await harness.queue.resume();
+
+		expect(harness.uploads.map(({ url, trigger }) => ({ url, trigger }))).toEqual([
+			{ url: "https://example.com/legacy", trigger: "manual" },
+			{ url: "https://example.com/labelled", trigger: "automatic" },
+		]);
 	});
 
 	it("abandons a ready job whose captured bytes went missing", async () => {
