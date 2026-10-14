@@ -1,4 +1,4 @@
-import type { SaveAttemptId, SaveProvenance } from "@packages/domain/article";
+import type { CaptureTrigger, SaveAttemptId, SaveProvenance } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { BillingPlan } from "./subscription-providers";
@@ -111,6 +111,7 @@ export type PublishSaveLinkRawHtmlCommand = (params: {
 	sourceUrl: string;
 	userId: UserId;
 	title?: string;
+	captureTrigger: CaptureTrigger;
 }) => Promise<void>;
 
 export type PublishSaveLinkRawPdfCommand = (params: {

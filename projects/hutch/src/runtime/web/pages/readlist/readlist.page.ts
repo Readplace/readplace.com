@@ -39,6 +39,7 @@ import {
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
 import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
+import { CaptureTriggerSchema, type CaptureTrigger } from "@packages/domain/article";
 import { articlesSavedAt } from "./articles-saved-at";
 import type { RefreshIdentifiedArticleIfStale, ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
 import type {
@@ -340,6 +341,7 @@ type SaveContentMedia = {
 		saveAttemptId: SaveAttemptId;
 		sourceUrl: string;
 		sourceOriginalUrl: string;
+		captureTrigger: CaptureTrigger;
 	}) => Promise<SaveContentResult>;
 	admitUploadedBytes: (input: {
 		url: string;
@@ -349,6 +351,7 @@ type SaveContentMedia = {
 		saveAttemptId: SaveAttemptId;
 		sourceUrl: string;
 		sourceOriginalUrl: string;
+		captureTrigger: CaptureTrigger;
 	}) => Promise<SaveContentResult>;
 };
 
@@ -916,12 +919,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		},
 		"text/html": {
 			uploadCeilingBytes: MAX_HTML_BYTES.bytes,
-			stageInlineBytes: async ({ url, bytes, title, userId, saveAttemptId, sourceUrl, sourceOriginalUrl }) => {
+			stageInlineBytes: async ({ url, bytes, title, userId, saveAttemptId, sourceUrl, sourceOriginalUrl, captureTrigger }) => {
 				await deps.putPendingHtml({ url, html: bytes.toString("utf8"), saveAttemptId });
-				return { ok: true, dispatch: () => deps.publishSaveLinkRawHtmlCommand({ url, userId, title, saveAttemptId, sourceUrl, sourceOriginalUrl }) };
+				return { ok: true, dispatch: () => deps.publishSaveLinkRawHtmlCommand({ url, userId, title, saveAttemptId, sourceUrl, sourceOriginalUrl, captureTrigger }) };
 			},
-			admitUploadedBytes: async ({ url, title, userId, saveAttemptId, sourceUrl, sourceOriginalUrl }) => {
-				return { ok: true, dispatch: () => deps.publishSaveLinkRawHtmlCommand({ url, userId, title, saveAttemptId, sourceUrl, sourceOriginalUrl }) };
+			admitUploadedBytes: async ({ url, title, userId, saveAttemptId, sourceUrl, sourceOriginalUrl, captureTrigger }) => {
+				return { ok: true, dispatch: () => deps.publishSaveLinkRawHtmlCommand({ url, userId, title, saveAttemptId, sourceUrl, sourceOriginalUrl, captureTrigger }) };
 			},
 		},
 	};
@@ -1042,6 +1045,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	const parseCapturingFlag = (raw: unknown): boolean =>
 		z.literal("1").safeParse(raw).success;
+
+	const parseCaptureTrigger = (raw: string | undefined) =>
+		CaptureTriggerSchema.default("manual").safeParse(raw);
 
 	/** Public share-able permalink. Users copy this URL from the browser
 	 * address bar to share an article, so any visitor — owner, different
@@ -2199,7 +2205,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					 * unsupported type stages nothing and the page is saved URL-only,
 					 * so the crawl enriches it the ordinary way. */
 					const media = mediaFor({ mediaType: job.mediaType, url: freshness.identity.url });
-					if (media) staged = await media.stageInlineBytes({ url: freshness.identity.url, bytes: job.bytes, title: job.title, userId, saveAttemptId: page.saveAttemptId, sourceUrl: job.url, sourceOriginalUrl: freshness.identity.originalUrl });
+					if (media) staged = await media.stageInlineBytes({ url: freshness.identity.url, bytes: job.bytes, title: job.title, userId, saveAttemptId: page.saveAttemptId, sourceUrl: job.url, sourceOriginalUrl: freshness.identity.originalUrl, captureTrigger: "manual" });
 				}
 				const { createdUserArticle } = await saveArticleFromUrlWithoutActivity({
 					userId,
@@ -2335,6 +2341,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const saveAttemptId = uploaded === "true" && completionAttempt.success ? completionAttempt.data : newSaveAttemptId();
 			const sizeRaw = textPart("size");
 			const size = sizeRaw !== undefined ? Number(sizeRaw) : Number.NaN;
+			const captureTrigger = parseCaptureTrigger(textPart("captureTrigger"));
 
 			const refuse = (message: string, code = "invalid-save-content") => {
 				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
@@ -2342,6 +2349,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					sirenError({ code, message, actions: [buildFallbackAction()] }),
 				);
 			};
+
+			if (!captureTrigger.success) {
+				refuse("captureTrigger must be automatic or manual");
+				return;
+			}
 
 			const resolveTarget = (validate: ValidateSaveableUrl): { articleUrl: SaveableUrl; normalized: string; media: SaveContentMedia } | undefined => {
 				if (!mediaType) {
@@ -2421,7 +2433,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					const { identity } = freshness;
 					const stageUrl = identity.url;
 					const media = mediaFor({ mediaType, url: stageUrl });
-					const staged = await media?.stageInlineBytes({ url: stageUrl, bytes: contentBytes, title, userId, saveAttemptId, sourceUrl: validation.url, sourceOriginalUrl: identity.originalUrl });
+					const staged = await media?.stageInlineBytes({ url: stageUrl, bytes: contentBytes, title, userId, saveAttemptId, sourceUrl: validation.url, sourceOriginalUrl: identity.originalUrl, captureTrigger: captureTrigger.data });
 					await finishSave(validation.url, freshness, staged?.ok ? staged.dispatch : undefined);
 					return;
 				}
@@ -2461,6 +2473,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						mediaType: target.normalized,
 						title,
 						userId,
+						captureTrigger: captureTrigger.data,
 					});
 					if (!admitted.ok) {
 						refuse(admitted.message, admitted.code);

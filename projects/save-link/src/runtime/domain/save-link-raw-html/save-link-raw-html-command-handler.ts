@@ -97,7 +97,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 				}
 
 				const article = finalized.ok ? finalized.article : UNREADABLE_ARTICLE;
-				const metadata = candidateProvenance({ metadata: { ...article.metadata, authorUserId: detail.userId }, html: article.html, evaluationHtml: rawHtml, attemptId: saveAttemptId, originalUrl, sourceUrl: detail.sourceUrl, kind: "extension", fetchedAt: capturedAt });
+				const metadata = candidateProvenance({ metadata: { ...article.metadata, authorUserId: detail.userId }, html: article.html, evaluationHtml: rawHtml, attemptId: saveAttemptId, originalUrl, sourceUrl: detail.sourceUrl, kind: "extension", fetchedAt: capturedAt, captureTrigger: detail.captureTrigger });
 				await putTierSource({
 					url: detail.url,
 					tier: TIER,
@@ -111,6 +111,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					// and may differ from the readability-extracted title. Useful in logs
 					// for correlating a save with what the user actually had open.
 					capturedTitle: detail.title,
+					captureTrigger: detail.captureTrigger,
 				});
 
 				const snapshot = await readTierSnapshot({ url: detail.url });

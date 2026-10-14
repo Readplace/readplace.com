@@ -56,6 +56,7 @@ export const SaveLinkRawHtmlCommand = defineEvent({
 		sourceUrl: z.string(),
 		userId: z.string(),
 		title: z.string().optional(),
+		captureTrigger: z.enum(["automatic", "manual"]),
 	}),
 });
 export type SaveLinkRawHtmlDetail = z.infer<typeof SaveLinkRawHtmlCommand.detailSchema>;

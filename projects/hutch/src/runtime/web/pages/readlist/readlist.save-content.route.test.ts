@@ -536,7 +536,7 @@ describe("Collection-Siren advertises save-content action", () => {
 			type: "multipart/form-data",
 		}));
 		const fieldNames: string[] = saveContentAction.fields.map((f: { name: string }) => f.name);
-		expect(fieldNames).toEqual(["url", "content", "mediaType", "title", "size"]);
+		expect(fieldNames).toEqual(["url", "content", "mediaType", "title", "size", "captureTrigger"]);
 	});
 
 	it("declares the byte ceiling on save-content's content field", async () => {
@@ -1134,4 +1134,96 @@ it.each(["inline", "completion"])("records the article a Readplace reader tab wr
 	const response = await submit;
 	expect(response.status).toBe(201);
 	expect(events).toEqual([expect.objectContaining({ url: article, sourceUrl: article, sourceOriginalUrl: article })]);
+});
+
+describe("POST /queue/save-content capture trigger", () => {
+	function setupTrigger(): {
+		testApp: TestAppHarness;
+		events: Parameters<PublishSaveLinkRawHtmlCommand>[0][];
+		staged: unknown[];
+	} {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const events: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+		const staged: unknown[] = [];
+		const testApp = useApp({
+			...fixture,
+			events: { ...fixture.events, publishSaveLinkRawHtmlCommand: async (event) => { events.push(event); } },
+			pendingHtml: { ...fixture.pendingHtml, putPendingHtml: async (input) => { staged.push(input); } },
+		});
+		return { testApp, events, staged };
+	}
+
+	it("forwards an automatic capture's trigger to the raw-html command", async () => {
+		const { testApp, events } = setupTrigger();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/rescued")
+			.field("mediaType", "text/html")
+			.field("title", "Rescued")
+			.field("captureTrigger", "automatic")
+			.attach("content", VALID_HTML, "content.html");
+
+		expect(response.status).toBe(201);
+		expect(events).toEqual([expect.objectContaining({ url: "https://example.com/rescued", captureTrigger: "automatic" })]);
+	});
+
+	it("treats a capture without a trigger as a tap", async () => {
+		const { testApp, events } = setupTrigger();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/tapped")
+			.field("mediaType", "text/html")
+			.attach("content", VALID_HTML, "content.html");
+
+		expect(response.status).toBe(201);
+		expect(events).toEqual([expect.objectContaining({ url: "https://example.com/tapped", captureTrigger: "manual" })]);
+	});
+
+	it("forwards the trigger on an upload-slot completion", async () => {
+		const { testApp, events } = setupTrigger();
+		const accessToken = await createAccessToken(testApp);
+		const url = "https://example.com/big-rescue.html";
+		await testApp.pendingUpload.stageUploaded({ saveAttemptId: UPLOAD_ATTEMPT, url, mediaType: "text/html", bytes: VALID_HTML });
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", url)
+			.field("mediaType", "text/html")
+			.field("captureTrigger", "automatic")
+			.field("saveAttemptId", UPLOAD_ATTEMPT)
+			.field("uploaded", "true");
+
+		expect(response.status).toBe(201);
+		expect(events).toEqual([expect.objectContaining({ url, captureTrigger: "automatic" })]);
+	});
+
+	it("refuses a malformed captureTrigger part", async () => {
+		const { testApp, events, staged } = setupTrigger();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/rescued")
+			.field("mediaType", "text/html")
+			.field("captureTrigger", "later")
+			.attach("content", VALID_HTML, "content.html");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("invalid-save-content");
+		expect(response.body.properties.message).toBe("captureTrigger must be automatic or manual");
+		expect(events).toEqual([]);
+		expect(staged).toEqual([]);
+	});
 });

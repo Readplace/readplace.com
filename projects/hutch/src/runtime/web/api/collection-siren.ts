@@ -153,6 +153,7 @@ export function toArticleCollectionEntity(
 					{ name: "mediaType", type: "text" },
 					{ name: "title", type: "text" },
 					{ name: "size", type: "number" },
+					{ name: "captureTrigger", type: "text" },
 				],
 			},
 			{

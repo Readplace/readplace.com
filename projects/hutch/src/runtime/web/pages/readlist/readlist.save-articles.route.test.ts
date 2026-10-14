@@ -596,6 +596,23 @@ describe("POST /queue/save-articles", () => {
 		expect(urls).toContain("https://example.com/b");
 	});
 
+	it("a bulk page save is a tap", async () => {
+		const { testApp, publishedSaveHtml } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: "https://example.com/open-tab", title: "Open tab", mediaType: "text/html" }]))
+			.attach("content-0", VALID_HTML, "content-0");
+
+		expect(response.status).toBe(200);
+		expect(publishedSaveHtml).toEqual([
+			expect.objectContaining({ url: "https://example.com/open-tab", captureTrigger: "manual" }),
+		]);
+	});
+
 	it("unwraps a Readplace /view self-URL and saves the underlying original article", async () => {
 		const { testApp } = setup();
 		const accessToken = await createAccessToken(testApp);

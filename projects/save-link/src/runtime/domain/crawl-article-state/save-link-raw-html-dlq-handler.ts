@@ -26,7 +26,7 @@ export function initSaveLinkRawHtmlDlqHandler(
 		for (const record of event.Records) {
 			try {
 				const envelope = JSON.parse(record.body);
-				const command = SaveLinkRawHtmlCommand.detailSchema.parse(envelope.detail);
+				const command = SaveLinkRawHtmlCommand.detailSchema.pick({ url: true }).parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
 				logger.info("[SaveLinkRawHtmlDlq] marking crawl exhausted", {

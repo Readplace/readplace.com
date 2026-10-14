@@ -1,4 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
+import type { CaptureTrigger } from "@packages/domain/article";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveLinkRawHtmlCommandHandler } from "./save-link-raw-html-command-handler";
@@ -14,12 +15,12 @@ const stubAttributes: SQSRecordAttributes = {
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
 
-function createSqsEvent(detail: { url: string; userId: string; title?: string; sourceUrl?: string }): SQSEvent {
+function createSqsEvent(detail: { url: string; userId: string; title?: string; sourceUrl?: string; captureTrigger?: CaptureTrigger }): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", sourceUrl: detail.url, sourceOriginalUrl: detail.url, ...detail } }),
+			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", sourceUrl: detail.url, sourceOriginalUrl: detail.url, captureTrigger: "manual", ...detail } }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -287,6 +288,38 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		expect(info).toHaveBeenCalledWith(
 			"[SaveLinkRawHtmlCommand] tier-0 source written",
 			expect.objectContaining({ url: "https://example.com/article", capturedTitle: "Captured Title" }),
+		);
+	});
+
+	it("writes the capture trigger into the tier-0 manifest", async () => {
+		const { handler, deps } = createHandler();
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/article", userId: "user-1", captureTrigger: "automatic" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+			tier: "tier-0",
+			metadata: expect.objectContaining({ kind: "extension", captureTrigger: "automatic" }),
+		}));
+	});
+
+	it("logs the capture trigger alongside the tier-0 save", async () => {
+		const info = jest.fn();
+		const logger = { ...noopLogger, info };
+		const { handler } = createHandler({ logger });
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/article", userId: "user-1", captureTrigger: "automatic" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(info).toHaveBeenCalledWith(
+			"[SaveLinkRawHtmlCommand] tier-0 source written",
+			expect.objectContaining({ url: "https://example.com/article", captureTrigger: "automatic" }),
 		);
 	});
 
