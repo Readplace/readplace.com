@@ -348,6 +348,20 @@ describe("GMail Newsletters saved notice", () => {
 		assert.deepEqual(awaiting.notices.map((notice) => notice.message), ["2 newsletters saved. Their new issues will be forwarded once Gmail confirms the forwarding address."]);
 	});
 
+	it("tells a reader who changed a newsletter during Step 2 that forwarding waits on Gmail's confirmation", () => {
+		const awaiting = toGmailPageViewModel(input({ notice: "sender_remapped", connection: connection({ forwardingConfirmedAt: undefined }) }));
+		assert.deepEqual(awaiting.notices, [
+			{ key: "sender_remapped", message: "Newsletter updated. Its new issues will be forwarded once Gmail confirms the forwarding address.", variant: "success" },
+		]);
+	});
+
+	it("says the newsletters stay in place when it asks to reconnect for access to senders", () => {
+		assert.equal(
+			toGmailPageViewModel(input({ metadataScopeGranted: false })).metadataReconnect.message,
+			"Reconnect Gmail to choose senders from your mailbox. The newsletters you set up stay in place.",
+		);
+	});
+
 	it("shows no count notice without a count", () => {
 		assert.deepEqual(toGmailPageViewModel(input({ notice: "senders_saved" })).notices, []);
 	});
