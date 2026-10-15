@@ -13,6 +13,7 @@ import {
 } from "@packages/onboarding-extension-signal";
 import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 import { createReadlistFromReader, markReadWithConfirmation } from "./page-interactions";
+import { seedChromeGrant } from "./oauth-revoke/seed-grant";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 import { LENSES, NON_TEXT_MINIMUM, contrastRatio, textMinimum } from "./wcag-contrast";
 
@@ -986,6 +987,27 @@ test.describe("Account colour roles hold their WCAG contrast in both themes", ()
 			await page.goto(`${BASE_URL}/account/invoices`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("[data-test-invoices-state]")).toHaveAttribute("data-test-invoices-state", "list");
 			await auditRoot(page, { root: "main.account", theme, view: "account/invoices" });
+		}
+	});
+
+	test("the listed Connected apps section and its open Disconnect dialog clear their contrast minimum", async ({ page }, testInfo) => {
+		const email = `colour-contrast-connected-apps-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createChipReader(page, email);
+		await loginChipReader(page, email);
+		await seedChromeGrant(page.request, BASE_URL);
+		const section = "#connected-apps";
+		const dialog = '[data-test-confirm-popover="disconnect-app"]';
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/account#connected-apps`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(section)).toHaveAttribute("data-test-connected-apps-state", "listed");
+			await auditRoot(page, { root: section, theme, view: "account/connected-apps" });
+			await page.locator('[data-test-action="disconnect-app-open"]').click({ timeout: SETTLE_MS });
+			await expect(page.locator(`${dialog}:popover-open`)).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: dialog, theme, view: "account/disconnect-dialog" });
+			await page.keyboard.press("Escape");
+			await expect(page.locator(`${dialog}:popover-open`)).toBeHidden({ timeout: SETTLE_MS });
 		}
 	});
 });

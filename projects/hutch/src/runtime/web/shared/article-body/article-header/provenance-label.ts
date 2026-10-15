@@ -1,6 +1,7 @@
 import type { SaveProvenance } from "@packages/domain/article";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import { iconSvg } from "@packages/ui-icons";
+import { findRosterAssistant } from "../../assistant-roster";
 import { CLIENT_ICON_SVG } from "../../client-icons";
 
 export type ReaderProvenance = SaveProvenance | { kind: "newsletter"; name: string; senderEmail: string };
@@ -28,11 +29,7 @@ function labelForClient(clientName: string): ProvenanceLabel | undefined {
  * the roster and never rendered — an assistant we don't recognise gets the
  * generic label. */
 function labelForAssistant(registeredName: string): ProvenanceLabel {
-	const assistant = SUPPORTED_CLIENTS.find(
-		(candidate) =>
-			candidate.group === "aiAssistant" &&
-			candidate.displayName.toLowerCase() === registeredName.trim().toLowerCase(),
-	);
+	const assistant = findRosterAssistant(registeredName);
 	if (!assistant) return { label: "via AI assistant" };
 	return { label: `via ${assistant.displayName}`, iconSvg: CLIENT_ICON_SVG[assistant.name] };
 }

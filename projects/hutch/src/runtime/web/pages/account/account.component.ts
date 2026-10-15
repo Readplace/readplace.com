@@ -15,6 +15,8 @@ import {
 	SUBSCRIBE_PLANS_STYLES,
 	renderSubscribePlansPopover,
 } from "../../shared/subscribe-plans/subscribe-plans.component";
+import { renderConnectedApps } from "./account-connected-apps.component";
+import type { ConnectedAppsSectionViewModel } from "./account-connected-apps.view-model";
 import { renderAccountProfileEdit, renderAccountProfileFallbackForm } from "./account-profile.component";
 import { renderSecuritySection } from "./account-security.component";
 import { ACCOUNT_STYLES } from "./account.styles";
@@ -42,6 +44,8 @@ const ACCOUNT_DANGER_FORM_TEMPLATE = readFileSync(join(__dirname, "account-dange
  * Loaded on every /account render; it no-ops unless the Elements container is
  * present, so the list/manage views pay nothing for it. */
 const ACCOUNT_CARDS_SCRIPT = `<script src="/client-dist/account-cards.client.js" defer></script>`;
+
+const ACCOUNT_DIALOGS_SCRIPT = `<script src="/client-dist/account-dialogs.client.js" defer></script>`;
 
 /** Export left the header nav; the account page is where it lives now,
  * reachable by read-only users too. */
@@ -305,6 +309,7 @@ export function AccountPage(
 		profile: ProfileSectionViewModel;
 		security: SecuritySectionViewModel;
 		appearance: AppearanceSectionViewModel;
+		connectedApps: ConnectedAppsSectionViewModel;
 		surface?: AccountSurface;
 	},
 ): PageBody {
@@ -333,6 +338,7 @@ export function AccountPage(
 				profileEditHtml: page.profile.edits.map(renderAccountProfileEdit).join(""),
 				profileFallbackFormHtml: page.profile.edits.map(renderAccountProfileFallbackForm).join(""),
 				securitySectionHtml: renderSecuritySection(page.security),
+				connectedAppsHtml: renderConnectedApps(page.connectedApps),
 				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
 				danger: buildDangerZone(vm),
@@ -341,6 +347,6 @@ export function AccountPage(
 		},
 		// The app surface renders no Elements container (withoutCommerce hides the
 		// whole card section), so the Stripe glue would have nothing to mount.
-		scripts: surface ? undefined : ACCOUNT_CARDS_SCRIPT,
+		scripts: surface ? ACCOUNT_DIALOGS_SCRIPT : `${ACCOUNT_CARDS_SCRIPT}${ACCOUNT_DIALOGS_SCRIPT}`,
 	};
 }

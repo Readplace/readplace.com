@@ -19,9 +19,11 @@ import type {
 import { UserIdSchema } from "@packages/domain/user";
 import type {
 	FindOAuthClient,
+	ListUserOAuthClients,
 	MarkOAuthClientActive,
 	OAuthModel,
 	RevokeAllUserOAuthTokens,
+	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import { generateToken } from "@packages/domain/oauth";
@@ -58,7 +60,11 @@ export function initDynamoDbOAuthModel(deps: {
 	findClient: FindOAuthClient;
 	markClientActive: MarkOAuthClientActive;
 	secret: string;
-}): OAuthModel & { revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens } {
+}): OAuthModel & {
+	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	listUserOAuthClients: ListUserOAuthClients;
+	revokeUserOAuthClient: RevokeUserOAuthClient;
+} {
 	const { client, tableName, findUserById, findClient, markClientActive } = deps;
 	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
 	const tokens = defineDynamoTable({ client, tableName, schema: OAuthTokenRow });
@@ -72,6 +78,8 @@ export function initDynamoDbOAuthModel(deps: {
 
 	return {
 		revokeAllUserOAuthTokens: credentials.revokeAll,
+		listUserOAuthClients: credentials.listClients,
+		revokeUserOAuthClient: credentials.revokeClient,
 		async getClient(clientId: string, _clientSecret: string): Promise<Client | Falsey> {
 			return resolveClient(clientId);
 		},

@@ -1,0 +1,44 @@
+.connected-apps {
+  overflow-wrap: anywhere;
+}
+
+.connected-apps__list {
+  list-style: none;
+}
+
+.connected-apps .connected-apps__trigger {
+  display: none;
+}
+
+.connected-apps__fallback > summary {
+  list-style: none;
+}
+
+.connected-apps__fallback > summary::-webkit-details-marker {
+  display: none;
+}
+
+.connected-apps__fallback > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.connected-apps__fallback-body {
+  margin-block: 12px;
+  max-inline-size: 32ch;
+}
+
+.connected-apps__fallback-form {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@supports selector(:popover-open) {
+  .connected-apps .connected-apps__trigger {
+    display: inline-flex;
+  }
+
+  .connected-apps .connected-apps__fallback {
+    display: none;
+  }
+}

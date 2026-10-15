@@ -6,9 +6,13 @@ import type {
 	Client,
 	AuthorizationCode,
 } from "@node-oauth/oauth2-server";
+import { OAuthClientIdSchema } from "@packages/domain/oauth";
+import { UserIdSchema } from "@packages/domain/user";
 import {
+	createListUserOAuthClients,
 	createOAuthModel,
 	createRevokeAllUserOAuthTokens,
+	createRevokeUserOAuthClient,
 	initInMemoryOAuthModel,
 } from "./oauth-model";
 
@@ -872,5 +876,112 @@ describe("createRevokeAllUserOAuthTokens", () => {
 		await revokeAllUserOAuthTokens(TEST_USER_ID, "logout-all");
 
 		expect(deps.userIdIndex.has(TEST_USER_ID)).toBe(false);
+	});
+});
+
+describe("createListUserOAuthClients", () => {
+	const CHROME_CLIENT_ID = OAuthClientIdSchema.parse("hutch-chrome-extension");
+	const OTHER_USER_ID = UserIdSchema.parse("user-other");
+	const past = new Date(Date.now() - 60_000);
+
+	it("lists each client holding a live token once, however many tokens it holds", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const firefox = await model.getClient(TEST_CLIENT_ID, "");
+		const chrome = await model.getClient(CHROME_CLIENT_ID, "");
+		assert(firefox && chrome, "Built-in clients must exist");
+
+		await model.saveToken(createTestToken({ accessToken: "firefox-1", refreshToken: "firefox-refresh-1" }), firefox, { id: TEST_USER_ID });
+		await model.saveToken(createTestToken({ accessToken: "firefox-2", refreshToken: "firefox-refresh-2" }), firefox, { id: TEST_USER_ID });
+		await model.saveToken(createTestToken({ accessToken: "chrome-1", refreshToken: "chrome-refresh-1" }), chrome, { id: TEST_USER_ID });
+
+		const listUserOAuthClients = createListUserOAuthClients(deps);
+
+		expect(await listUserOAuthClients(TEST_USER_ID)).toEqual([TEST_CLIENT_ID, CHROME_CLIENT_ID]);
+	});
+
+	it("lists a client whose refresh token outlives its expired access token", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const firefox = await model.getClient(TEST_CLIENT_ID, "");
+		assert(firefox, "Test client must exist");
+
+		await model.saveToken(createTestToken({ accessTokenExpiresAt: past }), firefox, { id: TEST_USER_ID });
+
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([TEST_CLIENT_ID]);
+	});
+
+	it("leaves out a client whose access and refresh tokens have both expired", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const firefox = await model.getClient(TEST_CLIENT_ID, "");
+		assert(firefox, "Test client must exist");
+
+		await model.saveToken(createTestToken({ accessTokenExpiresAt: past, refreshTokenExpiresAt: past }), firefox, { id: TEST_USER_ID });
+
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([]);
+	});
+
+	it("leaves out another user's clients and a pending authorization code", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const firefox = await model.getClient(TEST_CLIENT_ID, "");
+		const chrome = await model.getClient(CHROME_CLIENT_ID, "");
+		assert(firefox && chrome, "Built-in clients must exist");
+
+		await model.saveToken(createTestToken({ accessToken: "chrome-1", refreshToken: "chrome-refresh-1" }), chrome, { id: TEST_USER_ID });
+		await model.saveToken(createTestToken({ accessToken: "other-firefox", refreshToken: "other-refresh" }), firefox, { id: OTHER_USER_ID });
+		await model.saveAuthorizationCode(createTestAuthCode({ authorizationCode: "firefox-code" }), firefox, { id: TEST_USER_ID });
+
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([CHROME_CLIENT_ID]);
+	});
+
+	it("lists nothing for a user with no tokens", async () => {
+		expect(await createListUserOAuthClients(initInMemoryOAuthModel())(TEST_USER_ID)).toEqual([]);
+	});
+});
+
+describe("createRevokeUserOAuthClient", () => {
+	const CHROME_CLIENT_ID = OAuthClientIdSchema.parse("hutch-chrome-extension");
+	const OTHER_USER_ID = UserIdSchema.parse("user-other");
+
+	it("removes the user's tokens, refresh index entries, userId index entries and codes for that client only", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const firefox = await model.getClient(TEST_CLIENT_ID, "");
+		const chrome = await model.getClient(CHROME_CLIENT_ID, "");
+		assert(firefox && chrome, "Built-in clients must exist");
+
+		await model.saveToken(createTestToken({ accessToken: "chrome-1", refreshToken: "chrome-refresh-1" }), chrome, { id: TEST_USER_ID });
+		await model.saveAuthorizationCode(createTestAuthCode({ authorizationCode: "chrome-code" }), chrome, { id: TEST_USER_ID });
+		await model.saveToken(createTestToken({ accessToken: "firefox-1", refreshToken: "firefox-refresh-1" }), firefox, { id: TEST_USER_ID });
+		await model.saveAuthorizationCode(createTestAuthCode({ authorizationCode: "firefox-code" }), firefox, { id: TEST_USER_ID });
+		await model.saveToken(createTestToken({ accessToken: "other-chrome", refreshToken: "other-chrome-refresh" }), chrome, { id: OTHER_USER_ID });
+		await model.saveAuthorizationCode(createTestAuthCode({ authorizationCode: "other-chrome-code" }), chrome, { id: OTHER_USER_ID });
+
+		await createRevokeUserOAuthClient(deps)({ userId: TEST_USER_ID, clientId: CHROME_CLIENT_ID });
+
+		expect([...deps.tokens.keys()]).toEqual(["firefox-1", "other-chrome"]);
+		expect([...deps.refreshTokenIndex.keys()]).toEqual(["firefox-refresh-1", "other-chrome-refresh"]);
+		const userTokens = deps.userIdIndex.get(TEST_USER_ID);
+		assert(userTokens, "The user keeps an index entry for the Firefox token");
+		expect([...userTokens]).toEqual(["firefox-1"]);
+		expect([...deps.codes.keys()]).toEqual(["firefox-code", "other-chrome-code"]);
+		expect(await model.getRefreshToken("chrome-refresh-1")).toBeNull();
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([TEST_CLIENT_ID]);
+	});
+
+	it("changes nothing for a client the user never connected", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const firefox = await model.getClient(TEST_CLIENT_ID, "");
+		assert(firefox, "Test client must exist");
+
+		await model.saveToken(createTestToken({ accessToken: "firefox-1", refreshToken: "firefox-refresh-1" }), firefox, { id: TEST_USER_ID });
+
+		await createRevokeUserOAuthClient(deps)({ userId: TEST_USER_ID, clientId: CHROME_CLIENT_ID });
+
+		expect([...deps.tokens.keys()]).toEqual(["firefox-1"]);
+		expect([...deps.refreshTokenIndex.keys()]).toEqual(["firefox-refresh-1"]);
 	});
 });

@@ -8,7 +8,12 @@ import {
 	defineDynamoTable,
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
-import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
+import { type OAuthClientId, OAuthClientIdSchema } from "@packages/domain/oauth";
+import type {
+	ListUserOAuthClients,
+	RevokeAllUserOAuthTokens,
+	RevokeUserOAuthClient,
+} from "@packages/provider-contracts/oauth";
 import { z } from "zod";
 import {
 	CredentialFingerprint,
@@ -44,6 +49,7 @@ export function initOAuthCredentialLifecycle(deps: {
 	const refreshIndex = defineDynamoTable({ client, tableName, schema: z.object({ pk: z.string(), accessToken: z.string() }) });
 	const history = defineDynamoTable({ client, tableName, schema: CredentialHistory });
 	const byUser = defineDynamoTable({ client, tableName, schema: z.object({ pk: z.string(), userId: z.string() }) });
+	const byUserClient = defineDynamoTable({ client, tableName, schema: z.object({ pk: z.string(), userId: z.string(), clientId: z.string() }) });
 	const proof = initRefreshProof(deps.secret);
 
 	function historyValues(row: OAuthTokenRow) {
@@ -108,6 +114,41 @@ export function initOAuthCredentialLifecycle(deps: {
 		});
 	};
 
+	const listClients: ListUserOAuthClients = async userId => {
+		const clientIds = new Set<OAuthClientId>();
+		await forEachQueryPage(byUser, {
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+		}, async rows => {
+			await Promise.all(rows.map(async row => {
+				if (!row.pk.startsWith("token#")) return;
+				const token = await tokens.get({ pk: row.pk }, { consistentRead: true });
+				if (token && Math.max(token.accessTokenExpiresAt, token.refreshTokenExpiresAt) * 1000 > Date.now()) {
+					clientIds.add(OAuthClientIdSchema.parse(token.clientId));
+				}
+			}));
+		});
+		return [...clientIds];
+	};
+
+	const revokeClient: RevokeUserOAuthClient = async ({ userId, clientId }) => {
+		await forEachQueryPage(byUserClient, {
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+		}, async rows => {
+			await Promise.all(rows.filter(row => row.clientId === clientId).map(async row => {
+				if (row.pk.startsWith("token#")) {
+					const token = await tokens.get({ pk: row.pk }, { consistentRead: true });
+					if (token) await revokeRow(token, "disconnect");
+				} else if (row.pk.startsWith("code#")) {
+					await byUserClient.delete({ Key: { pk: row.pk } });
+				}
+			}));
+		});
+	};
+
 	return {
 		grant(user: User) {
 			return {
@@ -153,5 +194,7 @@ export function initOAuthCredentialLifecycle(deps: {
 			return revokeRow(row, refreshContext.getStore()?.revocationCause ?? "rotation");
 		},
 		revokeAll,
+		listClients,
+		revokeClient,
 	};
 }

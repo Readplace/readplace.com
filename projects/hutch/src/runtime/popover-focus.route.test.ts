@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { AliasNameSchema } from "@packages/domain/inbox";
@@ -27,6 +28,31 @@ const MEMBER_PATHS = [
 	"/newsletters",
 	"/import",
 ];
+
+const EXTENSION_CALLBACK = "http://127.0.0.1:3000/oauth/callback";
+
+async function connectChromeExtension(agent: Awaited<ReturnType<typeof loginAgent>>): Promise<void> {
+	const verifier = randomBytes(32).toString("base64url");
+	const authorize = await agent.post("/oauth/authorize").type("form").send({
+		client_id: "hutch-chrome-extension",
+		redirect_uri: EXTENSION_CALLBACK,
+		response_type: "code",
+		code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+		code_challenge_method: "S256",
+		state: "popover-focus",
+		action: "approve",
+	});
+	const code = new URL(authorize.headers.location).searchParams.get("code");
+	assert(code, "approving the Chrome extension must redirect with a code");
+	const token = await agent.post("/oauth/token").type("form").send({
+		grant_type: "authorization_code",
+		code,
+		redirect_uri: EXTENSION_CALLBACK,
+		client_id: "hutch-chrome-extension",
+		code_verifier: verifier,
+	});
+	assert.equal(token.status, 200, "the code must exchange for the Chrome extension's tokens");
+}
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
@@ -77,6 +103,7 @@ describe("every popup opens on its first decision", () => {
 			name: AliasNameSchema.parse("news"),
 			purpose: "user-alias",
 		});
+		await connectChromeExtension(agent);
 		await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
 		await fixture.articleStore.setCrawlVersions({
 			url: ARTICLE_URL,
@@ -123,6 +150,7 @@ describe("every popup opens on its first decision", () => {
 			"article-version-delete",
 			"delete",
 			"delete-account",
+			"disconnect-app",
 			"exit-confirm",
 			"mark-status",
 			"move",

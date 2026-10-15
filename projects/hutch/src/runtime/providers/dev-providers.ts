@@ -51,8 +51,10 @@ import type { PublishStaleCheckRequested } from "@packages/provider-contracts/ev
 import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
+	createListUserOAuthClients,
 	createOAuthModel,
 	createRevokeAllUserOAuthTokens,
+	createRevokeUserOAuthClient,
 	initInMemoryOAuthClients,
 	initInMemoryOAuthModel,
 } from "@packages/test-fixtures/providers/oauth";
@@ -167,6 +169,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 		markClientActive: oauthClientLookup.markClientActive,
 	});
 	const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(oauthModelDeps);
+	const listUserOAuthClients = createListUserOAuthClients(oauthModelDeps);
+	const revokeUserOAuthClient = createRevokeUserOAuthClient(oauthModelDeps);
 	const devStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const devStripeSubscriptions = initInMemorySubscriptionBilling();
 	const devPendingSignup = initInMemoryPendingSignup();
@@ -577,6 +581,8 @@ export function initDevProviders(input: { appOrigin: string }) {
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens,
+		listUserOAuthClients,
+		revokeUserOAuthClient,
 		validateAccessToken: createValidateAccessToken(oauthModel),
 		findOAuthClient: oauthClientLookup.findClient,
 		validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,

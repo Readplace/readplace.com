@@ -14,7 +14,7 @@ export const RefreshAttempt = z.object({
 	fingerprint: CredentialFingerprint,
 });
 export type RefreshAttempt = z.infer<typeof RefreshAttempt>;
-export type RevocationCause = "rotation" | "logout" | "logout-all" | "account-deletion";
+export type RevocationCause = "rotation" | "logout" | "logout-all" | "account-deletion" | "disconnect";
 export const CredentialHistory = z.object({
 	pk: z.string(),
 	grantId: OAuthGrantId,
@@ -22,7 +22,7 @@ export const CredentialHistory = z.object({
 	credentialExpiresAt: z.number(),
 	expiresAt: z.number(),
 	parentFingerprint: CredentialFingerprint.optional(),
-	revocation: z.object({ cause: z.enum(["rotation", "logout", "logout-all", "account-deletion"]), completedAt: z.number() }).optional(),
+	revocation: z.object({ cause: z.enum(["rotation", "logout", "logout-all", "account-deletion", "disconnect"]), completedAt: z.number() }).optional(),
 });
 export type CredentialHistory = z.infer<typeof CredentialHistory>;
 export interface RefreshContext {

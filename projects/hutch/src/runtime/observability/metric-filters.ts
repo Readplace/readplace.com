@@ -1,5 +1,6 @@
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import { OAUTH_TOKEN_GRANT_TYPES } from "@packages/web-analytics";
+import type { RevocationCause } from "../oauth-refresh/evidence";
 import { ANALYTICS_EVENTS, CONVERSION_EVENTS, STREAMS } from "./events";
 
 export const ANALYTICS_METRIC_NAMESPACE = "Readplace/Analytics";
@@ -36,9 +37,11 @@ export function analyticsMetricFilterPattern(filter: AnalyticsMetricFilter): str
 	return `{ $.stream = "${filter.stream}" && $.event = "${filter.event}" }`;
 }
 
-export function firstPartyRefreshRefusedPattern(): string {
+const READER_DISCONNECT = "disconnect" satisfies RevocationCause;
+
+export function firstPartyRefreshRefusedExceptDisconnectPattern(): string {
 	const anyFirstPartyClient = SUPPORTED_CLIENTS.flatMap((client) =>
 		client.auth.kind === "builtIn" ? [`$.client_id = "${client.auth.oauthClientId}"`] : [],
 	).join(" || ");
-	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "${OAUTH_TOKEN_GRANT_TYPES.refreshToken}" && (${anyFirstPartyClient}) }`;
+	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "${OAUTH_TOKEN_GRANT_TYPES.refreshToken}" && (${anyFirstPartyClient}) && $.refresh_refusal.reason != "${READER_DISCONNECT}" }`;
 }

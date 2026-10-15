@@ -1,3 +1,4 @@
+import type { BuiltInOAuthClientId } from "@packages/supported-clients";
 import type { Request } from "express";
 
 /** Header a native app sets on every authenticated Siren request. A browser on
@@ -14,6 +15,11 @@ export const NATIVE_CLIENT_HEADER = "x-readplace-client";
 export const NATIVE_CLIENT_VALUES = ["ios", "android"] as const;
 
 export type NativeClientPlatform = (typeof NATIVE_CLIENT_VALUES)[number];
+
+export const NATIVE_APP_OAUTH_CLIENT_ID = {
+	ios: "ios-app",
+	android: "android-app",
+} as const satisfies Record<NativeClientPlatform, BuiltInOAuthClientId>;
 
 const NATIVE_CLIENT_VALUE_SET: ReadonlySet<string> = new Set(NATIVE_CLIENT_VALUES);
 

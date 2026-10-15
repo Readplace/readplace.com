@@ -18,7 +18,13 @@ import {
 	DISPLAY_NAME_MAX_LENGTH,
 	parseDisplayNameInput,
 } from "@packages/domain/user";
-import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
+import { type OAuthClient, OAuthClientIdSchema } from "@packages/domain/oauth";
+import type {
+	FindOAuthClient,
+	ListUserOAuthClients,
+	RevokeAllUserOAuthTokens,
+	RevokeUserOAuthClient,
+} from "@packages/provider-contracts/oauth";
 import type {
 	CreateCheckoutSession,
 	CheckoutSessionId,
@@ -87,6 +93,7 @@ import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import { AccountPage, renderAccountCard } from "./account.component";
+import { buildConnectedAppsSection } from "./account-connected-apps.view-model";
 import { AccountInvoicesPage } from "./account-invoices.component";
 import {
 	type AccountInvoicesFetch,
@@ -109,12 +116,18 @@ import {
 	toAccountViewModel,
 	withoutCommerce,
 } from "./account.view-model";
-import { isAppShell, isNativeSurface, nativeSurfaceOf } from "../../onboarding/native-client";
+import {
+	NATIVE_APP_OAUTH_CLIENT_ID,
+	isAppShell,
+	isNativeSurface,
+	nativeSurfaceOf,
+} from "../../onboarding/native-client";
 import {
 	SUBSCRIBE_PLANS_SOURCES,
 	type SubscribePlansSource,
 } from "../../shared/subscribe-plans/subscribe-plans.component";
 import {
+	ACCOUNT_CONNECTED_APPS_ANCHOR,
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
 	ACCOUNT_ERROR_CARD_LIMIT_URL,
@@ -142,6 +155,9 @@ interface AccountDependencies {
 	destroyUserSessions: DestroyUserSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	listUserOAuthClients: ListUserOAuthClients;
+	revokeUserOAuthClient: RevokeUserOAuthClient;
+	findOAuthClient: FindOAuthClient;
 	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
@@ -212,6 +228,12 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		}
 	}
 
+	async function loadConnectedClients(userId: UserId): Promise<OAuthClient[]> {
+		const clientIds = await deps.listUserOAuthClients(userId);
+		const clients = await Promise.all(clientIds.map((clientId) => deps.findOAuthClient(clientId)));
+		return clients.filter((client): client is OAuthClient => client !== undefined);
+	}
+
 	async function renderAccount(
 		req: Request,
 		res: Response,
@@ -224,10 +246,11 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		},
 	): Promise<void> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const [email, user, passwordStatus] = await Promise.all([
+		const [email, user, passwordStatus, connectedClients] = await Promise.all([
 			deps.findEmailByUserId(req.userId),
 			deps.findUserById(req.userId),
 			deps.findUserPasswordStatus(req.userId),
+			loadConnectedClients(req.userId),
 		]);
 		assert(email, "an authenticated account page must resolve an email");
 		assert(user, "an authenticated account page must resolve a user");
@@ -240,6 +263,11 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		const currentAppearance = user.appearance ?? "system";
 		const appearanceSection = buildAppearanceSection({
 			current: currentAppearance,
+			appShell: isAppShell(req),
+			platform: nativeSurfaceOf(req),
+		});
+		const connectedApps = buildConnectedAppsSection({
+			clients: connectedClients,
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
@@ -275,6 +303,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 							profile,
 							security,
 							appearance: appearanceSection,
+							connectedApps,
 							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
 						},
 					),
@@ -293,7 +322,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		sendComponent(
 			req,
 			res,
-			Base(AccountPage(vm, { profile, security, appearance: appearanceSection }), bannerState),
+			Base(AccountPage(vm, { profile, security, appearance: appearanceSection, connectedApps }), bannerState),
 		);
 	}
 
@@ -663,6 +692,21 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		// nonsense, so the app shell is sent a deep link its navigation delegate
 		// intercepts: it dismisses the sheet and signs the app out locally.
 		redirectFullPage(req, res, isAppShell(req) ? ACCOUNT_LOGOUT_HREF : "/");
+	});
+
+	router.post("/connected-apps/:clientId/disconnect", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const clientId = OAuthClientIdSchema.parse(req.params.clientId);
+		await deps.revokeUserOAuthClient({ userId: req.userId, clientId });
+		const platform = nativeSurfaceOf(req);
+		if (isAppShell(req) && platform !== undefined && NATIVE_APP_OAUTH_CLIENT_ID[platform] === clientId) {
+			redirectFullPage(req, res, ACCOUNT_LOGOUT_HREF);
+			return;
+		}
+		res.redirect(
+			303,
+			`${buildAccountUrl({ surfacePlatform: platform, appShell: isAppShell(req) })}#${ACCOUNT_CONNECTED_APPS_ANCHOR}`,
+		);
 	});
 
 	router.post("/reactivate", async (req: Request, res: Response) => {

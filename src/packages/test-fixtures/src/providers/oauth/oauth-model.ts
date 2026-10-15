@@ -10,8 +10,10 @@ import type {
 import type {
 	MarkOAuthClientActive,
 	FindOAuthClient,
+	ListUserOAuthClients,
 	OAuthModel,
 	RevokeAllUserOAuthTokens,
+	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
@@ -86,6 +88,33 @@ export function createRevokeAllUserOAuthTokens(deps: OAuthModelDeps): RevokeAllU
 		}
 		for (const [code, stored] of deps.codes) {
 			if (stored.userId === userId) deps.codes.delete(code);
+		}
+	};
+}
+
+export function createListUserOAuthClients(deps: OAuthModelDeps): ListUserOAuthClients {
+	return async (userId) => {
+		const now = new Date();
+		const clientIds = new Set<OAuthClientId>();
+		for (const stored of deps.tokens.values()) {
+			if (stored.userId === userId && (stored.accessTokenExpiresAt > now || stored.refreshTokenExpiresAt > now)) {
+				clientIds.add(stored.clientId);
+			}
+		}
+		return [...clientIds];
+	};
+}
+
+export function createRevokeUserOAuthClient(deps: OAuthModelDeps): RevokeUserOAuthClient {
+	return async ({ userId, clientId }) => {
+		for (const [accessToken, stored] of deps.tokens) {
+			if (stored.userId !== userId || stored.clientId !== clientId) continue;
+			deps.refreshTokenIndex.delete(stored.refreshToken);
+			deps.tokens.delete(accessToken);
+			deps.userIdIndex.get(userId)?.delete(accessToken);
+		}
+		for (const [code, stored] of deps.codes) {
+			if (stored.userId === userId && stored.clientId === clientId) deps.codes.delete(code);
 		}
 	};
 }

@@ -73,6 +73,10 @@
   text-wrap: pretty;
 }
 
+.mcp-connect__note-link {
+  color: var(--primary-text);
+}
+
 .mcp-connect__tool {
   margin-bottom: 32px;
 }

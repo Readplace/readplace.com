@@ -151,6 +151,8 @@ import type {
 	OAuthModel,
 	OnUnpaidFirstInvoice,
 	RevokeAllUserOAuthTokens,
+	ListUserOAuthClients,
+	RevokeUserOAuthClient,
 	FindOAuthClient,
 	RegisterOAuthClient,
 	ValidateOAuthRedirectUri,
@@ -518,6 +520,8 @@ export interface FreshnessBundle {
 export interface OAuthBundle {
 	oauthModel: OAuthModel;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	listUserOAuthClients: ListUserOAuthClients;
+	revokeUserOAuthClient: RevokeUserOAuthClient;
 	validateAccessToken: ValidateAccessToken;
 	findClient: FindOAuthClient;
 	validateRedirectUri: ValidateOAuthRedirectUri;

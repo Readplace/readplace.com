@@ -239,6 +239,15 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/pages/account/account-dialogs.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "account-dialogs.client.js"),
+    globalName: "AccountDialogs",
+    footer: "AccountDialogs.initAccountDialogs({ document: window.document });",
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/shared/article-body/reader-actions/readlist-picker.client.ts",
     ),
     outfile: path.join(OUT_DIR, "readlist-picker.client.js"),

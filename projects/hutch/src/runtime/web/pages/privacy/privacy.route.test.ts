@@ -1,3 +1,4 @@
+import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import {
@@ -32,7 +33,14 @@ describe("GET /privacy", () => {
 
 		expect(response.text).toContain("Connected AI assistants");
 		expect(response.text).toContain("It cannot delete anything");
+		expect(response.text).toContain("Disconnect an assistant under");
+		expect(response.text).toContain("on your Account page");
 		expect(response.text).toContain("revokes its Readplace token");
+		const doc = new JSDOM(response.text).window.document;
+		expect(Array.from(doc.querySelectorAll('.legal-page__section a[href^="/account"]')).map((link) => link.getAttribute("href"))).toEqual([
+			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-assistants#connected-apps",
+			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-rights",
+		]);
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {

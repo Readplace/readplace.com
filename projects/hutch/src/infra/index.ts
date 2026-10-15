@@ -42,7 +42,7 @@ import {
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
-import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, firstPartyRefreshRefusedPattern } from "../runtime/observability/metric-filters";
+import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { assertExcludedUserIds, assertExcludedVisitorIds } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
@@ -1772,13 +1772,13 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	},
 });
 
-new aws.cloudwatch.LogMetricFilter("oauth-refresh-refused-first-party-filter", {
-	name: "oauth-refresh-refused-first-party",
+new aws.cloudwatch.LogMetricFilter("oauth-refresh-refused-first-party-except-disconnect-filter", {
+	name: "oauth-refresh-refused-first-party-except-disconnect",
 	logGroupName: lambda.logGroupName,
-	pattern: firstPartyRefreshRefusedPattern(),
+	pattern: firstPartyRefreshRefusedExceptDisconnectPattern(),
 	metricTransformation: {
-		name: METRICS.oauthRefreshRefusedFirstParty.name,
-		namespace: METRICS.oauthRefreshRefusedFirstParty.namespace,
+		name: METRICS.oauthRefreshRefusedFirstPartyExceptDisconnect.name,
+		namespace: METRICS.oauthRefreshRefusedFirstPartyExceptDisconnect.namespace,
 		value: "1",
 		defaultValue: "0",
 		unit: "Count",
@@ -1799,14 +1799,14 @@ new aws.cloudwatch.MetricAlarm("oauth-refresh-refused-alarm", {
 	name: "oauth-refresh-refused-alarm",
 	comparisonOperator: "GreaterThanOrEqualToThreshold",
 	evaluationPeriods: 1,
-	metricName: METRICS.oauthRefreshRefusedFirstParty.name,
-	namespace: METRICS.oauthRefreshRefusedFirstParty.namespace,
+	metricName: METRICS.oauthRefreshRefusedFirstPartyExceptDisconnect.name,
+	namespace: METRICS.oauthRefreshRefusedFirstPartyExceptDisconnect.namespace,
 	period: 86400,
 	statistic: "Sum",
 	threshold: oauthRefreshRefusedDailyThreshold,
 	treatMissingData: "notBreaching",
 	alarmDescription:
-		"Refresh-token grants from Readplace's own extensions and apps are being refused above the expected per-day baseline; dynamically registered clients are not counted",
+		"Refresh-token grants from Readplace's own extensions and apps are being refused above the expected per-day baseline; dynamically registered clients, and refusals after a reader disconnects an app under Connected apps, are not counted",
 	alarmActions: [oauthRefreshRefusedTopic.arn],
 });
 

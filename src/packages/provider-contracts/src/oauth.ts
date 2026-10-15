@@ -2,7 +2,7 @@ import type {
 	AuthorizationCodeModel,
 	RefreshTokenModel,
 } from "@node-oauth/oauth2-server";
-import type { AccessToken, OAuthClient } from "@packages/domain/oauth";
+import type { AccessToken, OAuthClient, OAuthClientId } from "@packages/domain/oauth";
 import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 
 export type OAuthModel = AuthorizationCodeModel & RefreshTokenModel;
@@ -16,6 +16,10 @@ export type ValidateAccessToken = (
 } | null>;
 
 export type RevokeAllUserOAuthTokens = (userId: UserId, cause: "logout-all" | "account-deletion") => Promise<void>;
+
+export type ListUserOAuthClients = (userId: UserId) => Promise<readonly OAuthClientId[]>;
+
+export type RevokeUserOAuthClient = (input: { userId: UserId; clientId: OAuthClientId }) => Promise<void>;
 
 export interface RegisterOAuthClientInput {
 	redirectUris: string[];

@@ -1,3 +1,4 @@
+import type { OAuthClientId } from "@packages/domain/oauth";
 import {
 	APP_SHELL_QUERY,
 	APP_SHELL_VALUE,
@@ -52,6 +53,21 @@ export function buildAccountPasswordUrl(params: {
 	if (params.appShell) search.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
 	const qs = search.toString();
 	return qs ? `${ACCOUNT_PASSWORD_URL}?${qs}` : ACCOUNT_PASSWORD_URL;
+}
+
+export const ACCOUNT_CONNECTED_APPS_ANCHOR = "connected-apps";
+
+export function buildConnectedAppDisconnectUrl(params: {
+	clientId: OAuthClientId;
+	surfacePlatform?: NativeClientPlatform;
+	appShell?: boolean;
+}): string {
+	const path = `/account/connected-apps/${encodeURIComponent(params.clientId)}/disconnect`;
+	const search = new URLSearchParams();
+	if (params.surfacePlatform) search.set(PLATFORM_QUERY, params.surfacePlatform);
+	if (params.appShell) search.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
+	const qs = search.toString();
+	return qs ? `${path}?${qs}` : path;
 }
 
 export const ACCOUNT_APPEARANCE_URL = "/account/appearance";

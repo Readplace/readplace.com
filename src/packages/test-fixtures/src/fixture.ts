@@ -44,8 +44,10 @@ import { initInMemoryDeleteAccountCommand } from "./providers/events/in-memory-d
 import { initInMemoryCancelSubscriptionCommand } from "./providers/events/in-memory-cancel-subscription-command";
 import { initInMemorySubscriptionReactivated } from "./providers/events/in-memory-subscription-reactivated";
 import {
+	createListUserOAuthClients,
 	createOAuthModel,
 	createRevokeAllUserOAuthTokens,
+	createRevokeUserOAuthClient,
 	initInMemoryOAuthModel,
 } from "./providers/oauth/oauth-model";
 import { initInMemoryOAuthClients } from "./providers/oauth/in-memory-oauth-clients";
@@ -321,6 +323,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		markClientActive: oauthClientLookup.markClientActive,
 	});
 	const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(oauthModelDeps);
+	const listUserOAuthClients = createListUserOAuthClients(oauthModelDeps);
+	const revokeUserOAuthClient = createRevokeUserOAuthClient(oauthModelDeps);
 	const hostedCheckout = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
 	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
@@ -469,6 +473,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		oauth: {
 			oauthModel,
 			revokeAllUserOAuthTokens,
+			listUserOAuthClients,
+			revokeUserOAuthClient,
 			validateAccessToken: createValidateAccessToken(oauthModel),
 			findClient: oauthClientLookup.findClient,
 			validateRedirectUri: oauthClientLookup.validateRedirectUri,

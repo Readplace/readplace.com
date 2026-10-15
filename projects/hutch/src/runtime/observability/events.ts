@@ -67,9 +67,9 @@ export const METRICS = {
 		namespace: "Readplace/Gmail",
 		name: "GmailConnections",
 	},
-	oauthRefreshRefusedFirstParty: {
+	oauthRefreshRefusedFirstPartyExceptDisconnect: {
 		namespace: "Readplace/OAuth",
-		name: "OAuthRefreshRefusedFirstParty",
+		name: "OAuthRefreshRefusedFirstPartyExceptDisconnect",
 	},
 	readlistCapApproached: {
 		namespace: "Readplace/Readlists",

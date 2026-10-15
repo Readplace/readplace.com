@@ -37,6 +37,18 @@ describe("GET /mcp (browser connection guide)", () => {
 		expect(response.text).toContain("your assistant can mark an article read or unread");
 	});
 
+	it("points the setup note at Connected apps in the account, where the reader disconnects an assistant", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/mcp").set("Accept", "text/html");
+
+		const link = load(response.text).querySelector(".mcp-connect__note .mcp-connect__note-link");
+		assert(link, "the setup note must link to the account's connected apps");
+		expect(link.textContent).toBe("Connected apps");
+		expect(link.getAttribute("href")).toBe(
+			"/account?utm_source=mcp-connect&utm_medium=internal&utm_content=connected-apps#connected-apps",
+		);
+	});
+
 	it("groups the reading-status tools with what the assistant does, leaving deleting app-only", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/mcp").set("Accept", "text/html");

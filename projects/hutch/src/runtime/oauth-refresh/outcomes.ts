@@ -9,7 +9,7 @@ export const RefreshRefusal = RefreshAttempt.extend({
 	reason: z.string(),
 	grantId: OAuthGrantId.optional(),
 	credentialExpiresAt: z.number().optional(),
-	revocation: z.object({ cause: z.enum(["rotation", "logout", "logout-all", "account-deletion"]), completedAt: z.number() }).optional(),
+	revocation: z.object({ cause: z.enum(["rotation", "logout", "logout-all", "account-deletion", "disconnect"]), completedAt: z.number() }).optional(),
 });
 export type RefreshRefusal = z.infer<typeof RefreshRefusal>;
 export const RefreshOutcome = z.object({

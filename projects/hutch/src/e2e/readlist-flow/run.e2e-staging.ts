@@ -21,6 +21,7 @@ import type { PasswordResetProgress } from './password-reset-actions'
 import type { SeedProgress } from './seed-actions'
 import type { ReadlistProgress, TestArticleData } from './readlist-actions'
 import { runReadlistFlow } from './readlist-flow'
+import { runDisconnectFlow } from '../oauth-revoke/disconnect-flow'
 import { runOAuthRevokeFlow } from '../oauth-revoke/oauth-revoke-flow'
 
 // No-op factory for action groups that staging legitimately cannot exercise
@@ -215,6 +216,16 @@ test.describe('Readlist management flow (staging)', () => {
 		await runOAuthRevokeFlow({
 			baseURL,
 			email: 'oauth-revoke-e2e@example.com',
+			password: 'test-password-123',
+		})
+	})
+
+	test('disconnecting the Chrome extension from the account page refuses its refresh and keeps the web session', async ({ baseURL }) => {
+		assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
+
+		await runDisconnectFlow({
+			baseURL,
+			email: 'oauth-disconnect-e2e@example.com',
 			password: 'test-password-123',
 		})
 	})

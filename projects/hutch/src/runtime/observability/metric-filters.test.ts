@@ -4,7 +4,7 @@ import {
 	ANALYTICS_METRIC_FILTERS,
 	ANALYTICS_METRIC_NAMESPACE,
 	analyticsMetricFilterPattern,
-	firstPartyRefreshRefusedPattern,
+	firstPartyRefreshRefusedExceptDisconnectPattern,
 } from "./metric-filters";
 
 describe("analytics metric filters", () => {
@@ -57,14 +57,14 @@ describe("analytics metric filters", () => {
 });
 
 describe("first-party refresh-refused metric filter", () => {
-	it("counts a refused refresh only when the grant names one of our own shipped clients, the string aws logs test-metric-filter matched an ios-app line against and refused a dynamically registered one", () => {
-		expect(firstPartyRefreshRefusedPattern()).toBe(
-			'{ $.stream = "analytics" && $.event = "oauth_token_refused" && $.grant_type = "refresh_token" && ($.client_id = "hutch-firefox-extension" || $.client_id = "hutch-chrome-extension" || $.client_id = "ios-app" || $.client_id = "android-app") }',
+	it("counts a refused refresh only when the grant names one of our own shipped clients and the reader did not disconnect it, the string aws logs test-metric-filter matched a real staging ios-app refusal and its invalid_grant, expired, logout, account-deletion and rotation variants against, and refused a disconnect refusal and a dynamically registered one", () => {
+		expect(firstPartyRefreshRefusedExceptDisconnectPattern()).toBe(
+			'{ $.stream = "analytics" && $.event = "oauth_token_refused" && $.grant_type = "refresh_token" && ($.client_id = "hutch-firefox-extension" || $.client_id = "hutch-chrome-extension" || $.client_id = "ios-app" || $.client_id = "android-app") && $.refresh_refusal.reason != "disconnect" }',
 		);
 	});
 
 	it("allows exactly the shipped roster in registry order, so a client added to the roster joins the paging metric and no other id can", () => {
-		const allowed = [...firstPartyRefreshRefusedPattern().matchAll(/\$\.client_id = "([^"]+)"/g)].map(
+		const allowed = [...firstPartyRefreshRefusedExceptDisconnectPattern().matchAll(/\$\.client_id = "([^"]+)"/g)].map(
 			(match) => match[1],
 		);
 		expect(allowed).toEqual(
@@ -78,14 +78,16 @@ describe("first-party refresh-refused metric filter", () => {
 	});
 
 	it("leaves out the placeholder a grant without a client_id logs, so a caller can neither page us nor dodge the metric by omitting the field", () => {
-		expect(firstPartyRefreshRefusedPattern()).not.toContain('"missing"');
+		expect(firstPartyRefreshRefusedExceptDisconnectPattern()).not.toContain('"missing"');
 	});
 
 	it("publishes the narrowed count as its own series, because a filter pattern applies at ingest and a narrowed one would silently redefine what the old series had been counting", () => {
-		expect(METRICS.oauthRefreshRefusedFirstParty).toEqual({
+		expect(METRICS.oauthRefreshRefusedFirstPartyExceptDisconnect).toEqual({
 			namespace: "Readplace/OAuth",
-			name: "OAuthRefreshRefusedFirstParty",
+			name: "OAuthRefreshRefusedFirstPartyExceptDisconnect",
 		});
-		expect(METRICS.oauthRefreshRefusedFirstParty.name).not.toBe("OAuthRefreshRefused");
+		expect(["OAuthRefreshRefused", "OAuthRefreshRefusedFirstParty"]).not.toContain(
+			METRICS.oauthRefreshRefusedFirstPartyExceptDisconnect.name,
+		);
 	});
 });

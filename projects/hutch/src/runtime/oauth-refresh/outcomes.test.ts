@@ -16,6 +16,7 @@ it.each([
 	[{ reason: "logout", revocation: { cause: "logout", completedAt: minute - 700_000 } }, undefined, "expected"],
 	[{ reason: "logout-all", revocation: { cause: "logout-all", completedAt: minute - 700_000 } }, undefined, "expected"],
 	[{ reason: "account-deletion", revocation: { cause: "account-deletion", completedAt: minute - 700_000 } }, undefined, "expected"],
+	[{ reason: "disconnect", revocation: { cause: "disconnect", completedAt: minute - 700_000 } }, undefined, "expected"],
 	[{ reason: "rotation", revocation: { cause: "rotation", completedAt: minute - 700_000 } }, undefined, "unexpected"],
 	[{ reason: "expired", credentialExpiresAt: minute + 1 }, undefined, "unexpected"],
 	[{ status: 429, reason: "expired", credentialExpiresAt: 0 }, undefined, "unexpected"],

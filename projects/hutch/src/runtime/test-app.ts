@@ -260,6 +260,8 @@ function flattenFixtureToAppDependencies(
 		findContentSourceUrl: fixture.articleStore.findContentSourceUrl,
 		oauthModel: fixture.oauth.oauthModel,
 		revokeAllUserOAuthTokens: fixture.oauth.revokeAllUserOAuthTokens,
+		listUserOAuthClients: fixture.oauth.listUserOAuthClients,
+		revokeUserOAuthClient: fixture.oauth.revokeUserOAuthClient,
 		validateAccessToken: fixture.oauth.validateAccessToken,
 		findOAuthClient: fixture.oauth.findClient,
 		validateOAuthRedirectUri: fixture.oauth.validateRedirectUri,

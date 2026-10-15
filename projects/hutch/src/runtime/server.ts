@@ -186,9 +186,11 @@ import type {
 } from "@packages/provider-contracts/rate-limit";
 import type {
 	FindOAuthClient,
+	ListUserOAuthClients,
 	OAuthModel,
 	RegisterOAuthClient,
 	RevokeAllUserOAuthTokens,
+	RevokeUserOAuthClient,
 	ValidateAccessToken,
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
@@ -428,6 +430,8 @@ interface AppDependencies {
 	logError: (message: string, error?: Error) => void;
 	oauthModel: OAuthModel;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	listUserOAuthClients: ListUserOAuthClients;
+	revokeUserOAuthClient: RevokeUserOAuthClient;
 	validateAccessToken: ValidateAccessToken;
 	findOAuthClient: FindOAuthClient;
 	validateOAuthRedirectUri: ValidateOAuthRedirectUri;
@@ -1680,6 +1684,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		setUserDisplayName: deps.setUserDisplayName,
 		destroyUserSessions: deps.destroyUserSessions,
 		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
+		listUserOAuthClients: deps.listUserOAuthClients,
+		revokeUserOAuthClient: deps.revokeUserOAuthClient,
+		findOAuthClient: deps.findOAuthClient,
 		markAccountDeleted: deps.markAccountDeleted,
 		publishDeleteAccountCommand: deps.publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,

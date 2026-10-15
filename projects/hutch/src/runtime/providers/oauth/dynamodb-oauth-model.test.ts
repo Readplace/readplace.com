@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
-import { getBuiltInClient } from "@packages/domain/oauth";
+import { OAuthClientIdSchema, getBuiltInClient } from "@packages/domain/oauth";
 import { initDynamoDbOAuthModel } from "./dynamodb-oauth-model";
 import { initRefreshProof, refreshContext, type RefreshContext } from "../../oauth-refresh/evidence";
 
@@ -80,6 +80,10 @@ const client = { id: "ios-app", grants: ["authorization_code", "refresh_token"] 
 const expiry = new Date("2099-01-01T00:00:00Z");
 function token({ access, refresh }: { access: string; refresh: string }) { return { user, client, accessToken: access, refreshToken: refresh, accessTokenExpiresAt: expiry, refreshTokenExpiresAt: expiry }; }
 const proof = initRefreshProof("secret");
+const chrome = { id: "hutch-chrome-extension", grants: ["authorization_code", "refresh_token"] };
+const firefox = { id: "hutch-firefox-extension", grants: ["authorization_code", "refresh_token"] };
+const reader = UserIdSchema.parse(user.id);
+const iosAppId = OAuthClientIdSchema.parse("ios-app");
 
 it("retains one grant through rotation and atomically admits only one competing refresh", async () => {
 	const { model, rows, transactions } = setup();
@@ -277,4 +281,74 @@ it("does not publish successful issuance context when the refresh lookup cannot 
 	await expect(refreshContext.run(context, () => model.saveToken(token({ access: "a", refresh: "r" }), client, user))).rejects.toBe(failure);
 	expect(context.credential).toBeUndefined();
 	expect(rows.has("refresh#r")).toBe(false);
+});
+
+it("records a completed disconnect revocation for the disconnected client only", async () => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	await model.saveToken(token({ access: "c", refresh: "s" }), chrome, user);
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.getRefreshToken("r"))).toBeNull();
+	expect(context.reason).toBe("disconnect");
+	expect(context.credential?.revocation?.cause).toBe("disconnect");
+	expect(await model.getAccessToken("c")).toMatchObject({ accessToken: "c" });
+});
+
+it("lists each connected client once across every query page", async () => {
+	const { model, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	await model.saveToken(token({ access: "b", refresh: "s" }), client, user);
+	await model.saveToken(token({ access: "c", refresh: "t" }), chrome, user);
+	controls.queryPageSize = 1;
+	expect([...await model.listUserOAuthClients(reader)].sort()).toEqual(["hutch-chrome-extension", "ios-app"]);
+});
+
+it("lists a client by its live refresh credential and skips one whose credentials have both expired", async () => {
+	const { model } = setup();
+	await model.saveToken({ ...token({ access: "a", refresh: "r" }), accessTokenExpiresAt: new Date(1000) }, client, user);
+	await model.saveToken({ ...token({ access: "c", refresh: "s" }), accessTokenExpiresAt: new Date(1000), refreshTokenExpiresAt: new Date(1000) }, chrome, user);
+	expect(await model.listUserOAuthClients(reader)).toEqual(["ios-app"]);
+});
+
+it("lists no client for a pending authorization code", async () => {
+	const { model, rows } = setup();
+	rows.set("code#pending", { pk: "code#pending", userId: user.id, clientId: "hutch-chrome-extension" });
+	expect(await model.listUserOAuthClients(reader)).toEqual([]);
+});
+
+it("does not list a client whose stale user-index entry no longer has a token", async () => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	controls.afterQuery = () => { rows.delete("token#a"); };
+	expect(await model.listUserOAuthClients(reader)).toEqual([]);
+});
+
+it("records no revocation when a disconnect finds a stale user-index entry", async () => {
+	const { model, rows, controls, transactions } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	controls.afterQuery = () => { rows.delete("token#a"); };
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	expect(transactions).toEqual([]);
+	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.revocation).toBeUndefined();
+});
+
+it("deletes only the disconnected client's pending codes", async () => {
+	const { model, rows } = setup();
+	await model.saveToken(token({ access: "f", refresh: "u" }), firefox, user);
+	rows.set("code#ios", { pk: "code#ios", userId: user.id, clientId: "ios-app" });
+	rows.set("code#chrome", { pk: "code#chrome", userId: user.id, clientId: "hutch-chrome-extension" });
+	rows.set("other#unrelated", { pk: "other#unrelated", userId: user.id, clientId: "ios-app" });
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	expect([...rows.keys()].filter(pk => !pk.startsWith("credential#") && !pk.startsWith("refresh#")).sort()).toEqual(["code#chrome", "other#unrelated", "token#f"]);
+});
+
+it("does not record a disconnect revocation when storage rejects it", async () => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const failure = new Error("storage unavailable");
+	controls.transactionFailure = failure;
+	await expect(model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })).rejects.toBe(failure);
+	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.revocation).toBeUndefined();
+	expect(await model.getAccessToken("a")).toMatchObject({ accessToken: "a" });
 });

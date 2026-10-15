@@ -1,0 +1,32 @@
+<section class="account-section connected-apps" id="connected-apps" aria-labelledby="account-section-connected-apps" data-test-account-section="connected-apps" data-test-connected-apps data-test-connected-apps-state="{{state}}">
+          <h2 class="account-section__heading" id="account-section-connected-apps">Connected apps</h2>
+          <div class="account-section__card">
+            <ul class="connected-apps__list">
+              {{#each rows}}
+              <li class="account-row" data-test-connected-app="{{key}}" data-test-connected-app-client="{{clientId}}">
+                <span class="account-row__icon" aria-hidden="true">{{{logoHtml}}}</span>
+                <div class="account-row__text">
+                  <h3 class="account-row__title">{{title}}</h3>
+                  <p class="account-row__description">{{description}}</p>
+                </div>
+                <div class="account-row__actions">
+                  {{#each disconnects}}
+                  <button type="button" class="btn btn--destructive btn--m connected-apps__trigger" popovertarget="{{popoverTarget}}" aria-haspopup="dialog" data-test-action="disconnect-app-open">Disconnect<span class="sr-only"> {{title}}, {{description}}</span></button>
+                  <details class="connected-apps__fallback" data-test-connected-app-fallback>
+                    <summary class="btn btn--destructive btn--m" data-test-action="disconnect-app-fallback-open">Disconnect<span class="sr-only"> {{title}}, {{description}}</span></summary>
+                    <p class="connected-apps__fallback-body">{{body}}</p>
+                    <form method="POST" action="{{href}}" class="connected-apps__fallback-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-connected-app-action="disconnect">
+                      <button type="submit" class="btn btn--destructive btn--m" data-test-action="disconnect-app-fallback-confirm"><span class="account__action-label">Disconnect<span class="sr-only"> {{title}}, {{description}}</span></span>{{{loaderHtml}}}</button>
+                    </form>
+                  </details>
+                  {{/each}}
+                  {{#each links}}
+                  <a class="btn btn--neutral btn--m" href="{{href}}" data-test-connected-app-action="{{key}}">{{label}}</a>
+                  {{/each}}
+                </div>
+              </li>
+              {{/each}}
+            </ul>
+          </div>
+          {{{dialogsHtml}}}
+        </section>
