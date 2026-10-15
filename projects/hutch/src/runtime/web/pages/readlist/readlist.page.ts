@@ -2537,7 +2537,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
-		await rememberReadlistFilter(req, NO_READLIST_FILTER);
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateNewSaveUrl(submittedUrl);
 		const saveState = parseReadlistUrl({});
@@ -2582,6 +2581,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const saveAttemptId = newSaveAttemptId();
 			if (freshness.action === "unresolved") {
 				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, saveAttemptId });
+				await rememberReadlistFilter(req, NO_READLIST_FILTER);
 				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
 				res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
 				land(buildReadlistUrl(saveState, [["queue_error", READLIST_NOTICE_SAVE_QUEUED]]), "top");
@@ -2594,6 +2594,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				provenance: resolveSaveProvenance(req.oauthClientId),
 				saveAttemptId,
 			});
+			await rememberReadlistFilter(req, NO_READLIST_FILTER);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
 			res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
 			land(buildReadlistUrl(saveState), "latest-saved");

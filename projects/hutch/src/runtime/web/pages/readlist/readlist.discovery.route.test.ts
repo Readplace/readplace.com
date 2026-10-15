@@ -10,7 +10,7 @@ import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbo
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { createAccessToken } from "../../test-helpers/oauth-token";
+import { createAccessToken, saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -905,6 +905,37 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 
 			expect(filterButton(doc)).toEqual(["Filters", false]);
 			expect(checkedOptions(doc, "popover")).toEqual([]);
+		});
+
+		it("keeps the filter when the Add link refuses the link", async () => {
+			const harness = useApp(pinnedFixture());
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			await applyFilters(agent, await page(agent, "/queue"), ["time:5-10"]);
+
+			const refused = await agent.post("/queue/save").set("HX-Request", "true").type("form").send({ url: "not a link" });
+			const doc = await page(agent, "/queue");
+
+			expect(refused.status).toBe(422);
+			expect(listedUrls(doc)).toEqual([MEDIUM.url]);
+			expect(filterButton(doc)).toEqual(["Filters (1)", true]);
+		});
+
+		it("lists every article to a Siren client whatever search and filters the link names", async () => {
+			const harness = useApp(pinnedFixture());
+			await loginAgent(harness.server, harness.auth);
+			await seedAll(harness, [SHORT, MEDIUM]);
+			const token = await saveAccessTokenForUser(harness, await readerId(harness));
+
+			const response = await request(harness.server)
+				.get("/queue?q=short&time=5-10&saved=week")
+				.set("Authorization", `Bearer ${token}`)
+				.set("Accept", SIREN_MEDIA_TYPE);
+
+			expect(response.status).toBe(200);
+			expect(
+				response.body.entities.map((entity: { properties: { url: string } }) => entity.properties.url).sort(),
+			).toEqual([MEDIUM.url, SHORT.url]);
 		});
 
 		it("answers a client with no session by landing it on the filtered link, remembering nothing", async () => {
