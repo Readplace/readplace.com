@@ -239,6 +239,34 @@ describe("GET /account/password", () => {
 		expect(doc.querySelectorAll('script[src="/client-dist/change-password.client.js"]').length).toBe(1);
 	});
 
+	it.each([
+		{
+			surface: "web",
+			path: "/account/password",
+			scripts: [
+				"/client-dist/account-cards.client.js",
+				"/client-dist/account-dialogs.client.js",
+				"/client-dist/change-password.client.js",
+			],
+		},
+		{
+			surface: "app sheet",
+			path: "/account/password?platform=ios&shell=app",
+			scripts: ["/client-dist/account-dialogs.client.js", "/client-dist/change-password.client.js"],
+		},
+	])("loads the $surface account page's scripts, so the account page a change lands on works without a reload", async ({ path, scripts }) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await signUp(harness);
+
+		const doc = documentOf((await agent.get(path)).text);
+
+		expect(
+			Array.from(doc.querySelectorAll('script[src^="/client-dist/account-"], script[src^="/client-dist/change-password"]'), (script) =>
+				script.getAttribute("src"),
+			),
+		).toEqual(scripts);
+	});
+
 	it("marks no header nav item as the current page, since the change page belongs to none of them", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await signUp(harness);

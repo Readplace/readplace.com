@@ -39,6 +39,7 @@ import {
 	buildAccountPasswordUrl,
 	buildAccountUrl,
 } from "./account.url";
+import { accountPageScripts } from "./account.component";
 
 const ACCOUNT_PASSWORD_SOURCE = "account-password";
 const CHANGE_PASSWORD_CARD_SELECTOR = "#change-password-card";
@@ -179,6 +180,7 @@ export function initAccountPasswordRoutes(deps: {
 				content: "back-to-account",
 			}),
 			errors: refusal.success ? [REFUSAL_ERRORS[refusal.data]] : undefined,
+			scripts: accountPageScripts(markers),
 		});
 		if (markers.appShell) {
 			sendComponent(

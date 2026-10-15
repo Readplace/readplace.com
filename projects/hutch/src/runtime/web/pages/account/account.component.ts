@@ -48,6 +48,12 @@ const ACCOUNT_CARDS_SCRIPT = `<script src="/client-dist/account-cards.client.js"
 
 const ACCOUNT_DIALOGS_SCRIPT = `<script src="/client-dist/account-dialogs.client.js" defer></script>`;
 
+export function accountPageScripts(surface: { appShell: boolean }): string {
+	return surface.appShell
+		? `${ACCOUNT_DIALOGS_SCRIPT}${CHANGE_PASSWORD_CLIENT_SCRIPT}`
+		: `${ACCOUNT_CARDS_SCRIPT}${ACCOUNT_DIALOGS_SCRIPT}${CHANGE_PASSWORD_CLIENT_SCRIPT}`;
+}
+
 /** Export left the header nav; the account page is where it lives now,
  * reachable by read-only users too. */
 const EXPORT_HREF = withInternalTracking(ACCOUNT_EXPORT_URL, {
@@ -348,8 +354,6 @@ export function AccountPage(
 		},
 		// The app surface renders no Elements container (withoutCommerce hides the
 		// whole card section), so the Stripe glue would have nothing to mount.
-		scripts: surface
-			? `${ACCOUNT_DIALOGS_SCRIPT}${CHANGE_PASSWORD_CLIENT_SCRIPT}`
-			: `${ACCOUNT_CARDS_SCRIPT}${ACCOUNT_DIALOGS_SCRIPT}${CHANGE_PASSWORD_CLIENT_SCRIPT}`,
+		scripts: accountPageScripts({ appShell: surface !== undefined }),
 	};
 }

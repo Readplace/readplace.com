@@ -280,7 +280,9 @@ export function renderChangePasswordForm(data: ChangePasswordFormData): string {
 	});
 }
 
-export function ChangePasswordPage(data: ChangePasswordFormData & { forgotHref: string; backHref: string }): PageBody {
+export function ChangePasswordPage(
+	data: ChangePasswordFormData & { forgotHref: string; backHref: string; scripts: string },
+): PageBody {
 	const content = render(CHANGE_PASSWORD_TEMPLATE, {
 		formHtml: renderChangePasswordForm(data),
 		connectedAppsPhrase: CONNECTED_APPS_PHRASE,
@@ -298,6 +300,6 @@ export function ChangePasswordPage(data: ChangePasswordFormData & { forgotHref: 
 		styles: `${IN_FLIGHT_DOTS_STYLES}${AUTH_STYLES}`,
 		bodyClass: "page-change-password",
 		content: { html: content },
-		scripts: CHANGE_PASSWORD_CLIENT_SCRIPT,
+		scripts: data.scripts,
 	};
 }
