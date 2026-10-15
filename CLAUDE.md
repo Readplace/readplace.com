@@ -497,6 +497,29 @@ Commit and push directly to `main`. Do not create a feature branch unless a huma
 
 A small cleanup or refactor that is unrelated to the change being worked on — a stale comment fix, a rename, a drive-by simplification — must not ride the working diff. Send it as its own PR via the GitHub API (`gh pr create`) so the main change stays reviewable and the cleanup lands on its own merits.
 
+## Agent Workflows and Model Selection
+
+### Workflows are opt-in and sized to the task
+
+A multi-agent workflow spawns many agents at once, and the tokens they burn are the human's to spend. Run one only when the human asks for it in their own words, invokes a skill or command that calls for one, or has turned ultracode on for the session. A task that would merely go faster in parallel is not a request for a workflow: do it inline, or delegate the independent parts to single subagents and relay what they find.
+
+When a workflow is warranted:
+
+- Give every agent a brief that stands alone — the goal, what is already ruled out, and where to look — because the brief is the only context it has.
+- Keep each agent's scope narrow enough that its report can be checked, not just trusted. An agent handed a hypothesis tends to return it confirmed.
+- Never run the same work inline that a spawned agent is already doing; wait for the result.
+
+### Which model for which work
+
+Current as of 2026-10-15. Pick by the kind of judgment the step needs, not by what is cheapest or newest; a human's explicit choice for a task overrides this table.
+
+| Work | Model | Effort | Why |
+|---|---|---|---|
+| Coding tasks — writing or editing code, tests, fixes, refactors, running `pnpm check` | Opus 5.5 | medium | Fast, capable at well-specified implementation, and cheaper than a reasoning-tier model for work the tests will verify |
+| Complex reasoning and decisions — architecture choices, root-cause analysis across a pipeline, security judgments, ambiguous trade-offs, reviewing another agent's plan | Fable 5.1 | default | Mythos-class reasoning is what catches the subtle failure; a cheaper model's confident wrong answer costs more than the tokens saved |
+
+The split applies to delegated work too: a subagent or workflow step that implements a decision runs on Opus 5.5 at medium effort, and the step that makes the decision runs on Fable 5.1. When one task mixes both — a decision that is then implemented — make the decision first on Fable, then hand the implementation to Opus with the decision written into its brief.
+
 ## Architecture
 
 ### Project Structure
