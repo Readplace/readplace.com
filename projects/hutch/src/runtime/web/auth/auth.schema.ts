@@ -2,13 +2,13 @@ import { z } from "zod";
 import { DISPOSABLE_EMAIL_MESSAGE, isDisposableEmailDomain } from "./disposable-email";
 
 const signupEmail = z
-	.email({ message: "Please enter a valid email address" })
+	.email({ message: "Enter a valid email address" })
 	.refine((email) => !isDisposableEmailDomain(email), {
 		message: DISPOSABLE_EMAIL_MESSAGE,
 	});
 
 export const LoginSchema = z.object({
-	email: z.email({ message: "Please enter a valid email address" }),
+	email: z.email({ message: "Enter a valid email address" }),
 	password: z.string().min(1, "Password is required"),
 });
 
@@ -18,12 +18,12 @@ export const SignupSchema = z.object({
 });
 
 export const ForgotPasswordSchema = z.object({
-	email: z.email({ message: "Please enter a valid email address" }),
+	email: z.email({ message: "Enter a valid email address" }),
 });
 
 export const CURRENT_PASSWORD_MISSING_MESSAGE = "Enter your current password";
 export const PASSWORD_TOO_SHORT_MESSAGE = "Password must be at least 8 characters";
-export const CONFIRM_PASSWORD_MISSING_MESSAGE = "Please confirm your password";
+export const CONFIRM_PASSWORD_MISSING_MESSAGE = "Confirm your password";
 export const PASSWORDS_MISMATCH_MESSAGE = "Passwords do not match";
 
 const newPasswordFields = {

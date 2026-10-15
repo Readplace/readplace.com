@@ -306,14 +306,14 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector('[data-test-error="email"]')?.textContent).toBe("Please enter a valid email address");
+			expect(doc.querySelector('[data-test-error="email"]')?.textContent).toBe("Enter a valid email address");
 
 			const emailInput = doc.querySelector('input[name="email"]');
 			assert(emailInput, "email input must be rendered");
 			expect(emailInput.getAttribute("aria-invalid")).toBe("true");
 			const emailErrorId = emailInput.getAttribute("aria-describedby");
 			assert(emailErrorId, "an invalid email input must point at its error message");
-			expect(doc.getElementById(emailErrorId)?.textContent).toBe("Please enter a valid email address");
+			expect(doc.getElementById(emailErrorId)?.textContent).toBe("Enter a valid email address");
 
 			const passwordInput = doc.querySelector('input[name="password"]');
 			assert(passwordInput, "password input must be rendered");

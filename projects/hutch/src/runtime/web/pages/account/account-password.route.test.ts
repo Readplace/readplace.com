@@ -297,7 +297,7 @@ describe("GET /account/password", () => {
 		["current-missing", "currentPassword", "Enter your current password"],
 		["too-many-attempts", "currentPassword", "Too many attempts — try again later"],
 		["password-short", "password", "Password must be at least 8 characters"],
-		["confirm-missing", "confirmPassword", "Please confirm your password"],
+		["confirm-missing", "confirmPassword", "Confirm your password"],
 		["mismatch", "confirmPassword", "Passwords do not match"],
 	])("renders the %s refusal a no-JS post was sent back with under its field", async (code, field, message) => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -604,7 +604,7 @@ describe("POST /account/password — a refused change", () => {
 			"an empty confirmation",
 			{ currentPassword: CURRENT_PASSWORD, password: NEW_PASSWORD, confirmPassword: "" },
 			"confirm-missing",
-			[["confirmPassword", "Please confirm your password"]],
+			[["confirmPassword", "Confirm your password"]],
 		],
 		[
 			"a confirmation that differs",
@@ -661,7 +661,7 @@ describe("POST /account/password — a refused change", () => {
 		expect(fieldErrors(changeForm(JSDOM.fragment(htmx.text)))).toEqual([
 			["currentPassword", "Enter your current password"],
 			["password", "Password must be at least 8 characters"],
-			["confirmPassword", "Please confirm your password"],
+			["confirmPassword", "Confirm your password"],
 		]);
 		expect(plain.status).toBe(303);
 		expect(plain.headers.location).toBe("/account/password?error=current-missing");

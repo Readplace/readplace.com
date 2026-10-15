@@ -106,7 +106,7 @@ describe("initValidateSignup", () => {
 			if (result.ok || result.kind !== "field-errors") throw new Error("expected field-errors");
 			expect(result.errors).toContainEqual({
 				fieldName: "email",
-				message: "Please enter a valid email address",
+				message: "Enter a valid email address",
 			});
 			expect(result.email).toBe("not-an-email");
 		});
