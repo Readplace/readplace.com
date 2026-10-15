@@ -376,6 +376,50 @@ describe("renderPastReadsSection inline placement", () => {
 		expect(slot.querySelectorAll("form")).toHaveLength(0);
 	});
 
+	it("offers the no-JS fallback beside the inline copy while there is nothing to show, without polling or auto-firing", () => {
+		const html = renderPastReadsSection({
+			pastReads: { status: "pending" },
+			placement: { kind: "inline", oob: false, computeUrl: "/queue/x/topic-reads" },
+			sourceArticleId: SOURCE_ID,
+			now: NOW,
+			readerPathForReadlist,
+		});
+		const doc = parse(html);
+		const slot = doc.querySelector("[data-test-reader-topic-reads-inline]");
+		assert(slot, "the inline slot renders");
+		const noscript = doc.querySelector("noscript");
+		assert(noscript, "the no-JS fallback is rendered");
+		const fallback = parse(noscript.innerHTML).querySelector("form.past-reads__fallback");
+		assert(fallback, "the no-JS fallback is a form");
+
+		expect({
+			className: fallback.className,
+			action: fallback.getAttribute("action"),
+			slotForms: slot.querySelectorAll("form").length,
+			slotPolls: slot.getAttribute("hx-get"),
+		}).toEqual({
+			className: "past-reads__fallback past-reads__fallback--inline",
+			action: `/queue/x/topic-reads?utm_source=reader&utm_medium=internal&utm_content=find-past-reads&utm_term=${SOURCE_ID}`,
+			slotForms: 0,
+			slotPolls: null,
+		});
+	});
+
+	it("drops the inline no-JS fallback once there are past reads to show", () => {
+		const html = renderPastReadsSection({
+			pastReads: readyPastReads,
+			placement: { kind: "inline", oob: false, computeUrl: "/queue/x/topic-reads" },
+			sourceArticleId: SOURCE_ID,
+			now: NOW,
+			readerPathForReadlist,
+		});
+		const slot = parse(html).querySelector("[data-test-reader-topic-reads-inline]");
+		assert(slot, "the inline slot renders");
+
+		expect(slot.className).toBe("past-reads past-reads--inline past-reads--ready");
+		expect(parse(html).querySelectorAll("noscript")).toHaveLength(0);
+	});
+
 	it("renders the same rows as the rail for a ready result", () => {
 		const rowsOf = (html: string) =>
 			Array.from(parse(html).querySelectorAll("[data-test-topic-read-item]"), (row) => row.outerHTML);

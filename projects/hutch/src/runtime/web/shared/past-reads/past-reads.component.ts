@@ -41,6 +41,7 @@ interface RailPlacement {
 interface InlinePlacement {
 	kind: "inline";
 	oob: boolean;
+	computeUrl?: string;
 }
 
 type PastReadsPlacement = RailPlacement | InlinePlacement;
@@ -115,10 +116,13 @@ export function renderPastReadsSection(
 			? {
 					pollUrl: status === "pending" ? placement.pollUrl : undefined,
 					computeUrl: placement.computeUrl,
-					// The no-JS fallback only appears when there is nothing to show, so a
-					// reader with results never sees a stray "find" button beneath them.
-					showNoscriptFallback: placement.computeUrl !== undefined && !hasRows,
 				}
+			: undefined;
+	// The no-JS fallback only appears when there is nothing to show, so a
+	// reader with results never sees a stray "find" button beneath them.
+	const noscriptFallback =
+		placement.computeUrl !== undefined && !hasRows
+			? { computeUrl: placement.computeUrl, inline: placement.kind === "inline" }
 			: undefined;
 	return render(PAST_READS_TEMPLATE, {
 		status,
@@ -126,6 +130,7 @@ export function renderPastReadsSection(
 		preview: previewOf(rows),
 		rows,
 		rail,
+		noscriptFallback,
 		oob: placement.kind === "inline" && placement.oob,
 		sourceArticleId: input.sourceArticleId,
 	});

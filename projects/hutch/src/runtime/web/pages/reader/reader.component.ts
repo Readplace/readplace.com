@@ -247,7 +247,7 @@ export function ReaderPage(
 				? undefined
 				: renderPastReadsSection({
 						...pastReadsInput,
-						placement: { kind: "inline", oob: false },
+						placement: { kind: "inline", oob: false, computeUrl: options.previouslyReadComputeUrl },
 					}),
 	});
 	const shareDialogHtml = isPrivateIssue ? "" : renderShareDialog(share);

@@ -222,6 +222,26 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(page.locator(`#article-header [data-test-readlist-tag="${weekend}"]`)).toHaveCount(1);
 	});
 
+	test("the reader offers the find-past-reads fallback at phone and desktop widths with no script", async ({
+		page,
+	}, testInfo) => {
+		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-past-reads`);
+		await loginAs(page, email);
+		const readerHref = await page.locator("[data-test-article-title]").first().getAttribute("href");
+		assert(readerHref, "a saved card must link to its own reader");
+		await page.goto(new URL(readerHref, BASE_URL).toString(), { waitUntil: "domcontentloaded" });
+		await expect(page.locator("[data-test-reader-content]")).toBeVisible({ timeout: SETTLE_MS });
+		const fallbacks = page.locator("form.past-reads__fallback button[type=\"submit\"]");
+
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect(fallbacks.filter({ visible: true })).toHaveCount(1);
+		await expect(page.locator("form.past-reads__fallback--inline button[type=\"submit\"]")).toBeVisible();
+
+		await page.setViewportSize({ width: 1280, height: 900 });
+		await expect(fallbacks.filter({ visible: true })).toHaveCount(1);
+		await expect(page.locator(".reading-layout__rail form.past-reads__fallback button[type=\"submit\"]")).toBeVisible();
+	});
+
 	test("the listing count keeps its noun and shows no bar when the total is deferred", async ({
 		page,
 	}, testInfo) => {

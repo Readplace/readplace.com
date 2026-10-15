@@ -7,7 +7,8 @@
 }
 
 @media (min-width: 1024px) {
-  .past-reads--inline {
+  .past-reads--inline,
+  .past-reads__fallback--inline {
     display: none;
   }
 }
