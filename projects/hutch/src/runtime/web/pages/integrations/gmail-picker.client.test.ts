@@ -143,6 +143,16 @@ describe("Gmail details pickers", () => {
 		assert.equal(element(dom, "#newsletter").hasAttribute("open"), false);
 		assert.equal(dom.window.document.activeElement, element(dom, "#readlist-name"));
 	});
+
+	it("opens a capped readlist picker, which has no name box, on its first tickable readlist", () => {
+		const dom = new JSDOM(`<details data-gmail-picker id="readlist"><summary data-gmail-picker-trigger>Readlist</summary><input id="all" type="checkbox" disabled checked data-gmail-readlist-checkbox><input id="tech" type="checkbox" data-gmail-picker-option data-gmail-readlist-checkbox><input id="news" type="checkbox" data-gmail-picker-option data-gmail-readlist-checkbox></details>`);
+		initGmailPicker({ document: dom.window.document });
+		element(dom, "#readlist").setAttribute("open", "");
+		element(dom, "#readlist").dispatchEvent(new dom.window.Event("toggle"));
+		assert.equal(dom.window.document.activeElement, element(dom, "#tech"));
+		pressFromFocus(dom, "ArrowDown");
+		assert.equal(dom.window.document.activeElement, element(dom, "#news"));
+	});
 });
 
 

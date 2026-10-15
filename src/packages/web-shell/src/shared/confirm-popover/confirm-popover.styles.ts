@@ -51,13 +51,6 @@ export const CONFIRM_POPOVER_STYLES = `
 	}
 }
 
-/* Focus opens on the panel itself (autofocus + tabindex="-1"); the global
- * ring in BASE_RESET_STYLES covers only \`button\` and \`a\`. */
-.confirm-popover:focus-visible {
-	outline: 2px solid var(--ring);
-	outline-offset: 2px;
-}
-
 .confirm-popover::backdrop {
 	background: ${SCRIM_LIGHT}; /* 3, 4 */
 	backdrop-filter: blur(${SCRIM_BLUR});

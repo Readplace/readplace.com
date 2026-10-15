@@ -44,3 +44,5 @@ export type { RunningServer } from "./harness";
 export { BROWSER_USER_AGENT, buildHarness, loginAgent, useTestServer } from "./harness";
 export type { FindUntrackedCtasOptions, UntrackedCta } from "./cta-tracking";
 export { BACKGROUND_REQUEST_ATTRIBUTE, describeUntrackedCtas, findUntrackedCtas } from "./cta-tracking";
+export type { PopoverFocusGap } from "./popover-focus";
+export { describePopoverFocusGaps, findPopoverFocusGaps } from "./popover-focus";

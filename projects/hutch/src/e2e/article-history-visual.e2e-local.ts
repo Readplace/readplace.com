@@ -345,6 +345,7 @@ async function deleteControlGeometry(page: Page): Promise<void> {
 }
 
 async function confirmDelete(page: Page): Promise<void> {
+	await expect(page.locator(CONFIRM)).toBeFocused();
 	const posted = page.waitForRequest((request) => request.method() === "POST" && request.isNavigationRequest());
 	await clickAndWaitForPageReload(page, page.locator(CONFIRM));
 	await posted;

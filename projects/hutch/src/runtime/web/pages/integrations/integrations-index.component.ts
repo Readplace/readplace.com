@@ -15,7 +15,7 @@ const GMAIL_CONNECT_DISCLAIMER_ACTIONS_TEMPLATE = `<form class="confirm-popover_
 	<input type="hidden" name="utm_source" value="{{trackSource}}">
 	<input type="hidden" name="utm_medium" value="internal">
 	<input type="hidden" name="utm_content" value="{{trackContent}}">
-	<button class="btn btn--primary" type="submit" data-test-action="gmail-connect-ok">OK</button>
+	<button class="btn btn--primary" type="submit" data-test-action="gmail-connect-ok" autofocus>OK</button>
 </form>`;
 
 function renderGmailConnectDisclaimer(action: IntegrationActionViewModel & { confirmPopoverId: string }): string {

@@ -62,7 +62,7 @@ const MOVE_DIALOG_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions read
 		<fieldset class="readlist-move__options">
 			<legend class="sr-only">Readlists</legend>
 			{{#each destinations}}
-			<label class="readlist-row readlist-move__option" data-test-move-destination="{{slug}}"><span class="readlist-row__main">{{icon iconName}}<span class="readlist-row__label">{{label}}</span></span><span class="readlist-row__trailing readlist-move__radio-slot"><input class="form-choice readlist-move__radio" type="radio" name="to" value="{{slug}}" required></span></label>
+			<label class="readlist-row readlist-move__option" data-test-move-destination="{{slug}}"><span class="readlist-row__main">{{icon iconName}}<span class="readlist-row__label">{{label}}</span></span><span class="readlist-row__trailing readlist-move__radio-slot"><input class="form-choice readlist-move__radio" type="radio" name="to" value="{{slug}}" required{{#if autofocus}} autofocus{{/if}}></span></label>
 			{{/each}}
 		</fieldset>
 		{{#each createRows}}
@@ -111,10 +111,11 @@ function renderMoveDialog(move: ArticleMoveViewModel, title: string): string {
 			from: move.from,
 			popoverId: move.popoverId,
 			commitLabel: copy.commitLabel,
-			destinations: move.destinations.map((destination) => ({
+			destinations: move.destinations.map((destination, index) => ({
 				slug: destination.slug,
 				label: destination.label,
 				iconName: READLIST_KIND_ICON.custom,
+				autofocus: index === 0,
 			})),
 			createRows: move.create === undefined ? [] : [move.create],
 		}),

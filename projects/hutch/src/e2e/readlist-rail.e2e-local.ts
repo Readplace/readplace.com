@@ -140,6 +140,7 @@ async function openRenameDialog(page: Page): Promise<void> {
 	await page.locator(READLIST_MENU_TOGGLE).first().click();
 	await page.locator(RENAME_TRIGGER).first().click();
 	await page.waitForSelector(`${RENAME_POPOVER}:popover-open`);
+	await expect(page.locator(`${RENAME_POPOVER}:popover-open ${RENAME_INPUT}`)).toBeFocused();
 }
 
 async function renameTo(page: Page, name: string): Promise<void> {
@@ -228,6 +229,7 @@ test.describe("The readlists rail", () => {
 		await trigger.click();
 		const confirm = page.locator(`[id="${popoverId}"] [data-test-action="readlist-delete-confirm"]`);
 		await expect(confirm).toBeVisible();
+		await expect(confirm).toBeFocused();
 		await clickAndWaitForPageReload(page, confirm);
 
 		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("New Readlist 2");
@@ -255,6 +257,7 @@ test.describe("The readlists rail", () => {
 		const panel = page.locator(`${DELETE_POPOVER}[data-test-confirm-subject="${first}"]:popover-open`);
 		await expect(panel.locator(".confirm-popover__title")).toHaveText("Move or delete articles");
 		await expect(panel.locator("[data-test-migrate-select]")).toHaveValue(second);
+		await expect(panel.locator('[data-test-action="readlist-delete-confirm"]')).toBeFocused();
 
 		await clickAndWaitForPageReload(page, panel.locator('[data-test-action="readlist-delete-confirm"]'));
 		await clickAndWaitForPageReload(page, page.locator(`${MAIN} [data-test-readlist="${second}"]`));

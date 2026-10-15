@@ -3909,7 +3909,7 @@ describe("GET /account (export)", () => {
 });
 
 describe("GET /account (danger zone)", () => {
-	function expectConfirmationField(form: Element, inputId: string) {
+	function expectConfirmationField(form: Element, inputId: string, opensFocused: boolean) {
 		const input = form.querySelector("[data-test-danger-confirm-input]");
 		assert(input, "the typed-confirmation input must render");
 		expect(input.getAttribute("id")).toBe(inputId);
@@ -3920,6 +3920,7 @@ describe("GET /account (danger zone)", () => {
 		expect(input.classList.contains("form-input")).toBe(true);
 		expect(input.hasAttribute("aria-invalid")).toBe(false);
 		expect(input.hasAttribute("aria-describedby")).toBe(false);
+		expect(input.hasAttribute("autofocus")).toBe(opensFocused);
 
 		const label = form.querySelector(`label[for="${inputId}"]`);
 		assert(label, "the confirmation input must be labelled");
@@ -3973,8 +3974,8 @@ describe("GET /account (danger zone)", () => {
 		assert(danger, "the danger zone must render");
 		expect(danger.textContent).toContain("This can't be undone — you will lose all your data.");
 
-		expectConfirmationField(dangerForm(doc, "dialog"), "delete-account-confirmation-dialog");
-		expectConfirmationField(dangerForm(doc, "fallback"), "delete-account-confirmation");
+		expectConfirmationField(dangerForm(doc, "dialog"), "delete-account-confirmation-dialog", true);
+		expectConfirmationField(dangerForm(doc, "fallback"), "delete-account-confirmation", false);
 	});
 
 	it("puts Cancel before the commit in the dialog, and only the commit shows the in-flight dots", async () => {
@@ -4051,12 +4052,13 @@ describe("GET /account (Profile row)", () => {
 				field.getAttribute("autocomplete"),
 				field.value,
 				doc.querySelector(`label[for="${field.id}"]`)?.textContent,
+				field.hasAttribute("autofocus"),
 			];
 		});
 		const formAction = "/account/profile?utm_source=account&utm_medium=internal&utm_content=edit-profile";
 		expect(fields).toEqual([
-			["POST", formAction, "displayName", "64", "name", "Reader Name", "Name"],
-			["POST", formAction, "displayName", "64", "name", "Reader Name", "Name"],
+			["POST", formAction, "displayName", "64", "name", "Reader Name", "Name", true],
+			["POST", formAction, "displayName", "64", "name", "Reader Name", "Name", false],
 		]);
 	});
 

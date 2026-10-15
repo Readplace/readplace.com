@@ -4,6 +4,7 @@ export interface ReadlistPickerDeps {
 
 const PICKER = ".article-body__readlists";
 const TRIGGER = ".article-body__readlists-trigger";
+const OPTION = ".article-body__readlists-form .article-body__readlists-option";
 
 export function initReadlistPicker(deps: ReadlistPickerDeps): { attach(): void } {
 	function pickers(): NodeListOf<Element> {
@@ -47,6 +48,17 @@ export function initReadlistPicker(deps: ReadlistPickerDeps): { attach(): void }
 					const trigger = picker.querySelector<HTMLElement>(TRIGGER);
 					if (trigger !== null) trigger.focus({ preventScroll: true });
 					return;
+				}
+			},
+			true,
+		);
+
+		deps.document.addEventListener(
+			"toggle",
+			(event) => {
+				for (const picker of pickers()) {
+					if (picker !== event.target || !picker.hasAttribute("open")) continue;
+					picker.querySelector<HTMLElement>(OPTION)?.focus();
 				}
 			},
 			true,

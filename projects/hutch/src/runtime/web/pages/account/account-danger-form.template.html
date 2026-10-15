@@ -3,7 +3,7 @@
                 <label class="form-field__label" for="{{inputId}}">Type "{{phrase}}" to confirm</label>
                 <input type="text" id="{{inputId}}" class="form-input"
                   name="{{field}}" required pattern="{{pattern}}"
-                  title="{{title}}" autocomplete="off" autocapitalize="off" spellcheck="false"{{#if hasNotice}} aria-invalid="true" aria-describedby="{{inputId}}-error"{{/if}}
+                  title="{{title}}" autocomplete="off" autocapitalize="off" spellcheck="false"{{#if hasNotice}} aria-invalid="true" aria-describedby="{{inputId}}-error"{{/if}}{{#if autofocus}} autofocus{{/if}}
                   data-test-danger-confirm-input>
                 {{#if hasNotice}}
                 <p id="{{inputId}}-error" class="form-field__error" role="alert" data-test-danger-notice>{{notice}}</p>

@@ -1,7 +1,7 @@
 <form class="{{formClass}}" method="POST" action="{{action}}" data-test-form="{{formKey}}">
               <div class="form-field">
                 <label class="form-field__label" for="{{inputId}}">Name</label>
-                <input class="form-input" id="{{inputId}}" type="text" name="displayName" value="{{value}}" maxlength="{{maxLength}}" autocomplete="name">
+                <input class="form-input" id="{{inputId}}" type="text" name="displayName" value="{{value}}" maxlength="{{maxLength}}" autocomplete="name"{{#if autofocus}} autofocus{{/if}}>
               </div>
               <div class="{{buttonsClass}}">
                 {{#each buttons}}

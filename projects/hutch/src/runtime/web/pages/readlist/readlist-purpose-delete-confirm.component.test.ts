@@ -83,3 +83,13 @@ describe("renderPurposeDeleteConfirm", () => {
 		expect(element.querySelectorAll(".confirm-popover__close, .confirm-popover__illustration")).toHaveLength(0);
 	});
 });
+
+function focusTargets(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[autofocus]"), (target) => target.getAttribute("data-test-action"));
+}
+
+describe("renderPurposeDeleteConfirm opening focus", () => {
+	it("opens on Delete purpose rather than Cancel", () => {
+		expect(focusTargets(panel())).toEqual(["readlist-purpose-delete-confirm"]);
+	});
+});

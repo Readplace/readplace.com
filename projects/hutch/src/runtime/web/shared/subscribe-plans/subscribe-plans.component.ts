@@ -57,9 +57,21 @@ const SUBSCRIBE_PLANS_FORM_TEMPLATE = `<form class="confirm-popover__actions sub
 		{{#each dismissControls}}
 		<button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="subscribe-plans-dismiss">Cancel</button>
 		{{/each}}
-		<button class="btn btn--primary" type="submit" data-test-action="subscribe-plans-submit">Subscribe now</button>
+		<button class="btn btn--primary" type="submit"{{#if commitAutofocus}} autofocus{{/if}} data-test-action="subscribe-plans-submit">Subscribe now</button>
 	</div>
 </form>`;
+
+type SubscribePlansSurface = "popover" | "inline";
+
+interface SubscribePlansSurfaceControls {
+	dismissControls: readonly { popoverId: string }[];
+	commitAutofocus: boolean;
+}
+
+const SURFACE_CONTROLS = {
+	popover: { dismissControls: [{ popoverId: SUBSCRIBE_PLANS_POPOVER_ID }], commitAutofocus: true },
+	inline: { dismissControls: [], commitAutofocus: false },
+} satisfies Record<SubscribePlansSurface, SubscribePlansSurfaceControls>;
 
 function toSubscribePlanRow(panel: PricingPanel): SubscribePlanRow {
 	return {
@@ -87,7 +99,7 @@ export function planChargedWithoutChoice(access: EffectiveAccess): BillingPlan {
 export function renderSubscribePlansForm(input: {
 	source: SubscribePlansSource;
 	labelledBy: string;
-	dismissControls: readonly { popoverId: string }[];
+	surface: SubscribePlansSurface;
 	checkedPlan: BillingPlan;
 }): string {
 	return render(SUBSCRIBE_PLANS_FORM_TEMPLATE, {
@@ -96,7 +108,7 @@ export function renderSubscribePlansForm(input: {
 			content: "choose-plan",
 		}),
 		labelledBy: input.labelledBy,
-		dismissControls: input.dismissControls,
+		...SURFACE_CONTROLS[input.surface],
 		plans: SUBSCRIBE_PLAN_ROWS.map((row) => ({ ...row, checked: row.key === input.checkedPlan })),
 	});
 }
@@ -116,7 +128,7 @@ export function renderSubscribePlansPopover({
 		actionsHtml: renderSubscribePlansForm({
 			source,
 			labelledBy: `${SUBSCRIBE_PLANS_POPOVER_ID}-title`,
-			dismissControls: [{ popoverId: SUBSCRIBE_PLANS_POPOVER_ID }],
+			surface: "popover",
 			checkedPlan,
 		}),
 	});

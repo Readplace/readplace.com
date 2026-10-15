@@ -132,6 +132,7 @@ async function neutralise(page: Page): Promise<void> {
 async function openDrawer(page: Page): Promise<void> {
 	await page.locator(FILTER_TRIGGER).click();
 	await expect(page.locator(OPEN_DRAWER)).toBeVisible();
+	await expect(page.locator(`${OPEN_DRAWER} input[type="checkbox"]`).first()).toBeFocused();
 }
 
 function near(actual: number, expected: number): boolean {

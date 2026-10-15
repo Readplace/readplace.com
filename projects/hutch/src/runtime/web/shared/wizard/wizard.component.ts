@@ -38,6 +38,11 @@ const TEST_ACTION_SUFFIX: Record<WizardSurface, string> = {
 	inline: "-fallback",
 };
 
+const FIELD_AUTOFOCUS: Record<WizardSurface, (invalid: boolean) => boolean> = {
+	popover: () => true,
+	inline: (invalid) => invalid,
+};
+
 const LOADER_HTML = renderInFlightDots("wizard__save-loader in-flight-dots");
 
 function titlesFor(heading: WizardHeading, question: string): { title: string; subheading?: string } {
@@ -88,7 +93,7 @@ export function renderWizard<VM extends object>(input: {
 			loaderHtml: LOADER_HTML,
 			fieldHtml: step.template({
 				values: input.values,
-				field: { idPrefix, errorId, invalid },
+				field: { idPrefix, errorId, invalid, autofocus: FIELD_AUTOFOCUS[surface](invalid) },
 			}),
 		};
 		return render(FORM_TEMPLATE, {

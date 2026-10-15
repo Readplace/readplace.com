@@ -180,8 +180,19 @@ describe("buildReadlistDiscovery", () => {
 			drawer.getAttribute("tabindex"),
 			drawer.hasAttribute("autofocus"),
 			drawer.getAttribute("aria-labelledby"),
-		]).toEqual(["readlist-filters", "auto", "dialog", "-1", true, "readlist-filters-title"]);
+		]).toEqual(["readlist-filters", "auto", "dialog", "-1", false, "readlist-filters-title"]);
 		expect(element(doc, "#readlist-filters-title").textContent).toBe("Filters");
+	});
+
+	it("opens the drawer on the first chip of the first group, and leaves the page's fallback copy unfocused", () => {
+		const doc = discoveryDoc();
+
+		const targetsIn = (scope: string) =>
+			Array.from(doc.querySelectorAll(`[data-test-discovery-form="${scope}"] [autofocus]`), (target) =>
+				target.closest("[data-test-discovery-option]")?.getAttribute("data-test-discovery-option"),
+			);
+		expect(targetsIn("popover")).toEqual(["time:under-5"]);
+		expect(targetsIn("fallback")).toEqual([]);
 	});
 
 	it("groups the options under reading time and saved date", () => {

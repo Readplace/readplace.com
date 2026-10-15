@@ -161,6 +161,7 @@ async function seedPurpose(page: Page, slug: string): Promise<void> {
 async function openWizard(page: Page, stamp: string): Promise<void> {
 	await openPreferences(page, stamp);
 	await page.click(SETUP_TRIGGER);
+	await expect(page.locator(PANEL_FIELD)).toBeFocused();
 }
 
 async function savePurpose(page: Page, stamp: string): Promise<void> {
@@ -234,6 +235,7 @@ async function deleteConfirmOpen(page: Page): Promise<void> {
 	await openPurposeMenu(page);
 	await page.click(DELETE_TRIGGER);
 	await page.waitForSelector(`${DELETE_PANEL}:popover-open`);
+	await expect(page.locator(`${DELETE_PANEL} [data-test-action="readlist-purpose-delete-confirm"]`)).toBeFocused();
 	await waitForBrandFonts(page, ["Inter"]);
 	await page.mouse.move(0, 0);
 }

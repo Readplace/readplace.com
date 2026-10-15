@@ -17,7 +17,7 @@ const HANDLE_STEP = step({
 	description: "The name other readers see.",
 	viewModel: ["handle"],
 	template: ({ values, field }) =>
-		`<input name="handle" id="${field.idPrefix}-handle" aria-describedby="${field.errorId}"${field.invalid ? ' aria-invalid="true"' : ""} value="${values.handle ?? ""}" data-test-field="handle">`,
+		`<input name="handle" id="${field.idPrefix}-handle" aria-describedby="${field.errorId}"${field.invalid ? ' aria-invalid="true"' : ""}${field.autofocus ? " autofocus" : ""} value="${values.handle ?? ""}" data-test-field="handle">`,
 });
 
 const BIO_STEP = step({

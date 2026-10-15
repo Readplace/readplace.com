@@ -267,6 +267,28 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 		}
 		await expect(page.locator("[data-test-gmail-mappings-empty]")).toBeVisible();
 	});
+
+	test("opens a readlist picker at the readlist cap on its first tickable readlist", async ({ page }, testInfo) => {
+		await signInGmailReader(page, {
+			stamp: uniqueStamp("keyboard-cap", testInfo.workerIndex),
+			catalog: [approved(LONG_SENDER, LONG_NAME)],
+			seed: {
+				readlists: Array.from({ length: 7 }, (_, index) => `Capped ${index}`),
+				discoveredSenders: [{ email: LONG_SENDER, name: LONG_NAME }],
+			},
+		});
+		await openGmailPage(page, { sender: LONG_SENDER });
+		await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
+		await expect(page.locator("[data-test-gmail-readlist-limit]")).toBeAttached();
+
+		const tickable = page.locator(`${READLIST_PICKER} [data-test-gmail-readlist-option]:not([disabled])`);
+		await tabTo(page, page.locator(`${READLIST_PICKER} summary`));
+		await page.keyboard.press("Space");
+		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
+		await expect(tickable.nth(0)).toBeFocused();
+		await page.keyboard.press("ArrowDown");
+		await expect(tickable.nth(1)).toBeFocused();
+	});
 });
 
 test.describe("GMail Newsletters without JavaScript", () => {

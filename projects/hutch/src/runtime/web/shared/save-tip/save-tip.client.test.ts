@@ -11,7 +11,7 @@ const CONTINUE_BEACON =
 function panelMarkup(beacons: boolean): string {
 	return `<div class="confirm-popover" id="save-tip" popover="auto" role="dialog"${beacons ? ` data-beacon-url="${OPEN_BEACON}"` : ""}>
 	<div class="confirm-popover__actions confirm-popover__buttons">
-		<button id="continue" class="btn btn--neutral" type="button" popovertarget="save-tip" popovertargetaction="hide"${beacons ? ` data-beacon-url="${CONTINUE_BEACON}"` : ""}>Continue with URL</button>
+		<button id="continue" class="btn btn--neutral" type="button" popovertarget="save-tip" popovertargetaction="hide"${beacons ? ` data-beacon-url="${CONTINUE_BEACON}"` : ""} autofocus>Continue with URL</button>
 		<button id="proceed" class="btn btn--neutral" type="button" data-save-tip-proceed>Save the link anyway</button>
 		<a id="install" class="btn btn--primary" href="/install">Explore saving options</a>
 	</div>

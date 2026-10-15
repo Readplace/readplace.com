@@ -42,7 +42,7 @@ function formFor(input: { source: SubscribePlansSource; checkedPlan?: BillingPla
 		`<div>${renderSubscribePlansForm({
 			source: input.source,
 			labelledBy: "plans-heading",
-			dismissControls: [],
+			surface: "inline",
 			checkedPlan: input.checkedPlan ?? DEFAULT_BILLING_PLAN,
 		})}</div>`,
 	);
@@ -274,5 +274,22 @@ describe("planChargedWithoutChoice", () => {
 		],
 	])("charges %s, as the subscribe route does when the form names none", (_reader, access, plan) => {
 		expect(planChargedWithoutChoice(access)).toBe(plan);
+	});
+});
+
+function focusTargets(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[autofocus]"), (target) => target.getAttribute("data-test-action"));
+}
+
+describe("subscribe plans opening focus", () => {
+	it("opens the popover on Subscribe now, since a plan is already chosen", () => {
+		const panel = panelFor().querySelector(`#${SUBSCRIBE_PLANS_POPOVER_ID}`);
+		assert(panel, "the plans popover must render");
+
+		expect(focusTargets(panel)).toEqual(["subscribe-plans-submit"]);
+	});
+
+	it("leaves the inline form unfocused, so the plans page never pulls focus on load", () => {
+		expect(focusTargets(formFor({ source: "plans-page" }))).toEqual([]);
 	});
 });

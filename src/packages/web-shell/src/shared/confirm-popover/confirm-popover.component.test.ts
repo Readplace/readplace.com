@@ -10,7 +10,7 @@ function parse(html: string): Document {
 		.document;
 }
 
-const ACTIONS = `<form class="confirm-popover__actions" method="POST" action="/thing/delete"><button type="submit" data-test-action="thing-confirm">Delete it</button></form>`;
+const ACTIONS = `<form class="confirm-popover__actions" method="POST" action="/thing/delete"><button type="submit" data-test-action="thing-confirm" autofocus>Delete it</button></form>`;
 
 function renderPanel(overrides: Partial<Parameters<typeof renderConfirmPopover>[0]> = {}): Document {
 	return parse(
@@ -309,5 +309,15 @@ describe("renderConfirmPopover", () => {
 		assert(submit, "the caller's own submit control must survive rendering");
 		expect(submit.textContent).toBe("Delete it");
 		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover__buttons {");
+	});
+
+	it("opens on the caller's commit control rather than its own panel, so Enter acts at once", () => {
+		const panel = renderPanel().querySelector(".confirm-popover");
+
+		assert(panel, "panel must be rendered");
+		expect(panel.hasAttribute("autofocus")).toBe(false);
+		expect(panel.getAttribute("tabindex")).toBe("-1");
+		const targets = [...panel.querySelectorAll("[autofocus]")];
+		expect(targets.map((target) => target.getAttribute("data-test-action"))).toEqual(["thing-confirm"]);
 	});
 });

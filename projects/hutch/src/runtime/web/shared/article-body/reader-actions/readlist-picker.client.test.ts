@@ -23,7 +23,7 @@ const TOOLBAR = `<div class="article-body__actions article-body__actions--top">
 	<button class="article-body__mark-read" type="submit">Read</button>
 </div>
 <article class="reader__body"><p id="body-copy">The article itself.</p></article>
-<div id="reader-readlist-create" popover tabindex="-1"><form><input name="label"></form></div>
+<div id="reader-readlist-create" popover tabindex="-1"><form><input name="label" autofocus></form></div>
 <div id="other-popover" popover></div>`;
 
 function attachedDom(bodyHtml: string = TOOLBAR): JSDOM {
@@ -236,5 +236,52 @@ describe("readlist picker and the create dialog it opens", () => {
 		toggle(dom, { selector: "#reader-readlist-create", newState: "closed" });
 
 		expect(focusedElement(dom)?.tagName).toBe("BODY");
+	});
+});
+
+describe("readlist picker opening", () => {
+	const CREATE_ONLY = `<details class="article-body__readlists" open>
+	<summary class="article-body__readlists-trigger">Add</summary>
+	<ul class="article-body__readlists-menu">
+		<li><button class="article-body__readlists-option article-body__readlists-create-trigger" type="button" popovertarget="reader-readlist-create">Create a readlist</button></li>
+	</ul>
+</details>`;
+
+	function togglePicker(dom: JSDOM): void {
+		const details = dom.window.document.querySelector(".article-body__readlists");
+		assert(details, "the picker must be in the fixture");
+		details.dispatchEvent(new dom.window.Event("toggle", { bubbles: false }));
+	}
+
+	it("moves focus to the first readlist it can file into as it opens", () => {
+		const dom = attachedDom();
+
+		togglePicker(dom);
+
+		expect(focusedElement(dom)?.textContent).toBe("Work");
+	});
+
+	it("leaves focus alone when the toggle closed it", () => {
+		const dom = attachedDom(picker("closed"));
+
+		togglePicker(dom);
+
+		expect(focusedElement(dom)).toBe(dom.window.document.body);
+	});
+
+	it("never picks the create trigger, so a picker with no readlist to file into moves no focus", () => {
+		const dom = attachedDom(CREATE_ONLY);
+
+		togglePicker(dom);
+
+		expect(focusedElement(dom)).toBe(dom.window.document.body);
+	});
+
+	it("ignores another element's toggle", () => {
+		const dom = attachedDom();
+
+		toggle(dom, { selector: "#other-popover", newState: "open" });
+
+		expect(focusedElement(dom)).toBe(dom.window.document.body);
 	});
 });

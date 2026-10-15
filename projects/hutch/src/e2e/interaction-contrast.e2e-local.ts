@@ -1019,11 +1019,10 @@ test.describe("Move dialog interaction states hold their WCAG contrast in both t
 		await page.locator('[data-test-action="article-menu"]').click();
 		await page.locator('[data-test-action="move"]').click();
 		await page.waitForSelector(`${dialog}:popover-open`);
-		await page.keyboard.press("Tab");
-		await page.keyboard.press("Space");
 		const firstRow = page.locator(`${dialog} [data-test-move-destination]`).first();
 		const radio = firstRow.locator('input[type="radio"]');
 		await expect(radio).toBeFocused();
+		await page.keyboard.press("Space");
 		await expect(radio).toBeChecked();
 		await expect.poll(() => radio.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
 		const slug = await firstRow.getAttribute("data-test-move-destination");

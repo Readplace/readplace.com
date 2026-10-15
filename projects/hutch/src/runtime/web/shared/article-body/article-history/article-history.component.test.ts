@@ -254,3 +254,22 @@ describe("renderOfflineCopyTemplate", () => {
 		expect(removeControlCounts(card)).toEqual([{ forms: 0, triggers: 0, panels: 0 }]);
 	});
 });
+
+function focusTargets(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[autofocus]"), (target) => target.getAttribute("data-test-action"));
+}
+
+describe("renderArticleHistory opening focus", () => {
+	it("opens the version delete dialog on Delete version rather than Cancel", () => {
+		const doc = parse(
+			renderArticleHistory({
+				versions: [versionAt("2026-07-10T09:14Z"), versionAt("2026-06-28T22:01Z")],
+				removal: { authoredMinuteIds: ["2026-07-10T09:14Z"], removeVersionUrl: REMOVE_VERSION_URL },
+			}),
+		);
+
+		expect(focusTargets(pick(doc, '[data-test-confirm-popover="article-version-delete"]'))).toEqual([
+			"article-version-delete-confirm",
+		]);
+	});
+});

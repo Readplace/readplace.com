@@ -20,7 +20,7 @@ export function deleteConfirmPopoverId(articleId: string): string {
 
 const DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
 	<button class="btn btn--neutral" type="submit" name="ack" value="{{ackNever}}" data-test-action="delete-confirm-never">Delete and don't ask again</button>
-	<button class="btn btn--primary" type="submit" data-test-action="delete-confirm">Delete article</button>
+	<button class="btn btn--primary" type="submit" data-test-action="delete-confirm" autofocus>Delete article</button>
 </form>`;
 
 export function renderDeleteConfirm(input: {

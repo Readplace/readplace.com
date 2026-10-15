@@ -15,7 +15,14 @@ interface ProfileFormButton {
 
 function renderProfileForm(
 	edit: ProfileEdit,
-	form: { formClass: string; buttonsClass: string; formKey: string; inputId: string; buttons: ProfileFormButton[] },
+	form: {
+		formClass: string;
+		buttonsClass: string;
+		formKey: string;
+		inputId: string;
+		autofocus: boolean;
+		buttons: ProfileFormButton[];
+	},
 ): string {
 	return render(ACCOUNT_PROFILE_FORM_TEMPLATE, {
 		...form,
@@ -36,6 +43,7 @@ export function renderAccountProfileEdit(edit: ProfileEdit): string {
 			buttonsClass: "confirm-popover__buttons",
 			formKey: "account-profile",
 			inputId: "account-profile-name",
+			autofocus: true,
 			buttons: [
 				{
 					type: "button",
@@ -62,6 +70,7 @@ export function renderAccountProfileFallbackForm(edit: ProfileEdit): string {
 		buttonsClass: "account-profile__buttons",
 		formKey: "account-profile-fallback",
 		inputId: "account-profile-name-fallback",
+		autofocus: false,
 		buttons: [
 			{
 				type: "submit",
