@@ -2,6 +2,8 @@ interface TableOfContentsWindow {
 	addEventListener(type: "scroll", listener: () => void, options: { passive: true }): void;
 	requestAnimationFrame(callback: () => void): unknown;
 	getComputedStyle(element: Element): { readonly scrollPaddingTop: string };
+	readonly scrollY: number;
+	readonly innerHeight: number;
 }
 
 interface TableOfContentsDeps {
@@ -30,7 +32,10 @@ export function initTableOfContents(deps: TableOfContentsDeps): void {
 		const links = Array.from(deps.document.querySelectorAll(LINK_SELECTOR));
 		const line = Number.parseFloat(deps.window.getComputedStyle(deps.document.documentElement).scrollPaddingTop) + 1;
 		const passed = links.filter((link) => headingTopOf({ link, document: deps.document }) <= line);
-		const current = passed.at(-1) ?? links[0];
+		const scrolledToEnd =
+			deps.window.scrollY > 0 &&
+			deps.window.scrollY + deps.window.innerHeight >= deps.document.documentElement.scrollHeight - 1;
+		const current = scrolledToEnd ? links.at(-1) : (passed.at(-1) ?? links[0]);
 		for (const link of links) {
 			const isCurrent = link === current;
 			link.classList.toggle(CURRENT_CLASS, isCurrent);

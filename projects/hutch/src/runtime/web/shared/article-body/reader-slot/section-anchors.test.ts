@@ -22,6 +22,13 @@ describe("anchorArticleSections", () => {
 		expect(headingIds(anchored.html)).toEqual(["section-alpha", "section-beta", "section-gamma"]);
 	});
 
+	it("reads a line break inside a heading as a space, keeping the heading's own markup", () => {
+		const anchored = anchorArticleSections("<h2>Step 1:<br>Install</h2>");
+
+		expect(anchored.sections).toEqual([{ anchorId: "section-step-1-install", text: "Step 1: Install" }]);
+		expect(anchored.html).toBe('<h2 id="section-step-1-install">Step 1:<br>Install</h2>');
+	});
+
 	it("leaves an h4 unlisted and without an id", () => {
 		const anchored = anchorArticleSections("<h2>Method</h2><h4>Footnotes</h4>");
 

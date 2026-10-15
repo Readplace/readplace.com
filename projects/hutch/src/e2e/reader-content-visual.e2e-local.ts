@@ -338,3 +338,55 @@ test.describe("Reader keeps hostile crawled markup inside the card at the narrow
 		await readerContentGeometry(page);
 	});
 });
+
+const CAPTIONED_ARTICLE_URL = "https://example.com/reader-content-captioned-table";
+const CAPTIONED_CANONICAL_PATH = "example.com/reader-content-captioned-table";
+const CAPTIONED_TABLE = [
+	"<table><caption>Pipeline owners</caption><colgroup><col><col></colgroup>",
+	"<thead><tr><th>stage</th><th>owner</th></tr></thead>",
+	"<tbody><tr><td>render</td><td>web</td></tr></tbody></table>",
+].join("");
+
+test.describe("Reader rounds a captioned table's top corners", () => {
+	test.use({ timezoneId: "UTC", viewport: READER_VIEWPORT });
+
+	test("a table led by a caption and a column group rounds its header row's outer corners", async ({ page }) => {
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: CAPTIONED_ARTICLE_URL,
+				title: "Reader Captioned Table",
+				content: `<p>Publishers caption their tables.</p>${CAPTIONED_TABLE}`,
+				contentFetchedAt: CONTENT_FETCHED_AT,
+			},
+		});
+		assert.equal(seeded.status(), 201, "seed endpoint must create the crawled article");
+		await page.goto(`${BASE_URL}/view/${CAPTIONED_CANONICAL_PATH}`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+
+		const corners = await page.locator(`${READER_CONTENT} table`).evaluate((table) => {
+			if (!(table instanceof HTMLTableElement) || !table.caption || !table.tHead) {
+				throw new Error("the fixture must render a captioned table with a header row");
+			}
+			const headerCells = Array.from(table.tHead.rows[0]?.cells ?? []);
+			const bodyCells = Array.from(table.tBodies[0]?.rows[0]?.cells ?? []);
+			return {
+				tableRadius: Number.parseFloat(getComputedStyle(table).borderTopLeftRadius),
+				header: [
+					Number.parseFloat(getComputedStyle(headerCells[0] ?? table).borderTopLeftRadius),
+					Number.parseFloat(getComputedStyle(headerCells[headerCells.length - 1] ?? table).borderTopRightRadius),
+				],
+				bodyTop: [
+					getComputedStyle(bodyCells[0] ?? table).borderTopLeftRadius,
+					getComputedStyle(bodyCells[bodyCells.length - 1] ?? table).borderTopRightRadius,
+				],
+			};
+		});
+
+		assert.ok(corners.tableRadius > 1, "the reader table must draw rounded corners for this check to mean anything");
+		assert.deepEqual(
+			{ header: corners.header, bodyTop: corners.bodyTop },
+			{ header: [corners.tableRadius - 1, corners.tableRadius - 1], bodyTop: ["0px", "0px"] },
+			"a caption before the header must not square the header row's outer corners, nor round the body row under it",
+		);
+	});
+});

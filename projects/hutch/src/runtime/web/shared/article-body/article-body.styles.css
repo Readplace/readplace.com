@@ -353,11 +353,11 @@
   border-bottom: 0;
 }
 
-.article-body__content :is(thead, tbody):first-child > tr:first-child > :first-child {
+.article-body__content :is(thead, tbody):not(:is(thead, tbody, tfoot) ~ *) > tr:first-child > :first-child {
   border-top-left-radius: calc(var(--radius-lg) - 1px);
 }
 
-.article-body__content :is(thead, tbody):first-child > tr:first-child > :last-child {
+.article-body__content :is(thead, tbody):not(:is(thead, tbody, tfoot) ~ *) > tr:first-child > :last-child {
   border-top-right-radius: calc(var(--radius-lg) - 1px);
 }
 

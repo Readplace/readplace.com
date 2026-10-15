@@ -27,8 +27,13 @@ const PENDING_READER_HTML = renderTableOfContents({
 	oob: false,
 });
 
+const PAGE_HEIGHT = 3000;
+const VIEWPORT_HEIGHT = 800;
+
 function makeDocument(bodyHtml: string): Document {
-	return new JSDOM(`<!doctype html><html><body>${bodyHtml}</body></html>`).window.document;
+	const doc = new JSDOM(`<!doctype html><html><body>${bodyHtml}</body></html>`).window.document;
+	Object.defineProperty(doc.documentElement, "scrollHeight", { value: PAGE_HEIGHT, configurable: true });
+	return doc;
 }
 
 function placeHeadings(doc: Document, tops: Record<string, number>): void {
@@ -52,18 +57,24 @@ function currentRows(doc: Document): { href: string | null; marked: boolean }[] 
 function createFakeWindow() {
 	let scrollListener: (() => void) | null = null;
 	const frames: (() => void)[] = [];
+	const win = {
+		scrollY: 0,
+		innerHeight: VIEWPORT_HEIGHT,
+		addEventListener(_type: "scroll", listener: () => void, _options: { passive: true }): void {
+			scrollListener = listener;
+		},
+		requestAnimationFrame(callback: () => void): number {
+			frames.push(callback);
+			return frames.length;
+		},
+		getComputedStyle(_element: Element): { scrollPaddingTop: string } {
+			return { scrollPaddingTop: SCROLL_PADDING_TOP };
+		},
+	};
 	return {
-		win: {
-			addEventListener(_type: "scroll", listener: () => void, _options: { passive: true }): void {
-				scrollListener = listener;
-			},
-			requestAnimationFrame(callback: () => void): number {
-				frames.push(callback);
-				return frames.length;
-			},
-			getComputedStyle(_element: Element): { scrollPaddingTop: string } {
-				return { scrollPaddingTop: SCROLL_PADDING_TOP };
-			},
+		win,
+		scrollTo(y: number): void {
+			win.scrollY = y;
 		},
 		scroll(): void {
 			assert(scrollListener, "the scroll listener must be attached");
@@ -107,12 +118,37 @@ describe("initTableOfContents", () => {
 		const fake = createFakeWindow();
 		initTableOfContents({ document: doc, window: fake.win, addSettleListener: createSettle().addSettleListener });
 
+		fake.scrollTo(900);
 		placeHeadings(doc, { "section-alpha": -600, "section-beta": 52.5, "section-gamma": 600 });
 		fake.scroll();
 		fake.paintFrame();
 
 		expect(currentRows(doc)).toEqual([{ href: "#section-beta", marked: true }]);
 		expect(doc.querySelectorAll(".table-of-contents__link--current")).toHaveLength(1);
+	});
+
+	it("marks the last row current once the page is scrolled to its end, though its heading never reaches the top", () => {
+		const doc = makeDocument(readerHtml(HEADED_CONTENT));
+		placeHeadings(doc, { "section-alpha": 300, "section-beta": 900, "section-gamma": 1500 });
+		const fake = createFakeWindow();
+		initTableOfContents({ document: doc, window: fake.win, addSettleListener: createSettle().addSettleListener });
+
+		fake.scrollTo(PAGE_HEIGHT - VIEWPORT_HEIGHT);
+		placeHeadings(doc, { "section-alpha": -1900, "section-beta": -1300, "section-gamma": 400 });
+		fake.scroll();
+		fake.paintFrame();
+
+		expect(currentRows(doc)).toEqual([{ href: "#section-gamma", marked: true }]);
+	});
+
+	it("keeps the first row current on a page too short to scroll", () => {
+		const doc = makeDocument(readerHtml(HEADED_CONTENT));
+		Object.defineProperty(doc.documentElement, "scrollHeight", { value: VIEWPORT_HEIGHT, configurable: true });
+		placeHeadings(doc, { "section-alpha": 200, "section-beta": 400, "section-gamma": 600 });
+
+		initTableOfContents({ document: doc, window: createFakeWindow().win, addSettleListener: createSettle().addSettleListener });
+
+		expect(currentRows(doc)).toEqual([{ href: "#section-alpha", marked: true }]);
 	});
 
 	it("syncs once per animation frame however many scroll events arrive before it paints", () => {

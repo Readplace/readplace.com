@@ -27,6 +27,14 @@ function mintAnchorId(input: { slug: string; used: Set<string> }): string {
 	return anchorId;
 }
 
+const TEXT_NODE = 3;
+
+function readHeadingText(node: Node): string {
+	if (node.nodeName === "BR") return " ";
+	if (node.nodeType === TEXT_NODE) return String(node.nodeValue);
+	return Array.from(node.childNodes, readHeadingText).join("");
+}
+
 export function anchorArticleSections(html: string): {
 	html: string;
 	sections: readonly ArticleSection[];
@@ -40,7 +48,7 @@ export function anchorArticleSections(html: string): {
 	const used = new Set<string>();
 	const sections: ArticleSection[] = [];
 	for (const heading of headings) {
-		const text = heading.textContent.replace(/\s+/g, " ").trim();
+		const text = readHeadingText(heading).replace(/\s+/g, " ").trim();
 		if (text === "") {
 			heading.removeAttribute("id");
 			continue;
