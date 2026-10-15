@@ -312,8 +312,8 @@ export function ReaderPage(
 			page:
 				SHARE_DIALOG_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
-				(picker === undefined ? "" : READLIST_PICKER_SCRIPT) +
-				(readlistCreateHtml === "" ? "" : READLIST_CLIENT_SCRIPT) +
+				READLIST_PICKER_SCRIPT +
+				READLIST_CLIENT_SCRIPT +
 				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +

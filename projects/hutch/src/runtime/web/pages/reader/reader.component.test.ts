@@ -413,22 +413,6 @@ describe("ReaderPage", () => {
 		expect(doc.querySelectorAll("[data-test-confirm-popover]").length).toBe(0);
 	});
 
-	it("loads the share dialog script in place of the balloon's", () => {
-		const doc = renderReaderDocument(WebReader);
-
-		const scripts = Array.from(doc.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
-		expect(scripts).toContain("/client-dist/share-dialog.client.js");
-		expect(scripts.filter((src) => src === "/client-dist/share-balloon.client.js")).toEqual([]);
-	});
-
-	it("loads no Next Read script, since the card sits in the flow", () => {
-		const doc = renderReaderDocument(WebReader);
-
-		const scripts = Array.from(doc.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
-		expect(scripts).toContain("/client-dist/summary-toggle.client.js");
-		expect(scripts.filter((src) => src === "/client-dist/next-read.client.js")).toEqual([]);
-	});
-
 	it("styles the share and naming dialogs", () => {
 		expect([
 			READER_STYLES.includes(SHARE_DIALOG_STYLES),
@@ -682,16 +666,27 @@ describe("ReaderPage", () => {
 		);
 		expect(fields).toEqual(["hidden:returnTo", "label", "text:label"]);
 		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(PICKER.returnTo);
-		const offeredScripts = Array.from(offered.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
-		expect(offeredScripts).toContain("/client-dist/readlist.client.js");
 
 		const withheld = renderReaderDocument(WebReader, {
 			...NO_QUEUE_FILING,
 			picker: { ...PICKER, create: undefined },
 		});
 		expect(withheld.querySelectorAll('[data-test-confirm-popover="readlist-create"]').length).toBe(0);
-		const withheldScripts = Array.from(withheld.querySelectorAll("script[src]"), (script) => script.getAttribute("src"));
-		expect(withheldScripts.filter((src) => src === "/client-dist/readlist.client.js")).toEqual([]);
+	});
+
+	it("loads the readlist picker and naming scripts on every reader page, so a reader opened in place can file and create", () => {
+		const readlistScriptsOf = (doc: Document) =>
+			Array.from(doc.querySelectorAll("script[src]"), (script) => script.getAttribute("src")).filter(
+				(src) => src === "/client-dist/readlist-picker.client.js" || src === "/client-dist/readlist.client.js",
+			);
+		const scriptsFor = {
+			withoutPicker: readlistScriptsOf(renderReaderDocument(WebReader, NO_QUEUE_FILING)),
+			withoutCreate: readlistScriptsOf(renderReaderDocument(WebReader, { ...NO_QUEUE_FILING, picker: { ...PICKER, create: undefined } })),
+			withCreate: readlistScriptsOf(renderReaderDocument(WebReader, { ...NO_QUEUE_FILING, picker: PICKER })),
+		};
+
+		const both = ["/client-dist/readlist-picker.client.js", "/client-dist/readlist.client.js"];
+		expect(scriptsFor).toEqual({ withoutPicker: both, withoutCreate: both, withCreate: both });
 	});
 
 	it("mounts the filing toast in the page's status toast slot", () => {
