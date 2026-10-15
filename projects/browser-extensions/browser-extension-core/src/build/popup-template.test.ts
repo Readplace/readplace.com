@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { iconSvg } from "@packages/ui-icons";
+import { renderIllustration } from "@packages/web-shell";
 import { SYSTEM_THEME_VARIABLES } from "@packages/web-shell/design-system.styles";
 import { renderPopupTemplate } from "./popup-template";
 
@@ -31,8 +32,21 @@ describe("renderPopupTemplate", () => {
 		const rendered = renderPopupTemplate({ template, utmSource: "chrome-extension" });
 
 		expect(rendered).toContain(`<div class="saved-view__icon" aria-hidden="true">${iconSvg("check")}</div>`);
-		expect(rendered).toContain(`<span class="popup-alert__icon">${iconSvg("x-circle")}</span>`);
-		expect(rendered).toContain(`title="Sign out">${iconSvg("log-out")}<span class="sr-only">Sign out</span>`);
+		expect(rendered).toContain(`<span class="alert__icon" aria-hidden="true">${iconSvg("x-circle")}</span>`);
+		expect(rendered).toContain(`<span class="alert__icon" aria-hidden="true">${iconSvg("alert-triangle")}</span>`);
+		expect(rendered).toContain(`<span class="list-view__search-icon" aria-hidden="true">${iconSvg("search")}</span>`);
+	});
+
+	it("illustrates the empty list with the shared art", () => {
+		expect(renderPopupTemplate({ template, utmSource: "chrome-extension" })).toContain(
+			`<span class="list-view__empty-art" aria-hidden="true">${renderIllustration("book-lightbulb")}</span>`,
+		);
+	});
+
+	it("labels the sign-out control in words rather than an icon", () => {
+		expect(renderPopupTemplate({ template, utmSource: "chrome-extension" })).toContain(
+			'<button id="logout-button" class="btn btn--neutral btn--s" type="button">Sign out</button>',
+		);
 	});
 
 	it("leaves no placeholder unfilled", () => {

@@ -19,23 +19,24 @@ import type { PopupMessage } from "../popup-message.types";
 import type {
 	BulkSaveResult,
 	CollectionPage,
+	CollectionTotal,
 	InvokeActionResult,
 	LoadPageResult,
 	Message,
 	PageDescriptor,
 	SaveUrlResult,
+	SortDescriptor,
 } from "../reading-list/reading-list.types";
 import { ADVERTISED_CAPABILITIES_STORAGE_KEY, parseStoredCapabilities } from "../sync-context-menus";
-import { type ActionVariant, actionIcon, actionLabel, actionVariant, linkLabel, linkPresentation } from "./action-affordance";
-import { filterByUrl } from "./filter-by-url";
+import { type ActionVariant, actionLabel, actionVariant, linkLabel, linkPresentation } from "./action-affordance";
+import { filterByQuery } from "./filter-by-query";
 import { isAppUrl } from "./is-app-url";
 import { isMacPlatform } from "./is-mac-platform";
-import { itemDisplay } from "./item-display";
+import { buildListHeaderView } from "./list-header-view";
 import { buildMessageView } from "./message-view";
 import { LIST_SKELETON_DELAY_MS, initPaintAfterDelay } from "./paint-after-delay";
 import { type PaginationView, buildPaginationView } from "./pagination-view";
 import { type PendingTarget, parsePendingTarget } from "./pending-target";
-import { relativeTime } from "./relative-time";
 import {
 	SAVE_ALL_RENDERED_MARK,
 	type SaveAllDetailLine,
@@ -44,6 +45,7 @@ import {
 	saveAllTabsLabel,
 	summarizeBulkSave,
 } from "./save-all-tabs";
+import { type RowFactKind, rowFacts } from "./row-facts";
 import { SAVE_RENDERED_MARK, buildSavedView } from "./saved-view";
 
 interface PopupBrowser {
@@ -68,9 +70,13 @@ interface PopupBrowser {
  * action `name` client-side (actionVariant), and an unknown name falls back to
  * the default. */
 const ACTION_CLASS_BY_VARIANT: Record<ActionVariant, string> = {
-	toggle: "btn btn--secondary btn--m list-view__control",
-	danger: "list-view__delete list-view__control",
+	toggle: "btn btn--secondary btn--s list-view__action list-view__control",
 	default: "btn btn--neutral btn--s list-view__control",
+};
+
+const FACT_CLASS: Record<RowFactKind, string> = {
+	site: "list-view__fact list-view__fact--site",
+	saved: "list-view__fact list-view__fact--saved",
 };
 
 const DETAIL_LINE_CLASS: Record<SaveAllDetailLine["kind"], string> = {
@@ -85,6 +91,8 @@ const DETAIL_MARKER_CLASS: Partial<Record<SaveAllDetailLine["kind"], string>> = 
 };
 
 type ListError = { title: string; body: string; retry?: () => void };
+
+type CollectionRequest = Extract<PopupMessage, { type: "load-page" | "load-sort" }>;
 
 function elementById(id: string): HTMLElement {
 	const element = document.getElementById(id);
@@ -170,7 +178,16 @@ export function initPopup(deps: {
 
 	let currentItems: ReadingListItem[] = [];
 	let pageList: PageDescriptor[] = [];
+	let currentTotal: CollectionTotal | undefined;
+	let currentSort: SortDescriptor[] = [];
 	let listBusy = false;
+
+	function adoptCollection(page: CollectionPage): void {
+		currentItems = page.items;
+		pageList = page.pages;
+		currentTotal = page.total;
+		currentSort = page.sort;
+	}
 
 	async function whileListPending<T>(work: () => Promise<T>): Promise<T> {
 		const linkList = elementById("link-list");
@@ -208,7 +225,7 @@ export function initPopup(deps: {
 		button.className = `pagination__step ${step.className}`;
 		button.append(icon, label);
 		button.addEventListener("click", () => {
-			void loadPage(target);
+			void followCollection({ type: "load-page", index: target });
 		});
 		return button;
 	}
@@ -232,7 +249,7 @@ export function initPopup(deps: {
 		pagination.appendChild(
 			stepControl({
 				className: "pagination__step--previous",
-				icon: "arrow-left",
+				icon: "chevron-left",
 				label: "Previous page",
 				target: view.previous,
 			}),
@@ -242,7 +259,7 @@ export function initPopup(deps: {
 			if ("gap" in page) {
 				const gap = document.createElement("span");
 				gap.className = "pagination__gap";
-				gap.textContent = "…";
+				gap.append(iconElement({ name: "ellipsis", className: "pagination__gap-icon" }), screenReaderText("…"));
 				pagination.appendChild(gap);
 				continue;
 			}
@@ -261,7 +278,7 @@ export function initPopup(deps: {
 			pageButton.addEventListener("click", () => {
 				if (listBusy) return;
 				showPressedPage(pageButton);
-				void loadPage(page.index);
+				void followCollection({ type: "load-page", index: page.index });
 			});
 			pagination.appendChild(pageButton);
 		}
@@ -269,7 +286,7 @@ export function initPopup(deps: {
 		pagination.appendChild(
 			stepControl({
 				className: "pagination__step--next",
-				icon: "arrow-right",
+				icon: "chevron-right",
 				label: "Next page",
 				target: view.next,
 			}),
@@ -280,20 +297,10 @@ export function initPopup(deps: {
 		const row = document.createElement("div");
 		row.className = "list-view__row";
 
-		const { hostname } = itemDisplay(item);
-
 		const itemLink = document.createElement("a");
 		itemLink.className = "list-view__item";
 		itemLink.target = "_blank";
 		itemLink.rel = "noopener noreferrer";
-
-		const avatar = document.createElement("div");
-		avatar.className = "list-view__avatar";
-		avatar.setAttribute("aria-hidden", "true");
-		avatar.textContent = hostname.charAt(0);
-
-		const textContainer = document.createElement("div");
-		textContainer.className = "list-view__text";
 
 		const title = document.createElement("span");
 		title.className = "list-view__item-title";
@@ -303,18 +310,18 @@ export function initPopup(deps: {
 		const meta = document.createElement("span");
 		meta.className = "list-view__meta";
 
-		const domain = document.createElement("span");
-		domain.className = "list-view__domain";
-		domain.textContent = hostname;
-		domain.title = hostname;
+		for (const fact of rowFacts(item)) {
+			const factElement = document.createElement("span");
+			factElement.className = FACT_CLASS[fact.kind];
+			factElement.title = fact.text;
+			const text = document.createElement("span");
+			text.className = "list-view__fact-text";
+			text.textContent = fact.text;
+			factElement.append(iconElement({ name: fact.iconName, className: "list-view__fact-icon" }), text);
+			meta.appendChild(factElement);
+		}
 
-		const time = document.createElement("span");
-		time.className = "list-view__time";
-		time.textContent = relativeTime(new Date(item.savedAt));
-
-		meta.append(domain, time);
-		textContainer.append(title, meta);
-		itemLink.append(avatar, textContainer);
+		itemLink.append(title, meta);
 		row.appendChild(itemLink);
 
 		const controls = document.createElement("div");
@@ -349,18 +356,11 @@ export function initPopup(deps: {
 			button.type = "button";
 			button.className = ACTION_CLASS_BY_VARIANT[actionVariant(action.name)];
 			const label = actionLabel(action);
-			const icon = actionIcon(action.name);
 			const content = document.createElement("span");
 			content.className = "list-view__control-label";
 			content.setAttribute("aria-hidden", "true");
-			if (icon === undefined) {
-				content.textContent = label;
-				button.append(content, screenReaderText(label), inFlightDots());
-			} else {
-				content.innerHTML = icon;
-				button.title = label;
-				button.append(content, screenReaderText(`${label} ${item.title}`), inFlightDots());
-			}
+			content.textContent = label;
+			button.append(content, screenReaderText(label), inFlightDots());
 			button.addEventListener("click", async () => {
 				if (listBusy) return;
 				listBusy = true;
@@ -382,8 +382,7 @@ export function initPopup(deps: {
 							/** The mutation answered with the list as it now stands, page list
 							 * and all, so the reader lands wherever that answer says — there is
 							 * no page counter here to reconcile against it. */
-							currentItems = result.value.items;
-							pageList = result.value.pages;
+							adoptCollection(result.value);
 							renderLinks(filterItems());
 						} else if (result.ok) {
 							/** not-found: the item was removed elsewhere or the server no
@@ -412,10 +411,34 @@ export function initPopup(deps: {
 		return row;
 	}
 
+	function renderListHeader(): void {
+		const view = buildListHeaderView({ total: currentTotal, sort: currentSort });
+		const header = elementById("list-header");
+		const count = header.querySelector(".list-view__count");
+		if (!count) throw new Error("list count element not found");
+		count.textContent = view.countLabel ?? "";
+
+		const sortButton = elementById("sort-button");
+		const sort = view.sort;
+		sortButton.replaceChildren();
+		sortButton.onclick = null;
+		sortButton.hidden = sort === null;
+		if (sort !== null) {
+			sortButton.append(sort.label, iconElement({ name: sort.iconName, className: "list-view__sort-icon" }));
+			sortButton.onclick = () => {
+				void followCollection({ type: "load-sort", index: sort.toggleIndex });
+			};
+		}
+
+		header.hidden = view.countLabel === null && sort === null;
+	}
+
 	function renderLinks(items: ReadingListItem[]) {
 		const linkList = elementById("link-list");
 		const emptyList = elementById("empty-list");
 		const noMatches = elementById("no-matches");
+		const search = document.querySelector<HTMLElement>(".list-view__search");
+		if (!search) throw new Error("list search element not found");
 
 		linkList.replaceChildren();
 		emptyList.hidden = true;
@@ -423,10 +446,15 @@ export function initPopup(deps: {
 		setListError(null);
 
 		if (currentItems.length === 0) {
+			search.hidden = true;
+			elementById("list-header").hidden = true;
 			emptyList.hidden = false;
 			renderPagination(buildPaginationView([]));
 			return;
 		}
+
+		search.hidden = false;
+		renderListHeader();
 
 		if (items.length === 0) {
 			noMatches.hidden = false;
@@ -448,7 +476,7 @@ export function initPopup(deps: {
 	}
 
 	function filterItems(): ReadingListItem[] {
-		return filterByUrl(currentItems, filterQuery());
+		return filterByQuery(currentItems, filterQuery());
 	}
 
 	/** No pager while a filter is on: the filter searches the page in hand, so
@@ -473,28 +501,24 @@ export function initPopup(deps: {
 			return "failed";
 		}
 
-		currentItems = result.value.items;
-		pageList = result.value.pages;
+		adoptCollection(result.value);
 		renderLinks(filterItems());
 		return "loaded";
 	}
 
-	async function loadPage(index: number): Promise<void> {
+	async function followCollection(request: CollectionRequest): Promise<void> {
 		if (listBusy) return;
 		listBusy = true;
 		try {
-			await whileListPending(() => fetchPage(index));
+			await whileListPending(() => fetchCollection(request));
 		} finally {
 			listBusy = false;
 			renderPagination(buildPaginationView(visiblePageList()));
 		}
 	}
 
-	async function fetchPage(index: number): Promise<void> {
-		const result = await send<GuardedResult<LoadPageResult>>({
-			type: "load-page",
-			index,
-		});
+	async function fetchCollection(request: CollectionRequest): Promise<void> {
+		const result = await send<GuardedResult<LoadPageResult>>(request);
 
 		if (isNotLoggedIn(result)) {
 			await performLogout();
@@ -511,21 +535,16 @@ export function initPopup(deps: {
 			return;
 		}
 
-		currentItems = result.value.items;
-		pageList = result.value.pages;
+		adoptCollection(result.value);
 		renderLinks(filterItems());
 	}
 
 	function setListWarning(message: string | null): void {
-		const warningEl = document.getElementById("list-warning");
-		if (!warningEl) return;
-		if (message) {
-			warningEl.textContent = message;
-			warningEl.hidden = false;
-		} else {
-			warningEl.textContent = "";
-			warningEl.hidden = true;
-		}
+		const warningEl = elementById("list-warning");
+		const messageEl = warningEl.querySelector(".alert__message");
+		if (!messageEl) throw new Error("list warning message element not found");
+		messageEl.textContent = message ?? "";
+		warningEl.hidden = !message;
 	}
 
 	// Each caller passes its own message so the surface never shows a stale one — a
@@ -580,10 +599,16 @@ export function initPopup(deps: {
 		container.replaceChildren();
 		container.setAttribute("role", view.role);
 		for (const item of view.items) {
-			const el = document.createElement("div");
-			el.className = item.className;
-			el.innerHTML = item.html;
-			container.appendChild(el);
+			const alert = document.createElement("div");
+			alert.className = item.className;
+			const content = document.createElement("div");
+			content.className = "alert__content";
+			const message = document.createElement("div");
+			message.className = "alert__message";
+			message.innerHTML = item.html;
+			content.appendChild(message);
+			alert.append(iconElement({ name: item.iconName, className: "alert__icon" }), content);
+			container.appendChild(alert);
 		}
 		container.hidden = view.hidden;
 	}
@@ -709,8 +734,7 @@ export function initPopup(deps: {
 		}
 
 		if ("reason" in saveResult.value && saveResult.value.reason === "not-saveable") {
-			currentItems = saveResult.value.items;
-			pageList = saveResult.value.pages;
+			adoptCollection(saveResult.value);
 			showView("list-view");
 			renderMessages([]);
 			setListWarning(saveResult.value.warning?.message ?? null);

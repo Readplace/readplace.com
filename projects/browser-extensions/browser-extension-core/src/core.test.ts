@@ -85,6 +85,7 @@ function createRecordingReadingList(
 	savePagesCalls: { pages: BulkSavePage[] }[];
 	findByUrlCalls: string[];
 	loadPageCalls: { index: number }[];
+	loadSortCalls: { index: number }[];
 } {
 	const inner = initInMemoryReadingList();
 	const saveCalls: SaveArgs[] = [];
@@ -94,6 +95,7 @@ function createRecordingReadingList(
 	 * list request the reader did not trigger. */
 	const findByUrlCalls: string[] = [];
 	const loadPageCalls: { index: number }[] = [];
+	const loadSortCalls: { index: number }[] = [];
 	const saveUrl: SaveUrl = async (params) => {
 		saveCalls.push(params);
 		if (options.saveResult) return options.saveResult;
@@ -115,6 +117,7 @@ function createRecordingReadingList(
 		savePagesCalls,
 		findByUrlCalls,
 		loadPageCalls,
+		loadSortCalls,
 		saveUrl,
 		savePages,
 		invokeAction: inner.invokeAction,
@@ -126,6 +129,10 @@ function createRecordingReadingList(
 		loadPage: async (params) => {
 			loadPageCalls.push(params);
 			return inner.loadPage(params);
+		},
+		loadSort: async (params) => {
+			loadSortCalls.push(params);
+			return inner.loadSort(params);
 		},
 	};
 }
@@ -211,7 +218,7 @@ describe("BrowserExtensionCore save", () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList({
-			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [] },
+			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, sort: [] },
 		});
 		const { shell, showSavedCalls, showDefaultCalls } = createFakeShell({
 			id: 7,
@@ -243,7 +250,7 @@ describe("BrowserExtensionCore save", () => {
 			mintCalls += 1;
 		};
 		const readingList = createRecordingReadingList({
-			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [] },
+			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, sort: [] },
 		});
 		const { shell } = createFakeShell({
 			id: 7,
@@ -731,6 +738,50 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			"https://g.example",
 		]);
 		expect(readingList.loadPageCalls).toEqual([{ index: 1 }]);
+	});
+
+	it("fetches the order the reader picked, by its position in the sort list", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		await readingList.saveUrl({ url: "https://s.example", title: "S" });
+		const cap = createCapturingShell();
+		const core = BrowserExtensionCore(cap.shell, {
+			auth,
+			logger,
+			readingList,
+		});
+		const results: LoadPageResult[] = [];
+		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
+
+		core.fetch("reading-list", { sort: 1 });
+		await flush();
+
+		expect(collectionPage(results[0]).items.map((item) => item.url)).toEqual([
+			"https://s.example",
+		]);
+		expect({ sorts: readingList.loadSortCalls, pages: readingList.loadPageCalls }).toEqual({
+			sorts: [{ index: 1 }],
+			pages: [],
+		});
+	});
+
+	it("reports a sort asked for while logged out as not logged in", async () => {
+		const cap = createCapturingShell();
+		const auth = loggedInAuth();
+		auth.whenLoggedIn = (() => ({ ok: false, reason: "not-logged-in" })) as WhenLoggedIn;
+		const readingList = createRecordingReadingList();
+		const core = BrowserExtensionCore(cap.shell, { auth, logger, readingList });
+		const failures: unknown[] = [];
+		core.once("fetched-reading-list", { success: () => {}, failure: (e) => failures.push(e) });
+
+		core.fetch("reading-list", { sort: 0 });
+		await flush();
+
+		expect({ failures, sorts: readingList.loadSortCalls }).toEqual({
+			failures: [{ reason: "not-logged-in" }],
+			sorts: [],
+		});
 	});
 
 	it("forwards a lost page list rather than dressing it up as an empty page", async () => {

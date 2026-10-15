@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { iconSvg } from "@packages/ui-icons";
+import { renderIllustration } from "@packages/web-shell";
 import { SYSTEM_THEME_VARIABLES } from "@packages/web-shell/design-system.styles";
 
 export type PopupUtmSource = "chrome-extension" | "firefox-extension";
@@ -21,7 +22,9 @@ export function renderPopupTemplate(input: { template: string; utmSource: PopupU
 		openReadlistHref: trackedHref({ path: "/queue", utmSource: input.utmSource, utmContent: "open-readlist" }),
 		checkIcon: iconSvg("check"),
 		errorIcon: iconSvg("x-circle"),
-		signOutIcon: iconSvg("log-out"),
+		warningIcon: iconSvg("alert-triangle"),
+		searchIcon: iconSvg("search"),
+		emptyArt: renderIllustration("book-lightbulb"),
 		themeTokens: SYSTEM_THEME_VARIABLES,
 	};
 	const rendered = Object.entries(values).reduce(

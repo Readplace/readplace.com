@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
-import { expect, test } from "@packages/e2e-harness";
+import { LENSES, NON_TEXT_MINIMUM, contrastRatio, expect, test, textMinimum } from "@packages/e2e-harness";
 import { z } from "zod";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
@@ -15,7 +15,6 @@ import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 import { createReadlistFromReader, markReadWithConfirmation, openAddLink } from "./page-interactions";
 import { seedChromeGrant } from "./oauth-revoke/seed-grant";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
-import { LENSES, NON_TEXT_MINIMUM, contrastRatio, textMinimum } from "./wcag-contrast";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");

@@ -541,7 +541,8 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 					break;
 				}
 				case "get-all-items":
-				case "load-page": {
+				case "load-page":
+				case "load-sort": {
 					const pending = new Promise<unknown>((resolve) => {
 						core.once("fetched-reading-list", {
 							success: (value: LoadPageResult) =>
@@ -551,6 +552,8 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 					});
 					if (message.type === "load-page") {
 						core.fetch("reading-list", { page: message.index });
+					} else if (message.type === "load-sort") {
+						core.fetch("reading-list", { sort: message.index });
 					} else {
 						core.fetch("reading-list");
 					}

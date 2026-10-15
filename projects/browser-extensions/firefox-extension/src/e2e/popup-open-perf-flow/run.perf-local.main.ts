@@ -96,7 +96,7 @@ function assertSkeletonDimensions(
 	dimensions: SkeletonDimensions | undefined,
 ): void {
 	assert(dimensions);
-	assert.equal(dimensions.width, 800);
+	assert.equal(dimensions.width, 400);
 	assert(dimensions.height > 100);
 	assert.equal(dimensions.iconWidth, 48);
 	assert.equal(dimensions.iconHeight, 48);
@@ -292,7 +292,7 @@ async function installProbe(
 			const rect = panel.getBoundingClientRect();
 			const style = getComputedStyle(panel);
 			probe.panelVisible = ['showing', 'open'].includes(panel.state) && rect.width > 0 && rect.height > 0 && style.visibility === 'visible' && Number(style.opacity) > 0;
-			if (data.type === 'paint' && data.state.visible && data.state.viewportWidth >= 800 && probe.panelVisible && data.firstPaintAt >= window.__readplacePanelShowingAt && probe.firstPaintAt === undefined) {
+			if (data.type === 'paint' && data.state.visible && data.state.viewportWidth >= 400 && probe.panelVisible && data.firstPaintAt >= window.__readplacePanelShowingAt && probe.firstPaintAt === undefined) {
 				probe.firstPaintAt = data.firstPaintAt;
 				probe.firstPaintState = data.state;
 			}

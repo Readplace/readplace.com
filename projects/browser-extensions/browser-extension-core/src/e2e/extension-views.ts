@@ -26,6 +26,7 @@ export const ELEMENT_IDS = {
 	emptyList: "empty-list",
 	noMatches: "no-matches",
 	listError: "list-error",
+	sortButton: "sort-button",
 	emailInput: "email",
 	passwordInput: "password",
 } as const;
@@ -41,7 +42,6 @@ export const CSS_SELECTORS = {
 	savedViewReadlistButton: "#saved-affordances button",
 	listItem: "#link-list .list-view__item",
 	listItemTitle: "#link-list .list-view__item-title",
-	deleteButton: "#link-list .list-view__delete",
 } as const;
 
 /** Reader permalink (readUrl) shape, `/queue/:id/view`: a saved-article link

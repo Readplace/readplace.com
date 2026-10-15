@@ -7,5 +7,6 @@ export type PopupMessage =
 	| { type: "save-all-tabs"; tabs: SaveableTab[]; tabCount: number }
 	| { type: "get-all-items" }
 	| { type: "load-page"; index: number }
+	| { type: "load-sort"; index: number }
 	| { type: "login" }
 	| { type: "logout" };

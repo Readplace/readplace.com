@@ -1,6 +1,4 @@
-import { iconSvg } from "@packages/ui-icons";
 import {
-	actionIcon,
 	actionLabel,
 	actionVariant,
 	humanize,
@@ -27,26 +25,12 @@ describe("humanize", () => {
 });
 
 describe("actionVariant", () => {
-	it("maps the delete action to the danger variant", () => {
-		expect(actionVariant("delete")).toBe("danger");
-	});
-
 	it("maps the read-state action to the row toggle", () => {
 		expect(actionVariant("update-status")).toBe("toggle");
 	});
 
 	it("falls back to the default variant for an unknown name", () => {
 		expect(actionVariant("mark-read")).toBe("default");
-	});
-});
-
-describe("actionIcon", () => {
-	it("maps the delete action to the shared set's icon markup", () => {
-		expect(actionIcon("delete")).toBe(iconSvg("trash"));
-	});
-
-	it("returns undefined for an action with no bespoke icon", () => {
-		expect(actionIcon("mark-read")).toBeUndefined();
 	});
 });
 

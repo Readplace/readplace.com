@@ -1,3 +1,4 @@
+import type { IconName } from "@packages/ui-icons";
 import type { Message } from "../reading-list/reading-list.types";
 
 /** A DOM-free description of how to render the generic server-message view,
@@ -15,9 +16,16 @@ export interface MessageView {
 	readonly role: "status" | "alert";
 	readonly items: ReadonlyArray<{
 		readonly className: string;
+		readonly iconName: IconName;
 		readonly html: string;
 	}>;
 }
+
+const ICON_BY_TYPE: Record<Message["type"], IconName> = {
+	success: "check-circle",
+	warning: "alert-triangle",
+	error: "x-circle",
+};
 
 /** The one content media type the popup knows how to render. A message whose
  * `content.type` is anything else is ignored — never injected — so the server
@@ -30,7 +38,8 @@ export function buildMessageView(messages: Message[]): MessageView {
 		(message) => message.content.type === RENDERABLE_MEDIA_TYPE,
 	);
 	const items = renderable.map((message) => ({
-		className: `messages__item messages__item--${message.type}`,
+		className: `alert alert--${message.type} alert--visible`,
+		iconName: ICON_BY_TYPE[message.type],
 		html: message.content.body,
 	}));
 	const hasError = renderable.some((message) => message.type === "error");

@@ -13,16 +13,19 @@ import type {
 	BulkSavePage,
 	BulkSaveResult,
 	CollectionPage,
+	CollectionTotal,
 	FindByUrl,
 	GetItems,
 	InvokeAction,
 	LoadPage,
 	LoadPageResult,
+	LoadSort,
 	Message,
 	PageDescriptor,
 	SaveUrl,
 	SavePages,
 	SaveWarning,
+	SortDescriptor,
 	CaptureTrigger,
 	TabContent,
 	UploadContent,
@@ -276,18 +279,49 @@ const SirenPageSchema = z.object({
 
 type PageEntry = PageDescriptor & { readonly href: string };
 
+const SirenSortSchema = z.object({
+	label: z.string(),
+	rel: z.enum(["current", "sort"]),
+	order: z.enum(["asc", "desc"]),
+	href: z.string(),
+});
+
+type SortEntry = SortDescriptor & { readonly href: string };
+
+const SirenTotalSchema = z.object({ label: z.string() });
+
+function readHrefEntries<T extends { href: string }>(deps: {
+	entries: unknown;
+	schema: z.ZodType<T>;
+	base: string;
+}): T[] {
+	const parsed = z.array(z.unknown()).safeParse(deps.entries);
+	if (!parsed.success) return [];
+	return parsed.data.flatMap((entry) => {
+		const parsedEntry = deps.schema.safeParse(entry);
+		if (!parsedEntry.success) return [];
+		const href = resolveHref({ base: deps.base, href: parsedEntry.data.href });
+		return href === undefined ? [] : [{ ...parsedEntry.data, href }];
+	});
+}
+
 function readPageList(deps: {
 	body: SirenCollectionResponse;
 	base: string;
 }): PageEntry[] {
-	const parsed = z.array(z.unknown()).safeParse(deps.body.properties?.pages);
-	if (!parsed.success) return [];
-	return parsed.data.flatMap((entry) => {
-		const page = SirenPageSchema.safeParse(entry);
-		if (!page.success) return [];
-		const href = resolveHref({ base: deps.base, href: page.data.href });
-		return href === undefined ? [] : [{ ...page.data, href }];
-	});
+	return readHrefEntries({ entries: deps.body.properties?.pages, schema: SirenPageSchema, base: deps.base });
+}
+
+function readSortList(deps: {
+	body: SirenCollectionResponse;
+	base: string;
+}): SortEntry[] {
+	return readHrefEntries({ entries: deps.body.properties?.sort, schema: SirenSortSchema, base: deps.base });
+}
+
+function readTotal(body: SirenCollectionResponse): CollectionTotal | undefined {
+	const parsed = SirenTotalSchema.safeParse(body.properties?.total);
+	return parsed.success ? { label: parsed.data.label } : undefined;
 }
 
 const UploadSlotResponseSchema = z.object({
@@ -368,6 +402,8 @@ export type NavigationResult = {
 	actions: Record<string, BoundAction>;
 	descriptors: Record<string, SirenAction>;
 	pages: PageEntry[];
+	total: CollectionTotal | undefined;
+	sorts: SortEntry[];
 	followPage: (href: string) => Promise<NavigationResult>;
 	/** Set only by the save-articles understanding; carries the bulk-save
 	 * summary so `savePages` can surface it. Other actions leave it undefined. */
@@ -609,7 +645,7 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 			}
 			const body = await readSirenBody(response);
 			const item = context.resolveItem(SirenSubEntitySchema.parse(body));
-			return { items: [item], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: readMessages(body) };
+			return { items: [item], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: readMessages(body) };
 		};
 	});
 	return handlers;
@@ -657,7 +693,7 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 			);
 			assert(response.ok, `Bulk save failed: ${response.status}`);
 			const body = SaveArticlesResultSchema.parse(await readSirenBody(response));
-			return { items: [], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: [], bulk: body.properties };
+			return { items: [], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: [], bulk: body.properties };
 		};
 	});
 	return handlers;
@@ -696,7 +732,7 @@ async function followSaveFallback(args: {
 		await readSirenBody(fallbackResponse),
 	);
 	const fallbackItem = context.resolveItem(fallbackResponseBody);
-	return { items: [fallbackItem], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: [] };
+	return { items: [fallbackItem], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: [] };
 }
 
 export function initSaveContentUnderstanding(deps: {
@@ -734,7 +770,7 @@ export function initSaveContentUnderstanding(deps: {
 			}
 			const responseBody = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(responseBody);
-			return { items: [item], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: readMessages(responseBody) };
+			return { items: [item], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: readMessages(responseBody) };
 		};
 	});
 	return handlers;
@@ -813,6 +849,8 @@ export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
 					actions: {},
 					descriptors: {},
 					pages: [],
+					total: undefined,
+					sorts: [],
 					followPage: followPageWith(context),
 					messages: [],
 				};
@@ -825,6 +863,8 @@ export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
 				/** The pages of the FILTERED collection: following one carries the
 				 * filter, because the server built the href. */
 				pages: readPageList({ body, base: context.serverUrl }),
+				total: readTotal(body),
+				sorts: readSortList({ body, base: context.serverUrl }),
 				followPage: followPageWith(context),
 				messages: [],
 			};
@@ -989,6 +1029,8 @@ export function initExtension(
 			actions,
 			descriptors,
 			pages: readPageList({ body, base: deps.serverUrl }),
+			total: readTotal(body),
+			sorts: readSortList({ body, base: deps.serverUrl }),
 			followPage: followPageWith(context),
 			messages: readMessages(body),
 		};
@@ -1062,6 +1104,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	findByUrl: FindByUrl;
 	getItems: GetItems;
 	loadPage: LoadPage;
+	loadSort: LoadSort;
 	savePages: SavePages;
 	openBulkSaveSession: OpenBulkSaveSession;
 } {
@@ -1100,6 +1143,8 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	type AdoptedCollection = {
 		items: ArticleItem[];
 		pages: PageEntry[];
+		total: CollectionTotal | undefined;
+		sorts: SortEntry[];
 		followPage: (href: string) => Promise<NavigationResult>;
 	};
 	let current: AdoptedCollection | undefined;
@@ -1110,7 +1155,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	 * second request for the same page before the first settles is answered by it
 	 * rather than fetched again. */
 	let inFlight:
-		| { index: number; ticket: number; promise: Promise<LoadPageResult> }
+		| { href: string; ticket: number; promise: Promise<LoadPageResult> }
 		| undefined;
 
 	function toCollectionPage(adopted: AdoptedCollection): CollectionPage {
@@ -1120,6 +1165,8 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return {
 			items: adopted.items,
 			pages: adopted.pages.map(({ label, rel }) => ({ label, rel })),
+			total: adopted.total,
+			sort: adopted.sorts.map(({ label, rel, order }) => ({ label, rel, order })),
 		};
 	}
 
@@ -1128,6 +1175,8 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		current = {
 			items: result.items,
 			pages: result.pages,
+			total: result.total,
+			sorts: result.sorts,
 			followPage: result.followPage,
 		};
 		return toCollectionPage(current);
@@ -1166,6 +1215,17 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return adoptCollection(collection);
 	};
 
+	function followHeld(params: { adopted: AdoptedCollection; href: string }): Promise<LoadPageResult> {
+		if (inFlight?.href === params.href) return inFlight.promise;
+		requestSeq += 1;
+		const ticket = requestSeq;
+		const pending = fetchPage({ adopted: params.adopted, href: params.href, ticket }).finally(() => {
+			if (inFlight?.ticket === ticket) inFlight = undefined;
+		});
+		inFlight = { href: params.href, ticket, promise: pending };
+		return pending;
+	}
+
 	const loadPage: LoadPage = async ({ index }) => {
 		const adopted = current;
 		if (!adopted) return { pageList: "lost" };
@@ -1173,14 +1233,15 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		/** The page list moved under the click (or never had this entry): report it
 		 * lost so the caller re-reads the list rather than rendering an empty page. */
 		if (!entry) return { pageList: "lost" };
-		if (inFlight?.index === index) return inFlight.promise;
-		requestSeq += 1;
-		const ticket = requestSeq;
-		const pending = fetchPage({ adopted, href: entry.href, ticket }).finally(() => {
-			if (inFlight?.ticket === ticket) inFlight = undefined;
-		});
-		inFlight = { index, ticket, promise: pending };
-		return pending;
+		return followHeld({ adopted, href: entry.href });
+	};
+
+	const loadSort: LoadSort = async ({ index }) => {
+		const adopted = current;
+		if (!adopted) return { pageList: "lost" };
+		const entry = adopted.sorts[index];
+		if (!entry) return { pageList: "lost" };
+		return followHeld({ adopted, href: entry.href });
 	};
 
 	/** Runs the three legs of the presigned slot and hands back whichever
@@ -1301,12 +1362,16 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 					reason: "not-saveable";
 					items: ReadingListItem[];
 					pages: PageDescriptor[];
+					total: CollectionTotal | undefined;
+					sort: SortDescriptor[];
 					warning?: SaveWarning;
 				} = {
 					ok: false,
 					reason: "not-saveable",
 					items: page.items,
 					pages: page.pages,
+					total: page.total,
+					sort: page.sort,
 				};
 				if (err.warning) failure.warning = err.warning;
 				return failure;
@@ -1373,7 +1438,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			 * so it becomes the whole of what is loaded. Keeping the page the reader
 			 * was on would splice the article they just acted on back into view. */
 			const page = adoptCollection(result);
-			return { ok: true, items: page.items, pages: page.pages, targetUrl };
+			return { ok: true, items: page.items, pages: page.pages, total: page.total, sort: page.sort, targetUrl };
 		} catch (err) {
 			/** Any advertised action whose target 404s means the item is gone. The
 			 * invoker throws a typed ItemGoneError, so not-found is detected by class
@@ -1489,5 +1554,5 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return summary;
 	};
 
-	return { saveUrl, uploadContent, invokeAction, findByUrl, getItems, loadPage, savePages, openBulkSaveSession };
+	return { saveUrl, uploadContent, invokeAction, findByUrl, getItems, loadPage, loadSort, savePages, openBulkSaveSession };
 }

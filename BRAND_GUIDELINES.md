@@ -91,7 +91,7 @@ Amber is one hue at several lightnesses, and each lightness has one job. Pick th
 | **Announcement** | `#1A202C` | same (pinned) | `--announcement-bg` | The fill of every [announcement bar](#web-app) above the header. White on it is 16.32:1 |
 | **Announcement link** | `#D4833A` | same (pinned) | `--announcement-link` | The link word on an announcement bar ("Learn more"): 5.52:1 on `--announcement-bg` at 16px/600, 5.06:1 in greyscale. The design kit's `#C8702A` is 4.51:1 in colour but 4.01:1 in greyscale, below the contrast sweep's floor. Only on that fill |
 | **Highlight** | `#C8923C` | `#D4A04A` | `--color-highlight` | Highlight words, the wordmark tail on dark and on navy |
-| **Focus ring** | `hsl(27 65% 47%)` | `hsl(27 65% 52%)` | `--ring`, `--ring-shadow` (15% / 25% alpha) | Focus indication only. `--ring-shadow` is a legacy halo that `.form-input` does not draw; only fields not yet on the shared classes still use it |
+| **Focus ring** | `hsl(27 65% 47%)` | `hsl(27 65% 52%)` | `--ring` | Focus indication only |
 | **Navy** (Secondary) | `#2B3A55` | `#2B3A55` (pinned) | `--color-secondary`; ink twin `--color-secondary-text` (`#2B3A55` / `#8FA3C8`) | Navy *fills*: hero background, the manifest/tile colour, light-theme `theme-color`, the extension icon background and active states, and the light-theme wordmark stem. Navy *ink* on a surface uses `--color-secondary-text`, never `--color-secondary` (1.39:1 on the dark card) |
 | **Avatar** (identity) | `#7C5CE6` | `#8F7AF0` | `--color-avatar` | The fill of the signed-in account's initials disc — the header trigger and the account page's Profile row — and nothing else. One colour for every account, never derived per user or per name. It marks a person, not a state or action — never a link, button, status or decoration. A deliberate exception to the no-high-saturation rule. White initials are 4.64:1 light but 3.38:1 dark, so it carries only decorative (`aria-hidden`) initials, never text a reader must read. The design kit's lighter `#B47DF6` is not adopted: white on it is 2.91:1 |
 
@@ -880,23 +880,24 @@ The page's `main` grows (`flex: 1 1 auto`) so the canvas meets the bottom of the
 ### Browser Extension
 
 - The toolbar icon is the standalone ampersand mark at 16×16 / 32×32px (dotless at those sizes, per the size cutover), themed light/dark per toolbar.
-- The popup should feel like a utility — fast, minimal, single-purpose. Open → save → close. Width: `350px`.
+- The popup should feel like a utility — fast, minimal, single-purpose. Open → save → close. Every view is a fixed 400×600 frame set as `width: 400px; max-width: 100%`: the popup needs a fixed intrinsic width, because a percentage-only width opens it as a sliver. A 64px `--card` header sits over the `--muted` ground with a 1px `--border` rule, and content keeps 20px insets.
 - Respect the user's browser theme via `prefers-color-scheme`. The popup paints its first view before it has read anything from the account, so it is the one signed-in surface that follows the system theme rather than the Appearance setting.
 - No marketing or upsells inside the popup. It's a tool, not a billboard.
-- **The popup uses the same tokens and buttons as every other surface.** Its stylesheet never ships a palette of its own: the extension build puts the theme tokens, `BUTTON_STYLES`, `.sr-only` and the in-flight dots (`DESIGN_SYSTEM_STYLES` in `@packages/web-shell`) ahead of the popup's own rules, which name role tokens and add layout to `.btn` like any page stylesheet. The first-paint skeleton, drawn before that stylesheet loads, carries the same theme tokens inline.
+- **The popup uses the same tokens and buttons as every other surface.** Its stylesheet never ships a palette of its own: the extension build puts the theme tokens, `BUTTON_STYLES`, `ALERT_STYLES`, `.sr-only` and the in-flight dots (`DESIGN_SYSTEM_STYLES` in `@packages/web-shell`) ahead of the popup's own rules, which name role tokens and add layout to `.btn` like any page stylesheet. The first-paint skeleton, drawn before that stylesheet loads, carries the same theme tokens inline.
 
-**Compact adaptation.** At 350px the popup keeps one dense line per article. Every other rule in this document applies; these departures hold only in the popup:
+**Compact adaptation.** At 400px the popup keeps one dense row per article. Every other rule in this document applies; these departures hold only in the popup:
 
-- **The popup is the card.** Its body is `--card`, and the list runs edge to edge in it, split by 1px `--border` dividers. There is no list header, count or sort: the collection the popup reads carries no counts.
-- **One-line rows.** 8px vertical padding. The title is 14px/600 on one line with an ellipsis and the full title in `title` — the 18px list-title step does not fit beside a row action at this width. A 32px neutral letter disc (`--muted` fill, 1px `--border` ring, `--muted-foreground` initial, `aria-hidden`) marks the site, so the metadata line carries no per-fact glyphs: the site name (truncating, full text in `title`), then the saved time. There is no status marker: the popup lists only unread articles.
-- **Row actions sit on the row's trailing edge,** always visible: the state action (`secondary` + `m`) and, only when the server advertises it, an icon-only `trash` delete in a 36px box (`--muted-foreground`, `--error-bg`/`--error-text` on hover, `.sr-only` name). With no overflow menu, this is the one place a delete sits on a row.
-- **Saved times stay relative past 30 days** ("3mo ago", "2y ago") rather than switching to a calendar date, so the time never wraps the line.
-- **Focus inside the scrolling list** draws `--ring` inset (`outline-offset: -2px`) so the scroller doesn't clip it.
-- **Pagination** is centred inside the panel under a `--border` rule, with no "Showing N of M" range. Previous/Next are 36px icon-only `arrow-left`/`arrow-right`, not the web pager's chevrons, with `.sr-only` labels, and the window shows one page either side of the current.
-- **Header.** The wordmark is 1.1875rem (19px, still large text for the light tail's 3.62:1) beside a 26px mark, so it shares one row with Save tabs (`neutral` + `s` — the amber CTA is the toolbar save) and Sign out, an icon-only 44px utility. The mark's dot stays the literal `#C8923C` (see [Palette Copies Outside the Web](#palette-copies-outside-the-web)).
-- **The filter** is named by an `.sr-only` label rather than a visible one.
-- **An empty list always reads "You're all caught up"** — the collection carries no counts to tell never-saved from all-read — and a filter that matches nothing reads "No matching articles". Neither has an illustration or button: the toolbar save is the next step.
-- **Full-view skeletons** (the saving card, the list) stay untinted: the `--secondary` tint marks one row being created among settled ones.
+- **Frame.** Rows sit on the `--muted` ground inside the 20px insets, not in an enclosed card, with a `--border` divider after every row, the last included.
+- **Count and sort.** The row above the list holds the server's count label (14px/600) and one quiet sort toggle (14px, with a 20px arrow). The row is hidden on an empty list and after a not-saveable refusal.
+- **Rows.** A 12px/600 one-line title with the full title in `title`, no letter disc, and a 12px `--foreground` metadata line with 16px `globe` and `clock` glyphs, its facts 14px apart.
+- **Row action.** Always visible and trailing: a `secondary` + `s` button at a 25px box with a 12px/500 label and a 45px hit area. It is the one row action below M.
+- **Delete.** None on a row.
+- **Pager.** Trailing under the list inside the ground, with no rule, chevron steps, an `ellipsis` gap and one page either side of the current.
+- **Header.** The web lockup (30px mark, 16px/700 wordmark, no tracking) with the 6px gap Figma draws, then Save N tabs as `primary` + `s` and a labelled Sign out as `neutral` + `s`. The pair departs from Pairing, as Figma draws it: Sign out is a utility, not an alternative to saving. The mark's dot stays the literal `#C8923C` (see [Palette Copies Outside the Web](#palette-copies-outside-the-web)).
+- **Login.** The 52px mark and a 28px/700 wordmark, 10px apart, centred over the full-width `primary` "Sign in to Readplace".
+- **Search.** A 48px field of its own at 14px with the `--input-*` values, named by an `.sr-only` label inside `role="search"`. It filters the loaded page by title and web address as the reader types, which departs from Form Inputs' shared field and from "Search is submitted, never live".
+- **Empty and no matches.** The `book-lightbulb` art sits 20px above "No unread articles", with the body 6px under the title, as Figma draws it (Empty States says 24px and 8px). Search and count are hidden, and there is no button. "No matching articles" offers no Clear search, because the field clears in place.
+- **Unchanged.** Saved times stay relative past 30 days ("3mo ago") so the time never wraps; focus inside the scrolling list draws `--ring` inset (`outline-offset: -2px`) so the scroller doesn't clip it; and full-view skeletons stay untinted, because the `--secondary` tint marks one row being created among settled ones.
 
 ### Web App
 

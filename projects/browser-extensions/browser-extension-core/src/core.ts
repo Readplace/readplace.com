@@ -1,6 +1,6 @@
 import type { ReadingListItemId } from "./domain/reading-list-item.types";
 import type { Auth, GuardedResult } from "./auth/auth.types";
-import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
+import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, LoadSort, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { createEventBus } from "./event-bus";
@@ -16,6 +16,7 @@ export interface ReadingList {
 	findByUrl: FindByUrl;
 	getItems: GetItems;
 	loadPage: LoadPage;
+	loadSort: LoadSort;
 	savePages: SavePages;
 }
 
@@ -36,7 +37,7 @@ export interface Core {
 	logout(): void;
 	save(resource: "current-tab", data: { url: string; title: string; tabId?: number }): void;
 	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): void;
-	fetch(resource: "reading-list", data?: { page: number }): void;
+	fetch(resource: "reading-list", data?: { page: number } | { sort: number }): void;
 	saveAll(resource: "tabs", data: { pages: BulkSavePage[] }): void;
 
 	on(event: "pre-init", handler: () => void): void;
@@ -223,9 +224,12 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		},
 
 		fetch(_resource, data) {
-			const guarded = auth.whenLoggedIn(() =>
-				data ? readingList.loadPage({ index: data.page }) : readingList.getItems(),
-			);
+			const guarded = auth.whenLoggedIn(() => {
+				if (!data) return readingList.getItems();
+				return "sort" in data
+					? readingList.loadSort({ index: data.sort })
+					: readingList.loadPage({ index: data.page });
+			});
 			emitResult("fetched-reading-list", guarded);
 			if (guarded.ok) establishWebSession();
 		},

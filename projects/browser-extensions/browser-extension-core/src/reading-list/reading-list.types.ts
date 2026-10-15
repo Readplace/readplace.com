@@ -45,6 +45,8 @@ export type SaveUrlResult =
 			reason: "not-saveable";
 			items: ReadingListItem[];
 			pages: PageDescriptor[];
+			total: CollectionTotal | undefined;
+			sort: SortDescriptor[];
 			warning?: SaveWarning;
 		}
 	| { ok: false; messages: Message[] };
@@ -54,6 +56,8 @@ export type InvokeActionResult =
 			ok: true;
 			items: ReadingListItem[];
 			pages: PageDescriptor[];
+			total: CollectionTotal | undefined;
+			sort: SortDescriptor[];
 			targetUrl: string;
 		}
 	| { ok: false; reason: "not-found" };
@@ -107,9 +111,25 @@ export interface PageDescriptor {
 	readonly rel: PageRel;
 }
 
+type SortRel = "current" | "sort";
+
+export type SortOrder = "asc" | "desc";
+
+export interface SortDescriptor {
+	readonly label: string;
+	readonly rel: SortRel;
+	readonly order: SortOrder;
+}
+
+export interface CollectionTotal {
+	readonly label: string;
+}
+
 export interface CollectionPage {
 	items: ReadingListItem[];
 	pages: PageDescriptor[];
+	total: CollectionTotal | undefined;
+	sort: SortDescriptor[];
 }
 
 /** What a request for a page can answer. `pageList: "lost"` is the honest report
@@ -125,6 +145,8 @@ export type LoadPageResult = CollectionPage | { pageList: "lost" };
 export type GetItems = () => Promise<CollectionPage>;
 
 export type LoadPage = (params: { index: number }) => Promise<LoadPageResult>;
+
+export type LoadSort = (params: { index: number }) => Promise<LoadPageResult>;
 
 export type BulkSaveResult = {
 	queued: number;

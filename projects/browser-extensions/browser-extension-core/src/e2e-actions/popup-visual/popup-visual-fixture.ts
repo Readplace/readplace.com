@@ -15,34 +15,40 @@ export const FIXED_NOW = Date.parse("2026-03-10T12:00:00.000Z");
 export const WIDE_TITLE = "How thoughtful software teams build tools that remain useful for decades";
 export const OVERSIZED_TITLE = "A complete history of every decision behind the architecture of a reading list application and the surprising consequences for people who save hundreds of articles every day across multiple browsers and devices";
 
-/** Six rows fill the list without reaching the 360px scroll cap, so no
- * platform-drawn scrollbar enters the frame. */
 const ROWS = [
 	{ title: WIDE_TITLE, host: "practicaltypography.com", agoMs: 45_000 },
 	{ title: OVERSIZED_TITLE, host: "grugbrain.dev", agoMs: 2 * 60 * 60 * 1000 },
 	{ title: "Reflections on Trusting Trust", host: "cs.cmu.edu", agoMs: 26 * 60 * 60 * 1000 },
 	{ title: "A Plea for Lean Software", host: "cr.yp.to", agoMs: 5 * 24 * 60 * 60 * 1000 },
-	{ title: "Out of the Tar Pit", host: "curtclifton.net", agoMs: 40 * 24 * 60 * 60 * 1000 },
-	{ title: "The Rise of Worse Is Better", host: "dreamsongs.com", agoMs: 400 * 24 * 60 * 60 * 1000 },
 ];
+
+const DEFAULT_ROW_COUNT = ROWS.length;
 
 const TOTAL_PAGES = 9;
 const CURRENT_PAGE_INDEX = 4;
 
 const MARK_AS_READ = { name: "update-status", title: "Mark as read" };
 
-const DELETE = { name: "delete", title: "Delete" };
+const TOTAL = { label: "86 Saved Articles" };
 
-function items(): unknown[] {
-	return ROWS.map((row, index) => ({
-		id: `visual-item-${index}`,
-		url: `https://${row.host}/article`,
-		title: row.title,
-		savedAt: new Date(FIXED_NOW - row.agoMs).toISOString(),
-		actions: index === 1 ? [MARK_AS_READ, DELETE] : [MARK_AS_READ],
-		links: [{ rel: "read", title: "Read", href: `https://${row.host}/article` }],
-		needsBrowserCapture: false,
-	}));
+const SORT = [
+	{ label: "Newest first", rel: "current", order: "desc" },
+	{ label: "Oldest first", rel: "sort", order: "asc" },
+];
+
+function items(rowCount: number): unknown[] {
+	return Array.from({ length: rowCount }, (_row, index) => {
+		const row = ROWS[index % ROWS.length];
+		return {
+			id: `visual-item-${index}`,
+			url: `https://${row.host}/article-${index}`,
+			title: row.title,
+			savedAt: new Date(FIXED_NOW - row.agoMs).toISOString(),
+			actions: [MARK_AS_READ],
+			links: [{ rel: "read", title: "Read", href: `https://${row.host}/article-${index}` }],
+			needsBrowserCapture: false,
+		};
+	});
 }
 
 /** Deliberately holds a pinned tab and two pages the save filters out, because
@@ -93,7 +99,35 @@ function savedReply(): unknown {
 	};
 }
 
-export type SaveReply = "hold" | "error" | "saved";
+function messagesReply(): unknown {
+	return {
+		ok: false,
+		messages: [
+			{ type: "success", content: { type: "text/html", body: "Saved to your readlist." } },
+			{ type: "warning", content: { type: "text/html", body: "This page was already in your readlist." } },
+			{
+				type: "error",
+				content: {
+					type: "text/html",
+					body: 'Your account is locked. Email <a href="mailto:support@readplace.com">support@readplace.com</a> to restore access.',
+				},
+			},
+		],
+	};
+}
+
+function notSaveableReply(rowCount: number): unknown {
+	return {
+		ok: false,
+		reason: "not-saveable",
+		items: items(rowCount),
+		pages: [],
+		sort: [],
+		warning: { code: "unsupported_scheme", message: "Only http and https pages can be saved." },
+	};
+}
+
+export type SaveReply = "hold" | "error" | "saved" | "messages" | "not-saveable";
 
 export type ListReply = "items" | "empty" | "error" | "logged-out";
 
@@ -116,7 +150,9 @@ function bulkSaveReply(): unknown {
 }
 
 function listReplyScript(listReply: ListReply, itemsReply: string): string {
-	if (listReply === "empty") return JSON.stringify({ ok: true, value: { items: [], pages: [] } });
+	if (listReply === "empty") {
+		return JSON.stringify({ ok: true, value: { items: [], pages: [], total: { label: "0 Saved Articles" }, sort: [] } });
+	}
 	if (listReply === "error") return JSON.stringify({ ok: false, reason: "error" });
 	if (listReply === "logged-out") return JSON.stringify({ ok: false, reason: "not-logged-in" });
 	return itemsReply;
@@ -132,19 +168,23 @@ export function popupRuntimeStub(options?: {
 	saveReplies?: SaveReply[];
 	listReply?: ListReply;
 	pendingBulkSave?: boolean;
+	rowCount?: number;
 }): string {
 	const holdItems = options?.holdItems === true;
 	const holdLoadPage = options?.holdLoadPage === true;
 	const saveReplies = JSON.stringify(options?.saveReplies ?? []);
+	const rowCount = options?.rowCount ?? DEFAULT_ROW_COUNT;
 	const itemsReply = listReplyScript(
 		options?.listReply ?? "items",
-		`{ ok: true, value: { items: ${JSON.stringify(items())}, pages: ${JSON.stringify(pages())} } }`,
+		JSON.stringify({ ok: true, value: { items: items(rowCount), pages: pages(), total: TOTAL, sort: SORT } }),
 	);
 	const pendingBulkSave = options?.pendingBulkSave === true;
 	return `
 		globalThis.__popupSaveMessages = [];
 		const __saveReplies = ${saveReplies};
 		const __savedReply = { ok: true, value: ${JSON.stringify(savedReply())} };
+		const __messagesReply = { ok: true, value: ${JSON.stringify(messagesReply())} };
+		const __notSaveableReply = { ok: true, value: ${JSON.stringify(notSaveableReply(rowCount))} };
 		let __saveCall = 0;
 		globalThis.chrome = { runtime: { id: "visual-fixture" } };
 		globalThis.browser = {
@@ -183,6 +223,8 @@ export function popupRuntimeStub(options?: {
 						}
 						if (reply === "error") { return Promise.resolve({ ok: false, reason: "error" }); }
 						if (reply === "saved") { return Promise.resolve(__savedReply); }
+						if (reply === "messages") { return Promise.resolve(__messagesReply); }
+						if (reply === "not-saveable") { return Promise.resolve(__notSaveableReply); }
 					}
 					if (message && message.type === "save-all-tabs") { return Promise.resolve(${JSON.stringify(bulkSaveReply())}); }
 					if (message && message.type === "logout") { return Promise.resolve({ ok: true }); }

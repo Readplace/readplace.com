@@ -72,7 +72,6 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--reader-max-width": "680px",
 	"--input": "var(--color-border)",
 	"--ring": "hsl(27 65% 47%)",
-	"--ring-shadow": "hsl(27 65% 47% / 0.15)",
 	"--error": "hsl(0 43% 56%)",
 	/** --error is 4.17:1 on white, short of 1.4.3. Same hue, darkened,
 	* for error wording rather than error surfaces. */
@@ -149,7 +148,6 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--neutral-hover": "#2A2A2A",
 	"--neutral-pressed": "#2E2E2E",
 	"--ring": "hsl(27 65% 52%)",
-	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
 	"--success-text": "var(--color-success)",
 	"--success-bg": "#17302A",
 	"--info-bg": "#1B2836",

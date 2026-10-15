@@ -65,6 +65,31 @@ function pagedCollection(params: {
 	});
 }
 
+function sortedCollection(params: {
+	self: string;
+	entities: unknown[];
+	total?: unknown;
+	sort: unknown[];
+}) {
+	return JSON.stringify({
+		class: ["collection", "articles"],
+		properties: { pages: [], total: params.total, sort: params.sort },
+		entities: params.entities,
+		links: [{ rel: ["self"], href: params.self }],
+		actions: COLLECTION_ACTIONS,
+	});
+}
+
+const NEWEST_FIRST_SORT = [
+	{ label: "Newest first", rel: "current", order: "desc", href: "/queue?status=unread&order=desc" },
+	{ label: "Oldest first", rel: "sort", order: "asc", href: "/queue?status=unread&order=asc" },
+];
+
+const OLDEST_FIRST_SORT = [
+	{ label: "Newest first", rel: "sort", order: "desc", href: "/queue?status=unread&order=desc" },
+	{ label: "Oldest first", rel: "current", order: "asc", href: "/queue?status=unread&order=asc" },
+];
+
 const LOCK_MESSAGE_HTML =
 	'Your account is locked because your email was never verified. Email <a href="mailto:readplace+verification@readplace.com">readplace+verification@readplace.com</a> to restore access.';
 
@@ -488,6 +513,8 @@ describe("initExtension", () => {
 						actions: {},
 						descriptors: {},
 						pages: [],
+						total: undefined,
+						sorts: [],
 						followPage: async () => {
 							throw new Error("this handler advertises no pages");
 						},
@@ -3911,6 +3938,319 @@ describe("initSirenReadingList", () => {
 			).rejects.toThrow(
 				'Expected Siren action "search" not found in response',
 			);
+		});
+	});
+
+	describe("count and sort", () => {
+		const newest = articleEntity({
+			id: "article-new",
+			url: "https://example.com/new",
+			title: "New",
+			savedAt: "2026-01-15T11:00:00.000Z",
+		});
+		const oldest = articleEntity({
+			id: "article-old",
+			url: "https://example.com/old",
+			title: "Old",
+			savedAt: "2026-01-15T09:00:00.000Z",
+		});
+
+		it("hands the popup the server's count label and each order's label, relation and order, but no href", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue",
+							entities: [newest],
+							total: { label: "2 Saved Articles" },
+							sort: NEWEST_FIRST_SORT,
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const page = await list.getItems();
+
+			expect(page.total).toEqual({ label: "2 Saved Articles" });
+			expect(page.sort).toEqual([
+				{ label: "Newest first", rel: "current", order: "desc" },
+				{ label: "Oldest first", rel: "sort", order: "asc" },
+			]);
+		});
+
+		it("drops a malformed or unactionable sort entry and a malformed count, keeping the rest", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue",
+							entities: [],
+							total: { count: 2 },
+							sort: [
+								{ label: "Newest first", rel: "current", order: "desc", href: "/queue?order=desc" },
+								{ label: "Sideways", rel: "sideways", order: "asc", href: "/queue?order=asc" },
+								{ label: "Random", rel: "sort", order: "random", href: "/queue?order=random" },
+								{ label: "Elsewhere", rel: "sort", order: "asc", href: "mailto:someone@example.com" },
+								{ label: "Oldest first", rel: "sort", order: "asc", href: "/queue?order=asc" },
+							],
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const page = await list.getItems();
+
+			expect(page.total).toBeUndefined();
+			expect(page.sort).toEqual([
+				{ label: "Newest first", rel: "current", order: "desc" },
+				{ label: "Oldest first", rel: "sort", order: "asc" },
+			]);
+		});
+
+		it("reads a collection that carries neither as no count and no sort", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([newest]),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const page = await list.getItems();
+
+			expect(page.total).toBeUndefined();
+			expect(page.sort).toEqual([]);
+		});
+
+		it("follows the server's href for the other order and adopts its answer, count and sort included", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue",
+							entities: [newest, oldest],
+							total: { label: "2 Saved Articles" },
+							sort: NEWEST_FIRST_SORT,
+						}),
+					},
+					"GET http://localhost:3000/queue?status=unread&order=asc": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue?status=unread&order=asc",
+							entities: [oldest, newest],
+							total: { label: "2 Saved Articles" },
+							sort: OLDEST_FIRST_SORT,
+						}),
+					},
+					"GET http://localhost:3000/queue?status=unread&order=desc": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue?status=unread&order=desc",
+							entities: [newest, oldest],
+							total: { label: "2 Saved Articles" },
+							sort: NEWEST_FIRST_SORT,
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+
+			const oldestFirst = collectionPage(await list.loadSort({ index: 1 }));
+			const newestFirst = collectionPage(await list.loadSort({ index: 0 }));
+
+			expect(oldestFirst.items.map((item) => item.id)).toEqual(["article-old", "article-new"]);
+			expect(oldestFirst.sort).toEqual([
+				{ label: "Newest first", rel: "sort", order: "desc" },
+				{ label: "Oldest first", rel: "current", order: "asc" },
+			]);
+			expect(newestFirst.items.map((item) => item.id)).toEqual(["article-new", "article-old"]);
+			expect(calls).toEqual([
+				"GET http://localhost:3000/",
+				"GET http://localhost:3000/queue?status=unread&order=asc",
+				"GET http://localhost:3000/queue?status=unread&order=desc",
+			]);
+		});
+
+		it("reports a lost list for a sort when it holds no list, or no entry at that position", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue",
+							entities: [newest],
+							total: { label: "1 Saved Article" },
+							sort: NEWEST_FIRST_SORT,
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			expect(await list.loadSort({ index: 1 })).toEqual({ pageList: "lost" });
+			await list.getItems();
+			expect(await list.loadSort({ index: 2 })).toEqual({ pageList: "lost" });
+			expect(calls).toEqual(["GET http://localhost:3000/"]);
+		});
+
+		it("fetches a page and a sort at the same position, rather than answering one with the other", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							properties: {
+								pages: [
+									{ label: "1", rel: "current", href: "/queue?page=1" },
+									{ label: "2", rel: "next", href: "/queue?page=2" },
+								],
+								total: { label: "11 Saved Articles" },
+								sort: NEWEST_FIRST_SORT,
+							},
+							entities: [newest],
+							links: [{ rel: ["self"], href: "/queue" }],
+							actions: COLLECTION_ACTIONS,
+						}),
+					},
+					"GET http://localhost:3000/queue?page=2": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue?page=2",
+							entities: [oldest],
+							pages: [
+								{ label: "1", rel: "prev", href: "/queue?page=1" },
+								{ label: "2", rel: "current", href: "/queue?page=2" },
+							],
+						}),
+					},
+					"GET http://localhost:3000/queue?status=unread&order=asc": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue?status=unread&order=asc",
+							entities: [oldest],
+							total: { label: "11 Saved Articles" },
+							sort: OLDEST_FIRST_SORT,
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+
+			const [, sorted] = await Promise.all([
+				list.loadPage({ index: 1 }),
+				list.loadSort({ index: 1 }),
+			]);
+
+			expect(calls).toContain("GET http://localhost:3000/queue?page=2");
+			expect(calls).toContain("GET http://localhost:3000/queue?status=unread&order=asc");
+			expect(collectionPage(sorted).sort).toEqual([
+				{ label: "Newest first", rel: "sort", order: "desc" },
+				{ label: "Oldest first", rel: "current", order: "asc" },
+			]);
+		});
+
+		it("drops a sort that lands after a mutation replaced the list", async () => {
+			const markable = articleEntity({
+				id: "article-1",
+				url: "https://example.com/a",
+				title: "A",
+				savedAt: "2026-01-15T10:00:00.000Z",
+			});
+			let releaseSort: () => void = () => {};
+			const sortArrives = new Promise<void>((resolve) => {
+				releaseSort = resolve;
+			});
+			const { fetchFn: routed } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue",
+							entities: [markable, newest],
+							total: { label: "2 Saved Articles" },
+							sort: NEWEST_FIRST_SORT,
+						}),
+					},
+					"GET http://localhost:3000/queue?status=unread&order=asc": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue?status=unread&order=asc",
+							entities: [oldest],
+							total: { label: "2 Saved Articles" },
+							sort: OLDEST_FIRST_SORT,
+						}),
+					},
+					"POST http://localhost:3000/queue/article-1/status": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue",
+							entities: [newest],
+							total: { label: "1 Saved Article" },
+							sort: NEWEST_FIRST_SORT,
+						}),
+					},
+				}),
+			);
+			const fetchFn: SirenReadingListDeps["fetchFn"] = async (input, init) => {
+				if (requestInfoToUrl(input).includes("order=asc")) await sortArrives;
+				return routed(input, init);
+			};
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+
+			const pendingSort = list.loadSort({ index: 1 });
+			const invoked = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "update-status",
+			});
+			assert(invoked.ok, "the advertised action should apply");
+			releaseSort();
+			const page = collectionPage(await pendingSort);
+
+			expect(invoked.total).toEqual({ label: "1 Saved Article" });
+			expect(invoked.sort).toEqual([
+				{ label: "Newest first", rel: "current", order: "desc" },
+				{ label: "Oldest first", rel: "sort", order: "asc" },
+			]);
+			expect(page.items.map((item) => item.id)).toEqual(["article-new"]);
+			expect(page.total).toEqual({ label: "1 Saved Article" });
+		});
+
+		it("hands back the refusal's count and sort with a not-saveable save, which the server sends neither of", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: sortedCollection({
+							self: "/queue",
+							entities: [newest],
+							total: { label: "1 Saved Article" },
+							sort: NEWEST_FIRST_SORT,
+						}),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 422,
+						body: collectionResponse([newest]),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.saveUrl({ url: "chrome://newtab/", title: "New Tab" });
+
+			assert(!result.ok && "reason" in result && result.reason === "not-saveable", "the save should be refused as not saveable");
+			expect(result.total).toBeUndefined();
+			expect(result.sort).toEqual([]);
 		});
 	});
 

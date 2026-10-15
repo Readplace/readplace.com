@@ -10,6 +10,14 @@ function formatTabTotal(total: number): string {
 	return total > TAB_TOTAL_CAP ? `${TAB_TOTAL_CAP}+` : String(total);
 }
 
+function totalNoun(total: number | undefined): string {
+	return `Saved Article${total === 1 ? "" : "s"}`;
+}
+
+export function readlistTotalLabel({ total }: { total: number }): string {
+	return `${formatTabTotal(total)} ${totalNoun(total)}`;
+}
+
 interface ReadlistTabTotalDisplayModel {
 	number: string;
 	noun: string;
@@ -24,7 +32,7 @@ function toReadlistTabTotalDisplayModel(input: {
 	const total = input.total;
 	return {
 		number: total === undefined ? "" : formatTabTotal(total),
-		noun: `Saved Article${total === 1 ? "" : "s"}`,
+		noun: totalNoun(total),
 		valueClass:
 			total === undefined
 				? "readlist__count-value readlist__count-value--pending"

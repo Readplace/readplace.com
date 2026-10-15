@@ -34,20 +34,30 @@ describe("sign in", () => {
 	it("names a failed sign-in without guessing its cause", () => {
 		expect(template).toContain(
 			[
-				'      <div id="login-error" class="popup-alert" role="alert" hidden>',
-				'        <span class="popup-alert__icon">{{errorIcon}}</span>',
-				'        <div class="popup-alert__text">',
-				'          <p class="popup-alert__title">Couldn&rsquo;t sign in</p>',
-				'          <p class="popup-alert__body">You&rsquo;re still signed out. Try again.</p>',
+				'      <div id="login-error" class="alert alert--error alert--visible" role="alert" hidden>',
+				'        <span class="alert__icon" aria-hidden="true">{{errorIcon}}</span>',
+				'        <div class="alert__content">',
+				'          <p class="alert__title">Couldn&rsquo;t sign in</p>',
+				'          <p class="alert__message">You&rsquo;re still signed out. Try again.</p>',
 				"        </div>",
 				"      </div>",
 			].join("\n"),
 		);
 	});
 
-	it("signs out from an icon control named for screen readers", () => {
+	it("sets the two-tone wordmark beside the mark, leaving the link named for screen readers", () => {
 		expect(template).toContain(
-			'<button id="logout-button" class="list-view__signout" type="button" title="Sign out">{{signOutIcon}}<span class="sr-only">Sign out</span></button>',
+			[
+				'        <span class="login__wordmark" aria-hidden="true">Read<span class="login__wordmark-tail">place</span></span>',
+				'        <span class="sr-only">Visit Readplace</span>',
+				"      </a>",
+			].join("\n"),
+		);
+	});
+
+	it("signs out from a labelled neutral control", () => {
+		expect(template).toContain(
+			'<button id="logout-button" class="btn btn--neutral btn--s" type="button">Sign out</button>',
 		);
 	});
 });
@@ -61,7 +71,15 @@ describe("save all tabs progress", () => {
 
 	it("save-all failure claims nothing about which tabs were saved, since some may have been", () => {
 		expect(template).toContain(
-			'<p class="popup-alert__body">Some tabs may have saved. Check your readlist before trying again.</p>',
+			[
+				'    <div id="save-all-failure" class="alert alert--error alert--visible" role="alert" hidden>',
+				'      <span class="alert__icon" aria-hidden="true">{{errorIcon}}</span>',
+				'      <div class="alert__content">',
+				'        <p id="save-all-failure-title" class="alert__title"></p>',
+				'        <p class="alert__message">Some tabs may have saved. Check your readlist before trying again.</p>',
+				"      </div>",
+				"    </div>",
+			].join("\n"),
 		);
 	});
 
@@ -76,7 +94,7 @@ describe("save all tabs control", () => {
 	it("list-view header carries the save-all-tabs control, counting what it will send and naming its scope for screen readers", () => {
 		expect(template).toContain(
 			[
-				'        <button id="save-all-tabs-button" class="btn btn--neutral btn--s list-view__save-all" type="button" title="Save all tabs in this window" data-test-save-all-tabs hidden>',
+				'        <button id="save-all-tabs-button" class="btn btn--primary btn--s list-view__save-all" type="button" title="Save all tabs in this window" data-test-save-all-tabs hidden>',
 				'          <span class="list-view__save-all-count" data-test-save-all-count>Save tabs</span><span class="sr-only"> in this window</span>',
 				"        </button>",
 			].join("\n"),
@@ -84,17 +102,33 @@ describe("save all tabs control", () => {
 	});
 });
 
-describe("filter", () => {
-	it("names the filter by what it matches, not by its placeholder alone", () => {
+describe("search", () => {
+	it("names the search by what it matches, not by its placeholder alone, inside a search landmark", () => {
 		expect(template).toContain(
 			[
-				'      <label for="filter-input" class="sr-only">Filter this page by web address</label>',
-				"      <input",
-				'        type="text"',
-				'        id="filter-input"',
-				'        class="list-view__filter"',
-				'        placeholder="Filter by web address&hellip;"',
-				"      >",
+				'      <div class="list-view__search" role="search">',
+				'        <label for="filter-input" class="sr-only">Search this page by title or web address</label>',
+				'        <span class="list-view__search-icon" aria-hidden="true">{{searchIcon}}</span>',
+				"        <input",
+				'          type="text"',
+				'          id="filter-input"',
+				'          class="list-view__filter"',
+				'          placeholder="Search articles or sources&hellip;"',
+				"        >",
+				"      </div>",
+			].join("\n"),
+		);
+	});
+});
+
+describe("count and sort", () => {
+	it("holds the server's count and the sort toggle in one row, hidden until a listing names them", () => {
+		expect(template).toContain(
+			[
+				'      <div id="list-header" class="list-view__list-header" hidden>',
+				'        <p class="list-view__count" data-test-list-count></p>',
+				'        <button id="sort-button" class="list-view__sort" type="button" hidden></button>',
+				"      </div>",
 			].join("\n"),
 		);
 	});
@@ -150,11 +184,11 @@ describe("saving view", () => {
 		expect(template).toContain(
 			[
 				'    <div id="save-failure" class="saving-view__failure" hidden>',
-				'      <div class="popup-alert" role="alert">',
-				'        <span class="popup-alert__icon">{{errorIcon}}</span>',
-				'        <div class="popup-alert__text">',
-				'          <p class="popup-alert__title">Couldn&rsquo;t save this page</p>',
-				'          <p class="popup-alert__body">Nothing was saved.</p>',
+				'      <div class="alert alert--error alert--visible" role="alert">',
+				'        <span class="alert__icon" aria-hidden="true">{{errorIcon}}</span>',
+				'        <div class="alert__content">',
+				'          <p class="alert__title">Couldn&rsquo;t save this page</p>',
+				'          <p class="alert__message">Nothing was saved.</p>',
 				"        </div>",
 				"      </div>",
 				'      <button id="save-retry-button" class="btn btn--primary" type="button">Try again</button>',
@@ -169,24 +203,25 @@ describe("saving view", () => {
 });
 
 describe("list states", () => {
-	it("tells a reader with nothing left to read that they are caught up", () => {
+	it("tells a reader with nothing left to read that they are caught up, under the illustration", () => {
 		expect(template).toContain(
 			[
-				'    <div id="empty-list" class="list-empty" hidden>',
-				'      <p class="list-empty__title">You&rsquo;re all caught up</p>',
-				'      <p class="list-empty__body">Save a link and it appears here.</p>',
-				"    </div>",
+				'        <div id="empty-list" class="list-empty" hidden>',
+				'          <span class="list-view__empty-art" aria-hidden="true">{{emptyArt}}</span>',
+				'          <p class="list-empty__title">No unread articles</p>',
+				'          <p class="list-empty__body">You&rsquo;re all caught up. Save a new article or open some tabs to add them to your readlist.</p>',
+				"        </div>",
 			].join("\n"),
 		);
 	});
 
-	it("tells a reader whose filter matched nothing where the filter looked", () => {
+	it("tells a reader whose search matched nothing where the search looked", () => {
 		expect(template).toContain(
 			[
-				'    <div id="no-matches" class="list-empty" hidden>',
-				'      <p class="list-empty__title">No matching articles</p>',
-				'      <p class="list-empty__body">The filter searches this page of your readlist only.</p>',
-				"    </div>",
+				'        <div id="no-matches" class="list-empty" hidden>',
+				'          <p class="list-empty__title">No matching articles</p>',
+				'          <p class="list-empty__body">The search covers this page of your readlist only.</p>',
+				"        </div>",
 			].join("\n"),
 		);
 	});
@@ -194,20 +229,38 @@ describe("list states", () => {
 	it("offers a retry beside a failed load, hidden until the popup has something to retry", () => {
 		expect(template).toContain(
 			[
-				'    <div id="list-error" class="popup-alert list-view__alert" role="alert" hidden>',
-				'      <span class="popup-alert__icon">{{errorIcon}}</span>',
-				'      <div class="popup-alert__text">',
-				'        <p id="list-error-title" class="popup-alert__title"></p>',
-				'        <p id="list-error-body" class="popup-alert__body"></p>',
-				'        <button id="list-error-retry" class="btn btn--neutral btn--s popup-alert__action" type="button" hidden>Try again</button>',
+				'      <div id="list-error" class="alert alert--error alert--visible list-view__alert" role="alert" hidden>',
+				'        <span class="alert__icon" aria-hidden="true">{{errorIcon}}</span>',
+				'        <div class="alert__content">',
+				'          <p id="list-error-title" class="alert__title"></p>',
+				'          <p id="list-error-body" class="alert__message"></p>',
+				'          <button id="list-error-retry" class="btn btn--neutral btn--s list-view__alert-action" type="button" hidden>Try again</button>',
+				"        </div>",
 				"      </div>",
-				"    </div>",
 			].join("\n"),
 		);
 	});
 
-	it("labels the pager as navigation", () => {
-		expect(template).toContain('<nav id="pagination" class="pagination" aria-label="Pagination" hidden></nav>');
+	it("warns about a page it could not save as a warning alert the popup fills in", () => {
+		expect(template).toContain(
+			[
+				'      <div id="list-warning" class="alert alert--warning alert--visible list-view__alert" role="status" hidden>',
+				'        <span class="alert__icon" aria-hidden="true">{{warningIcon}}</span>',
+				'        <div class="alert__content">',
+				'          <p class="alert__message"></p>',
+				"        </div>",
+				"      </div>",
+			].join("\n"),
+		);
+	});
+
+	it("labels the pager as navigation, under the list it pages", () => {
+		expect(template).toContain(
+			[
+				'        <div id="link-list" class="list-view__links"></div>',
+				'        <nav id="pagination" class="pagination" aria-label="Pagination" hidden></nav>',
+			].join("\n"),
+		);
 	});
 });
 
@@ -216,7 +269,18 @@ describe("list skeleton view", () => {
 		expect(template).toContain(brandMarkSvg({ className: "list-skeleton__brand-icon" }));
 	});
 
-	it("stands in six placeholder rows, matching the list it fills", () => {
-		expect(template.split('class="list-skeleton__row"')).toHaveLength(7);
+	it("stands in five placeholder rows of a title, a fact line and the row action, matching the list it fills", () => {
+		const row = [
+			'      <div class="list-skeleton__row" aria-hidden="true">',
+			'        <span class="list-skeleton__item">',
+			'          <span class="list-skeleton__line"><span class="list-skeleton__bar list-skeleton__bar--title"></span></span>',
+			'          <span class="list-skeleton__line"><span class="list-skeleton__bar list-skeleton__bar--meta"></span></span>',
+			"        </span>",
+			'        <span class="list-skeleton__action"></span>',
+			"      </div>",
+		].join("\n");
+
+		expect(template.split(row)).toHaveLength(6);
+		expect(template.split('class="list-skeleton__row"')).toHaveLength(6);
 	});
 });

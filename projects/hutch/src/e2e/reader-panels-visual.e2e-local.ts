@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
 import {
+	LENSES,
+	NON_TEXT_MINIMUM,
+	type Rgb,
 	captureCheckpoint,
+	contrastRatio,
 	expect,
 	measuredBox,
 	test,
@@ -12,7 +16,6 @@ import { requireEnv } from "@packages/require-env";
 import { MAX_POLLS } from "@packages/web-shell";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 import { dismissExtensionSuggestion, stubNativeReaderBridge } from "./reader-failed-notice-visual.browser";
-import { LENSES, NON_TEXT_MINIMUM, type Rgb, contrastRatio } from "./wcag-contrast";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";

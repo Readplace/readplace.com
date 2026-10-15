@@ -1,5 +1,16 @@
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { captureCheckpoint, expect, test, waitForBrandFonts } from "@packages/e2e-harness";
+import {
+	LENSES,
+	NON_TEXT_MINIMUM,
+	type Rgb,
+	captureCheckpoint,
+	contrastRatio,
+	expect,
+	test,
+	textMinimum,
+	waitForBrandFonts,
+} from "@packages/e2e-harness";
 import type { Page } from "@playwright/test";
 import { FIXED_NOW, OVERSIZED_TITLE, WIDE_TITLE, popupListUrl, popupRuntimeStub, popupSaveUrl } from "./popup-visual-fixture";
 
@@ -15,7 +26,7 @@ const LIST_SKELETON = "#list-skeleton-view:not([hidden])";
  * the same change is most of the image. */
 const HEADER = ".list-view__header";
 
-const PINNED_NEWEST_SAVE = [{ selector: ".list-view__time", text: "just now" }];
+const PINNED_NEWEST_SAVE = [{ selector: ".list-view__fact--saved .list-view__fact-text", text: "just now" }];
 
 async function open(
 	page: Page,
@@ -29,9 +40,11 @@ async function open(
 }
 
 async function listSettled(page: Page): Promise<void> {
-	await expect(page.locator(".list-view__row")).toHaveCount(6);
+	await expect(page.locator(".list-view__row")).toHaveCount(4);
 	await expect(page.locator("#pagination")).toBeVisible();
 	await expect(page.locator("[data-test-save-all-count]")).toHaveText("Save 10 tabs");
+	await expect(page.locator("[data-test-list-count]")).toHaveText("86 Saved Articles");
+	await expect(page.locator("#sort-button")).toHaveText("Newest first");
 }
 
 async function savingSettled(page: Page): Promise<void> {
@@ -67,6 +80,15 @@ async function saveAllSettled(page: Page): Promise<void> {
 async function emptySettled(page: Page): Promise<void> {
 	await expect(page.locator("#empty-list")).toBeVisible();
 	await expect(page.locator("#pagination")).toBeHidden();
+	for (const unframed of ["#list-header", ".list-view__search"]) {
+		await expect(page.locator(unframed)).toHaveCSS("display", "none");
+	}
+}
+
+async function messagesSettled(page: Page): Promise<void> {
+	await expect(page.locator("#messages > .alert")).toHaveCount(3);
+	await expect(page.locator(".list-view__row")).toHaveCount(1);
+	await expect(page.locator("[data-test-list-count]")).toHaveText("86 Saved Articles");
 }
 
 async function listErrorSettled(page: Page): Promise<void> {
@@ -75,7 +97,7 @@ async function listErrorSettled(page: Page): Promise<void> {
 }
 
 async function listSkeletonSettled(page: Page): Promise<void> {
-	await expect(page.locator(".list-skeleton__row")).toHaveCount(6);
+	await expect(page.locator(".list-skeleton__row")).toHaveCount(5);
 	await expect(page.locator("#list-view")).toBeHidden();
 	await expect(page.locator("#link-list > *")).toHaveCount(0);
 	await expect(page.locator('#list-skeleton-view [role="status"]')).toBeVisible();
@@ -87,9 +109,37 @@ async function noOverflow(page: Page): Promise<void> {
 		bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
 		pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
 	}));
-	expect(geometry.bodyWidth).toBe(Math.min(800, page.viewportSize()?.width ?? 0));
+	expect(geometry.bodyWidth).toBe(Math.min(400, page.viewportSize()?.width ?? 0));
 	expect(geometry.bodyOverflow).toBeLessThanOrEqual(0);
 	expect(geometry.pageOverflow).toBeLessThanOrEqual(0);
+}
+
+async function frameIs400By600(page: Page): Promise<void> {
+	const frame = await page.locator("body").evaluate((body) => {
+		const bounds = body.getBoundingClientRect();
+		return { width: bounds.width, height: bounds.height };
+	});
+	expect(frame).toEqual({ width: 400, height: 600 });
+}
+
+function framed(geometry: (page: Page) => Promise<void>): (page: Page) => Promise<void> {
+	return async (page) => {
+		await frameIs400By600(page);
+		await geometry(page);
+	};
+}
+
+async function rowActionHitArea(page: Page): Promise<void> {
+	const hitArea = await page.locator(".list-view__action").first().evaluate((button) => {
+		const target = getComputedStyle(button, "::before");
+		return button.getBoundingClientRect().height - Number.parseFloat(target.top) - Number.parseFloat(target.bottom);
+	});
+	expect(hitArea).toBeGreaterThanOrEqual(44);
+}
+
+async function listGeometry(page: Page): Promise<void> {
+	await pagerShowsEveryControl(page);
+	await rowActionHitArea(page);
 }
 
 async function skeletonRowsEqual(page: Page): Promise<void> {
@@ -114,18 +164,172 @@ async function headerFitsOneRow(page: Page): Promise<void> {
 	const heights = await page
 		.locator(".list-view__actions > button")
 		.evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
-	expect(new Set(heights).size).toBe(1);
+	expect(heights).toEqual([32, 32]);
 }
 
-async function heightsOf(page: Page, selectors: string[]): Promise<number[]> {
-	const heights: number[] = [];
+async function boxesOf(page: Page, selectors: string[]): Promise<{ top: number; height: number }[]> {
+	const boxes: { top: number; height: number }[] = [];
 	for (const selector of selectors) {
-		heights.push(
-			await page.locator(selector).first().evaluate((el) => el.getBoundingClientRect().height),
+		boxes.push(
+			await page.locator(selector).first().evaluate((el) => {
+				const bounds = el.getBoundingClientRect();
+				return { top: bounds.top, height: bounds.height };
+			}),
 		);
 	}
-	return heights;
+	return boxes;
 }
+
+async function extentOf(
+	page: Page,
+	group: { first: string; last: string },
+): Promise<{ top: number; height: number }> {
+	const top = await page.locator(group.first).evaluate((el) => el.getBoundingClientRect().top);
+	const bottom = await page.locator(group.last).evaluate((el) => el.getBoundingClientRect().bottom);
+	return { top, height: bottom - top };
+}
+
+function spread(values: number[]): number {
+	return Math.max(...values) - Math.min(...values);
+}
+
+function rgbOf(css: string): Rgb {
+	const channels = /^rgba?\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)/.exec(css);
+	assert.ok(channels, `expected an rgb() colour, got "${css}"`);
+	return { red: Number(channels[1]), green: Number(channels[2]), blue: Number(channels[3]) };
+}
+
+type InkRole = "text" | "non-text";
+
+type InkProbe = {
+	name: string;
+	selector: string;
+	ink: "color" | "border";
+	surface: "ground" | "own";
+	role: InkRole;
+};
+
+type InkPair = {
+	name: string;
+	ink: string;
+	surface: string;
+	role: InkRole;
+	fontSizePx: number;
+	fontWeight: number;
+};
+
+async function inkPairs(page: Page, probes: readonly InkProbe[]): Promise<InkPair[]> {
+	const measured: InkPair[] = [];
+	const ground = await page
+		.locator(".list-view__main")
+		.evaluate((main) => getComputedStyle(main).backgroundColor);
+	for (const pair of probes) {
+		const element = await page.locator(pair.selector).first().evaluate((el) => {
+			const style = getComputedStyle(el);
+			return {
+				color: style.color,
+				border: style.boxShadow,
+				fill: style.backgroundColor,
+				fontSizePx: Number.parseFloat(style.fontSize),
+				fontWeight: Number.parseFloat(style.fontWeight),
+			};
+		});
+		measured.push({
+			name: pair.name,
+			ink: pair.ink === "color" ? element.color : element.border,
+			surface: pair.surface === "ground" ? ground : element.fill,
+			role: pair.role,
+			fontSizePx: element.fontSizePx,
+			fontWeight: element.fontWeight,
+		});
+	}
+	return measured;
+}
+
+function contrastShortfalls(pairs: InkPair[]): string[] {
+	const shortfalls: string[] = [];
+	for (const [lensName, lens] of Object.entries(LENSES)) {
+		for (const pair of pairs) {
+			const ratio = contrastRatio({ ink: lens(rgbOf(pair.ink)), surface: lens(rgbOf(pair.surface)) });
+			const minimum = pair.role === "text" ? textMinimum(pair) : NON_TEXT_MINIMUM;
+			if (ratio < minimum) {
+				shortfalls.push(
+					`${lensName}: ${pair.name} is ${ratio.toFixed(2)}:1 (${pair.ink} on ${pair.surface}), below ${minimum}:1`,
+				);
+			}
+		}
+	}
+	return shortfalls;
+}
+
+const LIST_INK: readonly InkProbe[] = [
+	{ name: "row title", selector: ".list-view__item-title", ink: "color", surface: "ground", role: "text" },
+	{
+		name: "site fact",
+		selector: ".list-view__fact--site .list-view__fact-text",
+		ink: "color",
+		surface: "ground",
+		role: "text",
+	},
+	{
+		name: "saved fact",
+		selector: ".list-view__fact--saved .list-view__fact-text",
+		ink: "color",
+		surface: "ground",
+		role: "text",
+	},
+	{
+		name: "site glyph",
+		selector: ".list-view__fact--site .list-view__fact-icon",
+		ink: "color",
+		surface: "ground",
+		role: "non-text",
+	},
+	{
+		name: "saved glyph",
+		selector: ".list-view__fact--saved .list-view__fact-icon",
+		ink: "color",
+		surface: "ground",
+		role: "non-text",
+	},
+	{ name: "count", selector: ".list-view__count", ink: "color", surface: "ground", role: "text" },
+	{ name: "sort", selector: "#sort-button", ink: "color", surface: "ground", role: "text" },
+	{ name: "row action label", selector: ".list-view__action", ink: "color", surface: "own", role: "text" },
+	{ name: "row action border", selector: ".list-view__action", ink: "border", surface: "ground", role: "non-text" },
+];
+
+const EMPTY_INK: readonly InkProbe[] = [
+	{ name: "empty title", selector: "#empty-list .list-empty__title", ink: "color", surface: "ground", role: "text" },
+	{ name: "empty body", selector: "#empty-list .list-empty__body", ink: "color", surface: "ground", role: "text" },
+];
+
+const FALLBACK_FONT = '"Source Sans Pro", system-ui, -apple-system, sans-serif';
+
+async function renderWithFallbackFont(page: Page): Promise<void> {
+	await page.evaluate((family) => {
+		document.body.style.fontFamily = family;
+	}, FALLBACK_FONT);
+}
+
+async function renderWithBrandFont(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		document.body.style.removeProperty("font-family");
+	});
+}
+
+const SKELETON_TWINS = [
+	{ list: ".list-view__header", skeleton: ".list-skeleton__header" },
+	{ list: ".list-view__search", skeleton: ".list-skeleton__search" },
+	{ list: ".list-view__list-header", skeleton: ".list-skeleton__list-header" },
+	{ list: ".list-view__body", skeleton: ".list-skeleton__rows" },
+	{ list: ".list-view__row", skeleton: ".list-skeleton__row" },
+];
+
+const SAVING_EXTENT = { first: "#saving-progress", last: "#saving-status" };
+
+const SAVED_CARD_EXTENT = { first: ".saved-view__icon", last: "#save-shortcut-hint" };
+
+const PINNED_CONTROLS = [".list-view__header", ".list-view__search", "#list-header", "#pagination"];
 
 /** Registers the popup's visual gate against one extension's packaged build.
  * Both extensions render the same popup from the same core stylesheet, so the
@@ -142,6 +346,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 		await page.setContent(startupHtml);
 		await expect(page.locator(".popup-shell #saving-progress")).toBeVisible();
 		await noOverflow(page);
+		await frameIs400By600(page);
 	}
 
 	test.describe("popup startup shell", () => {
@@ -205,11 +410,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			expect(titles[1]?.text).toBe(OVERSIZED_TITLE);
 			expect(titles[1]?.tooltip).toBe(OVERSIZED_TITLE);
 			expect(titles.every((title) => title.whiteSpace === "nowrap")).toBe(true);
-			if (width === 350) expect(titles[0]?.truncated).toBe(true);
-			if (width >= 800) {
-				expect(titles[0]?.truncated).toBe(false);
-				expect(titles[1]?.truncated).toBe(true);
-			}
+			expect(titles.map((title) => title.truncated)).toEqual([true, true]);
 		}
 	});
 
@@ -227,7 +428,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			await captureCheckpoint(page, {
 				name: "popup-list-light",
 				settled: listSettled,
-				geometry: pagerShowsEveryControl,
+				geometry: framed(listGeometry),
 				target: "body",
 				capture: "element",
 				pinnedText: PINNED_NEWEST_SAVE,
@@ -235,7 +436,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			await captureCheckpoint(page, {
 				name: "popup-header-light",
 				settled: listSettled,
-				geometry: headerFitsOneRow,
+				geometry: framed(headerFitsOneRow),
 				target: HEADER,
 				capture: "element",
 				pinnedText: [],
@@ -250,7 +451,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				await captureCheckpoint(page, {
 					name: "popup-list-dark",
 					settled: listSettled,
-					geometry: pagerShowsEveryControl,
+					geometry: framed(listGeometry),
 					target: "body",
 					capture: "element",
 					pinnedText: PINNED_NEWEST_SAVE,
@@ -258,7 +459,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				await captureCheckpoint(page, {
 					name: "popup-header-dark",
 					settled: listSettled,
-					geometry: headerFitsOneRow,
+					geometry: framed(headerFitsOneRow),
 					target: HEADER,
 					capture: "element",
 					pinnedText: [],
@@ -281,39 +482,33 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			await captureCheckpoint(page, {
 				name: "popup-saving-light",
 				settled: savingSettled,
-				geometry: noOverflow,
+				geometry: framed(noOverflow),
 				target: "body",
 				capture: "element",
 				pinnedText: [],
 			});
 		});
 
-		test("swaps the saved card in without resizing the popup", async ({ page }) => {
+		test("swaps the saved card in at the skeleton's extent", async ({ page }) => {
 			await openSaving(page);
 			await page.waitForFunction(() => typeof window.__popupReleaseSave === "function");
-			await page.evaluate(() => { document.body.style.fontFamily = '"Source Sans Pro", system-ui, -apple-system, sans-serif'; });
-			const skeletonHeight = await page
-				.locator("#saving-view")
-				.evaluate((el) => el.getBoundingClientRect().height);
-			await page.evaluate(async () => { await document.fonts.load("16px Inter"); });
+			await renderWithFallbackFont(page);
+			const skeletonFallback = await extentOf(page, SAVING_EXTENT);
+			await page.evaluate(async () => {
+				await document.fonts.load("16px Inter");
+			});
 			await waitForBrandFonts(page, ["Inter"]);
-			await page.evaluate(() => { document.body.style.removeProperty("font-family"); });
-			const loadedSkeletonHeight = await page
-				.locator("#saving-view")
-				.evaluate((el) => el.getBoundingClientRect().height);
-			expect(Math.abs(skeletonHeight - loadedSkeletonHeight)).toBeLessThanOrEqual(1);
-			await page.evaluate(() => { document.body.style.fontFamily = '"Source Sans Pro", system-ui, -apple-system, sans-serif'; });
+			await renderWithBrandFont(page);
+			const skeletonLoaded = await extentOf(page, SAVING_EXTENT);
+			await renderWithFallbackFont(page);
 			await page.evaluate(() => window.__popupReleaseSave?.());
 			await page.waitForSelector("#saved-view:not([hidden])");
-			const cardHeight = await page
-				.locator("#saved-view")
-				.evaluate((el) => el.getBoundingClientRect().height);
-			expect(Math.abs(skeletonHeight - cardHeight)).toBeLessThanOrEqual(1);
-			await page.evaluate(() => { document.body.style.removeProperty("font-family"); });
-			const loadedCardHeight = await page
-				.locator("#saved-view")
-				.evaluate((el) => el.getBoundingClientRect().height);
-			expect(Math.abs(cardHeight - loadedCardHeight)).toBeLessThanOrEqual(1);
+			const cardFallback = await extentOf(page, SAVED_CARD_EXTENT);
+			await renderWithBrandFont(page);
+			const cardLoaded = await extentOf(page, SAVED_CARD_EXTENT);
+			const phases = [skeletonFallback, skeletonLoaded, cardFallback, cardLoaded];
+			expect(spread(phases.map((phase) => phase.top))).toBeLessThanOrEqual(1);
+			expect(spread(phases.map((phase) => phase.height))).toBeLessThanOrEqual(1);
 		});
 
 		test.describe("in dark mode", () => {
@@ -324,7 +519,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				await captureCheckpoint(page, {
 					name: "popup-saving-dark",
 					settled: savingSettled,
-					geometry: noOverflow,
+					geometry: framed(noOverflow),
 					target: "body",
 					capture: "element",
 					pinnedText: [],
@@ -347,7 +542,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			await captureCheckpoint(page, {
 				name: "popup-save-failed-light",
 				settled: failureSettled,
-				geometry: noOverflow,
+				geometry: framed(noOverflow),
 				target: "body",
 				capture: "element",
 				pinnedText: [],
@@ -375,7 +570,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				await captureCheckpoint(page, {
 					name: "popup-save-failed-dark",
 					settled: failureSettled,
-					geometry: noOverflow,
+					geometry: framed(noOverflow),
 					target: "body",
 					capture: "element",
 					pinnedText: [],
@@ -398,62 +593,37 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			await captureCheckpoint(page, {
 				name: "popup-list-skeleton-light",
 				settled: listSkeletonSettled,
-				geometry: skeletonRowsEqual,
+				geometry: framed(skeletonRowsEqual),
 				target: "body",
 				capture: "element",
 				pinnedText: [],
 			});
 		});
 
-		test("swaps the real list in at the skeleton's geometry", async ({
-			page,
-		}) => {
+		test("swaps the real list in at the skeleton's geometry", async ({ page }) => {
 			await openSkeleton(page);
-			await page.waitForFunction(
-				() => typeof window.__popupReleaseItems === "function",
-			);
-			const skeletonSelectors = [
-				".list-skeleton__header",
-				".list-skeleton__search",
-				".list-skeleton__rows",
-				".list-skeleton__row",
-			];
-			const listSelectors = [
-				".list-view__header",
-				".list-view__search",
-				"#link-list",
-				".list-view__row",
-			];
-			await page.evaluate(() => {
-				document.body.style.fontFamily =
-					'"Source Sans Pro", system-ui, -apple-system, sans-serif';
-			});
-			const skeletonFallback = await heightsOf(page, skeletonSelectors);
+			await page.waitForFunction(() => typeof window.__popupReleaseItems === "function");
+			const skeletonSelectors = SKELETON_TWINS.map((twin) => twin.skeleton);
+			const listSelectors = SKELETON_TWINS.map((twin) => twin.list);
+			await renderWithFallbackFont(page);
+			const skeletonFallback = await boxesOf(page, skeletonSelectors);
 			await page.evaluate(async () => {
 				await document.fonts.load("13px Inter");
 			});
 			await waitForBrandFonts(page, ["Inter"]);
-			await page.evaluate(() => {
-				document.body.style.removeProperty("font-family");
-			});
-			const skeletonLoaded = await heightsOf(page, skeletonSelectors);
-			await page.evaluate(() => {
-				document.body.style.fontFamily =
-					'"Source Sans Pro", system-ui, -apple-system, sans-serif';
-			});
+			await renderWithBrandFont(page);
+			const skeletonLoaded = await boxesOf(page, skeletonSelectors);
+			await renderWithFallbackFont(page);
 			await page.evaluate(() => window.__popupReleaseItems?.());
 			await page.waitForSelector(LIST_VIEW);
 			await listSettled(page);
-			const listFallback = await heightsOf(page, listSelectors);
-			await page.evaluate(() => {
-				document.body.style.removeProperty("font-family");
-			});
-			const listLoaded = await heightsOf(page, listSelectors);
-			for (let index = 0; index < skeletonFallback.length; index += 1) {
-				const heights = [skeletonFallback, skeletonLoaded, listFallback, listLoaded].map(
-					(phase) => phase[index],
-				);
-				expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+			const listFallback = await boxesOf(page, listSelectors);
+			await renderWithBrandFont(page);
+			const listLoaded = await boxesOf(page, listSelectors);
+			for (const [index, twin] of SKELETON_TWINS.entries()) {
+				const boxes = [skeletonFallback, skeletonLoaded, listFallback, listLoaded].map((phase) => phase[index]);
+				expect(spread(boxes.map((box) => box.top)), `${twin.list} top`).toBeLessThanOrEqual(1);
+				expect(spread(boxes.map((box) => box.height)), `${twin.list} height`).toBeLessThanOrEqual(1);
 			}
 		});
 
@@ -465,7 +635,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				await captureCheckpoint(page, {
 					name: "popup-list-skeleton-dark",
 					settled: listSkeletonSettled,
-					geometry: skeletonRowsEqual,
+					geometry: framed(skeletonRowsEqual),
 					target: "body",
 					capture: "element",
 					pinnedText: [],
@@ -491,6 +661,68 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			await expect(page.locator("#link-list")).not.toHaveClass(/list-view__links--pending/);
 		});
 	});
+
+	test.describe("popup long list", () => {
+		test("scrolls the rows while the header, search, count row and pager stay put", async ({ page }) => {
+			await open(page, {
+				url: popupListUrl(input.packagedPopup),
+				stub: popupRuntimeStub({ rowCount: 10 }),
+				wait: LIST_VIEW,
+			});
+			await expect(page.locator(".list-view__row")).toHaveCount(10);
+			const links = page.locator("#link-list");
+			const overflow = await links.evaluate((list) => list.scrollHeight - list.clientHeight);
+			expect(overflow).toBeGreaterThan(0);
+			const before = await boxesOf(page, PINNED_CONTROLS);
+			await links.evaluate((list) => {
+				list.scrollTop = list.scrollHeight;
+			});
+			await expect.poll(() => links.evaluate((list) => list.scrollTop)).toBeGreaterThan(0);
+			const after = await boxesOf(page, PINNED_CONTROLS);
+			expect(after.map((box) => box.top)).toEqual(before.map((box) => box.top));
+		});
+	});
+
+	test.describe("popup not-saveable page", () => {
+		test("warns in place and drops the count row the refusal does not carry", async ({ page }) => {
+			await open(page, {
+				url: popupSaveUrl(input.packagedPopup),
+				stub: popupRuntimeStub({ saveReplies: ["not-saveable"] }),
+				wait: LIST_VIEW,
+			});
+			await expect(page.locator("#list-warning")).toBeVisible();
+			await expect(page.locator("#list-warning .alert__message")).toHaveText(
+				"Only http and https pages can be saved.",
+			);
+			await expect(page.locator(".list-view__row")).toHaveCount(4);
+			await expect(page.locator("#list-header")).toHaveCount(1);
+			await expect(page.locator("#list-header")).toBeHidden();
+		});
+	});
+
+	for (const colorScheme of ["light", "dark"] as const) {
+		test.describe(`popup contrast in ${colorScheme} mode`, () => {
+			test.use({ colorScheme });
+
+			test("keeps WCAG contrast on the list in colour and under the greyscale lens", async ({ page }) => {
+				await openList(page);
+				await listSettled(page);
+				expect(contrastShortfalls(await inkPairs(page, LIST_INK))).toEqual([]);
+			});
+
+			test("keeps WCAG contrast on the empty list in colour and under the greyscale lens", async ({
+				page,
+			}) => {
+				await open(page, {
+					url: popupListUrl(input.packagedPopup),
+					stub: popupRuntimeStub({ listReply: "empty" }),
+					wait: "#empty-list:not([hidden])",
+				});
+				await emptySettled(page);
+				expect(contrastShortfalls(await inkPairs(page, EMPTY_INK))).toEqual([]);
+			});
+		});
+	}
 
 	const STATES = [
 		{
@@ -533,6 +765,14 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			wait: "#list-error:not([hidden])",
 			settled: listErrorSettled,
 		},
+		{
+			name: "popup-list-messages",
+			describe: "popup save refused with messages",
+			url: popupSaveUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ saveReplies: ["messages"], rowCount: 1 }),
+			wait: "#messages:not([hidden])",
+			settled: messagesSettled,
+		},
 	];
 
 	for (const state of STATES) {
@@ -542,7 +782,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				await captureCheckpoint(page, {
 					name: `${state.name}-light`,
 					settled: state.settled,
-					geometry: noOverflow,
+					geometry: framed(noOverflow),
 					target: "body",
 					capture: "element",
 					pinnedText: [],
@@ -557,7 +797,7 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 					await captureCheckpoint(page, {
 						name: `${state.name}-dark`,
 						settled: state.settled,
-						geometry: noOverflow,
+						geometry: framed(noOverflow),
 						target: "body",
 						capture: "element",
 						pinnedText: [],

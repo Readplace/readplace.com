@@ -99,6 +99,14 @@ describe("initInMemoryReadingList", () => {
 			expect(items).toEqual([]);
 		});
 
+		it("carries no total and no sort, since the store authors no count copy", async () => {
+			const list = initInMemoryReadingList();
+
+			const { total, sort } = await list.getItems();
+
+			expect({ total, sort }).toEqual({ total: undefined, sort: [] });
+		});
+
 		it("should return all saved items with their URLs", async () => {
 			const list = initInMemoryReadingList();
 			await list.saveUrl({ url: "https://example.com/a", title: "Article A" });
@@ -135,6 +143,29 @@ describe("initInMemoryReadingList", () => {
 				"https://example.com/first",
 				"https://example.com/second",
 			]);
+		});
+	});
+
+	describe("loadPage and loadSort", () => {
+		it("answers a page with the whole list, carrying no total and no sort", async () => {
+			const list = initInMemoryReadingList();
+			await list.saveUrl({ url: "https://example.com/a", title: "Article A" });
+
+			const page = await list.loadPage({ index: 0 });
+
+			expect(page).toEqual({
+				items: [expect.objectContaining({ url: "https://example.com/a" })],
+				pages: [],
+				total: undefined,
+				sort: [],
+			});
+		});
+
+		it("answers a sort the same way it answers a page", async () => {
+			const list = initInMemoryReadingList();
+			await list.saveUrl({ url: "https://example.com/a", title: "Article A" });
+
+			expect(await list.loadSort({ index: 0 })).toEqual(await list.loadPage({ index: 0 }));
 		});
 	});
 

@@ -25,7 +25,8 @@ describe("buildMessageView", () => {
 		expect(view.role).toBe("status");
 		expect(view.items).toEqual([
 			{
-				className: "messages__item messages__item--warning",
+				className: "alert alert--warning alert--visible",
+				iconName: "alert-triangle",
 				html: "<a href=\"mailto:x@y.z\">email</a>",
 			},
 		]);
@@ -37,7 +38,7 @@ describe("buildMessageView", () => {
 		expect(view.hidden).toBe(false);
 		expect(view.role).toBe("alert");
 		expect(view.items).toEqual([
-			{ className: "messages__item messages__item--error", html: "Something failed" },
+			{ className: "alert alert--error alert--visible", iconName: "x-circle", html: "Something failed" },
 		]);
 	});
 
@@ -46,8 +47,17 @@ describe("buildMessageView", () => {
 
 		expect(view.role).toBe("alert");
 		expect(view.items.map((item) => item.className)).toEqual([
-			"messages__item messages__item--warning",
-			"messages__item messages__item--error",
+			"alert alert--warning alert--visible",
+			"alert alert--error alert--visible",
+		]);
+	});
+
+	it("renders a success with the polite role, the success variant class and its check icon", () => {
+		const view = buildMessageView([{ type: "success", content: { type: "text/html", body: "Saved" } }]);
+
+		expect(view.role).toBe("status");
+		expect(view.items).toEqual([
+			{ className: "alert alert--success alert--visible", iconName: "check-circle", html: "Saved" },
 		]);
 	});
 
@@ -76,7 +86,7 @@ describe("buildMessageView", () => {
 		]);
 
 		expect(view.items).toEqual([
-			{ className: "messages__item messages__item--warning", html: "show me" },
+			{ className: "alert alert--warning alert--visible", iconName: "alert-triangle", html: "show me" },
 		]);
 	});
 
@@ -88,7 +98,7 @@ describe("buildMessageView", () => {
 
 		expect(view.role).toBe("status");
 		expect(view.items).toEqual([
-			{ className: "messages__item messages__item--warning", html: "heads up" },
+			{ className: "alert alert--warning alert--visible", iconName: "alert-triangle", html: "heads up" },
 		]);
 	});
 });

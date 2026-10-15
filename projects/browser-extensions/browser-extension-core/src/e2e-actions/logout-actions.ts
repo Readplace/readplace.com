@@ -9,14 +9,14 @@ export interface LogoutProgress {
 }
 
 export function createLogoutActions(config: {
-	filterProgress: { filterCleared: boolean };
+	sortProgress: { sortedOldestFirst: boolean };
 	progress: LogoutProgress;
 }): Map<string, FlowAction<WebDriver>> {
 	const actions = new Map<string, FlowAction<WebDriver>>();
 
 	actions.set("click-logout", {
 		async isAvailable(driver: WebDriver): Promise<boolean> {
-			if (!config.filterProgress.filterCleared) return false;
+			if (!config.sortProgress.sortedOldestFirst) return false;
 			if (config.progress.loggedOut) return false;
 			try {
 				const listView = await driver.findElement(By.id("list-view"));

@@ -22,6 +22,7 @@ The client's job is to interpret the Siren format and follow what the server say
 - Entity emission: the server module that builds an article sub-entity with its `update-status` action — the only non-test server hit for `"update-status"`
 - Status tab list: the builder that turns the status set into `tabs` entries, choosing `rel` `current` or `tab` — grep the server for `"current" : "tab"`
 - Readlist list: the builder that turns the reader's readlists into `readlists` entries, choosing `rel` `current` or `readlist` — grep the server for `"current" : "readlist"`
+- Sort list: the builder that turns the sort orders into `sort` entries, choosing `rel` `current` or `sort` — grep the server for `"current" : "sort"`
 - Content negotiation: the Siren content-negotiation predicate — the one call to Express's `req.accepts(...)` made with the Siren media type; grep the server for `.accepts(`
 - Client implementations: see [Per-Client Implementations](#per-client-implementations)
 
@@ -217,7 +218,7 @@ The queue is partitioned by status into tabs — today *To Read* and *Read* — 
 }
 ```
 
-This is a **published interface**: `tabs`, `label`, `rel`, and `href` are the contract, and renaming any of them is a breaking change. Entries carry no counts; a count is an additive property if a client ever needs one.
+This is a **published interface**: `tabs`, `label`, `rel`, and `href` are the contract, and renaming any of them is a breaking change. Entries carry no counts; the listed tab's count rides `total` (see [Count and Sort](#count-and-sort-are-server-owned--propertiestotal-and-propertiessort)).
 
 - **`rel` is `current` for the tab the response lists and `tab` for every other.** A collection that is not filtered by status (the invalid-URL save refusal lists every status) carries no `current` entry at all — the same rule as an out-of-range page in `pages` — and a client keeps whatever tab it had selected.
 - **`label` is the server's display string**, rendered verbatim and never parsed.
@@ -244,11 +245,35 @@ This is a **published interface**: `readlists`, `label`, `rel`, and `href` are t
 - **`rel` is `current` for the readlist the response lists and `readlist` for every other**, and **exactly one** entry is `current`. A request naming a readlist the reader does not own is answered by the default readlist's collection, so a current entry is always there to point at — unlike `pages` and `tabs`, which can legitimately carry none.
 - **`label` is the server's display string**, rendered verbatim and never parsed. It is text the reader typed, so wherever it reaches server-authored HTML copy the server escapes it; a client never escapes or unescapes it itself.
 - **`href` is opaque and server-built** — an entry's href is that readlist's default view, carrying no tab, order, or page. A client follows the href it was given, never assembles `?queue=`, and never stores, parses, or compares the slug or label inside one.
-- **The addressed readlist rides every href the collection builds** — `self`, `prev`, `next`, every `pages` and `tabs` entry, each item's `read` link and `update-status` href, the collection's `save-article` href, and the `collection` link on a save response. A client therefore holds **one** pointer, the href it last followed, and stays inside a readlist across paging, tab switches and mutations without knowing how a readlist is encoded. The default readlist adds nothing to a query, so a bare collection URL and one naming the default are the same representation — which is what keeps this additive for clients that never learned about readlists.
+- **The addressed readlist rides every href the collection builds** — `self`, `prev`, `next`, every `pages`, `tabs` and `sort` entry, each item's `read` link and `update-status` href, the collection's `save-article` href, and the `collection` link on a save response. A client therefore holds **one** pointer, the href it last followed, and stays inside a readlist across paging, tab switches and mutations without knowing how a readlist is encoded. The default readlist adds nothing to a query, so a bare collection URL and one naming the default are the same representation — which is what keeps this additive for clients that never learned about readlists.
 - **A save lands in every readlist it named**, as well as in the reader's whole queue. A save names a readlist two ways, and the server files into the union of both: the readlist whose collection the save action came from, carried in the action's own href; and the readlists listed in the save action's readlist field, which the client fills by echoing back entry hrefs the server advertised — the client composes none of them, exactly as it echoes a pagination cursor. The field is how one save reaches several readlists in one round trip; a client that sends none behaves as though it named only what the href did.
 - **The confirmation names every readlist the save landed in** — `Saved to '<label>'`, `Saved to '<label>' and '<label>'`, and so on — whenever the reader keeps more than one readlist. A reader with only the default one keeps the unqualified copy. The wording is server-authored like every other message, so no client composes it and no client decides where a save went.
 - **Some affordances are deliberately readlist-agnostic**: `root`, `account`, `add-links-help`, `create-session`, `save-articles`, `save-content`, and `search`. A GET action's fields *replace* the href's query when a client submits it, so a readlist baked into `search` would vanish on submit. A readlist field is only ever additive and only ever client-authored: a shipped client posts the fields it already knows and simply omits it, which is why the href remains the way a single readlist is addressed.
 - **Presentation is the client's.** A menu, a sidebar, or a segmented control is a layout decision; `rel` is never used as a style token.
+
+## Count and Sort Are Server-Owned — `properties.total` and `properties.sort`
+
+A collection filtered by status says how many articles the listed tab holds and which orders it can be read in. The count's wording and the order names are server policy, like `tabs`, so they ride collection `properties`, where an unknown key is inert on every shipped client:
+
+```jsonc
+"properties": {
+  "total": { "label": "4 Saved Articles" },
+  "sort": [
+    { "label": "Newest first", "rel": "current", "order": "desc", "href": "/queue?status=unread&order=desc" },
+    { "label": "Oldest first", "rel": "sort",    "order": "asc",  "href": "/queue?status=unread&order=asc" }
+  ]
+}
+```
+
+This is a **published interface**: `total`, `sort`, `label`, `rel`, `order` and `href` are the contract, and renaming any of them is a breaking change.
+
+- **`label` is a display string**, rendered verbatim and never parsed: a client never reads a number out of the count.
+- **`order` is a vocabulary token** a client maps to its own glyph; a client skips an entry whose token it does not know, as it skips a malformed one.
+- **`href` is opaque and server-built.** It carries the readlist, the status and the order but no page and no `url` filter, so following it lands on the first page of the same readlist and tab.
+- **Exactly one entry is `current`**, the order the response lists; every other entry is `sort`.
+- **A client asks for a sort by position across the popup–background boundary.** The extension's popup never holds an href: it names the entry by its index in the list it was shown, as it does for `pages`, and the background follows the href it kept.
+- **A collection not filtered by status carries neither `total` nor `sort`** (the invalid-URL save refusal lists every status), so a client hides its count and sort until the next listing.
+- **Presentation is the client's.** A toggle, a menu or a segmented control is a layout decision; `rel` and `order` are never used as style tokens.
 
 ## Entity-Level vs Collection-Level Actions
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { renderReadlistTabTotal } from "./readlist-tab-total.component";
+import { readlistTotalLabel, renderReadlistTabTotal } from "./readlist-tab-total.component";
 
 function countSpan(html: string): Element {
 	const span = new JSDOM(html).window.document.querySelector("#readlist-count");
@@ -74,5 +74,23 @@ describe("renderReadlistTabTotal", () => {
 				"hx-swap-oob",
 			),
 		).toBe("outerHTML");
+	});
+});
+
+describe("readlistTotalLabel", () => {
+	it("reads zero with the plural noun", () => {
+		expect(readlistTotalLabel({ total: 0 })).toBe("0 Saved Articles");
+	});
+
+	it("reads exactly one with the singular noun", () => {
+		expect(readlistTotalLabel({ total: 1 })).toBe("1 Saved Article");
+	});
+
+	it("reads many with the plural noun", () => {
+		expect(readlistTotalLabel({ total: 4 })).toBe("4 Saved Articles");
+	});
+
+	it("caps a total above the limit", () => {
+		expect(readlistTotalLabel({ total: 10000 })).toBe("9999+ Saved Articles");
 	});
 });

@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
+import type { FindArticlesResult, SortOrder } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
@@ -10,6 +10,7 @@ import type { NativeClientPlatform } from "../onboarding/native-client";
 import type { SirenEntity, SirenLink } from "./siren";
 import { buildPageList } from "./page-list";
 import { buildTabList, type StatusTab } from "./tab-list";
+import { buildSortList, type SortOption } from "./sort-list";
 import { buildReadlistList, type ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
@@ -33,6 +34,8 @@ export function toArticleCollectionEntity(
 		appearance?: AppearancePreference;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
+		totalLabel?: (input: { total: number }) => string;
+		sort?: { options: readonly SortOption[]; current: SortOrder };
 	},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
@@ -95,6 +98,14 @@ export function toArticleCollectionEntity(
 		currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
 		hrefForReadlist: readlistHref,
 	});
+	if (options.totalLabel) properties.total = { label: options.totalLabel({ total }) };
+	if (options.sort) {
+		properties.sort = buildSortList({
+			options: options.sort.options,
+			currentOrder: options.sort.current,
+			hrefForOrder: (order) => `/queue${buildQueryString({ readlist: queryParams.readlist, status: queryParams.status, order })}`,
+		});
+	}
 	if (options.appearance) properties.appearance = options.appearance;
 	if (options.warning) properties.warning = options.warning;
 	// Offered only to a native app's own requests (header-gated, never `?platform=`),

@@ -15,6 +15,11 @@ const tabs = [
 	{ label: "Read", status: "read" },
 ] as const;
 
+const sortOptions = [
+	{ label: "Newest first", order: "desc" },
+	{ label: "Oldest first", order: "asc" },
+] as const;
+
 const WORK = ReadlistSlugSchema.parse("work");
 
 const readlists = [{ slug: DEFAULT_READLIST_SLUG, label: "All" }];
@@ -709,6 +714,80 @@ describe("toArticleCollectionEntity", () => {
 			updateStatus: `/queue/${article.id.value}/status?queue=work&status=unread`,
 			saveArticle: "/queue?queue=work",
 		});
+	});
+
+	it("labels the collection's total through the caller's formatter, called with the result's total", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			total: 42,
+			hasMore: true,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(
+			result,
+			{ status: "unread" },
+			{ tabs, readlists, totalLabel: ({ total }) => `${total} Saved Articles` },
+		);
+
+		expect(entity.properties?.total).toEqual({ label: "42 Saved Articles" });
+	});
+
+	it("advertises both sort orders with the served one current", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			total: 1,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(
+			result,
+			{ status: "unread" },
+			{ tabs, readlists, sort: { options: sortOptions, current: "asc" } },
+		);
+
+		expect(entity.properties?.sort).toEqual([
+			{ label: "Newest first", rel: "sort", order: "desc", href: "/queue?status=unread&order=desc" },
+			{ label: "Oldest first", rel: "current", order: "asc", href: "/queue?status=unread&order=asc" },
+		]);
+	});
+
+	it("keeps the readlist and status on every sort href and drops the page and url, so a sort lands on page 1 of the same view", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			total: 42,
+			hasMore: true,
+			page: 2,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(
+			result,
+			{ readlist: WORK, status: "unread", order: "desc", page: 2, url: "https://example.com/1" },
+			{ tabs, readlists: twoReadlists, sort: { options: sortOptions, current: "desc" } },
+		);
+
+		expect((entity.properties?.sort as { href: string }[]).map((entry) => entry.href)).toEqual([
+			"/queue?queue=work&status=unread&order=desc",
+			"/queue?queue=work&status=unread&order=asc",
+		]);
+	});
+
+	it("carries neither a total nor a sort when the caller passes no formatter and no sort options", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			total: 1,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+
+		expect(Object.keys(entity.properties ?? {}).sort()).toEqual(["pageSize", "pages", "readlists", "tabs"]);
 	});
 
 	it("answers a collection naming the default readlist with the entity a client that names none already reads", () => {

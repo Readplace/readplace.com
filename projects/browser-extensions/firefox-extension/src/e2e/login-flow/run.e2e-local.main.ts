@@ -16,10 +16,12 @@ import {
 	createSaveLinkActions,
 	createPaginationActions,
 	createFilterActions,
+	createSortActions,
 	createLogoutActions,
 	type PaginationProgress,
 	type SaveLinkProgress,
 	type FilterProgress,
+	type SortProgress,
 	type LogoutProgress,
 	waitForUi,
 	assertGeckodriverSupportsSystemAccess,
@@ -186,6 +188,9 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 				filteredNoMatch: false,
 				filterCleared: false,
 			};
+			const sortProgress: SortProgress = {
+				sortedOldestFirst: false,
+			};
 			const logoutProgress: LogoutProgress = {
 				loggedOut: false,
 			};
@@ -216,12 +221,17 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 				progress: filterProgress,
 			});
 
-			const logoutActions = createLogoutActions({
+			const sortActions = createSortActions({
 				filterProgress,
+				progress: sortProgress,
+			});
+
+			const logoutActions = createLogoutActions({
+				sortProgress,
 				progress: logoutProgress,
 			});
 
-			const allActions = new Map([...loginActions, ...saveLinkActions, ...paginationActions, ...filterActions, ...logoutActions]);
+			const allActions = new Map([...loginActions, ...saveLinkActions, ...paginationActions, ...filterActions, ...sortActions, ...logoutActions]);
 
 			const stateHandler = new ExtensionStateHandler(
 				driver,
@@ -244,6 +254,7 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 			assert.equal(saveLinkProgress.listVerified, true, "Link should have been verified in list");
 			assert.equal(paginationProgress.verifiedBackOnPage1, true, "Pagination should have been verified");
 			assert.equal(filterProgress.filterCleared, true, "Filter should have been tested");
+			assert.equal(sortProgress.sortedOldestFirst, true, "Sort should have been tested");
 			assert.equal(logoutProgress.loggedOut, true, "Logout should have been completed");
 		} finally {
 			await driver.quit();

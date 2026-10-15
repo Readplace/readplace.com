@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import type { CDPSession, Page } from "@playwright/test";
 import { z } from "zod";
-import { expect, test } from "@packages/e2e-harness";
+import {
+	LENSES,
+	NON_TEXT_MINIMUM,
+	type Rgb,
+	contrastRatio,
+	expect,
+	test,
+	textMinimum,
+} from "@packages/e2e-harness";
 import { type InteractionInk, collectInteractionInk, countUnfinishedAnimations } from "./interaction-ink.browser";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { createReadlistFromReader } from "./page-interactions";
 import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.browser";
-import { LENSES, NON_TEXT_MINIMUM, type Rgb, contrastRatio, textMinimum } from "./wcag-contrast";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");

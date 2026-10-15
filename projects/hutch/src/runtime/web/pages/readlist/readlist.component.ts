@@ -33,6 +33,7 @@ import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
 import { renderMoveDialogs } from "./readlist-card/move-dialog.component";
 import { renderReadlistDeleteConfirm } from "./readlist-delete-confirm.component";
+import { sortLabel } from "./readlist-sort";
 import {
 	renderMoveToast,
 	renderReadlistCountsTrigger,
@@ -392,10 +393,10 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 	const isDefaultReadlist = filters.readlist === DEFAULT_READLIST.slug;
 	const effectiveOrder = filters.order ?? tabQuery(filters.tab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
-	const sort: { label: string; iconName: IconName } =
-		effectiveOrder === "desc"
-			? { label: "Newest first", iconName: "arrow-down" }
-			: { label: "Oldest first", iconName: "arrow-up" };
+	const sort: { label: string; iconName: IconName } = {
+		label: sortLabel(effectiveOrder),
+		iconName: effectiveOrder === "desc" ? "arrow-down" : "arrow-up",
+	};
 	const alert = readlistAlertFor(options.query);
 	const preferencesEnabled = readlistPreferencesEnabled(options.query);
 	const discovery = buildReadlistDiscovery({

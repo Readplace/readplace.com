@@ -222,6 +222,8 @@ import { initReadlistPreferencesRoutes } from "./readlist-preferences.page";
 import { buildReadlistRail } from "./readlist-rail";
 import { collectUtmParams } from "../../shared/utm";
 import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
+import { READLIST_SORT_OPTIONS } from "./readlist-sort";
+import { readlistTotalLabel } from "./readlist-tab-total.component";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, MoveFlash, StatusFlash } from "./readlist.error";
@@ -1852,6 +1854,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						appearance,
 						crawlByUrl,
 						summaryByUrl,
+						totalLabel: readlistTotalLabel,
+						sort: { options: READLIST_SORT_OPTIONS, current: order },
 					},
 				),
 			);

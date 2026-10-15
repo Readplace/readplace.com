@@ -222,6 +222,28 @@ describe("GET /queue (Siren content negotiation)", () => {
 		]);
 	});
 
+	it("labels the listing's total and advertises both sort orders with newest first current", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const userId = await loginAndSave(harness, { email: "count-and-sort@example.com", urlCount: 4 });
+		const accessToken = await saveAccessTokenForClient(harness, {
+			userId,
+			clientId: "hutch-chrome-extension",
+		});
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect({ total: response.body.properties.total, sort: response.body.properties.sort }).toEqual({
+			total: { label: "4 Saved Articles" },
+			sort: [
+				{ label: "Newest first", rel: "current", order: "desc", href: "/queue?status=unread&order=desc" },
+				{ label: "Oldest first", rel: "sort", order: "asc", href: "/queue?status=unread&order=asc" },
+			],
+		});
+	});
+
 	it("advertises a single page when a url filter narrows the collection", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const userId = await loginAndSave(harness, { email: "filter@example.com", urlCount: 11 });
@@ -452,6 +474,27 @@ describe("POST /queue (Siren save article)", () => {
 		});
 	});
 
+	it("carries neither a total nor a sort on the refusal, whose collection lists every status", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "chrome://newtab/" });
+
+		expect(response.status).toBe(422);
+		expect(Object.keys(response.body.properties).sort()).toEqual([
+			"pageSize",
+			"pages",
+			"readlists",
+			"tabs",
+			"warning",
+		]);
+	});
+
 	it("returns the article collection with a private_network warning when the host is local", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await createAccessToken(harness);
@@ -658,6 +701,21 @@ describe("GET /queue status tabs (Siren)", () => {
 		expect(response.body.properties.tabs).toEqual([
 			{ label: "To Read", rel: "current", href: "/queue?status=unread" },
 			{ label: "Read", rel: "tab", href: "/queue?status=read" },
+		]);
+	});
+
+	it("marks oldest first current when the listing is served oldest first", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue?order=asc")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.body.properties.sort).toEqual([
+			{ label: "Newest first", rel: "sort", order: "desc", href: "/queue?status=unread&order=desc" },
+			{ label: "Oldest first", rel: "current", order: "asc", href: "/queue?status=unread&order=asc" },
 		]);
 	});
 
@@ -1012,6 +1070,7 @@ describe("GET /queue?url= (Siren URL filter)", () => {
 		expect(response.status).toBe(200);
 		expect(response.body.entities).toHaveLength(1);
 		expect(response.body.entities[0].properties.url).toBe("https://example.com/article-1");
+		expect(response.body.properties.total).toEqual({ label: "1 Saved Article" });
 	});
 
 	it("returns empty collection when URL filter has no match", async () => {
@@ -1356,6 +1415,7 @@ describe("Siren readlists", () => {
 			readlists: response.body.properties.readlists,
 			self: response.body.links.find((link: { rel: string[] }) => link.rel.includes("self")).href,
 			tabs: response.body.properties.tabs.map((tab: { href: string }) => tab.href),
+			sort: response.body.properties.sort.map((entry: { href: string }) => entry.href),
 			read: article.links.find((link: { rel: string[] }) => link.rel.includes("read")).href,
 			updateStatus: article.actions.find((action: { name: string }) => action.name === "update-status")
 				.href,
@@ -1370,6 +1430,10 @@ describe("Siren readlists", () => {
 			],
 			self: `/queue?queue=${readlist}&status=unread&page=1`,
 			tabs: [`/queue?queue=${readlist}&status=unread`, `/queue?queue=${readlist}&status=read`],
+			sort: [
+				`/queue?queue=${readlist}&status=unread&order=desc`,
+				`/queue?queue=${readlist}&status=unread&order=asc`,
+			],
 			read: `/queue/${article.properties.id}/view?queue=${readlist}`,
 			updateStatus: `/queue/${article.properties.id}/status?queue=${readlist}&status=unread`,
 			saveArticle: `/queue?queue=${readlist}`,

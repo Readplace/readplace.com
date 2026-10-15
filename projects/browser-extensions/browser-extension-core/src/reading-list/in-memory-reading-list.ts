@@ -3,9 +3,11 @@ import type {
 	ReadingListItemId,
 } from "../domain/reading-list-item.types";
 import type {
+	CollectionPage,
 	FindByUrl,
 	GetItems,
 	LoadPage,
+	LoadSort,
 	InvokeAction,
 	SaveUrl,
 	SavePages,
@@ -17,9 +19,14 @@ export function initInMemoryReadingList(): {
 	findByUrl: FindByUrl;
 	getItems: GetItems;
 	loadPage: LoadPage;
+	loadSort: LoadSort;
 	savePages: SavePages;
 } {
 	const items = new Map<ReadingListItemId, ReadingListItem>();
+
+	function wholeList(): CollectionPage {
+		return { items: Array.from(items.values()), pages: [], total: undefined, sort: [] };
+	}
 
 	const saveUrl: SaveUrl = async ({ url, title }) => {
 		for (const item of items.values()) {
@@ -52,12 +59,7 @@ export function initInMemoryReadingList(): {
 		if (!item?.actions.some((action) => action.name === name)) {
 			return { ok: false, reason: "not-found" };
 		}
-		return {
-			ok: true,
-			items: Array.from(items.values()),
-			pages: [],
-			targetUrl: item.url,
-		};
+		return { ok: true, ...wholeList(), targetUrl: item.url };
 	};
 
 	const findByUrl: FindByUrl = async (url) => {
@@ -69,9 +71,11 @@ export function initInMemoryReadingList(): {
 		return null;
 	};
 
-	const getItems: GetItems = async () => ({ items: Array.from(items.values()), pages: [] });
+	const getItems: GetItems = async () => wholeList();
 
-	const loadPage: LoadPage = async () => ({ items: Array.from(items.values()), pages: [] });
+	const loadPage: LoadPage = async () => wholeList();
+
+	const loadSort: LoadSort = async () => wholeList();
 
 	const savePages: SavePages = async ({ pages }) => {
 		let saved = 0;
@@ -104,6 +108,7 @@ export function initInMemoryReadingList(): {
 		findByUrl,
 		getItems,
 		loadPage,
+		loadSort,
 		savePages,
 	};
 }

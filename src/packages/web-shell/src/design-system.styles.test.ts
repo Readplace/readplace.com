@@ -1,5 +1,6 @@
 import { BUTTON_STYLES, DARK_ONLY_BODY_CLASS, LIGHT_ONLY_BODY_CLASS, SYSTEM_THEME_VARIABLES, UTILITY_STYLES } from "./base.styles";
 import { DESIGN_SYSTEM_STYLES } from "./design-system.styles";
+import { ALERT_STYLES } from "./shared/alert/alert.styles";
 import { IN_FLIGHT_DOTS_STYLES } from "./shared/in-flight-dots/in-flight-dots.styles";
 
 describe("DESIGN_SYSTEM_STYLES", () => {
@@ -20,5 +21,9 @@ describe("DESIGN_SYSTEM_STYLES", () => {
 		expect(DESIGN_SYSTEM_STYLES).toContain(BUTTON_STYLES);
 		expect(DESIGN_SYSTEM_STYLES).toContain(UTILITY_STYLES);
 		expect(DESIGN_SYSTEM_STYLES).toContain(IN_FLIGHT_DOTS_STYLES);
+	});
+
+	it("ships the shared alert, so a surface outside the web shows the same alerts the web pages do", () => {
+		expect(DESIGN_SYSTEM_STYLES).toContain(ALERT_STYLES);
 	});
 });
