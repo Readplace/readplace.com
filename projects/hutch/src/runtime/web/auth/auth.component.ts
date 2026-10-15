@@ -15,6 +15,7 @@ import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-confi
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import type { ComponentError } from "../shared/component-error.types";
+import { CONNECTED_APPS_PHRASE } from "../shared/client-surface-phrases";
 import { AUTH_STYLES } from "./auth.styles";
 import { renderAuthProviders } from "./auth-providers.component";
 import type { LastAuthProvider } from "../last-auth-provider";
@@ -277,6 +278,7 @@ export function renderChangePasswordForm(data: ChangePasswordFormData): string {
 export function ChangePasswordPage(data: ChangePasswordFormData & { forgotHref: string; backHref: string }): PageBody {
 	const content = render(CHANGE_PASSWORD_TEMPLATE, {
 		formHtml: renderChangePasswordForm(data),
+		connectedAppsPhrase: CONNECTED_APPS_PHRASE,
 		forgotHref: data.forgotHref,
 		backHref: data.backHref,
 	});

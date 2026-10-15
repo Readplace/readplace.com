@@ -4216,7 +4216,7 @@ describe("GET /account (security section)", () => {
 			alert.getAttribute("role"),
 			alert.querySelector("[data-test-alert-title]")?.textContent,
 			alert.querySelector("[data-test-alert-message]")?.textContent,
-		]).toEqual([true, "success", "status", "Password changed", "Other browsers were signed out of the website."]);
+		]).toEqual([true, "success", "status", "Password changed", "Other browsers were signed out, and the browser extension, the iPhone app, and AI assistants were disconnected."]);
 		const card = securitySection(doc).querySelector("[data-test-account-security]");
 		assert(card, "the security section must render its card");
 		expect(alert.nextElementSibling).toBe(card);

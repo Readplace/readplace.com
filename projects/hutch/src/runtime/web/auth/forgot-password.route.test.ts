@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
@@ -260,6 +261,53 @@ describe("Forgot password", () => {
 
 			expect(response.status).toBe(200);
 			expect(await auth.getSessionUserId(stolenSession)).toBeNull();
+		});
+
+		it("keeps every connected app signed in, since a reset is how a reader who lost the password gets back in", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
+			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({ email: "user@example.com", password: "oldpassword1" });
+			const verifier = randomBytes(32).toString("base64url");
+			const authorize = await agent.post("/oauth/authorize").type("form").send({
+				client_id: "hutch-chrome-extension",
+				redirect_uri: "http://127.0.0.1:3000/oauth/callback",
+				response_type: "code",
+				code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+				code_challenge_method: "S256",
+				state: "reset",
+				action: "approve",
+			});
+			const code = new URL(authorize.headers.location).searchParams.get("code");
+			assert(code, "the approval must carry an authorization code");
+			const granted = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "authorization_code",
+				code,
+				redirect_uri: "http://127.0.0.1:3000/oauth/callback",
+				client_id: "hutch-chrome-extension",
+				code_verifier: verifier,
+			});
+			assert.equal(granted.status, 200, "the extension must hold a refresh token before the reset");
+
+			await request(harness.server)
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
+				.type("form")
+				.send({ email: "user@example.com" });
+			const tokenMatch = email.getSentEmails()[0].html.match(/token&#x3D;([a-f0-9]+)/);
+			assert(tokenMatch, "Expected token in password reset email");
+			const reset = await request(harness.server)
+				.post(`/reset-password?token=${tokenMatch[1]}`)
+				.type("form")
+				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
+			expect(reset.status).toBe(200);
+
+			const refreshed = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "refresh_token",
+				refresh_token: granted.body.refresh_token,
+				client_id: "hutch-chrome-extension",
+			});
+			expect(refreshed.status).toBe(200);
 		});
 
 		it("a reset records when the password last changed", async () => {

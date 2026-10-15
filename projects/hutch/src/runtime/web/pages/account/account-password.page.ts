@@ -12,6 +12,7 @@ import type {
 	UpdatePassword,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
+import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
@@ -125,6 +126,7 @@ export function initAccountPasswordRoutes(deps: {
 	loginAccountRule: RateLimitRule;
 	updatePassword: UpdatePassword;
 	destroyUserSessions: DestroyUserSessions;
+	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	createSession: CreateSession;
 	secureCookies: boolean;
 	now: () => Date;
@@ -222,6 +224,7 @@ export function initAccountPasswordRoutes(deps: {
 			updatedAt: deps.now().toISOString(),
 		});
 		await deps.destroyUserSessions(user.userId);
+		await deps.revokeAllUserOAuthTokens(user.userId, "logout-all");
 		const sessionId = await deps.createSession({ userId: user.userId, emailVerified: verified.emailVerified });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, persistentSessionCookieOptions(deps.secureCookies));
 		answer({ landing: buildAccountUrl({ passwordChanged: true, ...markers }) });

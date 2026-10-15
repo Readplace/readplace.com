@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AlertContent, type LocalTime, render, renderAlert } from "@packages/web-shell";
+import { CONNECTED_APPS_PHRASE } from "../../shared/client-surface-phrases";
 import type { SecuritySectionViewModel } from "./account.view-model";
 
 const ACCOUNT_SECURITY_TEMPLATE = readFileSync(join(__dirname, "account-security.template.html"), "utf-8");
@@ -11,7 +12,7 @@ const HIDDEN_SECURITY_SECTION =
 const PASSWORD_CHANGED_ALERT: AlertContent = {
 	variant: "success",
 	title: { text: "Password changed", element: "p" },
-	message: { text: "Other browsers were signed out of the website." },
+	message: { text: `Other browsers were signed out, and ${CONNECTED_APPS_PHRASE} were disconnected.` },
 };
 
 const UPDATED_LINE_CLASS = {

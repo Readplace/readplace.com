@@ -1733,6 +1733,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		loginAccountRule: deps.rateLimitRules.loginAccount,
 		updatePassword: deps.updatePassword,
 		destroyUserSessions: deps.destroyUserSessions,
+		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
 		createSession: deps.createSession,
 		secureCookies,
 		now: deps.now,

@@ -36,6 +36,7 @@ describe("GET /privacy", () => {
 		expect(response.text).toContain("Disconnect an assistant under");
 		expect(response.text).toContain("on your Account page");
 		expect(response.text).toContain("revokes its Readplace token");
+		expect(response.text).toContain("Changing your password or deleting your Readplace account revokes every connected assistant at once.");
 		const doc = new JSDOM(response.text).window.document;
 		expect(Array.from(doc.querySelectorAll('.legal-page__section a[href^="/account"]')).map((link) => link.getAttribute("href"))).toEqual([
 			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-assistants#connected-apps",

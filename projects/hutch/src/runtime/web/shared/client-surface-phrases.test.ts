@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { ADVERTISED_CLIENTS } from "@packages/supported-clients";
 import {
+	CONNECTED_APPS_PHRASE,
 	FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE,
 	FULL_PAGE_CAPTURE_PHRASE,
 	SAVE_SURFACES_PHRASE,
@@ -12,6 +13,7 @@ const ALL_PHRASES = [
 	SAVE_SURFACES_SHORT_PHRASE,
 	FULL_PAGE_CAPTURE_PHRASE,
 	FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE,
+	CONNECTED_APPS_PHRASE,
 ];
 
 describe("client surface phrases", () => {
@@ -29,6 +31,10 @@ describe("client surface phrases", () => {
 
 	it("pins the reader-failed full-page-capture alternatives phrase", () => {
 		assert.equal(FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE, "the browser extension or the iPhone app");
+	});
+
+	it("pins the change-password connected-apps phrase", () => {
+		assert.equal(CONNECTED_APPS_PHRASE, "the browser extension, the iPhone app, and AI assistants");
 	});
 
 	it("never names a strict subset of a group's advertised clients", () => {

@@ -1,4 +1,4 @@
-import type { AdvertisedClientNameInGroup, ClientGroup } from "@packages/supported-clients";
+import type { AdvertisedClientName, AdvertisedClientNameInGroup, ClientGroup } from "@packages/supported-clients";
 
 /**
  * User-facing copy enumerates client GROUPS, not individual clients: a new
@@ -43,3 +43,16 @@ const FULL_PAGE_CAPTURE_UNIQUE = [...new Set(Object.values(FULL_PAGE_CAPTURE_NOU
 export const FULL_PAGE_CAPTURE_PHRASE = FULL_PAGE_CAPTURE_UNIQUE.join(" and ");
 
 export const FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE = FULL_PAGE_CAPTURE_UNIQUE.join(" or ");
+
+const CONNECTED_APP_NOUNS = {
+	firefox: "the browser extension",
+	chrome: "the browser extension",
+	iphone: "the iPhone app",
+	chatgpt: "AI assistants",
+	gemini: "AI assistants",
+	claude: "AI assistants",
+} satisfies Record<AdvertisedClientName, string>;
+
+export const CONNECTED_APPS_PHRASE = new Intl.ListFormat("en", { type: "conjunction" }).format([
+	...new Set(Object.values(CONNECTED_APP_NOUNS)),
+]);

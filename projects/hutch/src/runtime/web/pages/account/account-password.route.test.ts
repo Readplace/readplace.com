@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { z } from "zod";
@@ -71,6 +72,50 @@ function hxLocation(response: request.Response): z.infer<typeof HxLocationSchema
 	return HxLocationSchema.parse(JSON.parse(header));
 }
 
+async function grantRefreshToken(
+	harness: Harness,
+	input: { agent: ReturnType<typeof request.agent>; clientId: string; redirectUri: string },
+): Promise<string> {
+	const verifier = randomBytes(32).toString("base64url");
+	const authorize = await input.agent.post("/oauth/authorize").type("form").send({
+		client_id: input.clientId,
+		redirect_uri: input.redirectUri,
+		response_type: "code",
+		code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+		code_challenge_method: "S256",
+		state: "change-password",
+		action: "approve",
+	});
+	assert.equal(authorize.status, 302, "the reader's approval must redirect with a code");
+	const code = new URL(authorize.headers.location).searchParams.get("code");
+	assert(code, "the approval must carry an authorization code");
+	const token = await request(harness.server).post("/oauth/token").type("form").send({
+		grant_type: "authorization_code",
+		code,
+		redirect_uri: input.redirectUri,
+		client_id: input.clientId,
+		code_verifier: verifier,
+	});
+	assert.equal(token.status, 200, "the authorization code must exchange for tokens");
+	return token.body.refresh_token;
+}
+
+async function registerAssistant(harness: Harness, redirectUri: string): Promise<string> {
+	const registration = await request(harness.server)
+		.post("/oauth/register")
+		.send({ redirect_uris: [redirectUri], client_name: "Claude" });
+	assert.equal(registration.status, 201, "the assistant must register itself");
+	return registration.body.client_id;
+}
+
+function refresh(harness: Harness, input: { clientId: string; refreshToken: string }) {
+	return request(harness.server).post("/oauth/token").type("form").send({
+		grant_type: "refresh_token",
+		refresh_token: input.refreshToken,
+		client_id: input.clientId,
+	});
+}
+
 function changeRequest(fields: { currentPassword: string; password: string; confirmPassword: string }) {
 	return { username: EMAIL, ...fields };
 }
@@ -100,7 +145,7 @@ describe("GET /account/password", () => {
 		expect(card.parentElement).toBe(main);
 		expect(card.querySelector(".auth-card__title")?.textContent).toBe("Change your password");
 		expect(card.querySelector(".auth-card__subtitle")?.textContent).toBe(
-			"Changing it signs you out of the website in every other browser.",
+			"Changing it signs you out in every other browser and disconnects the browser extension, the iPhone app, and AI assistants.",
 		);
 		const form = changeForm(card);
 		expect(
@@ -365,6 +410,53 @@ describe("POST /account/password — a valid change", () => {
 		expect(stolen.headers.location).toBe("/login");
 		const kept = await agent.get("/account");
 		expect(kept.status).toBe(200);
+	});
+
+	it("disconnects every connected app, the extension and an AI assistant alike", async () => {
+		const harness = useApp(fixtureAt());
+		const { agent } = await signUp(harness);
+		const extensionToken = await grantRefreshToken(harness, {
+			agent,
+			clientId: "hutch-chrome-extension",
+			redirectUri: "http://127.0.0.1:3000/oauth/callback",
+		});
+		const claudeId = await registerAssistant(harness, "https://claude.ai/api/mcp/auth_callback");
+		const claudeToken = await grantRefreshToken(harness, {
+			agent,
+			clientId: claudeId,
+			redirectUri: "https://claude.ai/api/mcp/auth_callback",
+		});
+
+		const change = await agent.post(FORM_ACTION).type("form").send(VALID_CHANGE);
+		expect(change.status).toBe(303);
+
+		const refreshes = await Promise.all([
+			refresh(harness, { clientId: "hutch-chrome-extension", refreshToken: extensionToken }),
+			refresh(harness, { clientId: claudeId, refreshToken: claudeToken }),
+		]);
+		expect(refreshes.map((answer) => [answer.status, answer.body.error])).toEqual([
+			[400, "invalid_grant"],
+			[400, "invalid_grant"],
+		]);
+	});
+
+	it("keeps every connected app when the change is refused", async () => {
+		const harness = useApp(fixtureAt());
+		const { agent } = await signUp(harness);
+		const extensionToken = await grantRefreshToken(harness, {
+			agent,
+			clientId: "hutch-chrome-extension",
+			redirectUri: "http://127.0.0.1:3000/oauth/callback",
+		});
+
+		const refused = await agent
+			.post(FORM_ACTION)
+			.type("form")
+			.send(changeRequest({ currentPassword: WRONG_PASSWORD, password: NEW_PASSWORD, confirmPassword: NEW_PASSWORD }));
+		expect(refused.status).toBe(303);
+
+		const refreshed = await refresh(harness, { clientId: "hutch-chrome-extension", refreshToken: extensionToken });
+		expect(refreshed.status).toBe(200);
 	});
 
 	it("never writes a submitted password into an answer", async () => {
