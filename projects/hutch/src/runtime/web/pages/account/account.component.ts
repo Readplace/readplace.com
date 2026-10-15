@@ -15,6 +15,7 @@ import {
 	SUBSCRIBE_PLANS_STYLES,
 	renderSubscribePlansPopover,
 } from "../../shared/subscribe-plans/subscribe-plans.component";
+import { CHANGE_PASSWORD_CLIENT_SCRIPT } from "../../auth/auth.component";
 import { renderConnectedApps } from "./account-connected-apps.component";
 import type { ConnectedAppsSectionViewModel } from "./account-connected-apps.view-model";
 import { renderAccountProfileEdit, renderAccountProfileFallbackForm } from "./account-profile.component";
@@ -347,6 +348,8 @@ export function AccountPage(
 		},
 		// The app surface renders no Elements container (withoutCommerce hides the
 		// whole card section), so the Stripe glue would have nothing to mount.
-		scripts: surface ? ACCOUNT_DIALOGS_SCRIPT : `${ACCOUNT_CARDS_SCRIPT}${ACCOUNT_DIALOGS_SCRIPT}`,
+		scripts: surface
+			? `${ACCOUNT_DIALOGS_SCRIPT}${CHANGE_PASSWORD_CLIENT_SCRIPT}`
+			: `${ACCOUNT_CARDS_SCRIPT}${ACCOUNT_DIALOGS_SCRIPT}${CHANGE_PASSWORD_CLIENT_SCRIPT}`,
 	};
 }

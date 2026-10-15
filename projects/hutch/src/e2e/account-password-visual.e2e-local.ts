@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { Page } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
 import { captureCheckpoint, expect, test, type VisualCheckpoint, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
@@ -29,6 +29,7 @@ const NEW_FIELD = "#password";
 const CONFIRM_FIELD = "#confirmPassword";
 const PASSWORD_FIELDS = [CURRENT_FIELD, NEW_FIELD, CONFIRM_FIELD];
 const CURRENT_ERROR = '[data-test-error="currentPassword"]';
+const FAILURE_LINE = "[data-test-change-password-failure]";
 const APP_BACK_LINK = "[data-test-account-back-link]";
 const HTMX_IN_MOTION = ".htmx-request, .htmx-swapping, .htmx-settling";
 const VOLATILE_CHROME = [
@@ -106,6 +107,13 @@ async function refuseWrongCurrent(page: Page): Promise<void> {
 	await fillChange(page, { current: WRONG_PASSWORD });
 	await clickCentre(page, CHANGE_SUBMIT);
 	await expect(page.locator(CURRENT_ERROR)).toHaveText("Current password is incorrect");
+	await swapSettled(page);
+}
+
+async function openChangeFromAccount(page: Page): Promise<void> {
+	await openAccount(page);
+	await clickCentre(page, CHANGE_ACTION);
+	await expect(page.locator(CHANGE_FORM)).toBeVisible();
 	await swapSettled(page);
 }
 
@@ -275,6 +283,40 @@ test.describe("Change password page", () => {
 		await expect(page.locator(CHANGED_ALERT)).toHaveClass(/alert--visible/);
 		expect(posted).toEqual(["/account/password"]);
 	});
+
+	const FAILED_ANSWERS = [
+		{
+			answer: "a 503",
+			entry: "opened directly",
+			open: openChangePage,
+			fail: (route: Route) => route.fulfill({ status: 503, body: "" }),
+		},
+		{
+			answer: "no answer",
+			entry: "reached from the account page",
+			open: openChangeFromAccount,
+			fail: (route: Route) => route.abort("internetdisconnected"),
+		},
+	];
+	for (const { answer, entry, open, fail } of FAILED_ANSWERS) {
+		test(`shows a failure line and keeps the form when the change gets ${answer}, ${entry}`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: "light" });
+			await signIn(page, `failure-${testInfo.workerIndex}-${Date.now()}`);
+			await open(page);
+			await page.route(
+				(url) => url.pathname === "/account/password",
+				(route) => (route.request().method() === "POST" ? fail(route) : route.continue()),
+			);
+
+			await fillChange(page, { current: PASSWORD });
+			await clickCentre(page, CHANGE_SUBMIT);
+
+			await expect(page.locator(FAILURE_LINE)).toHaveText("Couldn't change your password.");
+			await swapSettled(page);
+			await expect(page.locator(CHANGE_SUBMIT)).toBeEnabled();
+			await expect(page.locator(NEW_FIELD)).toHaveValue(NEW_PASSWORD);
+		});
+	}
 
 	test("refuses a wrong current password in place, under its field", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });

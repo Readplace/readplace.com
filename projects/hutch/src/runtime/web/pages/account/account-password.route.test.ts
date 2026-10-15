@@ -205,6 +205,40 @@ describe("GET /account/password", () => {
 		expect(back.textContent).toBe("Back to account");
 	});
 
+	it("carries a failure line the page script fills when the change never gets an answer", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await signUp(harness);
+
+		const doc = documentOf((await agent.get("/account/password")).text);
+
+		const form = changeForm(doc);
+		expect(form.getAttribute("data-change-password-failure")).toBe("Couldn't change your password.");
+		const line = form.querySelector("[data-test-change-password-failure]");
+		assert(line, "the form must carry its failure line");
+		expect([line.textContent, line.getAttribute("role"), line.nextElementSibling?.getAttribute("data-test-action")]).toEqual([
+			"",
+			"alert",
+			"change-password",
+		]);
+		expect(
+			Array.from(doc.querySelectorAll('script[src="/client-dist/change-password.client.js"]'), (script) =>
+				script.hasAttribute("defer"),
+			),
+		).toEqual([true]);
+	});
+
+	it.each([
+		{ surface: "web", path: "/account" },
+		{ surface: "app sheet", path: "/account?platform=ios&shell=app" },
+	])("loads the failure-line script on the $surface account page, whose boosted Change password brings the form in", async ({ path }) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await signUp(harness);
+
+		const doc = documentOf((await agent.get(path)).text);
+
+		expect(doc.querySelectorAll('script[src="/client-dist/change-password.client.js"]').length).toBe(1);
+	});
+
 	it("marks no header nav item as the current page, since the change page belongs to none of them", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await signUp(harness);

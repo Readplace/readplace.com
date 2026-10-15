@@ -239,6 +239,15 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/auth/change-password.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "change-password.client.js"),
+    globalName: "ChangePassword",
+    footer: "ChangePassword.initChangePassword({ document: window.document });",
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/account/account-dialogs.client.ts",
     ),
     outfile: path.join(OUT_DIR, "account-dialogs.client.js"),

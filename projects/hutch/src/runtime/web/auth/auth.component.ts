@@ -31,6 +31,10 @@ const CHANGE_PASSWORD_FORM_TEMPLATE = readFileSync(join(__dirname, "change-passw
 
 const CHANGE_PASSWORD_LOADER_HTML = renderInFlightDots("auth-form__loader in-flight-dots");
 
+const CHANGE_PASSWORD_FAILURE_MESSAGE = "Couldn't change your password.";
+
+export const CHANGE_PASSWORD_CLIENT_SCRIPT = '<script src="/client-dist/change-password.client.js" defer></script>';
+
 const CHANGE_PASSWORD_FIELDS = ["currentPassword", "password", "confirmPassword"] as const;
 
 interface AuthFormData {
@@ -269,6 +273,7 @@ export function renderChangePasswordForm(data: ChangePasswordFormData): string {
 		email: data.email,
 		formAction: data.formAction,
 		loaderHtml: CHANGE_PASSWORD_LOADER_HTML,
+		failureMessage: CHANGE_PASSWORD_FAILURE_MESSAGE,
 		currentPasswordField: field("currentPassword"),
 		passwordField: field("password"),
 		confirmPasswordField: field("confirmPassword"),
@@ -293,5 +298,6 @@ export function ChangePasswordPage(data: ChangePasswordFormData & { forgotHref: 
 		styles: `${IN_FLIGHT_DOTS_STYLES}${AUTH_STYLES}`,
 		bodyClass: "page-change-password",
 		content: { html: content },
+		scripts: CHANGE_PASSWORD_CLIENT_SCRIPT,
 	};
 }
