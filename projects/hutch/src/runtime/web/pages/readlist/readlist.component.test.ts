@@ -222,17 +222,12 @@ describe("ReadlistPage", () => {
 		expect(alert.classList.contains("alert--hidden")).toBe(true);
 	});
 
-	it("renders the save card, posting to the default readlist, on a custom readlist", () => {
-		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } });
-		const card = doc.querySelector("[data-test-save-card]");
-		assert(card, "the save card must render on a custom readlist");
-		const form = card.querySelector('[data-test-form="save-article"]');
-		assert(form, "the save card must submit through a form");
-		const action = form.getAttribute("action");
-		assert(action, "the save form must have a destination");
-		const url = new URL(action, "https://internal.invalid");
-		expect(url.pathname).toBe("/queue/save");
-		expect(url.searchParams.has("queue")).toBe(false);
+	it("leaves the save card out of a custom readlist and keeps it on All", () => {
+		const onWork = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } });
+		const onAll = pageDoc();
+
+		expect(onWork.querySelectorAll("[data-test-save-card]")).toHaveLength(0);
+		expect(onAll.querySelectorAll("[data-test-save-card]")).toHaveLength(1);
 	});
 
 	it("points every filter tab at its own listing", () => {

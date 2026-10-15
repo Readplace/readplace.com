@@ -110,9 +110,7 @@ describe("GET /queue save skeleton", () => {
 		const skeleton = doc.querySelector("[data-test-save-skeleton]");
 		assert(skeleton, "the skeleton renders on every readlist");
 		expect(skeleton.classList.contains("readlist-save-skeleton--inert")).toBe(true);
-		const card = doc.querySelector("[data-test-save-card]");
-		assert(card, "the save card renders on a reader-made readlist");
-		expect(card.className).toBe("readlist-save");
+		expect(doc.querySelector("[data-test-save-card]")).toBeNull();
 	});
 
 	it("stays inert when access is read-only", async () => {

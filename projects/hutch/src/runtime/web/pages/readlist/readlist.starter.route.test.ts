@@ -284,7 +284,7 @@ describe("starter readlist", () => {
 			).toEqual(labelHidden);
 		}
 	});
-	it("renders explanation and attribution with plain forms and saves personal articles to All", async () => {
+	it("renders explanation and attribution without the save bar and saves personal articles to All", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.shared.now = () => NOW;
 		const created = await fixture.auth.createUser({
@@ -349,7 +349,9 @@ describe("starter readlist", () => {
 		).toHaveLength(10);
 		expect(document.body.textContent).toContain("Added by Readplace from Hacker News");
 		expect(document.body.textContent).toContain("Readplace added");
-		const form = document.querySelector('form[data-test-form="save-article"]');
+		expect(document.querySelector('form[data-test-form="save-article"]')).toBeNull();
+		const onAll = new JSDOM((await agent.get("/queue")).text).window.document;
+		const form = onAll.querySelector('form[data-test-form="save-article"]');
 		assert(form);
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.querySelector('input[name="queue"]')).toBeNull();

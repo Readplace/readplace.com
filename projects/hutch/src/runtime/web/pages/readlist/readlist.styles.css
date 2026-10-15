@@ -35,6 +35,10 @@
   min-width: 0;
 }
 
+.readlist__lead:not(:has(> :not(.alert--hidden))) {
+  display: none;
+}
+
 .readlist__side {
   display: flex;
   flex-direction: column;

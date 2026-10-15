@@ -13,7 +13,6 @@ import {
 import type { AlertContent, CspNonce, PageBody } from "@packages/web-shell";
 
 import { ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
-import type { SaveTip } from "../../shared/save-tip/save-tip.component";
 import { SUBSCRIBE_PLANS_STYLES } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { WIZARD_STYLES, type WizardRender, renderWizard } from "../../shared/wizard/wizard.component";
 import type { WizardHeading } from "../../shared/wizard/wizard.types";
@@ -48,7 +47,6 @@ import {
 	renderPurposeDeleteConfirm,
 } from "./readlist-purpose-delete-confirm.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
-import { renderReadlistSave, toReadlistSaveDisplayModel } from "./readlist-save.component";
 import { readlistReturnQuery } from "./readlist.url";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
@@ -216,7 +214,6 @@ export interface ReadlistPreferencesViewModel {
 	accessIsReadOnly: boolean;
 	subscriptionBanner: SubscriptionBannerState;
 	onboarding: ReadlistOnboarding;
-	saveTip: SaveTip;
 	query: Record<string, unknown>;
 	cspNonce: CspNonce;
 }
@@ -252,13 +249,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: vm.inboxAlert ?? readlistAlertFor(vm.query) }),
-		saveCardHtml: renderReadlistSave(
-			toReadlistSaveDisplayModel({
-				filters: { readlist: vm.readlist.slug, tab: "queue", page: 1 },
-				accessIsReadOnly: vm.accessIsReadOnly,
-				saveTipState: vm.saveTip.state,
-			}),
-		),
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",
@@ -290,7 +280,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		wizardPopoverHtml: controls.wizardPopoverHtml,
 		purposeDeleteConfirmHtml: controls.purposeDeleteConfirmHtml,
 		subscribePlansHtml: side.subscribePlansHtml,
-		saveTipHtml: vm.saveTip.html,
 	});
 
 	return {

@@ -59,7 +59,6 @@ function page(overrides: {
 			completedBefore: false,
 			completionUnearned: false,
 		},
-		saveTip: { state: "due", html: "" },
 		query: overrides.query ?? {},
 		cspNonce: NONCE,
 	});
@@ -334,12 +333,14 @@ describe("ReadlistPreferencesPage", () => {
 		).toEqual(["What's this readlist for?"]);
 	});
 
-	it("wraps the panel in the readlist chrome: the save card ahead of it and the setup guide beside it", () => {
+	it("wraps the panel in the readlist chrome without the save card, with the setup guide beside it", () => {
 		const doc = documentOf(page({}).content.html);
 		const side = doc.querySelector(".readlist__side");
 		assert(side, "the preferences page must render the side column");
 
-		expect(doc.querySelectorAll(".readlist__lead [data-test-save-card]")).toHaveLength(1);
+		const lead = doc.querySelector(".readlist__lead");
+		assert(lead, "the preferences page must render the lead column");
+		expect(Array.from(lead.children, (child) => child.getAttribute("data-test-alert"))).toEqual(["readlist"]);
 		expect(side.querySelectorAll("[data-test-onboarding]")).toHaveLength(1);
 	});
 

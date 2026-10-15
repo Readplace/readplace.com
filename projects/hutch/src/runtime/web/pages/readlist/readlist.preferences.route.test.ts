@@ -210,8 +210,8 @@ describe("GET /queue/queues/:slug/preferences", () => {
 			"readlist__browse",
 		]);
 		const lead = main.querySelector(".readlist__lead");
-		assert(lead, "the column must lead with the alert and the save card");
-		const LEAD_PARTS = ['[data-test-alert="readlist"]', "[data-test-save-card]"];
+		assert(lead, "the column must lead with the alert");
+		const LEAD_PARTS = ['[data-test-alert="readlist"]'];
 		expect(Array.from(lead.children, (child) => LEAD_PARTS.find((part) => child.matches(part)))).toEqual(
 			LEAD_PARTS,
 		);
@@ -223,18 +223,14 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		);
 	});
 
-	it("wraps the panel in the readlist chrome: the save card posting to /queue/save and the setup guide beside it", async () => {
+	it("wraps the panel in the readlist chrome without the save card, with the setup guide beside it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		const saveForm = doc.querySelector('[data-test-save-card] form[data-test-form="save-article"]');
-		assert(saveForm, "the preferences page must offer the save card");
-		expect(saveForm.getAttribute("action")).toBe(
-			"/queue/save?utm_source=queue&utm_medium=internal&utm_content=save",
-		);
+		expect(doc.querySelector("[data-test-save-card]")).toBeNull();
 		const side = doc.querySelector(".readlist__side");
 		assert(side, "the preferences page must render the side column");
 		expect(side.querySelectorAll("[data-test-setup-guide]")).toHaveLength(1);

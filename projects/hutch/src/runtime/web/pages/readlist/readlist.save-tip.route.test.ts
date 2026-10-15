@@ -24,6 +24,12 @@ function saveTipCookies(headers: {
 	return cookies.filter((cookie) => cookie.startsWith(`${SAVE_TIP_COOKIE_NAME}=`));
 }
 
+function confirmPopoverKeys(html: string): string[] {
+	return Array.from(documentOf(html).querySelectorAll("[data-test-confirm-popover]"), (panel) =>
+		panel.getAttribute("data-test-confirm-popover") ?? "",
+	);
+}
+
 function panelOf(html: string): Element {
 	const panel = documentOf(html).querySelector("[data-test-confirm-popover='save-tip']");
 	assert(panel, "the save-tip panel must be rendered on every gated surface");
@@ -56,6 +62,20 @@ describe("Save tip — the readlist save bar", () => {
 				control.getAttribute("data-test-action"),
 			),
 		).toEqual(["save-tip-continue", "save-tip-install"]);
+	});
+
+	it("renders the panel only on All, the one readlist with a save bar to open it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const created = await agent.post("/queue/queues").type("form").send({ label: "New Readlist" });
+		const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
+		assert(slug, "creating a readlist must land the reader on it");
+
+		const onAll = confirmPopoverKeys((await agent.get("/queue")).text);
+		const onCustom = confirmPopoverKeys((await agent.get(`/queue?queue=${slug}`)).text);
+
+		expect(onAll).toContain("save-tip");
+		expect(onCustom).toEqual(onAll.filter((key) => key !== "save-tip"));
 	});
 
 	it("stops offering the tip once a save has been through the warning", async () => {

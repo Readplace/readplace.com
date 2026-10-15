@@ -26,7 +26,6 @@ import { z } from "zod";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
-import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import type { ReadlistOnboarding } from "./readlist.component";
 import { readerReadlists } from "./readlist-context";
@@ -144,7 +143,6 @@ export function initReadlistPreferencesRoutes(deps: {
 					accessIsReadOnly,
 					subscriptionBanner: toSubscriptionBannerState(access, deps.now()),
 					onboarding,
-					saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }),
 					query: req.query,
 					purposeError: error.purposeError,
 					cspNonce: requireCspNonce(req),
