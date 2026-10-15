@@ -41,7 +41,7 @@ function taggedShareUrl(input: ShareInput, medium: ShareTargetKey | "copy"): str
 	return url.toString();
 }
 
-export function buildShareTargets(input: ShareInput): ShareTarget[] {
+function buildShareTargets(input: ShareInput): ShareTarget[] {
 	const title = encodeURIComponent(input.title);
 	const linkFor = (medium: ShareTargetKey): string => encodeURIComponent(taggedShareUrl(input, medium));
 	return [

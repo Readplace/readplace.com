@@ -7,7 +7,6 @@ import {
 	ACCOUNT_CANCEL_MAX_POLLS,
 	type AccountUrlState,
 	buildAppearanceSection,
-	buildPaymentSectionViewModel,
 	buildProfileSection,
 	buildSecuritySection,
 	toAccountViewModel,
@@ -761,7 +760,14 @@ describe("parseAccountQuery", () => {
 	});
 });
 
-describe("buildPaymentSectionViewModel", () => {
+function paymentSectionFor(
+	payment: Parameters<typeof toAccountViewModel>[0]["payment"],
+	manage: AccountUrlState["manage"],
+) {
+	return accountVm({ access: ACTIVE, payment, queryState: { ...BASE_QUERY, manage } }).payment;
+}
+
+describe("toAccountViewModel — payment section", () => {
 	const CLOSED_PANEL = {
 		state: "closed",
 		hasNotice: false,
@@ -776,7 +782,7 @@ describe("buildPaymentSectionViewModel", () => {
 	};
 
 	it("hides the whole section for a reader with no Stripe customer, with no row, panel or action", () => {
-		const vm = buildPaymentSectionViewModel({ kind: "no-customer" }, "payment");
+		const vm = paymentSectionFor({ kind: "no-customer" }, "payment");
 		assert.equal(vm.state, "hidden");
 		assert.equal(vm.isShown, false);
 		assert.equal(vm.primary, undefined);
@@ -789,7 +795,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("degrades a failed card read to a retry message, with no action and the panel shut whatever the query asks", () => {
-		const vm = buildPaymentSectionViewModel({ kind: "provider-error" }, "payment");
+		const vm = paymentSectionFor({ kind: "provider-error" }, "payment");
 		assert.equal(vm.state, "provider-error");
 		assert.equal(vm.isShown, true);
 		assert.equal(vm.isError, true);
@@ -799,7 +805,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("shows the primary card as the row — brand tile, title, Primary badge and expiry — with Update payment method trailing and the panel shut", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [
@@ -840,7 +846,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("opens the panel on ?manage=payment with the backups, their actions and the hint, and the row's action becomes Done", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_primary", true), savedCard("pm_backup", false, { last4: "5555", expMonth: 8, expYear: 2029 })],
@@ -892,7 +898,7 @@ describe("buildPaymentSectionViewModel", () => {
 		["link", "CARD", "Card"],
 		["constructor", "CARD", "Card"],
 	])("labels a %s card's tile %s and names it %s", (brand, tileLabel, name) => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_primary", true, { brand, last4: "0005" })],
@@ -907,7 +913,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("shows the add button in the open panel when there is room and a publishable key", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_a", true)],
@@ -927,7 +933,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("hides the add button and shows the limit hint at the 3-card cap", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_a", true), savedCard("pm_b", false), savedCard("pm_c", false)],
@@ -943,7 +949,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("hides the add button when there is no publishable key, even with room", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_a", true)],
@@ -963,7 +969,7 @@ describe("buildPaymentSectionViewModel", () => {
 		["card_setup_failed", /couldn't verify your new card, so it wasn't saved/],
 		["card_setup_unverified", /couldn't verify your new card just now/],
 	] as const)("opens the panel on the %s notice", (cardError, notice) => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_a", true)],
@@ -979,7 +985,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("opens the panel in the adding state with the publishable key, client secret, and setup id", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_a", true)],
@@ -1001,7 +1007,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("points the add-card Cancel back at the open payment panel, where every other card flow returns", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_a", true)],
@@ -1018,7 +1024,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("cannot enter the adding state without a publishable key", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_a", true)],
@@ -1034,7 +1040,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("offers Add a card in the row when no card is on file and the panel is shut", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{ kind: "loaded", cards: [], publishableKey: "pk_test", cardError: undefined, adding: undefined },
 			undefined,
 		);
@@ -1050,7 +1056,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("leaves the no-card row without an add form when there is no publishable key to add one with", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{ kind: "loaded", cards: [], publishableKey: undefined, cardError: undefined, adding: undefined },
 			undefined,
 		);
@@ -1059,7 +1065,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("moves Add a card from the row into the open panel", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{ kind: "loaded", cards: [], publishableKey: "pk_test", cardError: undefined, adding: undefined },
 			"payment",
 		);
@@ -1070,7 +1076,7 @@ describe("buildPaymentSectionViewModel", () => {
 	});
 
 	it("treats saved cards with no primary as no primary card, listing every card as a backup the reader can promote", () => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{
 				kind: "loaded",
 				cards: [savedCard("pm_a", false), savedCard("pm_b", false), savedCard("pm_c", false)],
@@ -1097,7 +1103,7 @@ describe("buildPaymentSectionViewModel", () => {
 		["one saved card", [savedCard("pm_a", false)]],
 		["the 3-card cap", [savedCard("pm_a", false), savedCard("pm_b", false), savedCard("pm_c", false)]],
 	])("offers Update payment method, not Add a card, on the shut row when no card is primary, at %s", (_label, cards) => {
-		const vm = buildPaymentSectionViewModel(
+		const vm = paymentSectionFor(
 			{ kind: "loaded", cards, publishableKey: "pk_test", cardError: undefined, adding: undefined },
 			undefined,
 		);

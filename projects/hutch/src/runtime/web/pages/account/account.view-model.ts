@@ -565,7 +565,7 @@ function unavailableSection(state: "hidden" | "provider-error"): PaymentSectionV
 	};
 }
 
-export function buildPaymentSectionViewModel(
+function buildPaymentSectionViewModel(
 	input: PaymentSectionInput,
 	manage: AccountManage,
 ): PaymentSectionViewModel {
