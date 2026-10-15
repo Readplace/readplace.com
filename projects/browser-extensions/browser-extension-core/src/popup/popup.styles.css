@@ -669,7 +669,7 @@ input {
 }
 
 .list-view__action::before {
-  inset: -10px -4px;
+  inset: -10px 0;
 }
 
 .list-view__control--pending,

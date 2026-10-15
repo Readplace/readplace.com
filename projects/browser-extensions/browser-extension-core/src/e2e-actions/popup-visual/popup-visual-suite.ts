@@ -104,14 +104,19 @@ async function listSkeletonSettled(page: Page): Promise<void> {
 }
 
 async function noOverflow(page: Page): Promise<void> {
-	const geometry = await page.evaluate(() => ({
-		bodyWidth: document.body.getBoundingClientRect().width,
-		bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
-		pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-	}));
+	const geometry = await page.evaluate(() => {
+		const linkList = document.getElementById("link-list");
+		return {
+			bodyWidth: document.body.getBoundingClientRect().width,
+			bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
+			pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+			linkListOverflow: linkList === null ? 0 : linkList.scrollWidth - linkList.clientWidth,
+		};
+	});
 	expect(geometry.bodyWidth).toBe(Math.min(400, page.viewportSize()?.width ?? 0));
 	expect(geometry.bodyOverflow).toBeLessThanOrEqual(0);
 	expect(geometry.pageOverflow).toBeLessThanOrEqual(0);
+	expect(geometry.linkListOverflow).toBeLessThanOrEqual(0);
 }
 
 async function frameIs400By600(page: Page): Promise<void> {
