@@ -423,6 +423,12 @@
 
 /* ---------- Review page ---------- */
 
+.import__results {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
 .import__listing {
   background: var(--card);
   border: 1px solid var(--border);

@@ -451,6 +451,23 @@ test.describe("Import page at the design width", () => {
 		await captureCheckpoint(page, REVIEW_LIGHT);
 	});
 
+	test("sits the review pager 16px below the listing card", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `import-visual-review-pager-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		await openImport(page, "?mode=upload");
+		const pagedUrls = Array.from({ length: 51 }, (_, index) => `https://example.com/essays/paged-${index}`);
+		await page.locator(FILE_INPUT).setInputFiles({
+			name: "links.txt",
+			mimeType: "text/plain",
+			buffer: Buffer.from(pagedUrls.join("\n"), "utf-8"),
+		});
+		await page.waitForSelector(REVIEW_LIST);
+		await waitForBrandFonts(page, ["Inter"]);
+
+		const [listing, pager] = await page.evaluate(measureBoxes, [LISTING, "[data-test-import-pagination]"]);
+
+		assertNear({ actual: pager.y - (listing.y + listing.height), expected: 16 }, "the pager sits 16px below the card");
+	});
+
 	test("keeps the review listing in the main column (dark)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await signInAsNewReader(page, `import-visual-review-dark-${testInfo.workerIndex}-${Date.now()}@example.com`);
