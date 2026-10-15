@@ -1,6 +1,6 @@
 ---
 title: "Find a Saved Article the Way You Remember It"
-description: "A saved article survives in memory as fragments: part of a title, the site it came from, roughly how long it runs, roughly when it was saved. The readlist now takes those fragments as the question. A search field under the tabs matches titles, sites and addresses, a filter drawer narrows by reading time and saved date, and the narrowed list keeps its own URL and works without JavaScript."
+description: "Memory keeps a saved article as fragments: part of a title, the site it came from, roughly how long it runs, roughly when it was saved. The readlist now takes those fragments as the question. A search field under the tabs matches titles, sites and addresses, a filter drawer narrows by reading time and saved date, and the narrowed list keeps its own URL and works without JavaScript."
 tldr: "Scrolling is no longer the way to find a saved article. The readlist in Readplace now has a search field under its tabs and a filter drawer beside it: type any part of a title, a site's name or its address and press Enter, or tick chips for reading time and saved date, and the open tab narrows to what matches. The narrowed list keeps its own URL, survives paging and tab switches, works without JavaScript, and when nothing matches, 1 button clears exactly what was set."
 slug: "find-a-saved-article-the-way-you-remember-it"
 date: "2026-10-11"
@@ -10,7 +10,7 @@ tags: ["changelog"]
 banner: "Find a saved article from half a memory of it"
 ---
 
-"About batteries, 10 or 15 minutes long, saved near the start of the month." A saved article survives in memory as a description like that, and the readlist used to take no part of it as input. Getting the article back meant scrolling until a card looked familiar.
+"About batteries, 10 or 15 minutes long, saved near the start of the month." That is how memory hands a saved article back, and the readlist used to take no part of it as input. Getting the article back meant scrolling until a card looked familiar.
 
 The readlist now takes the description itself.
 
@@ -24,17 +24,17 @@ The search reads the tab that's open, so To Read answers with unread articles an
 
 ## A drawer for length and age
 
-The filter button opens a drawer on the right edge with 2 groups of chips. Reading time holds "Under 5 min", "5–10 min", "10–20 min" and "20+ min". Saved date holds "Today", "This week", "This month" and "Older", where Older starts 30 days back.
+The filter button opens a drawer on the right edge with 2 groups of chips. Reading time holds "Under 5 min", "5–10 min", "10–20 min" and "20+ min". Saved date holds "Today", "This week", "This month" and "Older", and those count back from now: "This month" covers the last 30 days, and "Older" holds everything before that.
 
-Ticks inside a group widen the answer, and ticks across groups narrow it. "10–20 min" together with "20+ min" asks for anything over 10 minutes, and adding "This month" keeps the recent part of that. While any chip is ticked, the filter button carries a dot and the count, so a narrowed list doesn't pass for the whole one.
+Ticks inside a group widen the answer, and ticks across groups narrow it. "10–20 min" together with "20+ min" asks for anything 10 minutes or longer, and adding "This month" keeps the recent part of that. While any chip is ticked, the filter button carries a dot, and a screen reader hears the count, so a narrowed list doesn't pass for the whole one.
 
 > **Memory keeps a rough length and a rough date long after it drops the exact title, and those 2 are now the filters.**
 
 ## The narrowed list has an address
 
-The search and the drawer both submit as plain GET forms, so the query and the ticked chips live in the page's URL. A narrowed list survives paging, a change of sort order and a switch between To Read and Read, and the back button retraces every step. A view worth repeating, such as "20+ min" inside To Read, can live on as a bookmark.
+The search submits as a plain GET form, and the drawer redirects to the narrowed list's own URL, so the query and the ticked chips live in the page's URL. A narrowed list survives paging, a change of sort order and a switch between To Read and Read, and the back button retraces every step. A view worth repeating, such as "20+ min" inside To Read, can live on as a bookmark.
 
-The same plainness is why none of it needs JavaScript. With scripts off, the drawer gives way to a simple disclosure under the same button, and the same forms submit.
+None of it needs JavaScript. The drawer is a native HTML popover, so the button opens it without a script. A browser too old for popovers gets a simple disclosure under the same button instead, and the same forms submit.
 
 ## An empty answer names what to clear
 
