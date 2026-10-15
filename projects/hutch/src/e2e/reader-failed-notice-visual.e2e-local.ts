@@ -189,6 +189,7 @@ function noticeCheckpoint(input: {
 	return {
 		name: input.name,
 		settled: async (page) => {
+			await page.mouse.move(0, 0);
 			await page.waitForSelector(`${NOTICE}[data-reader-status="${input.variant}"]`);
 			await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
 		},
