@@ -60,7 +60,7 @@ final class ReadingListViewTests: XCTestCase {
 		)
 	}
 
-	func testSigningOutPlaysTheVideoAndUnmutedMusicLikeReplayIntro() async {
+	func testSigningOutReplaysTheIntroAndPreservesMute() async {
 		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
 		let session = makeSession()
 		let log = MusicLog()
@@ -73,8 +73,8 @@ final class ReadingListViewTests: XCTestCase {
 
 		XCTAssertEqual(intro.phase, .playing, "the video plays again after signing out")
 		XCTAssertEqual(log.restarts, 1, "the theme restarts with it, so the video is scored")
-		XCTAssertFalse(intro.isMuted, "the intro is unmuted, so a muted login screen still hears it")
-		XCTAssertEqual(log.muted, false)
+		XCTAssertEqual(intro.isMuted, true, "signing out keeps the reader's mute choice")
+		XCTAssertEqual(log.muted, true)
 	}
 
 	func testAFailedRevokeStillSignsOutAndPlaysTheIntro() async {

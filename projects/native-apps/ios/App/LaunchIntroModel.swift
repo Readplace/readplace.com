@@ -42,9 +42,6 @@ final class LaunchIntroModel: ObservableObject {
 
 	func replay() {
 		phase = .playing
-		isMuted = false
-		mutePreference.setMuted(false)
-		music.setMuted(false)
 		music.restart()
 	}
 

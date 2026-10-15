@@ -161,17 +161,28 @@ final class LaunchIntroModelTests: XCTestCase {
 		XCTAssertEqual(log.restarts, 1)
 	}
 
-	func testReplayUnmutesTheMusicAndRemembersIt() {
+	func testReplayPreservesMuteAcrossRelaunch() {
 		let log = MusicLog()
-		let preference = mutePreference(muted: true)
+		let defaults = TestSupport.ephemeralDefaults()
+		let preference = IntroMutePreference(defaults: defaults)
 		let model = makeModel(log: log, seen: freshSeen(), mute: preference)
-		XCTAssertTrue(model.isMuted, "started muted from the saved preference")
+		model.toggleMute()
 
 		model.replay()
 
-		XCTAssertFalse(model.isMuted, "opening the video unmutes")
-		XCTAssertFalse(preference.isMuted, "and the unmute is remembered")
-		XCTAssertEqual(log.muted, false)
+		XCTAssertEqual(model.isMuted, true, "replaying the intro keeps the reader's mute choice")
+		XCTAssertEqual(preference.isMuted, true)
+		XCTAssertEqual(log.muted, true)
+
+		let relaunchedLog = MusicLog()
+		let relaunched = makeModel(
+			log: relaunchedLog,
+			seen: consumedSeen(),
+			mute: IntroMutePreference(defaults: defaults)
+		)
+
+		XCTAssertEqual(relaunched.isMuted, true)
+		XCTAssertEqual(relaunchedLog.muted, true, "a later launch applies the saved mute choice to the player")
 	}
 
 	func testTogglingMutePersistsAppliesAndFlipsBack() {
