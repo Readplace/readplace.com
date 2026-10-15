@@ -1,4 +1,4 @@
-import type { ReadingListItemId } from "../domain/reading-list-item.types";
+import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { initInMemoryReadingList } from "./in-memory-reading-list";
 
 describe("initInMemoryReadingList", () => {
@@ -47,7 +47,7 @@ describe("initInMemoryReadingList", () => {
 			const list = initInMemoryReadingList();
 
 			const result = await list.invokeAction({
-				id: "nonexistent-id" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("nonexistent-id"),
 				name: "update-status",
 			});
 

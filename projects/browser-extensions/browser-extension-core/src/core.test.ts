@@ -1,3 +1,4 @@
+import { ReadingListItemIdSchema } from "./domain/reading-list-item-id";
 import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
@@ -8,7 +9,7 @@ import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
 import type { BulkSaveResult, BulkSavePage, CollectionPage, LoadPageResult, SaveUrl, SavePages, SaveUrlResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Auth, GuardedResult, WhenLoggedIn } from "./auth/auth.types";
-import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
+import type { ReadingListItem } from "./domain/reading-list-item.types";
 import { MENU_ITEM_SAVE_ALL_TABS } from "./get-context-menu-target";
 
 interface FakeShell {
@@ -367,7 +368,7 @@ function loggedInAuth(): Auth {
 
 function makeItem(url: string): ReadingListItem {
 	return {
-		id: "id-1" as ReadingListItemId,
+		id: ReadingListItemIdSchema.parse("id-1"),
 		url,
 		title: "Title",
 		savedAt: new Date(0),
@@ -664,7 +665,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 		});
 
 		core.invoke("item-action", {
-			id: "ghost" as ReadingListItemId,
+			id: ReadingListItemIdSchema.parse("ghost"),
 			name: "update-status",
 		});
 		await flush();
@@ -687,7 +688,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 		core.on("invoked-item-action", { success: () => {}, failure: (e) => failures.push(e) });
 
 		core.invoke("item-action", {
-			id: "any-id" as ReadingListItemId,
+			id: ReadingListItemIdSchema.parse("any-id"),
 			name: "update-status",
 		});
 		await flush();

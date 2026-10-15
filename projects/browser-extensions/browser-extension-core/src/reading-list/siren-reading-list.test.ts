@@ -1,6 +1,6 @@
+import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import assert from "node:assert/strict";
 import { noopLogger } from "@packages/hutch-logger";
-import type { ReadingListItemId } from "../domain/reading-list-item.types";
 import type { CollectionPage, LoadPageResult } from "./reading-list.types";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import {
@@ -2742,7 +2742,7 @@ describe("initSirenReadingList", () => {
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.saveUrl({ url: "https://example.com/a", title: "A" });
 			const result = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "update-status",
 			});
 			assert.equal(result.ok, true);
@@ -2827,7 +2827,7 @@ describe("initSirenReadingList", () => {
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
 			const result = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "update-status",
 			});
 			assert.equal(result.ok, true);
@@ -2861,7 +2861,7 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "update-status",
 			});
 			assert.equal(result.ok, true);
@@ -2891,7 +2891,7 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "update-status",
 			});
 			expect(result).toEqual({ ok: false, reason: "not-found" });
@@ -2918,7 +2918,7 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" }),
+				list.invokeAction({ id: ReadingListItemIdSchema.parse("article-1"), name: "update-status" }),
 			).rejects.toThrow("update-status failed: 500");
 		});
 
@@ -2950,7 +2950,7 @@ describe("initSirenReadingList", () => {
 			};
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" }),
+				list.invokeAction({ id: ReadingListItemIdSchema.parse("article-1"), name: "update-status" }),
 			).rejects.toThrow("Network unreachable");
 		});
 
@@ -2972,7 +2972,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			const result = await list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" });
+			const result = await list.invokeAction({ id: ReadingListItemIdSchema.parse("article-1"), name: "update-status" });
 			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
 
@@ -2984,7 +2984,7 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" }),
+				list.invokeAction({ id: ReadingListItemIdSchema.parse("article-1"), name: "update-status" }),
 			).rejects.toThrow("Navigation failed: 500");
 		});
 
@@ -3001,7 +3001,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			const result = await list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" });
+			const result = await list.invokeAction({ id: ReadingListItemIdSchema.parse("article-1"), name: "update-status" });
 			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
 
@@ -3042,7 +3042,7 @@ describe("initSirenReadingList", () => {
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
 			const result = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "mark-read",
 			});
 			assert.equal(result.ok, true);
@@ -3100,7 +3100,7 @@ describe("initSirenReadingList", () => {
 			 * the boundary — so the server must still receive status=read, sourced
 			 * from the action's declared field value and urlencoded per its type. */
 			const result = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "update-status",
 			});
 			assert.equal(result.ok, true);
@@ -3119,7 +3119,7 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({
-				id: "ghost" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("ghost"),
 				name: "mark-read",
 			});
 			expect(result).toEqual({ ok: false, reason: "not-found" });
@@ -3755,7 +3755,7 @@ describe("initSirenReadingList", () => {
 			await list.getItems();
 
 			const invoked = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "update-status",
 			});
 			assert(invoked.ok, "the advertised action should apply");
@@ -3839,7 +3839,7 @@ describe("initSirenReadingList", () => {
 
 			const pendingPage = list.loadPage({ index: 1 });
 			const invoked = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "update-status",
 			});
 			assert(invoked.ok, "the advertised action should apply");
@@ -4210,7 +4210,7 @@ describe("initSirenReadingList", () => {
 
 			const pendingSort = list.loadSort({ index: 1 });
 			const invoked = await list.invokeAction({
-				id: "article-1" as ReadingListItemId,
+				id: ReadingListItemIdSchema.parse("article-1"),
 				name: "update-status",
 			});
 			assert(invoked.ok, "the advertised action should apply");

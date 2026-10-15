@@ -1,12 +1,10 @@
-import type {
-	ReadingListItem,
-	ReadingListItemId,
-} from "../domain/reading-list-item.types";
+import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
+import type { ReadingListItem } from "../domain/reading-list-item.types";
 import { filterByQuery } from "./filter-by-query";
 
 function item(fields: { url: string; title: string }): ReadingListItem {
 	return {
-		id: crypto.randomUUID() as ReadingListItemId,
+		id: ReadingListItemIdSchema.parse(crypto.randomUUID()),
 		url: fields.url,
 		title: fields.title,
 		savedAt: new Date(),

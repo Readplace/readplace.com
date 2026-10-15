@@ -1,3 +1,4 @@
+import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import type {
 	ReadingListItem,
 	ReadingListItemId,
@@ -35,7 +36,7 @@ export function initInMemoryReadingList(): {
 			}
 		}
 
-		const id = crypto.randomUUID() as ReadingListItemId;
+		const id = ReadingListItemIdSchema.parse(crypto.randomUUID());
 		/** Advertise a single per-item action (`update-status`): invoking an
 		 * advertised action returns the current list, matching the real contract
 		 * where no per-item action reaching the extension removes an article. */
