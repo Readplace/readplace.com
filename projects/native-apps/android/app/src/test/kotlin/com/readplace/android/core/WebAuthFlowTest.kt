@@ -256,13 +256,23 @@ class WebAuthFlowTest {
 	fun `a callback carrying an error param is denied without exchanging`() = runTest {
 		val request = request()
 
-		val denied = flow { callback("error=access_denied&state=${request.state}") }
+		val denied = flow { callback("error=server_error&state=${request.state}") }
 
 		val error = failureOf(denied.start(request))
 
-		assertEquals("access_denied", (error as? AuthFlowError.Denied)?.reason)
-		assertEquals("Authorization was denied (access_denied).", error.message)
+		assertEquals("server_error", (error as? AuthFlowError.Denied)?.reason)
+		assertEquals("Authorization was denied (server_error).", error.message)
 		assertEquals("a denied authorization exchanges no code", 0, server.requestCount)
+	}
+
+	@Test
+	fun `cancelling on the consent page reports nothing and exchanges no code`() = runTest {
+		val request = request()
+
+		val result = flow { callback("error=access_denied&state=${request.state}") }.start(request)
+
+		assertNull("the consent page's Cancel is the same choice as dismissing the sheet, not an error", result)
+		assertEquals(0, server.requestCount)
 	}
 
 	@Test

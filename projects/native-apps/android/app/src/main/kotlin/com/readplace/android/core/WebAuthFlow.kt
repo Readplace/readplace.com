@@ -69,8 +69,16 @@ private suspend fun outcomeOf(
 		is WebAuthPresentation.Failure ->
 			Result.failure(AuthFlowError.PresentationFailed(presentation.message))
 		WebAuthPresentation.Dismissed -> null
-		is WebAuthPresentation.Returned -> completeSignIn(presentation.callbackUrl, request, oauth)
+		is WebAuthPresentation.Returned ->
+			if (cancelledOnConsentPage(presentation.callbackUrl)) {
+				null
+			} else {
+				completeSignIn(presentation.callbackUrl, request, oauth)
+			}
 	}
+
+private fun cancelledOnConsentPage(callbackUrl: String): Boolean =
+	queryItemsOf(callbackUrl).firstOrNull { it.first == "error" }?.second == "access_denied"
 
 /**
  * Completes sign-in: validate the callback, then exchange the code for tokens.

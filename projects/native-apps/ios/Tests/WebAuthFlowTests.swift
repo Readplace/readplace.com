@@ -77,6 +77,43 @@ final class WebAuthFlowTests: XCTestCase {
 		XCTAssertEqual(exchangeCount, 0)
 	}
 
+	func testCancellingOnTheConsentPageReportsNothingAndExchangesNoCode() async {
+		var exchangeCount = 0
+		let flow = initWebAuthFlow(deps: WebAuthFlowDependencies(
+			present: { _ in
+				.success(.returned(callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?error=access_denied&state=S")!))
+			},
+			exchange: { _, _ in
+				exchangeCount += 1
+				return .success(())
+			}
+		))
+
+		let result = await flow.start(makeRequest())
+
+		XCTAssertNil(result, "the consent page's Cancel is the same choice as dismissing the sheet, not an error")
+		XCTAssertEqual(exchangeCount, 0)
+	}
+
+	func testACallbackCarryingAnyOtherErrorStillReachesTheExchangeToSurface() async {
+		var exchangedURL: URL?
+		let flow = initWebAuthFlow(deps: WebAuthFlowDependencies(
+			present: { _ in
+				.success(.returned(callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?error=server_error&state=S")!))
+			},
+			exchange: { callbackURL, _ in
+				exchangedURL = callbackURL
+				return .failure(AuthFlowError.denied("server_error"))
+			}
+		))
+
+		guard case .failure(let error)? = await flow.start(makeRequest()) else {
+			return XCTFail("expected .failure for an error other than the consent page's Cancel")
+		}
+		XCTAssertEqual((error as? AuthFlowError)?.errorDescription, AuthFlowError.denied("server_error").errorDescription)
+		XCTAssertEqual(exchangedURL?.absoluteString, "\(AppConfig.nativeCallbackURL)?error=server_error&state=S")
+	}
+
 	func testAFailedPresentationSurfacesTheErrorAndExchangesNoCode() async {
 		var exchangeCount = 0
 		let flow = initWebAuthFlow(deps: WebAuthFlowDependencies(

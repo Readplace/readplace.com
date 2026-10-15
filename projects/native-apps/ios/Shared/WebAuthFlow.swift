@@ -36,9 +36,16 @@ func initWebAuthFlow(deps: WebAuthFlowDependencies) -> WebAuthFlow {
 				return .failure(error)
 			case .success(.dismissed):
 				return nil
+			case .success(.returned(let callbackURL)) where cancelledOnConsentPage(callbackURL):
+				return nil
 			case .success(.returned(let callbackURL)):
 				return await deps.exchange(callbackURL, request)
 			}
 		}
 	)
+}
+
+private func cancelledOnConsentPage(_ callbackURL: URL) -> Bool {
+	let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
+	return items.first { $0.name == "error" }?.value == "access_denied"
 }
