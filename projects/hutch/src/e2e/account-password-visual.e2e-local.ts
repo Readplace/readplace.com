@@ -130,9 +130,9 @@ async function desktopRowGeometry(page: Page): Promise<void> {
 	const [card, well, action] = await page.evaluate(measureBoxes, [SECURITY_CARD, SECURITY_WELL, CHANGE_ACTION]);
 	assertNear({ actual: card.height, expected: 98, tolerance: 0.5 }, "the Security card is a one-line row's 98px");
 	assertNear({ actual: card.x + card.width, expected: 1160 }, "the Security card ends on the 880px column's right edge");
-	assertNear({ actual: well.width, expected: 48 }, "the lock well is 48px wide");
-	assertNear({ actual: well.height, expected: 48 }, "the lock well is 48px tall");
-	assertNear({ actual: action.height, expected: 40 }, "Change password is an M button");
+	assertNear({ actual: well.width, expected: 48, tolerance: 0.5 }, "the lock well is 48px wide");
+	assertNear({ actual: well.height, expected: 48, tolerance: 0.5 }, "the lock well is 48px tall");
+	assertNear({ actual: action.height, expected: 40, tolerance: 0.5 }, "Change password is an M button");
 	assertNear({ actual: action.x + action.width, expected: card.x + card.width - 25 }, "Change password ends on the card's 24px inset");
 }
 

@@ -111,7 +111,9 @@ export function createRevokeUserOAuthClient(deps: OAuthModelDeps): RevokeUserOAu
 			if (stored.userId !== userId || stored.clientId !== clientId) continue;
 			deps.refreshTokenIndex.delete(stored.refreshToken);
 			deps.tokens.delete(accessToken);
-			deps.userIdIndex.get(userId)?.delete(accessToken);
+			const userTokens = deps.userIdIndex.get(userId);
+			assert(userTokens, "every stored token is indexed under its user");
+			userTokens.delete(accessToken);
 		}
 		for (const [code, stored] of deps.codes) {
 			if (stored.userId === userId && stored.clientId === clientId) deps.codes.delete(code);

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type {
 	Minutes,
 	SavedArticle,
@@ -770,7 +771,7 @@ describe("toArticleCollectionEntity", () => {
 			{ tabs, readlists: twoReadlists, sort: { options: sortOptions, current: "desc" } },
 		);
 
-		expect((entity.properties?.sort as { href: string }[]).map((entry) => entry.href)).toEqual([
+		expect(z.array(z.object({ href: z.string() })).parse(entity.properties?.sort).map((entry) => entry.href)).toEqual([
 			"/queue?queue=work&status=unread&order=desc",
 			"/queue?queue=work&status=unread&order=asc",
 		]);
