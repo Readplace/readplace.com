@@ -32,12 +32,23 @@ function showFailure(form: Element): void {
 	line.textContent = failure;
 }
 
+function clearFailure(form: Element): void {
+	const line = form.querySelector(FAILURE_LINE_SELECTOR);
+	assert(line, "the change-password form always carries its failure line");
+	line.textContent = "";
+}
+
 export function initChangePassword(deps: ChangePasswordDeps): void {
 	deps.document.addEventListener("htmx:beforeSwap", (event) => {
 		const form = formOf(event);
 		if (form === null || statusOf(event) === REFUSED_STATUS) return;
 		Reflect.set(Object(Reflect.get(event, "detail")), "shouldSwap", false);
 		showFailure(form);
+	});
+
+	deps.document.addEventListener("htmx:beforeRequest", (event) => {
+		const form = formOf(event);
+		if (form !== null) clearFailure(form);
 	});
 
 	deps.document.addEventListener("htmx:sendError", (event) => {

@@ -12,7 +12,7 @@ function init(bodyHtml: string) {
 	const document = dom.window.document;
 	initChangePassword({ document });
 
-	function element(selector: string, description: string): Element {
+	function element({ selector, description }: { selector: string; description: string }): Element {
 		const el = document.querySelector(selector);
 		assert(el, description);
 		return el;
@@ -24,14 +24,16 @@ function init(bodyHtml: string) {
 
 	return {
 		listenerErrors: () => listenerErrors,
-		form: () => element("form", "the form must be in the document"),
-		failureLine: () => element("p", "the form must carry its failure line").textContent,
+		form: () => element({ selector: "form", description: "the form must be in the document" }),
+		passwordForm: () => element({ selector: "form[data-change-password-form]", description: "the change-password form must be in the document" }),
+		failureLine: () => element({ selector: "p", description: "the form must carry its failure line" }).textContent,
 		answer: (target: Element, status: number) => {
 			const detail: Record<string, unknown> = { xhr: { status }, shouldSwap: status === 422 || status < 300 };
 			htmxEvent(target, "htmx:beforeSwap", detail);
 			return detail;
 		},
 		failToSend: (target: Element) => htmxEvent(target, "htmx:sendError", { xhr: { status: 0 } }),
+		resend: (target: Element) => htmxEvent(target, "htmx:beforeRequest", {}),
 		failToSendFromDocument: () =>
 			document.dispatchEvent(new dom.window.CustomEvent("htmx:sendError", { bubbles: true, detail: { xhr: { status: 0 } } })),
 	};
@@ -54,6 +56,15 @@ describe("initChangePassword", () => {
 		expect(app.failureLine()).toBe("Couldn't change your password.");
 	});
 
+	it("clears the failure line when the form is sent again", () => {
+		const app = init(FORM_MARKUP);
+		app.failToSend(app.form());
+
+		app.resend(app.form());
+
+		expect(app.failureLine()).toBe("");
+	});
+
 	it("keeps an unexpected page out of the form", () => {
 		const app = init(FORM_MARKUP);
 
@@ -74,10 +85,12 @@ describe("initChangePassword", () => {
 		const app = init(`<form data-test-other hx-post="/elsewhere"><button type="submit">Go</button></form>${FORM_MARKUP}`);
 		const other = app.form();
 
+		app.failToSend(app.passwordForm());
 		const detail = app.answer(other, 500);
 		app.failToSend(other);
+		app.resend(other);
 
-		expect([detail.shouldSwap, app.failureLine()]).toEqual([false, ""]);
+		expect([detail.shouldSwap, app.failureLine()]).toEqual([false, "Couldn't change your password."]);
 	});
 
 	it("ignores an event whose target is not an element", () => {
