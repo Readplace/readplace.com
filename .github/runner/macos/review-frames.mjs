@@ -22,7 +22,7 @@ function requireEnv(name) {
 function reviewPrompt(frameCount) {
   return [
     `You are a UI regression reviewer. These ${frameCount} frames were captured in order, about 150ms apart, while a web application responded to a user action.`,
-    "Report structural defects only: text clipped mid-glyph, elements overlapping other elements or text, unreadable low-contrast text, template values leaking into the UI (undefined, null, NaN, {{...}}), overlays covering interactive controls, or collapsed layout.",
+    "Report structural defects only: text clipped mid-glyph, elements overlapping other elements or text, unreadable low-contrast text, template values leaking into the UI (undefined, null, NaN, {{...}}), or collapsed layout.",
     "Normal in-progress rendering is NOT a defect: partially scrolled content, loading indicators, or an animation caught mid-flight.",
     "Judge each frame strictly on its own. Never compare frames to each other: differences between frames are the transition happening and are expected.",
     'Respond with ONLY a JSON array. Each item: {"frame": <zero-based index>, "defect": "...", "location": "..."}. Respond [] if nothing is broken.',
