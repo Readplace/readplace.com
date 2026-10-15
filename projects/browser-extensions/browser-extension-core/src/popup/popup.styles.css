@@ -513,6 +513,8 @@ input {
   align-items: center;
   flex: none;
   gap: 4px;
+  min-height: 36px;
+  margin-block: -8px;
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);

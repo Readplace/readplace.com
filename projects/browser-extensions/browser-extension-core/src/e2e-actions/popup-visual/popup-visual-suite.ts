@@ -137,9 +137,19 @@ async function rowActionHitArea(page: Page): Promise<void> {
 	expect(hitArea).toBeGreaterThanOrEqual(44);
 }
 
+async function sortTapFloor(page: Page): Promise<void> {
+	const [sort, count] = await Promise.all(
+		["#sort-button", ".list-view__count"].map((selector) =>
+			page.locator(selector).evaluate((element) => element.getBoundingClientRect().height),
+		),
+	);
+	expect([sort, count]).toEqual([36, 20]);
+}
+
 async function listGeometry(page: Page): Promise<void> {
 	await pagerShowsEveryControl(page);
 	await rowActionHitArea(page);
+	await sortTapFloor(page);
 }
 
 async function skeletonRowsEqual(page: Page): Promise<void> {
